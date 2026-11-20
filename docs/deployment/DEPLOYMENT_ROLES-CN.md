@@ -146,7 +146,7 @@ Eurogas Nexus **不会静默下载或安装** Docker Desktop、WSL、PostgreSQL�
 
 密钥保存在“管理 → 数据源”（凭据，使用 `EUROGAS_NEXUS_SECRET_KEY` 加密），或在运行环境中提供 `GIE_API_KEY`/`GIE_API_KEY_FILE`、`EIA_API_KEY`、`ENTSOE_SECURITY_TOKEN`。缺少密钥时，相应数据源的运行记录为 `credential_missing`，不进行任何请求；保存密钥后，默认关闭的需密钥数据源（GIE、GIE IIP、ENTSO-E）会在下一次调度扫描时自动开启，除非运维人员已将其关闭。授权价格供应商在客户配置相应凭据与数据范围之前保持禁用。
 
-`0.8.0` 的 `preview` 渠道尚未实现多用户登录或 SSO，因此 Server 必须指定
+`1.0.0-beta` 的 `preview` 渠道尚未实现多用户登录或 SSO，因此 Server 必须指定
 `-PrivateNetworkOnly`，部署在客户防火墙或 VPN 白名单之后，严禁直接暴露到公网。
 HTTPS 只保护传输，不能替代用户授权。后端认证和权限控制完成前，公网及多租户
 部署均属于阻塞项。

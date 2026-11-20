@@ -145,7 +145,7 @@ def test_current_docs_use_public_plan_workflow_and_preview_version() -> None:
 
     # Documents carry the display spelling (1.0.0-beta).
     assert f"Package version: `{APPLICATION_VERSION}`" in readme
-    assert "Channel: `preview`" in readme
+    assert "Channel: `beta`" in readme
     assert "not a production or GA release" in readme
     assert f"package version `{APPLICATION_VERSION}`" in changelog
     assert "not a production (GA) release" in changelog

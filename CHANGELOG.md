@@ -3,13 +3,86 @@
 All notable changes to Eurogas Nexus are listed here, newest first. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/) and versions follow
 [Semantic Versioning](https://semver.org/) as described in
-[docs/release/RELEASE_CHANNELS.md](docs/release/RELEASE_CHANNELS.md). The current package version `0.8.0`
-is on the `preview` channel and is not a production (GA) release.
+[docs/release/RELEASE_CHANNELS.md](docs/release/RELEASE_CHANNELS.md). The current package version `1.0.0-beta`
+is on the `beta` channel, for customer acceptance, and is not a production (GA) release.
 
 Each entry says what changed for the people using the product. Engineering detail for a
 version lives under [docs/release/notes](docs/release/notes).
 
 ## [Unreleased]
+
+## [1.0.0-beta] - 2026-11-20
+
+### About this release
+
+The beta for customer acceptance, published as the pre-release `v1.0.0-beta.1` (package
+version `1.0.0b1`). 1.0.0 follows acceptance. Release notes for desk leads and IT:
+[docs/release/notes/1.0.0-beta-RELEASE_NOTES.md](docs/release/notes/1.0.0-beta-RELEASE_NOTES.md);
+what the customer receives: [docs/release/DELIVERY_PACKAGE_1.0.0-beta.md](docs/release/DELIVERY_PACKAGE_1.0.0-beta.md).
+
+### Added
+
+- **Navigation by task**: four modes, **Desk** (Today, Prices, Network), **Deals**
+  (Opportunities, Contracts, Review), **Book** (Position, Limits & P&L, Delivery, Planning)
+  and **Research** (Fundamentals, Spreads, Cargo & netback, Reports). Old links still land.
+- **Today** by job function: My market, What needs me, My book, Fundamentals; for traders
+  and operations **My gas day** (in, out and net to clear per hub, by mandate) and the
+  **Gas day checklist** (nomination status per source, mismatches, LNG terminal steps, time
+  left turning amber and red). A status set there is the user's own record, labelled as
+  entered by hand; nothing is nominated.
+- **Prices**: hub board in each hub's own quotation, ladder, and a **Prompt** view
+  (within-day and day-ahead). The demo server has a simulated intraday exchange feed; every
+  simulated price says so.
+- **Opportunities** (Deals): evaluators for locational spreads, held capacity, sell-down,
+  event exposure, storage time spread and re-route through the pool, and a market lane "in
+  the market, not on your book", ranked by net edge per MWh after tariffs.
+- **Contracts**: a contract list separate from creation; **New contract** asks for the kind
+  first (gas supply agreement, upstream tender, LNG master agreement and its cargo
+  confirmations, LNG term SPA, hub trade, transport, terminal and storage capacity) and
+  shows only that kind's terms. Prices as written: fixed, index ± premium, or a formula of
+  weighted indices with cap and floor, in native units (NBP in th/d and p/th); the price for
+  any delivery month on the contract.
+- **Spreads**: the spread board, "Describe it" in plain words, a backtest per spread, and
+  the transport cost between hubs that are not neighbours over the cheapest chain of
+  crossings at the TSOs' published ENTSOG tariffs.
+- **Reviewed tariff entry**: an operator enters a TSO tariff ENTSOG does not publish; a
+  second person reviews it; until then it prices as indicative.
+- **Fundamentals** (Research): storage by country against history and the EU target, LNG
+  send-out, pipeline flows and where supply came from, and the north-west Europe balance.
+  **Cargo & netback**: a cargo priced from load to each terminal and hub at forward FX.
+- **Network map**: an "Our book" view with disruptions and what of ours they touch, routes
+  done and to go, re-route proposals; the network stays loaded across pages.
+- **Reports**: daily, weekly, monthly, situation and question reports as one printable
+  file; scheduled reports per role; English and Chinese.
+- **Display preferences**: reporting currency and energy unit beside the native figure;
+  times in the reader's zone.
+- **First use**: up to three tips per page, shown once and replayable; **See an example** on
+  pages that are empty on a new installation.
+- **Strategy tracks**: a tracked strategy runs in shadow on arriving prices and records paper
+  intents only; licensed feeds can deliver ticks through the tick ingestion.
+- Release channel **beta** (`vX.Y.Z-beta.N`), published as a pre-release like an RC, with
+  Linux x64 and arm64 packages and a multi-platform server image.
+
+### Changed
+
+- Reads answer `304 Not Modified` when nothing changed (ETag), static map geometry is
+  compressed and revalidated, and coming back to a page shows the last good data at once.
+- `/api/health` reports the version as people read it (`1.0.0-beta`); `/api/runtime/release`
+  keeps `1.0.0-beta.1` for compatibility checks and adds `display_version`.
+- The dataset builder and agents workspace are no longer served by default
+  (`EUROGAS_NEXUS_DEFERRED_CAPABILITIES`).
+
+### Known limits
+
+- Weather-driven demand is not on screen; imbalance (cash-out) prices are not ingested;
+  the LNG sea-distance table is empty until the firm enters its routes.
+- No order entry, nomination or settlement, by design.
+- Region scope (a person's market region) is not enforced; book visibility by region is.
+- Installers are unsigned unless the firm signs them with its own certificate.
+- Licensed market data (Trayport, ICE Endex, EEX, Argus, ICIS, Kpler, Platts) arrives only
+  through the customer's own entitlement; the demo's prices are simulated.
+- Not yet passed: G15 penetration test, G16 licensed-source certification, G18 customer
+  acceptance.
 
 ## [0.8.0] - 2026-11-06
 

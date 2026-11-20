@@ -241,7 +241,7 @@ audited (`source.approval`) and runs a bounded live check. GIE approved before i
 exists reads "approved, waiting for key" and is checked at the first read after the key
 is stored.
 
-Package version `0.8.0` on the `preview` channel has no multi-user login or SSO.
+Package version `1.0.0-beta` on the `preview` channel has no multi-user login or SSO.
 Server therefore requires `-PrivateNetworkOnly`, must sit behind a customer
 firewall/VPN allowlist and must not be exposed to the public internet. HTTPS
 protects transport; it

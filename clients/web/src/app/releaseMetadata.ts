@@ -5,12 +5,12 @@
  * no code may derive the channel from an installer filename.
  */
 
-export const CLIENT_APPLICATION_VERSION = "0.8.0";
+export const CLIENT_APPLICATION_VERSION = "1.0.0-beta.1";
 /** What people read (About, sign-in): "1.0.0-beta" for the beta 1.0.0-beta.1. */
-export const CLIENT_DISPLAY_VERSION = "0.8.0";
+export const CLIENT_DISPLAY_VERSION = "1.0.0-beta";
 const viteEnv = (import.meta as { env?: Record<string, string> }).env ?? {};
 export const CLIENT_RELEASE_CHANNEL = viteEnv.VITE_EUROGAS_RELEASE_CHANNEL?.trim() || "preview";
-export const CLIENT_MINIMUM_SUPPORTED_SERVER = "0.8.0";
+export const CLIENT_MINIMUM_SUPPORTED_SERVER = "1.0.0-beta.1";
 export const CLIENT_BUILD_GIT_SHA = viteEnv.VITE_EUROGAS_BUILD_GIT_SHA?.trim() || null;
 export const CLIENT_BUILD_GIT_REF = viteEnv.VITE_EUROGAS_BUILD_GIT_REF?.trim() || null;
 export const CLIENT_BUILD_RUN_ID = viteEnv.VITE_EUROGAS_BUILD_RUN_ID?.trim() || null;

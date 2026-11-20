@@ -10,8 +10,8 @@ the spelling people read (``1.0.0-beta``).
 diverges from pyproject or any other version-bearing surface.
 """
 
-APPLICATION_VERSION = "0.8.0"
-APPLICATION_DISPLAY_VERSION = "0.8.0"
+APPLICATION_VERSION = "1.0.0-beta.1"
+APPLICATION_DISPLAY_VERSION = "1.0.0-beta"
 DEFAULT_RELEASE_CHANNEL = "preview"
 
 __all__ = ["APPLICATION_DISPLAY_VERSION", "APPLICATION_VERSION", "DEFAULT_RELEASE_CHANNEL"]

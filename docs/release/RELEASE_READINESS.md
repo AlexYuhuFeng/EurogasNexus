@@ -2,6 +2,16 @@
 
 ## Current Status
 
+**1.0.0-beta (2026-11-20): a beta for customer acceptance**, published on the `beta`
+channel as the GitHub pre-release `v1.0.0-beta.1` (package version `1.0.0b1`; see
+[RELEASE_CHANNELS.md](RELEASE_CHANNELS.md)). It is the build the customer installs for
+acceptance, not a production (GA) release. Three gates stay **PENDING_EXTERNAL** and are not
+passed: G15 (penetration test or independent security review), G16 (certification of each
+licensed source under the customer's entitlement) and G18 (customer user acceptance).
+1.0.0 (stable) follows customer acceptance. What the package contains:
+[DELIVERY_PACKAGE_1.0.0-beta.md](DELIVERY_PACKAGE_1.0.0-beta.md); what changed:
+[the 1.0.0 beta release notes](notes/1.0.0-beta-RELEASE_NOTES.md).
+
 2026-09-22 commercial audit override: **NOT APPROVED FOR CUSTOMER PRODUCTION**.
 The evidence below is historical, scoped to its dated ref, and does not certify
 Architecture V2. Current findings and acceptance requirements are recorded in
@@ -14,8 +24,9 @@ Status: `RELEASE CANDIDATE FOR TESTED LOCAL SCOPE`
 
 Release marker: `RELEASE CANDIDATE`
 
-Date checked: 2026-09-07 (CR-15 agent-native capability layer; CR-14 research
-data foundation and CR-13 UAT evidence preserved)
+Date checked: 2026-11-20 (1.0.0-beta: surface figure, schema head
+`0076_gas_day_nominations` and packaging below re-measured at this commit). The CR-13 UAT
+and CR-15 sections below are historical evidence for their own dated refs.
 
 Eurogas Nexus passes the current local release-candidate shape for
 backend/API/SDK/CLI, PostgreSQL runtime schema, Web workspace, Tauri desktop
@@ -153,7 +164,10 @@ by a CLI flag.
 - Windows desktop packages the same Web workspace through Tauri NSIS
   (perMachine); offline WebView2 configuration is provided and documented.
 - Linux desktop release packaging is architecture-specific: x64 and ARM64 DEB
-  packages are separate artifacts, not one ambiguous Linux package. ARM Linux users do not receive the x64 DEB by mistake. ARM Linux users must not receive the x64 DEB by mistake.
+  packages are separate artifacts, not one ambiguous Linux package.
+  ARM Linux users must not receive the x64 DEB by mistake. Both are built for every
+  release channel (the desktop matrix in `.github/workflows/release.yml` has no channel
+  condition).
 - SDK and CLI remain API consumers.
 - Clients do not connect directly to PostgreSQL.
 - Authentication-first entry: the terminal no longer mounts before
@@ -195,7 +209,7 @@ by a CLI flag.
   registry, governed invocation runtime, registry-driven MCP adapter,
   ResearchPlan/StrategyIR/orchestrator/risk-challenger artifacts, AgentRun
   replay, and human-review gates. No execution capability exists.
-- Preview/RC/stable channel semantics are explicit. Stable can only originate
+- Preview/beta/RC/stable channel semantics are explicit; a beta publishes as an RC does. Stable can only originate
   from a pushed `vX.Y.Z` tag on the protected mainline and runs in the
   `production` GitHub Environment.
 - `release-manifest.json` records version, channel, commit, schema revision,
@@ -229,6 +243,7 @@ Every successful release workflow publishes:
 - `Eurogas-Nexus-Client-{release_version}-linux-arm64.deb` (Linux DEB package for ARM64 Linux users)
 - `Eurogas-Nexus-Server-{release_version}.zip`
 - `eurogas-nexus-web-{release_version}.tar.gz`
+- API container image for `linux/amd64` and `linux/arm64` (one multi-platform digest)
 - `release-manifest.json`, `SHA256SUMS`, SPDX SBOM set,
   `THIRD_PARTY_NOTICES.md`, and GitHub attestation metadata.
 
@@ -279,7 +294,7 @@ Still needed, and only people outside engineering can provide them:
   Held by `tests/release/test_public_source_approval_release.py` (fresh database: refused
   with `source_not_approved` before any fetch; approval; the same read stores rows).
 - On the customer's side: enterprise IdP acceptance against their identity provider,
-  deployment migration to head `0059_functional_runs`, and an incident-response drill.
+  deployment migration to head `0076_gas_day_nominations`, and an incident-response drill.
 
 ## Product Boundary
 

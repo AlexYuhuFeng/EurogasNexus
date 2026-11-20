@@ -1,6 +1,6 @@
 [package]
 name = "eurogas-nexus-desktop"
-version = "0.8.0"
+version = "1.0.0-beta.1"
 description = "Eurogas Nexus Windows client shell"
 edition = "2021"
 license = "Proprietary"
