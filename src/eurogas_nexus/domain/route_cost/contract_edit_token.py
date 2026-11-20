@@ -51,7 +51,7 @@ from datetime import UTC, datetime
 #: ``payment_terms_json`` to the covered columns (S2b); ``v3`` added ``book_id``
 #: (trading books), so moving a contract to another book makes an open draft stale; ``v4``
 #: added the contract kind, its review flag, typed terms, unmodelled terms and the master.
-CONTRACT_EDIT_TOKEN_SCHEMA = "upstream-contract-edit-token/v4"
+CONTRACT_EDIT_TOKEN_SCHEMA = "upstream-contract-edit-token/v5"
 
 #: Token text prefix; the digest is lowercase hex SHA-256.
 CONTRACT_EDIT_TOKEN_PREFIX = "sha256:"
@@ -103,6 +103,7 @@ CONTRACT_EDIT_TOKEN_FIELDS = (
     "kind_terms",
     "unmodelled_terms",
     "master_contract_id",
+    "nomination_agent",
 )
 
 _HEX_DIGITS = frozenset("0123456789abcdef")
