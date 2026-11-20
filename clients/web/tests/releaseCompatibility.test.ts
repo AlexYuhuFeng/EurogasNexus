@@ -29,7 +29,8 @@ function server(overrides: Record<string, unknown> = {}) {
 }
 
 test("stable client metadata exposes version channel and commit separately", () => {
-  assert.match(CLIENT_RELEASE_METADATA.version, /^\d+\.\d+\.\d+$/);
+  // X.Y.Z, or a beta of it (1.0.0-beta.1): the one pre-release that is a product version.
+  assert.match(CLIENT_RELEASE_METADATA.version, /^\d+\.\d+\.\d+(-beta\.[1-9]\d*)?$/);
   assert.equal(CLIENT_RELEASE_METADATA.channel, "preview");
   assert.equal(CLIENT_RELEASE_METADATA.minimumSupportedServer, V);
 });
