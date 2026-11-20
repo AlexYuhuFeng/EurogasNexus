@@ -76,14 +76,23 @@ def neutralise_mentions(text: str) -> str:
     return "".join(parts)
 
 
+def title_version(context: dict) -> str:
+    """How the release names itself: ``1.0.0 beta`` for the beta ``1.0.0-beta``."""
+
+    display = context.get("display_version") or context["app_version"]
+    return display.replace("-beta", " beta")
+
+
 def draft_notes(context: dict) -> str:
+    display = context.get("display_version") or context["app_version"]
+    package = context.get("package_version") or context["app_version"]
     notes = [
         (
-            f"# Eurogas Nexus {context['app_version']} "
+            f"# Eurogas Nexus {title_version(context)} "
             f"({context['channel']} — {context['release_version']})"
         ),
         "",
-        f"- Version: {context['app_version']}",
+        f"- Version: {display}",
         f"- Channel: {context['channel']}",
         f"- Commit: {context['git_sha']}",
         f"- Release date: {date.today().isoformat()}",
@@ -91,13 +100,13 @@ def draft_notes(context: dict) -> str:
         "",
         "## What changed",
         "",
-        changelog_section(context.get("app_version")),
+        changelog_section(display),
         "",
         "## Compatibility",
         "",
         "- API contract: api-contract/v1",
-        f"- Minimum supported client: {context['app_version']}",
-        f"- Minimum supported server: {context['app_version']}",
+        f"- Minimum supported client: {package}",
+        f"- Minimum supported server: {package}",
         f"- Database schema revision: {context['database_schema_revision']}",
         "",
         "## Installer/update guidance",

@@ -6,17 +6,22 @@ on:
       release_channel:
         description: >-
           preview builds and validates the full bundle and keeps it as workflow artifacts
-          (no tag, no GitHub Release); rc publishes a pre-release. Stable is tag-only.
+          (no tag, no GitHub Release); beta and rc publish a pre-release (beta needs a
+          beta version, X.Y.ZbN, in pyproject). Stable is tag-only.
         type: choice
         required: true
         default: preview
         options:
           - preview
+          - beta
           - rc
   push:
     tags:
       - 'v[0-9]+.[0-9]+.[0-9]+'
       - 'v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+'
+      # A beta for customer acceptance; vX.Y.Z-beta is the alias of vX.Y.Z-beta.1.
+      - 'v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+'
+      - 'v[0-9]+.[0-9]+.[0-9]+-beta'
 
 permissions:
   contents: read
@@ -54,7 +59,7 @@ jobs:
 
       - name: Resolve release identity
         env:
-          # The dispatch choice (preview or rc); ignored for tag pushes, whose tag decides.
+          # The dispatch choice (preview, beta or rc); ignored for tag pushes, whose tag decides.
           EUROGAS_NEXUS_RELEASE_CHANNEL: ${{ inputs.release_channel }}
         run: python scripts/release/resolve_release_context.py --output release-context.json
 
@@ -545,6 +550,13 @@ jobs:
         working-directory: clients/desktop
         run: npm run build -- --bundles ${{ matrix.bundle }}
 
+      # Tauri writes the SemVer version (1.0.0-beta.1) into the .deb; dpkg would sort that
+      # after 1.0.0. A beta gets the Debian spelling (1.0.0~beta1); a final version is kept.
+      - name: Debian version of a beta package
+        if: runner.os == 'Linux'
+        shell: bash
+        run: python scripts/release/set_deb_version.py ${{ matrix.artifact_glob }}
+
       - name: Collect and rename desktop asset
         shell: bash
         run: |
@@ -975,13 +987,13 @@ jobs:
         run: |
           ENVIRONMENT="github-actions/$(printf '%s/%s' "$RUNNER_OS" "$RUNNER_ARCH" | tr '[:upper:]' '[:lower:]')"
           SUBJECTS=()
-          for f in release-assets/*.exe release-assets/*.deb release-assets/*.dmg; do
+          for f in release-assets/*.exe release-assets/*.deb; do
             [ -f "$f" ] && SUBJECTS+=(--subject-artifact "$(basename "$f")")
           done
           [ ${#SUBJECTS[@]} -gt 0 ] || { echo "no desktop installers in the bundle"; exit 1; }
           python scripts/release/write_gate_evidence.py \
             --gate-id G5 --status PASS \
-            --detail "Windows NSIS, Linux DEB and macOS DMG installers built by the desktop matrix at this commit and bound here by digest" \
+            --detail "Windows x64 NSIS and Linux x64/arm64 DEB installers built by the desktop matrix at this commit and bound here by digest" \
             --commit-sha "$GITHUB_SHA" \
             --workflow release.yml --job assemble \
             --environment "$ENVIRONMENT" \
@@ -1196,10 +1208,10 @@ jobs:
   # downloadable bundle (the release-final workflow artifact), not a release: publishing
   # every preview filled the Releases page with hundreds of near-identical entries.
   publish-preview-rc:
-    name: Publish release candidate
+    name: Publish pre-release (rc or beta)
     runs-on: ubuntu-24.04
     needs: [resolve, assemble, attest, container-acceptance]
-    if: ${{ always() && needs.resolve.result == 'success' && needs.assemble.result == 'success' && needs.attest.result == 'success' && needs.container-acceptance.result == 'success' && needs.resolve.outputs.channel != 'stable' && needs.resolve.outputs.channel == 'rc' }}
+    if: ${{ always() && needs.resolve.result == 'success' && needs.assemble.result == 'success' && needs.attest.result == 'success' && needs.container-acceptance.result == 'success' && needs.resolve.outputs.channel != 'stable' && (needs.resolve.outputs.channel == 'rc' || needs.resolve.outputs.channel == 'beta') }}
     # actions: read exists only so the promotion gate below can re-derive G1's
     # same-SHA CI verification from the read-only Actions API with the
     # step-scoped workflow token; no publication path may write releases
@@ -1272,7 +1284,8 @@ jobs:
           fi
           # The workflow token may not create a new tag on a commit that changes workflow
           # files (GitHub returns 403 "Resource not accessible by integration"). Pushing
-          # the tag first (git tag vX.Y.Z-rc.N <sha> && git push origin vX.Y.Z-rc.N) runs
+          # the tag first (git tag vX.Y.Z-rc.N <sha> && git push origin vX.Y.Z-rc.N, or
+          # vX.Y.Z-beta.N for a beta) runs
           # this workflow on the tag, and the release is then created on the existing tag.
           if ! git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
             echo "Tag $TAG does not exist yet; creating it with the release."
@@ -1280,7 +1293,6 @@ jobs:
           gh release create "$TAG" \
             release-assets/*.exe \
             release-assets/*.deb \
-            release-assets/*.dmg \
             release-assets/*.zip \
             release-assets/*.tar.gz \
             release-assets/release-manifest.json \
@@ -1363,7 +1375,6 @@ jobs:
           gh release create "$TAG" \
             release-assets/*.exe \
             release-assets/*.deb \
-            release-assets/*.dmg \
             release-assets/*.zip \
             release-assets/*.tar.gz \
             release-assets/release-manifest.json \

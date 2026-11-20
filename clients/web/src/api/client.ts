@@ -6151,7 +6151,9 @@ export interface RuntimeReleaseDTO {
   /** Simulated demo prices are valuing positions in this deployment (demo runs only). */
   demo_marks?: boolean;
   application_version: string;
-  release_channel: "preview" | "rc" | "stable";
+  /** What people read: "1.0.0-beta" for 1.0.0-beta.1. */
+  display_version?: string;
+  release_channel: "preview" | "beta" | "rc" | "stable";
   git_sha: string | null;
   git_ref: string | null;
   build_run_id: string | null;

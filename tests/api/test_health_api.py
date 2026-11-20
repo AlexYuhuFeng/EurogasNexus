@@ -4,7 +4,7 @@ from fastapi.testclient import TestClient
 
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.core.config import Settings
-from eurogas_nexus.version import APPLICATION_VERSION
+from eurogas_nexus.version import APPLICATION_DISPLAY_VERSION
 
 AUTH_HEADERS = {"X-Eurogas-Api-Key": "test-public-api-token"}
 
@@ -18,7 +18,7 @@ def test_health_route_returns_shell_status() -> None:
     assert response.json() == {
         "status": "ok",
         "service": "eurogas-nexus",
-        "version": APPLICATION_VERSION,
+        "version": APPLICATION_DISPLAY_VERSION,  # what people read (1.0.0-beta)
         "profile": "development",
         # Finding C5 / owner decision D1: every profile identifies its callers now, and the shell
         # status says which posture this deployment is instead of leaving it to a document.

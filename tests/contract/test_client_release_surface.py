@@ -9,6 +9,7 @@ import sys
 import tomllib
 from pathlib import Path
 
+from eurogas_nexus.release.versioning import parse_app_version
 from eurogas_nexus.version import APPLICATION_VERSION
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -39,8 +40,9 @@ def test_release_versions_are_aligned() -> None:
         (ROOT / "clients" / "desktop" / "package.json").read_text(encoding="utf-8")
     )
 
+    # pyproject holds the PEP 440 spelling (1.0.0b1) of the SemVer the others hold.
+    assert parse_app_version(pyproject["project"]["version"]).semver == APPLICATION_VERSION
     assert {
-        pyproject["project"]["version"],
         cargo["package"]["version"],
         tauri["version"],
         web["version"],

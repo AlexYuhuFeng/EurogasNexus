@@ -4,7 +4,8 @@
   "code_signing": {
     "stable": "unsigned_permitted_deploying_firm_decides",
     "preview": "unsigned_permitted_deploying_firm_decides",
-    "rc": "unsigned_permitted_deploying_firm_decides"
+    "rc": "unsigned_permitted_deploying_firm_decides",
+    "beta": "unsigned_permitted_deploying_firm_decides"
   },
   "evidence_policy": {
     "envelope_schema_version": 2,

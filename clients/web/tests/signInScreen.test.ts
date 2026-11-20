@@ -43,8 +43,8 @@ test("sign-in is one heading and the methods: no eyebrow, no body line, no brand
   assert.match(screen, /<BrandMark variant="wordmark" tone="reverse"/);
   assert.match(screen, /auth\.brand_tagline/);
   assert.match(screen, /className="sign-in-brand-watermark"[\s\S]*?d=\{BRAND_HEX_UPPER\}[\s\S]*?d=\{BRAND_HEX_LOWER\}[\s\S]*?d=\{BRAND_WAVE\}/);
-  // The version the client already knows, without a request.
-  assert.match(screen, /CLIENT_APPLICATION_VERSION/);
+  // The version the client already knows, without a request, in the display spelling.
+  assert.match(screen, /CLIENT_DISPLAY_VERSION/);
   // Credentials keep their autocomplete hints and labels.
   assert.match(screen, /autoComplete="username"/);
   assert.match(screen, /autoComplete="current-password"/);

@@ -12,7 +12,7 @@ import {
   CLIENT_RELEASE_CHANNEL,
 } from "./releaseMetadata.ts";
 
-export type ReleaseChannel = "preview" | "rc" | "stable";
+export type ReleaseChannel = "preview" | "beta" | "rc" | "stable";
 
 export interface ClientReleaseMetadata {
   version: string;

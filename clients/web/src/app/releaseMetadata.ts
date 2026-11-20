@@ -6,6 +6,8 @@
  */
 
 export const CLIENT_APPLICATION_VERSION = "0.8.0";
+/** What people read (About, sign-in): "1.0.0-beta" for the beta 1.0.0-beta.1. */
+export const CLIENT_DISPLAY_VERSION = "0.8.0";
 const viteEnv = (import.meta as { env?: Record<string, string> }).env ?? {};
 export const CLIENT_RELEASE_CHANNEL = viteEnv.VITE_EUROGAS_RELEASE_CHANNEL?.trim() || "preview";
 export const CLIENT_MINIMUM_SUPPORTED_SERVER = "0.8.0";

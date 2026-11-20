@@ -7,7 +7,7 @@ import type {
   SourceSystemDTO,
 } from "@/api/client";
 import type { ReleaseCompatibility } from "@/app/releaseCompatibility";
-import { CLIENT_BUILD_GIT_SHA, CLIENT_BUILD_GIT_REF, CLIENT_RELEASE_CHANNEL, CLIENT_APPLICATION_VERSION } from "@/app/releaseMetadata";
+import { CLIENT_BUILD_GIT_SHA, CLIENT_BUILD_GIT_REF, CLIENT_RELEASE_CHANNEL, CLIENT_DISPLAY_VERSION } from "@/app/releaseMetadata";
 import {
   clearApiBaseUrl,
   configuredApiBaseUrl,
@@ -154,7 +154,7 @@ export function SettingsCenter({
         </div>
         <div className="kv-list settings-about-grid">
           <div><span>{t("release.product")}</span><strong>Eurogas Nexus</strong></div>
-          <div><span>{t("release.client_version")}</span><strong>{CLIENT_APPLICATION_VERSION}</strong></div>
+          <div><span>{t("release.client_version")}</span><strong>{CLIENT_DISPLAY_VERSION}</strong></div>
           <div><span>{t("release.channel")}</span><strong>{CLIENT_RELEASE_CHANNEL}</strong></div>
           <div><span>{t("release.client_build")}</span><strong>{CLIENT_BUILD_GIT_SHA ?? t("release.not_reported")}</strong></div>
           <div><span>{t("release.server_version")}</span><strong>{runtimeRelease?.application_version ?? t("release.not_reported")}</strong></div>

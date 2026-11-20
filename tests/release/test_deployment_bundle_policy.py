@@ -24,6 +24,7 @@ from pathlib import Path
 
 import pytest
 
+from eurogas_nexus.release.versioning import parse_app_version
 from eurogas_nexus.version import APPLICATION_VERSION
 from scripts.release import package_deployment_bundle as packager
 from scripts.release.release_metadata import resolve_release_context
@@ -66,8 +67,9 @@ UNSAFE_RELATIVE_PATHS = [
     "trailing/",
 ]
 
-#: The canonical version, so these cases survive a version bump.
-V = APPLICATION_VERSION
+#: The canonical version core (a release context's app_version), so these cases survive a
+#: version bump, a beta included.
+V = parse_app_version(APPLICATION_VERSION).core
 _major, _minor, _patch = (int(part) for part in V.split("."))
 OTHER = f"{_major}.{_minor + 1}.0"
 
@@ -534,7 +536,7 @@ IDENTITY_FAILURES: list[tuple[str, object, object, str]] = [
         TEST_IMAGE_DIGEST,
         "commit SHA",
     ),
-    ("unknown-channel", identity_context(channel="beta"), TEST_IMAGE_DIGEST, "channel"),
+    ("unknown-channel", identity_context(channel="nightly"), TEST_IMAGE_DIGEST, "channel"),
     (
         "channel-version-mismatch",
         identity_context(channel="rc"),
@@ -650,6 +652,8 @@ def test_exact_base_versions_and_registry_ports_are_accepted() -> None:
     for channel, release_version in (
         ("stable", f"v{V}"),
         ("rc", f"v{V}-rc.2"),
+        ("beta", f"v{V}-beta.1"),
+        ("beta", f"v{V}-beta"),
         ("preview", f"v{V}-preview.7.0123456789ab"),
     ):
         identity = packager.build_release_identity(

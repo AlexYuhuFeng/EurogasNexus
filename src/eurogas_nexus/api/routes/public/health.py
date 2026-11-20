@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Request
 from eurogas_nexus.api.route_profiles import authentication_posture
 from eurogas_nexus.core.config import Settings
 from eurogas_nexus.core.response import HealthResponse
+from eurogas_nexus.release.versioning import display_version
 
 router = APIRouter(tags=["health"])
 
@@ -14,8 +15,10 @@ def health(request: Request) -> HealthResponse:
     """Return import-safe service health (process liveness)."""
 
     settings = getattr(request.app.state, "settings", Settings())
+    # People read the display spelling (1.0.0-beta); /api/runtime/release carries the
+    # SemVer one (1.0.0-beta.1) that client/server compatibility compares.
     return HealthResponse(
-        version=settings.app_version,
+        version=display_version(settings.app_version),
         profile=settings.api_profile,
         authentication=authentication_posture(
             settings.api_profile,
@@ -32,7 +35,7 @@ def health_live(request: Request) -> dict:
     return {
         "status": "ok",
         "scope": "liveness",
-        "version": settings.app_version,
+        "version": display_version(settings.app_version),
         "profile": settings.api_profile,
         # The same posture the shell status reports: a probe can see whether this deployment
         # identifies its callers, and finding C5 stops being a document-only fact.

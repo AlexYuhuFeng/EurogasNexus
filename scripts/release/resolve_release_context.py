@@ -6,7 +6,7 @@ GitHub Actions inputs:
     GITHUB_EVENT_NAME (push/tag or workflow_dispatch)
     GITHUB_REF / GITHUB_REF_NAME
     GITHUB_SHA / GITHUB_RUN_ID / GITHUB_RUN_NUMBER
-    EUROGAS_NEXUS_RELEASE_CHANNEL (dispatch only)
+    EUROGAS_NEXUS_RELEASE_CHANNEL (dispatch only: preview, beta or rc)
 
 Local dry-run may pass the same values explicitly with ``--channel`` and
 ``--sha``.
@@ -37,7 +37,7 @@ def _env(name: str) -> str:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--channel", choices=["preview", "rc", "stable"])
+    parser.add_argument("--channel", choices=["preview", "beta", "rc", "stable"])
     parser.add_argument("--sha")
     parser.add_argument("--ref")
     parser.add_argument("--run-id")

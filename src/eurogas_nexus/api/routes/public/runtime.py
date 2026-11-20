@@ -4,6 +4,8 @@ from datetime import datetime
 
 from fastapi import APIRouter, Request
 
+from eurogas_nexus.release.versioning import display_version
+
 router = APIRouter(tags=["runtime"])
 
 
@@ -127,6 +129,7 @@ def runtime_release_metadata(request: Request) -> dict:
     return {
         "data": {
             "application_version": settings.app_version,
+            "display_version": display_version(settings.app_version),
             "release_channel": settings.release_channel,
             "git_sha": settings.build_git_sha,
             "git_ref": settings.build_git_ref,

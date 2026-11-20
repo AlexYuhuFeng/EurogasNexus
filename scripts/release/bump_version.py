@@ -2,13 +2,15 @@
 
     python scripts/release/bump_version.py 0.6.0            # writes every surface
     python scripts/release/bump_version.py 0.6.0 --dry-run  # shows what would change
+    python scripts/release/bump_version.py 1.0.0b1          # a beta (1.0.0-beta.1)
 
 It sets ``pyproject.toml``, syncs every machine-readable copy (Python, web, desktop,
 lockfiles) through ``check_version_consistency.py --write``, updates the README and the
 deployment guides, and moves the CHANGELOG's ``[Unreleased]`` entries under the new
 version with today's date. Then commit, push, and tag ``vX.Y.Z-rc.1`` for a release
-candidate; tag ``vX.Y.Z`` on the accepted commit for the stable release
-(docs/release/RELEASE_CHANNELS.md).
+candidate, ``vX.Y.Z-beta.N`` for a beta (version ``X.Y.ZbN``); tag ``vX.Y.Z`` on the
+accepted commit for the stable release (docs/release/RELEASE_CHANNELS.md). Prose
+surfaces carry the display spelling (``1.0.0-beta``).
 """
 
 from __future__ import annotations
@@ -21,7 +23,10 @@ from datetime import date
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-_SEMVER = re.compile(r"^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$")
+sys.path.insert(0, str(ROOT / "src"))
+
+from eurogas_nexus.release.versioning import SemVer, parse_app_version  # noqa: E402
+
 _UNRELEASED = "## [Unreleased]"
 
 # Prose files that state the current version, and the phrase that carries it.
@@ -44,11 +49,11 @@ def _current() -> str:
     return match.group(1)
 
 
-def _key(version: str) -> tuple[int, int, int]:
-    match = _SEMVER.match(version)
-    if match is None:
-        raise SystemExit(f"{version!r} is not X.Y.Z")
-    return int(match.group(1)), int(match.group(2)), int(match.group(3))
+def _parse(version: str) -> SemVer:
+    try:
+        return parse_app_version(version)
+    except ValueError:
+        raise SystemExit(f"{version!r} is not X.Y.Z or X.Y.ZbN") from None
 
 
 def _rewrite(relative: str, old: str, new: str, template: str | None) -> bool:
@@ -86,11 +91,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
 
-    old, new = _current(), args.version
-    if _key(new) <= _key(old):
-        print(f"{new} is not later than the current version {old}", file=sys.stderr)
+    old_identity, new_identity = _parse(_current()), _parse(args.version)
+    if new_identity <= old_identity:
+        print(
+            f"{args.version} is not later than the current version {_current()}",
+            file=sys.stderr,
+        )
         return 2
-    print(f"{old} -> {new}")
+    # pyproject takes PEP 440 (1.0.0b1); prose takes the display spelling (1.0.0-beta).
+    old, new = old_identity.display, new_identity.display
+    print(f"{old_identity.pep440} -> {new_identity.pep440}")
     if args.dry_run:
         for relative, _template in _TEXT_SURFACES:
             print(f"  would update {relative}")
@@ -100,7 +110,7 @@ def main(argv: list[str] | None = None) -> int:
     pyproject.write_text(
         re.sub(
             r'^version = "[^"]+"$',
-            f'version = "{new}"',
+            f'version = "{new_identity.pep440}"',
             pyproject.read_text(encoding="utf-8"),
             count=1,
             flags=re.MULTILINE,
@@ -120,9 +130,13 @@ def main(argv: list[str] | None = None) -> int:
         stdout=subprocess.DEVNULL,
     )
     for relative, template in _TEXT_SURFACES:
-        if _rewrite(relative, old, new, template):
+        # An environment file carries the runtime (SemVer) spelling, prose the display one.
+        machine = relative.endswith(".env")
+        before = old_identity.semver if machine else old
+        after = new_identity.semver if machine else new
+        if _rewrite(relative, before, after, template):
             print(f"  updated {relative}")
-    if _cut_changelog(new, date.today().isoformat()):
+    if _cut_changelog(new_identity.display, date.today().isoformat()):
         print(f"  CHANGELOG: [Unreleased] entries now under [{new}]")
     result = subprocess.run(
         [sys.executable, str(ROOT / "scripts/release/check_version_consistency.py")],
@@ -132,7 +146,12 @@ def main(argv: list[str] | None = None) -> int:
     if result.returncode != 0:
         print(result.stdout + result.stderr, file=sys.stderr)
         return 1
-    print(f"Version {new} is consistent. Commit, then tag v{new}-rc.1.")
+    tag = (
+        f"v{new_identity.semver}"
+        if new_identity.is_prerelease
+        else f"v{new}-rc.1 (or v{new} on the accepted commit)"
+    )
+    print(f"Version {new_identity.pep440} is consistent. Commit, then tag {tag}.")
     return 0
 
 

@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from "react";
 import { BRAND_HEX_LOWER, BRAND_HEX_UPPER, BRAND_STROKE, BRAND_WAVE, BrandMark } from "@/components/ui/BrandMark";
-import { CLIENT_APPLICATION_VERSION } from "@/app/releaseMetadata";
+import { CLIENT_DISPLAY_VERSION } from "@/app/releaseMetadata";
 import { LOCALES } from "@/i18n/locales";
 import { devLoginOffered, newPasswordProblem, passwordFormOffered, type AuthStatusSnapshot } from "@/stores/authGate";
 import type { AuthState } from "@/stores/workspaceLoading";
@@ -245,7 +245,7 @@ export function SignInScreen({
         )}
 
         {/* The client's own version: known without a request, useful when reporting a problem. */}
-        <p className="sign-in-version">{t("release.client_version")} {CLIENT_APPLICATION_VERSION}</p>
+        <p className="sign-in-version">{t("release.client_version")} {CLIENT_DISPLAY_VERSION}</p>
       </section>
       </div>
     </div>

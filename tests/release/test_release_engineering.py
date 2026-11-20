@@ -43,13 +43,16 @@ from scripts.release.release_metadata import (  # noqa: E402
     resolve_release_context,
 )
 
+#: The canonical version core artifact names are built on (1.0.0 for the beta 1.0.0b1).
+CORE = parse_app_version(APPLICATION_VERSION).core
+
 # ---------------------------------------------------------------------------
 # Version and tag semantics
 # ---------------------------------------------------------------------------
 
 
 def test_canonical_version_parses_and_all_surfaces_agree() -> None:
-    assert parse_app_version(canonical_app_version()).core == APPLICATION_VERSION
+    assert canonical_app_version() == parse_app_version(APPLICATION_VERSION).core
     report = evaluate()
     assert report["ok"], report["failures"]
 
@@ -58,6 +61,9 @@ def test_channel_tags_are_deterministic_and_valid() -> None:
     version = SemVer(0, 5, 0)
     assert build_release_tag(version, ReleaseChannel.STABLE) == "v0.5.0"
     assert build_release_tag(version, ReleaseChannel.RC, 2) == "v0.5.0-rc.2"
+    assert build_release_tag(version, ReleaseChannel.BETA, 1) == "v0.5.0-beta.1"
+    assert parse_release_tag("v1.0.0-beta.3").channel is ReleaseChannel.BETA
+    assert parse_release_tag("v1.0.0-beta").tag == "v1.0.0-beta"
     assert (
         build_release_tag(version, ReleaseChannel.PREVIEW, 3, "033df92a856e")
         == "v0.5.0-preview.3.033df92a856e"
@@ -72,6 +78,9 @@ def test_channel_tags_are_deterministic_and_valid() -> None:
         "v0.5.0-rc.0",
         "v0.5.0-preview.1.ZZZZZZZ",
         "v0.5.0-rc.1.extra",
+        "v0.5.0-beta.0",
+        "v0.5.0-beta1",
+        "v0.5.0-beta.1.extra",
         "0.5.0",
     ],
 )
@@ -140,8 +149,13 @@ def test_release_workflow_has_tag_only_stable_and_least_privilege() -> None:
     workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "release.yml").read_text())
     assert workflow["permissions"] == {"contents": "read"}
     options = workflow[True]["workflow_dispatch"]["inputs"]["release_channel"]["options"]
-    assert options == ["preview", "rc"]
-    assert workflow[True]["push"]["tags"]
+    assert options == ["preview", "beta", "rc"]
+    assert workflow[True]["push"]["tags"] == [
+        "v[0-9]+.[0-9]+.[0-9]+",
+        "v[0-9]+.[0-9]+.[0-9]+-rc.[0-9]+",
+        "v[0-9]+.[0-9]+.[0-9]+-beta.[0-9]+",
+        "v[0-9]+.[0-9]+.[0-9]+-beta",
+    ]
     jobs = workflow["jobs"]
     assert jobs["runtime-image"]["permissions"]["packages"] == "write"
     assert jobs["publish-preview-rc"]["permissions"]["contents"] == "write"
@@ -308,15 +322,113 @@ def test_release_artifact_names_follow_contract() -> None:
     )
     names = expected_artifacts(context)
     assert names[0] == (
-        f"Eurogas-Nexus-Client-{APPLICATION_VERSION}-preview.7.033df92a856e-windows-x64-setup.exe"
+        f"Eurogas-Nexus-Client-{CORE}-preview.7.033df92a856e-windows-x64-setup.exe"
     )
     assert "linux-x64" in names[1]
     assert "linux-arm64" in names[2]
     assert not any(name.endswith(".dmg") for name in names)
     assert names[3] == (
-        f"Eurogas-Nexus-Server-{APPLICATION_VERSION}-preview.7.033df92a856e.zip"
+        f"Eurogas-Nexus-Server-{CORE}-preview.7.033df92a856e.zip"
     )
-    assert names[4] == f"eurogas-nexus-web-{APPLICATION_VERSION}-preview.7.033df92a856e.tar.gz"
+    assert names[4] == f"eurogas-nexus-web-{CORE}-preview.7.033df92a856e.tar.gz"
+
+
+def test_beta_publishes_a_prerelease_like_rc_with_both_linux_architectures() -> None:
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "release.yml").read_text())
+    jobs = workflow["jobs"]
+    condition = jobs["publish-preview-rc"]["if"]
+    assert "channel == 'rc'" in condition and "channel == 'beta'" in condition
+    publish = next(
+        step["run"]
+        for step in jobs["publish-preview-rc"]["steps"]
+        if step.get("name") == "Publish immutable prerelease"
+    )
+    assert "--prerelease" in publish
+    # macOS is not built: a glob with no match would fail the release write.
+    assert ".dmg" not in publish
+    matrix = jobs["desktop"]["strategy"]["matrix"]["include"]
+    labels = {entry["artifact_label"]: entry for entry in matrix}
+    assert set(labels) == {"windows-x64", "linux-x64", "linux-arm64"}
+    assert labels["linux-arm64"]["os"] == "ubuntu-24.04-arm"
+    assert labels["linux-arm64"]["bundle"] == "deb"
+    assert "if" not in jobs["desktop"] and "continue-on-error" not in jobs["desktop"]
+    image = next(
+        step for step in jobs["runtime-image"]["steps"]
+        if step.get("name") == "Build and publish candidate API image"
+    )
+    assert image["with"]["platforms"] == "linux/amd64,linux/arm64"
+    assert "if" not in jobs["runtime-image"] and "continue-on-error" not in jobs["runtime-image"]
+    for job in jobs.values():
+        assert "continue-on-error" not in job
+        for step in job.get("steps", []):
+            assert "continue-on-error" not in step, step.get("name")
+    deb_step = next(
+        step for step in jobs["desktop"]["steps"]
+        if step.get("name") == "Debian version of a beta package"
+    )
+    assert "set_deb_version.py" in deb_step["run"]
+
+
+def _with_version(monkeypatch, version: str) -> None:
+    from scripts.release import release_metadata
+
+    monkeypatch.setattr(
+        release_metadata, "canonical_version_identity", lambda: parse_app_version(version)
+    )
+
+
+SHA = "033df92a856e8820dd0f4d2a02367b21a285664d"
+
+
+def test_beta_tag_resolves_to_a_beta_release(monkeypatch) -> None:
+    _with_version(monkeypatch, "1.0.0b1")
+    context = resolve_release_context(channel="beta", git_sha=SHA, tag="v1.0.0-beta.1")
+    assert context["channel"] == "beta"
+    assert context["release_version"] == "v1.0.0-beta.1"
+    assert context["app_version"] == "1.0.0"
+    assert context["package_version"] == "1.0.0-beta.1"
+    assert context["display_version"] == "1.0.0-beta"
+    assert context["prerelease_number"] == 1
+    # The alias keeps the spelling that was pushed: the release is created on that tag.
+    alias = resolve_release_context(channel="beta", git_sha=SHA, tag="v1.0.0-beta")
+    assert alias["release_version"] == "v1.0.0-beta" and alias["prerelease_number"] == 1
+    dispatched = resolve_release_context(channel="beta", git_sha=SHA)
+    assert dispatched["release_version"] == "v1.0.0-beta.1"
+
+
+@pytest.mark.parametrize(
+    ("version", "channel", "tag"),
+    [
+        ("1.0.0b1", "beta", "v1.0.0-beta.2"),  # tag and pyproject name different betas
+        ("1.0.0b2", "beta", "v1.0.0-beta"),  # the alias is beta.1 only
+        ("1.0.0", "beta", "v1.0.0-beta.1"),  # a final version is not a beta
+        ("1.0.0", "beta", None),
+        ("1.0.0b1", "rc", "v1.0.0-rc.1"),  # an rc or stable never carries a beta
+        ("1.0.0b1", "rc", None),
+        ("1.0.0b1", "stable", "v1.0.0"),
+        ("1.0.0b1", "beta", "v1.1.0-beta.1"),
+    ],
+)
+def test_beta_and_version_must_agree(monkeypatch, version, channel, tag) -> None:
+    _with_version(monkeypatch, version)
+    with pytest.raises(ValueError):
+        resolve_release_context(channel=channel, git_sha=SHA, tag=tag)
+
+
+def test_preview_of_a_beta_is_built_on_its_core(monkeypatch) -> None:
+    _with_version(monkeypatch, "1.0.0b1")
+    context = resolve_release_context(channel="preview", git_sha=SHA, build_run_number=4)
+    assert context["release_version"] == "v1.0.0-preview.4.033df92a856e"
+    assert context["display_version"] == "1.0.0-beta"
+
+
+def test_beta_release_notes_title_says_beta(monkeypatch) -> None:
+    from scripts.release.generate_release_notes import draft_notes
+
+    _with_version(monkeypatch, "1.0.0b1")
+    context = resolve_release_context(channel="beta", git_sha=SHA, tag="v1.0.0-beta.1")
+    first = draft_notes(context).splitlines()[0]
+    assert first == "# Eurogas Nexus 1.0.0 beta (beta — v1.0.0-beta.1)"
 
 
 def test_dispatched_rc_takes_the_next_free_number() -> None:

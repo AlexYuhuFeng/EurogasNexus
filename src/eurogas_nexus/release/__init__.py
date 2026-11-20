@@ -5,6 +5,7 @@ from eurogas_nexus.release.versioning import (
     ReleaseTag,
     SemVer,
     build_release_tag,
+    display_version,
     parse_app_version,
     parse_release_tag,
 )
@@ -14,6 +15,7 @@ __all__ = [
     "ReleaseTag",
     "SemVer",
     "build_release_tag",
+    "display_version",
     "parse_app_version",
     "parse_release_tag",
 ]

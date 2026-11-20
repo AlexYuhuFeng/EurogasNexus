@@ -1,7 +1,11 @@
 #!/usr/bin/env python
 """Enforce the single canonical version contract.
 
-Canonical source of truth: ``pyproject.toml`` ``[project] version``.
+Canonical source of truth: ``pyproject.toml`` ``[project] version`` in PEP 440
+(``1.0.0`` or a beta ``1.0.0b1``). Every machine surface carries the SemVer
+spelling (``1.0.0-beta.1``) and the display constants and documents carry the
+display spelling (``1.0.0-beta``), all derived by
+``eurogas_nexus.release.versioning.parse_app_version``.
 """
 
 from __future__ import annotations
@@ -15,9 +19,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 PYPROJECT = ROOT / "pyproject.toml"
+sys.path.insert(0, str(ROOT / "src"))
+
+from eurogas_nexus.release.versioning import SemVer, parse_app_version  # noqa: E402
 
 PY_ASSIGNMENT = re.compile(
-    r'^(?P<name>APPLICATION_VERSION|DEFAULT_RELEASE_CHANNEL)\s*=\s*"(?P<value>[^"]+)"\s*$'
+    r'^(?P<name>APPLICATION_VERSION|APPLICATION_DISPLAY_VERSION|DEFAULT_RELEASE_CHANNEL)'
+    r'\s*=\s*"(?P<value>[^"]+)"\s*$'
 )
 CARGO_PACKAGE_RE = re.compile(
     r'^\[\[package\]\]\s*\nname\s*=\s*"eurogas-nexus-desktop"\s*\nversion\s*=\s*"([^"]+)"',
@@ -25,50 +33,82 @@ CARGO_PACKAGE_RE = re.compile(
 )
 
 
-def canonical_version() -> str:
+def canonical_identity() -> SemVer:
     data = tomllib.loads(PYPROJECT.read_text(encoding="utf-8"))
     version = str(data["project"]["version"])
-    if not re.match(r"^\d+\.\d+\.\d+$", version):
-        raise ValueError(f"Canonical pyproject version is not X.Y.Z: {version!r}")
-    return version
+    identity = parse_app_version(version)
+    if identity.pep440 != version:
+        raise ValueError(
+            f"Canonical pyproject version is not X.Y.Z or X.Y.ZbN (PEP 440): {version!r}"
+        )
+    return identity
+
+
+def canonical_version() -> str:
+    """The SemVer spelling every machine surface carries (``1.0.0-beta.1``)."""
+
+    return canonical_identity().semver
 
 
 def _read(relative: str) -> str:
     return (ROOT / relative).read_text(encoding="utf-8")
 
 
-def _read_python_version() -> str:
+def _read_python_constant(name: str) -> str:
     text = _read("src/eurogas_nexus/version.py")
     for line in text.splitlines():
         match = PY_ASSIGNMENT.match(line)
-        if match and match.group("name") == "APPLICATION_VERSION":
+        if match and match.group("name") == name:
             return match.group("value")
-    raise RuntimeError("APPLICATION_VERSION not found in src/eurogas_nexus/version.py")
+    raise RuntimeError(f"{name} not found in src/eurogas_nexus/version.py")
 
 
-def _write_python_version(value: str) -> None:
+def _read_python_version() -> str:
+    return _read_python_constant("APPLICATION_VERSION")
+
+
+def _write_python_constant(name: str, value: str) -> None:
     path = ROOT / "src" / "eurogas_nexus" / "version.py"
     text = path.read_text(encoding="utf-8")
     lines = []
     replaced = False
     for line in text.splitlines():
         match = PY_ASSIGNMENT.match(line)
-        if match and match.group("name") == "APPLICATION_VERSION":
-            lines.append(f'APPLICATION_VERSION = "{value}"')
+        if match and match.group("name") == name:
+            lines.append(f'{name} = "{value}"')
             replaced = True
         else:
             lines.append(line)
     if not replaced:
-        raise RuntimeError("APPLICATION_VERSION assignment not found.")
+        raise RuntimeError(f"{name} assignment not found.")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
-def _read_ts_version() -> str:
+def _write_python_version(value: str) -> None:
+    _write_python_constant("APPLICATION_VERSION", value)
+
+
+def _read_ts_constant(name: str) -> str:
     text = _read("clients/web/src/app/releaseMetadata.ts")
-    match = re.search(r'export const CLIENT_APPLICATION_VERSION = "([^"]+)";', text)
+    match = re.search(rf'export const {name} = "([^"]+)";', text)
     if match is None:
-        raise RuntimeError("CLIENT_APPLICATION_VERSION not found in releaseMetadata.ts")
+        raise RuntimeError(f"{name} not found in releaseMetadata.ts")
     return match.group(1)
+
+
+def _read_ts_version() -> str:
+    return _read_ts_constant("CLIENT_APPLICATION_VERSION")
+
+
+def _write_ts_display(value: str) -> None:
+    path = ROOT / "clients" / "web" / "src" / "app" / "releaseMetadata.ts"
+    text = path.read_text(encoding="utf-8")
+    text = re.sub(
+        r'(export const CLIENT_DISPLAY_VERSION = ")[^"]+(";)',
+        lambda match: f"{match.group(1)}{value}{match.group(2)}",
+        text,
+    )
+    path.write_text(text, encoding="utf-8")
 
 
 def _write_ts_version(value: str) -> None:
@@ -105,6 +145,23 @@ def machine_surfaces() -> list[dict]:
             "path": "clients/web/src/app/releaseMetadata.ts",
             "write": lambda value: _write_ts_version(value),
             "current": lambda: _read_ts_version(),
+        },
+    ]
+
+
+def display_surfaces() -> list[dict]:
+    """Constants that carry the display spelling (``1.0.0-beta``) people read."""
+
+    return [
+        {
+            "path": "src/eurogas_nexus/version.py#APPLICATION_DISPLAY_VERSION",
+            "write": lambda value: _write_python_constant("APPLICATION_DISPLAY_VERSION", value),
+            "current": lambda: _read_python_constant("APPLICATION_DISPLAY_VERSION"),
+        },
+        {
+            "path": "clients/web/src/app/releaseMetadata.ts#CLIENT_DISPLAY_VERSION",
+            "write": _write_ts_display,
+            "current": lambda: _read_ts_constant("CLIENT_DISPLAY_VERSION"),
         },
     ]
 
@@ -279,7 +336,8 @@ def policy_surfaces() -> list[tuple[str, bool, str]]:
 
 
 def evaluate() -> dict:
-    version = canonical_version()
+    identity = canonical_identity()
+    version = identity.semver
     machine = []
     for surface in machine_surfaces():
         try:
@@ -295,15 +353,31 @@ def evaluate() -> dict:
                 "actual": current,
             }
         )
+    for surface in display_surfaces():
+        try:
+            current = surface["current"]()
+        except Exception as exc:
+            machine.append({"path": surface["path"], "ok": False, "detail": exc.__class__.__name__})
+            continue
+        machine.append(
+            {
+                "path": surface["path"],
+                "ok": current == identity.display,
+                "expected": identity.display,
+                "actual": current,
+            }
+        )
     docs = [
         {"path": path, "ok": ok, "detail": detail}
-        for path, ok, detail in documentation_surfaces(version)
+        for path, ok, detail in documentation_surfaces(identity.display)
     ]
     policy = [{"path": path, "ok": ok, "detail": detail} for path, ok, detail in policy_surfaces()]
     failures = [item for item in [*machine, *docs, *policy] if not item["ok"]]
     return {
         "ok": not failures,
-        "canonical_version": version,
+        "canonical_version": identity.pep440,
+        "semver_version": version,
+        "display_version": identity.display,
         "surfaces": [*machine, *docs, *policy],
         "failures": failures,
     }
@@ -315,10 +389,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--json", action="store_true")
     args = parser.parse_args(argv)
 
-    version = canonical_version()
+    identity = canonical_identity()
+    version = identity.semver
     if args.write:
         for surface in machine_surfaces():
             _write_surface(surface, version)
+        for surface in display_surfaces():
+            surface["write"](identity.display)
         print(f"Machine version surfaces synchronized to {version}.", file=sys.stderr)
 
     report = evaluate()

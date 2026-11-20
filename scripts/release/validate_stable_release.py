@@ -60,7 +60,12 @@ from scripts.release.evidence_envelope import (  # noqa: E402
     parse_utc_timestamp,
 )
 from scripts.release.release_artifacts import sha256_file  # noqa: E402
-from scripts.release.release_metadata import ROOT, canonical_app_version  # noqa: E402
+from scripts.release.release_metadata import (  # noqa: E402
+    ROOT,
+    canonical_app_version,
+    canonical_version_identity,
+    check_channel_matches_version,
+)
 from scripts.release.validate_release_artifacts import validate as validate_artifacts  # noqa: E402
 
 
@@ -472,7 +477,8 @@ def evaluate_gates(
         now = datetime.now(UTC)
     for gate in policy["gates"]:
         # Promotion inherits earlier-channel controls; stable must not skip RC gates.
-        channel_rank = {"preview": 0, "rc": 1, "stable": 2}
+        # A beta is a pre-release for customer acceptance: it needs what an RC needs.
+        channel_rank = {"preview": 0, "beta": 1, "rc": 1, "stable": 2}
         required_for = gate["required_for"]
         required = required_for == "all" or (
             required_for in channel_rank
@@ -562,6 +568,13 @@ def main(argv: list[str] | None = None) -> int:
         errors.append("release context channel != tag channel")
     if tag.app_version.core != canonical_app_version():
         errors.append("release tag does not match canonical pyproject version")
+    identity = canonical_version_identity()
+    try:
+        check_channel_matches_version(tag.channel, identity)
+    except ValueError as exc:
+        errors.append(str(exc))
+    if tag.channel.value == "beta" and tag.prerelease_number != identity.beta:
+        errors.append("beta tag number does not match the canonical pyproject beta")
     if channel == "stable":
         if not context.get("git_ref", "").startswith("refs/tags/"):
             errors.append("stable releases require a pushed semantic tag, not workflow_dispatch")

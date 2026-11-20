@@ -16,6 +16,7 @@ from typing import Any
 
 from eurogas_nexus.release.versioning import (
     ReleaseChannel,
+    SemVer,
     build_release_tag,
     parse_app_version,
     parse_release_tag,
@@ -40,8 +41,38 @@ def load_pyproject() -> dict[str, Any]:
     return tomllib.loads((ROOT / "pyproject.toml").read_text(encoding="utf-8"))
 
 
+def canonical_version_identity() -> SemVer:
+    """The ``pyproject.toml`` version, parsed (``1.0.0b1`` -> core 1.0.0, beta 1)."""
+
+    return parse_app_version(str(load_pyproject()["project"]["version"]).strip())
+
+
 def canonical_app_version() -> str:
-    return str(load_pyproject()["project"]["version"]).strip()
+    """The canonical version core ``X.Y.Z`` that every release tag is built on.
+
+    A beta (``pyproject`` ``1.0.0b1``) has core ``1.0.0``; the beta number and the
+    other spellings come from :func:`canonical_version_identity`.
+    """
+
+    return canonical_version_identity().core
+
+
+def check_channel_matches_version(channel: ReleaseChannel, identity: SemVer) -> None:
+    """A beta version releases only on the beta channel, and rc/stable never carry a beta.
+
+    Preview builds of either are allowed (they never publish).
+    """
+
+    if channel is ReleaseChannel.BETA and identity.beta is None:
+        raise ValueError(
+            f"The beta channel needs a beta version; pyproject is {identity.pep440}. "
+            "Run scripts/release/bump_version.py X.Y.ZbN first."
+        )
+    if channel in (ReleaseChannel.RC, ReleaseChannel.STABLE) and identity.beta is not None:
+        raise ValueError(
+            f"pyproject is the beta {identity.pep440}; a {channel.value} release needs the "
+            f"final version (scripts/release/bump_version.py {identity.core})."
+        )
 
 
 def latest_alembic_revision() -> str:
@@ -158,8 +189,9 @@ def resolve_release_context(
     """
 
     resolved_channel = ReleaseChannel(channel)
-    app_version = canonical_app_version()
-    parsed_version = parse_app_version(app_version)
+    parsed_version = canonical_version_identity()
+    app_version = parsed_version.core
+    check_channel_matches_version(resolved_channel, parsed_version)
     resolved_sha = (git_sha or current_git_sha() or "").strip().lower()
     if not resolved_sha:
         raise RuntimeError("A git SHA is required to resolve release metadata.")
@@ -175,6 +207,14 @@ def resolve_release_context(
                 f"Tag {tag!r} is {parsed_tag.channel.value} but channel "
                 f"{resolved_channel.value} was resolved."
             )
+        if (
+            resolved_channel is ReleaseChannel.BETA
+            and parsed_tag.prerelease_number != parsed_version.beta
+        ):
+            raise ValueError(
+                f"Tag {tag!r} is beta {parsed_tag.prerelease_number} but pyproject is "
+                f"{parsed_version.pep440}."
+            )
         release_version = parsed_tag.tag
         prerelease_number = parsed_tag.prerelease_number
     else:
@@ -185,11 +225,13 @@ def resolve_release_context(
             )
         # A dispatched RC takes the next free number for this version (rc.1, rc.2, ...) so
         # RCs read in order whether they were tagged by hand or started from Actions.
-        number = (
-            next_rc_number(parsed_version.core)
-            if resolved_channel is ReleaseChannel.RC
-            else build_run_number or 1
-        )
+        # A dispatched beta is the beta the version files name (1.0.0b1 -> beta.1).
+        if resolved_channel is ReleaseChannel.RC:
+            number = next_rc_number(parsed_version.core)
+        elif resolved_channel is ReleaseChannel.BETA:
+            number = parsed_version.beta
+        else:
+            number = build_run_number or 1
         release_version = build_release_tag(
             parsed_version,
             resolved_channel,
@@ -209,6 +251,10 @@ def resolve_release_context(
         "product_name": PRODUCT_NAME,
         "package_name": PACKAGE_NAME,
         "app_version": app_version,
+        # The product's own version in its two spellings (1.0.0-beta.1 / 1.0.0-beta);
+        # equal to app_version for a final version.
+        "package_version": parsed_version.semver,
+        "display_version": parsed_version.display,
         "release_version": release_version,
         "channel": resolved_channel.value,
         "prerelease_number": prerelease_number,

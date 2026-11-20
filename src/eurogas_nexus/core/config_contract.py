@@ -139,7 +139,7 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
     ConfigVar(
         name="EUROGAS_NEXUS_RELEASE_CHANNEL",
         scope="OPERATOR",
-        purpose="Release channel: preview, rc or stable.",
+        purpose="Release channel: preview, beta, rc or stable.",
         default="preview",
     ),
     # --- Runtime store ------------------------------------------------------

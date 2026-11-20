@@ -162,7 +162,7 @@ def find_bundle(patterns: list[str]) -> Path | None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--channel", choices=["preview", "rc", "stable"], default="preview")
+    parser.add_argument("--channel", choices=["preview", "beta", "rc", "stable"], default="preview")
     parser.add_argument("--output-dir", default="release-assets")
     parser.add_argument("--build-web", action="store_true")
     parser.add_argument("--build-desktop", action="store_true")

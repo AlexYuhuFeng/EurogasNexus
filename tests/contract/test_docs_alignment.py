@@ -141,8 +141,9 @@ def test_current_docs_use_public_plan_workflow_and_preview_version() -> None:
 
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
     changelog = (ROOT / "CHANGELOG.md").read_text(encoding="utf-8")
-    from eurogas_nexus.version import APPLICATION_VERSION
+    from eurogas_nexus.version import APPLICATION_DISPLAY_VERSION as APPLICATION_VERSION
 
+    # Documents carry the display spelling (1.0.0-beta).
     assert f"Package version: `{APPLICATION_VERSION}`" in readme
     assert "Channel: `preview`" in readme
     assert "not a production or GA release" in readme

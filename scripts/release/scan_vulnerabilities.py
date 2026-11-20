@@ -169,7 +169,7 @@ def policy_ok(scan: dict, channel: str, exceptions: dict) -> tuple[bool, str]:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--channel", choices=["preview", "rc", "stable"], default="preview")
+    parser.add_argument("--channel", choices=["preview", "beta", "rc", "stable"], default="preview")
     parser.add_argument(
         "--output", default="release-assets/release-evidence/vulnerability-scan.json"
     )

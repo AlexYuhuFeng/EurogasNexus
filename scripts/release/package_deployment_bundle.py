@@ -45,10 +45,12 @@ IDENTITY_PRODUCT_NAME = "Eurogas Nexus"
 _APP_VERSION_RE = re.compile(r"\d+\.\d+\.\d+")
 _COMMIT_SHA_RE = re.compile(r"[0-9a-f]{40}")
 _IMAGE_DIGEST_RE = re.compile(r"sha256:[0-9a-f]{64}")
-_CHANNELS = ("preview", "rc", "stable")
+_CHANNELS = ("preview", "beta", "rc", "stable")
 _RELEASE_VERSION_RES = {
     "stable": re.compile(r"v\d+\.\d+\.\d+"),
     "rc": re.compile(r"v\d+\.\d+\.\d+-rc\.\d+"),
+    # vX.Y.Z-beta is the accepted alias of -beta.1 (eurogas_nexus.release.versioning).
+    "beta": re.compile(r"v\d+\.\d+\.\d+-beta(?:\.\d+)?"),
     "preview": re.compile(r"v\d+\.\d+\.\d+-preview\.\d+\.[0-9a-f]{12}"),
 }
 
@@ -316,6 +318,7 @@ def build_release_identity(
     expected_release_version = {
         "stable": base_version,
         "rc": rf"{base_version}-rc\.\d+",
+        "beta": rf"{base_version}-beta(?:\.\d+)?",
         "preview": rf"{base_version}-preview\.\d+\.[0-9a-f]{{12}}",
     }[channel]
     if re.fullmatch(expected_release_version, release_version) is None:
