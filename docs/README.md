@@ -288,6 +288,7 @@ Operational procedures and operator-facing guides:
   beside it
 - [Release engineering specification](release/RELEASE_ENGINEERING_SPEC.md)
 - [Release channels](release/RELEASE_CHANNELS.md)
+- [Delivery package 1.0.0 beta](release/DELIVERY_PACKAGE_1.0.0-beta.md) and [release notes](release/notes/1.0.0-beta-RELEASE_NOTES.md)
 - [GA release gates](release/GA_RELEASE_GATES.md)
 - [Functional acceptance report](release/FUNCTIONAL_ACCEPTANCE_REPORT.md) - the measured
   functional state: the browser gate now checks that a surface renders what its own API returned

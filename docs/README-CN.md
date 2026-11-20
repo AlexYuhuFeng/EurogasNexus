@@ -191,6 +191,7 @@ Architecture V2 是绑定的目标架构与产品体验交互权威（ADR-0016�
 - [发布就绪](release/RELEASE_READINESS.md)
 - [发布工程规范](release/RELEASE_ENGINEERING_SPEC.md)
 - [发布渠道](release/RELEASE_CHANNELS.md)
+- [1.0.0 beta 交付包](release/DELIVERY_PACKAGE_1.0.0-beta.md)（英文）与[发布说明](release/notes/1.0.0-beta-RELEASE_NOTES.md)（英文）
 - [单点登录（英文）](operations/ENTERPRISE_SSO.md)
 - [ETRM/ERP 集成（英文）](integration/ERP_ETRM_INTEGRATION.md)
 - [合规审计（英文）](compliance/COMPLIANCE_AUDIT.md)
