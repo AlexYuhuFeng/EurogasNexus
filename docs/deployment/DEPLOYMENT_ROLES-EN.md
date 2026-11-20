@@ -241,16 +241,16 @@ audited (`source.approval`) and runs a bounded live check. GIE approved before i
 exists reads "approved, waiting for key" and is checked at the first read after the key
 is stored.
 
-Package version `1.0.0-beta` on the `preview` channel has no multi-user login or SSO.
-Server therefore requires `-PrivateNetworkOnly`, must sit behind a customer
-firewall/VPN allowlist and must not be exposed to the public internet. HTTPS
-protects transport; it
-does not provide user authorization. Public or multi-tenant deployment is
-blocked until backend authentication and authorization are implemented.
+Package version `1.0.0-beta` (the `beta` channel) signs people in with the company's SSO
+(OIDC) or with local accounts, and every route checks the caller's permissions, but it has
+had no independent penetration test yet (gate G15). Server therefore still requires
+`-PrivateNetworkOnly`, must sit behind a customer firewall/VPN allowlist and must not be
+exposed to the public internet. HTTPS protects transport; it does not replace that review.
+Public or multi-tenant deployment stays blocked until G15 has passed.
 
 ## Client role
 
-Client requires the signed NSIS installer and an existing HTTPS server URL:
+Client requires the NSIS installer and an existing HTTPS server URL:
 
 ```powershell
 ./Deploy-EurogasNexus.ps1 -Action Install -Role Client `
@@ -258,7 +258,7 @@ Client requires the signed NSIS installer and an existing HTTPS server URL:
   -ClientInstallerPath ./Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe
 ```
 
-The tool validates `/api/health` before installing, runs the signed NSIS package,
+The tool validates `/api/health` before installing, runs the NSIS package,
 and writes only this client deployment record:
 
 ```json
@@ -274,9 +274,13 @@ change the endpoint in Settings. Web deployments set
 `VITE_EUROGAS_API_BASE_URL` at build/deployment time and must use the same HTTPS
 policy.
 
-The deployment tool rejects an invalid or unsigned installer. Internal preview
-testing may use `-AllowUnsignedPreview`; customer delivery must not use that
-switch.
+The deployment tool rejects an invalid or unsigned installer. The published installers,
+the 1.0.0 beta included, are **unsigned**: signing is the deploying firm's decision (the
+release's `signing-state.json` records it per file). Either sign the installer with the
+firm's own code-signing certificate before deployment, after which the tool accepts it, or,
+for an acceptance installation only, verify the file against `SHA256SUMS` and its GitHub
+attestation and pass `-AllowUnsignedPreview`; the tool's result then reports
+`unsigned_preview_allowed: true`.
 
 ## Internet requirements
 

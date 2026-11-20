@@ -52,8 +52,9 @@ Non-code assets:
   licence travels with it: it is reproduced in `THIRD_PARTY_NOTICES.md` and emitted as
   `dist/licenses/Inter-OFL-1.1.txt`. Record: `clients/web/src/assets/fonts/fonts.json`. Chinese
   text uses the device's own CJK face.
-- Map tiles default to no basemap; public OSM/CARTO tiles are marked not for
-  commercial use (`clients/web/src/app/mapTileProviders.ts`).
+- Map tiles default to the bundled basemap (Natural Earth, public domain; no third-party
+  request); public OSM/CARTO tiles are marked not for commercial use
+  (`clients/web/src/app/mapTileProviders.ts`, `docs/legal/DATA_SOURCE_TERMS.md`).
 
 Optional OCR for scanned contracts calls a Tesseract binary (Apache-2.0) that the customer
 installs; the product neither bundles it nor any GPL tool such as Poppler.

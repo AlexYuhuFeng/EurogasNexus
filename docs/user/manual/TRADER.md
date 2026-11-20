@@ -7,11 +7,15 @@ will differ.
 
 Sign in with your company account. The top bar has four modes: **Desk**, **Deals**, **Book**
 and **Research**. You land on Desk. Its first task, **Today**, answers
-"what changed, and does it touch us?" in four rows: key figures (front-month prices with
-their day change, your net position today and for the front month, headroom on the
-tightest limit), what changed (open alerts and outages, each with **Why**), your book
-against the market (position, mark and day P&L change by hub), and fundamentals (storage
-fill and the supply call, with the north-west Europe balance below). A figure that is not
+"what changed, and does it touch us?" in rows chosen for your job: **My market** (front-month
+prices with their day change), **What needs me** (open alerts, outages and findings, each with
+**Why**), **My book** (position, mark and day P&L change by hub) and **Fundamentals** (storage
+fill and the supply call, with the north-west Europe balance below). Traders and operations
+also see **My gas day** (per hub: what comes in, what goes out and the net still to clear,
+for the books of your mandate, today or tomorrow) and the **Gas day checklist** (each
+source's nomination status, mismatches and LNG terminal steps; the time left turns amber,
+then red, as the deadline nears). A status you set on the checklist is your own record,
+labelled as entered by hand; nothing is nominated from Eurogas Nexus. A figure that is not
 current says so in words beside it ("late 3 h", "stale 2 d"); the link at the right of the
 context line lists every such figure and takes you to it. Simulated figures carry "sim"
 beside the value, and the demo desk says "Demo data" once. Risk figures have a **Method**
@@ -24,80 +28,64 @@ the ETRM import, read-only, or the next nomination window), or nothing at all. I
 data-pipeline state. See [the situational strip](../SITUATION_STRIP.md); its thresholds are under
 Settings → Personal preferences → Situational strip.
 
-Your work is mostly under **Deals** (Contracts, Review) and **Book** (Position, Limits & P&L,
-Delivery for the daily balance and sell-down, Planning for nominations and the storage plan). Help & Settings and Administration are in the
-account menu.
+Your work is mostly under **Deals** (Opportunities, Contracts, Review) and **Book**
+(Position, Limits & P&L, Delivery for the daily balance and sell-down, Planning for
+nominations and the storage plan). **Research** holds Fundamentals, Spreads, Cargo & netback
+and Reports. Help & Settings and Administration are in the account menu. A page that is
+empty on a new installation offers **See an example**, and the first time you open a page
+up to three tips point at its main controls (Help & Settings replays them).
 
 ![Sign-in](img/00-signin.png)
 
-## 1. Enter a new supply contract
+## 1. Enter a new contract
 
-Deals → **Contracts** → **New draft**. The draft starts empty except for desk
-conventions (EFET form, current gas year, tolerances, monthly settlement). Facts only the
-contract can state are blank, and **Save to pool** stays disabled until they are filled;
-the Validation box on the right says what is missing.
+Deals → **Contracts** opens the contract list: every stored contract with its kind, volume,
+status (In execution, Starts later, Expired, Retired), counterparty, delivery point and
+period. Cargo confirmations sit under their LNG master agreement. Find a contract,
+counterparty or point with the search box, or narrow the list with **Kind of contract**.
+Click a row to open the contract.
 
-![A new, empty draft](img/tr-02-new-draft.png)
+**New contract** (above the list) asks first for the kind of contract:
 
-1. **Agreement**: a resource term ID you will recognise (`stfergus-equinor-gy26`), a
-   name (`St Fergus supply GY26 (Equinor)`), the counterparty (`Equinor ASA`) and the
-   resource type (pipeline import, beach delivery, LNG regasification, storage, pool).
+| Kind | What it holds |
+|---|---|
+| Gas supply agreement | Term supply at a point: DCQ, period, price, tolerances |
+| Upstream tender | A producer's gas bought by tender: DCQ with a min–max swing, index ± differential |
+| LNG master agreement (MSPA) | The frame cargoes are confirmed under: delivery terms, laytime, demurrage, credit support |
+| LNG cargo confirmation | One cargo under an MSPA: FOB or DES, window, size, price formula |
+| LNG term SPA, Hub trade (EFET / NBP), Transport, LNG terminal and Storage capacity | Their own terms |
 
-   ![Agreement](img/tr-03-agreement.png)
+The form then shows only that kind's terms, grouped as Parties and master, Quantity and
+quality, Delivery, Price, Flexibility, and Payment and credit. Terms marked * are needed to
+save; until they are filled the form says what is still needed. Anything the form does not
+hold yet (price review, heel, make-up) is kept word for word.
 
-2. **Delivery**: choose the delivery point, title-transfer point and physical exit point
-   from the list. It holds the hubs first (NBP, TTF, THE, PEG, ZTP, PSV, CEGH, PVB, and the Danish ETF and GTF, which are distinct markets), then
-   the points of your route network. You cannot type a point that positions and routing
-   would not recognise. If a stored contract records a point outside the list, it is
-   kept and shown as "as recorded".
+1. **Delivery**: choose the delivery point from the list. It holds the hubs first (NBP,
+   TTF, THE, PEG, ZTP, PSV, CEGH, PVB, and the Danish ETF and GTF, which are distinct
+   markets), then the points of your route network. You cannot type a point that positions
+   and routing would not recognise. A stored point outside the list is kept and shown as
+   "as recorded".
+2. **Quantity as written**: in the contract's own unit (an NBP contract in therms per day,
+   a continental one in MWh/d). The book reads it in MWh/d and the form says what it
+   reads ("The book reads: NBP · Oct 2026 – Sep 2027 · 18,000 MWh/d").
+3. **Price**: choose the basis: **Fixed**, **Index ± premium** (index, product, averaging
+   over a number of trading days, publication, premium; a negative premium is a discount)
+   or **Formula** (weighted indices plus a constant, with an optional **Floor** and
+   **Cap**). The price is kept in its own unit, NBP in pence per therm; an LNG cargo is
+   priced per cargo on its confirmation.
+4. **Save contract**. The contract is stored with you as its author; it enters positions,
+   risk and the map. Nothing is nominated or traded.
 
-   ![Delivery points chosen from the list](img/tr-04-delivery.png)
+An opened contract reads its terms in words first, then **Edit**, **Inspect** and
+**Retire…**. **Edit price and quantity** changes just those terms; the price panel shows
+the contract's price for a chosen delivery month and the index closes it read.
 
-3. **Product term**: the index basis follows the delivery hub (`NBP day-ahead`, month-,
-   season- or gas-year-ahead, fixed price, oil-indexed).
+## 2. Read a contract PDF into a new contract
 
-   ![Index basis for an NBP contract](img/tr-04b-product.png)
-
-4. **Quantity and tolerance**: daily contract quantity in MWh/d (`18000`), delivery
-   tolerance (`5` %) and nomination tolerance (`2` %).
-
-   ![Quantity and tolerance](img/tr-05-quantity.png)
-
-5. **Price & costs**: the contract price (`30.85`) in its currency, and any variable
-   costs. The currency defaults to the delivery hub's (GBP at NBP, EUR at TTF); choose USD
-   for a dollar-priced cargo. A price in another currency than the hub's is translated at
-   the latest ECB reference rate for positions, and the form says so.
-
-   ![Price](img/tr-06-price.png)
-
-6. **Capacity rights** and **Settlement and cash**: entry capacity held (`19000` MWh/d),
-   capacity expiry as a date, governing law from the list (`English law`), payment lags
-   and the financing rate (look it up from SONIA, €STR or SOFR).
-
-   ![Settlement and law](img/tr-07-settlement.png)
-
-7. **Restrictions**: tick where the gas may be taken (exit hubs) and how it may be sold.
-
-   ![Exit points and sale routes as checkboxes](img/tr-07b-restrictions.png)
-
-8. **Save to pool** (top right, beside the tabs). The contract is stored with you as its
-   author; it enters positions, risk and the map. Nothing is nominated or traded.
-
-   ![Saved](img/tr-08-saved.png)
-
-The **Library** tab lists stored contracts with volume, price and when they were saved.
-
-![Library](img/tr-09-library.png)
-
-## 2. Read a confirmation PDF into a draft
-
-**Import** (top right of the contract) and choose the signed confirmation PDF. Every term
-the reader recognises is listed with the page and the words it came from, converted to
-desk units (therms per day to MWh/d, pence per therm to GBP/MWh). The draft is filled but
-not saved: check each term against the page, complete what is missing (here the name),
-then save.
-
-![Terms read from the PDF with their source wording](img/tr-20-import.png)
+**Import PDF** (beside **New contract**) and choose the signed contract or confirmation.
+The reader proposes the kind and fills that kind's form; every term it recognises is listed
+with the page and the words it came from. Nothing is saved: check each term against the
+page, complete what is missing, then **Save contract**.
 
 Scanned PDFs are read when the server has Tesseract installed.
 
@@ -105,19 +93,11 @@ Scanned PDFs are read when the server has Tesseract installed.
 
 A contract is never deleted: it is retired, so its history and audit stay.
 
-1. Library → **Retire…** on the contract, give the reason (`Terminated by mutual consent
-   31 Oct 2026 (letter ref. VL-2026-114)`).
-
-   ![Retire with a reason](img/tr-10-retire-form.png)
-
-2. **Retire contract**. It leaves positions, risk and the map, and appears under
-   **Retired contracts** with who retired it, when and why.
-
-   ![Retired, with who, when and why](img/tr-11-retired.png)
-
-3. If the termination is withdrawn, type the reason in the row and **Reinstate**.
-
-   ![Reinstate with a reason](img/tr-12-reinstate.png)
+1. Open the contract → **Retire…**, give the reason (`Terminated by mutual consent
+   31 Oct 2026 (letter ref. VL-2026-114)`) → **Retire contract**. It leaves positions,
+   risk and the map, and appears under **Retired contracts** below the list with who
+   retired it, when and why.
+2. If the termination is withdrawn, type the reason in its row there and **Reinstate**.
 
 Retiring and reinstating need the contract's current version: if a colleague changed it
 since you opened it, you are asked to reload instead of overwriting their change.
@@ -125,8 +105,10 @@ since you opened it, you are asked to reload instead of overwriting their change
 ## 4. Monitor the book position
 
 Charts on Today (storage fill against the previous year and the EU target, NW Europe supply
-and call) and on Desk → **Prices** (forward curve by delivery month, NBP–TTF spread) show their
-unit and as-of time in the head and say "Simulated" on demo data. **Table** shows the same
+and call) and on Desk → **Prices** show their unit and as-of time in the head and say
+"Simulated" on demo data. Prices has three views: the **Hub board** (each hub in its own
+quotation, NBP in p/th, TTF in EUR/MWh; your reporting currency and unit on hover), the
+**Ladder** (forward curve by delivery month) and **Prompt** (within-day and day-ahead). **Table** shows the same
 figures as a table, **CSV** downloads exactly what is plotted, and with the chart focused the
 Left/Right arrow keys step through the points.
 
@@ -178,11 +160,18 @@ nominated, shortfalls beyond tolerance and the last 7 days.
 
 ![Delivery against nominations](img/tr-14-delivery.png)
 
-## 6. Price an LNG cargo bid
+## 6. Study a cargo and its netback
 
-The LNG cargo bid panel was removed with Routes & netback (commercial design basis 2, section I).
-Cargo economics return as **Deals → Opportunities** and **Research → Cargo & netback**; until
-then the terminal terms and tariffs are kept under Administration.
+Research → **Cargo & netback** prices a cargo from load to the hubs it can reach: freight,
+regas, entry and fuel at each terminal the firm has terms for, the netback per terminal in
+one currency at forward FX, and Henry Hub history as the default US reference. A confirmed
+LNG cargo under Deals → Contracts opens its own study. Deals → **Opportunities** lists what
+the evaluators found (locational spreads, held capacity, sell-down, storage time spread,
+re-route through the pool, and a market lane "in the market, not on your book"), ranked by
+net edge per MWh after tariffs. Research → **Spreads** shows the spread board and lets you
+**Describe it** in plain words ("forward spread net of transport tariff between TTF and
+NBP"); a route between hubs that are not neighbours is priced over the cheapest chain of
+crossings, at the tariffs the TSOs publish on ENTSOG.
 
 ## 7. Track TSO tariff publications
 
@@ -193,6 +182,11 @@ year (`2027/28`), held (expected, indicative or final) and the page URL → **Sa
 final tariff is due 30 days before July's annual yearly auction (NC TAR); the register
 shows the due date, whether the page changed since you last reviewed it, and emails the
 desk when it does.
+
+Where ENTSOG publishes no tariff for a leg, an operator enters the TSO's published charge
+under Administration → **Data Sources** → **Access & certification** → *Transmission tariffs
+ENTSOG does not publish*. A second person reviews it (four eyes); until then routes priced
+over that leg say the price is indicative, and a published ENTSOG row replaces the entry.
 
 ![Tariff publication register](img/tr-18-tariffs.png)
 

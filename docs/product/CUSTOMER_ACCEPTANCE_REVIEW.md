@@ -6,6 +6,16 @@ middle office, credit, compliance and IT. Each role was walked through its day i
 running application (seeded walkthrough data, browser-driven); the gaps found were
 implemented in the same change where they could be, and the rest are listed with an owner.
 
+> **Read with 1.0.0-beta (2026-11-20).** The walkthrough is dated; screens have moved since.
+> Navigation is now by task: Desk (Today, Prices, Network), Deals (Opportunities,
+> Contracts, Review), Book (Position, Limits & P&L, Delivery, Planning) and Research
+> (Fundamentals, Spreads, Cargo & netback, Reports). "Portfolio → Resources" below is now
+> Deals → Contracts (the contract list) and Book → Delivery (delivery against nominations).
+> The "LNG cargo bid" (Portfolio → Routes) was removed; cargo economics are Research →
+> Cargo & netback and the Deals → Opportunities evaluators. Weather-driven demand is not on
+> screen in 1.0.0-beta. Installers are unsigned unless the firm signs them. G15, G16 and
+> G18 (section 5) are still open.
+
 ## 1. What ships to the customer, and what does not
 
 | Item | Ships? | Why |
@@ -56,8 +66,10 @@ costs translate it into GBP at the ECB rate or leave the contract out without on
 
 ### Analyst
 
-Fundamentals (NWE balance, gas-for-power, storage vs target, weather demand), spread lab,
-datasets for ML. All tabular reads now export to Excel and PDF as well as CSV. Accept.
+Fundamentals (NWE balance, gas-for-power, storage vs target; weather-driven demand is not on
+screen in 1.0.0-beta), spread lab (now Research → Spreads), datasets for ML (the dataset
+builder is deferred and not served by default since 2026-11-19). All tabular reads now
+export to Excel and PDF as well as CSV. Accept.
 
 ### Risk, credit and legal/compliance
 
@@ -85,8 +97,9 @@ and business; the live map gives the portfolio by country. Accept.
 ### IT desk: maintain, debug, extend
 
 Config contract with generated templates, health and readiness, structured logs, audit
-trail, backup/restore drill, migration preflight, SBOMs and licence notices, signed and
-attested release assets, Windows installer upgrade/uninstall verified in CI. New this
+trail, backup/restore drill, migration preflight, SBOMs and licence notices, attested
+release assets with checksums (installers unsigned unless the firm signs them), Windows
+installer upgrade/uninstall verified in CI. New this
 round: one new runtime dependency (pypdf, BSD-3-Clause); OCR is optional and uses a
 Tesseract binary the customer installs (Apache-2.0; nothing GPL is bundled). The daily
 allocation load is a script (`scripts/ops/import_contract_deliveries.py`) for their
@@ -106,8 +119,8 @@ allows).
 
 One design system (tokens, light/dark, reduced motion), status colours with text (never
 colour alone), the same export control on every table, new panels inside existing pages
-(no new page per capability). Web (current Chrome, Edge, Firefox, Safari), Windows
-desktop installer, Python SDK. Bug reports and client updates: see
+(no new page per capability). Web (current Chrome, Edge, Firefox, Safari), Windows x64
+desktop installer, Linux x64 and arm64 desktop packages, Python SDK. Bug reports and client updates: see
 [`docs/guides/SUPPORT_AND_UPDATES.md`](../guides/SUPPORT_AND_UPDATES.md).
 
 ## 4. Found in the walkthrough and fixed

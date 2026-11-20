@@ -26,17 +26,21 @@ covers it.
 
 | When | Workflow | Where | Described |
 |---|---|---|---|
-| Morning | Check prices, freshness and alerts | Desk → Prices; top bar | Guide |
+| Morning | Check prices, freshness and alerts | Desk → Today, Desk → Prices; top bar | Guide |
+| Every day | See the gas day: IN, OUT and net to clear per hub; nomination status and LNG terminal steps | Desk → Today → My gas day, Gas day checklist | [Steps](TRADER.md) |
 | Morning | Review the position ladder: net long/short per hub and month, hedge, marks, VaR | Book → Limits & P&L | [Steps](TRADER.md#4-monitor-the-book-position) |
 | Morning | See where the mandate stands before trading | Book → Limits & P&L → Credit and mandates | [Steps](TRADER.md#4-monitor-the-book-position) |
 | Every day | See each gas day's balance: supply, exchange and bilateral trades, the residual still to sell or buy, and the cash-out cost if left | Book → Delivery → Daily gas balance | [Steps](TRADER.md#5-balance-each-gas-day) |
 | Day-ahead | Decide how much of tomorrow's supply to sell DA and how much to keep for WD | Book → Delivery → Tomorrow's sell-down | [Steps](TRADER.md#5-balance-each-gas-day) |
 | Daily | Watch delivered against nominated volume per contract | Book → Delivery → Delivery against nominations | [Steps](TRADER.md#5-balance-each-gas-day) |
-| New deal | Enter a supply contract by hand | Deals → Contracts → New draft | [Steps](TRADER.md#1-enter-a-new-supply-contract) |
-| New deal | Read a signed confirmation PDF into a draft and check each term | Deals → Contracts → Import | [Steps](TRADER.md#2-read-a-confirmation-pdf-into-a-draft) |
-| Change | Edit a stored contract (the edit token prevents overwriting a colleague's change) | Deals → Contracts → Library → Inspect | Guide |
-| End of deal | Retire a terminated contract with a reason; reinstate it if the termination is withdrawn | Deals → Contracts → Library | [Steps](TRADER.md#3-retire-and-reinstate-a-contract) |
+| New deal | Find what is worth doing: evaluators and the market lane, net of tariffs | Deals → Opportunities | [Steps](TRADER.md#6-study-a-cargo-and-its-netback) |
+| New deal | Enter a contract by hand: choose its kind, then its terms | Deals → Contracts → New contract | [Steps](TRADER.md#1-enter-a-new-contract) |
+| New deal | Read a signed contract PDF into a new contract and check each term | Deals → Contracts → Import PDF | [Steps](TRADER.md#2-read-a-contract-pdf-into-a-new-contract) |
+| Change | Edit a stored contract (the edit token prevents overwriting a colleague's change) | Deals → Contracts → open the contract → Edit | Guide |
+| End of deal | Retire a terminated contract with a reason; reinstate it if the termination is withdrawn | Deals → Contracts → open the contract → Retire…; Retired contracts | [Steps](TRADER.md#3-retire-and-reinstate-a-contract) |
+| Research | Spreads, a strategy described in words, cargo netbacks, storage, LNG and flows | Research → Spreads, Cargo & netback, Fundamentals | [Steps](TRADER.md#6-study-a-cargo-and-its-netback) |
 | Yearly | Track each TSO's indicative and final tariffs for the next gas year | Administration → Data Sources → Infrastructure → Tariff publications | [Steps](TRADER.md#7-track-tso-tariff-publications) |
+| When a leg is unpriced | Enter a TSO's published tariff ENTSOG lacks; a second person reviews it | Administration → Data Sources → Access & certification | [Steps](TRADER.md#7-track-tso-tariff-publications) |
 | Reporting | Export the ladder, credit and mandate tables to Excel, PDF or CSV | Export buttons on each table | [Steps](TRADER.md#4-monitor-the-book-position) |
 | Research | Write a market report from the catalogue's sections | Research → Reports | Guide |
 | Start and end of day | Draft the morning brief or end-of-day report | Desk → Today → Desk brief, or Ctrl K | [Steps](TRADER.md#8-draft-the-morning-brief-or-end-of-day-report) |
@@ -52,7 +56,7 @@ covers it.
 | On change | Set or change a counterparty credit line | Credit line… | [Steps](RISK.md#2-set-a-counterparty-credit-line) |
 | On change | Set a trader mandate, including a legal hedge cap (e.g. 80 %) and allowed instruments (no options) | Mandate… | [Steps](RISK.md#3-set-a-mandate-with-a-hedge-cap) |
 | Per deal | Approve a hedge band for one contract (80 % for one, 50 % for another) and watch the linked trades' cover | Book → Limits & P&L → Deal hedge approvals | [Steps](RISK.md#4-approve-a-hedge-band-for-a-deal) |
-| Monthly | Review delivery performance per contract (shortfalls against tolerance) | Deals → Contracts | [Steps](RISK.md#5-delivery-performance) |
+| Monthly | Review delivery performance per contract (shortfalls against tolerance) | Book → Delivery | [Steps](RISK.md#5-delivery-performance) |
 | Audit | Show who changed a limit, retired a contract or resolved a report, and when | Audit trail (Admin → Access & Identity → Audit, export) | Guide |
 
 Limits are set by the risk function only (REVIEWER role); a trader cannot set their own.
@@ -75,6 +79,12 @@ Limits are set by the risk function only (REVIEWER role); a trader cannot set th
 | Set-up | Market-data licences and the customer's own credentials | Admin → Data Sources | Guide |
 
 ## Screenshot context
+
+The screenshots were taken on 2026-11-01 to 2026-11-07, before the four-mode navigation
+(Desk, Deals, Book, Research) and the current brand mark. The top bar in them is the old
+one. The pictures of the earlier contract draft workbench (`tr-02` to `tr-12`, `tr-20`)
+and of the removed LNG cargo bid (`tr-17`) are no longer referenced, because those screens
+are gone; the text describes the current screens.
 
 The screenshots show reference walkthrough records, rather than client positions or current
 market observations. Use the interface labels and release supplied for your installation.

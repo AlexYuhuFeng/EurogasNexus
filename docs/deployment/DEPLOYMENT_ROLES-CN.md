@@ -146,14 +146,14 @@ Eurogas Nexus **不会静默下载或安装** Docker Desktop、WSL、PostgreSQL�
 
 密钥保存在“管理 → 数据源”（凭据，使用 `EUROGAS_NEXUS_SECRET_KEY` 加密），或在运行环境中提供 `GIE_API_KEY`/`GIE_API_KEY_FILE`、`EIA_API_KEY`、`ENTSOE_SECURITY_TOKEN`。缺少密钥时，相应数据源的运行记录为 `credential_missing`，不进行任何请求；保存密钥后，默认关闭的需密钥数据源（GIE、GIE IIP、ENTSO-E）会在下一次调度扫描时自动开启，除非运维人员已将其关闭。授权价格供应商在客户配置相应凭据与数据范围之前保持禁用。
 
-`1.0.0-beta` 的 `preview` 渠道尚未实现多用户登录或 SSO，因此 Server 必须指定
-`-PrivateNetworkOnly`，部署在客户防火墙或 VPN 白名单之后，严禁直接暴露到公网。
-HTTPS 只保护传输，不能替代用户授权。后端认证和权限控制完成前，公网及多租户
-部署均属于阻塞项。
+软件包版本 `1.0.0-beta`（`beta` 渠道）支持公司 SSO（OIDC）或本地账户登录，每个接口都会校验调用者
+权限，但尚未经过独立渗透测试（关口 G15）。因此 Server 仍必须指定 `-PrivateNetworkOnly`，部署在客户
+防火墙或 VPN 白名单之后，严禁直接暴露到公网。HTTPS 只保护传输，不能替代上述评审。G15 通过之前，
+公网及多租户部署仍属阻塞项。
 
 ## Client 角色
 
-客户端设备只需要签名 NSIS 安装包和现有服务器 HTTPS 地址：
+客户端设备只需要 NSIS 安装包和现有服务器 HTTPS 地址：
 
 ```powershell
 ./Deploy-EurogasNexus.ps1 -Action Install -Role Client `
@@ -161,7 +161,7 @@ HTTPS 只保护传输，不能替代用户授权。后端认证和权限控制�
   -ClientInstallerPath ./Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe
 ```
 
-部署工具先验证 `/api/health`，再静默运行签名 NSIS，并只写入如下客户端部署
+部署工具先验证 `/api/health`，再静默运行 NSIS 安装包，并只写入如下客户端部署
 记录：
 
 ```json
@@ -175,8 +175,10 @@ HTTPS 只保护传输，不能替代用户授权。后端认证和权限控制�
 桌面程序首次启动时读取该记录。用户之后可在“设置”中测试和更换服务器。
 Web 部署通过 `VITE_EUROGAS_API_BASE_URL` 指定相同的 HTTPS 地址策略。
 
-部署工具默认拒绝签名无效或未签名的安装包。内部预览测试可使用
-`-AllowUnsignedPreview`，客户交付不得使用该参数。
+部署工具默认拒绝签名无效或未签名的安装包。已发布的安装包（包括 1.0.0 beta）**未签名**：是否签名
+由部署方公司决定（发布中的 `signing-state.json` 逐个文件记录）。可先用公司自己的代码签名证书签名，
+部署工具即可接受；或仅在验收安装时，先按 `SHA256SUMS` 与 GitHub 证明核对文件，再使用
+`-AllowUnsignedPreview`，工具输出结果中会显示 `unsigned_preview_allowed: true`。
 
 ## 网络要求
 

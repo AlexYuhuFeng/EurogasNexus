@@ -8,6 +8,11 @@
 ARM64 users must never receive the x64 package; the filenames and Debian
 package metadata both carry the architecture.
 
+A beta's file name carries the release version
+(`Eurogas-Nexus-Client-1.0.0-beta.1-linux-arm64.deb`) and its package `Version` field the
+Debian spelling `1.0.0~beta1` (`scripts/release/set_deb_version.py`), which dpkg sorts
+before `1.0.0`: the stable release later installs over the beta as an upgrade.
+
 ## Install / upgrade / remove
 
 ```bash

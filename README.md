@@ -40,12 +40,12 @@ test observations carry simulation labels.
 
 | Role | Primary work | Guide |
 |---|---|---|
-| Trader | Market → Curves & Spreads | [docs/guides/TRADER.md](docs/guides/TRADER.md) |
-| Analyst, quant | Market or Strategy Lab | [docs/guides/ANALYST_QUANT.md](docs/guides/ANALYST_QUANT.md) |
-| Risk, finance | Portfolio → Exposure | [docs/guides/RISK_AND_FINANCE.md](docs/guides/RISK_AND_FINANCE.md) |
-| Management | Portfolio → Overview | [docs/guides/MANAGEMENT.md](docs/guides/MANAGEMENT.md) |
-| Legal, compliance | Decision Center → Review | [docs/guides/LEGAL_COMPLIANCE.md](docs/guides/LEGAL_COMPLIANCE.md) |
-| IT admin, data operator | Administration, Sources | [docs/guides/ADMIN_AND_OPERATIONS.md](docs/guides/ADMIN_AND_OPERATIONS.md) |
+| Trader | Desk → Today, Prices; Deals → Opportunities, Contracts | [docs/guides/TRADER.md](docs/guides/TRADER.md) |
+| Analyst, quant | Research → Fundamentals, Spreads, Cargo & netback | [docs/guides/ANALYST_QUANT.md](docs/guides/ANALYST_QUANT.md) |
+| Risk, finance | Book → Limits & P&L | [docs/guides/RISK_AND_FINANCE.md](docs/guides/RISK_AND_FINANCE.md) |
+| Management | Book → Position; Research → Reports | [docs/guides/MANAGEMENT.md](docs/guides/MANAGEMENT.md) |
+| Legal, compliance | Deals → Review | [docs/guides/LEGAL_COMPLIANCE.md](docs/guides/LEGAL_COMPLIANCE.md) |
+| IT admin, data operator | Admin → Data Sources, Runtime, Access & Identity | [docs/guides/ADMIN_AND_OPERATIONS.md](docs/guides/ADMIN_AND_OPERATIONS.md) |
 
 ## How data flows
 
@@ -141,8 +141,9 @@ audits. See [Validation](docs/operations/VALIDATION.md),
 
 ## Versions and releases
 
-[Semantic Versioning](https://semver.org/): release candidates are tagged `vX.Y.Z-rc.N`
-and published as GitHub pre-releases, stable versions as `vX.Y.Z`. Preview builds of
+[Semantic Versioning](https://semver.org/): betas for customer acceptance are tagged
+`vX.Y.Z-beta.N` and release candidates `vX.Y.Z-rc.N`, both published as GitHub
+pre-releases; stable versions as `vX.Y.Z`. Preview builds of
 `main` are workflow artifacts, not releases. What changed is in the
 [Changelog](CHANGELOG.md); how releases are cut is in
 [RELEASE_CHANNELS.md](docs/release/RELEASE_CHANNELS.md).

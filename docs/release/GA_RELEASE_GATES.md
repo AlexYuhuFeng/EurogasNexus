@@ -15,7 +15,7 @@ Enforcement: `python scripts/release/validate_stable_release.py`.
 | G8 Security tests | automated security acceptance | yes | PASS local / external blocked |
 | G9 Dependency vulnerability | pip/npm/cargo runtime scans; container image by Trivy at its digest | yes | pip-audit, npm audit and cargo audit in the scan job; Trivy in `container-acceptance` fails stable on fixable HIGH/CRITICAL (2026-10-31) |
 | G10 SBOM | SPDX SBOMs generated | yes | Produced by the release `assemble` job (2026-10-31) |
-| G11 Provenance | GitHub OIDC attestation | RC/stable | Produced by the release `attest` job after attestation (2026-10-31) |
+| G11 Provenance | GitHub OIDC attestation | beta/RC/stable | Produced by the release `attest` job after attestation (2026-10-31) |
 | G12 Checksums | final SHA256SUMS verification | yes | PASS (CR-13 dry-run) |
 | G13 Backup/restore evidence | automated restore drill | yes | Automated in the release `reliability` job: pg_dump, restore into a fresh database, schema/tables/API readiness verified (2026-10-31) |
 | G14 Performance budget | baseline and CI load smoke | yes | PASS inside hard threshold; p95 target exceeded on dense UAT fixture (44.5/1668/3099.5) |
@@ -23,10 +23,13 @@ Enforcement: `python scripts/release/validate_stable_release.py`.
 | G16 Commercial provider certification | licensed provider live acceptance | yes | PENDING_EXTERNAL |
 | G17 Code signing | Retired 2026-10-31: signing is the deploying firm's decision, not a release gate | no | n/a |
 | G18 UAT | real trader/user acceptance | yes | PENDING_EXTERNAL |
-| G19 Container acceptance | immutable image digest inspected (amd64 + arm64 entries); delivered Python notice evidence executed and verified inside the amd64 image (arm64 entries are not executed) | RC/stable | digest-bound envelope written by the release `container-acceptance` job only after the in-image notice verification passes; not yet exercised by a release run |
+| G19 Container acceptance | immutable image digest inspected (amd64 + arm64 entries); delivered Python notice evidence executed and verified inside the amd64 image (arm64 entries are not executed) | beta/RC/stable | digest-bound envelope written by the release `container-acceptance` job only after the in-image notice verification passes; not yet exercised by a release run |
 
 The state column above is a historical CR-12/CR-13 slice, not current
-disposition; the first-customer pilot plan is the current register.
+disposition; the first-customer pilot plan is the current register. "RC" in the
+required column includes the beta channel: a beta (`v1.0.0-beta.N`) is gated exactly as
+an RC (`validate_stable_release.py` ranks beta with rc). For 1.0.0-beta, G15, G16 and G18
+remain PENDING_EXTERNAL.
 
 Gate status vocabulary is only `PASS`, `FAIL`, `PENDING_EXTERNAL`,
 `NOT_APPLICABLE`. PILOT-B requires every evidence file to be a schema-version 2

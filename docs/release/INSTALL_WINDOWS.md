@@ -2,13 +2,17 @@
 
 ## Online workstation (default installer)
 
-1. Download `Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe` and
+1. Download `Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe` (for the beta,
+   `Eurogas-Nexus-Client-1.0.0-beta.1-windows-x64-setup.exe`; Windows shows the version
+   `1.0.0-beta.1` under Installed apps) and
    `SHA256SUMS` from the authorized release.
 2. Verify: `Get-FileHash .\Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe -Algorithm SHA256`
    and compare with `SHA256SUMS`.
 3. Check Authenticode if the release is signed:
    `Get-AuthenticodeSignature .\Eurogas-Nexus-Client-{VERSION}-windows-x64-setup.exe`
-   must report `Valid`. Preview/RC assets may be explicitly `UNSIGNED`.
+   must report `Valid`. Signing is the deploying firm's decision: the published
+   installers, the 1.0.0 beta included, are `UNSIGNED` (the release's
+   `signing-state.json` says so per file) unless the firm signs them itself.
 4. Install per-machine. The default Tauri NSIS configuration is `perMachine`.
 5. Point the client at an existing HTTPS `/api` server in Settings or via the
    operator deployment file.

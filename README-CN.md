@@ -39,12 +39,12 @@
 
 | 角色 | 主要工作 | 中文指南 |
 |---|---|---|
-| 交易员 | 市场 → 曲线 | [docs/guides/TRADER-CN.md](docs/guides/TRADER-CN.md) |
-| 分析师、量化 | 市场或策略实验室 | [docs/guides/ANALYST_QUANT-CN.md](docs/guides/ANALYST_QUANT-CN.md) |
-| 风控、财务 | 组合 → 敞口 | [docs/guides/RISK_AND_FINANCE-CN.md](docs/guides/RISK_AND_FINANCE-CN.md) |
-| 管理层 | 组合 → 概览 | [docs/guides/MANAGEMENT-CN.md](docs/guides/MANAGEMENT-CN.md) |
-| 法务、合规 | 决策中心 → 审阅 | [docs/guides/LEGAL_COMPLIANCE-CN.md](docs/guides/LEGAL_COMPLIANCE-CN.md) |
-| IT 管理员、数据运维 | 管理、数据源 | [docs/guides/ADMIN_AND_OPERATIONS-CN.md](docs/guides/ADMIN_AND_OPERATIONS-CN.md) |
+| 交易员 | 交易台 → 今日、价格；交易项目 → 机会、合同 | [docs/guides/TRADER-CN.md](docs/guides/TRADER-CN.md) |
+| 分析师、量化 | 研究 → 基本面、价差、货物与净回值 | [docs/guides/ANALYST_QUANT-CN.md](docs/guides/ANALYST_QUANT-CN.md) |
+| 风控、财务 | 交易账簿 → 限额与损益 | [docs/guides/RISK_AND_FINANCE-CN.md](docs/guides/RISK_AND_FINANCE-CN.md) |
+| 管理层 | 交易账簿 → 头寸；研究 → 报告 | [docs/guides/MANAGEMENT-CN.md](docs/guides/MANAGEMENT-CN.md) |
+| 法务、合规 | 交易项目 → 复核 | [docs/guides/LEGAL_COMPLIANCE-CN.md](docs/guides/LEGAL_COMPLIANCE-CN.md) |
+| IT 管理员、数据运维 | 管理 → 数据源中心、运行状态、访问与身份 | [docs/guides/ADMIN_AND_OPERATIONS-CN.md](docs/guides/ADMIN_AND_OPERATIONS-CN.md) |
 
 ## 数据流向
 
@@ -131,8 +131,8 @@ CI 另外运行 PostgreSQL 集成测试、中英文浏览器验收与无障碍�
 
 ## 版本与发布
 
-遵循[语义化版本](https://semver.org/lang/zh-CN/)：候选版本标记为 `vX.Y.Z-rc.N` 并作为 GitHub
-预发布（pre-release）发布，正式版本标记为 `vX.Y.Z`。`main` 分支的预览构建只作为工作流产物保存，不
+遵循[语义化版本](https://semver.org/lang/zh-CN/)：供客户验收的 Beta 版本标记为 `vX.Y.Z-beta.N`，候选版本标记为
+`vX.Y.Z-rc.N`，二者均作为 GitHub 预发布（pre-release）发布，正式版本标记为 `vX.Y.Z`。`main` 分支的预览构建只作为工作流产物保存，不
 作为发布。变更内容见[更新日志](CHANGELOG.md)，发布流程见
 [RELEASE_CHANNELS.md](docs/release/RELEASE_CHANNELS.md)（英文）。
 
