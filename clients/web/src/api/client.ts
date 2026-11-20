@@ -3795,6 +3795,8 @@ export interface ForwardBalanceMonthDTO {
   days: number;
   demand_gwh_d: number;
   demand_error_gwh_d: number | null;
+  /** `backtest_mae` (the rule's own backtest) or `weather_spread_no_backtest`. */
+  demand_error_basis: string | null;
   hdd_normal: number;
   hdd_normal_std: number;
   hdd_years: number;
@@ -3875,6 +3877,8 @@ export interface ForwardBalanceQuery {
   outage_gwh_d?: number;
   outage_from?: string;
   outage_to?: string;
+  /** Today's headline read: no backtest. */
+  summary?: boolean;
 }
 
 export interface FundamentalsFlowsDTO {
@@ -5310,7 +5314,7 @@ export const api = {
   fundamentalsForwardBalance: (query: ForwardBalanceQuery = {}, options?: ApiRequestOptions) =>
     get<ForwardBalanceDTO>(
       "/fundamentals/forward-balance",
-      Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== "" && v !== 0).map(([k, v]) => [k, String(v)])),
+      Object.fromEntries(Object.entries(query).filter(([, v]) => v !== undefined && v !== null && v !== "" && v !== 0 && v !== false).map(([k, v]) => [k, String(v)])),
       options,
     ),
   fundamentalsFlows: (season: string[] = [], options?: ApiRequestOptions) =>

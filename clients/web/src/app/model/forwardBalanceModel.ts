@@ -105,6 +105,8 @@ export interface ForwardRow {
   kind: "day" | "month";
   demand: number;
   error: number | null;
+  /** Months: how the error was measured (`backtest_mae` or `weather_spread_no_backtest`). */
+  errorBasis: string | null;
   normal: number | null;
   norway: number;
   outage: number;
@@ -121,12 +123,12 @@ export function forwardRows(dto: ForwardBalanceDTO | null): ForwardRow[] {
   if (!dto) return [];
   return [
     ...dto.daily.map((r) => ({
-      key: `d-${r.day}`, period: r.day, kind: "day" as const, demand: r.demand_gwh_d, error: r.demand_error_gwh_d,
+      key: `d-${r.day}`, period: r.day, kind: "day" as const, demand: r.demand_gwh_d, error: r.demand_error_gwh_d, errorBasis: "backtest_mae",
       normal: r.demand_normal_gwh_d, norway: r.norway_gwh_d, outage: r.norway_outage_gwh_d, lng: r.lng_gwh_d,
       storage: r.storage_gwh_d, gap: r.gap_gwh_d, fill: r.fill_pct, bandLow: r.band_low_pct, bandHigh: r.band_high_pct,
     })),
     ...dto.monthly.map((m) => ({
-      key: `m-${m.month}`, period: m.month, kind: "month" as const, demand: m.demand_gwh_d, error: m.demand_error_gwh_d,
+      key: `m-${m.month}`, period: m.month, kind: "month" as const, demand: m.demand_gwh_d, error: m.demand_error_gwh_d, errorBasis: m.demand_error_basis,
       normal: null, norway: m.norway_gwh_d, outage: m.norway_outage_gwh_d, lng: m.lng_gwh_d,
       storage: m.storage_gwh_d, gap: m.gap_gwh_d, fill: m.fill_pct_end, bandLow: m.band_low_pct, bandHigh: m.band_high_pct,
     })),

@@ -162,7 +162,9 @@ def _lines(nwe: dict[str, Any], hdd_meta: dict[str, Any], storage: dict | None,
         row["class"] = "simulated" if simulated else weakest(row["inputs"])
     rows.append({"id": "weather_normal", "source": hdd_meta["attribution"],
                  "as_of": hdd_meta["months"]["to"], "inputs": ["observed"],
-                 "class": "observed", "note": hdd_meta["licence"]})
+                 "class": "observed",
+                 "note": f"{hdd_meta['licence']}; country weights from Eurostat sector gas use, "
+                         "not a reviewed regional weather profile"})
     return rows
 
 
@@ -178,9 +180,12 @@ def forward_balance_read(
     outage_gwh_d: float | None = None,
     outage_from: date | None = None,
     outage_to: date | None = None,
+    summary: bool = False,
 ) -> dict[str, Any]:
     """The forward balance envelope for ``hub`` (``nwe``); ``period`` trims to ``daily``
-    or ``monthly``. Raises ``ValueError`` for a hub whose balance is not held."""
+    or ``monthly``. ``summary`` (Today's headline) skips the daily backtest, so daily
+    errors fall back to the fit's residual. Raises ``ValueError`` for a hub whose balance
+    is not held."""
 
     from eurogas_nexus.api.routes.public.fundamentals import _env, _session_or_none, get_nwe_balance
     from eurogas_nexus.domain.fundamentals.storage_history import season_index
@@ -230,6 +235,7 @@ def forward_balance_read(
         season_index=season_index,
         target=(DEFAULT_TARGET_PCT, DEFAULT_DEADLINE),
         overrides=overrides,
+        backtest={"origins": 0, "horizons": [], "skipped": "summary read"} if summary else None,
     )
     months = [row["month"] for row in result.monthly]
     reference_hub = HUBS[hub]["reference_hub"]

@@ -84,7 +84,11 @@ export function ForwardBalancePanel({ t }: { t: Translate }) {
             {row.error != null && <small className="muted"> ±{gwh(row.error)}</small>}
           </>
         ),
-        cellTitle: (row) => (row.normal != null ? t("fb.normal_was", { gwh: gwh(row.normal) }) : t("fb.month_normal_weather")),
+        cellTitle: (row) =>
+          [
+            row.normal != null ? t("fb.normal_was", { gwh: gwh(row.normal) }) : t("fb.month_normal_weather"),
+            row.error != null && row.errorBasis ? t(`fb.error_basis.${row.errorBasis}`, { gwh: gwh(row.error) }) : null,
+          ].filter(Boolean).join("\n"),
       },
       {
         id: "norway",

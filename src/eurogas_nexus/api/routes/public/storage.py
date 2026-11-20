@@ -403,6 +403,7 @@ def get_fundamentals_forward_balance(
     outage_gwh_d: float | None = Query(None, ge=0, le=20000),
     outage_from: date | None = Query(None),
     outage_to: date | None = Query(None),
+    summary: bool = Query(False, description="Headline read: no backtest (Today)."),
 ) -> dict:
     """Supply and demand dated forward, storage as the balancing item (CP-25).
 
@@ -423,6 +424,7 @@ def get_fundamentals_forward_balance(
             request, hub=hub, period=period, temperature_shift_c=temperature_shift_c,
             norway_gwh_d=norway_gwh_d, lng_gwh_d=lng_gwh_d, outage_line=outage_line,
             outage_gwh_d=outage_gwh_d, outage_from=outage_from, outage_to=outage_to,
+            summary=summary,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

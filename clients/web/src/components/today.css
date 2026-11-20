@@ -328,6 +328,11 @@
     font-size: var(--ds-text-sm);
   }
 
+  .today-forward-headline {
+    grid-column: 1 / -1;
+    margin: 0;
+  }
+
   .today-fundamentals-grid {
     display: grid;
     gap: var(--ds-space-3);

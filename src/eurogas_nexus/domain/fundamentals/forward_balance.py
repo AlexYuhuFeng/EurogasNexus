@@ -515,11 +515,19 @@ def build_forward_balance(
         month_end = month_start.replace(day=days_in)
         hdd_mean, hdd_std, years = hdd.normal(month_start.month)
         delta = hdd_change(hdd_mean, overrides.temperature_shift_c)
+        monthly_check = result.backtest["monthly"]
         if fit is not None:
             demand = fit.demand(hdd_mean + delta)
-            spread = math.hypot(fit.slope_per_hdd * hdd_std, fit.residual_std)
+            # The rule's error is its own backtest when enough months were predicted; else
+            # the weather spread with the fit residual, and the row says which.
+            if (monthly_check.get("n", 0) >= MIN_FIT_MONTHS
+                    and monthly_check.get("mae_gwh_d") is not None):
+                spread, basis = float(monthly_check["mae_gwh_d"]), "backtest_mae"
+            else:
+                spread = math.hypot(fit.slope_per_hdd * hdd_std, fit.residual_std)
+                basis = "weather_spread_no_backtest"
         else:
-            demand, spread = mean(h.call_gwh for h in history[-28:]), None
+            demand, spread, basis = mean(h.call_gwh for h in history[-28:]), None, None
         dates = [month_start + timedelta(days=k) for k in range(days_in)]
         norway_out = mean(outage_on("norway", d) for d in dates)
         lng_out = mean(outage_on("lng", d) for d in dates)
@@ -540,6 +548,7 @@ def build_forward_balance(
             "days": days_in,
             "demand_gwh_d": round(demand, 1),
             "demand_error_gwh_d": None if spread is None else round(spread, 1),
+            "demand_error_basis": basis,
             "hdd_normal": round(hdd_mean, 2),
             "hdd_normal_std": round(hdd_std, 2),
             "hdd_years": years,
@@ -555,7 +564,8 @@ def build_forward_balance(
             "band_high_pct": high,
             "band_mean_pct": avg,
             "methods": {
-                "demand": "monthly_fit_at_normal_hdd" if fit else "28_day_average",
+                # A fitted rule shown with its backtest, not a promoted weather-demand model.
+                "demand": "hdd_rule_at_normal_weather_not_promoted" if fit else "28_day_average",
                 "norway": "7_day_average_less_announced_outages",
                 "lng": "14_day_average",
                 "storage": "residual",

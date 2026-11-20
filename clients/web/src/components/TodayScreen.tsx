@@ -18,7 +18,9 @@
  * section says the server's reason and next step on one line; a section the caller may not see
  * is absent.
  */
-import { useMemo, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { api, type ForwardBalanceDTO } from "@/api/client";
+import { headlinePhrase } from "@/app/model/forwardBalanceModel";
 import { useCompactWidth } from "@/app/shell/useShellLayout";
 
 import type {
@@ -550,6 +552,36 @@ function BookRow({ row, frontMonth, t, nowMs, keyFigures, language, onOpenLimits
 
 /* ------------------------------------------------------------------ row 4 */
 
+/**
+ * The forward balance's one line (CP-25) on Today: tighter or looser than normal over the
+ * next 14 days and why, from the same read as Fundamentals -> Balance (its headline mode).
+ */
+function ForwardHeadline({ t, onOpen }: { t: Translate; onOpen?: () => void }) {
+  const [dto, setDto] = useState<ForwardBalanceDTO | null>(null);
+  useEffect(() => {
+    const controller = new AbortController();
+    api
+      .fundamentalsForwardBalance({ summary: true }, { signal: controller.signal })
+      .then((response) => setDto(response.data))
+      .catch(() => undefined);
+    return () => controller.abort();
+  }, []);
+  const phrase = headlinePhrase(dto);
+  if (!phrase) return null;
+  return (
+    <p className="today-forward-headline" data-today-forward={dto?.headline?.direction}>
+      <strong>{t(phrase.key, phrase.values)}</strong> {t(String(phrase.values.driver), phrase.values)}
+      {dto?.simulated && <> <SimulatedMark t={t} /></>}
+      {onOpen && (
+        <>
+          {" "}
+          <button type="button" className="link-button" onClick={onOpen}>{t("fb.today_open")}</button>
+        </>
+      )}
+    </p>
+  );
+}
+
 function FundamentalsRow({ row, t, nowMs, language, quiet, onOpenFundamentals }: { row: TodayFundamentalsRowDTO; t: Translate; nowMs: number; language: string; quiet?: string | null; onOpenFundamentals?: TodayScreenProps["onOpenFundamentals"] }) {
   const storage = row.storage;
   const balance = row.balance;
@@ -559,6 +591,7 @@ function FundamentalsRow({ row, t, nowMs, language, quiet, onOpenFundamentals }:
         <Empty empty={row.empty} id="today-fundamentals" />
       ) : (
         <div className="today-fundamentals-grid">
+          <ForwardHeadline t={t} onOpen={onOpenFundamentals ? () => onOpenFundamentals("balance") : undefined} />
           {/* Storage by country against its history (CP-04): Europe first, then the countries
               of my hubs and the largest; an empty storage read still says why here. */}
           {isEmptyEntry(storage) ? (

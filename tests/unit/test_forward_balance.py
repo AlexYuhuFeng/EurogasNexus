@@ -78,6 +78,9 @@ def test_a_normal_season_reads_about_normal_with_its_error():
     assert january["demand_gwh_d"] == pytest.approx(A + B * 12.0, abs=0.5)
     # Supply minus demand is minus the storage draw.
     assert january["gap_gwh_d"] == pytest.approx(-january["storage_gwh_d"], abs=0.2)
+    # The monthly rule's error is its own backtest, and it is labelled as not promoted.
+    assert january["demand_error_basis"] == "backtest_mae"
+    assert january["methods"]["demand"] == "hdd_rule_at_normal_weather_not_promoted"
     # Every daily figure carries an error from the backtest.
     assert all(row["demand_error_gwh_d"] is not None for row in result.daily)
     assert result.backtest["daily"]["origins"] > 0
