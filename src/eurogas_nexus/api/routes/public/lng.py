@@ -1,5 +1,7 @@
 """/api/lng routes: terminal reads, the tariff register and cargo economics."""
 
+from datetime import datetime
+
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -449,4 +451,129 @@ def post_cargo_economics(body: CargoEconomicsBody, request: Request) -> dict:
             result = cargo.cargo_economics(session, payload, caller=caller_of(request))
         except cargo.CargoEconomicsError as exc:
             raise _cargo_error(exc) from exc
+        return _runtime_env(result)
+
+
+# ------------------------------------------------------------------ cargoes in transit
+
+
+class CargoHedgeLeg(BaseModel):
+    """One futures or forward leg that covers part of a cargo's send-out."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    hub: str = Field(min_length=2, max_length=16)
+    month: str = Field(pattern=r"^\d{4}-(0[1-9]|1[0-2])$")
+    #: Signed MWh: a short hedge is negative.
+    mwh: float = Field(ge=-10_000_000, le=10_000_000)
+    reference: str | None = Field(default=None, max_length=160)
+
+
+class CargoHedgesBody(BaseModel):
+    """The full set of hedge legs for a cargo; it replaces the set held."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    legs: list[CargoHedgeLeg] = Field(max_length=48)
+
+
+class CargoWhatIfBody(BaseModel):
+    """A schedule change to try on a cargo's plan; nothing is stored."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    eta_utc: datetime | None = None
+    slot_id: str | None = Field(default=None, max_length=96)
+    berth_delay_hours: float = Field(default=0.0, ge=0, le=24 * 30)
+    laytime_hours: float = Field(default=36.0, ge=0, le=24 * 10)
+    demurrage_per_day: float | None = Field(default=None, ge=0, le=10_000_000)
+
+
+def _plan_error(exc) -> HTTPException:
+    return HTTPException(
+        status_code=exc.status_code,
+        detail={"error": exc.code, "code": exc.code, "message": exc.message},
+    )
+
+
+@router.get("/api/lng/cargoes/plans")
+def cargo_plan_board(request: Request) -> dict:
+    """The firm's cargoes not yet delivered, one line each: slot status, delivered energy,
+    the last schedule change and the first suggestion (READ)."""
+
+    from eurogas_nexus.application import lng_in_transit as transit
+    from eurogas_nexus.security.authorization import Permission
+
+    _actor(request, Permission.PORTFOLIO_READ)
+    with _register_session() as session:
+        return _runtime_env(transit.cargo_plans(session))
+
+
+@router.get("/api/lng/cargoes/{cargo_id}/plan")
+def cargo_plan(
+    cargo_id: str,
+    request: Request,
+    berth_delay_hours: float = Query(default=0.0, ge=0, le=24 * 30),
+    laytime_hours: float = Query(default=36.0, ge=0, le=24 * 10),
+    demurrage_per_day: float | None = Query(default=None, ge=0, le=10_000_000),
+) -> dict:
+    """One cargo as a linked plan: berth, boil-off, delivered energy, send-out by gas day,
+    hub months, hedge cover and suggestions, plus what the last schedule change did (READ).
+
+    Suggestions are for the desk to decide; nothing is traded or nominated.
+    """
+
+    from eurogas_nexus.application import lng_in_transit as transit
+    from eurogas_nexus.security.authorization import Permission
+
+    _actor(request, Permission.PORTFOLIO_READ)
+    with _register_session() as session:
+        try:
+            result = transit.cargo_plan(
+                session,
+                cargo_id,
+                berth_delay_hours=berth_delay_hours,
+                laytime_hours=laytime_hours,
+                demurrage_per_day=demurrage_per_day,
+            )
+        except transit.CargoPlanError as exc:
+            raise _plan_error(exc) from exc
+        return _runtime_env(result)
+
+
+@router.post("/api/lng/cargoes/{cargo_id}/plan/what-if")
+def cargo_plan_what_if(cargo_id: str, body: CargoWhatIfBody, request: Request) -> dict:
+    """The plan now against the plan under another ETA, slot or berth delay (READ: nothing is
+    stored)."""
+
+    from eurogas_nexus.application import lng_in_transit as transit
+    from eurogas_nexus.security.authorization import Permission
+
+    _actor(request, Permission.PORTFOLIO_READ)
+    with _register_session() as session:
+        try:
+            result = transit.what_if(session, cargo_id, body.model_dump())
+        except transit.CargoPlanError as exc:
+            raise _plan_error(exc) from exc
+        return _runtime_env(result)
+
+
+@router.put("/api/lng/cargoes/{cargo_id}/hedges")
+def record_cargo_hedges(cargo_id: str, body: CargoHedgesBody, request: Request) -> dict:
+    """Record which hedges cover the cargo (replaces the set; the old one is retired). The
+    platform never places a hedge; this records the desk's own (PORTFOLIO_WRITE, audited)."""
+
+    from eurogas_nexus.application import lng_in_transit as transit
+    from eurogas_nexus.security.authorization import Permission
+
+    actor = _actor(request, Permission.PORTFOLIO_WRITE)
+    with _register_session() as session:
+        try:
+            result = transit.record_hedges(
+                session, cargo_id, [leg.model_dump() for leg in body.legs], actor=actor
+            )
+        except transit.CargoPlanError as exc:
+            session.rollback()
+            raise _plan_error(exc) from exc
+        session.commit()
         return _runtime_env(result)

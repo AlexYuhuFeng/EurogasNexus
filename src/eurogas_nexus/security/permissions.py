@@ -151,6 +151,13 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/lng/freight-routes", Permission.READ),
     ("/api/lng/freight-routes/{route_id}", Permission.GOVERNED),
     ("/api/lng/cargo-economics", Permission.READ),
+    # A cargo in transit as one plan (ETA, slot, send-out, hub months, hedges): reads and a
+    # what-if store nothing; recording the hedges that cover a cargo is a desk write
+    # (PORTFOLIO_WRITE in the handler), governed like a freight route.
+    ("/api/lng/cargoes/plans", Permission.READ),
+    ("/api/lng/cargoes/{cargo_id}/plan", Permission.READ),
+    ("/api/lng/cargoes/{cargo_id}/plan/what-if", Permission.READ),
+    ("/api/lng/cargoes/{cargo_id}/hedges", Permission.GOVERNED),
     ("/api/market/", Permission.READ),
     # Comparable prices: forward FX and normalisation (a computation, nothing stored) are
     # market reads like the rest of the family.

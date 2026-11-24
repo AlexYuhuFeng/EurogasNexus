@@ -1,8 +1,9 @@
 """LNG cargoes and regasification slots the firm holds, for the live map and the book."""
 
 from datetime import datetime
+from decimal import Decimal
 
-from sqlalchemy import JSON, DateTime, Float, Index, String
+from sqlalchemy import JSON, DateTime, Float, Index, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
@@ -65,3 +66,27 @@ class RegasSlotRecord(Base):
     source_system: Mapped[str] = mapped_column(String(32), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(160), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LngCargoHedgeRecord(Base):
+    """A hedge the desk holds against one of its cargoes: hub, delivery month, signed MWh.
+
+    The desk records which of its futures or forwards cover which cargo (the platform never
+    places them). A set is replaced as a whole: the rows it replaces are retired, not
+    deleted, so the cover a past plan used stays readable.
+    """
+
+    __tablename__ = "lng_cargo_hedges"
+    __table_args__ = (Index("ix_lng_cargo_hedges_cargo", "cargo_id", "retired_at_utc"),)
+
+    link_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    cargo_id: Mapped[str] = mapped_column(String(96), nullable=False)
+    hub: Mapped[str] = mapped_column(String(16), nullable=False)
+    delivery_month: Mapped[str] = mapped_column(String(7), nullable=False)
+    #: Signed energy: a short hedge is negative.
+    mwh: Mapped[Decimal] = mapped_column(Numeric(18, 3), nullable=False)
+    reference: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    retired_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retired_by: Mapped[str | None] = mapped_column(String(128), nullable=True)

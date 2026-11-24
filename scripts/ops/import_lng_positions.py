@@ -68,6 +68,13 @@ def main(argv: list[str] | None = None) -> int:
             return 2
         for row in rows:
             session.merge(model(**row))
+        # A new ETA, slot or energy is a cargo.changed event, so the cargo plan can show what
+        # the change did to the hub months and hedges (only the firm's cargoes publish).
+        from eurogas_nexus.application.market_event_capture import capture_desk
+
+        key = "cargo_id"
+        cargo_ids = sorted({row[key] for row in rows if row.get(key)})
+        capture_desk(session, cargo_ids=cargo_ids)
         session.commit()
     print(f"Loaded {len(rows)} {args.kind}.")
     return 0

@@ -50,7 +50,7 @@ DEFAULT_LOOKBACK = timedelta(days=4)
 SIMULATED_SUFFIX = "_Sim"
 
 #: What a capture can read.
-KINDS = ("prices", "fx", "outages", "contracts", "assumptions")
+KINDS = ("prices", "fx", "outages", "contracts", "assumptions", "cargoes")
 
 
 def _aware(value: datetime | None) -> datetime | None:
@@ -267,6 +267,49 @@ def contract_event(row, *, hedge=None, now_utc: datetime) -> MarketEvent:
             "retired": terms["retired"],
             "terms_digest": _digest(terms),
         },
+        dependency_keys=(key,),
+        identity=key,
+    )
+
+
+def cargo_event(row, *, slot=None, hedges: Iterable[Any] = (), now_utc: datetime) -> MarketEvent:
+    """The ``cargo.changed`` event for one of the firm's cargoes, its slot and its hedges.
+
+    The payload holds what a cargo plan is built from (ETA, loading, energy, the slot window
+    and send-out, the hedge legs), so the plan before a schedule change can be rebuilt from
+    the previous revision. Vessel positions are left out: a new position fix is no news to
+    the plan, a new ETA is.
+    """
+
+    key = f"cargo:{row.cargo_id}"
+    payload: dict[str, Any] = {
+        "cargo_id": row.cargo_id,
+        "status": row.status,
+        "eta_utc": _plain(_aware(row.eta_utc)),
+        "departed_at_utc": _plain(_aware(row.departed_at_utc)),
+        "energy_gwh": _plain(row.energy_gwh),
+        "destination_terminal": row.destination_terminal,
+        "book_id": row.book_id,
+        "slot": None,
+        "hedges": sorted(
+            [leg.hub, leg.delivery_month, _plain(leg.mwh)] for leg in hedges
+        ),
+    }
+    if slot is not None:
+        payload["slot"] = {
+            "slot_id": slot.slot_id,
+            "terminal": slot.terminal_name,
+            "window_start_utc": _plain(_aware(slot.window_start_utc)),
+            "window_end_utc": _plain(_aware(slot.window_end_utc)),
+            "send_out_gwh_d": _plain(slot.send_out_gwh_d),
+        }
+    return MarketEvent(
+        source_id="desk-cargoes",
+        event_type="cargo.changed",
+        subject_key=key,
+        ingested_at_utc=now_utc,
+        published_at_utc=now_utc,
+        payload=payload,
         dependency_keys=(key,),
         identity=key,
     )
@@ -498,16 +541,61 @@ def assumption_set_events(session, *, set_ids: Iterable[str] | None = None, now_
     return events
 
 
+def cargo_events(session, *, cargo_ids: Iterable[str] | None = None, now_utc: datetime):
+    """``cargo.changed`` events for the firm's own cargoes (a book is set); market cargoes
+    from a vessel feed are context, not positions."""
+
+    from eurogas_nexus.db.models import LngCargoHedgeRecord, LngCargoRecord, RegasSlotRecord
+
+    query = session.query(LngCargoRecord).filter(LngCargoRecord.book_id.isnot(None))
+    if cargo_ids is not None:
+        wanted = list(cargo_ids)
+        if not wanted:
+            return []
+        query = query.filter(LngCargoRecord.cargo_id.in_(wanted))
+    rows = query.all()
+    if not rows:
+        return []
+    ids = [row.cargo_id for row in rows]
+    slots = {
+        slot.cargo_id: slot
+        for slot in session.query(RegasSlotRecord)
+        .filter(RegasSlotRecord.cargo_id.in_(ids))
+        .order_by(RegasSlotRecord.window_start_utc)
+        .all()
+    }
+    hedges: dict[str, list] = {}
+    for leg in (
+        session.query(LngCargoHedgeRecord)
+        .filter(
+            LngCargoHedgeRecord.cargo_id.in_(ids),
+            LngCargoHedgeRecord.retired_at_utc.is_(None),
+        )
+        .all()
+    ):
+        hedges.setdefault(leg.cargo_id, []).append(leg)
+    return [
+        cargo_event(
+            row,
+            slot=slots.get(row.cargo_id),
+            hedges=hedges.get(row.cargo_id, ()),
+            now_utc=now_utc,
+        )
+        for row in sorted(rows, key=lambda item: item.cargo_id)
+    ]
+
+
 def capture_desk(
     session,
     *,
     contract_ids: Iterable[str] | None = None,
     set_ids: Iterable[str] | None = None,
+    cargo_ids: Iterable[str] | None = None,
     now_utc: datetime | None = None,
 ) -> dict[str, Any]:
     """Publish the contract and assumption events a desk write has just stored, in the
     writer's transaction (commit is the caller's). Name what was written: ``contract_ids``,
-    ``set_ids``; a kind not named is not read."""
+    ``set_ids``, ``cargo_ids``; a kind not named is not read."""
 
     now = _aware(now_utc) or datetime.now(UTC)
     session.flush()
@@ -516,6 +604,8 @@ def capture_desk(
         events.extend(contract_events(session, contract_ids=contract_ids, now_utc=now))
     if set_ids is not None:
         events.extend(assumption_set_events(session, set_ids=set_ids, now_utc=now))
+    if cargo_ids is not None:
+        events.extend(cargo_events(session, cargo_ids=cargo_ids, now_utc=now))
     return publish_events(session, events).to_json()
 
 
@@ -594,6 +684,8 @@ def capture(
         events.extend(contract_events(session, now_utc=now))
     if "assumptions" in kinds:
         events.extend(assumption_set_events(session, now_utc=now))
+    if "cargoes" in kinds:
+        events.extend(cargo_events(session, now_utc=now))
     result = publish_events(session, events)
     result.skipped += skipped
     return result.to_json() | {"since_utc": since.isoformat()}

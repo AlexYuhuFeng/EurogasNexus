@@ -1,5 +1,13 @@
 # API 契约演化策略
 
+2026-11-24 新增 LNG 在途货物计划（Commercial Intelligence V3 LNG-1）：四条路径、四个操作。
+`GET /api/lng/cargoes/plans`、`GET /api/lng/cargoes/{cargo_id}/plan` 与
+`POST /api/lng/cargoes/{cargo_id}/plan/what-if`（READ）把一船货从 ETA、靠泊窗口、蒸发、
+气代费、按燃气日的外输，一直连到各枢纽交割月的敞口、套保覆盖与建议（展期、卖出、买回、
+短期补足、找窗口、滞期费）；what-if 不写库。`PUT /api/lng/cargoes/{cargo_id}/hedges`
+（GOVERNED，PORTFOLIO_WRITE）替换该货物的套保腿，留审计并经市场事件发件箱发布
+`cargo.changed`。仅作决策支持，不交易、不提名。接口统计：282 条路径 / 315 个操作。
+
 2026-11-06 新增 `POST /api/portfolio/desk-replay`：按调用方提供的已授权证据，对单一账簿、枢纽与
 燃气日做时点对账，并比较针对修订后停运的应对方案（#48-#50）。只读计算、不写数据库，位于商业
 `/api/portfolio/` 前缀下，返回输入指纹与冻结输入以便重放，提供 Python SDK 方法与决策中心面板。

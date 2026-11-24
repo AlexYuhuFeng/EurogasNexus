@@ -61,9 +61,12 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **278 paths / 311 operations**
+- OpenAPI public surface: **282 paths / 315 operations**
 
-  (2026-11-20: forward balance `GET /api/fundamentals/forward-balance` (READ); 277 / 310
+  (2026-11-24: LNG cargo in transit, `GET /api/lng/cargoes/plans`, `GET
+  /api/lng/cargoes/{cargo_id}/plan`, `POST /api/lng/cargoes/{cargo_id}/plan/what-if` (READ) and
+  `PUT /api/lng/cargoes/{cargo_id}/hedges` (GOVERNED, PORTFOLIO_WRITE); 278 / 311 before.
+  2026-11-20: forward balance `GET /api/fundamentals/forward-balance` (READ); 277 / 310
   before)
 
   (2026-11-19: reviewed public transmission tariffs: `GET`/`POST /api/route-cost/tariff-entries`

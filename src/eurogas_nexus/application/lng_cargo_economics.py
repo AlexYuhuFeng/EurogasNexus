@@ -311,6 +311,13 @@ def _terminals(session, wanted: list[str]) -> list[_Terminal]:
     return [found[key] for key in sorted(found)]
 
 
+def known_terminals(session) -> list[_Terminal]:
+    """Every terminal the firm's terms or the tariff register names, with its hub and gas in
+    kind (the cargo-in-transit plan resolves a slot's terminal through this)."""
+
+    return _terminals(session, [])
+
+
 def _hub_currency(hub: str) -> str:
     from eurogas_nexus.domain.ontology.markets import find_market
 

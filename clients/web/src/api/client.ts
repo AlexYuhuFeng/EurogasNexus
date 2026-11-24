@@ -5424,6 +5424,22 @@ export const api = {
     /** The assumption set to read; default the organisation's approved one. */
     assumption_set_id?: string;
   }, options?: ApiRequestOptions) => post<CargoEconomicsDTO>("/lng/cargo-economics", body, options),
+  /** The firm's cargoes in transit, one line each (slot status, last change, next step). */
+  cargoPlans: (options?: ApiRequestOptions) =>
+    get<CargoPlanBoardLineDTO[]>("/lng/cargoes/plans", undefined, options),
+  /** One cargo from its ETA to the hub months its gas lands in, with hedge cover. */
+  cargoPlan: (cargoId: string, query?: { berth_delay_hours?: number; laytime_hours?: number; demurrage_per_day?: number }, options?: ApiRequestOptions) =>
+    get<CargoPlanDTO>(
+      `/lng/cargoes/${encodeURIComponent(cargoId)}/plan`,
+      query ? Object.fromEntries(Object.entries(query).map(([key, value]) => [key, String(value)])) : undefined,
+      options,
+    ),
+  /** The plan against the plan under another ETA, slot or berth delay; nothing is stored. */
+  cargoPlanWhatIf: (cargoId: string, body: { eta_utc?: string; slot_id?: string; berth_delay_hours?: number; laytime_hours?: number; demurrage_per_day?: number }, options?: ApiRequestOptions) =>
+    post<{ change: CargoPlanChangeDTO }>(`/lng/cargoes/${encodeURIComponent(cargoId)}/plan/what-if`, body, options),
+  /** Replace the hedge legs that cover a cargo (a short hedge is negative MWh). */
+  saveCargoHedges: (cargoId: string, legs: CargoHedgeLegDTO[]) =>
+    put<{ cargo_id: string; legs: CargoHedgeLegDTO[] }>(`/lng/cargoes/${encodeURIComponent(cargoId)}/hedges`, { legs }),
   tariffPublications: (options?: ApiRequestOptions) =>
     get<{ rows: TariffPublicationDTO[] }>("/route-cost/tariff-publications", undefined, options),
   saveTariffPublication: (
@@ -6171,6 +6187,85 @@ export interface CargoInput {
   port_cost?: number;
   canal_cost?: number;
   insurance_pct?: number;
+}
+
+export interface CargoHedgeLegDTO {
+  hub: string;
+  /** Delivery month, YYYY-MM. */
+  month: string;
+  /** Signed MWh: a short hedge is negative. */
+  mwh: number;
+  reference?: string | null;
+}
+
+export interface CargoPlanMonthDTO {
+  hub: string;
+  month: string;
+  physical_mwh: number;
+  hedge_mwh: number;
+  net_mwh: number;
+  cover_ratio: number | null;
+  last_trading_day: string;
+  trading: boolean;
+}
+
+export interface CargoPlanSuggestionDTO {
+  kind: "roll" | "sell" | "buy_back" | "short_notice" | "find_slot" | "demurrage" | "deadline";
+  text: string;
+  hub: string | null;
+  from_month: string | null;
+  to_month: string | null;
+  mwh: number | null;
+  due_utc: string | null;
+}
+
+export interface CargoPlanBodyDTO {
+  cargo_id: string;
+  slot_status: "on_time" | "waiting" | "missed" | "no_slot";
+  berth_utc: string | null;
+  wait_hours: number;
+  days_to_berth: number;
+  boil_off_mwh: number;
+  gas_in_kind_mwh: number;
+  delivered_mwh: number;
+  send_out: { gas_day: string; mwh: number }[];
+  months: CargoPlanMonthDTO[];
+  demurrage_hours: number;
+  demurrage_cost: number | null;
+  suggestions: CargoPlanSuggestionDTO[];
+}
+
+export interface CargoPlanChangeDTO {
+  headline: string;
+  boil_off_change_mwh: number;
+  delivered_change_mwh: number;
+  before: CargoPlanBodyDTO;
+  after: CargoPlanBodyDTO;
+  [key: string]: unknown;
+}
+
+export interface CargoPlanDTO {
+  cargo: Record<string, unknown> & { cargo_id: string; vessel_name?: string | null };
+  inputs: { input: string; value: unknown; source: string }[];
+  plan: CargoPlanBodyDTO;
+  contract: Record<string, unknown> | null;
+  last_change: CargoPlanChangeDTO | null;
+  as_of_utc: string;
+  advisory: string;
+}
+
+export interface CargoPlanBoardLineDTO {
+  cargo_id: string;
+  vessel_name?: string | null;
+  slot_status?: CargoPlanBodyDTO["slot_status"];
+  /** What the last schedule or hedge change did; null before the second recorded state. */
+  headline?: string | null;
+  contract_warning?: string | null;
+  /** The first suggestion's text, if any. */
+  next?: string | null;
+  /** Set instead of the plan when the cargo's inputs cannot be planned (e.g. cargo_incomplete). */
+  error?: string;
+  [key: string]: unknown;
 }
 
 export interface CargoEconomicsDTO {

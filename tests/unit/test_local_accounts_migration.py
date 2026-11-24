@@ -34,7 +34,7 @@ def test_chain_and_head():
     module = _module()
     assert module.revision == "0065_local_accounts"
     assert module.down_revision == "0064_market_reports"
-    assert DB_SCHEMA_REVISION == "0077_market_event_outbox"
+    assert DB_SCHEMA_REVISION == "0078_lng_cargo_hedges"
 
 
 def test_upgrade_creates_the_table_and_downgrade_removes_only_it():

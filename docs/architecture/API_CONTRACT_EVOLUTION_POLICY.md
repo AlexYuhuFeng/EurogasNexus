@@ -4,6 +4,25 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-24 (LNG cargo in transit, Commercial Intelligence V3 LNG-1): four paths, four
+operations. `GET /api/lng/cargoes/plans` (READ, PORTFOLIO_READ, book scope) lists the firm's
+cargoes in transit with `slot_status`, `headline` of the last change, `contract_warning` and the
+next suggestion. `GET /api/lng/cargoes/{cargo_id}/plan` (READ) answers `cargo`, `inputs` (each
+with its source: ETA, slot, boil-off from the contract terms, the approved assumption or the
+desk standard, gas in kind, hedges), `plan` (berth, `slot_status` on_time|waiting|missed|no_slot,
+`boil_off_mwh`, `gas_in_kind_mwh`, `delivered_mwh`, send-out by gas day, `months[]` per hub and
+delivery month with physical, hedged, net, cover ratio and last trading day, demurrage and
+`suggestions[]` roll|sell|buy_back|short_notice|find_slot|demurrage|deadline), `contract`,
+`last_change` (against the previous `cargo:{id}` market event) and `advisory`; a market cargo
+with no book is 404 `cargo_not_found`. `POST /api/lng/cargoes/{cargo_id}/plan/what-if` (READ)
+takes `eta_utc`, `berth_delay_hours`, `laytime_hours`, `demurrage_per_day` and returns the
+`change` between the stored plan and the altered one; nothing is stored. `PUT
+/api/lng/cargoes/{cargo_id}/hedges` (GOVERNED, PORTFOLIO_WRITE) replaces the hedge legs that
+cover the cargo (`hub`, `month` YYYY-MM, signed `mwh`, optional `reference`; unknown hub 422
+`hub_unknown`), retires the old set, audits it and publishes `cargo.changed` through the market
+event outbox. Decision support only: nothing is traded or nominated. Census: 282 paths / 315
+operations (+4 / +4 on 278 / 311).
+
 Additive 2026-11-20 (forward balance, CP-25): one path, one operation.
 `GET /api/fundamentals/forward-balance` (READ) answers `headline` (tighter/looser/about normal
 by GWh/d over D+1..D+14, `main_driver`, `contributions_gwh_d`), `daily[]` and `monthly[]`

@@ -76,6 +76,7 @@ INPUT_CLASS_OF_EVENT_TYPE: dict[str, str | None] = {
     "outage.published": "outages",
     "capacity.changed": "capacity",
     "contract.changed": "book",
+    "cargo.changed": "book",
     "mark.changed": "marks",
     "assumption.changed": "assumptions",
     "limit.changed": "limits",
@@ -91,6 +92,7 @@ EVENT_TYPES = frozenset(INPUT_CLASS_OF_EVENT_TYPE)
 _PRIORITY = {
     "outage.published": 0,
     "contract.changed": 1,
+    "cargo.changed": 1,
     "limit.changed": 1,
     "mark.changed": 1,
     "price.updated": 2,
