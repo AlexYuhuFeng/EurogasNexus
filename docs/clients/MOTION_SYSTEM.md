@@ -72,11 +72,26 @@ flash, bounce, pulse, or animate on every rapid update. A data update should
 repaint predictably, retain stable dimensions, and expose the new value, unit,
 time basis, and source/freshness state through content.
 
-An optional one-time 120ms selection/update emphasis MAY be used only when it
-does not repeat with rapid ticks and does not imply direction, confidence,
-execution, or recommendation. Never animate a `verified` value into an
-`indicative` value, or conceal a `stale`, `restricted`, `missing`, or
-`human-review-required` state behind a transition.
+A live table cell MAY show one neutral background emphasis of
+`--ds-duration-flash` (400 ms, `tokens.css`) when its value changes, and only
+then (UX R2, `DataGrid` `flash`):
+
+- The emphasis is the same for up and for down. It never implies direction,
+  confidence, execution, or recommendation, and it is off under
+  `prefers-reduced-motion`.
+- Direction is content, not motion or colour: a ▲ or ▼ (`DirectionMark`) stays
+  beside the value until the next tick, with the word for screen readers, and
+  the signed change against the close is shown in its own column with the same
+  glyph. A green/red flash is not used (colour-blind readers misread it).
+- Only a new value of the same instrument is a tick. The cell is keyed to row,
+  column and instrument (`flashIdentity`); a tenor switch or another contract in
+  the same row resets the cell quietly, with no emphasis and no glyph.
+- Each tick restarts the emphasis rather than queuing it, so rapid ticks never
+  build up a repeating pulse.
+
+Never animate a `verified` value into an `indicative` value, or conceal a
+`stale`, `restricted`, `missing`, or `human-review-required` state behind a
+transition.
 
 Charts MUST not animate illustrative or fabricated series. Persisted/API-backed
 series may use a restrained transition only where the update remains readable

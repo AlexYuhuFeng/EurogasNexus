@@ -48,7 +48,8 @@ import type {
 } from "@/api/client";
 import { MarketLadder } from "@/components/MarketLadder";
 import { StatusBadge } from "@/components/ui/StatusBadge";
-import { Button, DataGrid, InstrumentPicker, Segmented, Toolbar, type DataGridColumn } from "@/components/ui";
+import { Button, DataGrid, DirectionMark, InstrumentPicker, Segmented, Toolbar, type DataGridColumn } from "@/components/ui";
+import { directionOf } from "@/components/ui/dataGridModel";
 import { sumRecordCounts } from "@/app/workspaceDerivedData";
 import { ReferenceIndexEvidence } from "@/components/ReferenceIndexEvidence";
 
@@ -848,6 +849,8 @@ export function MarketTerminal({
       type: "number",
       sortable: true,
       flash: true,
+      // The row is a hub at the active tenor: a tenor switch shows another contract, not a tick.
+      flashIdentity: (row) => row.tenor,
       value: (row) => row.mid ?? row.oneSided?.value ?? null,
       // A one-sided quote has no mid: its one side is shown, marked as bid or offer only.
       format: (value, row) => {
@@ -895,6 +898,7 @@ export function MarketTerminal({
           data-change-vs-close=""
         >
           {row.change === null ? "–" : formatChangeVsClose(row.change)}
+          {row.change ? <DirectionMark direction={directionOf(row.change.absolute)} /> : null}
         </span>
       ),
       cellTitle: closeTitle,
@@ -908,6 +912,7 @@ export function MarketTerminal({
       render: (row) => (
         <span className={`market-price-delta ${row.delta === null ? "flat" : row.delta > 0 ? "up" : row.delta < 0 ? "down" : "flat"}`}>
           {row.delta === null ? "–" : formatDelta(row.delta)}
+          <DirectionMark direction={directionOf(row.delta)} />
         </span>
       ),
     } satisfies DataGridColumn<BoardRow>] : []),

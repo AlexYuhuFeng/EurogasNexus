@@ -253,6 +253,15 @@
     height: var(--ds-line-base);
   }
 
+  /* ▲/▼ beside a figure (DirectionMark, UX R2): neutral, the sign and the glyph carry it. */
+  .ds-direction {
+    display: inline-block;
+    margin-inline-start: var(--ds-space-1);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    line-height: 1;
+  }
+
   .ds-visually-hidden {
     position: absolute;
     width: 1px;

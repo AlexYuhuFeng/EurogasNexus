@@ -269,6 +269,7 @@
 
 @layer ds-motion {
   @media (prefers-reduced-motion: no-preference) {
+    /* Neutral for up and down alike (MOTION_SYSTEM.md): the ▲/▼ beside the value says which. */
     @keyframes ds-flash-a {
       from { background: var(--ds-accent-soft); }
       to { background: transparent; }
@@ -280,11 +281,11 @@
     }
 
     .ds-cell-flash[data-flash="a"] {
-      animation: ds-flash-a 600ms var(--ds-ease-out) 1;
+      animation: ds-flash-a var(--ds-duration-flash) var(--ds-ease-out) 1;
     }
 
     .ds-cell-flash[data-flash="b"] {
-      animation: ds-flash-b 600ms var(--ds-ease-out) 1;
+      animation: ds-flash-b var(--ds-duration-flash) var(--ds-ease-out) 1;
     }
   }
 

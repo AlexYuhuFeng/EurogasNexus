@@ -15,7 +15,8 @@
  * - Optional per-cell state marker (stale, late, simulated, revised, manual): a short visible
  *   word next to the value with its full description for assistive technology, so a simulated
  *   price is marked in the cell itself, not only in a banner.
- * - Optional live-cell flash on a value change, once, background only; off under reduced motion.
+ * - Optional live cell: on a value change under the same instrument, one neutral background flash
+ *   (off under reduced motion) and a ▲/▼ that stays until the next tick (UX R2).
  *
  * - Phone width (DESIGN_TOKENS "DataGrid on a phone"): a grid with more columns than a phone shows
  *   keeps its first columns (or the ones marked `priority: "primary"`) and puts the rest behind a
@@ -44,7 +45,18 @@ import { useCompactWidth } from "@/app/shell/useShellLayout";
 import { EmptyState } from "./EmptyState";
 import { gridRowIndex } from "./keyboard";
 import { Skeleton } from "./Skeleton";
-import { nextSort, phoneColumnSplit, sortRows, spanRuns, type SortDirection, type SortState, type SortValue } from "./dataGridModel";
+import { DirectionMark } from "./DirectionMark";
+import {
+  nextFlash,
+  nextSort,
+  phoneColumnSplit,
+  sortRows,
+  spanRuns,
+  type FlashState,
+  type SortDirection,
+  type SortState,
+  type SortValue,
+} from "./dataGridModel";
 
 export { phoneColumnSplit };
 
@@ -84,8 +96,13 @@ export interface DataGridColumn<R> {
   /** Merge equal consecutive values (a month over its hubs) while the grid is in this order. */
   span?: boolean;
   state?: (row: R) => CellState | null | undefined;
-  /** Flash the cell once when its value changes. */
+  /** Flash the cell once when its value changes, and show the direction until the next tick. */
   flash?: boolean;
+  /**
+   * The instrument the value belongs to, when a row can show another one (a hub's row at another
+   * tenor). A change of identity resets the cell quietly; only a change of value is a tick.
+   */
+  flashIdentity?: (row: R) => string;
   cellTitle?: (row: R) => string | undefined;
   cellClassName?: (row: R) => string | undefined;
   cellAttributes?: (row: R) => Record<string, string | undefined>;
@@ -159,19 +176,20 @@ function StateMark({ state }: { state: CellState }) {
   );
 }
 
-/** A cell value that flashes once when it changes (background only, CSS animation). */
-function FlashValue({ watch, children }: { watch: SortValue; children: ReactNode }) {
-  const previous = useRef(watch);
-  const [count, setCount] = useState(0);
+/**
+ * A live cell (UX R2): a neutral background flash on a real tick, and the direction as a glyph
+ * that stays until the next tick. A change of instrument under the same row is not a tick.
+ */
+function FlashValue({ watch, identity, children }: { watch: SortValue; identity: string; children: ReactNode }) {
+  const [state, setState] = useState<FlashState>(() => nextFlash(null, identity, watch));
   useEffect(() => {
-    if (previous.current !== watch) {
-      previous.current = watch;
-      setCount((value) => value + 1);
-    }
-  }, [watch]);
+    setState((previous) => nextFlash(previous, identity, watch));
+  }, [identity, watch]);
+  const ticked = state.identity === identity && state.count > 0;
   return (
-    <span className="ds-cell-flash" data-flash={count === 0 ? undefined : count % 2 ? "a" : "b"}>
+    <span className="ds-cell-flash" data-flash={ticked ? (state.count % 2 ? "a" : "b") : undefined}>
       {children}
+      {ticked ? <DirectionMark direction={state.direction} announce /> : null}
     </span>
   );
 }
@@ -225,7 +243,13 @@ function RowView<R>({ row, rowId, columns, spans, index, tabbable, interactive, 
             aria-hidden={column.decorative || undefined}
             {...column.cellAttributes?.(row)}
           >
-            {column.flash ? <FlashValue watch={column.value?.(row)}>{content}</FlashValue> : content}
+            {column.flash ? (
+              <FlashValue watch={column.value?.(row)} identity={`${rowId}|${column.id}|${column.flashIdentity?.(row) ?? ""}`}>
+                {content}
+              </FlashValue>
+            ) : (
+              content
+            )}
             {state ? <StateMark state={state} /> : null}
           </Cell>
         );

@@ -4362,6 +4362,8 @@
   "map.border.drawn_along": "沿开放参考管道（SciGRID_gas）绘制：仅示大致走向，并非实测路线",
   "map.key.context_pipelines": "管道大致走向（SciGRID_gas，CC BY 4.0）",
   "grid.details": "详情",
+  "grid.direction.up": "较上次更新上涨",
+  "grid.direction.down": "较上次更新下跌",
   "context.done": "完成",
   "context_line.stale_short": "{{count}}/{{total}} 源过期",
   "today.stale_link_short": "{{count}} 项非最新",

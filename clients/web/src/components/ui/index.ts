@@ -1,3 +1,4 @@
+export { DirectionMark } from "./DirectionMark";
 export { EvidenceBlock } from "./EvidenceBlock";
 export type { EvidenceBlockItem } from "./EvidenceBlock";
 export { MetricStrip } from "./MetricStrip";

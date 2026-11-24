@@ -736,19 +736,6 @@ input {
   margin-top: 12px;
 }
 
-.market-price-ticker {
-  transition: background-color 160ms ease, border-color 160ms ease;
-}
-
-.market-price-ticker.is-live {
-  animation: market-tick-update 420ms ease-out;
-}
-
-@keyframes market-tick-update {
-  0% { background: rgba(21, 149, 105, 0.16); }
-  100% { background: var(--ds-surface); }
-}
-
 .settings-backend-panel {
   display: grid;
   gap: 12px;
@@ -3335,18 +3322,6 @@ body {
   font-weight: 600;
 }
 
-.market-price-ticker {
-  display: grid;
-  min-width: 0;
-  min-height: 116px;
-  align-content: space-between;
-  border: 1px solid var(--ds-border);
-  border-radius: var(--ds-radius-sm);
-  background: var(--ds-bg);
-  padding: 10px;
-}
-
-.market-price-ticker span,
 .market-terminal-note,
 .market-region-list small {
   color: var(--ds-text-3);
@@ -3354,22 +3329,9 @@ body {
   line-height: 1.35;
 }
 
-.market-price-ticker span,
 .market-terminal-row.header,
 .market-region-list small {
   font-family: var(--ds-font-ui);
-}
-
-.market-price-ticker strong {
-  color: var(--ds-text-1);
-  font-size: var(--ds-text-xl);
-  line-height: 1.1;
-  overflow-wrap: anywhere;
-}
-
-.market-price-ticker small {
-  color: var(--ds-text-2);
-  font-size: var(--ds-text-sm);
 }
 
 .market-ticker-meta {
@@ -3404,20 +3366,6 @@ body {
 
 .market-price-delta.down {
   color: var(--ds-negative);
-}
-
-.market-price-ticker.is-live {
-  border-color: color-mix(in srgb, var(--ds-accent) 35%, transparent);
-}
-
-.market-price-ticker.is-waiting {
-  background: repeating-linear-gradient(;
-    -45deg,
-    var(--eg-canvas-soft),
-    var(--eg-canvas-soft) 8px,
-    rgb(180 83 9 / 5%) 8px,
-    rgb(180 83 9 / 5%) 16px
-  );
 }
 
 .market-terminal-table {
@@ -4688,10 +4636,6 @@ button.glossary-related-chip {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .market-price-ticker {
-    min-height: 78px;
-  }
-
   .contract-action-row button {
     flex: 1 1 120px;
   }
@@ -4804,10 +4748,6 @@ button.glossary-related-chip {
   /* Four-tenor curves stay scannable as paired lanes instead of a 24-row stack. */
   .market-curve-lanes {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .market-price-ticker {
-    min-height: 92px;
   }
 
   .market-source-matrix-row,
@@ -7325,10 +7265,6 @@ button.glossary-related-chip {
   flex-wrap: wrap;
   gap: 6px;
   margin: 10px 0 8px;
-}
-
-.market-price-ticker.hub-focused {
-  border-color: var(--ds-accent);
 }
 
 .scenario-context-banner,

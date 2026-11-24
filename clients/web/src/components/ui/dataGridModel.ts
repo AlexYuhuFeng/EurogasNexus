@@ -101,3 +101,33 @@ export function phoneColumnSplit<C extends PhoneColumn>(
   return { visible, folded };
 }
 
+
+/** Up or down; null when there is no direction to show (first value, not a number, equal). */
+export type Direction = "up" | "down" | null;
+
+export function directionOf(value: number | null | undefined): Direction {
+  if (value == null || !Number.isFinite(value) || value === 0) return null;
+  return value > 0 ? "up" : "down";
+}
+
+/**
+ * The live-cell flash (UX R2). `identity` is the row key, the column and the instrument the
+ * value belongs to (a hub's row shows another contract when the tenor changes). Only a new
+ * value under the same identity is a tick: it bumps `count` (which restarts the neutral flash)
+ * and, for numbers, sets the direction shown beside the value until the next tick. A new
+ * identity resets quietly: no flash, no direction.
+ */
+export interface FlashState {
+  identity: string;
+  value: SortValue;
+  count: number;
+  direction: Direction;
+}
+
+export function nextFlash(previous: FlashState | null, identity: string, value: SortValue): FlashState {
+  if (!previous || previous.identity !== identity) return { identity, value, count: 0, direction: null };
+  if (Object.is(previous.value, value)) return previous;
+  const direction =
+    typeof previous.value === "number" && typeof value === "number" ? directionOf(value - previous.value) : null;
+  return { identity, value, count: previous.count + 1, direction };
+}

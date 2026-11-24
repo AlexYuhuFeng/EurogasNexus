@@ -4362,6 +4362,8 @@
   "map.border.drawn_along": "Drawn along the open reference pipelines (SciGRID_gas): general direction, not a surveyed route",
   "map.key.context_pipelines": "Pipelines, general direction (SciGRID_gas, CC BY 4.0)",
   "grid.details": "Details",
+  "grid.direction.up": "up since the last update",
+  "grid.direction.down": "down since the last update",
   "context.done": "Done",
   "context_line.stale_short": "{{count}}/{{total}} feeds stale",
   "today.stale_link_short": "{{count}} not current",

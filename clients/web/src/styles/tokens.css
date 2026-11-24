@@ -76,6 +76,7 @@
   --ds-duration-base: 160ms; /* popover, tab, row expand */
   --ds-duration-slow: 240ms; /* inspector, sheet */
   --ds-duration-map: 400ms;  /* map camera */
+  --ds-duration-flash: 400ms; /* a live cell's tick, neutral; direction is the ▲/▼ glyph */
   --ds-ease-out: cubic-bezier(0.2, 0, 0, 1);
   --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
 
