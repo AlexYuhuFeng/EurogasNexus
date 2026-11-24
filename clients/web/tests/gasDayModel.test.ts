@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import type { DailyBalanceDTO, GasDayCutoffDTO } from "../src/api/client.ts";
-import { cutoffUrgency, dailyBalanceRateText, formatQuantity, mwText, nextCutoff, timeLeft } from "../src/app/model/gasDayModel.ts";
+import type { DailyBalanceDTO, GasDayCutoffDTO, TodayChecklistRowDTO, TodayGasDayRowDTO } from "../src/api/client.ts";
+import { cutoffUrgency, gasDayAlert, dailyBalanceRateText, formatQuantity, mwText, nextCutoff, timeLeft } from "../src/app/model/gasDayModel.ts";
 
 const cut = (key: GasDayCutoffDTO["key"], at: string): GasDayCutoffDTO => ({
   key, name: null, at_utc: at, basis: "assumption", source: "default", passed: false,
@@ -55,4 +55,32 @@ test("the daily balance names its cash-out rate from the response, never a clien
   const missing = balance(day({ value: null, currency: "GBP", basis: "missing", reason: "none" }));
   assert.equal(dailyBalanceRateText(missing, t), "balance.rate_missing");
   assert.equal(dailyBalanceRateText(balance(), t), null);
+});
+
+test("the trader's strip names the soonest cut-off, overdue steps and open nets of today", () => {
+  const now = Date.parse("2026-11-24T10:00:00Z");
+  const q = (value: number) => ({ value, unit: "MWh/d", mwh: value });
+  const cut = (key: string, at_utc: string) => ({ key, name: null, at_utc, basis: "assumption", source: "network code", passed: Date.parse(at_utc) <= now });
+  const hub = (name: string, state: string, net: number, cutoffs: unknown[]) => ({ hub: name, state, net: q(net), cutoffs });
+  const gasDay = {
+    key: "gas_day", title: "", scope: null, simulated: true, populated: true, empty: null,
+    days: [
+      { gas_day: "2026-11-24", which: "today", hours: 24, hubs: [
+        hub("TTF", "balanced", 10, [cut("nomination", "2026-11-24T09:00:00Z"), cut("last_renomination", "2026-11-24T13:00:00Z"), cut("gas_day_end", "2026-11-25T05:00:00Z")]),
+        hub("NBP", "short", -2400, [cut("nomination", "2026-11-24T12:00:00Z")]),
+      ] },
+      { gas_day: "2026-11-25", which: "tomorrow", hours: 24, hubs: [hub("THE", "long", 900, [cut("nomination", "2026-11-24T10:30:00Z")])] },
+    ],
+  } as unknown as TodayGasDayRowDTO;
+  const checklist = {
+    key: "checklist", title: "", scope: null, populated: true, empty: null,
+    days: [{ gas_day: "2026-11-24", which: "today", items: [{ urgency: "overdue" }, { urgency: "due_soon" }, { urgency: "overdue" }] }],
+  } as unknown as TodayChecklistRowDTO;
+  const alert = gasDayAlert(gasDay, checklist, now);
+  // NBP 12:00 beats TTF 13:00; the passed 09:00 and tomorrow's THE are not today's next.
+  assert.equal(alert.next?.hub, "NBP");
+  assert.equal(alert.next?.cutoff.at_utc, "2026-11-24T12:00:00Z");
+  assert.equal(alert.overdue, 2);
+  assert.deepEqual(alert.open.map((item) => [item.hub, item.state]), [["NBP", "short"]]);
+  assert.deepEqual(gasDayAlert(null, null, now), { next: null, overdue: 0, open: [] });
 });

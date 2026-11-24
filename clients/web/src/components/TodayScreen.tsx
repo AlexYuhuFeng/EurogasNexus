@@ -57,6 +57,7 @@ import { StorageByCountryPanel } from "@/components/StorageByCountryPanel";
 import { WhyButton } from "@/components/WhyButton";
 import { ChecklistRow } from "@/components/today/ChecklistRow";
 import { GasDayRow } from "@/components/today/GasDayRow";
+import { GasDayStrip } from "@/components/today/GasDayStrip";
 import { useConvertedAmount, useConvertedPrice, useConvertedQuantity } from "@/app/time/useConversion";
 import type { ConvertedText } from "@/app/time/valueFormat";
 import { ConvertedValue } from "@/components/ui/ConvertedValue";
@@ -99,6 +100,8 @@ export interface TodayScreenProps {
   onOpenPrices?: () => void;
   /** Open where a "My gas day" line is acted on or evidenced (Book, Prices → prompt). */
   onOpenGasDay?: (target: GasDayTargetDTO) => void;
+  /** A one-line gas-day strip above the rows (the trader's composition). */
+  gasDayStrip?: boolean;
   /** Whether the reader may record a checklist status (`gas_day.record`; the server checks). */
   canRecordGasDay?: boolean;
   /** Open what a "What needs me" item names. */
@@ -765,7 +768,7 @@ export function TodayHeadActions({ t, loading, onOpenBrief, onRefresh }: { t: Tr
   );
 }
 
-export function TodayScreen({ today, loading, error, t, language, nowMs, onRefresh, onOpenBrief, onOpenLimits, onInspectPrice, rows = DEFAULT_ROWS, canSeeBook = true, onOpenNeed, onOpenPrices, headInStrip = false, onOpenFundamentals, onOpenGasDay, canRecordGasDay = false }: TodayScreenProps) {
+export function TodayScreen({ today, loading, error, t, language, nowMs, onRefresh, onOpenBrief, onOpenLimits, onInspectPrice, rows = DEFAULT_ROWS, canSeeBook = true, onOpenNeed, onOpenPrices, headInStrip = false, onOpenFundamentals, onOpenGasDay, canRecordGasDay = false, gasDayStrip = false }: TodayScreenProps) {
   if (!today) {
     return (
       <div className="today" data-today="loading">
@@ -798,6 +801,7 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
       {today.warnings.length > 0 && (
         <ul className="today-warnings">{today.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
       )}
+      {gasDayStrip && canSeeBook && rows.includes("gas_day") && <GasDayStrip gasDay={gasDay} checklist={checklist} t={t} nowMs={nowMs} />}
       {quiet && !rows.includes("fundamentals") && <p className="today-quiet" data-today-quiet="">{t("today.needs.quiet")}</p>}
       {rows.map((key) => render[key]())}
     </div>

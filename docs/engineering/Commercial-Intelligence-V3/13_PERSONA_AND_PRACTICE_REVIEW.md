@@ -82,7 +82,7 @@ the draft SDK docs took a new quant to a first result verbatim. The S1 findings 
 | --- | --- | --- | --- |
 | QA-T-01 | Trader | "Mid" is the last price, not (bid+ask)/2 | Fixed: mid only from two sides, Last its own column, one-sided quotes marked; the backtest pool no longer stores a last print as a mid |
 | QA-T-02, QA-L-22 | Trader, LNG | Up to three prices for one month across screens; the demo curve has no drift | Demo drift fixed; one price resolver next (with P-08) |
-| QA-T-03 | Trader | No change against the close; prices below the fold on the landing | Change vs close fixed (quotes carry the close, kind, day and source). Row order kept as the owner set it (My gas day first); moving My market up is the owner's call |
+| QA-T-03 | Trader | No change against the close; prices below the fold on the landing | Change vs close fixed (quotes carry the close, kind, day and source). Fixed: My market is first for traders, under a strip with the next cut-off, overdue steps and open imbalances (owner, 2026-11-24) |
 | QA-T-04, QA-R-07 | Trader, risk | Stale rows look live; old marks raise no stale alert; the feeds panel and Today disagree | Board rows fixed (age, cadence, freshness state, stale legs). Risk rows, the marks alert and one freshness contract next |
 | QA-T-05, QA-R-05 | All | Implausible, future and wrongly labelled ticks accepted | Ticks fixed in F1; firm marks and the "Updated" stamp next |
 | QA-T-06, QA-R-08 | Scheduler | The status write failed for all and the scheduler could not record | Fixed (F1, F1-8) |

@@ -112,6 +112,8 @@ export interface RoleComposition {
    * left out; a row with nothing to say is absent at run time (What needs me when quiet).
    */
   readonly todayRows: readonly TodayRowKey[];
+  /** A one-line gas-day strip above the rows (next cut-off, overdue, open nets). */
+  readonly todayGasDayStrip?: boolean;
   readonly stripAudience: StripAudience;
 }
 
@@ -129,8 +131,11 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: task("desk", "today"),
     shortlist: [task("desk", "today"), task("desk", "prices"), task("deals", "opportunities"), task("book", "limits")],
     panels: {},
-    // The trader's day is the gas he has to clear (owner, 2026-11-19): "My gas day" first.
-    todayRows: ["gas_day", "checklist", "market", "book", "needs_me", "fundamentals"],
+    // A trader reads prices first (owner, 2026-11-24, replacing "My gas day" first of
+    // 2026-11-19): "My market" leads, and a slim strip above it carries the next nomination
+    // cut-off, overdue steps and any open net, so nothing urgent sits below the fold.
+    todayRows: ["market", "gas_day", "checklist", "book", "needs_me", "fundamentals"],
+    todayGasDayStrip: true,
     stripAudience: "trader",
   },
   // The originator lands on Deals → Opportunities (design basis 2, A.4 and B.8), then the book

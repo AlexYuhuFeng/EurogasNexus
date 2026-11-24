@@ -317,4 +317,40 @@
       min-height: var(--ds-control-touch);
     }
   }
+
+  /* The trader's one-line strip above My market (owner, 2026-11-24). */
+  .today-gasday-strip {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-1) var(--ds-space-3);
+    width: 100%;
+    padding: var(--ds-space-1) var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+    color: var(--ds-text-2);
+    font: inherit;
+    font-size: var(--ds-text-sm);
+    font-variant-numeric: var(--ds-numeric);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .today-gasday-strip:hover {
+    border-color: var(--ds-border-strong);
+    color: var(--ds-text-1);
+  }
+
+  .today-gasday-strip-part[data-urgency="soon"],
+  .today-gasday-strip-part[data-state="short"],
+  .today-gasday-strip-part[data-state="long"] {
+    color: var(--ds-status-watch);
+  }
+
+  .today-gasday-strip-part[data-urgency="imminent"],
+  .today-gasday-strip-part[data-urgency="overdue"] {
+    color: var(--ds-status-breach);
+    font-weight: var(--ds-weight-semibold);
+  }
 }

@@ -179,6 +179,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             }}
             headInStrip={Boolean(api.marketContext)}
             rows={resolveComposition(api.currentUser).composition.todayRows}
+            gasDayStrip={Boolean(resolveComposition(api.currentUser).composition.todayGasDayStrip)}
             canSeeBook={!Array.isArray(api.currentUser?.permissions) || api.currentUser.permissions.includes("portfolio.read")}
             onOpenPrices={() => openTask("curves")}
             // The full storage and balance charts are Research → Fundamentals (CP-17).

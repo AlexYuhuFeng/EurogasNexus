@@ -2,7 +2,7 @@
  * My gas day (Today row 6): presentation rules only. Every figure comes from the server
  * (`application/gas_day.py`); nothing is recomputed here except how long until a cut-off.
  */
-import type { DailyBalanceDTO, GasDayCutoffDTO, GasDayHubDTO, GasDayLineDTO, GasDayQuantityDTO } from "@/api/client";
+import type { DailyBalanceDTO, GasDayCutoffDTO, GasDayHubDTO, GasDayLineDTO, GasDayQuantityDTO, TodayChecklistRowDTO, TodayGasDayRowDTO } from "@/api/client";
 
 /** The next cut-off of the day that has not passed at `nowMs` (the end of the day last). */
 export function nextCutoff(cutoffs: readonly GasDayCutoffDTO[], nowMs: number): GasDayCutoffDTO | null {
@@ -82,4 +82,37 @@ export function dailyBalanceRateText(balance: DailyBalanceDTO, t: Translate): st
     });
   }
   return balance.days.some((day) => day.cash_out?.basis === "missing") ? t("balance.rate_missing") : null;
+}
+
+
+/** What the trader's gas-day strip says: the next cut-off, overdue steps and open nets. */
+export interface GasDayAlert {
+  next: { hub: string; cutoff: GasDayCutoffDTO } | null;
+  overdue: number;
+  open: { hub: string; state: "long" | "short"; net: GasDayQuantityDTO }[];
+}
+
+/**
+ * The slim strip above a trader's market (owner, 2026-11-24): the trader reads prices first,
+ * so the gas day's urgent parts sit above them in one line. Today's gas day only: the soonest
+ * cut-off not yet passed across the hubs, how many checklist steps are overdue, and each hub
+ * whose net is outside its band. Every figure is the server's; only the order is chosen here.
+ */
+export function gasDayAlert(
+  gasDay: TodayGasDayRowDTO | null | undefined,
+  checklist: TodayChecklistRowDTO | null | undefined,
+  nowMs: number,
+): GasDayAlert {
+  const today = gasDay?.days.find((day) => day.which === "today");
+  let next: GasDayAlert["next"] = null;
+  const open: GasDayAlert["open"] = [];
+  for (const hub of today?.hubs ?? []) {
+    const cut = nextCutoff(hub.cutoffs.filter((item) => item.key !== "gas_day_end"), nowMs);
+    if (cut && (!next || Date.parse(cut.at_utc) < Date.parse(next.cutoff.at_utc))) next = { hub: hub.hub, cutoff: cut };
+    if (hub.state !== "balanced") open.push({ hub: hub.hub, state: hub.state, net: hub.net });
+  }
+  const overdue = (checklist?.days ?? [])
+    .flatMap((day) => day.items)
+    .filter((item) => item.urgency === "overdue").length;
+  return { next, overdue, open };
 }
