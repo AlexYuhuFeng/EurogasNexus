@@ -13,6 +13,7 @@ import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorksp
 import { PositionLadderPanel } from "@/components/PositionLadderPanel";
 import { TradingBooksPanel } from "@/components/TradingBooksPanel";
 import { RiskLimitsPanel } from "@/components/RiskLimitsPanel";
+import { PendingChangesPanel } from "@/components/PendingChangesPanel";
 import { DeliveryPerformancePanel } from "@/components/DeliveryPerformancePanel";
 import { DailyBalancePanel } from "@/components/DailyBalancePanel";
 import { DealHedgeApprovalsPanel } from "@/components/DealHedgeApprovalsPanel";
@@ -308,6 +309,8 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         {task === "delivery" && <DeliveryPerformancePanel t={t} />}
         {task === "delivery" && <DailyBalancePanel t={t} />}
         {task === "delivery" && <SellDownPanel t={t} />}
+        {/* P-17: changes to limits and reference data waiting for a second person. */}
+        {task === "exposure" && currentUser && <PendingChangesPanel t={t} />}
         {task === "exposure" && <RiskLimitsPanel t={t} canMaintainRisk={canMaintainRisk} />}
         {task === "exposure" && <DealHedgeApprovalsPanel t={t} canMaintainRisk={canMaintainRisk} />}
         {task === "exposure" && <TradingBooksPanel t={t} />}

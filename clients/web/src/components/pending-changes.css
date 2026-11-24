@@ -1,0 +1,90 @@
+/* P-17 maker-checker: changes awaiting approval, and who set and approved a figure. */
+@layer ds-components {
+  .pending-changes-purpose,
+  .pending-changes-off,
+  .pending-changes-empty {
+    margin: 0 0 var(--ds-space-2);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+  }
+
+  .pending-changes-off {
+    color: var(--ds-status-watch);
+  }
+
+  .pending-changes-list {
+    display: grid;
+    gap: var(--ds-space-2);
+    min-width: 0;
+  }
+
+  .pending-change {
+    display: grid;
+    gap: var(--ds-space-1);
+    padding: var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-2);
+    min-width: 0;
+  }
+
+  .pending-change[data-change-state="pending"] {
+    border-color: var(--ds-border-strong);
+  }
+
+  .pending-change-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+  }
+
+  .pending-change-meta,
+  .pending-change-reason {
+    margin: 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .pending-change-label {
+    color: var(--ds-text-3);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .pending-change-fields {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--ds-text-sm);
+  }
+
+  .pending-change-fields th,
+  .pending-change-fields td {
+    padding: var(--ds-space-05) var(--ds-space-1);
+    border-bottom: 1px solid var(--ds-border);
+    text-align: left;
+    overflow-wrap: anywhere;
+  }
+
+  .pending-change-fields thead th {
+    color: var(--ds-text-3);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .pending-change-error {
+    margin: 0;
+    color: var(--ds-negative);
+    font-size: var(--ds-text-sm);
+  }
+
+  .pending-change-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-1);
+  }
+
+  .figure-provenance {
+    display: block;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+}

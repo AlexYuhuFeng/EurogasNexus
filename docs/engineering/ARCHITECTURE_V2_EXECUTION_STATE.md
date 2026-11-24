@@ -20,7 +20,10 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
 - Organisation setting `four_eyes` (default on for all six; an administrator switches a write
   off, audited) keeps one-person and demo installations working.
 - Routes `GET /api/portfolio/change-requests` and `POST .../{change_id}/approve|reject|withdraw`
-  (288 paths / 323 operations). Not built: effective-dated changes.
+  (288 paths / 323 operations). Web: "Changes awaiting approval" on Book → Exposure (approve,
+  reject with a reason, withdraw), "proposed, awaiting approval" on the limits, hedge-band and
+  marks screens, and who set and approved each limit and band. Not built: effective-dated
+  changes; screens for terminal terms and freight routes (no web editor exists for either).
 
 ## 2026-11-24 — Commercial Intelligence V3, LNG-2: a cargo change reaches each role (branch `wip/lng2`)
 

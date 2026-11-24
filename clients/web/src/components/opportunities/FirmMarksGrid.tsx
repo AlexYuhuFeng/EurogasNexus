@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 
 import { api, type FirmMarkDTO } from "@/api/client";
 import { MARK_HUBS, markRowsToCells, nextMonths, type MarkRow } from "@/app/model/firmMarksModel";
+import { saveOutcome } from "@/app/model/makerCheckerModel";
 import { Button, Select } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -18,6 +19,8 @@ export function FirmMarksGrid({ t, onClose, onSaved }: { t: Translate; onClose: 
   const [rows, setRows] = useState<MarkRow[]>([{ hub: "TTF", values: {} }]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // P-17: marks wait for an independent price check by the risk function before they count.
+  const [proposed, setProposed] = useState<string | null>(null);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -38,7 +41,15 @@ export function FirmMarksGrid({ t, onClose, onSaved }: { t: Translate; onClose: 
     setError(null);
     api
       .putFirmMarks(result.cells)
-      .then(onSaved)
+      .then((response) => {
+        const outcome = saveOutcome(response.data);
+        if (outcome === "saved") {
+          onSaved();
+          return;
+        }
+        setRows([{ hub: "TTF", values: {} }]);
+        setProposed(t(outcome === "proposed" ? "opportunities.marks.proposed" : "changes.unchanged"));
+      })
       .catch(() => setError(t("opportunities.marks.error.rejected")))
       .finally(() => setSaving(false));
   };
@@ -98,6 +109,11 @@ export function FirmMarksGrid({ t, onClose, onSaved }: { t: Translate; onClose: 
           ))}
         </tbody>
       </table>
+      {proposed && (
+        <p className="opportunity-message" role="status" data-marks-proposed="true">
+          {proposed}
+        </p>
+      )}
       {error && (
         <p className="opportunity-message" role="alert">
           {error}

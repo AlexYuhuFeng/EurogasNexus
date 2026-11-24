@@ -244,6 +244,7 @@ head`, all clean; the four columns are nullable.
 | Contract and docs | `pytest tests/contract tests/docs` | 605 passed, 12 skipped (census 288 paths / 323 operations) |
 | Lint | `ruff check src tests scripts` | All checks passed |
 | Markdown links | `python scripts/ci/check_markdown_links.py` | All local links resolve |
+| Web (P17-9) | `npx tsc --noEmit -p .`; `npm test`; `node scripts/cssTokenLint.mjs` (in `clients/web`) | clean; 1,373 tests, 1,370 passed, 3 skipped, 0 failed; the new stylesheet has no raw values |
 
 ## Not yet evidenced
 

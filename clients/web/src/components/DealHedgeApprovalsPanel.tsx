@@ -1,13 +1,17 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Button } from "@/components/ui/Button";
-import { DataGrid, type DataGridColumn, PeriodPicker } from "@/components/ui";
+import { DataGrid, type DataGridColumn, PeriodPicker, StatusBadge } from "@/components/ui";
 
 import { api, type HedgeApprovalRowDTO } from "@/api/client";
+import { useCachedRead } from "@/app/data/readCache";
+import { pendingByTarget, saveOutcome } from "@/app/model/makerCheckerModel";
 import { PanelHelp } from "@/components/ui/PanelHelp";
+import { FigureProvenance } from "./FigureProvenance";
+import { PENDING_CHANGES_KEY } from "./PendingChangesPanel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-const EMPTY = { contract_id: "", min: "", max: "", ref: "", valid_until: "", notes: "" };
+const EMPTY = { contract_id: "", min: "", max: "", ref: "", valid_until: "", notes: "", change_reason: "" };
 
 /**
  * Risk's approved hedge band per deal. A committee may approve one supply contract to be
@@ -21,6 +25,9 @@ export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; 
   const [draft, setDraft] = useState(EMPTY);
   const [editing, setEditing] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // P-17: a band change waits for a second person in the risk function; its row says so.
+  const pendingRead = useCachedRead(PENDING_CHANGES_KEY, () => api.changeRequests("pending"));
+  const pending = useMemo(() => pendingByTarget(pendingRead.data?.data.changes, "hedge_approval"), [pendingRead.data]);
   const load = useCallback(() => {
     api.hedgeApprovals()
       .then((response) => {
@@ -40,12 +47,22 @@ export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; 
       approval_ref: draft.ref.trim() || null,
       valid_until: draft.valid_until || null,
       notes: draft.notes.trim() || null,
+      ...(draft.change_reason.trim() ? { change_reason: draft.change_reason.trim() } : {}),
     })
-      .then(() => {
-        setMessage(t("limits.saved"));
+      .then((response) => {
+        const outcome = saveOutcome(response.data);
+        const subject = contracts.find((row) => row.contract_id === draft.contract_id)?.contract_name ?? draft.contract_id;
+        setMessage(
+          outcome === "proposed"
+            ? t("changes.proposed", { subject })
+            : outcome === "unchanged"
+              ? t("changes.unchanged")
+              : t("limits.saved"),
+        );
         setDraft(EMPTY);
         setEditing(false);
         load();
+        pendingRead.refresh();
       })
       .catch((caught: unknown) => setMessage(caught instanceof Error ? caught.message : String(caught)));
   };
@@ -57,6 +74,7 @@ export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; 
       ref: row.approval_ref ?? "",
       valid_until: row.valid_until ?? "",
       notes: row.notes ?? "",
+      change_reason: "",
     });
     setEditing(true);
   };
@@ -106,6 +124,8 @@ export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; 
         <>
           <span className="limit-badge" data-status={row.status === "ok" ? "ok" : "breach"}>{t(`hedgeapproval.status_${row.status}`)}</span>
           {row.breaches.length > 0 && <small className="limit-breaches"> {row.breaches.join("; ")}</small>}
+          {pending.has(row.contract_id) && <StatusBadge tone="watch">{t("changes.awaiting")}</StatusBadge>}
+          <FigureProvenance provenance={row.provenance} t={t} />
         </>
       ),
     },
@@ -160,6 +180,7 @@ export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; 
           <label><span>{t("hedgeapproval.ref")}</span><input value={draft.ref} maxLength={128} onChange={field("ref")} /></label>
           <label><span>{t("limits.valid_until")}</span><PeriodPicker label={t("limits.valid_until")} value={draft.valid_until} clearable onChange={(value) => field("valid_until")({ target: { value } } as never)} /></label>
           <label><span>{t("hedgeapproval.notes")}</span><input value={draft.notes} maxLength={500} onChange={field("notes")} /></label>
+          <label><span>{t("changes.why")}</span><input value={draft.change_reason} maxLength={500} placeholder={t("changes.why_hint")} onChange={field("change_reason")} /></label>
           <button type="button" disabled={!draft.contract_id || (draft.min === "" && draft.max === "")} onClick={save}>
             {t("limits.save")}
           </button>

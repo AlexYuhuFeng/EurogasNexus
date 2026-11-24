@@ -5,10 +5,14 @@ import {
   api,
   type CreditExposureRowDTO,
   type CreditLineInput,
+  type GovernedSaveDTO,
   type MandateInput,
   type MandateUsageRowDTO,
 } from "@/api/client";
 import { formatMoney, formatQuantity, splitList } from "@/app/model/riskLimitsModel";
+import { pendingByTarget, saveOutcome } from "@/app/model/makerCheckerModel";
+import { FigureProvenance } from "./FigureProvenance";
+import { PENDING_CHANGES_KEY } from "./PendingChangesPanel";
 import { ReportExport } from "./ReportExport";
 import { WhyButton } from "./WhyButton";
 import { MethodNote } from "./MethodNote";
@@ -69,6 +73,7 @@ const EMPTY_LINE = {
   receivable_days: "50",
   valid_until: "",
   legal_entity: "",
+  change_reason: "",
 };
 
 const EMPTY_MANDATE = {
@@ -83,6 +88,7 @@ const EMPTY_MANDATE = {
   max_hedge: "",
   instruments: "",
   valid_until: "",
+  change_reason: "",
 };
 
 /**
@@ -97,6 +103,13 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
   const credit: CreditExposureRowDTO[] | null = creditRead.data?.data.rows ?? null;
   const mandates: MandateUsageRowDTO[] | null = mandateRead.data?.data.rows ?? null;
   const warnings: string[] = creditRead.data?.meta?.warnings ?? [];
+  // P-17: a limit change waits for a second person; the rows it would change say so.
+  const pendingRead = useCachedRead(PENDING_CHANGES_KEY, () => api.changeRequests("pending"));
+  const pendingLines = useMemo(() => pendingByTarget(pendingRead.data?.data.changes, "credit_line"), [pendingRead.data]);
+  const pendingMandates = useMemo(
+    () => pendingByTarget(pendingRead.data?.data.changes, "trader_mandate"),
+    [pendingRead.data],
+  );
   const [line, setLine] = useState(EMPTY_LINE);
   const [mandate, setMandate] = useState(EMPTY_MANDATE);
   const [editing, setEditing] = useState<"none" | "credit" | "mandate">("none");
@@ -194,7 +207,16 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
   const load = useCallback(() => {
     creditRead.refresh();
     mandateRead.refresh();
-  }, [creditRead.refresh, mandateRead.refresh]);
+    pendingRead.refresh();
+  }, [creditRead.refresh, mandateRead.refresh, pendingRead.refresh]);
+
+  // Saved at once, or proposed and waiting for a second person (P-17): the message says which.
+  const savedMessage = (answer: GovernedSaveDTO | undefined, subject: string) => {
+    const outcome = saveOutcome(answer);
+    if (outcome === "proposed") return t("changes.proposed", { subject });
+    if (outcome === "unchanged") return t("changes.unchanged");
+    return t("limits.saved");
+  };
 
   const fail = (caught: unknown) => setMessage(caught instanceof Error ? caught.message : String(caught));
 
@@ -212,10 +234,11 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
       valid_until: line.valid_until || null,
       legal_entity: line.legal_entity.trim() || null,
       ...(unlinkingAll && confirmUnlink ? { unlink_contracts: true } : {}),
+      ...(line.change_reason.trim() ? { change_reason: line.change_reason.trim() } : {}),
     };
     api.saveCreditLine(line.counterparty_id.trim(), body)
-      .then(() => {
-        setMessage(t("limits.saved"));
+      .then((response) => {
+        setMessage(savedMessage(response.data, body.name));
         setLine(EMPTY_LINE);
         setLinkedOnLoad(0);
         setConfirmUnlink(false);
@@ -239,10 +262,11 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
       physical_allowed: true,
       financial_allowed: true,
       valid_until: mandate.valid_until || null,
+      ...(mandate.change_reason.trim() ? { change_reason: mandate.change_reason.trim() } : {}),
     };
     api.saveTraderMandate(mandate.mandate_id.trim(), body)
-      .then(() => {
-        setMessage(t("limits.saved"));
+      .then((response) => {
+        setMessage(savedMessage(response.data, body.display_name));
         setMandate(EMPTY_MANDATE);
         setEditing("none");
         load();
@@ -291,10 +315,14 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
           {(row.open_ended_legs ?? 0) > 0 && (
             <small title={t("limits.open_ended_help")}>{t("limits.open_ended", { count: row.open_ended_legs })}</small>
           )}
+          {pendingLines.has(row.counterparty_id) && (
+            <StatusBadge tone="watch">{t("changes.awaiting")}</StatusBadge>
+          )}
+          <FigureProvenance provenance={row.provenance} t={t} />
         </span>
       ),
     },
-  ], [t]);
+  ], [pendingLines, t]);
 
   const mandateColumns = useMemo<DataGridColumn<MandateUsageRowDTO>[]>(() => [
     // Names in words; the principal and the book ids are on hover (owner: no internal ids on screen).
@@ -337,10 +365,14 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
           {row.breaches && <small className="limit-breaches">{row.breaches}</small>}
           {/* A mandate is measured in MWh, not priced: shown only if the server ever dates it. */}
           <MarksAsOf row={row} t={t} quietWhenCurrent />
+          {pendingMandates.has(row.mandate_id) && (
+            <StatusBadge tone="watch">{t("changes.awaiting")}</StatusBadge>
+          )}
+          <FigureProvenance provenance={row.provenance} t={t} />
         </span>
       ),
     },
-  ], [bookNames, t]);
+  ], [bookNames, pendingMandates, t]);
 
   const breaches = [...(credit ?? []), ...(mandates ?? [])].filter((row) => row.status === "breach" || row.status === "expired").length;
 
@@ -445,6 +477,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
           )}
           <label><span>{t("limits.receivable_days")}</span><input inputMode="numeric" value={line.receivable_days} onChange={lineField("receivable_days")} /></label>
           <label><span>{t("limits.valid_until")}</span><PeriodPicker label={t("limits.valid_until")} value={line.valid_until} clearable onChange={(value) => lineField("valid_until")({ target: { value } } as never)} /></label>
+          <label><span>{t("changes.why")}</span><input maxLength={500} placeholder={t("changes.why_hint")} value={line.change_reason} onChange={lineField("change_reason")} /></label>
           <button
             type="button"
             aria-busy={lineLoading || undefined}
@@ -505,6 +538,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
             onChange={(ids) => setMandate((current) => ({ ...current, instruments: joined(ids) }))}
           />
           <label><span>{t("limits.valid_until")}</span><PeriodPicker label={t("limits.valid_until")} value={mandate.valid_until} clearable onChange={(value) => mandateField("valid_until")({ target: { value } } as never)} /></label>
+          <label><span>{t("changes.why")}</span><input maxLength={500} placeholder={t("changes.why_hint")} value={mandate.change_reason} onChange={mandateField("change_reason")} /></label>
           <button
             type="button"
             disabled={!mandate.mandate_id.trim() || !mandate.trader.trim() || !mandate.display_name.trim()}
