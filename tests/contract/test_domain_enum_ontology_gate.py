@@ -29,6 +29,10 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     "eurogas_nexus.domain.market_intelligence.opportunity_engine:AccessStatus",
     "eurogas_nexus.domain.market_intelligence.opportunity_engine:OpportunityStatus",
     "eurogas_nexus.domain.monitoring.freshness:FreshnessStatus",
+    # Outbox publication outcome (new, revision, duplicate, out of order): an
+    # event-processing lifecycle state like FreshnessStatus, not gas semantics
+    # (ADR Decision 28).
+    "eurogas_nexus.domain.market_events.model:PublishKind",
     "eurogas_nexus.domain.observations.market:ObservationFreshness",
     "eurogas_nexus.domain.research.backtest:BacktestResultStatus",
     "eurogas_nexus.domain.research.feasibility:FeasibilityStatus",
