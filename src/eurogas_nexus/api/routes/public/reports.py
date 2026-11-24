@@ -83,25 +83,26 @@ def _db():
 
 
 def _editor_for(principal):
-    """The report editor bound to the caller, or ``None`` when the model may not be used."""
+    """The report editor bound to the caller, or ``None`` when the model may not be used.
+
+    ``None`` too when the organisation switched the ``report_editor`` use off (GOV-1); the
+    report is then assembled by rule.
+    """
 
     from eurogas_nexus.api.dependencies.ai_authority import ai_authority_denial
+    from eurogas_nexus.application.ai_controls import ai_use_enabled, governed_model
     from eurogas_nexus.application.reports.editor import EDITOR_CALL
     from eurogas_nexus.core.config import get_settings
-    from eurogas_nexus.llm import invoke_deepseek
     from eurogas_nexus.security.provider_keys import load_provider_api_key
 
     if not get_settings().llm_external_provider_enabled or ai_authority_denial(principal):
         return None
+    if not ai_use_enabled("report_editor"):
+        return None
     api_key = load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")
     if not api_key:
         return None
-
-    def call(messages):
-        result = invoke_deepseek(api_key=api_key, messages=messages, **EDITOR_CALL)
-        return result.content if result.status == "success" else None
-
-    return call
+    return governed_model("report_editor", api_key=api_key, budget=EDITOR_CALL)
 
 
 def balance_reader():
@@ -164,6 +165,12 @@ def _ai_state(principal) -> tuple[bool, str]:
     return True, ""
 
 
+def _db_configured_for_audit() -> bool:
+    from eurogas_nexus.db.session import resolve_database_url
+
+    return resolve_database_url() is not None
+
+
 @router.post("/api/reports/plan")
 def post_report_plan(body: PlanRequest, request: Request) -> dict:
     """Map a question to a report plan the user can edit before generating.
@@ -175,8 +182,23 @@ def post_report_plan(body: PlanRequest, request: Request) -> dict:
     from eurogas_nexus.application.reports.plan import plan_for_question
 
     principal = ai_caller(request)
-    model = _model_for(principal) if body.use_model else None
+    model = _model_for(principal, use="report_plan") if body.use_model else None
     proposal = plan_for_question(body.question, audience=body.audience, model=model)
+    if model is not None and model.calls and _db_configured_for_audit():
+        # GOV-1: every model call is attributable, with its prompt version and hashes.
+        from sqlalchemy.exc import SQLAlchemyError
+
+        from eurogas_nexus.api.routes.public.explain import _audit
+        from eurogas_nexus.db.session import get_session_factory
+
+        try:
+            with get_session_factory()() as session:
+                _audit(session, request, principal, "report:plan",
+                       str(proposal.get("basis", "model")), action="ai.report_plan",
+                       model=model)
+                session.commit()
+        except SQLAlchemyError:
+            pass  # the audit store being down does not hide the proposed plan
     return _env(proposal, request, "report-plan", [])
 
 
@@ -211,7 +233,7 @@ def post_market_report(body: ReportRequest, request: Request) -> dict:
             if editor is not None:
                 use = report.snapshot["model_use"]
                 _audit(session, request, principal, f"report:{report.report_id}",
-                       f"rewrote {use['passed']}/{use['attempted']}")
+                       f"rewrote {use['passed']}/{use['attempted']}", model=editor)
                 session.commit()
     except PlanError as exc:
         raise HTTPException(status_code=422,

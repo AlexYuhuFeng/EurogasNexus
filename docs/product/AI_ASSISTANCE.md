@@ -72,3 +72,13 @@ the evidence; otherwise the rule text is shown. The panel says which one the rea
 - No execution: the model drafts and explains, and a person decides.
 - Off by default, with the provider set by the firm (including a self-hosted model).
 - Every call is audited under the user's or the service's identity.
+- Each AI use is in one register (`domain/ai/register.py`) with its owner, purpose, level,
+  the data it may see, the tools it may call, and its evaluation set and threshold. An
+  administrator can switch any use off in organisation settings (`ai_features`); the
+  reader then sees the rule text, and the change is audited.
+- The audit row of a model call records the prompt version, the model id and SHA-256
+  hashes of what went in and what came out, never the text.
+- A model acting for a research run or the MCP tools may call only the capabilities its use
+  and the caller's role allow; anything else is refused and audited.
+- A prompt or model change cannot pass CI until its evaluation set meets the use's threshold
+  again (`python scripts/ai/ai_gate.py`; `--record` after a passing re-evaluation).

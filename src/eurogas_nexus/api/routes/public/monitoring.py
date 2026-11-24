@@ -209,6 +209,25 @@ def analyze_alert(alert_id: str, payload: AlertAnalysisRequest, request: Request
             raise _not_found(alert_id)
         alert_snapshot = monitoring_alert_payload(row)
 
+    from eurogas_nexus.application.ai_controls import ai_use_enabled, provenance
+
+    if not ai_use_enabled("alert_analysis"):
+        # GOV-1: the organisation switched this AI use off; no provider call, the alert's own
+        # rule text stands.
+        data = {
+            "analysis_id": None,
+            "alert_id": alert_id,
+            "provider_id": "DEEPSEEK",
+            "provider_status": "switched_off",
+            "answer": None,
+            "model": payload.model,
+            "language": payload.language,
+            "source_refs": alert_snapshot["source_refs"],
+            "warnings": ["ai_use_switched_off:alert_analysis"],
+            "human_review_required": True,
+        }
+        return _env(data, warnings=data["warnings"])
+
     api_key = load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")
     if not api_key:
         data = {
@@ -230,10 +249,13 @@ def analyze_alert(alert_id: str, payload: AlertAnalysisRequest, request: Request
         provider_id, model_used = endpoint.provider_name, endpoint.model
     except LlmEndpointError:
         provider_id, model_used = "DEEPSEEK", payload.model
-    result = invoke_deepseek(
-        api_key=api_key,
-        messages=_analysis_messages(alert_snapshot, payload),
-        **ANSWER_CALL,
+    messages = _analysis_messages(alert_snapshot, payload)
+    result = invoke_deepseek(api_key=api_key, messages=messages, **ANSWER_CALL)
+    call = provenance(
+        "alert_analysis",
+        messages=messages,
+        output=result.content if result.status == "success" else None,
+        status=result.status,
     )
     analysis_id = f"monitoring-analysis-{uuid4().hex}"
     warnings = list(alert_snapshot.get("warnings") or [])
@@ -277,6 +299,20 @@ def analyze_alert(alert_id: str, payload: AlertAnalysisRequest, request: Request
             "roles": list(principal.roles),
             "auth_method": principal.auth_method,
         },
+    )
+    from eurogas_nexus.application.ai_controls import provenance_summary
+    from eurogas_nexus.application.audit_service import record_audit_event
+
+    record_audit_event(
+        event_type="governance.policy",
+        action="ai.alert_analysis",
+        resource=f"monitoring_alert:{alert_id}"[:128],
+        principal=principal.principal_id[:64],
+        outcome="model" if answer else "rule",
+        detail=f"analysis_id={analysis_id}; status={result.status}",
+        source_system="monitoring",
+        request_id=getattr(request.state, "request_id", None),
+        after_summary=provenance_summary([call]),
     )
     return _env(data, warnings=data["warnings"])
 

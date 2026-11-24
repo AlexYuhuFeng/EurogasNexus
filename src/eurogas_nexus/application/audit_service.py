@@ -121,6 +121,11 @@ GOVERNED_WRITES: tuple[GovernedWrite, ...] = (
         "api/routes/public/credentials.py",
     ),
     GovernedWrite(
+        "organisation settings and AI feature switches",
+        ("settings.organisation.update",),
+        "api/routes/public/preferences.py (PUT /api/settings/organisation)",
+    ),
+    GovernedWrite(
         "hedges on cargoes",
         ("lng.cargo_hedges",),
         "application/lng_in_transit.py (PUT /api/lng/cargoes/{cargo_id}/hedges)",
@@ -160,6 +165,7 @@ def record_audit_event(
     detail: str = "",
     source_system: str = AUDIT_APP_SOURCE,
     request_id: str | None = None,
+    after_summary: dict | None = None,
 ) -> str | None:
     """Persist one best-effort audit event and return its id, or None when unavailable.
 
@@ -189,6 +195,7 @@ def record_audit_event(
                 detail=full_detail,
                 source_system=source_system,
                 now_utc=datetime.now(UTC),
+                after_summary=after_summary,
             )
             session.commit()
             return event.event_id

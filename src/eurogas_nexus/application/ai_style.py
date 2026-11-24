@@ -53,6 +53,12 @@ ANSWER_RULES = (
     "decides."
 )
 
+#: Added to ``ANSWER_RULES`` for the Copilot analysis over a snapshot (``/api/analysis/query``).
+ANALYSIS_QUERY_RULES = (
+    "Use only the supplied snapshot and cite the rows you rely on by their source. Name any "
+    "missing input in one sentence. No legal advice or official trading recommendation."
+)
+
 #: Provider call budgets. ``max_tokens`` bounds reasoning *and* reply: a reasoning model
 #: (DeepSeek V4 Flash) spends several hundred tokens thinking before it writes, so a 300-token
 #: budget returned an empty reply on most calls and the rule text always stood (AI-04 live

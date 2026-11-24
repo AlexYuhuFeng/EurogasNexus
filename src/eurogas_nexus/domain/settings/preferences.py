@@ -19,6 +19,7 @@ import re
 from collections.abc import Callable, Mapping
 from typing import Any
 
+from eurogas_nexus.domain.ai.register import AI_FEATURES_SETTING
 from eurogas_nexus.domain.ontology.markets import european_gas_hubs
 
 #: The interface languages the clients ship. A new language is added here and in the
@@ -169,6 +170,21 @@ def validate_preferences(values: Mapping[str, Any]) -> dict[str, str]:
     return accepted
 
 
+def validate_ai_features(values: Any) -> dict[str, bool]:
+    """The per-use AI switches (GOV-1): registered uses only, each ``true`` or ``false``."""
+
+    from eurogas_nexus.domain.ai.register import AI_USES_BY_NAME
+
+    if not isinstance(values, Mapping) or not values:
+        raise SettingsError(f"{AI_FEATURES_SETTING} must map AI uses to true or false")
+    unknown = sorted(str(key) for key in values if key not in AI_USES_BY_NAME)
+    if unknown:
+        raise SettingsError(f"{unknown[0]} is not a registered AI use")
+    if any(not isinstance(value, bool) for value in values.values()):
+        raise SettingsError(f"each {AI_FEATURES_SETTING} value must be true or false")
+    return {str(key): bool(value) for key, value in values.items()}
+
+
 def validate_organisation_defaults(values: Mapping[str, Any]) -> dict[str, Any]:
     """Organisation defaults use the preference vocabulary plus the languages offered."""
 
@@ -176,8 +192,15 @@ def validate_organisation_defaults(values: Mapping[str, Any]) -> dict[str, Any]:
     if personal_only:
         raise SettingsError(f"{personal_only[0]} is a personal preference, not a default")
     enabled = values.get("enabled_languages")
-    rest = {key: value for key, value in values.items() if key != "enabled_languages"}
+    switches = values.get(AI_FEATURES_SETTING)
+    rest = {
+        key: value
+        for key, value in values.items()
+        if key not in {"enabled_languages", AI_FEATURES_SETTING}
+    }
     accepted: dict[str, Any] = validate_preferences(rest)
+    if switches is not None:
+        accepted[AI_FEATURES_SETTING] = validate_ai_features(switches)
     if enabled is not None:
         if (
             not isinstance(enabled, list)

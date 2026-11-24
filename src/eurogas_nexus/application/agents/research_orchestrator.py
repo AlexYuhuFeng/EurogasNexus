@@ -119,6 +119,9 @@ class GovernedResearchOrchestrator:
         period_end_utc: str | None = None,
     ) -> OrchestrationOutcome:
         outcome = OrchestrationOutcome(run_id)
+        # GOV-1: capability calls in a research run are made by the agent, so the register's
+        # allowlist for the research use and the caller's roles applies to each.
+        principal = principal.model_copy(update={"ai_use": "agent_research"})
         run_row = repo.get_agent_run(session, run_id)
         if run_row is None:
             run_row = repo.create_agent_run(

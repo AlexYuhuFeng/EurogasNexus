@@ -119,6 +119,9 @@ M5 full suite (SQLite, `python -m pytest -q tests`, 2026-11-24): 7,049 passed, 2
 | --- | --- | --- |
 | GOV1-1 to GOV1-3 audit with the change | `pytest tests/api/test_governed_audit_api.py tests/unit/test_governed_audit.py tests/unit/test_audit_service.py` | 11 passed |
 | Governed-write modules unchanged in behaviour otherwise | `pytest tests/api/test_assumptions_api.py tests/api/test_lng_cargo_plan_api.py tests/api/test_opportunities_api.py tests/api/test_risk_limits_api.py tests/api/test_risk_segregation_api.py tests/security/test_access_self_grant.py tests/security/test_enterprise_access_api.py tests/security/test_identity_admin_api.py tests/security/test_local_accounts_api.py tests/security/test_personal_api_keys.py tests/security/test_platform_admin_commercial_boundary.py tests/unit/test_error_taxonomy.py tests/contract/test_error_vocabulary_coverage.py` | 111 passed |
+| GOV1-4, AIR-3 to AIR-7 AI controls stage 2 | `pytest tests/unit/test_ai_register.py tests/evals/test_ai_gate.py tests/api/test_ai_controls_api.py` | 34 passed |
+| AI evaluation gate, offline | `python scripts/ai/ai_gate.py` (record written by `--record`: 11 uses, default model `deepseek-v4-flash`) | AI gate passes |
+| AI uses unchanged in behaviour otherwise | `pytest tests/evals tests/unit/test_mcp_capability_adapter.py tests/unit/test_explain.py tests/unit/test_desk_ask.py tests/unit/test_spreads_workbench.py tests/api/test_preferences_api.py tests/unit/test_settings_preferences.py tests/api/test_monitoring_api.py tests/security/test_ai_authority.py` with the report, monitoring, agent and analysis modules | 531 passed |
 
 ## Targeted re-evaluation, shown on the demo desk
 

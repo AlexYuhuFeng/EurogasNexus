@@ -11,7 +11,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException, Request
 
 from eurogas_nexus.api.dependencies.ai_authority import ai_authority_denial, ai_caller
-from eurogas_nexus.application.ai_style import ANSWER_CALL, ANSWER_RULES
+from eurogas_nexus.application.ai_style import ANALYSIS_QUERY_RULES, ANSWER_CALL, ANSWER_RULES
 from eurogas_nexus.application.physical_native_rates import (
     NativeRateProjectionError,
     row_volume_admissible,
@@ -126,17 +126,20 @@ def post_analysis_query(body: AnalysisRequest, request: Request) -> dict:
             _snapshot_source_systems(snapshot),
             resource="analysis_query",
         )
+    calls: list[dict] = []
     provider_text, provider_status = _maybe_invoke_provider(
         body,
         snapshot,
         request_id=request_id,
         principal=ai_caller(request),
+        calls=calls,
     )
     _audit_llm_decision(
         body=body,
         provider_status=provider_status,
         snapshot=snapshot,
         request_id=request_id,
+        calls=calls,
     )
     result = build_analysis_result(
         body,
@@ -248,17 +251,20 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
         duration_end_utc=body.duration_end_utc,
         language=body.language,
     )
+    report_calls: list[dict] = []
     provider_text, provider_status = _maybe_invoke_provider(
         analysis_request,
         snapshot,
         request_id=request_id,
         principal=caller,
+        calls=report_calls,
     )
     _audit_llm_decision(
         body=analysis_request,
         provider_status=provider_status,
         snapshot=snapshot,
         request_id=request_id,
+        calls=report_calls,
     )
     result = build_portfolio_report(
         body,
@@ -522,15 +528,22 @@ def _maybe_invoke_provider(
     *,
     request_id: str | None = None,
     principal: AuthenticatedPrincipal | None = None,
+    calls: list[dict] | None = None,
 ) -> tuple[str | None, str]:
+    """The checked provider text and status; ``calls`` receives each call's provenance."""
+
     if not body.invoke_provider:
         return None, "not_invoked"
 
+    from eurogas_nexus.application.ai_controls import ai_use_enabled, provenance
     from eurogas_nexus.core.config import get_settings
 
     if not get_settings().llm_external_provider_enabled:
         # P0-2: trial/release profiles never call external LLM providers.
         return None, "LLM_PROVIDER_DISABLED_IN_PROFILE"
+    if not ai_use_enabled("analysis_query"):
+        # GOV-1: switched off in organisation settings; the deterministic answer stands.
+        return None, "AI_USE_SWITCHED_OFF"
 
     # AI runs under the caller's own authority (Architecture V2 rule 22): the
     # entitlement gate below protects the *payload*, this protects the *invocation*.
@@ -578,11 +591,7 @@ def _maybe_invoke_provider(
     messages = [
         {
             "role": "system",
-            "content": (
-                f"{ANSWER_RULES} Use only the supplied snapshot and cite the rows you "
-                "rely on by their source. Name any missing input in one sentence. No "
-                "legal advice or official trading recommendation."
-            ),
+            "content": f"{ANSWER_RULES} {ANALYSIS_QUERY_RULES}",
         },
         {
             "role": "user",
@@ -602,6 +611,15 @@ def _maybe_invoke_provider(
         model=body.model,
         **{**ANSWER_CALL, "temperature": 0.2},
     )
+    if calls is not None:
+        calls.append(
+            provenance(
+                "analysis_query",
+                messages=messages,
+                output=result.content if result.status == "success" else None,
+                status=result.status,
+            )
+        )
     if result.status == "success":
         # Shown only if it passes the checks every model text passes (ai_style); otherwise
         # the deterministic answer stands (build_analysis_result).
@@ -717,8 +735,15 @@ def _audit_llm_decision(
     provider_status: str,
     snapshot: AnalysisSnapshot,
     request_id: str | None,
+    calls: list[dict] | None = None,
 ) -> None:
-    """Record an audit event for every requested LLM invocation attempt."""
+    """Record an audit event for every requested LLM invocation attempt.
+
+    GOV-1: a call that reached the provider carries its prompt version, model id and the
+    input and output hashes (``after_summary.ai``).
+    """
+
+    from eurogas_nexus.application.ai_controls import provenance_summary
 
     if not body.invoke_provider:
         return
@@ -735,6 +760,7 @@ def _audit_llm_decision(
         ),
         source_system="analysis",
         request_id=request_id,
+        after_summary=provenance_summary(calls or []),
     )
 
 
@@ -748,6 +774,7 @@ def _record_audit(
     detail: str,
     source_system: str,
     request_id: str | None,
+    after_summary: dict | None = None,
 ) -> None:
     from eurogas_nexus.application.audit_service import record_audit_event
 
@@ -760,6 +787,7 @@ def _record_audit(
         detail=detail,
         source_system=source_system,
         request_id=request_id,
+        after_summary=after_summary,
     )
 
 

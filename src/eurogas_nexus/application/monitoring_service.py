@@ -135,6 +135,10 @@ def scan_monitoring_conditions(
     }
 
 
+#: Returned when the organisation switched the enrichment AI use off (GOV-1).
+AI_USE_SWITCHED_OFF = "ai_use_switched_off"
+
+
 def enrich_monitoring_alert(
     session: Session,
     alert: MonitoringAlertRecord,
@@ -175,6 +179,12 @@ def enrich_monitoring_alert(
         )
 
     principal = authority.principal
+    from eurogas_nexus.application.ai_controls import ai_use_enabled, provenance
+
+    if not ai_use_enabled("enrichment", session):
+        # GOV-1: switched off in organisation settings. No credential is loaded, no provider
+        # is called and the alert is left as it is: its own rule text stands.
+        return DeepSeekCallResult(status="switched_off", error_code=AI_USE_SWITCHED_OFF)
     key_loader = api_key_loader or load_provider_api_key
     call = provider_call or invoke_deepseek
     api_key = key_loader("DEEPSEEK") or key_loader("LLM")
@@ -189,11 +199,18 @@ def enrich_monitoring_alert(
         session.commit()
         return result
 
+    messages = _alert_enrichment_messages(alert)
     result = call(
         api_key=api_key,
-        messages=_alert_enrichment_messages(alert),
+        messages=messages,
         model=DEEPSEEK_DEFAULT_MODEL,
         **ENRICHMENT_CALL,
+    )
+    call_record = provenance(
+        "enrichment",
+        messages=messages,
+        output=result.content if result.status == "success" else None,
+        status=result.status,
     )
     alert.llm_status = result.status
     refusal = (
@@ -216,7 +233,7 @@ def enrich_monitoring_alert(
     else:
         warning = f"deepseek_enrichment:{result.error_code or result.status}"
         alert.warnings = list(dict.fromkeys([*(alert.warnings or []), warning]))
-    _record_enrichment_use(session, principal, alert, result, now_utc=now)
+    _record_enrichment_use(session, principal, alert, result, now_utc=now, call=call_record)
     session.commit()
     return result
 
@@ -1274,6 +1291,10 @@ def _enrich_pending_alerts(
     stops at the first refusal: the authority condition applies to every remaining alert, and one
     refusal is one auditable event rather than a burst of duplicate ones.
     """
+    from eurogas_nexus.application.ai_controls import ai_use_enabled
+
+    if not ai_use_enabled("enrichment", session):
+        return 0, AI_USE_SWITCHED_OFF, "enrichment is switched off in organisation settings"
     retry_before = now_utc - timedelta(minutes=5)
     eligible = [
         row
@@ -1354,6 +1375,7 @@ def _record_enrichment_use(
     result: DeepSeekCallResult,
     *,
     now_utc: datetime,
+    call: dict | None = None,
 ) -> None:
     """Record one provider call against the service identity it actually ran as.
 
@@ -1363,6 +1385,7 @@ def _record_enrichment_use(
     credential, prompt or evidence content.
     """
 
+    from eurogas_nexus.application.ai_controls import provenance_summary
     from eurogas_nexus.db.repositories.audit import record_audit_event
 
     record_audit_event(
@@ -1380,6 +1403,8 @@ def _record_enrichment_use(
         ),
         source_system="monitoring-worker",
         now_utc=now_utc,
+        # GOV-1: prompt version, model id and input/output hashes (never the text).
+        after_summary=provenance_summary([call]) if call else None,
     )
 
 

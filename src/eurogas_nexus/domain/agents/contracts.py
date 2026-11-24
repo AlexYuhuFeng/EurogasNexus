@@ -235,6 +235,9 @@ class AgentInvocationContext(BaseModel):
     correlation_request_id: str | None = None
     human_confirmation: bool = False
     confirmation_note: str = ""
+    #: The registered AI use on whose behalf a model makes this call (GOV-1); ``None`` for a
+    #: person or a script calling directly. When set, the role allowlist applies.
+    ai_use: str | None = None
 
 
 class AgentRunStatus(StrEnum):

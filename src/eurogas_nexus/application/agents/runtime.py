@@ -50,6 +50,15 @@ class CapabilityRuntime:
                 code=CapabilityFailureCode.CAPABILITY_DISABLED,
                 detail=f"Capability {capability_id} is {definition.status.value}",
             )
+        if context.ai_use:
+            ai_refusal = _denied_ai_tool(context, capability_id)
+            if ai_refusal:
+                return CapabilityResult.blocked(
+                    capability=capability_id,
+                    capability_version=definition.capability_version,
+                    code=CapabilityFailureCode.PERMISSION_DENIED,
+                    detail=f"ai_tool_not_allowed: {ai_refusal}",
+                )
         if definition.action_policy == ActionPolicy.HUMAN_ONLY:
             return CapabilityResult.blocked(
                 capability=capability_id,
@@ -121,6 +130,27 @@ class CapabilityRuntime:
         metadata.duration_ms = round((perf_counter() - started) * 1000, 3)
         metadata.input_hash = hash_object(arguments)
         return result
+
+
+def _denied_ai_tool(context: AgentInvocationContext, capability_id: str) -> str:
+    """GOV-1: a model may call only what its use and one of the caller's roles allow.
+
+    The refusal is audited; the audit is best-effort, the refusal is not.
+    """
+
+    from eurogas_nexus.application.ai_controls import ai_tool_refusal, record_ai_tool_refusal
+
+    use = str(context.ai_use)
+    refusal = ai_tool_refusal(use, list(context.roles or [context.role]), capability_id)
+    if refusal:
+        record_ai_tool_refusal(
+            use=use,
+            principal_id=context.principal_id,
+            capability_id=capability_id,
+            reason=refusal,
+            request_id=context.correlation_request_id,
+        )
+    return refusal
 
 
 def _denied_permission(context: AgentInvocationContext, definition: CapabilityDefinition) -> str:

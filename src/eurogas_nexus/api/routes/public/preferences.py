@@ -6,11 +6,13 @@ defaults. Neither changes what a person may see: they choose how permitted data 
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 
+from eurogas_nexus.domain.ai.register import AI_FEATURES_SETTING
 from eurogas_nexus.domain.settings.preferences import (
     SettingsError,
     effective_preferences,
@@ -151,6 +153,9 @@ def write_organisation_settings(body: dict[str, Any], request: Request) -> dict:
         now = datetime.now(UTC)
         for key, value in accepted.items():
             row = session.get(OrganisationSettingRecord, key)
+            if key == AI_FEATURES_SETTING and row is not None and isinstance(row.value_json, dict):
+                # Switches merge: turning one AI use off leaves the others as they were.
+                value = {**row.value_json, **value}
             if row is None:
                 session.add(
                     OrganisationSettingRecord(
@@ -164,25 +169,24 @@ def write_organisation_settings(body: dict[str, Any], request: Request) -> dict:
                 row.value_json = value
                 row.updated_by = principal.principal_id
                 row.updated_at_utc = now
-        try:
-            import json
+        from eurogas_nexus.application.audit_service import record_governed_audit
 
-            from eurogas_nexus.db.repositories.audit import record_audit_event
-
-            record_audit_event(
-                session,
-                event_type="governance.settings",
-                principal=principal.principal_id,
-                action="settings.organisation.update",
-                resource="organisation_settings",
-                outcome="updated",
-                detail=json.dumps(
-                    {"before": before, "after": {**before, **accepted}}, sort_keys=True
-                ),
-                source_system="settings-api",
-                now_utc=now,
-            )
-        except Exception:  # noqa: BLE001 - same policy as access administration audit
-            pass
+        session.flush()
+        after = _organisation(session)
+        # GOV-1 (P5): organisation defaults include the AI switches, a governed write: the
+        # audit row is part of it and the change fails without it.
+        record_governed_audit(
+            session,
+            event_type="governance.settings",
+            principal=principal.principal_id,
+            action="settings.organisation.update",
+            resource="organisation_settings",
+            outcome="updated",
+            detail=json.dumps({"before": before, "after": after}, sort_keys=True)[:4000],
+            source_system="settings-api",
+            now_utc=now,
+            before_summary=before or None,
+            after_summary=after,
+        )
         session.commit()
         return _env(_organisation(session))

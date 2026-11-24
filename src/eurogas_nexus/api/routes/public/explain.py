@@ -64,7 +64,8 @@ def post_explain(body: ExplainRequest, request: Request) -> dict:
                 model=model,
             )
             if model is not None:
-                _audit(session, request, principal, f"{body.subject}:{body.id}", result.basis)
+                _audit(session, request, principal, f"{body.subject}:{body.id}", result.basis,
+                       model=model)
                 session.commit()
     except NotFound as exc:
         raise HTTPException(status_code=404, detail={"code": "not_found"}) from exc
@@ -98,14 +99,15 @@ def post_brief(body: BriefRequest, request: Request) -> dict:
     if resolve_database_url() is None:
         raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
     principal = ai_caller(request)
-    model = _model_for(principal)
+    model = _model_for(principal, use="brief")
     try:
         with get_session_factory()() as session:
             brief = build_brief(
                 session, Caller(principal), body.kind, model=model, language=body.language
             )
             if model is not None:
-                _audit(session, request, principal, f"brief:{body.kind}", brief.lead_basis)
+                _audit(session, request, principal, f"brief:{body.kind}", brief.lead_basis,
+                       model=model)
                 session.commit()
     except SQLAlchemyError as exc:
         raise HTTPException(
@@ -144,7 +146,7 @@ def post_ask(body: AskRequest, request: Request) -> dict:
     if resolve_database_url() is None:
         raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
     principal = ai_caller(request)
-    model = _model_for(principal, answer=True)
+    model = _model_for(principal, answer=True, use="answer")
     book_allowed = authorize(principal, "portfolio.read").allowed
 
     def balance() -> dict | None:
@@ -168,7 +170,7 @@ def post_ask(body: AskRequest, request: Request) -> dict:
             )
             if model is not None and result.lines:
                 _audit(session, request, principal, f"ask:{','.join(result.topics)}",
-                       f"{result.basis}; ai={result.ai}", action="ai.ask")
+                       f"{result.basis}; ai={result.ai}", action="ai.ask", model=model)
                 session.commit()
     except SQLAlchemyError as exc:
         raise HTTPException(
@@ -178,38 +180,47 @@ def post_ask(body: AskRequest, request: Request) -> dict:
     return _env(result.as_dict(), request, "runtime-postgresql:desk-today", result.warnings)
 
 
-def _model_for(principal, *, answer: bool = False):
-    """A model call bound to the caller, or ``None`` when the model may not be used.
+def _model_for(principal, *, answer: bool = False, use: str = "explain"):
+    """A model call bound to the caller and one registered AI use, or ``None``.
 
-    ``answer`` uses the answer budget (``ai_style.ANSWER_CALL``) instead of the note's.
+    ``None`` when the deployment has no provider, the caller lacks the analysis capability,
+    no key is stored, or the organisation switched the use off (GOV-1); the reader then gets
+    the rule text. ``answer`` uses the answer budget (``ai_style.ANSWER_CALL``) instead of
+    the note's. The returned :class:`GovernedModel` records each call's provenance for the
+    audit row.
     """
 
+    from eurogas_nexus.application.ai_controls import ai_use_enabled, governed_model
+    from eurogas_nexus.application.ai_style import ANSWER_CALL, NOTE_CALL
     from eurogas_nexus.core.config import get_settings
-    from eurogas_nexus.llm import invoke_deepseek
     from eurogas_nexus.security.provider_keys import load_provider_api_key
 
     if not get_settings().llm_external_provider_enabled or ai_authority_denial(principal):
         return None
+    if not ai_use_enabled(use):
+        return None
     api_key = load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")
     if not api_key:
         return None
-
-    def call(messages):
-        from eurogas_nexus.application.ai_style import ANSWER_CALL, NOTE_CALL
-
-        budget = ANSWER_CALL if answer else NOTE_CALL
-        result = invoke_deepseek(api_key=api_key, messages=messages, **budget)
-        return result.content if result.status == "success" else None
-
-    return call
+    return governed_model(use, api_key=api_key, budget=ANSWER_CALL if answer else NOTE_CALL)
 
 
 def _audit(
-    session, request: Request, principal, resource: str, basis: str, *, action: str = "ai.explain"
+    session,
+    request: Request,
+    principal,
+    resource: str,
+    basis: str,
+    *,
+    action: str = "ai.explain",
+    model=None,
 ) -> None:
+    """Audit one AI request; with ``model``, its prompt version, model id and hashes (GOV-1)."""
+
     from eurogas_nexus.db.repositories.audit import record_audit_event
 
     request_id = getattr(request.state, "request_id", None)
+    summary = model.audit_summary() if hasattr(model, "audit_summary") else None
     record_audit_event(
         session,
         event_type="governance.policy",
@@ -222,4 +233,5 @@ def _audit(
         source_system="analysis",
         now_utc=datetime.now(UTC),
         correlation_id=request_id[:64] if request_id else None,
+        after_summary=summary,
     )

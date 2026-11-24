@@ -101,6 +101,7 @@ with P-17, so that limits, terminal terms and freight routes share one maker-che
 | DOC-5 | A `postgresql://` URL without a driver uses the runtime's driver; an explicit driver is kept | `tests/integration/test_db_config.py::test_a_url_without_a_driver_uses_the_runtime_driver` |
 | DOC-6 | Every local Markdown link resolves | `scripts/ci/check_markdown_links.py` |
 
+## AIR AI by role, personal workspaces and the improvement loop (AIR-1 to AIR-5 and AIR-7 met in GOV-1, AIR-6 partly met; the rest to be met)
 ## M7 live pipeline (met except M7-10)
 
 Design and budgets: [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md).
@@ -123,11 +124,11 @@ acknowledged, and quote capture for the opportunity engine (R14). See 15 section
 Design: [14](14_AI_ROLES_PERSONALISATION_AND_IMPROVEMENT_LOOP.md). Stage in brackets.
 | AIR-1 | (1) A signed-in person sends a suggestion through `/api/support/reports` with category `suggestion`; it is stored as P4 whatever urgency was sent and queues a low-severity notification; no OpenAPI path or operation is added | `tests/api/test_support_api.py::test_a_suggestion_is_stored_as_p4_and_never_pages_the_desk` |
 | AIR-2 | (1) "Send feedback" in the account menu opens the report dialog in suggestion mode, without an urgency choice, and the client diagnostics carry the role composition | `clients/web/tests/supportReport.test.ts` (AIR-2 tests) |
-| AIR-3 | (2) Every AI use is in a machine-readable register with its level, roles, controls, evaluation set and threshold; a model call from a use not in the register fails a test | to be written |
-| AIR-4 | (2) Each AI use can be switched off in organisation settings; a switched-off use returns the rule text with basis `rule`, and the switch is audited | to be written |
-| AIR-5 | (2) Every AI audit row carries the prompt version, model id, evidence hash and output hash | to be written |
-| AIR-6 | (2) A change to a prompt, a check or the configured model fails CI unless the recorded evaluation set passes and the committed provider-run report for that version meets the use's threshold | to be written |
-| AIR-7 | (2) A model can call only the capabilities its use and the caller's role allow; a call outside the allowlist is refused and audited | to be written |
+| AIR-3 | (2) Every AI use is in a machine-readable register with its level, roles, controls, evaluation set and threshold; a model call from a use not in the register fails a test | `tests/unit/test_ai_register.py::test_every_use_is_described_completely`, `::test_only_pinned_modules_call_the_provider_and_each_binds_a_registered_use`, `::test_an_unregistered_use_cannot_be_called_or_switched` (register: `domain/ai/register.py`) |
+| AIR-4 | (2) Each AI use can be switched off in organisation settings; a switched-off use returns the rule text with basis `rule`, and the switch is audited | `tests/api/test_ai_controls_api.py::test_a_switched_off_use_makes_no_provider_call_and_shows_the_rule_text`, `::test_invalid_switches_are_refused`; `tests/unit/test_ai_register.py::test_a_switched_off_use_may_call_no_tool` |
+| AIR-5 | (2) Every AI audit row carries the prompt version, model id, evidence hash and output hash | `tests/api/test_ai_controls_api.py::test_the_audit_row_carries_prompt_version_model_id_and_hashes`, `tests/unit/test_ai_register.py::test_provenance_holds_versions_and_hashes_never_the_text` (the input hash is over the messages, which carry the evidence) |
+| AIR-6 | (2) A change to a prompt, a check or the configured model fails CI unless the recorded evaluation set passes and the committed provider-run report for that version meets the use's threshold | Recorded-set half met: `tests/evals/test_ai_gate.py` (prompt text, prompt version, model id, evaluation-set hash and score; `scripts/ai/ai_gate.py --record`). The committed provider-run report is still to be written: it needs a networked run |
+| AIR-7 | (2) A model can call only the capabilities its use and the caller's role allow; a call outside the allowlist is refused and audited | `tests/unit/test_ai_register.py::test_tool_refusal`, `::test_never_tools_are_refused_whatever_the_role`, `::test_the_runtime_refuses_a_model_tool_call_outside_the_allowlist`, `::test_mcp_and_research_run_as_their_registered_uses` |
 | AIR-8 | (3) A feedback item moves received, triaged, clarifying, specified, in build, in review, shipped or declined; a specification cannot be approved without the requester's recorded confirmation | to be written |
 | AIR-9 | (3) The repository map is generated from the code and a test fails when it is out of date | to be written |
 | AIR-10 | (3) One command prints the OpenAPI paths and operations, permission rows and the documents that pin them, before and after a change | to be written |
@@ -152,6 +153,8 @@ Lessons P4 to P6 in [16](16_COMPETITIVE_STUDY.md); AI controls are AIR-3 to AIR-
 | GOV1-1 | Each governed write (credit lines, mandates, hedge bands, LNG terminal terms, opportunity thresholds, assumption sets and approvals, firm marks, users, roles, groups, data licences, API keys and provider credentials, hedges on cargoes) writes its audit row in its own transaction; when the audit row cannot be written the write answers 503 `audit_unavailable` and nothing of it is stored | `tests/api/test_governed_audit_api.py::test_a_governed_write_fails_and_leaves_nothing_when_its_audit_row_cannot_be_written`, `tests/unit/test_governed_audit.py` |
 | GOV1-2 | The governed writes are one register (`GOVERNED_WRITES` in `application/audit_service.py`); every action in it is recorded by code, and none is recorded through the best-effort helper | `tests/unit/test_governed_audit.py::test_every_governed_action_is_recorded_somewhere_in_the_code`, `::test_no_governed_action_is_recorded_through_the_best_effort_helper` |
 | GOV1-3 | Reads, list events, sign-in events and refusals stay best-effort: a read answers even when its audit row cannot be written, and a fault in the change itself is reported as that fault, not as an audit failure | `test_a_read_still_answers_when_its_audit_row_cannot_be_written`, `test_a_fault_in_the_change_itself_is_not_reported_as_an_audit_failure` |
+| GOV1-4 | AI controls stage 2 (AIR-3 to AIR-7): the AI-use register, a switch per use honoured wherever the use runs (explain, brief, answer, alert analysis, alert enrichment, analysis query, report editor and plan, spreads, research and MCP tools), provenance on AI audit rows, per-role model tool allowlists and an offline evaluation gate; organisation settings, which hold the switches, are a governed write | rows AIR-3 to AIR-7 above; `tests/api/test_governed_audit_api.py` |
+
 ## M7 to M9 (to be met)
 
 - **M8.** For a contract with ACQ and make-up terms, the shortfall and make-up balance

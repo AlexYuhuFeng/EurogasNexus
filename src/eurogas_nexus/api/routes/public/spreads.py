@@ -122,7 +122,7 @@ def interpret_description(body: InterpretInput, request: Request) -> dict:
     principal = None
     if body.model:
         principal = ai_caller(request)
-        model = _model_for(principal, answer=True)
+        model = _model_for(principal, answer=True, use="spreads_interpret")
     result = interpret(body.text, holdings, language=body.language, model=model)
     if model is not None and principal is not None:
         from sqlalchemy.exc import SQLAlchemyError
@@ -132,7 +132,7 @@ def interpret_description(body: InterpretInput, request: Request) -> dict:
         try:
             with get_session_factory()() as session:
                 _audit(session, request, principal, "spreads:interpret",
-                       f"{result.basis}; ai={result.ai}", action="ai.spreads")
+                       f"{result.basis}; ai={result.ai}", action="ai.spreads", model=model)
                 session.commit()
         except SQLAlchemyError:
             pass  # the audit store being down does not hide the interpretation

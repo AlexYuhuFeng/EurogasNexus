@@ -754,6 +754,9 @@ def _agent_context():
         role=role,
         roles=[role],
         data_scopes=[item.strip() for item in scopes.split(",") if item.strip()],
+        # GOV-1: the tools are called by the analyst's own assistant, so the register's
+        # allowlist for the MCP use and the configured role applies.
+        ai_use="mcp_tools",
     )
 
 
