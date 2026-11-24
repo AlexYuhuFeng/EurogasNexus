@@ -148,7 +148,7 @@
   border: 2px solid var(--ds-border);
   border-top-color: var(--ds-accent);
   border-radius: var(--ds-radius-pill);
-  animation: answer-spin 0.9s linear infinite;
+  animation: answer-spin var(--ds-duration-pulse) linear infinite;
 }
 
 @keyframes answer-spin {

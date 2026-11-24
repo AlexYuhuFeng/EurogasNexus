@@ -21,7 +21,7 @@ analytical workstation direction, with a map-first Network workspace.
 - Use Inter/system sans for UI text and ui-monospace for technical eyebrows, source tags, and compact labels.
 - Use sentence-case headings. Do not use all-caps headings except short technical mono labels.
 - The Constitution defines fixed type `11/12/13/14/18/20px`, spacing
-  `4/8/12/16/24/32px`, controls `28/32/36px`, and radii `4/6/8px`.
+  `4/8/12/16/24/32px`, controls `28/32px` (44px on touch), and radii `4/8px` and a pill.
 - Do not use decorative pills, giant workspace titles, or arbitrary local type,
   spacing, control, or radius values on RFC adoption.
 - Keep the palette sparse: ink, gray, link blue, warning amber, error red, and domain map colors only where data semantics require them.

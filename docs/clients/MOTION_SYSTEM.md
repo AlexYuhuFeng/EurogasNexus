@@ -17,27 +17,42 @@ market surface feel unstable.
 
 ## Motion tokens
 
-The duration scale is exactly:
+The tokens live in one place, `clients/web/src/styles/tokens.css`; this table
+quotes them and `clients/web/tests/motionContract.test.ts` fails when the two
+differ. The duration scale is exactly:
 
 | Token | Duration | Use |
 | --- | ---: | --- |
 | `--motion-none` | 0ms | initial state, immediate feedback, reduced motion |
-| `--motion-fast` | 120ms | focus/selection, tab indicator, small status change |
-| `--motion-standard` | 180ms | menu, popover, drawer, toast, expand/collapse |
-| `--motion-emphasis` | 240ms | modal entry, context-rail transition, agent-step progression |
+| `--ds-duration-fast` | 80ms | hover, press, focus/selection, small status change |
+| `--ds-duration-base` | 160ms | menu, popover, tab, expand/collapse, toast, page change |
+| `--ds-duration-slow` | 240ms | modal and sheet entry, inspector, context rail, agent-step progression |
+| `--ds-duration-exit` | 120ms | popover, menu or dialog closing (0.75 × base) |
+| `--ds-duration-exit-slow` | 180ms | sheet closing (0.75 × slow) |
+| `--ds-duration-flash` | 400ms | a live cell's tick (see data update rules) |
+| `--ds-duration-map` | 400ms | map camera |
+| `--ds-duration-pulse` | 1200ms | one beat of a busy pulse or a found-pin ping |
+| `--ds-duration-loop` | 1400ms | one sweep of a loading shimmer |
 
-No ordinary UI transition SHOULD exceed 240ms. A feature MUST NOT introduce a
-local duration or easing value without a reviewed contract.
+The older names `--motion-fast`, `--motion-standard` and `--motion-emphasis`
+are aliases of fast, base and slow. No ordinary UI transition SHOULD exceed
+240ms; the flash, map, pulse and loop durations are not transitions. A feature
+MUST NOT introduce a local duration or easing value without a reviewed contract.
 
-Proposed easing roles:
+Easing roles:
 
-- entry: `ease-out`;
-- exit: `ease-in`;
-- position or selection continuity: `ease-in-out`.
+| Token | Curve | Use |
+| --- | --- | --- |
+| `--ds-ease-out` | `cubic-bezier(0.2, 0, 0, 1)` | entry: decelerates into place |
+| `--ds-ease-in` | `cubic-bezier(0.4, 0, 1, 1)` | exit: accelerates out of the way |
+| `--ds-ease-in-out` | `cubic-bezier(0.4, 0, 0.2, 1)` | moving between two places |
 
-The implementation SHOULD expose these as semantic tokens alongside the existing
-semantic token family. It MUST consolidate existing token families rather than
-create a third token system.
+An exit takes about three quarters of its entry. Dialogs, sheets and popovers
+close with an exit transition (`transition-behavior: allow-discrete` on
+`display` and `overlay`); where a browser lacks it they close at once.
+
+A page change fades the page container once, for `--ds-duration-base`; panels
+do not play their own entrance, so a tab switch never replays one per panel.
 
 ## Transform and opacity rule
 
@@ -52,13 +67,13 @@ begin below it. A fixed topbar MUST NOT animate over or overlap content.
 
 | Interaction | Proposed motion | Required behavior |
 | --- | --- | --- |
-| Workspace/task tab | fast | Move the indicator with transform; keep tab semantics, focus, and active content immediate. |
-| Menu or popover | standard | Enter from its anchor with opacity/short transform; remain within the viewport; Escape closes immediately. |
-| Drawer/context rail | standard or emphasis | Preserve content dimensions and focus return; do not cover warnings or primary actions. |
-| Modal | emphasis | Move focus into the modal, keep the backdrop restrained, and return focus to the invoker on close. |
-| Toast/status acknowledgement | standard | Do not replace the text state with motion; dismissal remains keyboard accessible. |
-| Expand/collapse | standard | Keep headings and controls stable; do not hide a required warning during transition. |
-| Agent-step progression | emphasis | Show explicit stage text and status; motion is secondary to the observable artifact and human gate. |
+| Workspace/task tab | fast (indicator); base (page container, once) | Move the indicator with transform; keep tab semantics, focus, and active content immediate. |
+| Menu or popover | base in, exit out | Enter from its anchor with opacity/short transform; remain within the viewport; Escape closes immediately. |
+| Drawer/context rail | base or slow | Preserve content dimensions and focus return; do not cover warnings or primary actions. |
+| Modal | base in, exit out | Move focus into the modal, keep the backdrop restrained, and return focus to the invoker on close. |
+| Toast/status acknowledgement | base | Do not replace the text state with motion; dismissal remains keyboard accessible. |
+| Expand/collapse | base | Keep headings and controls stable; do not hide a required warning during transition. |
+| Agent-step progression | slow | Show explicit stage text and status; motion is secondary to the observable artifact and human gate. |
 | Selection/focus | fast | Use a visible border, background, or text signal immediately; motion is optional. |
 
 These are interaction treatments, not new product capabilities. Existing

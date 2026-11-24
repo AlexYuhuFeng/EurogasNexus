@@ -27,6 +27,7 @@ import {
 
 import { useCloseOnNavigation } from "@/app/shell/navigationKey";
 import { placePopover, type PopoverPlacement } from "./popoverPosition";
+import { usePresence } from "./usePresence";
 
 export interface PopoverTriggerProps {
   ref: RefObject<HTMLButtonElement | null>;
@@ -68,6 +69,8 @@ export function Popover({
   const triggerRef = useRef<HTMLButtonElement | null>(null);
   const panelRef = useRef<HTMLDivElement | null>(null);
   const panelId = useId();
+  // The panel stays mounted while it plays its exit after hidePopover (UX R10).
+  const present = usePresence(open, panelRef);
 
   const setOpen = useCallback(
     (next: boolean) => {
@@ -193,7 +196,7 @@ export function Popover({
         "aria-haspopup": "dialog",
         onClick: () => (open ? close(false) : setOpen(true)),
       })}
-      {open && (
+      {present && (
         <div
           ref={panelRef}
           id={panelId}

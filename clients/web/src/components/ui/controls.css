@@ -440,6 +440,47 @@
     .ds-sheet-bottom[open] {
       animation: ds-enter var(--ds-duration-base) var(--ds-ease-out);
     }
+
+    /* Exit (UX R10): what closes fades and drops back, accelerating, in three quarters of its
+       entry time. display and overlay switch discretely at the end, so the element stays in the
+       top layer while it leaves; the component keeps its content rendered for that long
+       (usePresence). Where allow-discrete is unsupported the close is instant, as before. */
+    .ds-dialog:not([open]),
+    .ds-sheet:not([open]) {
+      opacity: 0;
+      transform: translateY(4px);
+      transition:
+        opacity var(--ds-duration-exit) var(--ds-ease-in),
+        transform var(--ds-duration-exit) var(--ds-ease-in),
+        overlay var(--ds-duration-exit) var(--ds-ease-in) allow-discrete,
+        display var(--ds-duration-exit) var(--ds-ease-in) allow-discrete;
+    }
+
+    .ds-sheet-end:not([open]),
+    .ds-sheet-full:not([open]) {
+      transition-duration: var(--ds-duration-exit-slow);
+    }
+
+    .ds-dialog:not([open])::backdrop,
+    .ds-sheet:not([open])::backdrop {
+      opacity: 0;
+      transition:
+        opacity var(--ds-duration-exit) var(--ds-ease-in),
+        overlay var(--ds-duration-exit) var(--ds-ease-in) allow-discrete,
+        display var(--ds-duration-exit) var(--ds-ease-in) allow-discrete;
+    }
+
+    @supports selector(:popover-open) {
+      .ds-popover:not(:popover-open) {
+        opacity: 0;
+        transform: scale(0.98) translateY(-2px);
+        transition:
+          opacity var(--ds-duration-exit) var(--ds-ease-in),
+          transform var(--ds-duration-exit) var(--ds-ease-in),
+          overlay var(--ds-duration-exit) var(--ds-ease-in) allow-discrete,
+          display var(--ds-duration-exit) var(--ds-ease-in) allow-discrete;
+      }
+    }
   }
 
   /* ------------------------------------------------------------ PeriodPicker */
@@ -669,11 +710,11 @@
       width: 30%;
       background: linear-gradient(to right, transparent, var(--ds-surface), transparent);
       opacity: 0.6;
-      animation: ds-work-sweep 1.4s var(--ds-ease-out) infinite;
+      animation: ds-work-sweep var(--ds-duration-loop) var(--ds-ease-out) infinite;
     }
 
     li[data-state="current"] > .ds-work-mark {
-      animation: ds-work-pulse 1.2s ease-in-out infinite;
+      animation: ds-work-pulse var(--ds-duration-pulse) var(--ds-ease-in-out) infinite;
     }
   }
 
@@ -706,7 +747,7 @@
 
   @media (prefers-reduced-motion: no-preference) {
     .ds-updating > i {
-      animation: ds-work-pulse 1.2s ease-in-out infinite;
+      animation: ds-work-pulse var(--ds-duration-pulse) var(--ds-ease-in-out) infinite;
     }
   }
 }

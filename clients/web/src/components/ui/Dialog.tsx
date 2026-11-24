@@ -23,6 +23,7 @@ import {
 
 import { useCloseOnNavigation } from "@/app/shell/navigationKey";
 import { IconButton } from "./Button";
+import { usePresence } from "./usePresence";
 
 export interface DialogProps {
   open: boolean;
@@ -90,6 +91,8 @@ export function Dialog({
   onCloseRef.current = onClose;
   // A dialog or sheet opened on one page closes when the reader moves to another (rule 22).
   useCloseOnNavigation(open, () => onCloseRef.current());
+  // The content stays while the closing dialog plays its exit (UX R10).
+  const present = usePresence(open, ref);
 
   useEffect(() => {
     const dialog = ref.current;
@@ -162,7 +165,7 @@ export function Dialog({
       onClick={onBackdrop}
       {...dataAttributes}
     >
-      {open && (
+      {present && (
         <div className="ds-dialog-frame">
           <header className="ds-dialog-head">
             {headerStart}

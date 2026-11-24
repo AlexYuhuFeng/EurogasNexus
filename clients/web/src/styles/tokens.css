@@ -78,13 +78,22 @@
   --ds-radius-pill: 999px; /* pills and avatars */
 
   /* ---------------------------------------------------------------- motion */
+  /* The one motion scale (docs/clients/MOTION_SYSTEM.md and the UI constitution quote it;
+     tests/motionContract.test.ts holds them to it). Entry decelerates (ease-out); exit
+     accelerates (ease-in) and takes about three quarters of the entry, so what leaves gets
+     out of the way. Everything here is off under prefers-reduced-motion. */
   --ds-duration-fast: 80ms;  /* hover, press */
-  --ds-duration-base: 160ms; /* popover, tab, row expand */
+  --ds-duration-base: 160ms; /* popover, tab, row expand, page change */
   --ds-duration-slow: 240ms; /* inspector, sheet */
+  --ds-duration-exit: 120ms;      /* popover, dialog closing (0.75 x base) */
+  --ds-duration-exit-slow: 180ms; /* sheet closing (0.75 x slow) */
   --ds-duration-map: 400ms;  /* map camera */
   --ds-duration-flash: 400ms; /* a live cell's tick, neutral; direction is the ▲/▼ glyph */
-  --ds-ease-out: cubic-bezier(0.2, 0, 0, 1);
-  --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1);
+  --ds-duration-pulse: 1200ms; /* one beat of a busy pulse or a found-pin ping */
+  --ds-duration-loop: 1400ms;  /* one sweep of a loading shimmer */
+  --ds-ease-out: cubic-bezier(0.2, 0, 0, 1);      /* entry */
+  --ds-ease-in: cubic-bezier(0.4, 0, 1, 1);       /* exit */
+  --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1); /* moving between two places */
 
   /* ---------------------------------------------------------------- colour roles */
   /* Surfaces, lowest to highest. */
@@ -223,6 +232,7 @@
   --radius-control: var(--ds-radius-sm);
   --radius-panel: var(--ds-radius-md);
   --radius-large: var(--ds-radius-md);
+  --motion-none: 0ms;
   --motion-fast: var(--ds-duration-fast);
   --motion-standard: var(--ds-duration-base);
   --motion-emphasis: var(--ds-duration-slow);

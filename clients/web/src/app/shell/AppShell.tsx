@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { CommandPalette } from "@/components/CommandPalette";
 import { InspectorPanel } from "@/components/InspectorPanel";
 import { RestrictedSurface } from "@/components/RestrictedSurface";
@@ -34,6 +34,7 @@ import { workspaceFromLocation } from "@/app/hooks/useWorkspaceNavigation";
 import { inspectorDetailFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
 import { WorkspaceRenderer } from "@/app/workspaces/WorkspaceRenderer";
+import { usePageEnter } from "@/app/shell/usePageEnter";
 import { isBlockingCompatibility } from "@/app/releaseCompatibility";
 import { changeAppLanguage } from "@/i18n";
 import { loadRemotePreferences, saveRemotePreference } from "@/app/preferences/remotePreferences";
@@ -161,6 +162,9 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     portfolio,
     sources,
   } = controller;
+  // One entrance per page change, on the page container (UX R10).
+  const mainRef = useRef<HTMLElement>(null);
+  usePageEnter(mainRef, navigation.activeWorkspace);
 
   // The one bounded failure model. Loader keys and backend messages stay in the store: only
   // translated endpoint labels, safe failure messages and one "showing N of M" summary are
@@ -441,7 +445,7 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
         storeDown={api.dataStatus === "unavailable"}
       />
 
-      <main className="app-main" id="workspace-primary-content" data-shell-region="primary-workspace">
+      <main className="app-main" ref={mainRef} id="workspace-primary-content" data-shell-region="primary-workspace">
         {/* One composition path for every page: the shell owns the regions, the workspace
             composition owns its pages. The map-first network route used to be intercepted
             here, which meant its surface was mounted outside the registry that declares it;

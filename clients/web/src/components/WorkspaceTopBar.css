@@ -139,7 +139,7 @@
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  transition: border-color 120ms ease;
+  transition: border-color var(--ds-duration-fast) var(--ds-ease-out);
 }
 
 .topbar-account-avatar {

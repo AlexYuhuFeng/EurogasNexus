@@ -97,11 +97,13 @@ small amount of content look like a marketing hero.
 ## 6. Panel and container rules
 
 Prefer unframed structural rows, rails, tables, and compact panels. Do not put
-cards inside cards. Proposed ordinary radii are exactly 4/6/8px:
+cards inside cards. Ordinary radii are exactly 4/8px and a pill
+(`clients/web/src/styles/tokens.css`, held by `tests/motionContract.test.ts`):
 
-- `--radius-control: 4px`;
-- `--radius-panel: 6px`;
-- `--radius-large: 8px` maximum for ordinary analytical containers.
+- `--ds-radius-sm: 4px` for controls, cells and badges (alias `--radius-control`);
+- `--ds-radius-md: 8px` maximum, for panels, popovers and dialogs (aliases
+  `--radius-panel`, `--radius-large`);
+- `--ds-radius-pill: 999px` for pills and avatars only.
 
 Use hairline borders and semantic surface/border tokens. Heavy shadows,
 decorative gradients, glass effects, orbs, blobs, and ornamental imagery are
@@ -110,11 +112,12 @@ they carry data meaning.
 
 ## 7. Control sizing
 
-Use exactly three normal control heights:
+Use exactly two normal control heights, and one for a coarse pointer
+(`clients/web/src/styles/tokens.css`, held by `tests/motionContract.test.ts`):
 
-- `--control-compact: 28px`;
-- `--control-standard: 32px`;
-- `--control-prominent: 36px`.
+- `--ds-control-sm: 28px` for dense tables and toolbars (alias `--control-compact`);
+- `--ds-control: 32px` for forms (aliases `--control-standard`, `--control-prominent`);
+- `--ds-control-touch: 44px` on a coarse pointer (touch), the minimum touch target.
 
 Controls MUST have stable dimensions and visible focus. Trading workspace
 controls SHOULD use compact or standard sizing. Text MUST fit its control at
@@ -257,11 +260,12 @@ output.
 
 ## 18. Motion
 
-Motion follows the subordinate `MOTION_SYSTEM.md`. The fixed subordinate scale is
-0/120/180/240ms,
-using transform/opacity for transient movement and stable layout for data
-surfaces. Frequently updating prices MUST NOT flash, bounce, or animate on each
-tick.
+Motion follows the subordinate `MOTION_SYSTEM.md`. The fixed scale is
+0/80/160/240ms for transitions, with exits at 120/180ms (ease-in) and entries
+ease-out, using transform/opacity for transient movement and stable layout for
+data surfaces. Frequently updating prices MUST NOT bounce, move, or flash a
+direction colour; a live cell may mark a real tick with one neutral 400ms flash
+(`MOTION_SYSTEM.md`, data update rules), and its direction is a glyph that stays.
 
 ## 19. Accessibility
 
