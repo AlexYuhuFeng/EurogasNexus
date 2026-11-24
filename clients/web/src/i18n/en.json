@@ -5960,6 +5960,12 @@
   "settings.api_keys.state_active": "Active",
   "settings.api_keys.state_expired": "Expired",
   "settings.api_keys.state_revoked": "Revoked",
+  "risk.marks.current": "marks {{day}}",
+  "risk.marks.late": "late · marks {{day}}",
+  "risk.marks.stale": "stale · marks {{day}}",
+  "risk.marks.never": "no marks date",
+  "risk.marks.help": "The day of the daily close the marks come from. Late: one business day older than expected; stale: older still. Figures on late or stale marks are not current.",
+  "risk.marks.column": "Marks",
   "access.users.sod_title": "Segregation of duties.",
   "access.users.sod_body": "{{roles}} together: the person can be added, but their changes to limits, mandates, hedge bands and thresholds are refused. Give risk work to a separate risk identity.",
   "access.users.sod_badge": "Trader and risk"

@@ -226,25 +226,64 @@ def definition_by_id(source_id: str) -> SourceDefinition | None:
 
 
 def close_state(close_day, today) -> str:
-    """The state of a daily close (a settlement or end-of-day price) read on ``today``.
+    """The state of a daily close read on ``today`` (``domain.monitoring.freshness``).
 
-    Closes are published on weekday evenings, so the newest close expected is the previous
-    weekday's: that close is ``current``; one weekday behind is ``late``; more is ``stale``;
-    no close is ``never``. Exchange holidays are not modelled (a holiday reads one day late).
+    The previous weekday's close is ``current``, one weekday behind ``late``, more ``stale``,
+    none ``never``. One implementation, shared with the risk rows and the position ladder.
     """
 
-    from datetime import timedelta
+    from eurogas_nexus.domain.monitoring.freshness import close_state as judged
 
-    if close_day is None:
-        return "never"
-    expected = today - timedelta(days=1)
-    while expected.weekday() >= 5:
-        expected -= timedelta(days=1)
-    behind, day = 0, close_day + timedelta(days=1)
-    while day <= expected:
-        behind += day.weekday() < 5
-        day += timedelta(days=1)
-    return "current" if behind == 0 else "late" if behind == 1 else "stale"
+    return judged(close_day, today)
+
+
+#: The contract's figure states in the projection vocabulary (``FreshnessState``) that the
+#: quote reads and the Data feeds popover use: one mapping, so "late" on a figure is "LATE"
+#: on a feed and never a second judgement.
+PROJECTION_STATE = {
+    "current": "FRESH",
+    "late": "LATE",
+    "stale": "STALE",
+    "never": "MISSING",
+    "manual": "NOT_EXPECTED",
+}
+#: Worst first: a slice built from several sources is as current as its least current one.
+_SEVERITY = ("stale", "late", "never", "current", "manual")
+
+
+def projection_state(state: str) -> str:
+    """The contract state (``current``...) in the projection vocabulary (``FRESH``...)."""
+
+    return PROJECTION_STATE.get(state, "UNKNOWN")
+
+
+def worst_state(states) -> str | None:
+    """The least current of several contract states (``None`` for none)."""
+
+    present = [state for state in states if state in _SEVERITY]
+    return min(present, key=_SEVERITY.index) if present else None
+
+
+def source_system_state(source_system: str | None, newest: datetime | None, now: datetime):
+    """The contract state of one source system's newest row, or ``None`` when undeclared.
+
+    The source system (``EEX_Sim``, ``ENTSOG``...) is resolved to its connector manifest and
+    judged by :func:`receipt_state` with that source's declared ``FreshnessPolicy`` and
+    calendar: the rule Today's figures and the Data feeds popover share (QA-R-07).
+    """
+
+    if not source_system:
+        return None
+    from eurogas_nexus.domain.connectors.registry import connector_manifests
+
+    wanted = str(source_system).casefold()
+    manifest = next(
+        (item for item in connector_manifests() if item.system.casefold() == wanted), None
+    )
+    definition = definition_by_id(manifest.source_id) if manifest is not None else None
+    if definition is None:
+        return None
+    return receipt_state(definition, newest, now)
 
 
 def period_state(dataset: str, period_at: datetime | None, now: datetime) -> str:

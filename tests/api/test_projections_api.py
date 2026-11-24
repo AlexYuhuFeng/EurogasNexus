@@ -365,10 +365,11 @@ def test_market_context_is_coherent_on_one_as_of_instant(tmp_path, monkeypatch) 
     assert body["data"]["time_basis"] == body["meta"]["time_basis"]
     assert body["data"]["time_basis"]["gas_day"] == "2026-06-01"
 
-    # Per-slice freshness: EEX declares a 1-minute expectation, so a 10-minute
-    # old tick is stale, while the public ENTSOG row (60 minutes) stays fresh.
+    # Per-slice freshness by the freshness contract (QA-R-07): EEX declares a 1-minute
+    # expectation and a 3-day stale threshold, so a 10-minute old tick is late, while the
+    # public ENTSOG row (60 minutes) stays fresh.
     by_source = {row["source_system"]: row for row in slices["data_sources"]["rows"]}
-    assert by_source["EEX_Sim"]["freshness"]["state"] == "STALE"
+    assert by_source["EEX_Sim"]["freshness"]["state"] == "LATE"
     assert by_source["ENTSOG"]["freshness"]["state"] == "FRESH"
     assert slices["spreads"]["rows"][0]["spread_id"] == "opp-1"
 

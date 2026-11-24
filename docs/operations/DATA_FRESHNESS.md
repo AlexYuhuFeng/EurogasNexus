@@ -33,6 +33,41 @@ administrators, EIA) does not count a weekend against its age. A schedulable sou
 (`tests/unit/test_freshness_contract.py`); GIE moved from 360 to 1,500 minutes for that
 reason (one read a day at 09:00 Brussels).
 
+**One freshness rule for Today and the Data feeds popover (QA-R-07).** Today's
+`stale_figures` and the Data feeds popover (market-context slices and the `data_sources`
+rows of the market-context and portfolio-snapshot projections) judge with the same contract
+and map its word once:
+
+| Contract `state` | Projection `freshness.state` | Today |
+|---|---|---|
+| `current` | `FRESH` | not named |
+| `late` | `LATE` | named, "late" |
+| `stale` | `STALE` | named, "stale" |
+| `never` | `MISSING` | named, "never" |
+| `manual` | `NOT_EXPECTED` | not named |
+
+- A feed is judged by its source's declared `FreshnessPolicy` and calendar
+  (`freshness_contract.source_system_state`, which resolves a row's `source_system` to its
+  connector manifest). A slice is as current as its least current declared source
+  (`projections.freshness.contract_state_for_rows`). A slice whose rows name no declared
+  source keeps the registry expectation rule (`evaluate_freshness`).
+- Marks (daily closes) use the business-day rule `domain.monitoring.freshness.close_state`:
+  the previous weekday's close is current, one weekday behind is late, more is stale.
+- The mapping is `freshness_contract.PROJECTION_STATE`; `projection_state()` returns
+  `UNKNOWN` for anything else.
+- Consequence: a 10-minute-old EEX tick (policy: current within 1 minute, stale after
+  3 days) is `LATE`, not `STALE`, and raises no `SOURCE_STALE` warning.
+
+**Marks behind risk figures.** Credit exposure rows and position ladder rows carry
+`marks_as_of` (the oldest of their hubs' newest closes) and `state` by the close rule (credit
+rows also `freshness_state`, the projection word); mandate rows are measured in MWh and carry `marks_as_of: null`, `state: current`.
+The ladder also gives `marks_as_of`/`marks_state` for its totals. When any priced credit row
+is late or stale, the monitoring scan raises one `marks_stale` alert (category `limits`,
+severity `warning`, scoped to the affected books, fingerprint `marks_stale:credit`). It is a
+warning, never critical, so Today does not read it as a breach. The web Risk limits panel and
+Position page state the marks date and its state in text ("stale · marks 18 Nov"), not colour
+alone.
+
 **TSO tariff registers** (`src-national-gas-nts`, `src-bbl`, `src-iuk`, `src-gts`,
 `src-natran`, `src-german-tso`, `src-fluxys-belgium`, `src-cnmc-enagas`) are
 `integration = manual_register`: the Sources page labels them "Manual register", the

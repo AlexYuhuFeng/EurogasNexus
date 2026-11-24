@@ -81,3 +81,53 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+# --------------------------------------------------------------------- daily closes and marks
+#
+# The one business-day rule for anything priced off a daily close (QA-R-07). A risk figure is
+# only as current as the close its marks come from: credit exposure, the position ladder's
+# rows, the tightest limit on Today and the ``marks_stale`` monitoring alert all judge that
+# close here, so a page and an alert never disagree about the same marks.
+
+#: The words a judged close may carry (the freshness contract's figure states).
+CLOSE_STATES = ("current", "late", "stale", "never")
+
+
+def close_state(close_day, today) -> str:
+    """The state of a daily close (a settlement or end-of-day price) read on ``today``.
+
+    Closes are published on weekday evenings, so the newest close expected is the previous
+    weekday's: that close is ``current``; one weekday behind it is ``late`` (older than one
+    business day); more is ``stale``; no close is ``never``. Exchange holidays are not
+    modelled (a holiday reads one day late).
+    """
+
+    from datetime import timedelta
+
+    if close_day is None:
+        return "never"
+    expected = today - timedelta(days=1)
+    while expected.weekday() >= 5:
+        expected -= timedelta(days=1)
+    behind, day = 0, close_day + timedelta(days=1)
+    while day <= expected:
+        behind += day.weekday() < 5
+        day += timedelta(days=1)
+    return "current" if behind == 0 else "late" if behind == 1 else "stale"
+
+
+def marks_as_of(hubs, closes_by_hub) -> object | None:
+    """The day the marks behind ``hubs`` were last closed: the oldest hub's newest close.
+
+    A figure that uses several hubs is only as current as its least current one, so the
+    oldest of the hubs' newest closes is the figure's as-of. Hubs with no close are left out
+    (nothing marks them from a close); with none at all the answer is ``None``.
+    """
+
+    newest = []
+    for hub in hubs:
+        series = closes_by_hub.get(str(hub).upper()) or closes_by_hub.get(hub) or {}
+        if series:
+            newest.append(max(series))
+    return min(newest) if newest else None

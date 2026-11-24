@@ -15,6 +15,15 @@ The mapping from ``FreshnessStatus`` to ``FreshnessState`` follows
 UNKNOWN -> MISSING when nothing was measured at all, else UNKNOWN), so a client
 reads one state vocabulary across the Data Product catalogue and the
 projections.
+
+One freshness rule (QA-R-07). Where the rows name a source system the connector manifests
+declare, a slice's and a source's state is the freshness contract's
+(``application.freshness_contract.receipt_state``: the source's declared
+``FreshnessPolicy`` and calendar, current / late / stale / never), mapped once by
+``freshness_contract.projection_state`` (FRESH / LATE / STALE / MISSING). Today's
+``stale_figures`` are judged by the same contract, so the Data feeds popover and Today
+cannot call the same data current on one screen and stale on the other. A slice whose rows
+name no declared source keeps the expectation-only judgement above (never read as fresh).
 """
 
 from __future__ import annotations
@@ -198,6 +207,37 @@ def freshness_state(
     return FreshnessState.MISSING if row_count == 0 else FreshnessState.UNKNOWN
 
 
+def contract_state_for_rows(
+    rows: Iterable[Mapping[str, Any]],
+    keys: Sequence[str],
+    now_utc: datetime,
+) -> str | None:
+    """The freshness contract's verdict on a slice, in the projection vocabulary.
+
+    Each declared source system in ``rows`` is judged on its own newest row, and the slice
+    takes the least current verdict (a slice is as current as its least current source).
+    ``None`` when no row names a source the connector manifests declare.
+    """
+
+    from eurogas_nexus.application.freshness_contract import (
+        projection_state,
+        source_system_state,
+        worst_state,
+    )
+
+    newest: dict[str, list[str | datetime | None]] = {}
+    for row in rows:
+        source = row.get(_ROW_SOURCE_KEY)
+        if isinstance(source, str) and source:
+            newest.setdefault(source, []).append(latest_iso_for_keys([row], keys))
+    states = [
+        source_system_state(source, parse_iso_utc(latest_iso(values)), now_utc)
+        for source, values in newest.items()
+    ]
+    worst = worst_state(state for state in states if state)
+    return None if worst is None else projection_state(worst)
+
+
 def freshness_block(
     *,
     row_count: int,
@@ -206,6 +246,7 @@ def freshness_block(
     now_utc: datetime,
     basis: str = OBSERVED_AT_BASIS,
     derived_from: str | None = None,
+    contract_state: str | None = None,
 ) -> dict[str, Any]:
     """Build the freshness block every projection slice carries.
 
@@ -220,6 +261,9 @@ def freshness_block(
         basis: Timestamp field the age was measured against.
         derived_from: Name of the slice this one is composed from, when the
             slice carries no timestamp of its own.
+        contract_state: The freshness contract's verdict
+            (:func:`contract_state_for_rows`), which wins when given: the one rule the
+            Today read shares.
 
     Returns:
         A block with the backend ``state``, the ``basis``, the evaluated
@@ -228,14 +272,14 @@ def freshness_block(
         fresh.
     """
 
-    state = freshness_state(
+    state = contract_state or freshness_state(
         row_count=row_count,
         last_observed_at_utc=last_observed_at_utc,
         expectation_minutes=expectation_minutes,
         now_utc=now_utc,
-    )
+    ).value
     return {
-        "state": state.value,
+        "state": state,
         "basis": basis,
         "evaluated_at_utc": now_utc.isoformat(),
         "last_observed_at_utc": last_observed_at_utc,
@@ -307,6 +351,7 @@ def source_provenance_rows(
                     last_observed_at_utc=last_observed,
                     expectation_minutes=expectation,
                     now_utc=now_utc,
+                    contract_state=_source_contract_state(source, last_observed, now_utc),
                 ),
                 "entitlement_scope": entitlement_scope_for_source(source),
                 "declared_in_source_registry": expectation is not None,
@@ -314,6 +359,18 @@ def source_provenance_rows(
             }
         )
     return summary
+
+
+def _source_contract_state(
+    source: str, last_observed: str | None, now_utc: datetime
+) -> str | None:
+    from eurogas_nexus.application.freshness_contract import (
+        projection_state,
+        source_system_state,
+    )
+
+    state = source_system_state(source, parse_iso_utc(last_observed), now_utc)
+    return None if state is None else projection_state(state)
 
 
 def freshness_state_summary(rows: Iterable[Mapping[str, Any]]) -> dict[str, int]:

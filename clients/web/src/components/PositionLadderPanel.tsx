@@ -4,6 +4,7 @@ import { api, type LadderRollupDTO, type PositionLadderDTO, type PositionLadderR
 import { hubCurrency } from "@/app/contractChoices";
 import { ReportExport } from "./ReportExport";
 import { MethodNote } from "./MethodNote";
+import { MarksAsOf, marksRowAttributes } from "./MarksAsOf";
 import { DataGrid, EmptyState, ExampleFrame, Field, KeyFigure, Select, Skeleton, Toolbar, useExampleView, type DataGridColumn } from "@/components/ui";
 import { examplePositionLadder } from "@/app/experience/examples";
 import {
@@ -90,7 +91,13 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
         label={t("position.mtm")}
         value={money(ladder.mark_to_market)}
         unit={ladder.reporting_currency || undefined}
-        notes={<MethodNote method={ladder.methods?.mark_to_market} subject={t("position.mtm")} t={t} />}
+        notes={
+          <>
+            <MethodNote method={ladder.methods?.mark_to_market} subject={t("position.mtm")} t={t} />
+            {/* QA-R-07: the marks' day under the value; late or stale in words. */}
+            <MarksAsOf row={{ marks_as_of: ladder.marks_as_of, state: ladder.marks_state }} t={t} />
+          </>
+        }
       />
       {/* Gross by month adds information only when months offset; equal to |net| it repeats it. */}
       {ladder.totals.gross_tenor_mwh !== undefined &&
@@ -225,7 +232,7 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
             rowKey={(row) => `${row.month}-${row.hub}`}
             density="compact"
             maxHeight="min(70vh, 720px)"
-            rowAttributes={() => ({ "data-record": "position-row" })}
+            rowAttributes={(row) => ({ "data-record": "position-row", ...marksRowAttributes(row) })}
             tableAttributes={{ "data-position-ladder": "true" }}
           />
           <TenorShockScenario ladder={ladder} months={months} currency={currency} t={t} />
@@ -307,6 +314,13 @@ function useLadderColumns(ladder: PositionLadderDTO | null, t: Translate) {
           return parts.length ? parts.join(" · ") : undefined;
         },
         cellAttributes: (row) => ({ "data-mark-method": row.mark_method ?? undefined }),
+      },
+      {
+        // QA-R-07: the day the row's marks were closed; late or stale in words, the row greyed.
+        id: "marks_as_of",
+        header: t("risk.marks.column"),
+        value: (row) => row.marks_as_of ?? "",
+        render: (row) => <MarksAsOf row={row} t={t} />,
       },
     ];
   }, [ladder, t]);

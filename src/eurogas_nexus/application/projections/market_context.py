@@ -70,6 +70,7 @@ from eurogas_nexus.application.projections.envelope import (
 from eurogas_nexus.application.projections.freshness import (
     DETECTED_AT_BASIS,
     OBSERVED_AT_BASIS,
+    contract_state_for_rows,
     freshness_block,
     freshness_state_summary,
     latest_iso_for_keys,
@@ -435,8 +436,8 @@ def _populated_market_context(
             ),
             limits=None,
             notes=[
-                "Per-source freshness/provenance summary measured with "
-                "domain.monitoring.freshness against the source registry expectation.",
+                "Per-source freshness/provenance summary judged by the freshness contract "
+                "(the source's declared policy and calendar), the rule Today uses.",
             ],
         ),
     }
@@ -564,7 +565,9 @@ def _slice_freshness(
 
     ``expectation=None`` resolves the strictest expectation declared by the
     source registry for the source systems present in the rows; rows that carry
-    no source system therefore report ``expectation_source = none``.
+    no source system therefore report ``expectation_source = none``. The state is the
+    freshness contract's when the rows name a declared source (``contract_state_for_rows``),
+    the rule Today's ``stale_figures`` use.
     """
 
     sources = row_source_systems(rows)
@@ -578,6 +581,8 @@ def _slice_freshness(
         now_utc=context.as_of_utc,
         basis=basis,
         derived_from=derived_from,
+        # The freshness contract decides where the rows name a declared source (QA-R-07).
+        contract_state=contract_state_for_rows(rows, keys, context.as_of_utc),
     )
 
 

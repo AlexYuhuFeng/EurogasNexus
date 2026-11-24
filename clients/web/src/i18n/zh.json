@@ -5960,6 +5960,12 @@
   "settings.api_keys.state_active": "有效",
   "settings.api_keys.state_expired": "已过期",
   "settings.api_keys.state_revoked": "已撤销",
+  "risk.marks.current": "估值价 {{day}}",
+  "risk.marks.late": "延迟 · 估值价 {{day}}",
+  "risk.marks.stale": "过期 · 估值价 {{day}}",
+  "risk.marks.never": "无估值日期",
+  "risk.marks.help": "估值所用日收盘价的日期。延迟：比预期晚一个工作日；过期：更早。基于延迟或过期估值的数字并非最新。",
+  "risk.marks.column": "估值日期",
   "access.users.sod_title": "职责分离。",
   "access.users.sod_body": "{{roles}} 同时授予：可以添加此人，但其对限额、授权、套保区间和阈值的修改会被拒绝。风险工作请使用单独的风险身份。",
   "access.users.sod_badge": "交易与风控兼任"

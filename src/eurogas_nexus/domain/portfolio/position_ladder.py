@@ -88,8 +88,28 @@ class LadderResult:
     # Hubs whose months are long in one delivery month and short in another (#53).
     offsetting_hubs: list[str] = field(default_factory=list)
     scenario: dict[str, object] | None = None
+    #: Per hub: (newest daily close behind its marks, its state) when closes were given
+    #: (QA-R-07); the totals carry the least current hub's.
+    marks_by_hub: dict[str, tuple[date | None, str]] = field(default_factory=dict)
+
+    def _marks(self, hub: str) -> dict[str, object]:
+        if not self.marks_by_hub:
+            return {}
+        day, state = self.marks_by_hub.get(hub, (None, "never"))
+        return {"marks_as_of": day.isoformat() if day else None, "state": state}
 
     def as_dict(self) -> dict[str, object]:
+        held = sorted({row.hub for row in self.rows})
+        totals_marks: dict[str, object] = {}
+        if self.marks_by_hub:
+            days = [self.marks_by_hub[hub][0] for hub in held if hub in self.marks_by_hub]
+            states = [self.marks_by_hub.get(hub, (None, "never"))[1] for hub in held]
+            order = ("stale", "late", "never", "current")
+            dated = [day for day in days if day is not None]
+            totals_marks = {
+                "marks_as_of": min(dated).isoformat() if dated else None,
+                "marks_state": min(states, key=order.index) if states else "never",
+            }
         return {
             "rows": [
                 {
@@ -99,9 +119,11 @@ class LadderResult:
                     "financial_mwh": round(row.financial_mwh, 1),
                     "net_mwh": round(row.net_mwh, 1),
                     "hedge_ratio": None if row.hedge_ratio is None else round(row.hedge_ratio, 3),
+                    **self._marks(row.hub),
                 }
                 for row in self.rows
             ],
+            **totals_marks,
             "totals": {
                 "physical_mwh": round(sum(r.physical_mwh for r in self.rows), 1),
                 "financial_mwh": round(sum(r.financial_mwh for r in self.rows), 1),
@@ -331,9 +353,25 @@ def ladder_report(
     fx_by_hub: Mapping[str, float] | None = None,
     reporting_currency: str | None = None,
     tenor_shocks: Mapping[tuple[str, str], float] | None = None,
+    today: date | None = None,
 ) -> LadderResult:
+    """The ladder, its mark-to-market and VaR, with each row's marks date and state.
+
+    With ``daily_closes_by_hub`` and ``today``, every row carries ``marks_as_of`` (its hub's
+    newest daily close, the day its marks fall back to and VaR ends on) and ``state`` by the
+    one business-day rule (``domain.monitoring.freshness.close_state``); the totals carry
+    ``marks_as_of`` and ``marks_state`` of the least current hub held, so a mark-to-market
+    or VaR on old closes says so (QA-R-07).
+    """
+
+    from eurogas_nexus.domain.monitoring.freshness import close_state, marks_as_of
+
     rows = build_ladder(legs, horizon_start=horizon_start, horizon_end=horizon_end)
     result = LadderResult(rows=rows, reporting_currency=reporting_currency)
+    if daily_closes_by_hub is not None and today is not None:
+        for hub in {row.hub for row in rows}:
+            day = marks_as_of([hub], daily_closes_by_hub)
+            result.marks_by_hub[hub] = (day, close_state(day, today))
     long_by_hub = {row.hub for row in rows if row.net_mwh > 1e-9}
     short_by_hub = {row.hub for row in rows if row.net_mwh < -1e-9}
     result.offsetting_hubs = sorted(long_by_hub & short_by_hub)

@@ -18,8 +18,11 @@ the outages that cannot be placed on the map included.
 Every figure carries its unit, its as-of time, its state in the freshness contract's words
 (``current``, ``late``, ``stale``, ``never``, ``manual``) and ``simulated`` when its source
 is simulated; ``stale_figures`` names each late or stale figure, so a page names what is
-affected instead of saying "N feeds stale". A section with nothing to show returns an
-``empty`` state with the reason and the next action, never a withheld marker.
+affected instead of saying "N feeds stale". The Data feeds popover's slices are judged by the
+same contract (``projections.freshness.contract_state_for_rows``: late is LATE, stale is
+STALE), so the popover and this list cannot contradict each other (QA-R-07). A section with
+nothing to show returns an ``empty`` state with the reason and the next action, never a
+withheld marker.
 """
 
 from __future__ import annotations
@@ -487,14 +490,17 @@ def _tightest_limit(caller: Caller, now: datetime, read: _Read) -> dict[str, Any
         and any(w.startswith("DEMO") for w in credit.warnings)
     )
     if kind == "credit":
-        marks_day = date.fromisoformat(credit.marks_as_of) if credit.marks_as_of else None
+        # The row's own marks date and state (QA-R-07): the limits page, this figure and the
+        # marks_stale alert read one judgement of the same close.
+        marks_day = row.get("marks_as_of") or credit.marks_as_of
         item = figure(
             f"limit.credit.{row['counterparty_id']}",
             f"{row['counterparty']} credit headroom",
             row["headroom"],
             row["currency"],
-            credit.marks_as_of or today.isoformat(),
-            close_state(marks_day, today),
+            marks_day or today.isoformat(),
+            row.get("state")
+            or close_state(date.fromisoformat(marks_day) if marks_day else None, today),
             simulated=simulated,
             utilisation_pct=used,
             status=row["status"],
@@ -504,7 +510,7 @@ def _tightest_limit(caller: Caller, now: datetime, read: _Read) -> dict[str, Any
             why={"subject": "credit", "id": row["counterparty_id"]},
             method=method_note(
                 "credit_exposure",
-                inputs_as_of={"positions": today.isoformat(), "marks": credit.marks_as_of},
+                inputs_as_of={"positions": today.isoformat(), "marks": marks_day},
             ),
         )
     else:

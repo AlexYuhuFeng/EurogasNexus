@@ -2745,6 +2745,22 @@
     box-shadow: inset 3px 0 0 var(--ds-status-watch);
   }
 
+  /* QA-R-07: a risk row on late or stale marks is greyed; its "late · marks 18 Nov" text says
+     why, so the state never rests on colour alone. */
+  tr[data-marks-state="late"] > td,
+  tr[data-marks-state="stale"] > td {
+    opacity: 0.72;
+  }
+
+  .risk-marks {
+    display: block;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .risk-marks.is-behind {
+    font-weight: var(--ds-weight-medium);
+  }
+
   .limit-meter {
     position: relative;
     display: inline-flex;

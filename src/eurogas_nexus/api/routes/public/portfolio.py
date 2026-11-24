@@ -226,6 +226,7 @@ def get_position_ladder(
         fx_by_hub=fx_by_hub,
         reporting_currency=reporting_currency,
         tenor_shocks=tenor_shocks or None,
+        today=today,
     )
     if flat_months:
         warnings.append(

@@ -63,6 +63,8 @@ class CreditInputs:
     warnings: list[str]
     marks_as_of: str | None
     simulated_marks: bool
+    #: Hub -> {close day: price}: the daily closes the marks fall back to, for per-row as-of.
+    closes: dict = field(default_factory=dict)
 
 
 def credit_inputs(caller: Caller, today: date) -> CreditInputs:
@@ -156,22 +158,57 @@ def credit_inputs(caller: Caller, today: date) -> CreditInputs:
         warnings=warnings,
         marks_as_of=latest_close_day(inputs.closes),
         simulated_marks=demo_marks_allowed(),
+        closes=inputs.closes,
     )
 
 
-def credit_exposure_rows(caller: Caller, today: date) -> LimitRows:
-    """Exposure to each counterparty with an approved credit line, against its limit."""
+def marks_freshness(day: date | None, today: date) -> dict[str, Any]:
+    """``marks_as_of``, ``state`` and ``freshness_state`` of a figure priced off ``day``'s close.
 
+    One rule (``domain.monitoring.freshness.close_state``): the previous weekday's close is
+    ``current``, one business day older ``late``, more ``stale``, none ``never``;
+    ``freshness_state`` is the same verdict in the quotes' vocabulary (FRESH, LATE, STALE,
+    MISSING) through the freshness contract's one mapping.
+    """
+
+    from eurogas_nexus.application.freshness_contract import projection_state
+    from eurogas_nexus.domain.monitoring.freshness import close_state
+
+    state = close_state(day, today)
+    return {
+        "marks_as_of": day.isoformat() if day else None,
+        "state": state,
+        "freshness_state": projection_state(state),
+    }
+
+
+#: A mandate is measured in MWh from the firm's own books: no price feeds it, so its figures
+#: are as current as the read (Today's mandate headroom says "current" on the same basis).
+MANDATE_FRESHNESS = {"marks_as_of": None, "state": "current", "freshness_state": "FRESH"}
+
+
+def credit_exposure_rows(caller: Caller, today: date) -> LimitRows:
+    """Exposure to each counterparty with an approved credit line, against its limit.
+
+    Each row carries ``marks_as_of`` (the oldest newest close among the hubs its legs are
+    marked at; the newest close of any hub when it has no leg) and its ``state`` and
+    ``freshness_state`` by :func:`marks_freshness` (QA-R-07).
+    """
+
+    from eurogas_nexus.domain.monitoring.freshness import marks_as_of
     from eurogas_nexus.domain.risk.limits import credit_exposure
 
     built = credit_inputs(caller, today)
     result = LimitRows(warnings=built.warnings, marks_as_of=built.marks_as_of)
+    newest = date.fromisoformat(built.marks_as_of) if built.marks_as_of else None
     for item in built.lines:
-        result.rows.append(
-            credit_exposure(
-                item.line, item.legs, today=today, mark=built.mark, fx=built.fx
-            ).as_row()
-        )
+        row = credit_exposure(
+            item.line, item.legs, today=today, mark=built.mark, fx=built.fx
+        ).as_row()
+        hubs = {leg.hub for leg in item.legs}
+        day = marks_as_of(hubs, built.closes) if hubs else newest
+        row.update(marks_freshness(day, today))
+        result.rows.append(row)
         result.books.append(item.books)
     return result
 
@@ -244,7 +281,10 @@ def mandate_usage_rows(caller: Caller, today: date) -> LimitRows:
             for book in (other.book_ids or ())
         ) - set(mandate.book_ids)
         result.rows.append(
-            mandate_usage(mandate, legs, today=today, books_elsewhere=elsewhere).as_row()
+            {
+                **mandate_usage(mandate, legs, today=today, books_elsewhere=elsewhere).as_row(),
+                **MANDATE_FRESHNESS,
+            }
         )
         # A mandate on the trader's own account (no books) is head-office only when isolated.
         result.books.append(tuple(sorted(mandate.book_ids)) or ("",))

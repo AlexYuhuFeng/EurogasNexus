@@ -12,6 +12,7 @@ import { formatMoney, formatQuantity, splitList } from "@/app/model/riskLimitsMo
 import { ReportExport } from "./ReportExport";
 import { WhyButton } from "./WhyButton";
 import { MethodNote } from "./MethodNote";
+import { MarksAsOf, marksRowAttributes } from "./MarksAsOf";
 import { DataGrid, StatusBadge, type DataGridColumn, type StatusTone, PeriodPicker, RecordPicker, UpdatingMark } from "@/components/ui";
 import { idFromName } from "@/components/ui/recordPickerModel";
 import { bookOptions, contractOptions, counterpartyOptions, hubOptions, personOptions } from "@/app/model/recordOptions";
@@ -285,6 +286,8 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
           <LimitBadge status={row.status} t={t} />
           {row.status !== "ok" && <WhyButton subject="credit" id={row.counterparty_id} label={row.counterparty} t={t} />}
           {row.unvalued_legs > 0 && <small>{t("limits.unvalued", { count: row.unvalued_legs })}</small>}
+          {/* QA-R-07: the marks' day on every line; late or stale in words, the row greyed. */}
+          <MarksAsOf row={row} t={t} />
           {(row.open_ended_legs ?? 0) > 0 && (
             <small title={t("limits.open_ended_help")}>{t("limits.open_ended", { count: row.open_ended_legs })}</small>
           )}
@@ -332,6 +335,8 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
           <LimitBadge status={row.status} t={t} />
           {row.status !== "ok" && <WhyButton subject="mandate" id={row.mandate_id} label={row.name} t={t} />}
           {row.breaches && <small className="limit-breaches">{row.breaches}</small>}
+          {/* A mandate is measured in MWh, not priced: shown only if the server ever dates it. */}
+          <MarksAsOf row={row} t={t} quietWhenCurrent />
         </span>
       ),
     },
@@ -361,7 +366,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
           rows={credit}
           rowKey={(row) => row.counterparty_id}
           defaultSort={{ columnId: "used", direction: "descending" }}
-          rowAttributes={(row) => ({ "data-status": row.status })}
+          rowAttributes={(row) => ({ "data-status": row.status, ...marksRowAttributes(row) })}
           tableAttributes={{ "data-credit-exposure": "true" }}
         />
       )}
@@ -380,7 +385,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
           rows={mandates}
           rowKey={(row) => row.mandate_id}
           defaultSort={{ columnId: "used", direction: "descending" }}
-          rowAttributes={(row) => ({ "data-status": row.status })}
+          rowAttributes={(row) => ({ "data-status": row.status, ...marksRowAttributes(row) })}
           tableAttributes={{ "data-mandate-usage": "true" }}
         />
       )}

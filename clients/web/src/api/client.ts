@@ -3359,6 +3359,9 @@ export interface PositionLadderRowDTO {
   /** The same mark as the desk quotes the hub (NBP in GBp/th), for display. */
   mark_quote?: number | null;
   mark_quote_unit?: string;
+  /** The hub's newest daily close behind the marks and its state (QA-R-07). */
+  marks_as_of?: string | null;
+  state?: FigureStateDTO;
 }
 
 /** A market-data licence the firm holds; licensed data scopes are granted against it. */
@@ -4050,6 +4053,12 @@ export interface CreditExposureRowDTO {
   open_ended_legs?: number;
   valid_until: string | null;
   status: "ok" | "watch" | "breach" | "expired" | "incomplete";
+  /** QA-R-07: the day of the daily close the row's marks come from (its hubs' least current),
+   * judged by the one business-day rule: `state` current, late (one business day behind),
+   * stale or never; `freshness_state` the same in the quotes' words (FRESH, LATE, STALE, MISSING). */
+  marks_as_of?: string | null;
+  state?: FigureStateDTO;
+  freshness_state?: string;
   method?: RiskMethodNoteDTO;
 }
 
@@ -4075,6 +4084,10 @@ export interface MandateUsageRowDTO {
   hedge_room_mwh: number | null;
   instruments: string;
   method?: RiskMethodNoteDTO;
+  /** A mandate is measured in MWh, not priced: no marks date, state current (QA-R-07). */
+  marks_as_of?: string | null;
+  state?: FigureStateDTO;
+  freshness_state?: string;
 }
 
 export interface CreditLineInput {
@@ -4421,6 +4434,9 @@ export interface PositionLadderDTO {
   } | null;
   mark_to_market: number | null;
   unpriced_rows: number;
+  /** The least current hub's marks date and state, behind the mark-to-market and VaR. */
+  marks_as_of?: string | null;
+  marks_state?: FigureStateDTO;
   var_95_1d: number | null;
   var_observations: number;
   horizon: { start: string; end: string };

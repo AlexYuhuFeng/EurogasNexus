@@ -1062,6 +1062,9 @@ def _limit_candidates(
         for row, books in zip(mandates.rows, mandates.books, strict=True)
         if (candidate := _mandate_candidate(row, books, now)) is not None
     ]
+    stale_marks = _marks_stale_candidate(credit.rows, credit.books, now)
+    if stale_marks is not None:
+        candidates.append(stale_marks)
     demo = [w for w in [*credit.warnings, *mandates.warnings] if w.startswith("DEMO")]
     if demo:
         # Figures on demo marks say so wherever the alert is shown (AGENTS.md rule 17).
@@ -1069,6 +1072,73 @@ def _limit_candidates(
             replace(candidate, simulated=True, warnings=demo[:1]) for candidate in candidates
         ]
     return candidates, False
+
+
+def _marks_stale_candidate(rows: list[dict], books: list[tuple[str, ...]], now: datetime):
+    """One alert when the marks behind the credit limits are older than one business day.
+
+    QA-R-07: a breach or watch raised from six-day-old marks reads like a fresh one. The age is
+    the risk rows' own (``marks_as_of`` and ``state`` from ``limits_service``, judged by the
+    one business-day rule in ``domain.monitoring.freshness.close_state``), so the alert, the
+    Limits page and Today agree. It is a warning, late or stale (the evidence says which):
+    stale marks make a figure unreliable, not a breach, and a critical limits alert reads as a
+    breach on Today and waits for acknowledgement. Lines with no leg to mark, or no close at all
+    (``never``: the line is already ``incomplete``), raise nothing here.
+    The alert resolves when the marks are current.
+    """
+
+    affected = [
+        (row, row_books)
+        for row, row_books in zip(rows, books, strict=True)
+        if row.get("state") in {"late", "stale"} and row.get("legs")
+    ]
+    if not affected:
+        return None
+    stale = any(row["state"] == "stale" for row, _ in affected)
+    oldest = min(str(row["marks_as_of"]) for row, _ in affected if row.get("marks_as_of"))
+    names = ", ".join(sorted(str(row["counterparty"]) for row, _ in affected)[:5])
+    more = len(affected) - min(len(affected), 5)
+    listed = names + (f" and {more} more" if more else "")
+    count = len(affected)
+    lines = "credit line" if count == 1 else "credit lines"
+    return MonitoringCandidate(
+        fingerprint="marks_stale:credit",
+        category="limits",
+        alert_type="marks_stale",
+        severity="warning",
+        title_en=f"Marks behind {count} {lines} date from {oldest}",
+        title_zh_cn=f"{count} 条授信额度所用估值价格日期为 {oldest}",
+        message_en=(
+            f"The exposure of {listed} is valued at closes older than one business day "
+            f"(oldest {oldest}). Breach and watch figures on these lines are not current; "
+            "check the price feeds before acting on them."
+        ),
+        message_zh_cn=(
+            f"{listed} 的敞口使用超过一个工作日的收盘价估值（最早 {oldest}）。"
+            "这些额度的超限与关注数字并非最新，请先检查价格数据源。"
+        ),
+        entity_type="marks",
+        entity_id="credit",
+        event_time_utc=now,
+        evidence_snapshot={
+            "marks_as_of": oldest,
+            "state": "stale" if stale else "late",
+            "rule": "close_state: previous weekday's close is current",
+            "lines": [
+                {
+                    "counterparty_id": row["counterparty_id"],
+                    "counterparty": row["counterparty"],
+                    "marks_as_of": row.get("marks_as_of"),
+                    "state": row["state"],
+                }
+                for row, _ in affected
+            ],
+            # Book-scoped like the credit alerts: shown only to who can see every book behind.
+            "book_ids": sorted({book for _, row_books in affected for book in row_books}),
+        },
+        source_refs=[f"credit-line:{row['counterparty_id']}" for row, _ in affected][:20],
+        human_review_required=True,
+    )
 
 
 def _credit_candidate(row: dict, books: tuple[str, ...], now: datetime):

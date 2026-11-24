@@ -263,7 +263,7 @@ def _market_fixture(session: Session) -> None:
 
     session.add_all(
         [
-            # EEX expectation is 1 minute -> stale at AS_OF.
+            # EEX expectation is 1 minute, stale after 3 days -> late at AS_OF.
             _observation("obs-eex-stale", "EEX_Sim", observed_at=AS_OF - timedelta(minutes=10)),
             # ENTSOG expectation is 60 minutes -> fresh at AS_OF.
             _observation(
@@ -383,18 +383,20 @@ def test_market_context_reports_per_slice_freshness_from_declared_expectations(t
         payload = build_market_context(_legacy_principal(), session=session, as_of_utc=AS_OF)
 
     slices = payload["data"]["slices"]
-    # EEX declares a 1-minute expectation, so a 10-minute-old tick is stale.
+    # EEX declares a 1-minute expectation and a 3-day stale threshold (its FreshnessPolicy),
+    # so by the freshness contract Today uses (QA-R-07) a 10-minute-old tick is late, not
+    # stale: one rule for the popover and Today's stale_figures.
     observations = slices["market_observations"]["freshness"]
-    assert observations["state"] == "STALE"
+    assert observations["state"] == "LATE"
     assert observations["expected_within_minutes"] == 1
     assert observations["expectation_source"] == "source_registry"
     assert observations["last_observed_at_utc"] == (AS_OF - timedelta(minutes=10)).isoformat()
-    assert "SOURCE_STALE" in payload["meta"]["warnings"]
+    assert "SOURCE_STALE" not in payload["meta"]["warnings"]
 
-    # The per-source summary keeps the ENTSOG row (fresh) and the EEX row (stale)
+    # The per-source summary keeps the ENTSOG row (fresh) and the EEX row (late)
     # apart instead of collapsing them into one verdict.
     by_source = {row["source_system"]: row for row in slices["data_sources"]["rows"]}
-    assert by_source["EEX_Sim"]["freshness"]["state"] == "STALE"
+    assert by_source["EEX_Sim"]["freshness"]["state"] == "LATE"
     assert by_source["EEX_Sim"]["source_family"] == "EEX"
     assert by_source["EEX_Sim"]["simulated"] is True
     assert by_source["ENTSOG"]["freshness"]["state"] == "FRESH"
