@@ -206,6 +206,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | AI 请求的审计行（解释、简报与市场报告的 `ai.explain`；`ai.ask`、`ai.spreads`、`ai.report_plan`、`ai.alert_analysis`；分析查询与组合报告的 `llm.invoke`；`monitoring.enrichment.provider_call`） | `after_summary.ai`（`use`、`prompt_version`、`prompt_fingerprint`、`model_id`、`model_evaluated`、`calls`、`hashes[]` 含 `input_sha256`、`output_sha256`、`status`）（附加字段，2026-11-24，GOV-1） | 调用了模型时写入；只有哈希，从不含文本；`GET /api/audit/events` 在显示 `after_summary` 处显示 |
 | `GET /api/access/market-data-licences` | 每个许可的 `usage_30d`（`principals`、`reads`、`exports`、`last_read_utc`）（附加字段，2026-11-24，GOV-1，P6） | 该许可数据源族近 30 天的使用记录：不同人员数、请求次数、文件导出次数与最近读取时间；无记录时为零 |
 | 所有报告文件（提供 `format=csv`、`xlsx`、`pdf` 的路由） | 响应头 `X-Eurogas-Export-Decision`（`allowed` 或 `restricted`）、`X-Eurogas-Licensed-Sources`、`X-Eurogas-Export-Restrictions`；XLSX 与 PDF 的说明行 `Licensed data` 与 `Use`（附加字段，2026-11-24，GOV-1，P6） | 依据文件各行所读取的许可数据源族得出的导出决策；列与行不变 |
+| `GET /api/portfolio/map-situation` | `assets[]`（`asset_id`、`kind` 为 `lng_terminal` 或 `storage`、`name`、`country`、`eic`、`location`、`capacity[]`、`flow[]`、`stock`）、`asset_rule`、`flow_days[]`（`gas_day`、`flows[]`）、`cargoes[].eta` 与 `cargoes[].position_basis`（附加字段，2026-11-24，MAP-1） | 地图上的 LNG 接收站与储气库：按方向列出 ENTSOG 最新公布的确定技术能力（能量单位，附燃气日、来源与接收时间）、该点最新已关闭燃气日的流量，以及 GIE 库存（`basis` 为 `site` 或 `country_aggregate`）；`flow_days` 为地图燃气日滑块提供已授权流量的已存燃气日；`eta` 说明货船 ETA 的依据（LNG-2 的同一对象；已确认合同货物为 `contract_window`）；`position_basis` 在数据源报告了位置时为 `reported`，否则为 `null`。各列表沿用现有规则：账簿项目按组合隔离，市场数据按调用方的数据范围。无路径、状态码或现有字段变化；公开接口清单不变 |
 
 ## 有意收窄的行为变更
 

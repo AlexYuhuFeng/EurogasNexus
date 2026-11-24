@@ -26,6 +26,7 @@ from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
+from eurogas_nexus.application.map_assets import ASSET_RULE
 from eurogas_nexus.security.portfolio_scope import visible_book_ids
 
 #: Closed gas days read for flows: the newest one shown per point, the earlier ones only so
@@ -555,6 +556,25 @@ def build_map_situation(
     # caller may not see.
     unlocated["flows"] = len(entitled(unplaced_flows))
 
+    from eurogas_nexus.application.map_assets import build_map_assets, flow_days
+
+    def node_location(point_id: str) -> dict[str, Any] | None:
+        return locator.by_node_id.get(point_id) or locator.by_node_id.get(
+            f"entsog-{str(point_id).lower()}"
+        )
+
+    # MAP-1: each closed gas day read, for the map's time scrubber (same rows, same rule).
+    stored_flow_days = flow_days(selected, node_location=node_location, entitled=entitled)
+    # MAP-1: terminals and storage sites with their published capacity, flow and inventory.
+    assets = build_map_assets(
+        session,
+        nodes=reference_nodes,
+        node_location=node_location,
+        flows=flows,
+        entitled=entitled,
+        now=now,
+    )
+
     contracts: list[dict[str, Any]] = []
     cargoes: list[dict[str, Any]] = []
     slots: list[dict[str, Any]] = []
@@ -614,6 +634,8 @@ def build_map_situation(
                     "location": location,
                 }
             )
+
+        from eurogas_nexus.application.lng_in_transit import eta_provenance
 
         history_cutoff = now - timedelta(days=CARGO_HISTORY_DAYS)
         own_history_cutoff = now - timedelta(days=max(CARGO_HISTORY_DAYS, history_days))
@@ -675,6 +697,10 @@ def build_map_situation(
                 "track_times": [
                     point[2] if len(point) > 2 else None for point in (record.track or [])
                 ],
+                # MAP-1 (additive): a position here is one the feed reported, never estimated;
+                # and what the ETA rests on (LNG-2's basis, confidence, source and age).
+                "position_basis": "reported" if position is not None else None,
+                "eta": eta_provenance(record),
             }
             (cargoes if own else market_cargoes).append(item)
         cargoes.extend(_confirmed_cargoes(confirmations, cargoes, locator, now))
@@ -785,6 +811,10 @@ def build_map_situation(
         "positions_included": include_positions,
         "vessel_feed": vessel_feed,
         "book_relevance": book_relevance,
+        # MAP-1 (additive): sites with published figures, and the stored flow window.
+        "assets": assets,
+        "asset_rule": ASSET_RULE,
+        "flow_days": stored_flow_days,
     }
 
 
@@ -837,6 +867,14 @@ def _confirmed_cargoes(
                 "destination": destination,
                 "track": [],
                 "track_times": [],
+                "position_basis": None,
+                "eta": {
+                    "basis": "contract_window",
+                    "confidence": None,
+                    "source": "CONTRACT",
+                    "recorded_at_utc": None,
+                    "text": "ETA is the first day of the confirmation's delivery window",
+                },
             }
         )
     return out

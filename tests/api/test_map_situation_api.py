@@ -656,3 +656,25 @@ def test_an_opportunity_carries_its_window_and_a_closed_one_is_not_drawn(seeded)
     (item,) = book["opportunities"]
     assert item["opportunity_id"] == "o-open"
     assert item["window_closes_utc"].startswith(str((now + timedelta(hours=2)).date()))
+
+
+def test_map1_layers_follow_the_book_scope_and_say_what_each_position_rests_on(seeded):
+    """MAP-1: the map payload adds sites, the stored flow window and each cargo's ETA basis;
+    the firm's cargoes still follow book scope (a regional head sees its own book only)."""
+
+    client, headers = seeded
+    head = client.get("/api/portfolio/map-situation", headers=headers["head"]).json()["data"]
+    assert isinstance(head["assets"], list) and isinstance(head["flow_days"], list)
+    assert head["asset_rule"]
+    # The fixture's Gate terminal is a reference LNG point: a site, with no figure held.
+    (gate,) = [asset for asset in head["assets"] if asset["asset_id"] == "lng-gate"]
+    assert gate["kind"] == "lng_terminal"
+    assert gate["capacity"] == [] and gate["flow"] == [] and gate["stock"] is None
+    (cargo,) = head["cargoes"]
+    # The feed reported the position; the import stated no ETA basis, and says so.
+    assert cargo["position_basis"] == "reported"
+    assert cargo["eta"]["basis"] is None and "basis not stated" in cargo["eta"]["text"]
+
+    uk = client.get("/api/portfolio/map-situation", headers=headers["uk"]).json()["data"]
+    assert [c["cargo_id"] for c in uk["cargoes"]] == ["C1"]
+    assert all("eta" in c and "position_basis" in c for c in uk["cargoes"])
