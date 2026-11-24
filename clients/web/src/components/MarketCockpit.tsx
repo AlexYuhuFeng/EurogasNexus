@@ -215,6 +215,17 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
                 // The checklist step: where it is evidenced (Book → Delivery or Planning).
                 const entry = PRODUCT_MODES.find((mode) => mode.id === item.target?.mode)?.tasks.find((task) => task.id === item.target?.task);
                 if (entry?.page) navigation.openWorkspace(entry.page, entry.pageTask);
+              } else if (item.kind === "cargo") {
+                // Desk → Cargoes with the cargo's plan open (`cargo=`), where each role's message is.
+                // As the command palette does: open the task, then set the parameter the board follows.
+                openTask("cargoes");
+                const cargoId = item.target?.params?.cargo ?? item.cargo_id;
+                if (cargoId) {
+                  const url = new URL(window.location.href);
+                  url.searchParams.set("cargo", cargoId);
+                  window.history.replaceState(window.history.state, "", url);
+                  window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
+                }
               } else if (item.kind === "strategy") {
                 // Research → Spreads, where the tracked strategy and its paper book are shown.
                 navigation.openWorkspace("research", "spreads");

@@ -38,6 +38,8 @@
 @import url("../components/network-desk.css");
 /* Deals → Opportunities (CP-14): lanes, folded groups, the detail beside the list. */
 @import url("../components/opportunities/opportunities.css");
+/* Desk → Cargoes (LNG-2): who a cargo change is for, and what its ETA rests on. */
+@import url("../components/cargo-roles.css");
 
 /* ------------------------------------------------------------- element base */
 @layer ds-base {

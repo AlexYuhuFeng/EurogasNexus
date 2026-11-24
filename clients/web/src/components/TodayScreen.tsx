@@ -344,7 +344,7 @@ function NeedsMeRow({ row, t, language, onOpen }: { row: TodayNeedsMeRowDTO; t: 
     <RowSection id="needs_me" title={t("today.row.needs_me")} meta={row.more > 0 ? t("today.needs.more", { count: row.more }) : undefined}>
       <ol className="today-needs">
         {row.items.map((item) => {
-          const tone = item.kind === "limit" ? (item.status === "breach" ? "breach" : "watch") : item.kind === "opportunity" && item.lane === "must_act" ? "breach" : item.kind === "nomination" ? (item.urgency === "overdue" ? "breach" : "watch") : "neutral";
+          const tone = item.kind === "limit" ? (item.status === "breach" ? "breach" : "watch") : item.kind === "opportunity" && item.lane === "must_act" ? "breach" : item.kind === "nomination" ? (item.urgency === "overdue" ? "breach" : "watch") : item.kind === "cargo" ? (item.status === "breach" ? "breach" : "watch") : "neutral";
           return (
             <li key={`${item.kind}:${item.id}`} data-need={item.kind}>
               <StatusBadge tone={tone}>{t(`today.needs.kind.${item.kind}${item.kind === "opportunity" && item.lane ? `.${item.lane}` : ""}`)}</StatusBadge>
@@ -357,12 +357,18 @@ function NeedsMeRow({ row, t, language, onOpen }: { row: TodayNeedsMeRowDTO; t: 
                 {item.kind === "opportunity" && item.headline?.value != null ? `${item.headline.value} ${item.headline.unit ?? ""}${item.period ? ` · ${item.period}` : ""}` : null}
                 {item.kind === "limit" && item.utilisation_pct != null ? t("today.used", { pct: Math.round(item.utilisation_pct) }) : null}
                 {item.kind === "nomination" ? [item.hub, item.step ? t(`today.checklist.step.${item.step}`) : null, item.status ? t(`today.checklist.status.${item.status}`) : null].filter(Boolean).join(" · ") : null}
+                {item.kind === "cargo" && item.role ? t("today.needs.cargo_for", { role: t(`lng.cargo.role.${item.role}`) }) : null}
               </span>
               {item.simulated && <SimulatedMark t={t} />}
               {/* An outage says since when it is out; a standing limit state has no news age. */}
               {item.kind === "outage" && item.since_utc && (() => {
                 const since = formatInstant(item.since_utc);
                 return since ? <time className="today-list-time" dateTime={since.iso} title={since.title}>{t("today.needs.since", { when: since.text })}</time> : null;
+              })()}
+              {/* A cargo message says by when its first step is due (LNG-2). */}
+              {item.kind === "cargo" && item.deadline_utc && (() => {
+                const due = formatInstant(item.deadline_utc);
+                return due ? <time className="today-list-time" dateTime={due.iso} title={due.title}>{t("today.needs.due", { when: due.text })}</time> : null;
               })()}
               {item.why && <WhyButton subject={item.why.subject} id={item.why.id} label={item.title} language={language} t={t} />}
             </li>

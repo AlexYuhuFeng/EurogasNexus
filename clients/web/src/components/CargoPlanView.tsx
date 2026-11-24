@@ -1,6 +1,6 @@
 /**
  * One cargo's plan (QA-L-05), in a sheet beside the cargo board: header, what changed, a
- * timeline, the energy waterfall, send-out by gas day, the hub × month grid with hedge cover,
+ * who has been told (LNG-2: each role's message, open or withdrawn), a timeline, the energy waterfall, send-out by gas day, the hub × month grid with hedge cover,
  * suggestions by due time with their arithmetic, the inputs and their sources; then the what-if
  * (ETA, slot, berth delay: nothing is stored) and the hedge editor (`PUT .../hedges`, audited).
  *
@@ -15,6 +15,9 @@ import {
   type CargoPlanDTO,
   type CargoPlanMonthDTO,
   type CargoPlanSuggestionDTO,
+  type CargoEtaDTO,
+  type CargoRole,
+  type CargoRoleMessageDTO,
 } from "@/api/client";
 import { readKey, useCachedRead } from "@/app/data/readCache";
 import { apiErrorDetailCode, describeFailure, presentError } from "@/app/experience/errorPresentation";
@@ -168,7 +171,7 @@ function PlanBody({ plan, t, language, unit, onSection }: { plan: CargoPlanDTO; 
           <div><dt>{t("lng.cargo.book")}</dt><dd>{cargo.book_id ?? "–"}</dd></div>
           <div><dt>{t("lng.cargo.source")}</dt><dd>{cargo.source_system ?? "–"}</dd></div>
           <div><dt>{t("lng.cargo.route")}</dt><dd>{cargo.load_port ?? "–"} → {cargo.slot?.terminal ?? cargo.destination_terminal ?? "–"} ({cargo.hub ?? t("lng.cargo.no_hub")})</dd></div>
-          <div><dt>{t("lng.cargo.eta")}</dt><dd><Instant value={cargo.eta_utc} date="always" /></dd></div>
+          <div><dt>{t("lng.cargo.eta")}</dt><dd><Instant value={cargo.eta_utc} date="always" />{cargo.eta && <> · <EtaBasis eta={cargo.eta} t={t} /> · {t("lng.cargo.eta_from", { source: cargo.eta.source })}</>}</dd></div>
           <div><dt>{t("lng.cargo.as_of")}</dt><dd><Instant value={plan.as_of_utc} date="always" /> · {t("lng.cargo.age_minutes", { minutes: formatAmount(age, language) })}</dd></div>
         </dl>
         {plan.contract?.warning && <p className="cargo-plan-warning" role="note">{plan.contract.warning}</p>}
@@ -201,6 +204,14 @@ function PlanBody({ plan, t, language, unit, onSection }: { plan: CargoPlanDTO; 
           />
         )}
       </section>
+
+      {/* 2b. Who has been told (LNG-2): each role's message about the last change. */}
+      {plan.roles && (
+        <section className="cargo-plan-section" aria-labelledby="cargo-plan-roles">
+          <h3 id="cargo-plan-roles">{t("lng.cargo.roles.title")}</h3>
+          <RoleMessages roles={plan.roles} t={t} language={language} />
+        </section>
+      )}
 
       {/* 3. Timeline */}
       <section className="cargo-plan-section" aria-labelledby="cargo-plan-timeline">
@@ -267,6 +278,67 @@ function PlanBody({ plan, t, language, unit, onSection }: { plan: CargoPlanDTO; 
         </ul>
       </section>
     </div>
+  );
+}
+
+/** What the ETA rests on, in words (LNG-2, lesson P3: an estimate says it is one). */
+export function EtaBasis({ eta, t }: { eta: CargoEtaDTO; t: Translate }) {
+  const basis = t(`lng.cargo.eta_basis.${eta.basis ?? "none"}`);
+  const confidence = t(`lng.cargo.eta_confidence.${eta.confidence ?? "none"}`);
+  return (
+    <span className="cargo-eta-basis" data-confidence={eta.confidence ?? "none"} title={t("lng.cargo.eta_from", { source: eta.source })}>
+      {basis} · {confidence}
+    </span>
+  );
+}
+
+const ROLE_ORDER: readonly CargoRole[] = ["trader", "scheduler", "risk", "desk_head"];
+
+/** Each role's message about the cargo's last change: open first, the reader's own first. */
+export function RoleMessages({ roles, t, language }: { roles: readonly CargoRoleMessageDTO[]; t: Translate; language: string }) {
+  const zh = language.toLowerCase().startsWith("zh");
+  if (roles.length === 0) return <p className="muted">{t("lng.cargo.roles.none")}</p>;
+  const ordered = [...roles].sort(
+    (a, b) =>
+      Number(a.status === "withdrawn") - Number(b.status === "withdrawn") ||
+      Number(b.mine) - Number(a.mine) ||
+      ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role),
+  );
+  return (
+    <ul className="cargo-roles">
+      {ordered.map((message) => {
+        const withdrawn = message.status === "withdrawn";
+        const lines = zh && message.lines_zh.length > 0 ? message.lines_zh : message.lines;
+        const tone = withdrawn ? "neutral" : message.severity === "critical" ? "breach" : message.severity === "warning" ? "watch" : "info";
+        return (
+          <li key={message.alert_id} className="cargo-role" data-role={message.role} data-severity={message.severity} data-status={withdrawn ? "withdrawn" : "open"}>
+            <div className="cargo-role-head">
+              <StatusBadge tone={tone}>{t(`lng.cargo.role.${message.role}`)}</StatusBadge>
+              {message.mine && <StatusBadge tone="info">{t("lng.cargo.role_mine")}</StatusBadge>}
+              {withdrawn && <StatusBadge tone="neutral">{t("lng.cargo.roles.withdrawn")}</StatusBadge>}
+              {message.simulated && <StatusBadge tone="simulated">{t("lng.cargo.simulated")}</StatusBadge>}
+              <p className="cargo-role-title">{zh && message.title_zh ? message.title_zh : message.title}</p>
+            </div>
+            {withdrawn && message.withdrawn && (
+              <p className="cargo-role-meta">
+                {t("lng.cargo.roles.withdrawn_because", { reason: zh && message.withdrawn.reason_zh ? message.withdrawn.reason_zh : message.withdrawn.reason })}
+                {" · "}<Instant value={message.withdrawn.at_utc} date="always" />
+              </p>
+            )}
+            {!withdrawn && lines.length > 0 && (
+              <ul className="cargo-role-lines">
+                {lines.map((line, index) => <li key={index}>{line}</li>)}
+              </ul>
+            )}
+            <p className="cargo-role-meta">
+              {message.due_utc && !withdrawn && <>{t("lng.cargo.roles.due")} <Instant value={message.due_utc} date="always" /> · </>}
+              {message.notified_at_utc ? <>{t("lng.cargo.roles.notified")} <Instant value={message.notified_at_utc} date="always" /></> : t("lng.cargo.roles.not_notified")}
+              {message.inputs_as_of && <> · {t("lng.cargo.roles.revision", { revision: message.inputs_as_of.revision })}</>}
+            </p>
+          </li>
+        );
+      })}
+    </ul>
   );
 }
 

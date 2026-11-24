@@ -8,7 +8,7 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 /** The server's notification categories (application/notifications.py); `alert` also receives
  * `opportunity`, `nomination` and `source` (application/alert_routing.py). */
-const CATEGORIES = ["alert", "opportunity", "nomination", "limits", "source", "tariff", "support", "report"];
+const CATEGORIES = ["alert", "opportunity", "nomination", "cargo", "limits", "desk_head", "source", "tariff", "support", "report"];
 const EMPTY = { channel_id: "", name: "", recipients: "", categories: [] as string[], min_severity: "high" };
 
 /**

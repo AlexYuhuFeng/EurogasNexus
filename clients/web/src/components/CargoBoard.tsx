@@ -5,7 +5,9 @@
  * - Rows: status in words and colour, cargo and vessel, route and hub, ETA in the reader's zone
  *   with the change the last import made and the import's age (stale past the feed's cadence),
  *   the slot window with the ETA on it, delivered energy, cover per hub month, the next action
- *   with its due time and countdown, and what last changed, who and when.
+ *   with its due time and countdown, who must act on the last change (LNG-2: trader, scheduler,
+ *   risk, desk head; the reader's own roles bold), and what last changed, who and when. The
+ *   ETA says what it rests on (basis and confidence, lesson P3).
  * - Order: missed and no-slot rows first, then by next action due (cargoBoardModel.ts).
  * - Keyboard: ↑ ↓ move, Enter opens the plan, `w` the what-if, `h` the hedge editor.
  * - Live: the board re-reads on the session's cargo and slot change notices (useCargoBoard).
@@ -40,7 +42,7 @@ import { useInstantFormatter } from "@/app/time/useInstant";
 import { useTimePreferenceStore } from "@/stores/timePreference";
 import { Button, DataGrid, EmptyState, Instant, Segmented, StatusBadge, UpdatingMark, type DataGridColumn } from "@/components/ui";
 import { PanelHelp } from "@/components/ui/PanelHelp";
-import { CargoPlanSheet, type PlanSection } from "@/components/CargoPlanView";
+import { CargoPlanSheet, EtaBasis, type PlanSection } from "@/components/CargoPlanView";
 import "./cargo-board.css";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -74,6 +76,25 @@ function useOpenCargo(): [string | null, (cargoId: string | null) => void] {
     setCargo(cargoId);
   }, []);
   return [cargo, open];
+}
+
+/** Who must act on the cargo's last change: one chip per open role message, the reader's bold. */
+export function RoleChips({ line, t, language }: { line: CargoPlanBoardLineDTO; t: Translate; language: string }) {
+  const zh = language.toLowerCase().startsWith("zh");
+  const attention = line.attention ?? [];
+  if (attention.length === 0) return <span className="muted">–</span>;
+  return (
+    <ul className="cargo-roles-chips" aria-label={t("lng.cargo.col.attention")}>
+      {attention.map((item) => (
+        <li key={item.alert_id} className="cargo-roles-chip" data-mine={item.mine ? "true" : "false"} data-role={item.role}>
+          <StatusBadge tone={item.severity === "critical" ? "breach" : item.severity === "warning" ? "watch" : "neutral"} title={zh && item.title_zh ? item.title_zh : item.title}>
+            {t(`lng.cargo.role.${item.role}`)}
+            {item.mine ? ` · ${t("lng.cargo.role_mine")}` : ""}
+          </StatusBadge>
+        </li>
+      ))}
+    </ul>
+  );
 }
 
 function signedHours(hours: number, language: string): string {
@@ -172,6 +193,7 @@ export function CargoBoard({ t, language, canRecordHedges }: { t: Translate; lan
         return (
           <span className="cargo-board-id">
             <Instant value={line.eta_utc} date="always" />
+            {line.eta && <EtaBasis eta={line.eta} t={t} />}
             <span className="cargo-board-sub">
               {change !== null && Math.abs(change) >= 0.5 && (
                 <span className="cargo-board-change" data-direction={change > 0 ? "later" : "earlier"}>
@@ -239,6 +261,12 @@ export function CargoBoard({ t, language, canRecordHedges }: { t: Translate; lan
           </span>
         );
       },
+    },
+    {
+      id: "attention",
+      header: t("lng.cargo.col.attention"),
+      value: (line) => (line.attention ?? []).length,
+      render: (line) => <RoleChips line={line} t={t} language={language} />,
     },
     {
       id: "changed",

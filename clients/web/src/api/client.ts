@@ -2204,7 +2204,8 @@ export interface TodayMarketDTO {
 /** Design basis 2, E.2 row 3: what needs me, ranked server-side, at most five. */
 export interface TodayNeedsMeItemDTO {
   /** "strategy": a tracked strategy's changed, still actionable paper signal. */
-  kind: "opportunity" | "outage" | "limit" | "strategy" | "nomination";
+  /** "cargo": a cargo change's message for one of the reader's roles (LNG-2; additive). */
+  kind: "opportunity" | "outage" | "limit" | "strategy" | "nomination" | "cargo";
   id: string;
   title: string;
   title_zh?: string | null;
@@ -2227,6 +2228,9 @@ export interface TodayNeedsMeItemDTO {
   urgency?: "overdue" | "due_soon" | "open" | "none";
   deadline_utc?: string | null;
   gas_day?: string;
+  /** For kind "cargo": the role the message is for and the cargo it is about. */
+  role?: CargoRole;
+  cargo_id?: string;
 }
 
 /** A day's quantity in the hub's desk unit (NBP th/d; continental MWh/d with its MW). */
@@ -6417,6 +6421,63 @@ export interface CargoChangeMetaDTO {
   eta_before_utc: string | null;
 }
 
+/** What an LNG cargo's ETA rests on (LNG-2, lesson P3); null fields: the source did not say. */
+export interface CargoEtaDTO {
+  basis: "master_notice" | "ais_declared" | "feed_estimate" | "schedule" | "manual" | null;
+  confidence: "high" | "medium" | "low" | null;
+  /** The source system that last set the ETA. */
+  source: string;
+  recorded_at_utc: string | null;
+  /** The same in English words, as the server's messages put it. */
+  text: string;
+}
+
+/** Who a cargo change is for (LNG-2). */
+export type CargoRole = "trader" | "scheduler" | "risk" | "desk_head";
+
+/** A cargo change's message for one role, open or withdrawn (LNG-2; `GET .../plan` roles). */
+export interface CargoRoleMessageDTO {
+  alert_id: string;
+  cargo_id: string;
+  role: CargoRole;
+  category: string;
+  /** The job functions the message is for. */
+  for: string[];
+  status: "open" | "acknowledged" | "withdrawn" | string;
+  severity: "info" | "warning" | "critical";
+  title: string;
+  title_zh: string | null;
+  lines: string[];
+  lines_zh: string[];
+  items: Record<string, unknown>[];
+  due_utc: string | null;
+  inputs_as_of: {
+    eta: CargoEtaDTO;
+    revision: number;
+    event_at_utc: string | null;
+    rebuilt_at_utc: string;
+    line: string;
+  } | null;
+  withdrawn: { reason: string; reason_zh?: string; at_utc: string; revision: number } | null;
+  notified_at_utc: string | null;
+  updated_at_utc: string;
+  simulated: boolean;
+  /** True when the message is for one of the reader's job functions. */
+  mine: boolean;
+}
+
+/** The board's short form of an open role message (LNG-2; additive). */
+export interface CargoAttentionDTO {
+  alert_id: string;
+  role: CargoRole;
+  severity: "info" | "warning" | "critical";
+  title: string;
+  title_zh: string | null;
+  due_utc: string | null;
+  mine: boolean;
+  updated_at_utc: string;
+}
+
 /** The board's and the plan's cargo line (`_summary` on the server). */
 export interface CargoSummaryDTO {
   cargo_id: string;
@@ -6439,6 +6500,8 @@ export interface CargoSummaryDTO {
   delivered_mwh?: number;
   suggestions?: number;
   changed?: CargoChangeMetaDTO | null;
+  /** What the ETA rests on (additive). */
+  eta?: CargoEtaDTO;
 }
 
 export interface CargoHedgeLegHeldDTO extends CargoHedgeLegDTO {
@@ -6471,6 +6534,8 @@ export interface CargoPlanDTO {
   hedges?: CargoHedgeLegHeldDTO[];
   /** Slots a what-if may move the cargo to (additive). */
   slot_options?: CargoSlotOptionDTO[];
+  /** Each role's message about the cargo's last change, open or withdrawn in the last day (additive). */
+  roles?: CargoRoleMessageDTO[];
   as_of_utc: string;
   advisory: string;
 }
@@ -6487,6 +6552,8 @@ export interface CargoPlanBoardLineDTO extends CargoSummaryDTO {
   next_expiry?: CargoPlanSuggestionDTO | null;
   /** The plan's hub months (additive). */
   months?: CargoPlanMonthDTO[];
+  /** The open role messages about the cargo, for the board's "who must act" (additive). */
+  attention?: CargoAttentionDTO[];
   /** Set instead of the plan when the cargo's inputs cannot be planned (e.g. cargo_incomplete). */
   error?: string;
   [key: string]: unknown;

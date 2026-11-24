@@ -1,0 +1,83 @@
+/*
+ * LNG-2: who a cargo change is for, on the cargo board and in the plan sheet, and what the
+ * ETA rests on. Tokens only (scripts/cssTokenLint.mjs).
+ */
+
+@layer ds-components {
+  .cargo-eta-basis {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+  }
+
+  .cargo-eta-basis[data-confidence="low"] {
+    color: var(--ds-status-watch);
+  }
+
+  .cargo-roles-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .cargo-roles-chip[data-mine="true"] {
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .cargo-roles {
+    display: grid;
+    gap: var(--ds-space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .cargo-role {
+    display: grid;
+    gap: var(--ds-space-1);
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+  }
+
+  .cargo-role[data-severity="critical"] {
+    border-color: var(--ds-status-breach);
+  }
+
+  .cargo-role[data-status="withdrawn"] {
+    background: var(--ds-surface-2);
+    color: var(--ds-text-2);
+  }
+
+  .cargo-role-head {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-2);
+    align-items: baseline;
+  }
+
+  .cargo-role-title {
+    margin: 0;
+    font-size: var(--ds-text-base);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .cargo-role[data-status="withdrawn"] .cargo-role-title {
+    text-decoration: line-through;
+  }
+
+  .cargo-role-lines {
+    margin: 0;
+    padding-left: var(--ds-space-4);
+    font-size: var(--ds-text-sm);
+  }
+
+  .cargo-role-meta {
+    margin: 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+  }
+}
