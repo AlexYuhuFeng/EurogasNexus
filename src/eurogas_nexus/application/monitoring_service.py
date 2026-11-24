@@ -69,6 +69,8 @@ def scan_monitoring_conditions(
         *_source_failure_candidates(session),
         *_outage_candidates(session, now),
         *_opportunity_evaluator_candidates(session),
+        *_stale_source_candidates(session, now),
+        *_market_event_candidates(session, now),
     ]
     candidates += _price_move_candidates(session, now)
     candidates += _shortfall_candidates(session, now)
@@ -445,6 +447,199 @@ def _opportunity_evaluator_candidates(session: Session) -> list[MonitoringCandid
             )
         )
     return out
+
+
+#: A delivery of a market event waiting longer than this means the outbox is not being
+#: drained (the scheduler or its worker is down, or a consumer keeps failing).
+MARKET_EVENT_LAG_WARNING = timedelta(minutes=15)
+MARKET_EVENT_LAG_CRITICAL = timedelta(hours=1)
+
+
+def _stale_source_candidates(session: Session, now: datetime) -> list[MonitoringCandidate]:
+    """One alert per enabled scheduled source past its stale threshold (M6).
+
+    The source's freshness is evaluated now, from its last success, with the source's own
+    policy and calendar (``domain/dataops/freshness.py``): a source that silently stopped
+    succeeding goes stale even when no run fails, which ``_source_failure_candidates``
+    cannot see. A closed calendar (weekends for exchange settlements) expects nothing. A
+    source that has never succeeded alerts only once it has been enabled for longer than its
+    stale threshold. The alert is one per source (by fingerprint) and resolves when the
+    source is fresh again.
+    """
+
+    from eurogas_nexus.db.models import SourceRuntimeStateRecord
+    from eurogas_nexus.domain.dataops.contracts import FreshnessState
+    from eurogas_nexus.domain.dataops.freshness import (
+        FreshnessEvidence,
+        evaluate_source_freshness,
+    )
+    from eurogas_nexus.domain.dataops.registry import source_definitions
+
+    definitions = {definition.source_id: definition for definition in source_definitions()}
+    out = []
+    for state in (
+        session.query(SourceRuntimeStateRecord)
+        .filter(SourceRuntimeStateRecord.enabled.is_(True))
+        .order_by(SourceRuntimeStateRecord.source_id)
+        .all()
+    ):
+        definition = definitions.get(state.source_id)
+        if definition is None:
+            continue
+        last_success = _as_utc(state.last_success_at_utc) if state.last_success_at_utc else None
+        evaluation = evaluate_source_freshness(
+            definition,
+            FreshnessEvidence(last_success_at_utc=last_success, access_granted=True),
+            now_utc=now,
+        )
+        threshold = int(definition.freshness_policy.stale_after_minutes)
+        if evaluation.state is FreshnessState.MISSING:
+            since = state.activated_at_utc
+            if since is None or now - _as_utc(since) <= timedelta(minutes=threshold):
+                continue
+        elif evaluation.state is not FreshnessState.STALE:
+            continue
+        age = (
+            "it has never succeeded"
+            if last_success is None
+            else f"its last success was {_age_text(now - last_success)} ago"
+        )
+        age_zh = (
+            "尚无成功记录"
+            if last_success is None
+            else f"最近一次成功在 {_age_text(now - last_success)} 前"
+        )
+        out.append(
+            MonitoringCandidate(
+                fingerprint=f"source_stale:{state.source_id.lower()}",
+                category="data_source",
+                alert_type="source_stale",
+                severity="warning",
+                title_en=f"{state.source_id} is stale",
+                title_zh_cn=f"{state.source_id} 数据已过期",
+                message_en=(
+                    f"{state.source_id} should update at least every {threshold} minutes; "
+                    f"{age}. Figures read from it may be out of date."
+                ),
+                message_zh_cn=(
+                    f"{state.source_id} 应至少每 {threshold} 分钟更新一次；{age_zh}。"
+                    "依赖它的数据可能已过时。"
+                ),
+                entity_type="data_source",
+                entity_id=state.source_id,
+                event_time_utc=last_success or now,
+                evidence_snapshot={
+                    "source_id": state.source_id,
+                    "freshness_state": evaluation.state.value,
+                    "reason": evaluation.reason,
+                    "stale_after_minutes": threshold,
+                    "last_success_at_utc": last_success.isoformat() if last_success else None,
+                    "last_attempt_at_utc": (
+                        _as_utc(state.last_attempt_at_utc).isoformat()
+                        if state.last_attempt_at_utc
+                        else None
+                    ),
+                    "circuit_state": state.circuit_state,
+                },
+                source_refs=[f"source:{state.source_id}"],
+                human_review_required=True,
+            )
+        )
+    return out
+
+
+def _market_event_candidates(session: Session, now: datetime) -> list[MonitoringCandidate]:
+    """Market event outbox health (M6): dead letters and deliveries left waiting.
+
+    One alert per consumer with dead letters, naming the consumer and its oldest dead
+    event; it resolves once the dead letters are replayed (``market_events.py replay``). One
+    alert per consumer whose oldest due delivery has waited past
+    :data:`MARKET_EVENT_LAG_WARNING` (critical past :data:`MARKET_EVENT_LAG_CRITICAL`).
+    """
+
+    from eurogas_nexus.application import market_events
+
+    report = market_events.status(session, now_utc=now, dead_limit=3)
+    out = []
+    for consumer, item in sorted(report["consumers"].items()):
+        dead = item["dead_letters"]
+        dead_count = item["counts"].get(market_events.DEAD, 0)
+        if dead_count:
+            first = dead[0] if dead else {}
+            out.append(
+                MonitoringCandidate(
+                    fingerprint=f"market_events:dead:{consumer}",
+                    category="data_source",
+                    alert_type="market_event_dead_letter",
+                    severity="critical",
+                    title_en=f"Market events failed for {consumer}",
+                    title_zh_cn=f"{consumer} 的市场事件处理失败",
+                    message_en=(
+                        f"{dead_count} market event(s) could not be delivered to {consumer} "
+                        f"after every retry; the first is {first.get('event_id')} "
+                        f"({first.get('subject_key')}): {first.get('last_error')}. Fix the "
+                        "cause, then replay them."
+                    ),
+                    message_zh_cn=(
+                        f"{dead_count} 个市场事件重试后仍无法交付给 {consumer}；"
+                        f"首个为 {first.get('event_id')}（{first.get('subject_key')}）："
+                        f"{first.get('last_error')}。修复原因后请重放。"
+                    ),
+                    entity_type="market_event_consumer",
+                    entity_id=consumer,
+                    event_time_utc=now,
+                    evidence_snapshot={
+                        "consumer": consumer,
+                        "dead_letters": dead_count,
+                        "first": dead[:3],
+                    },
+                    source_refs=[f"market-event:{row.get('event_id')}" for row in dead[:3]],
+                    human_review_required=True,
+                )
+            )
+        lag = item.get("oldest_due_lag_seconds")
+        if lag is not None and lag > MARKET_EVENT_LAG_WARNING.total_seconds():
+            waited = timedelta(seconds=lag)
+            out.append(
+                MonitoringCandidate(
+                    fingerprint=f"market_events:lag:{consumer}",
+                    category="data_source",
+                    alert_type="market_event_lag",
+                    severity=(
+                        "critical" if waited > MARKET_EVENT_LAG_CRITICAL else "warning"
+                    ),
+                    title_en=f"Market events are waiting for {consumer}",
+                    title_zh_cn=f"{consumer} 的市场事件积压",
+                    message_en=(
+                        f"The oldest market event due to {consumer} has waited "
+                        f"{_age_text(waited)}; opportunities that depend on it are not being "
+                        "refreshed. Check that the data-operations scheduler is running."
+                    ),
+                    message_zh_cn=(
+                        f"交付给 {consumer} 的最早市场事件已等待 {_age_text(waited)}；"
+                        "依赖它的机会未被刷新。请检查数据运维调度器是否在运行。"
+                    ),
+                    entity_type="market_event_consumer",
+                    entity_id=consumer,
+                    event_time_utc=now,
+                    evidence_snapshot={
+                        "consumer": consumer,
+                        "oldest_due_lag_seconds": round(lag, 1),
+                        "counts": item["counts"],
+                    },
+                    source_refs=[f"market-event-consumer:{consumer}"],
+                    human_review_required=True,
+                )
+            )
+    return out
+
+
+def _age_text(delta: timedelta) -> str:
+    minutes = int(delta.total_seconds() // 60)
+    if minutes < 120:
+        return f"{minutes} min"
+    hours = minutes // 60
+    return f"{hours} h" if hours < 48 else f"{hours // 24} days"
 
 
 # An outage worth a trader's attention: most of the asset out, or a large volume either way.

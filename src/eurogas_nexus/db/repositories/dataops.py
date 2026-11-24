@@ -183,6 +183,51 @@ def reconcile_source_runtime_states(
     return len(definitions)
 
 
+def refresh_source_freshness(
+    session: Session,
+    definitions: tuple[SourceDefinition, ...],
+    *,
+    now_utc: datetime | None = None,
+) -> int:
+    """Age every enabled source's freshness by the clock (M6).
+
+    A run's outcome sets the freshness state; without this, a source that stops running
+    keeps the state of its last run (``FRESH``) for ever. The same evidence as a successful
+    run is used (the last success), so a source that keeps succeeding is unchanged. A source
+    that has never succeeded keeps its state. Returns how many states changed.
+    """
+
+    now = _now(now_utc)
+    by_id = {definition.source_id: definition for definition in definitions}
+    changed = 0
+    for state in (
+        session.query(SourceRuntimeStateRecord)
+        .filter(SourceRuntimeStateRecord.enabled.is_(True))
+        .filter(SourceRuntimeStateRecord.last_success_at_utc.is_not(None))
+        .all()
+    ):
+        definition = by_id.get(state.source_id)
+        if definition is None:
+            continue
+        evaluation = evaluate_source_freshness(
+            definition,
+            FreshnessEvidence(
+                observed_at_utc=state.last_success_at_utc,
+                last_success_at_utc=state.last_success_at_utc,
+                last_attempt_at_utc=state.last_attempt_at_utc,
+                access_granted=True,
+            ),
+            now_utc=now,
+        )
+        if state.freshness_state != evaluation.state.value:
+            state.freshness_state = evaluation.state.value
+            state.updated_at_utc = now
+            changed += 1
+        state.source_age_seconds = evaluation.source_age_seconds
+    session.flush()
+    return changed
+
+
 def claim_due_sources(
     session: Session,
     definitions: tuple[SourceDefinition, ...],

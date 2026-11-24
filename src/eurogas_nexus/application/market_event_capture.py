@@ -176,11 +176,19 @@ def fx_event(row, *, ingested_at_utc: datetime) -> MarketEvent | None:
     )
 
 
-def outage_event(row) -> MarketEvent:
-    """The ``outage.published`` event for one REMIT message version."""
+def outage_event(row, *, ingested_at_utc: datetime | None = None) -> MarketEvent:
+    """The ``outage.published`` event for one REMIT message version.
+
+    Ingested when captured (``ingested_at_utc``), and never before the row was stored or
+    the message published: a message stored days ago and captured now is due now.
+    """
 
     published = _aware(row.published_at_utc)
-    ingested = _aware(row.ingested_at_utc) or published
+    ingested = max(
+        moment
+        for moment in (_aware(ingested_at_utc), _aware(row.ingested_at_utc), published)
+        if moment is not None
+    )
     key = f"outage:{row.message_id}"
     return MarketEvent(
         source_id=str(row.source_system),
@@ -525,7 +533,7 @@ def events_for_rows(
     builders = (
         (settlements, lambda row: settlement_event(row, ingested_at_utc=now_utc)),
         (fixings, lambda row: fx_event(row, ingested_at_utc=now_utc)),
-        (outages, outage_event),
+        (outages, lambda row: outage_event(row, ingested_at_utc=now_utc)),
     )
     for rows, build in builders:
         for row in rows:

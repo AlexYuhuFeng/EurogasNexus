@@ -487,14 +487,13 @@ def status(session, *, now_utc: datetime | None = None, dead_limit: int = 20) ->
             .all()
         ):
             counts[state] = count
+        # How long the oldest delivery that is due now has been waiting: a failed delivery
+        # in its backoff is not waiting on the worker.
         oldest = (
-            session.query(func.min(MarketEventRecord.ingested_at_utc))
-            .join(
-                MarketEventDeliveryRecord,
-                MarketEventRecord.seq == MarketEventDeliveryRecord.event_seq,
-            )
+            session.query(func.min(MarketEventDeliveryRecord.available_at_utc))
             .filter(MarketEventDeliveryRecord.consumer == item.name)
             .filter(MarketEventDeliveryRecord.status.in_(_DUE))
+            .filter(MarketEventDeliveryRecord.available_at_utc <= now)
             .scalar()
         )
         dead = (
