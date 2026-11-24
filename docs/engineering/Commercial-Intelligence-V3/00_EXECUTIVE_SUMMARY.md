@@ -63,6 +63,9 @@ roll ([12](12_LNG_CARGO_IN_TRANSIT.md)).
 On 2026-11-24 the user asked for a written commercial standard and hands-on testing per
 role. [11](11_COMMERCIAL_QUALITY_STANDARD.md) is that standard;
 [13](13_PERSONA_AND_PRACTICE_REVIEW.md) holds the review findings against it.
+[16](16_COMPETITIVE_STUDY.md) compares the platform with market data vendors, ETRMs, LNG
+shipping tools and Kraken, and with best practice in client design, and records what we
+take from each and when.
 
 1. Review every surface against the standard in a real browser, per role (Q1).
 2. Fix the control and data blockers the review found (F1).
