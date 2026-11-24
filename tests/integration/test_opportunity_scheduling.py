@@ -115,8 +115,8 @@ def test_a_price_import_leads_to_one_evaluation_within_the_debounce(engine) -> N
         assert session.query(OpportunityPendingInputRecord).count() == 0
         assert session.query(OpportunityRecord).count() > 0  # the demo book's hedge gaps
 
-        # Another import two minutes later waits for the debounce, then runs once.
-        later = NOW + timedelta(minutes=2)
+        # Another import half a minute later waits for the debounce, then runs once.
+        later = NOW + timedelta(seconds=30)
         schedule.note_ingestion_changes(
             session, [_run(session, "r5", "src-ecb", inserted=1)], now_utc=later
         )

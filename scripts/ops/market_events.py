@@ -4,7 +4,10 @@ replay, listen.
 Read-only by default. ``capture``, ``drain`` and ``replay`` write only with ``--commit``;
 without it they report what they would do and roll back. ``listen`` (PostgreSQL only) waits on the
 ``market_events`` notification channel and drains when woken or every ``--interval`` seconds,
-so a lost notice costs latency, never an event.
+so a lost notice costs latency, never an event. It is the default trigger for targeted
+re-evaluation (M7; the ``market-events-worker`` service of ``deploy/runtime/compose.yaml``):
+after each drain it also runs the debounced full evaluation when input classes are pending
+(``--no-evaluate`` leaves that to the scheduler, which keeps both as its fallback sweep).
 
 Examples::
 
@@ -14,6 +17,7 @@ Examples::
     python scripts/ops/market_events.py capture --since 2026-11-01T00:00:00Z --commit
     python scripts/ops/market_events.py drain --commit
     python scripts/ops/market_events.py replay opportunities --since 2026-11-24T00:00:00Z --commit
+    python scripts/ops/market_events.py listen --interval 15
 """
 
 from __future__ import annotations
@@ -33,8 +37,36 @@ def _instant(text: str | None) -> datetime | None:
     return value if value.tzinfo else value.replace(tzinfo=UTC)
 
 
-def _listen(session_factory, interval: float, iterations: int | None) -> int:
-    """Drain when a notice arrives (checked every second) or every ``interval`` seconds."""
+def _evaluate_due(session_factory) -> dict:
+    """The debounced full evaluation, if input classes are pending (never raises)."""
+
+    from eurogas_nexus.application.opportunities.schedule import run_due
+
+    try:
+        with session_factory() as session:
+            result = run_due(session)
+            session.commit()
+    except Exception as exc:  # noqa: BLE001 - the listen loop keeps running
+        return {"status": "failed", "error_type": type(exc).__name__}
+    evaluation = result.get("evaluation") or {}
+    return {
+        "status": result["status"],
+        "classes": result.get("classes", []),
+        "evaluation_id": evaluation.get("evaluation_id"),
+    }
+
+
+def _listen(
+    session_factory,
+    interval: float,
+    iterations: int | None,
+    *,
+    poll_seconds: float = 0.25,
+    evaluate: bool = True,
+    max_batches: int | None = None,
+) -> int:
+    """Drain when a notice arrives (checked every ``poll_seconds``) or every ``interval``
+    seconds; then run the debounced full evaluation when one is due."""
 
     from eurogas_nexus.application import market_events
 
@@ -53,7 +85,7 @@ def _listen(session_factory, interval: float, iterations: int | None) -> int:
         done = 0
         last = 0.0
         while iterations is None or done < iterations:
-            time.sleep(1.0)
+            time.sleep(poll_seconds)
             cursor.execute("SELECT 1")  # pg8000 collects notices on any round trip
             woken = bool(notices)
             if notices:
@@ -61,8 +93,11 @@ def _listen(session_factory, interval: float, iterations: int | None) -> int:
             if not woken and time.monotonic() - last < interval:
                 continue
             last = time.monotonic()
-            batches = market_events.drain(session_factory)
-            print(json.dumps({"status": "ok", "woken": woken, "batches": batches}, default=str))
+            batches = market_events.drain(session_factory, max_batches=max_batches)
+            report = {"status": "ok", "woken": woken, "batches": batches}
+            if evaluate:
+                report["evaluation"] = _evaluate_due(session_factory)
+            print(json.dumps(report, default=str), flush=True)
             done += 1
     finally:
         raw.close()
@@ -97,6 +132,9 @@ def main(argv: list[str] | None = None) -> int:
     listen = sub.add_parser("listen")
     listen.add_argument("--interval", type=float, default=30.0)
     listen.add_argument("--iterations", type=int)
+    listen.add_argument("--poll-seconds", type=float, default=0.25)
+    listen.add_argument("--max-batches", type=int, help="batches per consumer per drain")
+    listen.add_argument("--no-evaluate", action="store_true")
     args = parser.parse_args(argv)
 
     if resolve_database_url() is None:
@@ -106,7 +144,14 @@ def main(argv: list[str] | None = None) -> int:
 
     session_factory = get_session_factory()
     if args.command == "listen":
-        return _listen(session_factory, max(1.0, args.interval), args.iterations)
+        return _listen(
+            session_factory,
+            max(1.0, args.interval),
+            args.iterations,
+            poll_seconds=min(5.0, max(0.05, args.poll_seconds)),
+            evaluate=not args.no_evaluate,
+            max_batches=args.max_batches,
+        )
     with session_factory() as session:
         if args.command == "status":
             report = market_events.status(session)

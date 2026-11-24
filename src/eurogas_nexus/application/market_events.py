@@ -46,6 +46,11 @@ MAX_ATTEMPTS = 5
 BACKOFF_BASE = timedelta(minutes=1)
 BACKOFF_CAP = timedelta(hours=1)
 DEFAULT_BATCH = 100
+#: How long one :func:`drain` may keep a consumer busy before it hands back to its loop (the
+#: scheduler's next tick, the listen worker's next wake-up), which drains the rest. Until M7 a
+#: drain stopped after ten batches (1,000 events) whatever the time; a backlog now drains in
+#: one pass unless it takes longer than this.
+DRAIN_BUDGET_SECONDS = 45.0
 
 PENDING = "pending"
 FAILED = "failed"
@@ -359,17 +364,39 @@ def process(
     return summary
 
 
-def drain(session_factory, *, now_utc: datetime | None = None, limit: int = DEFAULT_BATCH,
-          max_batches: int = 10) -> list[dict[str, Any]]:
+def drain(
+    session_factory,
+    *,
+    now_utc: datetime | None = None,
+    limit: int = DEFAULT_BATCH,
+    max_batches: int | None = None,
+    max_seconds: float | None = DRAIN_BUDGET_SECONDS,
+    clock=None,
+) -> list[dict[str, Any]]:
     """Process every consumer, each batch in its own transaction, until nothing is due.
+
+    Args:
+        max_batches: Batches per consumer at most (``None``: no count limit).
+        max_seconds: Time one consumer may take at most (``None``: no time limit); what is
+            left stays due for the caller's next pass.
+        clock: Monotonic seconds (tests fix it).
 
     A failure of the store (not of a consumer) is reported in the batch summary and stops that
     consumer for this tick; the caller's loop keeps running.
     """
 
+    import time
+
+    tick = clock or time.monotonic
     summaries = []
     for item in consumers():
-        for _ in range(max_batches):
+        started = tick()
+        batches = 0
+        while max_batches is None or batches < max_batches:
+            if batches and max_seconds is not None and tick() - started >= max_seconds:
+                summaries.append({"consumer": item.name, "status": "budget_spent"})
+                break
+            batches += 1
             try:
                 with session_factory() as session:
                     summary = process(session, item.name, now_utc=now_utc, limit=limit)
@@ -715,6 +742,10 @@ class OpportunityImpactConsumer:
         result["unregistered_evaluators"] = sorted(set(names) - set(registry))
         if not chosen:
             return result
+        from eurogas_nexus.application.opportunities.schedule import evaluation_lock
+
+        # Wait for a full sweep that is merging (seconds); the two never merge at once.
+        evaluation_lock(session, wait=True)
         if self._runner is None:
             from eurogas_nexus.application.opportunities.service import run_evaluation
 
@@ -780,6 +811,7 @@ __all__ = [
     "BACKOFF_BASE",
     "BACKOFF_CAP",
     "DEAD",
+    "DRAIN_BUDGET_SECONDS",
     "FAILED",
     "MAX_ATTEMPTS",
     "NOTIFY_CHANNEL",

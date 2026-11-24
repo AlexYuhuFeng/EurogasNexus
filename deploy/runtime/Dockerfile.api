@@ -67,6 +67,7 @@ COPY scripts/ops/approve_public_source.py \
      scripts/ops/ingest_remit_entsog.py \
      scripts/ops/ingest_remit_iip.py \
      scripts/ops/ingest_public_sources.py \
+     scripts/ops/market_events.py \
      scripts/ops/materialize_reference_edges.py \
      scripts/ops/migration_preflight.py \
      scripts/ops/prune_audit_events.py \

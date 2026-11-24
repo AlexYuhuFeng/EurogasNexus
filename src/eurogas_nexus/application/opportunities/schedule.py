@@ -5,9 +5,12 @@
 - **Job runner** (CP-13): a scheduled ingestion that changed rows (:func:`note_ingestion_changes`)
   or a write of a contract, book, mark, assumption set, limit or terminal terms
   (:func:`note_input_changed`, in the writer's own transaction) marks its input class pending
-  (``opportunity_pending_inputs``). The data-operations scheduler calls :func:`run_due` on
-  every tick: while classes are pending it runs one full evaluation, at most once per
-  :data:`DEBOUNCE` (:func:`due`), and clears the classes noted before the run started. A
+  (``opportunity_pending_inputs``). The market-event listen worker calls :func:`run_due` on
+  every wake-up and the data-operations scheduler on every tick (the fallback sweep): while
+  classes are pending it runs one full evaluation, at most once per :data:`DEBOUNCE`
+  (:func:`due`), and clears the classes noted before the run started. On PostgreSQL only one
+  evaluation runs at a time (:func:`evaluation_lock`): a second caller is told ``busy`` and
+  the classes stay pending for the next pass. A
   failing evaluator produces no opportunity and one administrator alert (the monitoring
   scan reads the run's evaluator status); the desk sees nothing of it.
   :class:`StoreTrigger` is the :class:`EvaluationTrigger` over that table.
@@ -23,8 +26,17 @@ from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
-#: At most one scheduled full evaluation per five minutes.
-DEBOUNCE = timedelta(minutes=5)
+#: At most one scheduled full evaluation per minute. A full evaluation is the discovery sweep
+#: (6.5 s on the demo desk, 1,937 statements); a change to an opportunity that already exists
+#: goes through the targeted outbox path in seconds. One minute keeps discovery inside the
+#: two-minute budget of 15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md at about a tenth of one
+#: worker's time; it was five minutes before M7.
+DEBOUNCE = timedelta(seconds=60)
+
+#: The PostgreSQL advisory lock key every opportunity evaluation holds for its transaction
+#: (``int.from_bytes(b"oppeval", "big")``): a full sweep and a targeted re-evaluation never
+#: merge into the store at the same time.
+EVALUATION_LOCK_KEY = 0x6F70706576616C
 
 #: Input classes whose change makes a scheduled evaluation due.
 INPUT_CLASSES = frozenset(
@@ -62,6 +74,28 @@ def due(last_started_utc: datetime | None, now_utc: datetime) -> bool:
     """Whether a scheduled evaluation may start now (debounce)."""
 
     return last_started_utc is None or now_utc - last_started_utc >= DEBOUNCE
+
+
+def evaluation_lock(session, *, wait: bool) -> bool:
+    """Take the evaluation lock for the caller's transaction; True when held.
+
+    PostgreSQL only (``pg_advisory_xact_lock``, released at commit or rollback); elsewhere a
+    single process is assumed and the lock is always granted. With ``wait=False`` a held lock
+    returns False at once.
+    """
+
+    if session.get_bind().dialect.name != "postgresql":
+        return True
+    from sqlalchemy import text
+
+    if wait:
+        session.execute(text("SELECT pg_advisory_xact_lock(:key)"), {"key": EVALUATION_LOCK_KEY})
+        return True
+    return bool(
+        session.execute(
+            text("SELECT pg_try_advisory_xact_lock(:key)"), {"key": EVALUATION_LOCK_KEY}
+        ).scalar()
+    )
 
 
 class EvaluationTrigger(Protocol):
@@ -175,13 +209,20 @@ def run_due(
     """Run the debounced scheduled evaluation if input classes are pending; commit is the
     caller's.
 
-    Returns ``{"status": "idle"}`` (nothing pending), ``{"status": "debounced", "next_at_utc"}``
-    or ``{"status": "ran", "classes": [...], "evaluation": <summary>}``.
+    Returns ``{"status": "idle"}`` (nothing pending), ``{"status": "debounced", "next_at_utc"}``,
+    ``{"status": "busy"}`` (another worker holds the evaluation lock) or
+    ``{"status": "ran", "classes": [...], "evaluation": <summary>}``.
     """
 
     from eurogas_nexus.db.models import OpportunityPendingInputRecord
 
     now = _aware(now_utc) or datetime.now(UTC)
+    if not session.query(OpportunityPendingInputRecord.input_class).first():
+        return {"status": "idle"}
+    if not evaluation_lock(session, wait=False):
+        return {"status": "busy"}
+    # Read under the lock: a run another worker just committed has cleared its classes and
+    # moved the debounce.
     pending = session.query(OpportunityPendingInputRecord).all()
     if not pending:
         return {"status": "idle"}

@@ -192,6 +192,26 @@ services:
       migrate:
         condition: service_completed_successfully
 
+  market-events-worker:
+    # The default trigger for targeted opportunity re-evaluation (M7): waits on PostgreSQL's
+    # market_events notice (sent at the commit of a price, FX, outage, contract or mark change),
+    # drains the outbox within about a second and runs the debounced full evaluation when one
+    # is due. It also drains every 15 s, so a lost notice costs latency, never an event; the
+    # scheduler's drain after each tick stays as the fallback sweep.
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    profiles: ["public-ingestion"]
+    restart: unless-stopped
+    environment: *runtime-environment
+    command:
+      - python
+      - scripts/ops/market_events.py
+      - listen
+      - --interval
+      - "15"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
   monitoring-worker:
     image: ${EUROGAS_NEXUS_API_IMAGE}
     profiles: ["monitoring"]
