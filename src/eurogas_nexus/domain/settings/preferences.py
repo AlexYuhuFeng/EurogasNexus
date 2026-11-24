@@ -47,6 +47,9 @@ PREFERENCE_VOCABULARY: dict[str, tuple[str, ...]] = {
     # Profit colour: green (Europe, Americas), red (China and much of Asia), or blue with
     # orange loss, the colour-vision friendly scheme (UX R1).
     "pnl_colors": ("green_up", "red_up", "blue_orange"),
+    # Row height (UX R11): comfortable 32 px rows, or compact 28 px for more rows above the
+    # fold. Only rows change; controls, type and spacing keep their sizes.
+    "density": ("comfortable", "compact"),
     # Times shown in: the device's zone, UTC, or the gas market's clock (CET/CEST). Instants are
     # stored and sent in UTC whatever this says; gas days are never shifted.
     "time_zone": ("device", "utc", "market"),
@@ -123,6 +126,7 @@ BUILT_IN_DEFAULTS: dict[str, str] = {
     "market_view": "overview",
     "market_board_layout": "board",
     "pnl_colors": "green_up",
+    "density": "comfortable",
     "time_zone": "device",
     "reporting_currency": "EUR",
     "energy_unit": "MWh",

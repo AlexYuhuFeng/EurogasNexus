@@ -39,6 +39,10 @@ const CHOICES: Record<ChoiceKey, { value: string; labelKey?: string; label?: str
     { value: "red_up", labelKey: "preferences.pnl_red_up" },
     { value: "blue_orange", labelKey: "preferences.pnl_blue_orange" },
   ],
+  density: [
+    { value: "comfortable", labelKey: "preferences.density.comfortable" },
+    { value: "compact", labelKey: "preferences.density.compact" },
+  ],
   time_zone: [
     { value: "device", labelKey: "preferences.time_zone.device" },
     { value: "utc", labelKey: "preferences.time_zone.utc" },
@@ -62,6 +66,7 @@ const LABEL_KEYS: Record<ChoiceKey, string> = {
   market_view: "settings.market_default_view",
   market_board_layout: "preferences.board_layout",
   pnl_colors: "preferences.pnl_colors",
+  density: "preferences.density",
   time_zone: "preferences.time_zone",
   reporting_currency: "preferences.reporting_currency",
   energy_unit: "preferences.energy_unit",
@@ -71,7 +76,7 @@ const LABEL_KEYS: Record<ChoiceKey, string> = {
   strip_quiet_line: "strip.pref.quiet_line",
 };
 
-const GENERAL_KEYS: ChoiceKey[] = ["language", "theme", "time_zone", "market_view", "market_board_layout", "pnl_colors"];
+const GENERAL_KEYS: ChoiceKey[] = ["language", "theme", "density", "time_zone", "market_view", "market_board_layout", "pnl_colors"];
 /** Currency and units (design basis G2): the secondary value beside native figures, never the price itself. */
 const DISPLAY_KEYS: ChoiceKey[] = ["reporting_currency", "energy_unit"];
 /** The situational strip's thresholds (role-first redesign §5.2), grouped under their own heading. */
@@ -85,6 +90,7 @@ const BUILT_IN: Record<ChoiceKey, string> = {
   market_view: "overview",
   market_board_layout: "board",
   pnl_colors: "green_up",
+  density: "comfortable",
   time_zone: "device",
   reporting_currency: "EUR",
   energy_unit: "MWh",

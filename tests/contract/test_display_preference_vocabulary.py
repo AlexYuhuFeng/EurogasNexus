@@ -35,3 +35,15 @@ def test_the_client_offers_exactly_the_servers_pnl_colour_conventions() -> None:
     block = re.search(r"PNL_COLOR_CONVENTIONS[^=]*=\s*\[([^\]]*)\]", pnl.read_text(encoding="utf-8"))
     assert block, "PNL_COLOR_CONVENTIONS not found in pnlColor.ts"
     assert re.findall(r'"([^"]+)"', block.group(1)) == list(PREFERENCE_VOCABULARY["pnl_colors"])
+
+
+def test_the_client_offers_exactly_the_servers_row_densities() -> None:
+    """The row density (UX R11) is a closed vocabulary on both sides."""
+
+    from eurogas_nexus.domain.settings.preferences import BUILT_IN_DEFAULTS, PREFERENCE_VOCABULARY
+
+    density = ROOT / "clients" / "web" / "src" / "app" / "model" / "density.ts"
+    block = re.search(r"DENSITIES[^=]*=\s*\[([^\]]*)\]", density.read_text(encoding="utf-8"))
+    assert block, "DENSITIES not found in density.ts"
+    assert re.findall(r'"([^"]+)"', block.group(1)) == list(PREFERENCE_VOCABULARY["density"])
+    assert BUILT_IN_DEFAULTS["density"] == "comfortable"

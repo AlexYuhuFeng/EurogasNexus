@@ -8,6 +8,8 @@ import {
 } from "@/app/context/viewPreference";
 import { resolveSignInPreferences } from "./preferenceResolution";
 import { applyPnlColorConvention, isPnlColorConvention } from "@/app/model/pnlColor";
+import { applyDensity, DENSITY_STORAGE_KEY, isDensity, readStoredDensity } from "@/app/model/density";
+import { useDensityStore } from "@/stores/density";
 import { TIME_ZONE_STORAGE_KEY, useTimePreferenceStore } from "@/stores/timePreference";
 import { isTimeZonePreference } from "@/app/time/timeFormat";
 import { useDisplayPreferenceStore } from "@/stores/displayPreference";
@@ -35,6 +37,11 @@ export function applyStoredPnlColors(): void {
   } catch {
     applyPnlColorConvention("green_up");
   }
+}
+
+/** Apply the stored row density before the server answers (called at start-up). */
+export function applyStoredDensity(): void {
+  applyDensity(readStoredDensity());
 }
 
 export function writeLocalPnlColors(convention: string): void {
@@ -73,6 +80,7 @@ export async function applyEffectivePreferences(
   writeMarketViewPreference(principalId, normalizeMarketViewPreference(effective.market_view));
   writeBoardLayout(effective.market_board_layout);
   writeLocalPnlColors(effective.pnl_colors);
+  useDensityStore.getState().setDensity(effective.density ?? "comfortable");
   if (isTimeZonePreference(effective.time_zone)) useTimePreferenceStore.getState().setPreference(effective.time_zone);
   useDisplayPreferenceStore.getState().setDisplayPreference({
     reportingCurrency: effective.reporting_currency,
@@ -95,6 +103,8 @@ function locallyChosen(principalId: string): Partial<Record<PreferenceKey, strin
     if (layout === "board" || layout === "ladder") chosen.market_board_layout = layout;
     const pnl = window.localStorage.getItem(PNL_COLORS_STORAGE_KEY);
     if (isPnlColorConvention(pnl)) chosen.pnl_colors = pnl;
+    const density = window.localStorage.getItem(DENSITY_STORAGE_KEY);
+    if (isDensity(density)) chosen.density = density;
     const zone = window.localStorage.getItem(TIME_ZONE_STORAGE_KEY);
     if (isTimeZonePreference(zone)) chosen.time_zone = zone;
   } catch {

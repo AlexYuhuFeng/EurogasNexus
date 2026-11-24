@@ -3353,6 +3353,8 @@ export type PreferenceKey =
   | "market_view"
   | "market_board_layout"
   | "pnl_colors"
+  // Row height: comfortable | compact (app/model/density.ts, UX R11).
+  | "density"
   // Times shown in: device | utc | market (app/time/timeFormat.ts).
   | "time_zone"
   // The secondary value beside a native figure and totals across currencies

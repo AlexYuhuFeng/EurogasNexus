@@ -5,6 +5,9 @@ import type { ThemeMode } from "@/stores/theme";
 import { LOCALES } from "@/i18n/locales";
 import { isShortcutHelpKey, KeyboardShortcutsDialog } from "./KeyboardShortcutsDialog";
 import { showsKeyboardHints, useShellLayout } from "@/app/shell/useShellLayout";
+import { DENSITIES } from "@/app/model/density";
+import { useDensityStore } from "@/stores/density";
+import { saveRemotePreference } from "@/app/preferences/remotePreferences";
 
 /** "Jane Smith" → "JS"; a single name gives its first two letters. */
 export function accountInitials(name: string): string {
@@ -57,6 +60,7 @@ export function HeaderPreferencesMenu({
   const [open, setOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const keyboardHints = showsKeyboardHints(useShellLayout());
+  const density = useDensityStore((state) => state.density);
   const displayName = currentUser.display_name ?? currentUser.name;
   const closeShortcuts = useCallback(() => setShortcutsOpen(false), []);
 
@@ -210,6 +214,27 @@ export function HeaderPreferencesMenu({
                 onClick={() => select(() => onModeChange(themeMode))}
               >
                 {t(`theme.${themeMode}`)}
+              </button>
+            ))}
+          </div>
+
+          <div className="topbar-menu-group" role="group" aria-label={t("preferences.density")}>
+            <span className="topbar-menu-group-label">{t("preferences.density")}</span>
+            {DENSITIES.map((choice) => (
+              <button
+                key={choice}
+                type="button"
+                role="menuitemradio"
+                aria-checked={density === choice}
+                data-density-choice={choice}
+                onClick={() =>
+                  select(() => {
+                    useDensityStore.getState().setDensity(choice);
+                    saveRemotePreference("density", choice);
+                  })
+                }
+              >
+                {t(`preferences.density.${choice}`)}
               </button>
             ))}
           </div>

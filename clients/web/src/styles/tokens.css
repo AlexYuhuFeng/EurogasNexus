@@ -358,6 +358,13 @@
 }
 
 /* Chinese at the same sizes, with 2 px more line height. */
+/* Row density (UX R11, app/model/density.ts): compact rows for more prices above the fold.
+   Only the row heights move; controls, type, spacing and touch targets stay where they are. */
+:root[data-density="compact"] {
+  --ds-row: 28px;
+  --ds-row-header: 24px;
+}
+
 :root:lang(zh),
 :root:lang(zh-CN) {
   --ds-line-xs: 18px;
