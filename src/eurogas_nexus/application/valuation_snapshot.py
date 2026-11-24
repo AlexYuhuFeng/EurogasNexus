@@ -12,8 +12,9 @@ For an evaluation instant it reads, on request and once per key:
   spot-only :class:`SpotEcbFx` labels a forward period converted at spot ``indicative``;
 - **rates** (the currency's overnight benchmark), **tariffs** (published FINAL ``sourced``,
   INDICATIVE ``indicative``, demo rows ``simulated`` on a demo desk only), **capacity**,
-  **outages** (REMIT), the firm's **approved assumption set** in force (``assumption``) and
-  the **book** (approved hedge bands and the cover held).
+  **outages** (REMIT), the firm's **approved assumption set** in force (``assumption``; with
+  a book, that book's own approved set first, else the firm-wide one) and the **book**
+  (approved hedge bands and the cover held).
 
 Everything read is recorded with class, source family, reference and as-of; the manifest is
 persisted by :func:`freeze_snapshot` and a :class:`~eurogas_nexus.domain.valuation.snapshot.
@@ -294,6 +295,7 @@ class LiveSnapshotReader(RecordingReader):
         self._assumption = assumption
         self._hedge_cover_loader = hedge_cover_loader
         self._book_reads = book_reads
+        self._book_sets: dict[str, tuple[str, Any] | None] = {}
         self._naive = session.get_bind().dialect.name == "sqlite"
 
     def _bound(self, moment: datetime) -> datetime:
@@ -717,9 +719,36 @@ class LiveSnapshotReader(RecordingReader):
 
     # ---- assumptions and book
     def _load_assumption(self, key, catalogue_key) -> SnapshotInput:
-        if self._assumption is None:
+        return self._assumption_input(key, catalogue_key, self._assumption)
+
+    def _load_book_assumption(self, key, catalogue_key, book_id) -> SnapshotInput:
+        """The book's own approved set in force, never the firm-wide one (the caller of
+        :meth:`assumption` falls back to that)."""
+
+        if book_id not in self._book_sets:
+            from eurogas_nexus.db.repositories.commercial_assumptions import (
+                resolve_assumption_version,
+            )
+
+            resolved = resolve_assumption_version(
+                self.session, day=self.as_of_utc.date(), book_id=book_id
+            )
+            # Without a set of its own the repository answers the organisation's set.
+            own = resolved is not None and resolved[1].book_id == book_id
+            self._book_sets[book_id] = resolved if own else None
+        resolved = self._book_sets[book_id]
+        if resolved is None:
+            return missing(
+                key, InputKind.ASSUMPTION, catalogue_key, reason="no book set", book_id=book_id
+            )
+        return self._assumption_input(key, catalogue_key, resolved, book_id=book_id)
+
+    def _assumption_input(
+        self, key, catalogue_key, resolved, *, book_id: str | None = None
+    ) -> SnapshotInput:
+        if resolved is None:
             return missing(key, InputKind.ASSUMPTION, catalogue_key, reason="no approved set")
-        version_id, version = self._assumption
+        version_id, version = resolved
         value = version.value(catalogue_key)
         if value is None:
             return missing(
@@ -729,6 +758,7 @@ class LiveSnapshotReader(RecordingReader):
                 reason="not in the approved set",
                 set_id=version.set_id,
                 version=version.version,
+                book_id=book_id,
             )
         return SnapshotInput(
             key=key,
@@ -751,6 +781,7 @@ class LiveSnapshotReader(RecordingReader):
                 "range_low": None if value.range_low is None else str(value.range_low),
                 "range_high": None if value.range_high is None else str(value.range_high),
                 "origin": "firm_set",
+                "book_id": book_id,
             },
         )
 
@@ -848,6 +879,7 @@ class LiveSnapshotReader(RecordingReader):
             if (
                 row.get("sale_price_simulated")
                 or row.get("contract_cost_simulated")
+                or row.get("lines_simulated")
                 or _is_simulated(row.get("source_system"), None)
             ):
                 return InputClass.SIMULATED
@@ -1024,7 +1056,7 @@ def open_valuation_snapshot(
         fx_source=fx_source or ForwardFx(demo_desk=demo, caller=caller),
         assumption=assumption,
         hedge_cover_loader=lambda: hedge_cover_rows(caller, moment.date()),
-        book_reads=BookReads(caller, moment.date()),
+        book_reads=BookReads(caller, moment.date(), as_of_utc=moment),
     )
 
 

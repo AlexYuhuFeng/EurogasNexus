@@ -329,3 +329,48 @@ def test_a_frozen_snapshot_replays_to_identical_figures(session) -> None:
     for item in manifest.inputs:
         full._get(item.key, lambda: None)  # noqa: SLF001 - read every recorded key back
     assert full.manifest(manifest.snapshot_id).digest() == manifest.digest()
+
+
+def test_a_book_reads_its_own_approved_set_and_falls_back_to_the_firm_wide_one(session) -> None:
+    """P-11: a book-owned set answers for its book; any other book, and a key the book's set
+    does not hold, read the firm-wide set; the book's read replays from the snapshot."""
+
+    yesterday = AS_OF - timedelta(hours=20)
+    own = create_assumption_set(
+        session, name="Book A", book_id="book-a", description="", actor="trader",
+        now_utc=yesterday,
+    )
+    create_assumption_version(
+        session,
+        set_id=own["set_id"],
+        values=[validate_assumption_value("capacity.load_factor", 80)],
+        effective_from=date(2026, 10, 1),
+        effective_to=None,
+        note="",
+        actor="trader",
+        now_utc=yesterday,
+    )
+    approve_assumption_version(session, set_id=own["set_id"], version=1, actor="risk",
+                               now_utc=yesterday)
+    session.commit()
+
+    reader = open_valuation_snapshot(
+        session, caller=_caller(("*",)), as_of_utc=AS_OF, demo_desk=False
+    )
+    firm = reader.assumption("capacity.load_factor")
+    assert firm.value == Decimal("100") and firm.detail["book_id"] is None
+    mine = reader.assumption("capacity.load_factor", "book-a")
+    assert mine.value == Decimal("80") and mine.detail["book_id"] == "book-a"
+    assert mine.key == "assumption:capacity.load_factor@book:book-a"
+    assert mine.detail["set_name"] == "Book A"
+    # Another book has no set of its own: the firm-wide value, not book A's.
+    assert reader.assumption("capacity.load_factor", "book-b").value == Decimal("100")
+    # Book A's set does not hold the key: the firm-wide set answers (here: nothing).
+    assert reader.assumption("financing.rate", "book-a").input_class is InputClass.MISSING
+
+    manifest = freeze_snapshot(session, reader, purpose="test", created_by="tester")
+    session.commit()
+    replay = replay_snapshot(session, manifest.snapshot_id)
+    assert replay.assumption("capacity.load_factor", "book-a").value == Decimal("80")
+    assert replay.assumption("capacity.load_factor", "book-b").value == Decimal("100")
+    assert replay.replay_misses == []

@@ -187,9 +187,21 @@ def outages_key(zone: str, period: DeliveryPeriod) -> str:
 
 
 def assumption_key(key: str) -> str:
-    """``assumption:<catalogue key>``."""
+    """``assumption:<catalogue key>``: the firm-wide approved set's value."""
 
     return f"assumption:{key}"
+
+
+def book_assumption_key(key: str, book_id: str) -> str:
+    """``assumption:<catalogue key>@book:<book id>``: the value of the book's own approved set."""
+
+    return f"assumption:{key}@book:{book_id}"
+
+
+def catalogue_key_of(item: SnapshotInput) -> str:
+    """The catalogue key an assumption input carries, firm-wide or book-scoped."""
+
+    return item.key.split(":", 1)[1].split("@book:", 1)[0]
 
 
 HEDGE_COVER_KEY = "book:hedge-cover"
@@ -239,6 +251,10 @@ def dependency_key(item: SnapshotInput) -> str | None:
     if item.kind is InputKind.OUTAGE:
         message = item.detail.get("message_id")
         return f"outage:{message}" if message else None
+    if item.kind is InputKind.ASSUMPTION and item.key.startswith("assumption:"):
+        # An edit publishes ``assumption:<key>`` whichever set it is in, so a book's own
+        # value depends on the same key as the firm-wide one.
+        return assumption_key(catalogue_key_of(item))
     return item.key
 
 
@@ -277,8 +293,13 @@ class SnapshotReader(Protocol):
     def outages(self, zone: str, period: DeliveryPeriod) -> tuple[SnapshotInput, ...]:
         """Unavailability events in a balancing zone overlapping the period."""
 
-    def assumption(self, key: str) -> SnapshotInput:
-        """A value of the firm's approved assumption set in force."""
+    def assumption(self, key: str, book_id: str | None = None) -> SnapshotInput:
+        """A value of the approved assumption set in force.
+
+        With ``book_id``: the book's own approved set when it holds the key, else the
+        firm-wide set (the same fallback as the gas day's cash-out rate). Without: the
+        firm-wide set.
+        """
 
     def hedge_cover(self) -> tuple[SnapshotInput, ...]:
         """Approved hedge bands and the cover held, per contract and month."""
@@ -377,7 +398,13 @@ class RecordingReader:
             key, InputKind.OUTAGE, lambda: self._load_outages(zone.upper(), period)
         )
 
-    def assumption(self, key: str) -> SnapshotInput:
+    def assumption(self, key: str, book_id: str | None = None) -> SnapshotInput:
+        if book_id:
+            # The book's own read is recorded held or missing, so a replay answers it too.
+            scoped = book_assumption_key(key, book_id)
+            item = self._get(scoped, lambda: self._load_book_assumption(scoped, key, book_id))
+            if item.held:
+                return item
         full = assumption_key(key)
         return self._get(full, lambda: self._load_assumption(full, key))
 
@@ -422,6 +449,9 @@ class RecordingReader:
 
     def _load_assumption(self, key, catalogue_key) -> SnapshotInput:
         return missing(key, InputKind.ASSUMPTION, catalogue_key)
+
+    def _load_book_assumption(self, key, catalogue_key, book_id) -> SnapshotInput:
+        return missing(key, InputKind.ASSUMPTION, catalogue_key, book_id=book_id)
 
     def _load_hedge_cover(self) -> list[SnapshotInput]:
         return []
