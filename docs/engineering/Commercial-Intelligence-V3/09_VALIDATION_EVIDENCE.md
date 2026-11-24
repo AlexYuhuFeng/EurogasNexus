@@ -82,6 +82,20 @@ because no stored opportunity reads those keys. A second capture writes nothing.
 
 M5 full suite (SQLite, `python -m pytest -q tests`, 2026-11-24): 7,049 passed, 241 skipped, 0 failed in 38 min 27 s.
 
+## M5b, M6 and LNG-1 (2026-11-24)
+
+| Run | Command | Result |
+| --- | --- | --- |
+| M5b desk capture and outbox | `pytest tests/integration/test_desk_event_capture.py tests/integration/test_market_event*.py tests/domain/test_market_events_model.py` | passed (part of the 141 below) |
+| M6 alerts and freshness | `pytest tests/integration/test_feed_and_outbox_alerts.py` plus dataops, scheduler and freshness suites | 141 passed; monitoring suite 112 passed |
+| PostgreSQL 16 | `RUNTIME_STORE_DATABASE_URL=postgresql+pg8000://... pytest tests/db tests/integration/test_market_event*.py` after `alembic upgrade head`, `downgrade -1`, `upgrade head` to 0078 | 137 passed, 2 skipped |
+| LNG-1 domain, API, SDK | `pytest tests/domain/test_lng_in_transit.py tests/api/test_lng_cargo_plan_api.py tests/sdk/test_lng_cargo_plan_client.py` | 12 + 5 + 2 passed |
+| Contract, security, release, SDK | `pytest tests/contract tests/security tests/release tests/sdk` | 1,873 passed, 35 skipped |
+| Affected suites (migrations, outbox, LNG, db) | as listed in 10 | 1,921 passed after the census and reachability fixes |
+| Web client types | `npx tsc --noEmit -p clients/web` | clean |
+| Lint | `ruff check .` | clean |
+| API census | `app.openapi()` | 282 paths / 315 operations (+4 / +4) |
+
 ## Targeted re-evaluation, shown on the demo desk
 
 With `scripts/demo/seed_demo_desk.py` seeded (37 `hedge_gap` and 3 `sell_down`
@@ -93,7 +107,7 @@ opportunities), one `price.updated` event for `hub:TTF:2026-11-18` re-runs only
 ## Not yet evidenced
 
 - Throughput and latency under sustained load: no load test yet (planned with M6).
-- Contract and assumption edits as events (M5b); live quotes are not captured (R14).
+- Live quotes are not captured (R14, accepted). The cargo plan has no screen yet.
 - CI on GitHub for the branch: `ci.yml` runs on pushes to `main` and on pull requests
   only, so pushing this branch starts no CI run. It runs if a pull request is opened, or by
   hand through `workflow_dispatch`.

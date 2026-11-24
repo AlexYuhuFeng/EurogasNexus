@@ -54,13 +54,19 @@ the outbox over a broker. Evidence: [09_VALIDATION_EVIDENCE.md](09_VALIDATION_EV
 
 ## What comes next
 
-M5 is built: settlements, FX fixings and REMIT messages now publish events through change
-capture, so a settlement correction re-runs only the opportunities that use it, and the
-scheduled evaluation no longer loses a change noted while it runs.
+M5, M5b, M6 and LNG-1 are built. Settlements, FX fixings, REMIT messages and desk edits
+publish events, so a change re-runs only the results that use it; stale feeds, dead letters
+and lag raise alerts; and an LNG cargo in transit is followed as one plan from its ETA to
+the hedge months, so a schedule change says which months gained or lost gas and what to
+roll ([12](12_LNG_CARGO_IN_TRANSIT.md)).
 
-1. Contract and assumption edits publish events (M5b).
-2. Turn outbox staleness and dead letters into monitoring alerts (M6).
-3. Route the new engine's opportunities to alerts and retire the legacy intraday engine (M7).
-4. Take-or-pay obligations in the contract model (M8).
+On 2026-11-24 the user asked for a written commercial standard and hands-on testing per
+role. [11](11_COMMERCIAL_QUALITY_STANDARD.md) is that standard;
+[13](13_PERSONA_AND_PRACTICE_REVIEW.md) holds the review findings against it.
+
+1. Review every surface against the standard in a real browser, per role (Q1).
+2. Fix the control and data blockers the review found (F1).
+3. Desk polish, SDK documentation, public tariffs, news and the map.
+4. Route the new engine's opportunities to alerts and the page; retire the legacy engine (M7).
 
 Roadmap: [05_IMPLEMENTATION_ROADMAP.md](05_IMPLEMENTATION_ROADMAP.md).

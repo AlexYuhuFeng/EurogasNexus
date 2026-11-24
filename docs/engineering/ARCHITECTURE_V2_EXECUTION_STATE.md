@@ -6,6 +6,20 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-24 — Commercial Intelligence V3, M5b, M6 and LNG-1 (branch `innovation/continuous-commercial-intelligence`)
+
+- M5b: contract, hedge-band and assumption edits publish `contract.changed` and
+  `assumption.changed` (digests only, captured at save time); a later publication returning
+  to earlier content is a revision.
+- M6: stale feeds, dead letters and outbox lag raise monitoring alerts, one per condition,
+  cleared on recovery; source freshness ages with the clock.
+- LNG-1: a cargo in transit as one plan from ETA to hedge months (`domain/lng/in_transit.py`,
+  `application/lng_in_transit.py`), migration `0078_lng_cargo_hedges` (ADR Decision 29),
+  `cargo.changed` events, four routes under `/api/lng/cargoes` (census 282 / 315), SDK module
+  `lng_cargo_plan`, web client transport. No screen yet.
+- Programme documents 11 (commercial quality standard), 12 (cargo in transit) and 13
+  (persona and practice review) added.
+
 ## 2026-11-24 — Commercial Intelligence V3, M5: price, FX and outage events (branch `innovation/continuous-commercial-intelligence`)
 
 - `application/market_event_capture.py` publishes `price.updated` (settlements mapped to a

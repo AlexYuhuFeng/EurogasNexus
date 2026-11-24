@@ -674,3 +674,26 @@ fixings (`fx:<BASE><QUOTE>`) and REMIT messages (`outage:<message id>`, versions
 revisions) after each scheduler cycle and inside the settlement and FX importers' own
 transaction. Held content writes nothing. The consumer widens a EUR fixing to stored cross
 pairs. Tests: `tests/integration/test_market_event_capture.py`.
+
+M5b and M6 (2026-11-24): desk edits (contracts, hedge bands, assumption versions) publish
+digests captured from the store at save time; a later publication returning to earlier
+content is a revision. Monitoring raises one alert per stale source, dead letter and lag
+condition and clears it on recovery. Tests: `tests/integration/test_desk_event_capture.py`,
+`tests/integration/test_feed_and_outbox_alerts.py`.
+
+## Decision 29: Hedges against an LNG cargo are recorded by the desk, never placed
+
+Accepted 2026-11-24 (branch `innovation/continuous-commercial-intelligence`, programme
+[Commercial Intelligence V3](../engineering/Commercial-Intelligence-V3/12_LNG_CARGO_IN_TRANSIT.md)).
+A cargo in transit is planned as one chain from ETA to hedge months, and the plan needs to
+know which hedges cover which cargo. Trades by hub and month cannot say that, so the desk
+records the legs against the cargo: migration `0078_lng_cargo_hedges` (`lng_cargo_hedges`:
+cargo, hub, delivery month, signed MWh, reference, who and when, retired by and when).
+Replacing a set retires the old rows rather than deleting them, the change is audited, and
+a `cargo.changed` market event carries the plan inputs (ETA, departure, energy, slot,
+hedges; not vessel positions) so the plan before any change can be rebuilt and compared.
+Exposure is allocated by the terminal's send-out profile by gas day, not by arrival date.
+The platform suggests rolls, sales, buy-backs and short-notice cover; it places nothing
+(AGENTS.md rule 8). Matching recorded legs to ETRM trades is left for the integration layer.
+Tests: `tests/domain/test_lng_in_transit.py`, `tests/api/test_lng_cargo_plan_api.py`,
+`tests/sdk/test_lng_cargo_plan_client.py`.
