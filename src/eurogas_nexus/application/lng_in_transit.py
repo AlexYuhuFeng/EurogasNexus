@@ -547,12 +547,21 @@ def cargo_plan(
     checked = _contract_check(contract, _aware(row.eta_utc))
     if checked is not None:
         checked["mspa"] = _mspa_terms(session, contract)
+    from datetime import timedelta
+
+    from eurogas_nexus.application.lng_cargo_alerts import messages_for_reader
+
     return {
         "cargo": summary,
         "inputs": sources,
         "plan": plan.as_dict(),
         "contract": checked,
         "last_change": last_change,
+        # LNG-2: what each role was told about the cargo's changes, open or withdrawn in the
+        # last day, as the caller may see them (additive).
+        "roles": messages_for_reader(
+            session, cargo_id=cargo_id, withdrawn_since=moment - timedelta(days=1)
+        ),
         "hedges": _hedge_legs(hedges),
         "slot_options": _slot_options(session, row, moment),
         "as_of_utc": moment.isoformat(),
@@ -585,6 +594,22 @@ def send_out_plan(session, cargo_id: str, *, now: datetime | None = None
         else contract[1].boil_off_pct_per_day,
     )
     return build_plan(cargo, now=moment), (None if cargo.slot is None else cargo.slot.slot_id)
+
+
+def plan_of_state(session, cargo_id: str, state: dict[str, Any], *, now: datetime
+                  ) -> tuple[CargoInTransit, CargoPlan]:
+    """The plan of one recorded cargo state (a ``cargo.changed`` payload), with the cargo
+    contract's boil-off when one names the cargo: how the plan before or after a change is
+    rebuilt (LNG-2). Raises :class:`CargoPlanError` when the state cannot be planned."""
+
+    moment = _aware(now) or datetime.now(UTC)
+    contract = _cargo_contract(session, cargo_id)
+    cargo, _sources = _inputs(
+        session, state, now=moment,
+        contract_boil_off=None if contract is None or contract[1] is None
+        else contract[1].boil_off_pct_per_day,
+    )
+    return cargo, build_plan(cargo, now=moment)
 
 
 def what_if(session, cargo_id: str, changes: dict[str, Any], *, now: datetime | None = None):
@@ -646,6 +671,14 @@ def cargo_plans(session, *, now: datetime | None = None) -> list[dict[str, Any]]
         .order_by(LngCargoRecord.eta_utc)
         .all()
     )
+    from eurogas_nexus.application.lng_cargo_alerts import messages_for_reader
+
+    attention: dict[str, list[dict[str, Any]]] = {}
+    for message in messages_for_reader(session):
+        attention.setdefault(message["cargo_id"], []).append(
+            {key: message[key] for key in ("alert_id", "role", "severity", "title", "title_zh",
+                                           "due_utc", "mine", "updated_at_utc")}
+        )
     board = []
     for row in rows:
         if allowed is not None and row.book_id not in allowed:
@@ -671,6 +704,8 @@ def cargo_plans(session, *, now: datetime | None = None) -> list[dict[str, Any]]
             (item for item in built["plan"]["suggestions"] if item["kind"] == "deadline"), None
         )
         line["months"] = built["plan"]["months"]
+        # LNG-2: the open messages a change raised for each role (additive).
+        line["attention"] = attention.get(row.cargo_id, [])
         board.append(line)
     return board
 

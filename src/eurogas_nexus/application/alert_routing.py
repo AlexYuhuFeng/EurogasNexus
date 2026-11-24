@@ -13,6 +13,13 @@ had. Dedupe, materiality and cooldown are unchanged: the outbox writes each aler
 (``notifications.queue_notification``), the opportunity engine cuts a new version only on a
 material change, and a failed delivery is retried at most three times, five minutes apart.
 
+A change to one of the firm's cargoes (LNG-2, ``application/lng_cargo_alerts``) raises up to
+four alerts, one per role, each in the category its readers already subscribe to: the hedge
+proposal to the LNG desk (``cargo``), the berth, send-out and nominations to scheduling
+(``nomination``), the exposure and mandates to risk (``limits``), and a material change to the
+desk head (``desk_head``). Those alerts are notified by their consumer, with its own dedupe,
+cooldown and withdrawal (:data:`SELF_NOTIFYING`), not by the alert mirror.
+
 The full table, with the routes still missing, is in
 ``docs/engineering/Commercial-Intelligence-V3/15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md``.
 """
@@ -42,7 +49,24 @@ ROUTES: dict[str, Route] = {
     "fundamentals": Route("alert", "HQ_BUSINESS_ANALYST", "TRADER"),
     "strategy": Route("alert", "QUANT_RESEARCHER", "TRADER"),
     "data_source": Route("source", "DATA_OPERATOR", "PLATFORM_ADMINISTRATOR"),
+    # LNG-2: one cargo change, one alert per role.
+    "lng_hedge": Route("cargo", "TRADER", "MANAGEMENT"),
+    "lng_schedule": Route("nomination", "OPERATIONS", "TRADER"),
+    "lng_exposure": Route("limits", "RISK_MANAGER", "MANAGEMENT"),
+    "lng_material": Route("desk_head", "MANAGEMENT", "MANAGEMENT"),
 }
+
+#: The cargo roles (``domain.lng.consequences.ROLES``) and the alert category of each.
+CARGO_ROLE_CATEGORIES: dict[str, str] = {
+    "trader": "lng_hedge",
+    "scheduler": "lng_schedule",
+    "risk": "lng_exposure",
+    "desk_head": "lng_material",
+}
+
+#: Alert categories whose consumer queues their notifications (dedupe, cooldown, withdrawal):
+#: the alert mirror leaves them alone and the monitoring scan does not resolve them.
+SELF_NOTIFYING = frozenset(CARGO_ROLE_CATEGORIES.values())
 
 #: Gas-day steps due or overdue (``gas_day_checklist.queue_deadline_notifications``).
 NOMINATION_DEADLINE = Route("nomination", "OPERATIONS", "TRADER")
@@ -67,4 +91,6 @@ def addressed_line(route: Route) -> str:
 
     owner = route.owner.replace("_", " ").title()
     escalation = route.escalation.replace("_", " ").title()
+    if route.owner == route.escalation:
+        return f"For: {owner}."
     return f"For: {owner}. If not acted on: {escalation}."

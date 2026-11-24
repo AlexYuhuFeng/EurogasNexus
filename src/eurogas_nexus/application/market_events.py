@@ -21,6 +21,10 @@ evaluators whose stored opportunities read one of those keys (``opportunity_depe
 trigger ``outbox``). Discovery of *new* opportunities stays with CP-13's debounced full
 evaluation, which every on-write path and every ingestion already marks due; an event without
 dependency keys is therefore not delivered to this consumer.
+
+``cargo_roles`` (``application/lng_cargo_alerts.CargoChangeConsumer``, LNG-2): each
+``cargo.changed`` event rebuilds the cargo's plan and raises, updates or withdraws the
+trader's, scheduler's, risk's and (when material) the desk head's alert and notification.
 """
 
 from __future__ import annotations
@@ -809,6 +813,11 @@ def _ensure_builtin() -> None:
     _BUILTIN_REGISTERED = True
     if OpportunityImpactConsumer.name not in _CONSUMERS:
         _CONSUMERS[OpportunityImpactConsumer.name] = OpportunityImpactConsumer()
+    # LNG-2: a cargo change reaches each role (``application/lng_cargo_alerts.py``).
+    from eurogas_nexus.application.lng_cargo_alerts import CONSUMER_NAME, CargoChangeConsumer
+
+    if CONSUMER_NAME not in _CONSUMERS:
+        _CONSUMERS[CONSUMER_NAME] = CargoChangeConsumer()
 
 
 __all__ = [

@@ -39,6 +39,9 @@ CATEGORIES = (
     "report",
     "opportunity",
     "nomination",
+    # LNG-2: a cargo change's hedge proposal (the LNG desk) and its material escalation.
+    "cargo",
+    "desk_head",
 )
 KINDS = ("email",)
 MAX_ATTEMPTS = 3
@@ -105,9 +108,10 @@ def queue_notification(
 
 
 def mirror_monitoring_alerts(session, *, now: datetime) -> int:
-    """Queue every open monitoring alert once (keyed by alert id)."""
+    """Queue every open monitoring alert once (keyed by alert id), except those their
+    consumer notifies (``alert_routing.SELF_NOTIFYING``)."""
 
-    from eurogas_nexus.application.alert_routing import addressed_line, route_for
+    from eurogas_nexus.application.alert_routing import SELF_NOTIFYING, addressed_line, route_for
     from eurogas_nexus.db.models import MonitoringAlertRecord
 
     queued = 0
@@ -117,6 +121,8 @@ def mirror_monitoring_alerts(session, *, now: datetime) -> int:
         .filter(MonitoringAlertRecord.acknowledged_at_utc.is_(None))
         .all()
     ):
+        if alert.category in SELF_NOTIFYING:
+            continue  # notified by its consumer, with its own cooldown and withdrawal
         route = route_for(alert.category)
         queued += queue_notification(
             session,

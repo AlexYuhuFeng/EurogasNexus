@@ -86,6 +86,17 @@ def scan_monitoring_conditions(
             .filter(MonitoringAlertRecord.resolved_at_utc.is_(None))
             .all()
         }
+    # Alerts raised by an event consumer (LNG-2 cargo changes) are opened, updated and
+    # withdrawn by that consumer; a scan that does not compute them must not resolve them.
+    from eurogas_nexus.application.alert_routing import SELF_NOTIFYING
+
+    active_fingerprints |= {
+        fingerprint
+        for (fingerprint,) in session.query(MonitoringAlertRecord.fingerprint)
+        .filter(MonitoringAlertRecord.category.in_(sorted(SELF_NOTIFYING)))
+        .filter(MonitoringAlertRecord.resolved_at_utc.is_(None))
+        .all()
+    }
     rows = [
         upsert_monitoring_alert(session, candidate, now_utc=now)
         for candidate in candidates

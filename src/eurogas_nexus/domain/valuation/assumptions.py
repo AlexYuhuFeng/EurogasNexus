@@ -150,6 +150,14 @@ ASSUMPTION_CATALOGUE: dict[str, AssumptionSpec] = {
         _spec("lng.insurance", "Cargo insurance", "%", "0", "2", "cargo"),
         _spec("lng.fob_slope", "FOB formula slope", "x HH", "0", "3", "cargo"),
         _spec("lng.fob_fee", "FOB formula constant", "{ccy}/MMBtu", "-5", "10", "cargo"),
+        _spec(
+            "lng.material_change_mwh",
+            "A cargo change reaches the desk head from this size",
+            "MWh",
+            "0",
+            "10000000",
+            "cargo",
+        ),
     )
 }
 

@@ -1471,6 +1471,7 @@ def _needs_me(
 
     Order (E.2): must-act opportunities, unplanned outages touching the book or the focus hubs,
     limit alerts with the credit and mandate findings, then the best "could act" opportunity.
+    A nomination due soon and a critical cargo change for the caller's role (LNG-2) come first.
     Opportunities and credit or mandate findings come from the role-aware discovery read
     (CP-24, ``application/discovery.py``), ranked for the caller's first job function and
     phrased in English and Chinese from the same evidence; every read inside it runs under
@@ -1517,6 +1518,19 @@ def _needs_me(
     nominations = needs_me_items(checklist or {})
     items += [item for item in nominations if item["urgency"] in {"due_soon", "overdue"}]
     later += [item for item in nominations if item["urgency"] not in {"due_soon", "overdue"}]
+    # LNG-2: a cargo change's message for the caller's own role (trader, scheduler, risk, desk
+    # head); a critical one sits with the time-critical items, the rest with the limits.
+    try:
+        from eurogas_nexus.application import lng_cargo_alerts
+
+        cargo = lng_cargo_alerts.needs_me_items(
+            session, getattr(caller.principal, "job_functions", ()) or (), now=now
+        )
+    except Exception as exc:  # noqa: BLE001 - no alert store: the other kinds stand
+        read.warnings.append(f"cargo changes: not available ({exc.__class__.__name__})")
+        cargo = []
+    items += [item for item in cargo if item["status"] == "breach"]
+    later += [item for item in cargo if item["status"] != "breach"]
     items += urgent
     items += signals
     held = {hub.upper() for hub in book.positions}

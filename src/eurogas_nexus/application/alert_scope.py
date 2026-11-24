@@ -3,8 +3,9 @@
 Most alerts are about the market (outages, spreads, feeds) and every user sees them. Two
 kinds are narrower:
 
-- A limits alert (credit, mandate) names a counterparty's or a trader's position, and a
-  delivery-shortfall alert a contract's book, so with portfolio isolation on each is shown
+- A limits alert (credit, mandate) names a counterparty's or a trader's position, a
+  delivery-shortfall alert a contract's book, and a cargo change's alerts (LNG-2) the cargo's
+  book, so with portfolio isolation on each is shown
   only to callers who can see every book behind it. With isolation off, or for head office
   (``BOOKS:*``), every such alert is visible.
 - A market alert built from a price (the price-move alert, gap G3 of the role-first redesign)
@@ -23,7 +24,9 @@ from contextvars import ContextVar
 from typing import Any
 
 #: Alert categories that carry book-level figures.
-BOOK_SCOPED_CATEGORIES = frozenset({"limits", "delivery"})
+BOOK_SCOPED_CATEGORIES = frozenset(
+    {"limits", "delivery", "lng_hedge", "lng_schedule", "lng_exposure", "lng_material"}
+)
 #: Alert categories that carry a price and name its source system in the evidence.
 SOURCE_SCOPED_CATEGORIES = frozenset({"market", "fundamentals"})
 #: Alerts about one opportunity of the opportunity engine.
@@ -37,6 +40,12 @@ def set_request_principal(principal: Any) -> None:
     """Called by the identity dependency for every request (``None`` without a principal)."""
 
     _request_principal.set(principal)
+
+
+def request_principal() -> Any:
+    """The current request's principal (``None`` outside a request)."""
+
+    return _request_principal.get()
 
 
 def _source_allowed(principal: Any, source_system: str) -> bool:
