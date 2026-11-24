@@ -90,7 +90,8 @@
   }
 
   .today-figure:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 
@@ -216,7 +217,8 @@
   }
 
   .today-stale-trigger:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 
@@ -251,7 +253,8 @@
   }
 
   .today-stale-item:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 

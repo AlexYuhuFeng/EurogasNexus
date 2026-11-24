@@ -125,7 +125,8 @@
   }
 
   :focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 }
@@ -2639,7 +2640,8 @@
   .map-summary-card:hover,
   .map-summary-card:focus-visible {
     border-color: var(--ds-accent);
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
   }
 
   /* Detail tier: figures beside each asset, quieter than a card. */
@@ -4255,7 +4257,8 @@
   }
 
   .topbar-brand-menu:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 
@@ -4484,5 +4487,38 @@
     color: var(--ds-text-2);
     font-size: var(--ds-text-sm);
     line-height: var(--ds-line-sm);
+  }
+}
+
+/* Windows High Contrast and other forced-colour modes (MDN: small, targeted tweaks, not a second
+   design). Box-shadow is removed there, so anything drawn with one gets a system-colour
+   border or outline instead; the focus outline itself comes from --ds-focus-outline. */
+@layer ds-components {
+  @media (forced-colors: active) {
+    :focus-visible {
+      outline-color: Highlight;
+    }
+
+    .ds-status,
+    .status-badge {
+      border: 1px solid CanvasText;
+    }
+
+    .ds-grid tbody tr.is-selected,
+    .ds-grid tbody tr[aria-selected="true"] {
+      outline: 2px solid Highlight;
+      outline-offset: calc(-1 * var(--ds-focus-offset));
+    }
+
+    /* SVG reference lines (uPlot draws on canvas, which forced colours leave alone). */
+    .ds-waterfall-zero {
+      stroke: CanvasText;
+    }
+
+    .ds-popover,
+    .ds-dialog,
+    .ds-sheet {
+      border: 1px solid CanvasText;
+    }
   }
 }

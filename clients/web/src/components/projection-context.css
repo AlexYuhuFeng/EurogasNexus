@@ -123,7 +123,8 @@
   }
 
   .projection-context-trigger:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 
@@ -221,7 +222,8 @@
   }
 
   .trading-context-summary:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 

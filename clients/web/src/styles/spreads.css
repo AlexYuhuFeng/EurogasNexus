@@ -54,7 +54,8 @@
 }
 
 .spreads-describe-input:focus-visible {
-  outline: none;
+  outline: var(--ds-focus-outline);
+  outline-offset: var(--ds-focus-offset);
   box-shadow: var(--ds-focus);
 }
 
@@ -82,7 +83,8 @@
 
 .spreads-example:focus-visible,
 .spreads-choice:focus-visible {
-  outline: none;
+  outline: var(--ds-focus-outline);
+  outline-offset: var(--ds-focus-offset);
   box-shadow: var(--ds-focus);
 }
 
@@ -306,7 +308,8 @@
 
 .spreads-show-all:focus-visible,
 .spreads-number:focus-visible {
-  outline: none;
+  outline: var(--ds-focus-outline);
+  outline-offset: var(--ds-focus-offset);
   box-shadow: var(--ds-focus);
 }
 

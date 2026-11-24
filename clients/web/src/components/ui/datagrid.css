@@ -17,7 +17,8 @@
   }
 
   .ds-grid-wrap:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 
@@ -125,7 +126,8 @@
   }
 
   .ds-grid-sort:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 
@@ -148,8 +150,10 @@
     background: var(--ds-surface-2);
   }
 
+  /* The ring is drawn on the cells; the transparent outline is what forced colours paint. */
   .ds-grid tbody tr:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: calc(-1 * var(--ds-focus-offset));
   }
 
   .ds-grid tbody tr:focus-visible > * {
@@ -311,7 +315,8 @@
   }
 
   .ds-grid-more-toggle:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 

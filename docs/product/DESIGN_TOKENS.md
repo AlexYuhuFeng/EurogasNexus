@@ -21,6 +21,7 @@ between themes.
 | Rows, chips | `--ds-row`, `--ds-row-header`, `--ds-chip` | 32, 28, 20 px (rows and badges are not controls) |
 | Radius | `--ds-radius-sm` `md` `pill` | 4 (controls, cells, badges), 8 (panels, popovers, dialogs), 999 (pills, avatars) |
 | Elevation | `--ds-shadow-pop`, `--ds-shadow-modal`, `--ds-focus` | two shadows only; panels use a border |
+| Focus | `--ds-focus` (ring), `--ds-focus-outline`, `--ds-focus-offset` | every focus rule pairs the ring with a 2 px transparent outline, which Windows High Contrast paints in the system colour after it drops box-shadow; `design-system.css` ends with a small `forced-colors` block (badges, selected row, dialogs). `tests/forcedColorsFocus.test.ts` |
 | Motion | `--ds-duration-fast` `base` `slow` `map`, `--ds-ease-out` | 80, 160, 240, 400 ms; off under reduced motion |
 
 These follow the review's M.2 scale. Where it left a choice: `md` is 15 px for panel titles and

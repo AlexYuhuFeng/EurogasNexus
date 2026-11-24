@@ -86,13 +86,15 @@
   }
 
   .ds-select:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 
   /* ------------------------------------------------------------------- Tabs */
   .ds-tabs [role="tab"]:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 
@@ -212,7 +214,8 @@
   }
 
   .ds-popover:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-shadow-pop), var(--ds-focus);
   }
 
@@ -286,7 +289,8 @@
   }
 
   .ds-inline-link:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 
@@ -473,7 +477,8 @@
   .ds-period-grid button:focus-visible,
   .ds-period-months button:focus-visible,
   .ds-period-nav:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 

@@ -46,7 +46,8 @@
   .ds-ipicker-trigger:focus-visible,
   .ds-ipicker-search:focus-visible,
   .ds-ipicker-panel button:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 

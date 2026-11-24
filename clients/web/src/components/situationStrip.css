@@ -107,7 +107,8 @@
   .strip-quiet-line:focus-visible,
   .strip-open:focus-visible,
   .strip-expand:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
     border-radius: var(--ds-radius-sm);
   }

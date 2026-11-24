@@ -154,6 +154,11 @@
   --ds-scroll-shadow: rgb(0 0 0 / 16%); /* the edge of a box that scrolls sideways (frame.css) */
   --ds-shadow-modal: 0 2px 4px rgb(0 0 0 / 4%), 0 16px 40px -12px rgb(0 0 0 / 24%); /* dialog, sheet */
   --ds-focus: 0 0 0 2px var(--ds-surface), 0 0 0 4px var(--ds-focus-ring);
+  /* Every focus rule pairs the ring with this outline. It is invisible normally; in Windows
+     High Contrast (forced colours) box-shadow is dropped and the outline takes the system
+     colour, so keyboard focus never disappears. The offset puts it where the ring is. */
+  --ds-focus-outline: 2px solid transparent;
+  --ds-focus-offset: 2px;
 
   /* ---------------------------------------------------------------- aliases */
   /* Older names, kept so not-yet-converted stylesheets follow the scale. Converted files may

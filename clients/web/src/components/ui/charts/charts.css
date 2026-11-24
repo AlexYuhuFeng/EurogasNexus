@@ -89,7 +89,8 @@
   }
 
   .ds-chart-plot:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 
@@ -216,6 +217,8 @@
   }
 
   .ds-sparkline:focus-visible {
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 
@@ -411,6 +414,8 @@
   }
 
   .ds-waterfall-plot:focus-visible {
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 

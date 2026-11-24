@@ -91,7 +91,8 @@
   }
 
   .ds-button:focus-visible {
-    outline: none;
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
     box-shadow: var(--ds-focus);
   }
 
@@ -383,7 +384,7 @@
   }
 
   .has-first-use-hint {
-    outline: 2px solid var(--ds-focus);
+    outline: 2px solid var(--ds-focus-ring);
     outline-offset: 2px;
   }
 
