@@ -1,10 +1,13 @@
 """Type S: tomorrow's open residual at a hub, against the cash-out it would otherwise meet.
 
-The daily balance (``domain/portfolio/daily_balance``: contract supply corrected by measured
-delivery, plus purchases, less sales) leaves a residual for the next gas day. Left open, the
-TSO cashes it out: long below the day-ahead price by the desk's long discount, short above it
-by the desk's short premium (the firm's assumption set: ``balancing.long_discount``,
-``balancing.short_premium``; no public cash-out price is held). Per MWh:
+The daily balance (``application/gas_day.hub_daily_balance``: the gas day's own lines, the
+figure Today and Book > Delivery show) leaves a residual per book for the next gas day. Left
+open, the TSO cashes it out: long below the day-ahead price by the desk's long discount, short
+above it by the desk's short premium (``balancing.long_discount``,
+``balancing.short_premium``; no public cash-out price is held). Each book is evaluated with
+its own approved assumption set, else the firm-wide set, as the gas day's cost of doing
+nothing is (a book's rate in another currency than the hub's is another hub's, and is not
+used). Per MWh:
 
     long:  value = P_DA(bid) - (P_DA - long_discount)  = long_discount
     short: value = (P_DA + short_premium) - P_DA(ask)  = short_premium
@@ -25,6 +28,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from eurogas_nexus.domain.market.gas_day import gas_day_label, gas_day_start_for_date
+from eurogas_nexus.domain.ontology.markets import quote_currency
 from eurogas_nexus.domain.opportunities.claims import grouped
 from eurogas_nexus.domain.opportunities.evaluator import EvaluationContext, register
 from eurogas_nexus.domain.opportunities.model import (
@@ -63,7 +67,8 @@ class SellDownEvaluator:
     """Type S over the ``residuals`` collection."""
 
     name = "sell_down"
-    version = "1"
+    #: 2: the residual is the gas day's own lines and the penalty the book's own set (P-11).
+    version = "2"
     type = OpportunityType.SELL_DOWN
 
     def evaluate(self, snapshot: SnapshotReader, context: EvaluationContext) -> Iterable[Candidate]:
@@ -80,9 +85,16 @@ class SellDownEvaluator:
                 continue
             long = amount > 0
             hub = str(residual.detail.get("hub"))
+            book_id = residual.detail.get("book_id") or None
             price = snapshot.price(hub, period, "bid" if long else "ask")
             key = "balancing.long_discount" if long else "balancing.short_premium"
-            penalty = snapshot.assumption(key)
+            penalty = snapshot.assumption(key, book_id)
+            foreign = penalty.currency not in (None, quote_currency(hub))
+            if penalty.detail.get("book_id") and foreign:
+                # A book's cash-out rate in another currency is another hub's (the gas day's
+                # rule): the firm-wide set answers, or nothing does.
+                penalty = snapshot.assumption(key)
+            whose = "book's" if penalty.detail.get("book_id") else "firm's"
             inputs = (residual, price, penalty)
             unit = price.unit or "EUR/MWh"
             currency = unit.split("/")[0]
@@ -120,7 +132,7 @@ class SellDownEvaluator:
                     ),
                     _leg(
                         "sell_down.long_discount",
-                        "less the desk's long discount (firm's assumption)",
+                        f"less the desk's long discount ({whose} assumption)",
                         penalty,
                         d,
                         unit,
@@ -137,7 +149,7 @@ class SellDownEvaluator:
                     ),
                     _leg(
                         "sell_down.short_premium",
-                        "plus the desk's short premium (firm's assumption)",
+                        f"plus the desk's short premium ({whose} assumption)",
                         penalty,
                         d,
                         unit,
@@ -166,8 +178,7 @@ class SellDownEvaluator:
                 Leg(
                     LegKind.VOLUME,
                     "sell_down.volume",
-                    f"{'Long' if long else 'Short'} residual after measured delivery "
-                    f"({residual.detail.get('delivery_ratio')})",
+                    f"{'Long' if long else 'Short'} residual of the gas day's lines",
                     quantity=Measure(volume, "MWh"),
                 ),
                 Leg(
@@ -177,18 +188,7 @@ class SellDownEvaluator:
                     quantity=Measure(value, currency),
                 ),
             )
-            assumption = (
-                AssumptionUse(
-                    key=key,
-                    value=Measure(penalty.value, penalty.unit),
-                    origin="firm_set",
-                    set_by=str(penalty.detail.get("set_by") or ""),
-                    set_at_utc=str(penalty.detail.get("set_at_utc") or ""),
-                    input_key=penalty.key,
-                )
-                if penalty.held
-                else None
-            )
+            assumption = AssumptionUse.of(penalty) if penalty.held else None
             yield Candidate(
                 type=self.type,
                 identity=(hub, "long" if long else "short"),
@@ -212,7 +212,7 @@ class SellDownEvaluator:
                 falsifiers=(
                     Falsifier(
                         "sell_down.delivery",
-                        f"Delivery tomorrow differs from {grouped(supply)} MWh of supply.",
+                        f"Tomorrow's physical lines differ from {grouped(supply)} MWh net.",
                     ),
                     Falsifier(
                         "sell_down.trades",

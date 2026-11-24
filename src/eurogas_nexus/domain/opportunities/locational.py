@@ -336,7 +336,7 @@ class _Route:
         )
         running = gross
 
-        load = self.s.assumption("capacity.load_factor")
+        load = self.s.assumption("capacity.load_factor", book_id)
         load_pct = load.value if load.held else HUNDRED
         assumptions: list[AssumptionUse] = []
         if load.held:
@@ -357,7 +357,7 @@ class _Route:
                     )
                 )
                 continue
-            item, multiplier, extra = self._tariff(spec, period, product)
+            item, multiplier, extra = self._tariff(spec, period, product, book_id)
             inputs.extend(extra)
             if item is None or not item.held:
                 missing = item if item is not None else None
@@ -409,7 +409,7 @@ class _Route:
                     input_keys=(item.key,),
                 )
             )
-        fuel = self.s.assumption("transport.fuel_shrinkage")
+        fuel = self.s.assumption("transport.fuel_shrinkage", book_id)
         if fuel.held and not sunk:
             inputs.append(fuel)
             assumptions.append(self._assumption_use(fuel))
@@ -420,7 +420,8 @@ class _Route:
                 Leg(
                     kind=LegKind.TERM,
                     label_key="locational.fuel",
-                    label=f"Fuel and shrinkage {fuel.value} % of the purchase (firm's assumption)",
+                    label=f"Fuel and shrinkage {fuel.value} % of the purchase "
+                    f"({'book' if fuel.detail.get('book_id') else 'firm'}'s assumption)",
                     rate=Measure(fuel.value, "%"),
                     contribution=Measure(-fuel_cost, UNIT),
                     input_class=fuel.input_class,
@@ -607,18 +608,9 @@ class _Route:
 
     @staticmethod
     def _assumption_use(item: SnapshotInput) -> AssumptionUse:
-        return AssumptionUse(
-            key=item.key.split(":", 1)[1],
-            value=Measure(item.value, item.unit),
-            origin="firm_set",
-            set_by=str(item.detail.get("set_by") or ""),
-            set_at_utc=str(item.detail.get("set_at_utc") or ""),
-            input_key=item.key,
-            range_low=_dec(item.detail.get("range_low")),
-            range_high=_dec(item.detail.get("range_high")),
-        )
+        return AssumptionUse.of(item)
 
-    def _tariff(self, spec, period: DeliveryPeriod, product: str):
+    def _tariff(self, spec, period: DeliveryPeriod, product: str, book_id: str | None = None):
         """The leg's tariff in the product the route was priced in; for an annual tariff on a
         shorter period, the firm's multiplier (or an indicative marker without it)."""
 
@@ -632,7 +624,7 @@ class _Route:
         annual = item
         if not annual.held:
             return annual, one, []
-        multiplier = self.s.assumption("capacity.short_term_multiplier")
+        multiplier = self.s.assumption("capacity.short_term_multiplier", book_id)
         if multiplier.held:
             return annual, Measure(multiplier.value, "x"), [multiplier]
         marker = SnapshotInput(

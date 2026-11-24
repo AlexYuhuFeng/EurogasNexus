@@ -392,16 +392,7 @@ class StorageSpreadEvaluator:
 
     @staticmethod
     def _use(item: SnapshotInput) -> AssumptionUse:
-        return AssumptionUse(
-            key=item.key.split(":", 1)[1],
-            value=Measure(item.value, item.unit),
-            origin="firm_set",
-            set_by=str(item.detail.get("set_by") or ""),
-            set_at_utc=str(item.detail.get("set_at_utc") or ""),
-            input_key=item.key,
-            range_low=_dec(item.detail.get("range_low")),
-            range_high=_dec(item.detail.get("range_high")),
-        )
+        return AssumptionUse.of(item)
 
 
 STORAGE_SPREAD = register(StorageSpreadEvaluator())

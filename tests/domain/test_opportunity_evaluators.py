@@ -30,8 +30,10 @@ from eurogas_nexus.domain.valuation.snapshot import (
     InputKind,
     SnapshotInput,
     assumption_key,
+    book_assumption_key,
     capacity_key,
     collection_key,
+    dependency_key,
     outages_key,
     price_key,
     tariff_key,
@@ -381,6 +383,101 @@ def test_golden_sell_down_long_residual() -> None:
         SellDownEvaluator(), fixture_snapshot(_s_inputs(False), as_of=AS_OF), as_of=AS_OF
     )
     assert blocked.state is OpportunityState.BLOCKED and blocked.blocker.code == "input_missing"
+
+
+def _book_discount(value: str, currency: str = "GBP", book: str = "book-1") -> SnapshotInput:
+    return _in(
+        book_assumption_key("balancing.long_discount", book),
+        InputKind.ASSUMPTION,
+        value,
+        f"{currency}/MWh",
+        currency,
+        klass=InputClass.ASSUMPTION,
+        family="operator-input",
+        set_by="uk.risk",
+        set_at_utc="2026-11-10T00:00:00+00:00",
+        set_id="aset-book-1",
+        set_name="Book 1 balancing",
+        version=3,
+        book_id=book,
+    )
+
+
+def test_sell_down_reads_the_books_own_set_before_the_firm_wide_one() -> None:
+    """P-11: the residual of book-1 is costed at book-1's own discount 2.00, not the firm-wide
+    1.50: 2.00 x 3,200 MWh = GBP 6,400.00, and the assumption names the book's set."""
+
+    inputs = [*_s_inputs(), _book_discount("2.00")]
+    ((candidate, assessment),) = run(
+        SellDownEvaluator(), fixture_snapshot(inputs, as_of=AS_OF), as_of=AS_OF
+    )
+    assert_reconciles(candidate)
+    assert candidate.value.value == D("6400.00")
+    assert assessment.state is OpportunityState.INDICATIVE
+    (use,) = candidate.assumptions
+    assert use.book_id == "book-1" and use.set_name == "Book 1 balancing" and use.set_version == 3
+    assert use.key == "balancing.long_discount" and use.value.value == D("2.00")
+    assert use.to_json()["book_id"] == "book-1" and use.to_json()["origin"] == "firm_set"
+    assert any("book's assumption" in leg.label for leg in candidate.legs)
+    # An edit of the key, in whichever set, re-evaluates it.
+    assert "assumption:balancing.long_discount" in candidate.dependency_keys
+
+
+def test_sell_down_falls_back_to_the_firm_wide_set() -> None:
+    """A book without a set of its own (or whose set lacks the key) takes the firm-wide value,
+    and a book's rate in another currency than the hub's is another hub's: not used."""
+
+    for extra in ([], [_book_discount("2.00", book="book-2")], [_book_discount("2.00", "EUR")]):
+        ((candidate, _a),) = run(
+            SellDownEvaluator(), fixture_snapshot([*_s_inputs(), *extra], as_of=AS_OF), as_of=AS_OF
+        )
+        assert candidate.value.value == D("4800.00")
+        (use,) = candidate.assumptions
+        assert use.book_id is None and use.input_key == assumption_key("balancing.long_discount")
+        assert any("firm's assumption" in leg.label for leg in candidate.legs)
+    # Neither set holds it: a named "cannot evaluate", never a zero.
+    ((_c, blocked),) = run(
+        SellDownEvaluator(),
+        fixture_snapshot([*_s_inputs(False), _book_discount("2.00", book="book-2")], as_of=AS_OF),
+        as_of=AS_OF,
+    )
+    assert blocked.state is OpportunityState.BLOCKED and blocked.blocker.code == "input_missing"
+
+
+def test_a_book_scoped_assumption_depends_on_the_catalogue_key() -> None:
+    item = _book_discount("2.00")
+    assert dependency_key(item) == "assumption:balancing.long_discount"
+
+
+def _fuel(key: str, value: str, book: str | None = None) -> SnapshotInput:
+    return _in(
+        key,
+        InputKind.ASSUMPTION,
+        value,
+        "%",
+        klass=InputClass.ASSUMPTION,
+        family="operator-input",
+        set_by="risk",
+        book_id=book,
+    )
+
+
+def test_locational_reads_the_position_books_own_set_before_the_firm_wide_one() -> None:
+    """The golden TTF -> THE route with fuel and shrinkage: book-1's own 0.5 % of the 30.00
+    purchase = 0.15 EUR/MWh (net 0.229167 - 0.15 = 0.079167); without it the firm-wide 0.2 %
+    = 0.06 EUR/MWh (net 0.169167)."""
+
+    firm = _fuel(assumption_key("transport.fuel_shrinkage"), "0.2")
+    own = _fuel(book_assumption_key("transport.fuel_shrinkage", "book-1"), "0.5", "book-1")
+    ((candidate, _a),) = _run_l([*_l_inputs(), firm, own])
+    assert_reconciles(candidate)
+    assert candidate.headline.value == D("0.079167")
+    (use,) = candidate.assumptions
+    assert use.book_id == "book-1" and use.key == "transport.fuel_shrinkage"
+    ((fallback, _a),) = _run_l([*_l_inputs(), firm])
+    assert fallback.headline.value == D("0.169167")
+    (use,) = fallback.assumptions
+    assert use.book_id is None
 
 
 def test_golden_event_exposure() -> None:

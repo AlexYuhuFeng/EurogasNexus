@@ -23,7 +23,11 @@ from typing import Any
 from eurogas_nexus.domain.ontology.currency import CURRENCIES
 from eurogas_nexus.domain.valuation.periods import DeliveryPeriod
 from eurogas_nexus.domain.valuation.quality import InputClass, weakest
-from eurogas_nexus.domain.valuation.snapshot import SnapshotInput, dependency_key
+from eurogas_nexus.domain.valuation.snapshot import (
+    SnapshotInput,
+    catalogue_key_of,
+    dependency_key,
+)
 
 
 class OpportunityType(StrEnum):
@@ -250,6 +254,38 @@ class AssumptionUse:
     input_key: str
     range_low: Decimal | None = None
     range_high: Decimal | None = None
+    #: The book whose own approved set holds the value; ``None`` for the firm-wide set.
+    book_id: str | None = None
+    #: The approved set and version the value was read from, when the snapshot names them.
+    set_id: str | None = None
+    set_name: str | None = None
+    set_version: int | None = None
+
+    @classmethod
+    def of(cls, item: SnapshotInput) -> AssumptionUse:
+        """The use of one held assumption input of the snapshot (firm-wide or the book's)."""
+
+        detail = item.detail
+
+        def number(name: str) -> Decimal | None:
+            raw = detail.get(name)
+            return None if raw is None or raw == "" else Decimal(str(raw))
+
+        version = detail.get("version")
+        return cls(
+            key=catalogue_key_of(item),
+            value=Measure(item.value, item.unit),
+            origin="firm_set",
+            set_by=str(detail.get("set_by") or ""),
+            set_at_utc=str(detail.get("set_at_utc") or ""),
+            input_key=item.key,
+            range_low=number("range_low"),
+            range_high=number("range_high"),
+            book_id=detail.get("book_id") or None,
+            set_id=detail.get("set_id") or None,
+            set_name=detail.get("set_name") or None,
+            set_version=None if version is None else int(version),
+        )
 
     def to_json(self) -> dict[str, Any]:
         """Serialised form."""
@@ -263,6 +299,10 @@ class AssumptionUse:
             "input_key": self.input_key,
             "range_low": decimal_text(self.range_low),
             "range_high": decimal_text(self.range_high),
+            "book_id": self.book_id,
+            "set_id": self.set_id,
+            "set_name": self.set_name,
+            "set_version": self.set_version,
         }
 
 

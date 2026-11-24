@@ -311,8 +311,10 @@ def test_demo_desk_evaluators_i_produce_marked_objects(store) -> None:
     Event exposure: the two demo outages name the Haldor and Kestrel contracts' sources, so
     each linked contract carries a cover cost, marked simulated. Locational and held
     capacity: every pair is either priced (legs reconcile) or a named "cannot evaluate"
-    record (a tariff not held at a real ENTSOG point, a mandate check). Sell-down: the demo
-    holds no day-ahead price and no cash-out assumption, so it is a named record too.
+    record (a tariff not held at a real ENTSOG point, a mandate check). Sell-down (P-11):
+    each demo book's cash-out rate is in a set the book owns, so the UK book's NBP residual
+    and the NL book's TTF residual are valued at their own book's rate; the UK book's TTF
+    residual has no TTF rate in either set and stays a named "cannot evaluate".
     """
 
     from decimal import Decimal
@@ -341,6 +343,17 @@ def test_demo_desk_evaluators_i_produce_marked_objects(store) -> None:
         total = sum(Decimal(leg["contribution"]["value"]) for leg in terms)
         assert total == Decimal(version.payload_json["headline"]["value"])
     assert any(row.type == "locational" for row in rows)
-    assert any(row.type == "sell_down" and row.state == "blocked" for row in rows)
+    sell_down = {
+        (row.claim_fields.get("hub"), tuple(row.book_ids or ())): row
+        for row in rows
+        if row.type == "sell_down"
+    }
+    for key in (("NBP", ("demo-uk-nbp",)), ("TTF", ("demo-nl-ttf",))):
+        row = sell_down[key]
+        assert row.state == "indicative" and row.simulated, row.claim_text
+        version = store.get(OpportunityVersionRecord, (row.opportunity_id, row.version))
+        (use,) = version.payload_json["assumptions"]
+        assert use["book_id"] == key[1][0] and use["set_name"] == f"Demo {key[1][0]} balancing"
+    assert sell_down[("TTF", ("demo-uk-nbp",))].state == "blocked"
     # CP-10: Kestrel's BBL route makes the pool's re-routing gain a simulated R object.
     assert any(row.type == "reroute" and row.simulated for row in rows)
