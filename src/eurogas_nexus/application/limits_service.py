@@ -213,31 +213,18 @@ def credit_exposure_rows(caller: Caller, today: date) -> LimitRows:
     return result
 
 
-def mandate_usage_rows(caller: Caller, today: date) -> LimitRows:
-    """Each trader's open positions against their mandate: size, hubs, tenor and products."""
+def mandate_legs(inputs, today: date) -> list:
+    """The ladder's legs as mandate legs: each with its book, account and instrument."""
 
-    from eurogas_nexus.application.position_inputs import ladder_inputs
-    from eurogas_nexus.db.models import TraderMandateRecord
-    from eurogas_nexus.db.session import get_session_factory
-    from eurogas_nexus.domain.risk.limits import (
-        Mandate,
-        MandateLeg,
-        gas_year_end,
-        mandate_usage,
-    )
+    from eurogas_nexus.domain.risk.limits import MandateLeg, gas_year_end
 
-    start, end = horizon(today)
-    with get_session_factory()() as session:
-        records = session.query(TraderMandateRecord).order_by(TraderMandateRecord.trader).all()
-        session.expunge_all()
-    inputs = ladder_inputs(caller, today, start, end)
     accounts = {
         order.order_observation_id: order.account_label
         for order in inputs.orders
         if str(order.provider_id).upper() != "ETRM"
     }
     instruments = {order.order_observation_id: instrument_of(order) for order in inputs.orders}
-    legs = [
+    return [
         MandateLeg(
             reference=leg.reference,
             kind=leg.kind,
@@ -257,29 +244,59 @@ def mandate_usage_rows(caller: Caller, today: date) -> LimitRows:
         )
         for leg in inputs.legs
     ]
+
+
+def mandate_of(record):
+    """The domain mandate of a stored ``TraderMandateRecord``."""
+
+    from eurogas_nexus.domain.risk.limits import Mandate
+
+    return Mandate(
+        mandate_id=record.mandate_id,
+        trader=record.trader,
+        display_name=record.display_name,
+        book_ids=tuple(record.book_ids or ()),
+        hubs=tuple(record.hubs or ()),
+        max_net_mwh_per_month=record.max_net_mwh_per_month,
+        max_tenor_months=record.max_tenor_months,
+        physical_allowed=bool(record.physical_allowed),
+        financial_allowed=bool(record.financial_allowed),
+        valid_until=record.valid_until,
+        min_hedge_ratio_pct=record.min_hedge_ratio_pct,
+        max_hedge_ratio_pct=record.max_hedge_ratio_pct,
+        instruments=tuple(record.instruments or ()),
+    )
+
+
+def books_elsewhere(records, record) -> frozenset[str]:
+    """The books the trader's *other* mandates cover (``mandate_usage``'s own-account rule)."""
+
+    return frozenset(
+        book
+        for other in records
+        if other.trader == record.trader and other.mandate_id != record.mandate_id
+        for book in (other.book_ids or ())
+    ) - set(record.book_ids or ())
+
+
+def mandate_usage_rows(caller: Caller, today: date) -> LimitRows:
+    """Each trader's open positions against their mandate: size, hubs, tenor and products."""
+
+    from eurogas_nexus.application.position_inputs import ladder_inputs
+    from eurogas_nexus.db.models import TraderMandateRecord
+    from eurogas_nexus.db.session import get_session_factory
+    from eurogas_nexus.domain.risk.limits import mandate_usage
+
+    start, end = horizon(today)
+    with get_session_factory()() as session:
+        records = session.query(TraderMandateRecord).order_by(TraderMandateRecord.trader).all()
+        session.expunge_all()
+    inputs = ladder_inputs(caller, today, start, end)
+    legs = mandate_legs(inputs, today)
     result = LimitRows(warnings=list(inputs.warnings))
     for record in records:
-        mandate = Mandate(
-            mandate_id=record.mandate_id,
-            trader=record.trader,
-            display_name=record.display_name,
-            book_ids=tuple(record.book_ids or ()),
-            hubs=tuple(record.hubs or ()),
-            max_net_mwh_per_month=record.max_net_mwh_per_month,
-            max_tenor_months=record.max_tenor_months,
-            physical_allowed=bool(record.physical_allowed),
-            financial_allowed=bool(record.financial_allowed),
-            valid_until=record.valid_until,
-            min_hedge_ratio_pct=record.min_hedge_ratio_pct,
-            max_hedge_ratio_pct=record.max_hedge_ratio_pct,
-            instruments=tuple(record.instruments or ()),
-        )
-        elsewhere = frozenset(
-            book
-            for other in records
-            if other.trader == record.trader and other.mandate_id != record.mandate_id
-            for book in (other.book_ids or ())
-        ) - set(mandate.book_ids)
+        mandate = mandate_of(record)
+        elsewhere = books_elsewhere(records, record)
         result.rows.append(
             {
                 **mandate_usage(mandate, legs, today=today, books_elsewhere=elsewhere).as_row(),
