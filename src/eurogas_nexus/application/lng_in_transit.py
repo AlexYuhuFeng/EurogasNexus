@@ -462,6 +462,8 @@ def _summary(row, plan: CargoPlan, slot: SlotWindow | None = None) -> dict[str, 
             "window_end_utc": slot.window_end_utc.isoformat(),
             "send_out_mwh_per_day": round(slot.send_out_mwh_per_day, 1),
         },
+        # The cargo record's loaded energy: the energy waterfall starts here and must reconcile.
+        "loaded_mwh": None if row.energy_gwh is None else round(float(row.energy_gwh) * 1000, 1),
         "delivered_mwh": round(plan.delivered_mwh, 1),
         "suggestions": len([item for item in plan.suggestions if item.kind != "deadline"]),
     }

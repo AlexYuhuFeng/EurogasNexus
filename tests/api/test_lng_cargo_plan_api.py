@@ -237,6 +237,11 @@ def test_the_board_and_plan_carry_what_the_cargo_screen_shows(tmp_path, monkeypa
     assert cargo["slot"]["slot_id"] == "gate-slot-1"
     assert cargo["slot"]["send_out_mwh_per_day"] == 100_000.0
     assert cargo["imported_at_utc"] and cargo["departed_at_utc"]
+    assert cargo["loaded_mwh"] == 1_000_000.0
+    plan = data["plan"]
+    assert cargo["loaded_mwh"] == pytest.approx(
+        plan["boil_off_mwh"] + plan["gas_in_kind_mwh"] + plan["delivered_mwh"], abs=0.5
+    )
     assert cargo["changed"]["kinds"] == ["eta"]
     assert cargo["changed"]["by"] == "import ETRM_CSV"
     assert cargo["changed"]["eta_before_utc"] == (now + timedelta(days=6)).isoformat()
