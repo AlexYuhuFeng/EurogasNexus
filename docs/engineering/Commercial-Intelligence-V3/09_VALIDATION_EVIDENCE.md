@@ -178,6 +178,58 @@ once; the next distinct value publishes normally.
 | Contract and docs | `pytest tests/contract tests/docs` | 603 passed, 12 skipped |
 | Web | `npx tsc --noEmit -p .`; `npm test` | clean; 1,308 passed, 3 skipped |
 
+## LNG-2 a cargo change reaches each role (2026-11-24, branch `wip/lng2`)
+
+The owner's scenario as the acceptance test runs it: cargo SAB-0420 (Aurora, 1,000 GWh loaded)
+due at Gate on Friday 27 November 09:00, slot 26 November to 6 December at 100 GWh/d, hedged
+month by month to the plan; the vessel feed (KPLER, AIS ETA, low confidence) reports it on
+Tuesday 1 December 09:00. What each role's channel receives:
+
+| Role | Severity | Title | Body (summary) |
+| --- | --- | --- | --- |
+| Trader | critical | Hedges no longer match Aurora (SAB-0420): buy 383,333 MWh TTF 2026-11 at short notice; sell 379,373 MWh TTF 2026-12 | Per month "physical + hedge = net"; Nov has stopped trading (short notice); Dec sale due before 28 Nov 00:00 UTC; 3,960 MWh more boil-off; nothing is traded; confirm the AIS ETA before acting |
+| Scheduler | warning | Renominate 10 gas day(s) for Aurora (SAB-0420) | Berth Fri 27 Nov 09:00 → Tue 01 Dec 09:00; each gas day's send-out before and after (27 Nov 83,333 → 0 MWh, …) with the cut-off it hits (nominate by Thu 26 Nov 13:00 UTC, …) |
+| Risk | critical | Mandate breach from Aurora (SAB-0420) | TTF 2026-11 net 0 → −383,333 MWh; 2026-12 0 → +379,373 MWh; LNG desk mandate 98 % watch → 126 % breach |
+| Desk head | critical | Material cargo change: Aurora (SAB-0420) | Net exposure 383,333 MWh in one month; hedge actions 762,706 MWh; mandate breach; threshold 100,000 MWh (desk standard, no approved `lng.material_change_mwh`) |
+
+Each body ends with the inputs' line ("Inputs: ETA from KPLER (the ETA declared in AIS, low
+confidence), stored …; slot gate-1 from ETRM, …; hedges recorded by lng.trader, …; plan rebuilt
+… from cargo.changed revision 2") and "For: <owner>. If not acted on: <escalation>."
+
+Latency, ETA import committed to every role's notification in the outbox, PostgreSQL 16, the
+listen worker as its own process (`scripts/ops/market_events.py listen --poll-seconds 0.05`),
+`tests/integration/test_lng_cargo_change_postgres.py`, 8 runs (plus 9 earlier runs of the
+first change only, 0.62 to 0.83 s):
+
+| Change | n | Median | Min | Max |
+| --- | --- | --- | --- | --- |
+| First change after the worker starts (loads the cargo modules) | 8 | 0.66 s | 0.61 s | 0.75 s |
+| Next change in the same worker (ETA corrected back: four withdrawals) | 8 | 0.11 s | 0.09 s | 0.16 s |
+| Outbox to the channel sender (dispatch) | 8 | +0.02 s | | |
+
+In the worker's report the `cargo_roles` batch is drained before the `opportunities` batch
+for the same event. Profiled on SQLite, the consumer's time is mostly the mandate re-check's
+ladder read (`ladder_inputs`, about 0.1 to 0.15 s per cargo on the test desk).
+
+```bash
+createdb egn_lng2; RUNTIME_STORE_DATABASE_URL=postgresql+pg8000://postgres@127.0.0.1:55432/egn_lng2 alembic upgrade head
+RUNTIME_STORE_DATABASE_URL=postgresql+pg8000://postgres@127.0.0.1:55432/egn_lng2 \
+  python -m pytest -q -s tests/integration/test_lng_cargo_change_postgres.py
+```
+
+Migration `0080_lng_eta_basis` on PostgreSQL: `alembic upgrade head`, `downgrade -1`, `upgrade
+head`, all clean; the four columns are nullable.
+
+| Run | Command | Result |
+| --- | --- | --- |
+| LNG-2 tests | `pytest tests/domain/test_lng_consequences.py tests/integration/test_lng_cargo_change_roles.py tests/integration/test_lng_cargo_change_postgres.py tests/unit/test_lng_positions_import.py tests/unit/test_lng_eta_basis_migration.py tests/api/test_lng_cargo_plan_api.py` | 20 passed, 1 skipped (the PostgreSQL test, run separately above: 1 passed) |
+| Related suites (outbox, alerts, notifications, monitoring, limits, Today, assumptions, LNG) | 105 files under `tests/api`, `tests/integration`, `tests/unit`, `tests/domain`, `tests/sdk`, `tests/security` | API 193 passed; integration 76 passed, 2 skipped; unit, domain, SDK and security 811 passed; 0 failed |
+| PostgreSQL-only tests on the same database | outbox, acknowledgement, opportunity alerts, live trigger and the LNG-2 worker test, `-k "postgres or listen"` | 12 passed, 3 skipped |
+| Contract and docs | `pytest tests/contract tests/docs` | 605 passed, 12 skipped |
+| Lint | `ruff check src tests scripts` | All checks passed |
+| Markdown links | `python scripts/ci/check_markdown_links.py` | All local links resolve |
+| Web | `npx tsc --noEmit -p .`; `npm test` | clean; 1,366 tests, 1,363 passed, 3 skipped, 0 failed |
+
 ## Not yet evidenced
 
 - Latency under sustained load: the M7 figures are single changes on an idle desk; the outbox

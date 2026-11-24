@@ -21,8 +21,8 @@ Phase 0 work (baseline, audit, these documents). Status is kept in
 | P-08 | One price resolver: every screen reads the same price, kind, source and age for a hub and month | 1, 7 | No | **Built, tested** |
 | P-11 | Opportunities value each book with its own assumption set and its gas-day balance | 7 | No | **Built, tested** |
 | M7 | Live pipeline ([15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md)): the listen worker is the default trigger (no drain cap, one-minute debounce, sweep lock); new-engine opportunities to alerts routed to an owner with escalation, notified once under a row lock; `/api/stream/opportunities` pushes open, withdrawn and evaluated, and the Opportunities page follows it with its age shown; latency measured before and after. Retiring the legacy intraday engine is blocked by its dependents (R19) | 7, 10 | No | **Built, tested** (M7-1 to M7-9; M7-10 blocked) |
-| LNG-2 | A cargo change reaches each role: rebuilt plan, hedge roll proposal, slot and nomination consequences, exposure, material escalation; ETA basis and confidence | 5, 7 | No | Next (needs M7 routing) |
-| GOV-1 | Governance: audit written with the change, entitlement usage and export decisions, maker-checker on limits and reference data (P-17) with figure provenance; AI controls stage 2 (AI-use register, switch per feature, prompt and model versions on audit rows, tool allowlists per role, evaluation gate) | 8, 10 | No | Next |
+| LNG-2 | A cargo change reaches each role: rebuilt plan, hedge roll proposal, slot and nomination consequences, exposure, material escalation; ETA basis and confidence | 5, 7 | No | **Built, tested** (LNG2-1 to LNG2-5 met; migration `0080_lng_eta_basis`) |
+| GOV-1 | Governance: audit written with the change, entitlement usage and export decisions, maker-checker on limits and reference data (P-17) with figure provenance; AI controls stage 2 (AI-use register, switch per feature, prompt and model versions on audit rows, tool allowlists per role, evaluation gate) | 8, 10 | No | **Built, tested** (GOV1-1 to GOV1-6; maker-checker P-17 next) |
 | UX-1 | Client polish from the design study (R1 to R12): focus in high contrast, colour-blind palette, directional change, one number formatter, icons, dark surfaces, motion tokens, density, settings split, desktop plugins and menu; installer and sign-in; freshness shown on every figure | 9 | No | Next |
 | DATA-1 | Price revisions readable as known at a time; a change feed over market events; Power Query refreshable reads; ETRM and ERP import contracts | 1, 2 | No | After P-08 |
 | TAR-1 | Public tariffs from TSOs, LNG terminals and storage operators, versioned indicative and final, slot windows, auction notices | 1, 5 | No (public sources) | After UX-1 |
@@ -66,11 +66,12 @@ they overlap. Each one is mapped to a single slice above so nothing is built twi
 
 ## Order and reasoning
 
-Built so far: M4 to M6, LNG-1, F1, DOC and the first persona round (QA-1, P-11). Next:
+Built so far: M4 to M6, LNG-1, F1, DOC, the first persona round (QA-1, P-11), P-08, M7 and
+LNG-2. Next:
 
 1. **P-08 and M7 together.** Every later screen and alert depends on one price and on
    changes reaching people in seconds. M7 builds role routing, which LNG-2 needs.
-2. **LNG-2.** The owner's delayed-cargo example, end to end, on M7's routing.
+2. **LNG-2 (built).** The owner's delayed-cargo example, end to end, on M7's routing.
 3. **GOV-1.** Audit with the change and AI controls come before any feature that leans
    harder on AI (NEWS-1, "make me a view").
 4. **UX-1.** Polish on a stable model; two items are bugs (high-contrast focus, desktop

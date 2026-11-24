@@ -136,17 +136,25 @@ Design: [14](14_AI_ROLES_PERSONALISATION_AND_IMPROVEMENT_LOOP.md). Stage in brac
 | AIR-12 | (4) A view a lead publishes renders each component with the viewer's own authority; a component the viewer may not read shows as not available, never with the author's data | to be written |
 | AIR-13 | (5) "Make me a view": the validator refuses every invalid case in the evaluation set, the model produces a valid view for at least 90 % of in-catalogue intents, nothing is saved before the person accepts, and an out-of-catalogue ask offers a prefilled suggestion | to be written |
 | AIR-14 | (6) The triage classifier's proposals meet the accuracy threshold on its evaluation set, and a triager's correction is kept as a new case | to be written |
-## LNG-2 a delayed cargo reaches each role (to be met)
-The owner's scenario (2026-11-24): a firm cargo due in three days is hedged forward; news
-arrives that it will be late. One acceptance test drives it end to end on PostgreSQL.
-| ID | Criterion | Evidence |
-| LNG2-1 | An ETA change from any source (import, vessel feed, manual edit) publishes one `cargo.changed` event and the plan is rebuilt from it within the published latency for cargo data (doc 15, the live pipeline and latency budget) | to be written |
-| LNG2-2 | The rebuilt plan names the hedge months that gained or lost gas, the mismatched forward sales and the roll or buy-back it proposes, with the arithmetic; nothing is executed | to be written |
-| LNG2-3 | The trader who owns the book gets the hedge proposal; the scheduler gets the slot, berth and nomination consequences with the cut-offs they hit; risk gets the exposure and any limit it moves; the desk head gets it only when it is material by the configured threshold | to be written |
-| LNG2-4 | Each role's message is deduplicated, respects cooldown and materiality, says how current its inputs are, and is withdrawn when a later change makes it moot | to be written |
-| LNG2-5 | The same chain works for a departure, energy, slot or hedge change, not only an ETA delay | to be written |
+## LNG-2 a delayed cargo reaches each role (met)
 
-## GOV-1 governance: audit with the change, AI controls, licensed-data use (in progress)
+The owner's scenario (2026-11-24): a firm cargo due in three days is hedged forward; news
+arrives that it will be late. The acceptance test drives it end to end on SQLite (import,
+outbox, consumer, alerts, channels); a second test drives the same chain on PostgreSQL through
+the listen worker running as its own process and measures it. Design and who hears what:
+[12](12_LNG_CARGO_IN_TRANSIT.md) "Who hears about a change"; routing: [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) section 5.
+
+| ID | Criterion | Evidence |
+| --- | --- | --- |
+| LNG2-1 | An ETA change from any source (import, vessel feed, manual edit) publishes one `cargo.changed` event and the plan is rebuilt from it within the published latency for cargo data (doc 15, the live pipeline and latency budget) | `tests/integration/test_lng_cargo_change_roles.py::test_a_late_cargo_reaches_each_role_with_its_own_message` (one event, plan rebuilt by the `cargo_roles` consumer); `tests/integration/test_lng_cargo_change_postgres.py::test_a_late_cargo_reaches_each_role_through_the_listen_worker` (commit to every role's notification queued: median about 0.66 s on the worker's first change, 0.11 s after; budget 15 minutes; figures in [09](09_VALIDATION_EVIDENCE.md)). A manual edit is a one-line import with its own source, as before; a hedge edit publishes through `PUT .../hedges` |
+| LNG2-2 | The rebuilt plan names the hedge months that gained or lost gas, the mismatched forward sales and the roll or buy-back it proposes, with the arithmetic; nothing is executed | `tests/domain/test_lng_consequences.py::test_a_delay_across_the_month_end_proposes_a_roll_with_its_arithmetic`; `tests/integration/test_lng_cargo_change_roles.py::test_a_late_cargo_reaches_each_role_with_its_own_message` (Nov bought back at short notice, Dec sold, "physical + hedge = net" per month, due before Dec stops trading; the message says nothing is traded) |
+| LNG2-3 | The trader who owns the book gets the hedge proposal; the scheduler gets the slot, berth and nomination consequences with the cut-offs they hit; risk gets the exposure and any limit it moves; the desk head gets it only when it is material by the configured threshold | `tests/integration/test_lng_cargo_change_roles.py::test_a_late_cargo_reaches_each_role_with_its_own_message` (each channel receives its own role's message and no other), `::test_an_energy_or_departure_change_below_the_threshold_skips_the_desk_head`, `::test_each_role_sees_its_own_item_on_today_and_the_cargo_board`; `tests/domain/test_lng_consequences.py::test_below_the_threshold_the_desk_head_hears_nothing`, `::test_a_mandate_newly_in_breach_is_material_and_critical_for_risk`; `clients/web/tests/cargoRoles.test.ts` |
+| LNG2-4 | Each role's message is deduplicated, respects cooldown and materiality, says how current its inputs are, and is withdrawn when a later change makes it moot | `tests/integration/test_lng_cargo_change_roles.py::test_a_late_cargo_reaches_each_role_with_its_own_message` (the same event again notifies no one; a change ten minutes later waits for the 30-minute cooldown; every message carries its inputs' line; the ETA corrected back withdraws all four and tells each role); `tests/domain/test_lng_consequences.py::test_digest_is_stable_for_the_same_content`, `::test_a_plan_that_did_not_change_tells_nobody` |
+| LNG2-5 | The same chain works for a departure, energy, slot or hedge change, not only an ETA delay | `tests/integration/test_lng_cargo_change_roles.py::test_a_slot_change_and_a_hedge_change_take_the_same_chain`, `::test_an_energy_or_departure_change_below_the_threshold_skips_the_desk_head` |
+
+The ETA carries its basis and confidence (lesson P3): `tests/unit/test_lng_positions_import.py::test_an_eta_carries_its_basis_confidence_and_source_lesson_p3`, `::test_an_unknown_eta_basis_refuses_the_file`; migration `0080_lng_eta_basis` in `tests/unit/test_lng_eta_basis_migration.py`.
+
+## GOV-1 governance: audit with the change, AI controls, licensed-data use (met)
 Lessons P4 to P6 in [16](16_COMPETITIVE_STUDY.md); AI controls are AIR-3 to AIR-7 above.
 | # | Criterion | Test |
 | --- | --- | --- |

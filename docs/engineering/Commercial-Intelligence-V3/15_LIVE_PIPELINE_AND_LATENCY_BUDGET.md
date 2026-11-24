@@ -64,7 +64,7 @@ is outside our control; it is stated so the total is honest.
 | TSO flows and nominations | ENTSOG hourly with a lag; National Gas within-day; the firm's nominations at D-1 and hourly renominations with a lead time | Flows 15 minutes after publication; deadline prompts at least 30 minutes before each cut-off | ENTSOG hourly, National Gas daily; nomination status recorded by the scheduler; deadline notifications from the gas-day checklist | No TSO nomination or confirmation feed (status is recorded by hand) | Gas day and publication time on flows; countdown to the cut-off on the checklist |
 | Tariffs and auctions | Tariffs yearly or quarterly; PRISMA auctions on a published calendar, within-day hourly | Tariffs same day; auction results 1 hour (day-ahead) | Operator-kept tariff register; an entry notes `tariffs` pending and the sweep runs within a minute | No auction calendar or results ingestion | Tariff version and valid-from; register state `manual` |
 | Storage and LNG send-out | Daily (GIE AGSI and ALSI publish gas day D on D+1, with revisions) | 1 hour after publication | GIE on its daily schedule | None that matters | Gas day of the figure and receipt state |
-| AIS positions and ETAs | Positions every few minutes at sea; ETAs change on the scale of hours | ETA or slot change to an LNG prompt within 15 minutes | Kpler declared with a 60-minute policy; cargo positions by file import; the cargo plan reads the latest ETA | No alert on an ETA or slot change; no AIS feed connected | The source of each plan input (ETA, slot) on the cargo plan |
+| AIS positions and ETAs | Positions every few minutes at sea; ETAs change on the scale of hours | ETA or slot change to an LNG prompt within 15 minutes | Kpler declared with a 60-minute policy; cargo positions by file import; the cargo plan reads the latest ETA; since LNG-2 each role is told within about a second of the import's commit (median 0.66 s on the worker's first change, 0.11 s after, section 8) | No AIS feed connected; the budget is met from the commit of an import, not from the vessel's report | The ETA's source, basis and confidence, and the source of each other plan input, on the plan and in each role's message |
 | Weather runs and forecasts | ECMWF open data at 00, 06, 12 and 18 UTC, released some hours after the run | 30 minutes after release | `ingest_ecmwf_forecasts.py` on a 12-hour freshness policy | None that matters | Model run time ("ECMWF 00z") on the forecast |
 | News | Continuous | 5 minutes for a headline, with its source and time, if added | Not ingested | No source, no citation checks yet (planned in [13](13_PERSONA_AND_PRACTICE_REVIEW.md)) | n/a |
 | Firm's own deals, positions and cargo imports | Per file drop from the ETRM or LNG desk (often end of day, sometimes hourly) | Position screens 1 minute after the import; opportunities 2 minutes | Import scripts; `contract.changed`, `cargo.changed` and `book` pending inputs; positions recompute on read | No drop-folder watcher; an import runs when someone runs it | "Positions as of" the last import |
@@ -145,7 +145,17 @@ receiving opportunities, nominations and source alerts as before.
 | Fundamentals (storage, demand) | `alert` | Analyst | Trader | |
 | Strategy | `alert` | Quant researcher | Trader | |
 | Data source failed or stale | `source` | Data operator | Platform administrator | |
-| LNG ETA or slot change | not yet raised | LNG trader | Trader | Gap: the cargo plan changes, but no alert is raised (M7-9 records it) |
+| LNG cargo change: hedges (LNG-2) | `cargo` | Trader | Management | "Hedges no longer match Aurora (SAB-0420): buy 383,333 MWh TTF 2026-11 at short notice; sell 379,373 MWh TTF 2026-12" |
+| LNG cargo change: berth, send-out, nominations | `nomination` | Operations (scheduler) | Trader | "Renominate 10 gas day(s) for Aurora (SAB-0420)", each day with the cut-off it hits |
+| LNG cargo change: exposure and mandates | `limits` | Risk manager | Management | "Mandate breach from Aurora (SAB-0420)": net by month, the mandate before and after |
+| LNG cargo change: material | `desk_head` | Management | Management | "Material cargo change: Aurora (SAB-0420)" with the reasons and the threshold |
+
+The four LNG rows are one consumer's messages, one per role, about the same `cargo.changed`
+revision (12, "Who hears about a change"). They do not go through the one-per-alert mirror
+below: each notifies itself, keyed on its message's digest, with a 30-minute cooldown per role
+(broken by a rise in severity or a new item) and a withdrawal notice when a later change makes
+it moot. A channel subscribed to `alert` receives the scheduler's message (through
+`nomination`) and none of the other three; a desk subscribes each role's category.
 
 Dedupe, materiality and cooldown are unchanged. An alert's fingerprint gives it a stable id;
 the notification outbox holds one row per alert id (`alert:<id>`), now inserted under a
@@ -216,6 +226,23 @@ cheaper (the price queries it repeats), not a faster bus.
 The measurement found a defect, fixed in M7: a mark set back to an earlier value
 (44, 40, 44) was refused by the outbox as a replay, because its event had no publication
 time, so the third save waited for the full sweep (about 20 s) instead of the targeted run.
+
+### A cargo change to each role (LNG-2)
+
+ETA import committed to every role's notification in the outbox, PostgreSQL 16, one host, the
+listen worker as its own process (`--poll-seconds 0.05`), 8 runs of
+`tests/integration/test_lng_cargo_change_postgres.py`:
+
+| Change | Median | Min | Max |
+| --- | --- | --- | --- |
+| The first change after the worker starts (it loads the cargo modules) | 0.66 s | 0.61 s | 0.75 s |
+| The next change in the same worker (the ETA corrected back: every message withdrawn) | 0.11 s | 0.09 s | 0.16 s |
+| Outbox to the channel sender (dispatch) | +0.02 s | | |
+
+The consumer's own work is the plan rebuilt twice and each mandate on the book re-checked
+over the ladder; the ladder read is most of it (about 0.1 to 0.15 s on the test desk). The
+budget for an ETA or slot change is 15 minutes; the import, which runs when the file arrives,
+is now the whole of the delay.
 
 ## 9. Retiring the legacy intraday engine (M7 d): blocked
 

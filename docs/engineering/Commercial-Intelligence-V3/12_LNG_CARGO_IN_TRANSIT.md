@@ -51,23 +51,52 @@ out of its book, and a cargo moves book only when a file names another book. The
 publishes the cargo events in its own transaction and lists an ETA that overrides an ETA
 another source set (QA-L-04).
 
-## Who hears about a change (target, LNG-2)
+## Who hears about a change (LNG-2, built)
 
-A cargo change matters to several people for different reasons. Taking the owner's example,
-a cargo due in three days and hedged forward is reported late:
+A cargo change matters to several people for different reasons. The `cargo_roles` outbox
+consumer (`application/lng_cargo_alerts.py`) takes each `cargo.changed` revision, rebuilds the
+plan from the event's inputs, compares it with the plan each role last heard about, and
+derives one message per role (`domain/lng/consequences.py`, pure). Taking the owner's example,
+a cargo due at Gate in three days, hedged forward month by month, reported four days late by
+the vessel feed (an AIS ETA, low confidence):
 
-- **Trader (book owner):** the forward sales no longer match the arrival window; the plan
-  proposes the roll or buy-back by month, with the due time before either month stops
-  trading. Approval stays with the trader.
-- **Scheduler and operations:** the slot window, berth and send-out move; which nominations
-  and cut-offs that touches.
-- **Risk:** the change in exposure by month and any limit or mandate it moves.
-- **Desk head:** only when the change is material by the configured threshold.
+| Role (job function) | Channel category | What it receives |
+| --- | --- | --- |
+| Trader (TRADER) | `cargo` | "Hedges no longer match Aurora (SAB-0420): buy 383,333 MWh TTF 2026-11 at short notice; sell 379,373 MWh TTF 2026-12", each with "physical + hedge = net" per month, the due time (Dec before it stops trading) and "nothing is traded". Critical when a month has already stopped trading or the first action is due within a day |
+| Scheduler (OPERATIONS) | `nomination` | "Renominate 10 gas day(s)": berth before and after, send-out by gas day before and after, and for each day the nomination or renomination cut-off it hits (`gas_day.cutoffs_for`). "Slot missed" when the new ETA misses the window. Critical when a cut-off has passed or falls within three hours |
+| Risk (RISK_MANAGER) | `limits` | Net exposure by hub month before and after, and each mandate over the book re-checked with the limits screen's own rule ("LNG desk 98 % watch → 126 % breach"). Critical on a new breach |
+| Desk head (MANAGEMENT) | `desk_head` | Only when material: the largest change in net by month, or the hedge actions in total, at or above `lng.material_change_mwh` (an approved commercial assumption; else a desk standard of 100,000 MWh, said so), a slot newly missed, or a mandate newly breached. The message lists the reasons |
 
-The links are canonical: a cargo belongs to a book, its hedges are recorded on it, its
-send-out is on the ladder by gas day, and its slot belongs to a terminal and hub. So the
-chain is the same for any schedule change. Routing to people builds on the M7 alert work;
-the acceptance tests are LNG2-1 to LNG2-5 in [06](06_ACCEPTANCE_CRITERIA.md).
+Every message ends with how current its inputs are: "ETA from KPLER (the ETA declared in
+AIS, low confidence), stored …; slot gate-1 from ETRM, …; hedges recorded by lng.trader, …;
+plan rebuilt … from cargo.changed revision 2". An AIS or low-confidence ETA asks the reader
+to confirm it before acting.
+
+- **Dedupe and cooldown.** A message is keyed on its digest: the same content is not sent
+  twice. A changed message for the same role waits 30 minutes after the last one unless its
+  severity rises or it names a new item (a new month, gas day or mandate).
+- **Withdrawal.** When a later change makes a role's message moot (the ETA corrected back,
+  the cargo delivered or taken out of the book), the alert is resolved and the role is told
+  "Withdrawn: …" with the reason (the screens show it in English or Chinese).
+- **Where it shows.** Each role's channel; Today's "What needs me" (the reader's own roles
+  only, critical first); the cargo board's "Who must act" column (the reader's roles marked);
+  the plan sheet's "Who has been told" (open messages, and those withdrawn in the last day).
+- **Any change.** The chain is the same for a departure, energy, slot or hedge change:
+  `cargo.changed` carries all plan inputs. A change that moves nothing a role acts on tells no
+  one; the first recording of a cargo tells no one.
+
+Nothing in this chain trades, nominates or books; proposals wait for the trader. Criteria:
+LNG2-1 to LNG2-5 in [06](06_ACCEPTANCE_CRITERIA.md). Routing: [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md)
+section 5.
+
+## What the ETA rests on (lesson P3)
+
+An import may give `eta_basis` (master_notice, ais_declared, feed_estimate, schedule, manual;
+`nor`, `ais` and the like are accepted) and `eta_confidence` (high, medium, low). The cargo
+keeps them with the source that set the ETA and when (`eta_source`, `eta_recorded_at_utc`,
+migration `0080_lng_eta_basis`). A new ETA without them reads "basis not stated, confidence
+not stated"; the old basis never carries over. The plan's ETA input, the board, the plan sheet
+and every role message say it in words.
 
 ## In the position ladder
 
@@ -97,7 +126,9 @@ recorded hedges, which are not booked trades (QA-L-03, QA-R-26).
   Enter (plan), `w` (what-if), `h` (hedges). The plan sheet shows the header, what changed, a
   timeline, the energy waterfall (with its table and CSV), send-out by gas day coloured by
   delivery month, the hub × month grid with the recorded hedge legs, suggestions by due time
-  with their arithmetic, and the inputs with their sources. The what-if says nothing is
+  with their arithmetic, and the inputs with their sources. Since LNG-2 the ETA cell says what
+  the ETA rests on, a "Who must act" column shows one chip per open role message, and the plan
+  sheet has "Who has been told". The what-if says nothing is
   stored; the hedge editor validates before the PUT. Advice only: nothing books, nominates or
   trades. The board is the landing of the `lng` composition (a trader whose book scope names an
   LNG book) and the palette finds a cargo by id, vessel or IMO. Pure logic:
@@ -106,7 +137,8 @@ recorded hedges, which are not booked trades (QA-L-03, QA-R-26).
   notices for the `cargoes` and `slots` groups, and polls every minute while that stream is down.
 - Import cadence: no source declares one for cargo files, so the board states its own (24 h
   for an ETRM file, 6 h for a vessel feed) and marks an import older than that as late.
-- Storage: migration `0078_lng_cargo_hedges` (ADR Decision 29).
+- Storage: migrations `0078_lng_cargo_hedges` (ADR Decision 29) and `0080_lng_eta_basis`
+  (ETA basis and confidence, LNG-2).
 
 ## Limits today
 
@@ -116,6 +148,10 @@ recorded hedges, which are not booked trades (QA-L-03, QA-R-26).
   not on the ladder; a warning says so.
 - Credit exposure does not include recorded cargo hedges: they name no counterparty.
 - Vessel position, heading and route are not used for the ETA; the ETA is what the import
-  says.
-- The screen has no Today row or What-needs-me item yet, the timeline has no crosshair or zoom,
+  says, with the basis and confidence the import states.
+- Role messages go to channels by category, not to a named person on duty; escalation is
+  stated in the message, not timed (15 section 5).
+- The mandate re-check reads the whole ladder, about 0.1 s on the test desk; it grows with
+  the book.
+- The timeline has no crosshair or zoom,
   and a changed row's flash is neutral rather than coloured by direction.

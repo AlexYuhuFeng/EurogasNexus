@@ -6,6 +6,20 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-24 — Commercial Intelligence V3, LNG-2: a cargo change reaches each role (branch `wip/lng2`)
+
+- `cargo_roles` outbox consumer (`application/lng_cargo_alerts.py`) rebuilds a cargo's plan on
+  each `cargo.changed` and derives one message per role (`domain/lng/consequences.py`): trader
+  (hedge actions with arithmetic), scheduler (berth, send-out, nomination cut-offs), risk (net
+  by month, mandates), desk head (only when material by `lng.material_change_mwh`). Alerts
+  `lng_hedge`, `lng_schedule`, `lng_exposure`, `lng_material` notify themselves (digest dedupe,
+  30-minute cooldown, withdrawal). New notification categories `cargo`, `desk_head`.
+- Migration `0080_lng_eta_basis` (down_revision `0079_licensed_data_use`, the
+  governance slice's migration): ETA basis, confidence, source and time (lesson P3).
+- No new route; additive fields in the contract policy. Web: board column,
+  plan section, Today item. Commit to every role's notification on PostgreSQL through the
+  listen worker: median 0.66 s on the worker's first change, 0.11 s after.
+
 ## 2026-11-24 — Commercial Intelligence V3, M5b, M6 and LNG-1 (branch `innovation/continuous-commercial-intelligence`)
 
 - M5b: contract, hedge-band and assumption edits publish `contract.changed` and

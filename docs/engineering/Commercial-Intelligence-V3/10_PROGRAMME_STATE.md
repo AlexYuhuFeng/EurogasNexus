@@ -7,7 +7,7 @@ describes.
 **Branch:** `innovation/continuous-commercial-intelligence` (pushed; no pull request opened,
 nothing merged, no tag, no release package)
 **Baseline:** `main@6d21b898661d6466418b3aaeab505a7bc4fb4013`
-**Schema head on the branch:** `0078_lng_cargo_hedges` (LNG-1); `0079_licensed_data_use` on `wip/gov` (GOV-1, P6)
+**Schema head on the branch:** `0080_lng_eta_basis` (LNG-2), on `0079_licensed_data_use` (GOV-1, P6)
 
 ## Where the programme stands
 
@@ -30,7 +30,9 @@ nothing merged, no tag, no release package)
 | 16 Competitive and design study | Done ([16](16_COMPETITIVE_STUDY.md)) |
 | P-08 One price resolver | Built and tested |
 | M7 Live pipeline | Built and tested; M7-1 to M7-9 met, M7-10 (legacy engine removal) blocked by its dependents (R19); design and budgets in [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) |
-| LNG-2, GOV-1, UX-1, DATA-1, TAR-1, MAP-1, SCHED-1, NEWS-1, UX-2, LOOP-1, M8 to M11, M13 | Planned, in the order of [05](05_IMPLEMENTATION_ROADMAP.md) |
+| LNG-2 A cargo change reaches each role | Built and tested; LNG2-1 to LNG2-5 met ([06](06_ACCEPTANCE_CRITERIA.md)); who hears what in [12](12_LNG_CARGO_IN_TRANSIT.md); commit to every role's notification measured in [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) section 8 |
+| GOV-1 Audit with the change, AI controls, licensed-data use | Built and tested; GOV1-1 to GOV1-6 met ([06](06_ACCEPTANCE_CRITERIA.md)); maker-checker (P-17) still to build |
+| UX-1, DATA-1, TAR-1, MAP-1, SCHED-1, NEWS-1, UX-2, LOOP-1, M8 to M11, M13 | Planned, in the order of [05](05_IMPLEMENTATION_ROADMAP.md) |
 | M12 Hosted pilot | Dropped by the user on 2026-11-24 (deployment later, outside this programme) |
 
 ## Commits on the branch
@@ -57,6 +59,11 @@ nothing merged, no tag, no release package)
 | `5411893` | M7(b) new-engine opportunities become alerts, routed to their owner, notified once |
 | `e2e92f5` | M7(c) `/api/stream/opportunities` serves the opportunity engine; the page follows it live |
 | (this commit) | M7 documents (15), latency measurement, legacy retirement blockers |
+| `5cd947d` | LNG-2 an ETA carries its basis, confidence, source and time (migration 0080) |
+| `4ff3f62` | LNG-2 mandate usage helpers shared by the limits screen and the cargo check |
+| `4ad0103` | LNG-2 a cargo change reaches the trader, scheduler, risk and desk head |
+| `dec1e4a` | LNG-2 web: who must act on a cargo change, and what its ETA rests on |
+| (this commit) | LNG-2 documents and evidence |
 
 ## What M5 built
 
@@ -77,8 +84,9 @@ deduplicated plan in [05](05_IMPLEMENTATION_ROADMAP.md) ("Consolidated requireme
 1. **P-08 and M7 (built).** One price everywhere; the listen worker, role-routed alerts and
    opportunities pushed when they open and when they close. Left from M7: timed escalation
    (R20), conflated quote events (R14), retiring the legacy engine (R19).
-2. **LNG-2.** A delayed cargo reaches the trader, scheduler, risk and, when material, the
-   desk head (criteria LNG2-1 to LNG2-5 in [06](06_ACCEPTANCE_CRITERIA.md)).
+2. **LNG-2 (built).** A delayed cargo reaches the trader, scheduler, risk and, when material,
+   the desk head (criteria LNG2-1 to LNG2-5 in [06](06_ACCEPTANCE_CRITERIA.md)). Left: timed
+   escalation when a role does not act (R20, as for M7), routing to a named person on duty.
 3. **GOV-1.** Audit with the change, entitlement reporting, maker-checker, AI controls.
 4. **UX-1.** The twelve design-study fixes, installer and sign-in.
 5. **DATA-1, TAR-1, MAP-1, SCHED-1, NEWS-1, UX-2, LOOP-1**, then M8 to M11 and M13.

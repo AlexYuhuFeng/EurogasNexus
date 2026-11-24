@@ -1,5 +1,17 @@
 # API 契约演化策略
 
+2026-11-24 新增（货物变更送达各角色，Commercial Intelligence V3 LNG-2）：无新路径。
+`GET /api/lng/cargoes/plans` 与 `GET /api/lng/cargoes/{cargo_id}/plan` 新增 `cargo.eta`
+（`basis`、`confidence`、`source`、`recorded_at_utc`、`text`）；看板行新增 `attention[]`（每条未结角色消息一项：
+`alert_id`、`role` trader|scheduler|risk|desk_head、`severity`、`title`、`title_zh`、`due_utc`、`mine`、
+`updated_at_utc`），计划新增 `roles[]`（各角色关于最近一次变更的消息，含一天内撤回者，附 `lines`、`lines_zh`、
+`items`、`inputs_as_of`、`withdrawn` 与 `mine`），均按货物所属账簿过滤。`GET /api/desk/today` 的“需要我处理”
+可含 `kind` 为 `cargo` 的条目（附 `role` 与 `cargo_id`）。`PUT /api/settings/notification-channels/{id}`
+接受类别 `cargo` 与 `desk_head`；`GET /api/monitoring/alerts` 可含类别 `lng_hedge`、`lng_schedule`、
+`lng_exposure`、`lng_material`。LNG 头寸导入新增两个可选列 `eta_basis` 与 `eta_confidence`（迁移
+`0080_lng_eta_basis`）。接口统计不变：282 条路径 / 315 个操作。设计见
+`docs/engineering/Commercial-Intelligence-V3/12_LNG_CARGO_IN_TRANSIT.md`。
+
 2026-11-24 新增 LNG 在途货物计划（Commercial Intelligence V3 LNG-1）：四条路径、四个操作。
 `GET /api/lng/cargoes/plans`、`GET /api/lng/cargoes/{cargo_id}/plan` 与
 `POST /api/lng/cargoes/{cargo_id}/plan/what-if`（READ）把一船货从 ETA、靠泊窗口、蒸发、
@@ -108,6 +120,12 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `GET /api/portfolio/position-ladder` | 每行 `marks_as_of`、`state`；顶层 `marks_as_of`、`marks_state`（附加字段，2026-11-24，QA-R-07） | 枢纽最新收盘价及其状态；顶层为所持枢纽中最不新者，盯市与 VaR 据此说明估值日期。监控扫描新增 `limits` 告警 `marks_stale`（指纹 `marks_stale:credit`，警告级，按账簿可见），任一信用额度的估值价延迟或过期时触发 |
 | `GET /api/access/users`、`POST /api/access/users`、`PATCH /api/access/users/{id}` | `segregation_warning`（附加字段，2026-11-24，QA-R-03） | 授权同时含 ANALYST 与 REVIEWER 时为 `code` `segregation_of_duties`、`roles`、`message`，否则为 `null`；不拒绝授权，服务器拒绝该人的风控写操作 |
 | `PUT /api/settings/notification-channels/{channel_id}`、`GET /api/settings/notification-channels` | `categories` 新增取值 `opportunity` 与 `nomination`（2026-11-24，M7） | 机会告警（新引擎，路由给交易员）与燃气日提名截止及交付告警（路由给运营）各有自己的类别，调度员可只订阅提名。订阅了 `alert` 的渠道仍会收到这两类（伞形类别），既有订阅不受影响；空列表仍表示全部类别 |
+| `PUT /api/settings/notification-channels/{channel_id}`、`GET /api/settings/notification-channels` | `categories` 新增取值 `cargo` 与 `desk_head`（2026-11-24，LNG-2） | `cargo`：货物变更给 LNG 交易员的套保建议；`desk_head`：按 `lng.material_change_mwh` 判定为重大的货物变更。订阅 `alert` 的渠道不会收到这两类；调度与风控的货物消息分别使用 `nomination` 与 `limits` |
+| `GET /api/lng/cargoes/plans`、`GET /api/lng/cargoes/{cargo_id}/plan` | `cargo.eta`（附加字段，2026-11-24，LNG-2） | ETA 的依据：`basis`（master_notice、ais_declared、feed_estimate、schedule、manual 或 `null`）、`confidence`（high、medium、low 或 `null`）、`source`（设定该 ETA 的源系统）、`recorded_at_utc`，以及英文表述 `text` |
+| `GET /api/lng/cargoes/plans` | `[].attention`（附加字段，2026-11-24，LNG-2） | 调用者可见（按货物账簿）的该货物未结角色消息，无则为 `[]`；角色与调用者某一工作职能相符时 `mine` 为 true |
+| `GET /api/lng/cargoes/{cargo_id}/plan` | `roles`（附加字段，2026-11-24，LNG-2） | 各角色关于该货物最近一次变更的消息，含一天内撤回者；其中任何内容均不执行 |
+| `GET /api/desk/today` | `needs_me` 中 `kind` 为 `cargo` 的条目，附 `role` 与 `cargo_id`（附加字段，2026-11-24，LNG-2） | 调用者本人角色（工作职能）的未结货物消息，严重者在前；`target` 打开交易台 → 货物并定位该货物；`why` 指向该告警 |
+| `GET /api/monitoring/alerts` | `category` 新取值 `lng_hedge`、`lng_schedule`、`lng_exposure`、`lng_material`；`entity_type` `lng_cargo`（2026-11-24，LNG-2） | 每个货物每个角色一条告警，与限额一样按账簿可见；后续变更使其失去意义时以 `evidence_snapshot.withdrawn` 关闭 |
 | `GET /api/market/quotes` | 每行 `resolved_price` (`hub`, `period_start`, `period_end`, `side`, `value`, `unit`, `value_mwh`, `unit_mwh`, `kind`, `source_system`, `as_of_utc`, `state`, `freshness_state`, `simulated`, `basis`, `reference`)（附加字段，2026-11-24，P-08、QA-T-02、QA-L-22） | 读取时刻该行枢纽与交割窗口在所有页面上显示的同一价格，来自 `domain/market/price_resolution`（最新的在期行情点或结算价，否则公司估值价，否则持有的最新价格并标为 stale；仅限有权使用的数据源）。行自身的报价字段不变；该窗口无任何价格时为 `null` |
 | `GET /api/desk/today` | `key_figures` 中 `price.<hub>` 项、`market.hubs[].front_month` 及 `book` 行的 `mark` 上的 `resolved_price`（附加字段，2026-11-24，P-08） | 与价格看板上近月的对象相同；无价格时为 `null`。`close_day` 仍为最后一个月前收盘日 |
 | `POST /api/analysis/brief` | `resolved_prices`（顶层列表，附加字段，2026-11-24，P-08） | 价格段每个枢纽行一个 `resolved_price` 对象；各段结构不变 |
@@ -150,6 +168,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `GET /api/desk/today`（`price.<hub>`、`market.hubs[].front_month`、`book` 的 `mark`）、`POST /api/analysis/brief`（价格段） | **每个枢纽与月份只有一个价格（2026-11-24，P-08、QA-T-02、QA-L-22）**：月前数值取解析器的价格：按数据源新鲜度策略仍在期的实时行情点优先于昨日收盘价；`as_of`、`state`、`simulated` 与 `source` 均取该价格。日变动按同一交割月的前一收盘价计算（跨月滚动时无），Today 账簿日损益随所示变动计算。简报行日期为该价格的观测日。日前数值不变 | 同一时刻同一月份最多出现三个价格 |
 | `GET /api/portfolio/position-ladder` 及所有基于 `ladder_inputs` 的读取 | **估值价取自解析器（2026-11-24，P-08）**：月份估值价为最新的在期行情点或结算价，否则公司当前估值价（`mark_method` 新值 `firm_mark`），否则如前按曲线或收盘价补齐；之后重新计算 `flat_months` | 看板显示更新的报价时，阶梯仍按演示曲线估值 |
 | 估值快照价格（机会扫描、LNG 船货经济性） | **过期报价不再优先于在期结算价（2026-11-24，P-08）**：价格输入取解析器的结果；报价仅在在期时优先。价格读取快照时刻前 400 天内的数据 | 此前任意时长的报价都先于结算价被采用 |
+| `GET /api/lng/cargoes/{cargo_id}/plan`（`inputs[]` 中的 `ETA` 行） | **ETA 来源说明其依据（2026-11-24，LNG-2）**：`source` 原为固定文本 “cargo record eta_utc”，现为 “ETA from <源系统> (<依据>, <置信度>)”，导入未说明时为 “basis not stated” 与 “confidence not stated”。曾匹配旧文本的客户端应改读 `cargo.eta` | 经验 P3：估计值要说明自己是估计；交易员按报告来源衡量延误 |
 | `GET /api/opportunities`、`GET /api/opportunities/{opportunity_id}`（`sell_down` 类型；`locational` 日前候选） | **按账簿自有假设集与燃气日余量评估（2026-11-24，P-11）**：全公司评估先读账簿自有的已批准假设集，再回退到全公司假设集（卖出余量的不平衡折价与溢价；区位机会的负荷率、燃料与损耗、短期乘数）；币种与枢纽不同的账簿不平衡费率不予使用。余量为该账簿明日燃气日自身明细的日平衡（与 `GET /api/portfolio/daily-balance`、“我的燃气日”同一口径），在账簿平衡带内视为平衡，不再按实测交付比例缩放（快照中的余量输入注明 `definition: gas_day`、`delivery_ratio_applied: false`）。此前显示“无法评估”的卖出余量记录，在账簿持有费率时现可估值，数值随之变化，数量腿与首条证伪条件改写（评估器版本 2）。仅供决策参考 | 人物审查 P-11；与 QA-T-07 同一平衡口径 |
 | 受治理的写入：`PUT /api/portfolio/credit-lines/{counterparty_id}`、`PUT /api/portfolio/trader-mandates/{mandate_id}`、`PUT /api/portfolio/hedge-approvals/{contract_id}`、`PUT /api/portfolio/lng-terminal-terms/{terminal_id}`、`PUT /api/opportunities/settings`、`POST /api/assumption-sets`、`POST /api/assumption-sets/{set_id}/versions`、`POST /api/assumption-sets/{set_id}/versions/{version}/approve`、`PUT /api/market/firm-marks`、`/api/access/*` 与 `/api/me/api-keys` 下的用户、组、许可与密钥写入、`PUT /api/credentials/{provider_id}`、`DELETE /api/credentials/{provider_id}`、`PUT /api/lng/cargoes/{cargo_id}/hedges` 以及内部身份写入 | **审计是写入的一部分（2026-11-24，GOV-1，P5）。** 变更的审计行无法写入时，写入返回 `503`，`detail.code` 与 `error` 为 `audit_unavailable`（DEPENDENCY 类，可重试），`detail.action` 为审计动作，变更不保存任何部分。此前变更可能在没有审计行的情况下成功。读取不受影响。用户与许可更新的审计行现在也记录 `before_summary` 与 `after_summary` | 受治理的变更必须可追溯（竞品研究第 5 条） |
 | `PUT /api/settings/organisation` | **受治理的写入，并校验 `ai_features`（2026-11-24，GOV-1）**：审计行与变更在同一事务中写入；审计行无法写入时变更不保存，返回 503 `audit_unavailable`（此前审计失败被吞掉）；审计行现带 `before_summary` 与 `after_summary`。`ai_features` 中非已登记 AI 用途的键或非布尔值返回 422 `setting_invalid` | AI 开关属于管控，变更不得缺少审计行（P5） |
