@@ -669,6 +669,9 @@ def publish_firm_marks(session, entries: Iterable[Any], *, actor: str, now_utc: 
 
     The payload holds a digest of the mark, not its value: the firm's marks stay in their own
     table (the outbox is read by operators, the audit log carries no values either).
+
+    The desk publishes a mark when it saves it, so ``published_at_utc`` is the save instant: a
+    mark set back to an earlier value is then a new revision, not a replay of the old one.
     """
 
     import hashlib
@@ -688,6 +691,7 @@ def publish_firm_marks(session, entries: Iterable[Any], *, actor: str, now_utc: 
                     subject_key=f"hub:{entry.hub}:{label}",
                     dependency_keys=(f"hub:{entry.hub}:{label}",),
                     ingested_at_utc=now_utc,
+                    published_at_utc=now_utc,
                     payload={"hub": entry.hub, "period": label, "mark_digest": digest},
                     correlation_id=actor[:64],
                 ),

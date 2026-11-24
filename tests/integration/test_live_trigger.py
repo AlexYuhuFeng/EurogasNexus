@@ -113,6 +113,25 @@ def test_a_drain_hands_back_when_its_time_is_spent_and_a_count_cap_is_still_poss
     assert counter.seen == 30
 
 
+def test_a_mark_set_back_to_an_earlier_value_is_published_again(engine) -> None:
+    """Found by the M7 latency measurement: without a publication time, 44 -> 40 -> 44 was
+    refused as a replay, so the third save waited for the full sweep instead of the outbox."""
+
+    from eurogas_nexus.domain.valuation.firm_marks import validate_firm_mark
+
+    factory = sessionmaker(engine)
+    published = []
+    with factory() as session:
+        for offset, value in enumerate((44, 40, 44)):
+            entry = validate_firm_mark("TTF", "2026-11-18", value, "EUR/MWh")
+            (result,) = outbox.publish_firm_marks(
+                session, [entry], actor="t", now_utc=NOW + timedelta(seconds=offset)
+            )
+            published.append((result.kind.value, result.revision))
+        session.commit()
+    assert published == [("new", 1), ("revision", 2), ("revision", 3)]
+
+
 def test_the_debounce_is_one_minute() -> None:
     assert schedule.DEBOUNCE == timedelta(seconds=60)
     assert schedule.due(NOW - timedelta(seconds=59), NOW) is False
