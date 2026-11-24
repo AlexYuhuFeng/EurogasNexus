@@ -71,6 +71,37 @@ repeated price queries, remove the 1,000-event drain cap (M7).
 | P-23 | S2 | E2 | The README's develop path fails at its second command (database URL driver) | Rewritten README; driverless URLs use the runtime driver | DOC |
 | P-24 | S3 | C12 | Installer images are 1x and blur at high DPI; no signing; sign-in has no autofocus | Installer and sign-in polish | Next |
 
+## Hands-on review by role (Q1)
+
+Three reviewers signed in as each role in a real browser on 2026-11-24 (commit `877b355`,
+before F1), clicked, hovered, used the keyboard and checked figures against the store. On-time
+cargo plans matched hand calculations to 0.1 MWh; the credit exposure reconciled to the store;
+the draft SDK docs took a new quant to a first result verbatim. The S1 findings and their state:
+
+| ID | Role | Finding | State |
+| --- | --- | --- | --- |
+| QA-T-01 | Trader | "Mid" is the last price, not (bid+ask)/2 | Next |
+| QA-T-02, QA-L-22 | Trader, LNG | Up to three prices for one month across screens; the demo curve has no drift | Next (with P-08) |
+| QA-T-03 | Trader | No change against the close; prices below the fold on the landing | Next |
+| QA-T-04, QA-R-07 | Trader, risk | Stale rows look live; old marks raise no stale alert; the feeds panel and Today disagree | Next |
+| QA-T-05, QA-R-05 | All | Implausible, future and wrongly labelled ticks accepted | Ticks fixed in F1; firm marks and the "Updated" stamp next |
+| QA-T-06, QA-R-08 | Scheduler | The status write failed for all and the scheduler could not record | Fixed (F1, F1-8) |
+| QA-T-07 | Scheduler | Two daily balances with hard-coded rates | Next |
+| QA-T-08 | Scheduler | The nomination step's deadline uses the wrong cut-off | Next |
+| QA-T-09 | Scheduler | An outage is ignored in the gas-day balance | Next |
+| QA-L-01 | LNG | The gas-day card and the cargo plan give different send-out | Next |
+| QA-L-02 | LNG | A backward roll is due after the target month stops trading | Next |
+| QA-L-03, QA-R-26 | Desk head, risk | Firm cargoes and their hedges are missing from the ladder | Next |
+| QA-L-04 | LNG | A vessel-feed import clears a cargo's book link | Next |
+| QA-L-05 | LNG | No cargo screen | Next (cargo board) |
+| QA-R-01 | Risk | The credit-line form sends empty links; the breach and its alert vanish | Server half fixed in F1 (omitted fields kept); the form still sends empty lists: next |
+| QA-R-02 | Admin | An admin can mint a key for another person and act as them | Next |
+| QA-R-03, QA-R-04 | Admin, risk | Trader+risk users and own mandates by name | Fixed in F1 (segregation, all names compared); a warning at user creation is next |
+| QA-R-06 | All | One spread gets opposite verdicts on Today and the Spreads board | Next |
+
+The full reports, screenshots and scripts are kept in the session workspace; the S2 and S3
+findings are worked through after the S1s.
+
 ## Data the platform should add, and how
 
 - **Public tariffs.** The LNG tariff register is well built but ships empty. Regulated

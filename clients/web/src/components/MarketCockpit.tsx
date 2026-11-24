@@ -190,7 +190,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             }}
             // My gas day: each line opens where it is acted on or evidenced (Book → Delivery,
             // Planning or Position; a prompt trade on Prices with its hub chosen).
-            canRecordGasDay={Array.isArray(api.currentUser?.permissions) && api.currentUser.permissions.includes("portfolio.write")}
+            canRecordGasDay={Array.isArray(api.currentUser?.permissions) && api.currentUser.permissions.includes("gas_day.record")}
             onOpenGasDay={(target) => {
               if (target.mode === "desk") {
                 if (target.params.hub) traderContext.setHubId(target.params.hub);

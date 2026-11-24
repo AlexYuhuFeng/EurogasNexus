@@ -45,7 +45,8 @@ nothing merged, no tag, no release package)
 | `877b355` | LNG-1 cargo in transit as one plan (migration 0078) |
 | `dcbb498` | M5b, M6, LNG-1 documents; quality standard; research synthesis |
 | `0d3d6e1` | F1 audit blockers: gas-day status, scheduled tracks, segregation of duties, audited partial updates, feed plausibility |
-| (this commit) | DOC README, docs index and SDK docs rewritten with verified examples; typed SDK errors; driverless database URLs |
+| `7a2b9de` | DOC README, docs index and SDK docs rewritten with verified examples; typed SDK errors; driverless database URLs |
+| (this commit) | F1-8 scheduling role: a scheduler records nomination status (ADR Decision 30) |
 
 ## What M5 built
 

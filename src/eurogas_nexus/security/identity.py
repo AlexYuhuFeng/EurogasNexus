@@ -52,10 +52,13 @@ class Role(StrEnum):
     """Local identity roles, least-privilege ordered.
 
     REVIEWER can record analytical human-review decisions but has no
-    research-edit or operator rights. No execution-oriented roles exist.
+    research-edit or operator rights. SCHEDULER reads what a viewer reads and records the
+    status of gas-day nominations and terminal steps (status tracking: nothing is sent),
+    the scheduling group of an ETRM. No execution-oriented roles exist.
     """
 
     VIEWER = "VIEWER"
+    SCHEDULER = "SCHEDULER"
     ANALYST = "ANALYST"
     REVIEWER = "REVIEWER"
     OPERATOR = "OPERATOR"
@@ -64,11 +67,24 @@ class Role(StrEnum):
 
 ROLE_RANK: dict[Role, int] = {
     Role.VIEWER: 0,
-    Role.REVIEWER: 1,
-    Role.ANALYST: 2,
-    Role.OPERATOR: 3,
-    Role.ADMIN: 4,
+    Role.SCHEDULER: 1,
+    Role.REVIEWER: 2,
+    Role.ANALYST: 3,
+    Role.OPERATOR: 4,
+    Role.ADMIN: 5,
 }
+
+
+def primary_role(roles: list[str] | tuple[str, ...]) -> str:
+    """The highest-ranked of ``roles`` (unknown names rank lowest), for the primary role column."""
+
+    def rank(value: str) -> int:
+        try:
+            return ROLE_RANK[Role(str(value).upper())]
+        except ValueError:
+            return -1
+
+    return max(roles, key=rank)
 
 
 @dataclass(frozen=True)

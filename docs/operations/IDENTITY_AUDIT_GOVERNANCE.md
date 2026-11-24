@@ -11,7 +11,7 @@ PostgreSQL identities and service API keys remain supported.
 | Item | Behavior |
 |---|---|
 | Principal | USER or SERVICE row in `identity_principals` |
-| Roles | VIEWER, REVIEWER, ANALYST, OPERATOR, ADMIN (overlapping; a principal may hold several) |
+| Roles | VIEWER, SCHEDULER, REVIEWER, ANALYST, OPERATOR, ADMIN (overlapping; a principal may hold several). SCHEDULER is a viewer who may also record gas-day nomination and terminal-step status (`gas_day.record`) |
 | Credential | Hashed bearer API key in `identity_api_keys` |
 | Client header | `X-Eurogas-Identity: nexus_<key_id>_<secret>` |
 | Legacy deployment | `X-Eurogas-Api-Key` without identity header remains an OPERATOR service principal |

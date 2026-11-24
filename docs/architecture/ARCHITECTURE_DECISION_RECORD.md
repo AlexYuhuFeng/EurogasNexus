@@ -697,3 +697,21 @@ The platform suggests rolls, sales, buy-backs and short-notice cover; it places 
 (AGENTS.md rule 8). Matching recorded legs to ETRM trades is left for the integration layer.
 Tests: `tests/domain/test_lng_in_transit.py`, `tests/api/test_lng_cargo_plan_api.py`,
 `tests/sdk/test_lng_cargo_plan_client.py`.
+
+## Decision 30: Scheduling is a role, not a job function
+
+Accepted 2026-11-24 (branch `innovation/continuous-commercial-intelligence`, programme
+[Commercial Intelligence V3](../engineering/Commercial-Intelligence-V3/13_PERSONA_AND_PRACTICE_REVIEW.md),
+finding QA-T-06). The person who schedules gas, a VIEWER with the OPERATIONS job function,
+could not record that a nomination was sent, because recording needed `portfolio.write`,
+which also edits contracts and positions. Job functions compose the screen and never grant
+authority (decision D4, machine-checked), so the fix is a role: `SCHEDULER` holds a viewer's
+reads plus one permission, `gas_day.record`, which records nomination and terminal-step
+status by hand (nothing is nominated or sent; AGENTS.md rule 8). ANALYST also holds it.
+SCHEDULER ranks above VIEWER and below REVIEWER, so the route gate admits it exactly where
+it admits a viewer; the status route's gate category floor is SCHEDULER and its handler
+requires `gas_day.record`. This mirrors an ETRM's scheduling security group. Rejected:
+letting OPERATIONS grant the write (breaks D4); giving schedulers ANALYST (strategies,
+scenarios and book edits they do not need). Tests: `tests/api/test_gas_day_status_api.py`,
+`tests/unit/test_demo_identity_access.py`.
+

@@ -13,7 +13,7 @@ import { useApiStore } from "@/stores/api";
 
 type Translate = (key: string, values?: Record<string, string | number>) => string;
 
-const ROLES = ["VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN"] as const;
+const ROLES = ["VIEWER", "SCHEDULER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN"] as const;
 const WEEKDAYS = [0, 1, 2, 3, 4, 5, 6] as const;
 /** Half-hour slots of the UTC day. */
 const TIMES = Array.from({ length: 48 }, (_, i) => `${String(Math.floor(i / 2)).padStart(2, "0")}:${i % 2 ? "30" : "00"}`);

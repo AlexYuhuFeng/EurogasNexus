@@ -99,7 +99,7 @@ export interface TodayScreenProps {
   onOpenPrices?: () => void;
   /** Open where a "My gas day" line is acted on or evidenced (Book, Prices → prompt). */
   onOpenGasDay?: (target: GasDayTargetDTO) => void;
-  /** Whether the reader may record a checklist status (`portfolio.write`; the server checks). */
+  /** Whether the reader may record a checklist status (`gas_day.record`; the server checks). */
   canRecordGasDay?: boolean;
   /** Open what a "What needs me" item names. */
   onOpenNeed?: (item: TodayNeedsMeRowDTO["items"][number]) => void;

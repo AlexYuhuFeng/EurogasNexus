@@ -20,8 +20,8 @@ from datetime import UTC, datetime
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.models import IdentityPrincipalRecord
+from eurogas_nexus.security.identity import primary_role
 
-ROLE_RANK = ["VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN"]
 DIRECTORY_MODE = "directory"
 
 
@@ -95,7 +95,7 @@ def sync_directory_principal(
             raise DirectoryAccessRefused(f"principal is {principal.status.lower()} locally")
     before = (sorted(principal.roles or []), sorted(principal.data_scopes or []), principal.office)
     principal.roles = roles
-    principal.role = max(roles, key=ROLE_RANK.index)
+    principal.role = primary_role(roles)
     principal.data_scopes = scopes
     principal.office = (office or "").strip().upper()[:16] or principal.office
     principal.email = email or principal.email

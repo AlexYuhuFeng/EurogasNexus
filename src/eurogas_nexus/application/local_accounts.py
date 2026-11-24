@@ -63,8 +63,6 @@ from eurogas_nexus.security.local_accounts_policy import (  # noqa: F401 - re-ex
     local_accounts_setting,
 )
 
-ROLE_RANK = ["VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN"]
-
 #: A temporary password lets its holder choose a password for this long.
 TEMPORARY_PASSWORD_TTL = timedelta(hours=72)
 #: The password-change step after a temporary-password sign-in.
@@ -212,10 +210,11 @@ def _apply_grants(
     session: Session, row: IdentityPrincipalRecord, grants: AccountGrants
 ) -> None:
     from eurogas_nexus.security.capabilities import parse_job_functions
+    from eurogas_nexus.security.identity import primary_role
 
     roles = _normalized_roles(grants.roles)
     row.roles = roles
-    row.role = max(roles, key=ROLE_RANK.index)
+    row.role = primary_role(roles)
     row.data_scopes = sorted(
         {str(scope).strip().upper() for scope in grants.data_scopes if str(scope).strip()}
     )

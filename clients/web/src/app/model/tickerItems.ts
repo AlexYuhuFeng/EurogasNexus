@@ -1226,7 +1226,7 @@ export function todayFacts(today: DeskTodayDTO): StripTodayFacts {
   };
 }
 
-const ROLE_RANK: Record<string, number> = { VIEWER: 0, REVIEWER: 1, ANALYST: 2, OPERATOR: 3, ADMIN: 4 };
+const ROLE_RANK: Record<string, number> = { VIEWER: 0, SCHEDULER: 1, REVIEWER: 2, ANALYST: 3, OPERATOR: 4, ADMIN: 5 };
 
 /**
  * Whether the person may acknowledge an alert: the governed write's own rule (ANALYST floor,

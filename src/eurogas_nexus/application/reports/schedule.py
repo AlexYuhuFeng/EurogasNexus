@@ -30,7 +30,7 @@ from typing import Any
 
 SETTING_KEY = "report_schedules"
 KINDS = ("daily", "weekly")
-ROLES = ("VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN")
+ROLES = ("VIEWER", "SCHEDULER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN")
 #: A slot missed by more than this (the worker was down) is skipped, not generated late.
 CATCH_UP = timedelta(hours=6)
 MAX_SCHEDULES = 20

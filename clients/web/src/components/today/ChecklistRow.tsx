@@ -20,7 +20,7 @@ export interface ChecklistRowProps {
   t: Translate;
   language: string;
   nowMs: number;
-  /** Whether the reader may record a status (`portfolio.write`); the server checks again. */
+  /** Whether the reader may record a status (`gas_day.record`); the server checks again. */
   canRecord?: boolean;
   onOpen?: (target: GasDayTargetDTO) => void;
   /** Read Today again after a status is recorded. */

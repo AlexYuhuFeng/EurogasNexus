@@ -41,7 +41,7 @@ export const JOB_FUNCTIONS = [
 
 export const OFFICES = ["UK", "CA", "SG", "CN", "NL", "DE", "CH"] as const;
 
-const ROLE_ORDER = ["VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN"];
+const ROLE_ORDER = ["VIEWER", "SCHEDULER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN"];
 const byRank = (a: string, b: string) =>
   (ROLE_ORDER.indexOf(a) + 1 || 99) - (ROLE_ORDER.indexOf(b) + 1 || 99) || a.localeCompare(b);
 

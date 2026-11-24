@@ -34,6 +34,7 @@ export const PERMISSION_VOCABULARY: Readonly<Record<string, { area: PermissionAr
   "market.read": { area: "market", action: "view_prices" },
   "portfolio.read": { area: "portfolio", action: "view" },
   "portfolio.write": { area: "portfolio", action: "edit_contracts" },
+  "gas_day.record": { area: "portfolio", action: "record_gas_day" },
   "strategy.read": { area: "strategy", action: "view" },
   "strategy.create": { area: "strategy", action: "create" },
   "strategy.edit": { area: "strategy", action: "edit" },

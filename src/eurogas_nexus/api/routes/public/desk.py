@@ -82,7 +82,7 @@ def post_gas_day_status(body: GasDayStatusRequest, request: Request) -> dict:
     Status tracking only: nothing is nominated or sent. The line must be in the caller's own
     gas day (the books their mandate covers, or every book they may see without one); the
     status is stored as entered by hand, with who and when, and an audit event is written.
-    Needs ``portfolio.write``.
+    Needs ``gas_day.record`` (SCHEDULER or ANALYST).
     """
 
     from datetime import UTC, datetime
@@ -95,10 +95,10 @@ def post_gas_day_status(body: GasDayStatusRequest, request: Request) -> dict:
     from eurogas_nexus.security.authorization import Permission, authorize
 
     principal = getattr(request.state, "identity", None)
-    if principal is None or not authorize(principal, Permission.PORTFOLIO_WRITE).allowed:
+    if principal is None or not authorize(principal, Permission.GAS_DAY_RECORD).allowed:
         raise HTTPException(
             status_code=403,
-            detail={"code": "permission_denied", "permission": Permission.PORTFOLIO_WRITE.value},
+            detail={"code": "permission_denied", "permission": Permission.GAS_DAY_RECORD.value},
         )
     if resolve_database_url() is None:
         raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})

@@ -433,9 +433,10 @@ PERMISSION_ENFORCEMENT: dict[Permission, EnforcementStatus] = {
 ROLE_REQUIREMENTS: dict[Permission, str] = {
     Permission.PUBLIC: "VIEWER",
     Permission.READ: "VIEWER",
-    # Creates or modifies desk records (the gas-day status note); the handler narrows to
-    # PORTFOLIO_WRITE. Without this entry every such route answered 500 (persona review B2).
-    Permission.WRITE: "ANALYST",
+    # Records desk status (the gas-day nomination and terminal steps). The gate admits a
+    # scheduler; the handler requires ``gas_day.record`` (SCHEDULER, ANALYST). Without this
+    # entry every such route answered 500 (persona review B2).
+    Permission.WRITE: "SCHEDULER",
     Permission.GOVERNED: "ANALYST",
     Permission.REVIEW: "REVIEWER",
     Permission.OPERATOR: "OPERATOR",

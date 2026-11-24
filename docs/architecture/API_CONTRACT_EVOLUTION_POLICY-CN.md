@@ -116,7 +116,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | 信用额度、交易员授权、套保批准、机会阈值的 PUT，及假设集批准 | **职责分离（2026-11-24，商业智能 V3 F1）**：仍需 REVIEWER；同时持有前台角色（ANALYST）的身份现以 `403 segregation_of_duties` 拒绝。授权对象为调用者任一名称（主体 id、名称或显示名，不区分大小写）时以 `403 own_mandate` 拒绝 | 人物审查 P-01/P-02：既是交易员又是审核人者可设定衡量自己交易的限额 |
 | `PUT /api/portfolio/credit-lines/{id}` | **未提交的字段保留原值（F1）**：此前不带 `contract_ids` 会清空关联及其超限；解除关联须显式传 `[]`。每次参考数据写入的审计事件逐字段记录变更前后值（并填写 `before_summary`/`after_summary`），响应新增 `changed` | 人物审查 P-01 |
 | `POST /api/market/ticks` | **许可标签须单独授权，不合理报价被拒绝（F1）**：`EEX`、`ICE_OCM`、`Trayport` 仅接受有效数据范围明确包含该源的密钥（`*` 密钥返回 `403 source_not_granted`）。价格超出该枢纽报价单位与产品的合理区间、远期产品为负、交易所时间晚于接收超过 120 秒、或中间价为同一合约上一报价的 3 倍以上（或三分之一以下）时，整批以 `422 ticks_invalid` 拒绝并说明原因，不存储任何内容 | 人物审查 P-03 |
-| `POST /api/desk/gas-day/status` | **不再返回 500（F1）**：写权限类别此前没有最低角色；现需 ANALYST，返回 403、404、422 或 200 | 人物审查 P-04 |
+| `POST /api/desk/gas-day/status` | **不再返回 500（F1）**：写权限类别此前没有最低角色；现需 `gas_day.record` 权限（新增的 SCHEDULER 调度员角色与 ANALYST 持有），返回 403、404、422 或 200 | 人物审查 P-04 |
 
 ## 被拒绝的请求字段
 

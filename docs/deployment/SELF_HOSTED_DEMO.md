@@ -137,7 +137,7 @@ password:
 | `demo.compliance` | REVIEWER | Legal and compliance | review, decision record |
 | `demo.ops` | OPERATOR | Data operator | Source centre, ingestion runs |
 | `demo.originator` | ANALYST | Originator | deals: evaluate, routes and cargo bids, contracts |
-| `demo.operations` | VIEWER | Operations (deliveries, scheduling) | delivery, nomination deadlines, outages; reads only |
+| `demo.operations` | SCHEDULER | Operations (deliveries, scheduling) | delivery, nomination deadlines, outages; records nomination and terminal-step status (nothing is sent) |
 | `demo.admin` | ADMIN | Platform administrator | users, keys, audit; no commercial data, by design |
 
 Every feature works, writes included (contracts, scenarios, optimisation, reviews, limits,

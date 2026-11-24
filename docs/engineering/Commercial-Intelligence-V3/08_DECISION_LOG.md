@@ -5,6 +5,7 @@ Programme decisions, newest first. Architecture-level decisions also go to
 
 | Date | Decision | Why | Alternatives rejected |
 | --- | --- | --- | --- |
+| 2026-11-24 | Scheduling is a role, SCHEDULER, holding a viewer's reads plus `gas_day.record` (ADR Decision 30) | The scheduler could not record a nomination (QA-T-06); job functions must stay composition only, and the ETRM pattern is a scheduling security group | OPERATIONS granting the write (breaks D4); ANALYST for schedulers (over-grants) |
 | 2026-11-24 | Documentation follows the four kinds (tutorial, how-to, reference, explanation) with an entry by role; every SDK example is a runnable file tested against a demo server; the SDK reference is generated | Readers arrive with a task, not a table of contents; an example that is not run goes stale silently | Hand-written reference (drifts); examples only inline in Markdown (cannot be run) |
 | 2026-11-24 | SDK refusals raise `NexusAPIError`, a subclass of `httpx.HTTPStatusError` | Callers get the server's code and correlation id without breaking existing `except httpx.HTTPStatusError` handlers | A new unrelated exception (breaks callers); raw httpx errors (no code, no correlation id) |
 | 2026-11-24 | SDK docs are English only for now; the Chinese index links to them and says so | Translating a document that is still moving doubles the drift; the role table is mirrored | Machine translation without review |

@@ -4,7 +4,7 @@ Eurogas Nexus separates three things that trading-house access models often blur
 
 | Layer | Question | Set by | Grants access? |
 |---|---|---|---|
-| **Role** (VIEWER, REVIEWER, ANALYST, OPERATOR, ADMIN) | What may this person do? | Administrator; never self-granted (a second admin must make the change) | Yes: permissions |
+| **Role** (VIEWER, SCHEDULER, REVIEWER, ANALYST, OPERATOR, ADMIN) | What may this person do? | Administrator; never self-granted (a second admin must make the change) | Yes: permissions |
 | **Data scopes** (EEX, ICE_OCM, Trayport, WMR, …) | Which licensed data may they see? | Administrator, in line with the vendor licence | Yes: row entitlement |
 | **Job functions** (below) and **office** | What does this person do, and where? | Administrator, audited | No: home screen and emphasis only |
 

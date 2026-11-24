@@ -257,6 +257,8 @@ export function fallbackComposition(user: CurrentUserDTO | null | undefined): Co
   // An operator runs sources; without scenario work their day is the platform's.
   if (compositionSeesAdministration(compositionFromProfile(user?.experience))) return "platform";
   if (hasPermission(user, "review.record")) return "reviewer";
+  // A scheduler records nomination status: their day is deliveries and deadlines.
+  if (hasPermission(user, "gas_day.record")) return "operations";
   return "desk_head";
 }
 

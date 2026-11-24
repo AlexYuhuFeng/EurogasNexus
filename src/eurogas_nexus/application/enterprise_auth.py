@@ -46,6 +46,7 @@ from eurogas_nexus.security.authorization import (
 from eurogas_nexus.security.identity import (
     AuthenticatedPrincipal,
     Role,
+    primary_role,
     role_value,
 )
 from eurogas_nexus.security.oidc import (
@@ -474,8 +475,7 @@ def _provision_identity(
         now_utc=now,
     )
     principal.roles = sorted(set(roles)) or ["VIEWER"]
-    rank = ["VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN"]
-    principal.role = max(principal.roles, key=rank.index)
+    principal.role = primary_role(principal.roles)
     principal.email = email or None
     principal.identity_source = "OIDC"
     # Registration is not approval: the principal stays PENDING and cannot
@@ -548,10 +548,7 @@ def assign_access(
     if not normalized_roles:
         normalized_roles = [Role.VIEWER.value]
     principal.roles = normalized_roles
-    principal.role = max(
-        normalized_roles,
-        key=lambda value: ["VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN"].index(value),
-    )
+    principal.role = primary_role(normalized_roles)
     principal.data_scopes = [
         str(scope).strip().upper() for scope in data_scopes if str(scope).strip()
     ]

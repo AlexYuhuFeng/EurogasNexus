@@ -32,6 +32,7 @@ class Permission(StrEnum):
     MARKET_READ = "market.read"
     PORTFOLIO_READ = "portfolio.read"
     PORTFOLIO_WRITE = "portfolio.write"
+    GAS_DAY_RECORD = "gas_day.record"
     STRATEGY_READ = "strategy.read"
     STRATEGY_CREATE = "strategy.create"
     STRATEGY_EDIT = "strategy.edit"
@@ -68,6 +69,7 @@ COMMERCIAL_PERMISSIONS: frozenset[Permission] = frozenset(
         Permission.MARKET_READ,
         Permission.PORTFOLIO_READ,
         Permission.PORTFOLIO_WRITE,
+        Permission.GAS_DAY_RECORD,
         Permission.STRATEGY_READ,
         Permission.STRATEGY_CREATE,
         Permission.STRATEGY_EDIT,
@@ -108,6 +110,21 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.AGENT_READ,
         }
     ),
+    # Scheduling: a viewer's reads plus recording nomination and terminal-step status.
+    Role.SCHEDULER: frozenset(
+        {
+            Permission.ME_READ,
+            Permission.MARKET_READ,
+            Permission.PORTFOLIO_READ,
+            Permission.GAS_DAY_RECORD,
+            Permission.STRATEGY_READ,
+            Permission.REVIEW_READ,
+            Permission.SOURCE_READ,
+            Permission.RUNTIME_READ,
+            Permission.CAPABILITY_READ,
+            Permission.AGENT_READ,
+        }
+    ),
     Role.REVIEWER: frozenset(
         {
             Permission.ME_READ,
@@ -128,6 +145,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.MARKET_READ,
             Permission.PORTFOLIO_READ,
             Permission.PORTFOLIO_WRITE,
+            Permission.GAS_DAY_RECORD,
             Permission.STRATEGY_READ,
             Permission.STRATEGY_CREATE,
             Permission.STRATEGY_EDIT,

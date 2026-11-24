@@ -82,6 +82,8 @@ class Capability(StrEnum):
     PROVIDER_CREDENTIAL_MANAGE = "provider.credential.manage"
     PROVIDER_CERTIFICATION_MANAGE = "provider.certification.manage"
 
+    GAS_DAY_RECORD = "gas_day.record"
+
     RUNTIME_READ = "runtime.read"
 
     ACCESS_READ = "access.read"
@@ -119,6 +121,7 @@ CAPABILITY_PERMISSIONS: dict[Capability, frozenset[Permission]] = {
     Capability.PROVIDER_BACKFILL_OPERATE: frozenset({Permission.SOURCE_BACKFILL}),
     Capability.PROVIDER_CREDENTIAL_MANAGE: frozenset({Permission.SOURCE_CREDENTIALS_WRITE}),
     Capability.PROVIDER_CERTIFICATION_MANAGE: frozenset({Permission.SOURCE_CERTIFICATION_MANAGE}),
+    Capability.GAS_DAY_RECORD: frozenset({Permission.GAS_DAY_RECORD}),
     Capability.RUNTIME_READ: frozenset({Permission.RUNTIME_READ}),
     Capability.ACCESS_READ: frozenset({Permission.IDENTITY_READ}),
     Capability.ACCESS_MANAGE: frozenset({Permission.IDENTITY_MANAGE}),
@@ -135,6 +138,7 @@ COMMERCIAL_CAPABILITIES: frozenset[Capability] = frozenset(
         Capability.MARKET_READ,
         Capability.PORTFOLIO_READ,
         Capability.PORTFOLIO_ASSUMPTION_WRITE,
+        Capability.GAS_DAY_RECORD,
         Capability.SCENARIO_DESIGN,
         Capability.OPTIMIZATION_RUN,
         Capability.STRATEGY_READ,
