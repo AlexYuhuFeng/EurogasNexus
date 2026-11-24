@@ -24,7 +24,12 @@ nothing merged, no tag, no release package)
 | Q1 Quality standard and hands-on review | In progress ([11](11_COMMERCIAL_QUALITY_STANDARD.md)) |
 | F1 Audit blockers | Built and tested; F1-1 to F1-7 met ([06](06_ACCEPTANCE_CRITERIA.md)) |
 | DOC Documentation and SDK | Built and tested; DOC-1 to DOC-6 met |
-| M7 to M11, M13 | Planned ([05](05_IMPLEMENTATION_ROADMAP.md)) |
+| QA-1 Persona round 1 fixes | Built and tested; F1-8 to F1-10 met, review rows in [13](13_PERSONA_AND_PRACTICE_REVIEW.md) |
+| P-11 Book-scoped opportunity evaluation | Built and tested |
+| AIR-1 AI by role and improvement loop | Design done ([14](14_AI_ROLES_PERSONALISATION_AND_IMPROVEMENT_LOOP.md)); AIR-1 and AIR-2 met |
+| 16 Competitive and design study | Done ([16](16_COMPETITIVE_STUDY.md)) |
+| P-08 One price resolver; M7 live pipeline | In progress |
+| LNG-2, GOV-1, UX-1, DATA-1, TAR-1, MAP-1, SCHED-1, NEWS-1, UX-2, LOOP-1, M8 to M11, M13 | Planned, in the order of [05](05_IMPLEMENTATION_ROADMAP.md) |
 | M12 Hosted pilot | Dropped by the user on 2026-11-24 (deployment later, outside this programme) |
 
 ## Commits on the branch
@@ -58,23 +63,21 @@ consumer widens a EUR fixing to the stored cross pairs that contain its other cu
 `run_due` (CP-13) now deletes pending classes by condition in the store, so a change noted
 while it runs is no longer lost (R4).
 
-## Continuation plan (Q1, F1, then M7)
+## Continuation plan
 
-1. **Q1.** Review every surface against [11](11_COMMERCIAL_QUALITY_STANDARD.md) per role in a
-   real browser (clicks, hover, chart interaction, keyboard), checking each figure against
-   its source; record findings in [13](13_PERSONA_AND_PRACTICE_REVIEW.md).
-2. **F1 (built).** Gas-day status answers; daily tracks are scheduled; segregation of
-   duties; audited partial updates; feed plausibility and licensed-label grants. Left:
-   four-eyes on limits with P-17, and the S1/S2 findings of the hands-on review.
-3. **Desk polish from the UI review.** Stale vs live styling, prices above the fold,
-   directional value flash, instrument search in the palette, consistent units, number
-   formatting, transitions, sign-in and installer.
-4. **Data.** Public tariff pickup with quarantine and versions; label simulated LNG terms;
-   news and events with citation checks ([13](13_PERSONA_AND_PRACTICE_REVIEW.md)).
-5. **M7.** New-engine opportunities to alerts and the stream; deploy the listen worker.
+The whole programme, the original brief and every addition of 2026-11-24, is one
+deduplicated plan in [05](05_IMPLEMENTATION_ROADMAP.md) ("Consolidated requirements" and
+"Order and reasoning"). In short:
 
-The research behind 13 is in the session workspace and summarised there; nothing in it is
-needed to build.
+1. **P-08 and M7.** One price everywhere; the live pipeline with role-routed alerts and
+   opportunities pushed when they open and when they close.
+2. **LNG-2.** A delayed cargo reaches the trader, scheduler, risk and, when material, the
+   desk head (criteria LNG2-1 to LNG2-5 in [06](06_ACCEPTANCE_CRITERIA.md)).
+3. **GOV-1.** Audit with the change, entitlement reporting, maker-checker, AI controls.
+4. **UX-1.** The twelve design-study fixes, installer and sign-in.
+5. **DATA-1, TAR-1, MAP-1, SCHED-1, NEWS-1, UX-2, LOOP-1**, then M8 to M11 and M13.
+
+A persona review round follows each user-facing slice.
 
 ## Operating the outbox
 
@@ -94,3 +97,5 @@ Without `--commit`, `capture`, `drain` and `replay` roll back, so they can be tr
 - Access for M12: an ENTSO-E API token, an Oracle Cloud tenancy and an Aiven PostgreSQL
   service. Nothing in M5b to M11 needs them.
 - Whether to open a draft pull request for review (none opened).
+- The branch `claude/gas-trading-tool-review-08bgpo` sits on the same commit as `main`; this
+  session's access cannot delete it, so the owner deletes it.
