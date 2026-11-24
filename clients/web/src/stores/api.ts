@@ -41,6 +41,7 @@ import {
   snapshotContextFrom,
 } from "@/app/model/analysisSnapshotModel";
 import { sourceRunOutcome, type SourceRunOutcome } from "@/app/model/sourceRunModel";
+import { latestUpdateStamp } from "@/app/model/boardQuote";
 import { runtimeStoreStatus } from "@/app/model/dataPlaneStatus";
 import {
   IDLE_DECISION_ACTION_STATE,
@@ -605,17 +606,18 @@ function mergeIntradayOpportunities(
     .slice(0, 100);
 }
 
+/**
+ * The Prices page's "Updated" stamp: the newest market row, each capped at the time the server
+ * received it and the whole at the server's read (QA-R-05), so a future-dated tick never shows
+ * a time that has not happened yet.
+ */
 function latestMarketObservedAt(
   normalizedMarkets: NormalizedMarketObsDTO[],
   marketQuotes: MarketQuoteDTO[],
   fxRates: FxRateDTO[],
+  serverAsOf: string | null = null,
 ): string | null {
-  const timestamps = [
-    ...normalizedMarkets.map((row) => row.observed_at_utc),
-    ...marketQuotes.map((row) => row.observed_at_utc),
-    ...fxRates.map((row) => row.observed_at_utc),
-  ].filter((value): value is string => Boolean(value));
-  return latestTimestamp(timestamps);
+  return latestUpdateStamp([...normalizedMarkets, ...marketQuotes, ...fxRates], serverAsOf);
 }
 
 /**
@@ -667,7 +669,12 @@ function applyMarketContext(
     marketQuotes,
     intradayOpportunities,
     monitoringAlerts,
-    marketLastUpdatedAtUtc: latestMarketObservedAt(normalizedMarkets, marketQuotes, fxRates),
+    marketLastUpdatedAtUtc: latestMarketObservedAt(
+      normalizedMarkets,
+      marketQuotes,
+      fxRates,
+      usable ? projection?.as_of_utc ?? null : null,
+    ),
   };
 }
 
@@ -1948,7 +1955,8 @@ export const useApiStore = create<ApiState>((set, get) => ({
               marketQuotes: mergeMarketQuotes(state.marketQuotes, [quote]),
               marketLastUpdatedAtUtc: latestTimestamp([
                 state.marketLastUpdatedAtUtc,
-                quote.observed_at_utc,
+                // Never later than the server received it (QA-R-05).
+                latestUpdateStamp([quote]),
               ]),
             }));
           },

@@ -71,12 +71,34 @@ def test_a_firm_mark_is_weaker_than_a_sourced_price_and_never_sourced() -> None:
         ("TTF", "2027-01", 30, "EUR/bbl", "unit_invalid"),
         ("TTF", "2027-01", "abc", "EUR/MWh", "value_not_a_number"),
         ("TTF", "2027-01", 99999, "EUR/MWh", "value_implausible"),
+        # QA-R-05: the tick validation's per-unit bands (domain/market/feed.py).
+        ("TTF", "2027-03", 4200, "EUR/MWh", "value_implausible"),
+        ("TTF", "2027-04", -50, "EUR/MWh", "value_implausible"),
+        ("NBP", "2027-01", 2000, "p/th", "value_implausible"),
+        ("TTF", "2027-01", 140, "EUR/GJ", "value_implausible"),  # 504 EUR/MWh
     ],
 )
 def test_firm_mark_refusals(hub, period, value, unit, code) -> None:
     with pytest.raises(FirmMarkError) as caught:
         validate_firm_mark(hub, period, value, unit)
     assert caught.value.code == code
+
+
+def test_firm_marks_use_the_tick_bands_prompt_may_be_negative_curve_may_not() -> None:
+    """QA-R-05: one band for a tick and a mark; a day is a prompt product, a month a curve one."""
+
+    from eurogas_nexus.domain.market.feed import PLAUSIBLE_NATIVE_PRICE
+
+    floor, curve_floor, ceiling = PLAUSIBLE_NATIVE_PRICE["EUR/MWh"]
+    assert validate_firm_mark("TTF", "2027-01", ceiling, "EUR/MWh").value == ceiling
+    assert validate_firm_mark("TTF", "2027-01", curve_floor, "EUR/MWh")
+    assert validate_firm_mark("TTF", "2026-12-01", floor, "EUR/MWh")  # a gas day: prompt
+    with pytest.raises(FirmMarkError, match="below the plausible floor"):
+        validate_firm_mark("TTF", "2027-01", -0.5, "EUR/MWh")
+    with pytest.raises(FirmMarkError, match="above the plausible ceiling"):
+        validate_firm_mark("THE", "2027-Q1", ceiling + 1, "EUR/MWh")
+    # A unit the bands do not cover keeps the outer bounds.
+    assert validate_firm_mark("TTF", "2027-01", 12, "USD/MMBtu")
 
 
 def test_nbp_marks_keep_the_native_unit() -> None:

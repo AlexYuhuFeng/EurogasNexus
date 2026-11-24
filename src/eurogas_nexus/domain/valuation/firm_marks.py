@@ -25,8 +25,39 @@ from eurogas_nexus.domain.valuation.quality import InputClass
 #: The class of every firm mark, wherever it is read.
 FIRM_MARK_CLASS = InputClass.FIRM_MARK
 
-#: Plausibility bounds per MWh-equivalent quotation; a mark outside is a typing error.
+#: Outer bounds for a quotation the feed's bands do not cover (USD and CAD units): a mark
+#: outside is a typing error.
 _BOUNDS = (Decimal("-500"), Decimal("5000"))
+#: The banded quotation a mark is checked in, per currency: the tick bands
+#: (``domain.market.feed.PLAUSIBLE_NATIVE_PRICE``) are per native unit.
+_BANDED_UNIT = {"EUR": "EUR/MWh", "GBP": "GBp/th"}
+
+
+def check_plausible_mark(number: Decimal, unit: str, period: DeliveryPeriod) -> None:
+    """Refuse a mark outside the per-unit plausibility band the tick validation uses (QA-R-05).
+
+    The mark is converted, in its own currency, to the quotation the feed bands are kept in
+    (EUR to EUR/MWh, GBP to GBp/th) and checked by ``domain.market.feed.check_plausible_price``:
+    one band for a tick and a mark. A one-day period is a prompt product and may be negative
+    to the prompt floor; a month or longer is a curve product, floored at zero. Units in a
+    currency the bands do not cover keep the outer bounds.
+    """
+
+    from eurogas_nexus.domain.market.feed import FeedError, check_plausible_price
+    from eurogas_nexus.domain.market.units import convert_price
+
+    banded = _BANDED_UNIT.get(PRICE_UNITS[unit][0])
+    if banded is None:
+        low, high = _BOUNDS
+        if not low <= number <= high:
+            raise FirmMarkError("value_implausible", f"a mark must lie between {low} and {high}")
+        return
+    native = convert_price(float(number), unit, banded)
+    kind = "day_ahead" if period.kind == "day" else "curve"
+    try:
+        check_plausible_price(native, banded, product_kind=kind, label=period.label)
+    except FeedError as exc:
+        raise FirmMarkError("value_implausible", str(exc)) from exc
 
 
 class FirmMarkError(ValueError):
@@ -96,9 +127,7 @@ def validate_firm_mark(
         raise FirmMarkError("value_not_a_number", "a mark is a number") from exc
     if not number.is_finite():
         raise FirmMarkError("value_not_a_number", "a mark is a finite number")
-    low, high = _BOUNDS
-    if not low <= number <= high:
-        raise FirmMarkError("value_implausible", f"a mark must lie between {low} and {high}")
+    check_plausible_mark(number, canonical, parsed)
     if len(note) > 200:
         raise FirmMarkError("note_invalid", "a note is at most 200 characters")
     return FirmMarkEntry(

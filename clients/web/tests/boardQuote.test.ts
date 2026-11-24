@@ -13,6 +13,7 @@ import {
   changeVsClose,
   formatChangeVsClose,
   isQuoteStale,
+  latestUpdateStamp,
   quoteClose,
   quoteMid,
   quoteOneSided,
@@ -117,4 +118,27 @@ test("every new board string is in English and Chinese", () => {
     assert.ok(en[key], `en ${key}`);
     assert.ok(zh[key], `zh ${key}`);
   }
+});
+
+test("QA-R-05: the Updated stamp is never later than the server received or read the data", () => {
+  // A tick stamped two days ahead shows the time it was received, not the future.
+  assert.equal(
+    latestUpdateStamp([
+      { observed_at_utc: "2026-11-26T14:07:00Z", received_at_utc: "2026-11-24T14:07:00Z" },
+      { observed_at_utc: "2026-11-24T13:00:00Z", received_at_utc: "2026-11-24T13:00:01Z" },
+    ]),
+    "2026-11-24T14:07:00.000Z",
+  );
+  // Rows without a receive time (observations) are capped at the server's read instant.
+  assert.equal(
+    latestUpdateStamp([{ observed_at_utc: "2026-11-26T14:07:00Z" }], "2026-11-24T14:10:00Z"),
+    "2026-11-24T14:10:00.000Z",
+  );
+  // An ordinary row is shown as observed.
+  assert.equal(
+    latestUpdateStamp([{ observed_at_utc: "2026-11-24T14:00:00Z", received_at_utc: "2026-11-24T14:00:02Z" }], "2026-11-24T14:10:00Z"),
+    "2026-11-24T14:00:00.000Z",
+  );
+  assert.equal(latestUpdateStamp([], "2026-11-24T14:10:00Z"), null);
+  assert.match(read("stores/api.ts"), /latestUpdateStamp\(/);
 });

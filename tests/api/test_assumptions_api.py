@@ -252,6 +252,16 @@ def test_firm_marks_are_labelled_and_audited_without_values(tmp_path, monkeypatc
     refused = client.put("/api/market/firm-marks", headers=who["trader"], json=bad)
     assert refused.status_code == 422 and refused.json()["detail"]["code"] == "period_invalid"
 
+    # QA-R-05: 4,200 EUR/MWh and -50 EUR/MWh on a curve month are refused with the tick bands.
+    for value in (4200, -50):
+        implausible = {"marks": [{"hub": "TTF", "period": "2027-03", "value": value,
+                                  "unit": "EUR/MWh"}]}
+        refused = client.put("/api/market/firm-marks", headers=who["trader"], json=implausible)
+        assert refused.status_code == 422, refused.text
+        detail = refused.json()["detail"]
+        assert detail["code"] == "value_implausible" and detail["index"] == 0
+        assert "plausible" in detail["message"]
+
     with Session(engine) as session:
         events = (
             session.query(AuditEventRecord)

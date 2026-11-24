@@ -115,3 +115,34 @@ export function isQuoteStale(
   if (staleAfterSeconds !== null && ageSeconds !== null) return ageSeconds > staleAfterSeconds;
   return String(quote.freshness_state ?? "").toUpperCase() === "STALE";
 }
+
+/** A market row's time fields that bound its "Updated" stamp. */
+export interface UpdateStampRow {
+  observed_at_utc?: string | null;
+  received_at_utc?: string | null;
+}
+
+function instantMs(value: string | null | undefined): number | null {
+  if (!value) return null;
+  const parsed = Date.parse(value);
+  return Number.isNaN(parsed) ? null : parsed;
+}
+
+/**
+ * QA-R-05: the Prices page's "Updated" stamp. Each row counts at its observed time but never
+ * later than the server received it, and the newest is never later than the server's own read
+ * (`serverAsOf`): a tick stamped in the future cannot show a time that has not happened yet.
+ */
+export function latestUpdateStamp(rows: readonly UpdateStampRow[], serverAsOf: string | null = null): string | null {
+  let latest: number | null = null;
+  for (const row of rows) {
+    const observed = instantMs(row.observed_at_utc);
+    if (observed === null) continue;
+    const received = instantMs(row.received_at_utc);
+    const shown = received === null ? observed : Math.min(observed, received);
+    latest = latest === null ? shown : Math.max(latest, shown);
+  }
+  if (latest === null) return null;
+  const ceiling = instantMs(serverAsOf);
+  return new Date(ceiling === null ? latest : Math.min(latest, ceiling)).toISOString();
+}
