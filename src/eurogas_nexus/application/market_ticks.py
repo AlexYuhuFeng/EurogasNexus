@@ -27,7 +27,13 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from eurogas_nexus.domain.market.feed import FeedError, TradePrint
+from eurogas_nexus.domain.market.feed import (
+    FeedError,
+    TradePrint,
+    check_jump,
+    check_not_future,
+    check_plausible_price,
+)
 from eurogas_nexus.domain.market.gas_day import gas_day_label
 from eurogas_nexus.domain.market.products import ProductCodeError, resolve_product
 from eurogas_nexus.domain.market.units import HUB_NATIVE_PRICE_UNIT, convert_energy, convert_price
@@ -73,6 +79,33 @@ def check_source(source_system: str, *, simulated_allowed: bool) -> bool:
     )
 
 
+def publisher_refusal(principal: Any, source_system: str) -> str | None:
+    """Why ``principal`` may not deliver ticks under ``source_system``, or ``None``.
+
+    A licensed label (``EEX``, ``ICE_OCM``, ``Trayport``) tells every reader the price came
+    from that venue under the firm's licence, so only a key whose data scopes name that
+    family explicitly may deliver it: the feed connector's service key, not any operator. A
+    ``*`` scope grants reading everything; it is not a licence to publish as a venue (persona
+    review P-03). Simulated sources are labelled simulated wherever they travel and need no
+    grant.
+    """
+
+    from eurogas_nexus.security.identity import normalize_data_scope
+
+    if source_system not in LICENSED_QUOTE_SOURCES:
+        return None
+    scopes = {
+        normalize_data_scope(scope).casefold()
+        for scope in getattr(principal, "data_scopes", ()) or ()
+    }
+    if source_system.casefold() in scopes:
+        return None
+    return (
+        f"this key may not deliver {source_system} prices: its data scopes must name "
+        f"{source_system} (a '*' scope reads everything but publishes nothing)"
+    )
+
+
 def _when(value: Any, field: str) -> datetime:
     if isinstance(value, datetime):
         stamp = value
@@ -103,8 +136,10 @@ def _period(hub: str, product: str, observed: datetime):
     return hub, code, period, tenor
 
 
-def _price(hub: str, value: Any) -> tuple[float | None, float | None, str]:
-    """(per MWh in the quote currency, native, native unit)."""
+def _price(
+    hub: str, value: Any, *, kind: str = "", label: str = ""
+) -> tuple[float | None, float | None, str]:
+    """(per MWh in the quote currency, native, native unit); implausible prices refused."""
 
     if value is None or value == "":
         return None, None, ""
@@ -112,6 +147,7 @@ def _price(hub: str, value: Any) -> tuple[float | None, float | None, str]:
     if native != native or abs(native) > 1e6:
         raise FeedError("price out of range")
     unit = HUB_NATIVE_PRICE_UNIT.get(hub, "EUR/MWh")
+    check_plausible_price(native, unit, product_kind=kind, label=label or hub)
     per_mwh_unit = "GBP/MWh" if unit == "GBp/th" else unit
     return round(convert_price(native, unit, per_mwh_unit), 6), native, unit
 
@@ -133,14 +169,20 @@ def quote_row(source_system: str, simulated: bool, tick: dict[str, Any],
               received: datetime) -> dict[str, Any]:
     observed = _when(tick.get("exchange_time") or tick.get("timestamp"), "exchange_time")
     hub, code, period, tenor = _period(tick.get("hub"), tick.get("product"), observed)
+    label = f"{hub} {code}"
+    check_not_future(observed, received, label=label)
     hours = period.hours / period.gas_days
-    bid, native_bid, unit = _price(hub, tick.get("bid"))
-    ask, native_ask, _ = _price(hub, tick.get("ask"))
+
+    def price(field: str):
+        return _price(hub, tick.get(field), kind=period.kind, label=f"{label} {field}")
+
+    bid, native_bid, unit = price("bid")
+    ask, native_ask, _ = price("ask")
     if bid is None and ask is None:
         raise FeedError(f"{hub} {code}: bid or ask is required")
     if bid is not None and ask is not None and bid > ask:
         raise FeedError(f"{hub} {code}: crossed quote")
-    session = {name: _price(hub, tick.get(name))[0] for name in _SESSION_PRICE_FIELDS}
+    session = {name: price(name)[0] for name in _SESSION_PRICE_FIELDS}
     venue = _venue(source_system)
     instrument_id = f"{venue.upper().replace(' ', '-')}-{hub}-{period.label}"[:128]
     sequence = str(tick.get("sequence") or "")
@@ -198,7 +240,10 @@ def trade_row(source_system: str, simulated: bool, item: dict[str, Any],
               received: datetime) -> dict[str, Any]:
     traded = _when(item.get("exchange_time") or item.get("timestamp"), "exchange_time")
     hub, code, period, tenor = _period(item.get("hub"), item.get("product"), traded)
-    price, native, unit = _price(hub, item.get("price"))
+    check_not_future(traded, received, label=f"{hub} {code} trade")
+    price, native, unit = _price(
+        hub, item.get("price"), kind=period.kind, label=f"{hub} {code} trade"
+    )
     hours = period.hours / period.gas_days
     size = _size(hub, item.get("qty"), hours)
     printed = TradePrint(
@@ -229,6 +274,50 @@ def trade_row(source_system: str, simulated: bool, item: dict[str, Any],
         "metadata_json": {"native_price": native, "native_unit": unit,
                           "product_label": period.label, "simulated": simulated},
     }
+
+
+def _mid(row: dict[str, Any]) -> float | None:
+    bid, ask = row.get("bid_price"), row.get("ask_price")
+    if bid is not None and ask is not None:
+        return (bid + ask) / 2
+    return bid if bid is not None else ask
+
+
+def _check_jumps(session: Session, quote_rows: list[dict[str, Any]]) -> None:
+    """Refuse a quote whose mid jumped implausibly from the last one for its instrument.
+
+    The previous mid is the newest stored quote from the same source for the same instrument
+    and delivery, then each earlier quote of the batch in exchange-time order.
+    """
+
+    if not quote_rows:
+        return
+    from eurogas_nexus.db.models import MarketQuoteRecord
+
+    previous: dict[tuple[str, str], float | None] = {}
+    for row in sorted(quote_rows, key=lambda item: item["observed_at_utc"]):
+        key = (row["source_system"], row["instrument_id"])
+        if key not in previous:
+            stored = (
+                session.query(MarketQuoteRecord.bid_price, MarketQuoteRecord.ask_price)
+                .filter(
+                    MarketQuoteRecord.source_system == row["source_system"],
+                    MarketQuoteRecord.instrument_id == row["instrument_id"],
+                    MarketQuoteRecord.delivery_start_utc == row["delivery_start_utc"],
+                    MarketQuoteRecord.observed_at_utc <= row["observed_at_utc"],
+                )
+                .order_by(MarketQuoteRecord.observed_at_utc.desc())
+                .first()
+            )
+            previous[key] = (
+                _mid({"bid_price": stored[0], "ask_price": stored[1]}) if stored else None
+            )
+        mid = _mid(row)
+        if mid is None:
+            continue
+        label = f"{row['hub']} {row['metadata_json']['product_label']}"
+        check_jump(mid, previous[key], label=label)
+        previous[key] = mid
 
 
 def ingest_ticks(
@@ -264,6 +353,7 @@ def ingest_ticks(
     received = received_at or datetime.now(UTC)
     quote_rows = [quote_row(source_system, simulated, tick, received) for tick in quotes]
     trade_rows = [trade_row(source_system, simulated, item, received) for item in trades]
+    _check_jumps(session, quote_rows)
     if trade_rows:
         ids = [row["trade_id"] for row in trade_rows]
         held = {value for (value,) in session.query(MarketTradeRecord.trade_id)

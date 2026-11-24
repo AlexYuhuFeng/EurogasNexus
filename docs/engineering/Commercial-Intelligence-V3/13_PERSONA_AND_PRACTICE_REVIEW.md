@@ -46,11 +46,11 @@ repeated price queries, remove the 1,000-event drain cap (M7).
 
 | ID | Sev | Standard | Finding | Fix | Status |
 | --- | --- | --- | --- | --- | --- |
-| P-01 | S1 | B7, F4 | One reviewer can save a credit line with a shorter contract list and clear a breach in one call | Partial update; four-eyes on limit changes | F1 |
-| P-02 | S1 | B7, F4 | ANALYST plus REVIEWER on one person can approve their own work; the own-mandate check compares an id with a free-text label | Compare principal ids; refuse self-approval | F1 |
-| P-03 | S1 | A7 | Prices 100x, negative or in the future are accepted into strategies and the prompt panel; any operator key can label quotes as a licensed feed | Plausibility bands per hub, refuse future times, bind source label to the key's entitlement | F1 |
-| P-04 | S1 | F1 | `POST /api/desk/gas-day/status` always returns 500 | Give the route a permission with a role | F1 |
-| P-05 | S1 | F1 | Daily strategy tracks are evaluated once and never again (`run_due` not scheduled) | Schedule it | F1 |
+| P-01 | S1 | B7, F4 | One reviewer can save a credit line with a shorter contract list and clear a breach in one call | Partial update with before/after audit (done); four-eyes with P-17 | Partly done (F1) |
+| P-02 | S1 | B7, F4 | ANALYST plus REVIEWER on one person can approve their own work; the own-mandate check compares an id with a free-text label | Segregation of duties; own mandate under any name | **Done in F1** |
+| P-03 | S1 | A7 | Prices 100x, negative or in the future are accepted into strategies and the prompt panel; any operator key can label quotes as a licensed feed | Plausibility bands per hub, refuse future times, bind source label to the key's entitlement | **Done in F1** |
+| P-04 | S1 | F1 | `POST /api/desk/gas-day/status` always returns 500 | Give the route a permission with a role | **Done in F1** |
+| P-05 | S1 | F1 | Daily strategy tracks are evaluated once and never again (`run_due` not scheduled) | Schedule it | **Done in F1** |
 | P-06 | S1 | A3 | Demo LNG terminal terms are priced as the firm's contract terms | Carry the simulated label end to end | Tariff pickup |
 | P-07 | S1 | A5 | `GBP/th` read as pence by one unit module and pounds by another (100x) | One strict unit authority | M10 |
 | P-08 | S2 | A1, A4 | Three prices for TTF Dec-26 at one instant; a stale quote beats a fresh settlement | Freshest entitled source within each class's maximum age | Next after F1 |

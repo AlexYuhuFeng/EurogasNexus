@@ -60,17 +60,17 @@ def _require(request: Request, permission: Permission) -> AuthenticatedPrincipal
 
 
 def _require_risk_function(principal: AuthenticatedPrincipal) -> None:
-    """Approval is the risk function's: the REVIEWER role held itself, not a higher rank."""
+    """Approval is the risk function's: REVIEWER held itself, and no front-office role.
 
-    held = {str(principal.role or "").upper()} | {str(r).upper() for r in principal.roles or ()}
-    if "REVIEWER" not in held:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "code": "risk_function_required",
-                "message": "An assumption set is approved by risk (REVIEWER role).",
-            },
-        )
+    See ``security/segregation.py``: a person who also trades may not approve the
+    assumptions their own deals are valued with.
+    """
+
+    from eurogas_nexus.security.segregation import risk_function_refusal
+
+    refusal = risk_function_refusal(principal, what="Assumption set approvals")
+    if refusal is not None:
+        raise HTTPException(status_code=403, detail=refusal)
 
 
 def _session():

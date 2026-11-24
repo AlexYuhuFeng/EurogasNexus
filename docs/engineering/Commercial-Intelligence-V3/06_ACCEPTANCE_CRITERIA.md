@@ -72,6 +72,21 @@ A criterion counts as met only when a named test or command shows it. Met criter
 | E8 | A what-if stores nothing; a market cargo has no plan; a viewer cannot record hedges | `test_what_if_compares_without_storing`, `test_a_market_cargo_has_no_plan` |
 | E9 | The Python SDK reads, tries and records against the real application | `tests/sdk/test_lng_cargo_plan_client.py` |
 
+## F1 audit blockers (met)
+
+| # | Criterion | Test |
+| --- | --- | --- |
+| F1-1 | Every permission category names a minimum role; the gas-day status write refuses or records, never fails | `tests/api/test_gas_day_status_api.py` |
+| F1-2 | Daily strategy tracks are evaluated by the scheduler, and a failure is reported without stopping the loop | `tests/integration/test_strategy_tracking_schedule.py` |
+| F1-3 | A trader who also holds REVIEWER cannot set credit lines, mandates, hedge bands or opportunity thresholds, or approve assumption sets | `tests/api/test_risk_segregation_api.py::test_a_trader_who_is_also_a_reviewer_cannot_set_limits` |
+| F1-4 | A mandate cannot be one's own under the principal id, name or display name | `test_a_mandate_cannot_be_ones_own_under_any_name` |
+| F1-5 | A credit-line change keeps the fields it leaves out; the audit shows each change before and after | `test_a_credit_line_change_keeps_what_it_leaves_out_and_audits_the_diff` |
+| F1-6 | Implausible prices, forward prices below zero, future exchange times and jumps no market makes are refused and nothing of the batch is stored | `tests/unit/test_feed_plausibility.py` |
+| F1-7 | Only a key whose scopes name a licensed family may deliver prices under its label | `test_a_licensed_label_needs_its_own_grant`, `tests/api/test_strategy_tracks_api.py::test_who_may_track_and_who_may_deliver_ticks` |
+
+Four-eyes on limit changes (P-01's second half) is left to the reference-data approval work
+with P-17, so that limits, terminal terms and freight routes share one maker-checker flow.
+
 ## M7 to M9 (to be met)
 
 - **M7.** Every new-engine opportunity that crosses the alert threshold reaches the

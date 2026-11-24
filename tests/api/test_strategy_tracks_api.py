@@ -54,13 +54,17 @@ def clients(tmp_path, monkeypatch):
         for name, role, functions in (("trader", "ANALYST", ["TRADER"]),
                                       ("other", "ANALYST", ["TRADER"]),
                                       ("ops", "OPERATOR", ["DATA_OPERATOR"]),
+                                      ("ops_any", "OPERATOR", ["DATA_OPERATOR"]),
                                       ("viewer", "VIEWER", [])):
             principal = create_identity_principal(
                 session, name=f"track-{name}", display_name=name, role=role, data_scopes=["*"],
             )
             principal.job_functions = functions
-            _, keys[name] = create_identity_api_key(session, principal.principal_id,
-                                                    scopes=["*"])
+            # The feed's service key is scoped to the licensed family it delivers; a '*'
+            # key reads everything but may not label prices as that venue's.
+            _, keys[name] = create_identity_api_key(
+                session, principal.principal_id, scopes=["EEX"] if name == "ops" else ["*"]
+            )
         session.commit()
     app = create_app()
     return {
@@ -157,6 +161,12 @@ def test_who_may_track_and_who_may_deliver_ticks(clients):
     crossed = clients["ops"].post("/api/market/ticks", json={"source_system": "EEX", "quotes": [
         {"hub": "TTF", "product": "DA", "exchange_time": now, "bid": 42, "ask": 41}]})
     assert crossed.status_code == 422
+    # A '*' scope reads everything but may not label prices as a licensed venue's.
+    star = clients["ops_any"].post("/api/market/ticks", json=tick)
+    assert star.status_code == 403 and star.json()["detail"]["code"] == "source_not_granted"
+    fat = clients["ops"].post("/api/market/ticks", json={"source_system": "EEX", "quotes": [
+        {"hub": "TTF", "product": "M+1", "exchange_time": now, "bid": 4100, "ask": 4110}]})
+    assert fat.status_code == 422 and "plausible ceiling" in fat.json()["detail"]["message"]
 
 
 def test_bad_tracks_are_refused_with_the_field(clients):

@@ -22,7 +22,7 @@ nothing merged, no tag, no release package)
 | M6 Feed, dead-letter and lag alerts | Built and tested; D1 to D4 met |
 | LNG-1 Cargo in transit | Built and tested; E1 to E9 met ([12](12_LNG_CARGO_IN_TRANSIT.md)) |
 | Q1 Quality standard and hands-on review | In progress ([11](11_COMMERCIAL_QUALITY_STANDARD.md)) |
-| F1 Audit blockers | Next |
+| F1 Audit blockers | Built and tested; F1-1 to F1-7 met ([06](06_ACCEPTANCE_CRITERIA.md)) |
 | M7 to M11, M13 | Planned ([05](05_IMPLEMENTATION_ROADMAP.md)) |
 | M12 Hosted pilot | Dropped by the user on 2026-11-24 (deployment later, outside this programme) |
 
@@ -42,7 +42,8 @@ nothing merged, no tag, no release package)
 | `f7a6875` | M5b contract, hedge band and assumption edits publish events |
 | `224e17d` | M6 stale feeds and the outbox raise monitoring alerts |
 | `877b355` | LNG-1 cargo in transit as one plan (migration 0078) |
-| (this commit) | M5b, M6, LNG-1 documents; quality standard; research synthesis |
+| `dcbb498` | M5b, M6, LNG-1 documents; quality standard; research synthesis |
+| (this commit) | F1 audit blockers: gas-day status, scheduled tracks, segregation of duties, audited partial updates, feed plausibility |
 
 ## What M5 built
 
@@ -59,9 +60,9 @@ while it runs is no longer lost (R4).
 1. **Q1.** Review every surface against [11](11_COMMERCIAL_QUALITY_STANDARD.md) per role in a
    real browser (clicks, hover, chart interaction, keyboard), checking each figure against
    its source; record findings in [13](13_PERSONA_AND_PRACTICE_REVIEW.md).
-2. **F1.** Fix the blockers in 13 first: `POST /api/desk/gas-day/status` 500, strategy
-   tracking never scheduled, credit-line save replacing contracts, analyst-reviewer self
-   approval, tick validation (fat finger, negative, future, source label).
+2. **F1 (built).** Gas-day status answers; daily tracks are scheduled; segregation of
+   duties; audited partial updates; feed plausibility and licensed-label grants. Left:
+   four-eyes on limits with P-17, and the S1/S2 findings of the hands-on review.
 3. **Desk polish from the UI review.** Stale vs live styling, prices above the fold,
    directional value flash, instrument search in the palette, consistent units, number
    formatting, transitions, sign-in and installer.

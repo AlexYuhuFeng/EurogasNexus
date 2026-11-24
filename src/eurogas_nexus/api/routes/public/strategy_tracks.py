@@ -156,13 +156,21 @@ def ingest_market_ticks(body: TickBatch, request: Request) -> dict:
     """Store a batch of quotes and trade prints and evaluate the tracks listening to them.
 
     Raises:
-        HTTPException: 422 ``ticks_invalid`` (unknown source, bad tick; nothing stored).
+        HTTPException: 403 ``source_not_granted`` (a licensed label the key's data scopes do
+            not name); 422 ``ticks_invalid`` (unknown source, an implausible price, a future
+            exchange time, a jump no market makes, a bad tick; nothing stored).
     """
 
-    _require(request, Permission.SOURCE_RUN)
-    from eurogas_nexus.application.market_ticks import ingest_ticks
+    principal = _require(request, Permission.SOURCE_RUN)
+    from eurogas_nexus.application.market_ticks import ingest_ticks, publisher_refusal
     from eurogas_nexus.core.config import simulated_sources_allowed
     from eurogas_nexus.domain.market.feed import FeedError
+
+    refusal = publisher_refusal(principal, body.source_system)
+    if refusal is not None:
+        raise HTTPException(
+            status_code=403, detail={"code": "source_not_granted", "message": refusal}
+        )
 
     with _session() as session:
         try:

@@ -15,7 +15,7 @@ Phase 0 work (baseline, audit, these documents). Status is kept in
 | M6 | Stale feeds, dead letters and outbox lag raise monitoring alerts (one per condition, cleared when it recovers); source freshness ages with the clock | 10 | No | **Built, tested** |
 | LNG-1 | A cargo in transit as one plan: ETA, slot window, boil-off, gas in kind, send-out by gas day, hub months, recorded hedges, roll and short-notice suggestions, what-if; `cargo.changed` events; SDK and web transport ([12](12_LNG_CARGO_IN_TRANSIT.md)) | 5, 7 | No | **Built, tested** |
 | Q1 | Commercial quality standard ([11](11_COMMERCIAL_QUALITY_STANDARD.md)) and a hands-on review of every surface against it, per role, in a real browser | all | No | In progress |
-| F1 | Audit blockers from the persona review: gas-day status 500, unscheduled strategy tracking, credit-line partial update and four-eyes, tick validation, segregation of duties | 7, 10 | No | Next |
+| F1 | Audit blockers from the persona review: gas-day status 500, unscheduled strategy tracking, credit-line partial update and four-eyes, tick validation, segregation of duties | 7, 10 | No | Built (four-eyes moves to the reference-data approval work) |
 | M7 | New-engine opportunities to alerts and `/api/stream/opportunities`; retire the legacy intraday engine; notification row lock | 7 | No | Planned |
 | M8 | Take-or-pay: ACQ, make-up, carry-forward and shortfall exposure on contracts, with events on change | 5 | No | Planned |
 | M9 | Outcome ledger: recommendation -> decision -> trade reference -> realised value; one P&L definition | 12 | No (client trade data stays in the installation) | Planned, ADR first |

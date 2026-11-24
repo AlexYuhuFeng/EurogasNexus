@@ -38,7 +38,14 @@ that is never sent.
 
 1. **Ingestion** `POST /api/market/ticks` (`application/market_ticks.py`): a licensed feed adapter
    (or the demo simulator) delivers a batch of quotes and trade prints; stored under the source
-   family (`market_quotes` with the new session fields, `market_trades`).
+   family (`market_quotes` with the new session fields, `market_trades`). A licensed label
+   (`EEX`, `ICE_OCM`, `Trayport`) is accepted only from a key whose data scopes name that
+   family: issue the feed adapter its own key scoped to it; a `*` key is refused with
+   `source_not_granted`. Every tick is checked before anything is stored, and one bad tick
+   returns the whole batch with the reason (`ticks_invalid`): prices outside the plausible
+   band for the hub's quotation and product (forward months may not go below zero), an
+   exchange time more than two minutes after receipt, and a mid more than three times (or a
+   third of) the previous quote for the instrument (`domain/market/feed.py`).
 2. **Evaluation on arrival** in the same transaction through one hook,
    `application/market_inputs.notify_inputs_changed(session, instruments, *, at, replay=False)`;
    subscribers register with `subscribe_inputs_changed(name, handler)` where

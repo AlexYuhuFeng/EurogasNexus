@@ -192,16 +192,12 @@ def get_settings(request: Request) -> dict:
 def put_settings(body: SettingsBody, request: Request) -> dict:
     """Change thresholds: the risk function (REVIEWER held itself); audited before/after."""
 
+    from eurogas_nexus.security.segregation import risk_function_refusal
+
     principal = _principal(request)
-    held = {str(principal.role or "").upper()} | {str(r).upper() for r in principal.roles or ()}
-    if "REVIEWER" not in held:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "code": "risk_function_required",
-                "message": "Opportunity thresholds are set by risk (REVIEWER role).",
-            },
-        )
+    refusal = risk_function_refusal(principal, what="Opportunity thresholds")
+    if refusal is not None:
+        raise HTTPException(status_code=403, detail=refusal)
     from eurogas_nexus.application.opportunities.settings import save_thresholds
     from eurogas_nexus.domain.opportunities.controls import ThresholdError
 

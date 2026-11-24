@@ -80,6 +80,79 @@ class FeedError(ValueError):
     """A tick or a trade print that cannot be stored as given."""
 
 
+# --------------------------------------------------------------------- plausibility (A7)
+#
+# A feed is trusted only as far as its prices are plausible. A price a hundred times the
+# market (a fat finger, pence keyed as pounds), a forward month below zero or a quote stamped
+# in the future is refused with the reason, and nothing of the batch is stored, so it can
+# never reach a strategy, a mark or the prompt panel (persona review P-03).
+#
+# Bands are in the hub's native quotation and wide on purpose: they hold every price the
+# NWE hubs printed in the 2021-2022 crisis (TTF within-day near 340 EUR/MWh, NBP day-ahead
+# near 800 p/th) with room to spare. Prompt products (within-day, day-ahead, weekend) may go
+# below zero, as German and Dutch within-day did briefly; a curve product may not.
+
+#: (prompt floor, curve floor, ceiling) per native price unit.
+PLAUSIBLE_NATIVE_PRICE: dict[str, tuple[float, float, float]] = {
+    "EUR/MWh": (-50.0, 0.0, 500.0),
+    "GBp/th": (-150.0, 0.0, 1_500.0),
+}
+#: Product kinds that may print below zero.
+PROMPT_KINDS = frozenset({"within_day", "day_ahead", "weekend"})
+#: A quote may be stamped this far after the moment it is received (venue clock skew).
+MAX_CLOCK_SKEW_SECONDS = 120
+#: A mid this many times the previous one for the same instrument, or this many times
+#: smaller, is not a market move between two ticks; it is a keying or unit error.
+MAX_TICK_JUMP_FACTOR = 3.0
+#: Below this absolute price the jump test means nothing (a move from 0.2 to 0.7).
+JUMP_TEST_MIN_PRICE = 2.0
+
+
+def check_plausible_price(native: float, unit: str, *, product_kind: str, label: str) -> None:
+    """Refuse a native price outside the band for its unit and product kind."""
+
+    band = PLAUSIBLE_NATIVE_PRICE.get(unit)
+    if band is None:
+        return
+    prompt_floor, curve_floor, ceiling = band
+    floor = prompt_floor if product_kind in PROMPT_KINDS else curve_floor
+    if native > ceiling:
+        raise FeedError(
+            f"{label}: {native:g} {unit} is above the plausible ceiling of {ceiling:g}; "
+            "check the price and its unit"
+        )
+    if native < floor:
+        raise FeedError(
+            f"{label}: {native:g} {unit} is below the plausible floor of {floor:g} for this "
+            "product; check the price and its sign"
+        )
+
+
+def check_not_future(observed: datetime, received: datetime, *, label: str) -> None:
+    """Refuse a tick stamped later than it arrived (beyond clock skew)."""
+
+    if (observed - received).total_seconds() > MAX_CLOCK_SKEW_SECONDS:
+        raise FeedError(
+            f"{label}: exchange time {observed.isoformat()} is after it was received "
+            f"({received.isoformat()}); check the venue clock or the time zone"
+        )
+
+
+def check_jump(new_mid: float, previous_mid: float | None, *, label: str) -> None:
+    """Refuse a mid that jumped by more than ``MAX_TICK_JUMP_FACTOR`` from the previous one."""
+
+    if previous_mid is None:
+        return
+    if abs(new_mid) < JUMP_TEST_MIN_PRICE or abs(previous_mid) < JUMP_TEST_MIN_PRICE:
+        return
+    ratio = new_mid / previous_mid
+    if ratio > MAX_TICK_JUMP_FACTOR or ratio < 1 / MAX_TICK_JUMP_FACTOR:
+        raise FeedError(
+            f"{label}: mid {new_mid:g} is {ratio:.1f}x the previous {previous_mid:g}; "
+            "a keying or unit error, not a market move"
+        )
+
+
 @dataclass(frozen=True)
 class TradePrint:
     """One executed trade as the venue printed it."""

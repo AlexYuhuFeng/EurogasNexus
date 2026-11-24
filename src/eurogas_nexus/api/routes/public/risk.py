@@ -159,25 +159,19 @@ class MandateRequest(BaseModel):
     instruments: list[str] = Field(default_factory=list, max_length=6)
 
 
-def _require_risk_function(request: Request) -> None:
-    """Limits are set by the risk function: an explicit REVIEWER role, not a higher rank.
+def _require_risk_function(request: Request, what: str = "Credit lines and mandates") -> None:
+    """Limits are set by the risk function: REVIEWER held itself, and no front-office role.
 
     Roles are ranked (an ANALYST outranks a REVIEWER), and traders are analysts, so rank
-    alone would let a trader set their own credit and mandate limits. The writer must hold
-    REVIEWER itself, as the risk and middle-office personas do.
+    alone would let a trader set their own credit and mandate limits; a person holding both
+    roles would too (segregation of duties, ``security/segregation.py``).
     """
 
-    identity = getattr(request.state, "identity", None)
-    held = {str(getattr(identity, "role", "") or "").upper()}
-    held |= {str(role).upper() for role in (getattr(identity, "roles", ()) or ())}
-    if "REVIEWER" not in held:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "code": "risk_function_required",
-                "message": "Credit lines and mandates are maintained by risk (REVIEWER role).",
-            },
-        )
+    from eurogas_nexus.security.segregation import risk_function_refusal
+
+    refusal = risk_function_refusal(getattr(request.state, "identity", None), what=what)
+    if refusal is not None:
+        raise HTTPException(status_code=403, detail=refusal)
 
 
 #: What each reference write changes for the opportunity evaluators (CP-13).
@@ -189,6 +183,16 @@ _INPUT_CLASS_BY_ACTION = {
 }
 
 
+def _json_safe(value):
+    """A stored value as JSON for the audit trail's before and after (dates as ISO text)."""
+
+    if isinstance(value, (date, datetime)):
+        return value.isoformat()
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return value
+
+
 def _write(
     request: Request,
     *,
@@ -198,7 +202,13 @@ def _write(
     action: str,
     resource: str,
     risk_only: bool = True,
+    defaults: dict | None = None,
 ):
+    """Create or change one reference row, audited with each changed field's before and after.
+
+    ``values`` holds the fields the caller sent; ``defaults`` fill the rest only when the row
+    is new, so a field left out of a change keeps its stored value.
+    """
     from eurogas_nexus.application.opportunities.schedule import note_input_changed
 
     if risk_only:
@@ -217,6 +227,12 @@ def _write(
             if row is None:
                 row = record_type(**{record_type.__mapper__.primary_key[0].key: key})
                 session.add(row)
+                values = {**(defaults or {}), **values}
+            changes = {
+                name: (None if created else getattr(row, name, None), value)
+                for name, value in values.items()
+                if created or getattr(row, name, None) != value
+            }
             for name, value in values.items():
                 setattr(row, name, value)
             row.updated_by = actor
@@ -229,7 +245,18 @@ def _write(
                 resource=resource,
                 outcome="created" if created else "updated",
                 severity="info",
-                detail=", ".join(f"{k}={v}" for k, v in values.items() if k != "aliases")[:500],
+                detail="; ".join(
+                    f"{name}: {before!r} -> {after!r}" if not created else f"{name}={after!r}"
+                    for name, (before, after) in changes.items()
+                    if name != "aliases"
+                )[:1000]
+                or "no change",
+                before_summary=None
+                if created
+                else {name: _json_safe(before) for name, (before, _after) in changes.items()},
+                after_summary={
+                    name: _json_safe(after) for name, (_before, after) in changes.items()
+                },
             )
             # CP-13: a limit, hedge band or terminal terms change makes an evaluation due.
             note_input_changed(session, _INPUT_CLASS_BY_ACTION[action], reason=action)
@@ -239,7 +266,12 @@ def _write(
                 # M5b: a hedge band is part of the contract an opportunity reads.
                 capture_desk(session, contract_ids=[key])
             session.commit()
-            return {"key": key, "created": created, "updated_by": actor}
+            return {
+                "key": key,
+                "created": created,
+                "updated_by": actor,
+                "changed": sorted(changes),
+            }
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
@@ -252,11 +284,14 @@ def put_credit_line(counterparty_id: str, body: CreditLineRequest, request: Requ
 
     if not counterparty_id or len(counterparty_id) > 64:
         raise HTTPException(status_code=422, detail={"code": "counterparty_id_invalid"})
+    # Fields left out keep their stored value: leaving ``contract_ids`` out must not unlink the
+    # contracts and clear a breach (persona review P-01). Unlinking is an explicit ``[]``.
     result = _write(
         request,
         record_type=CreditLineRecord,
         key=counterparty_id,
-        values=body.model_dump(),
+        values=body.model_dump(exclude_unset=True),
+        defaults=body.model_dump(),
         action="risk.credit_line.update",
         resource=f"credit_line:{counterparty_id}",
     )
@@ -271,8 +306,9 @@ def put_trader_mandate(mandate_id: str, body: MandateRequest, request: Request) 
 
     if not mandate_id or len(mandate_id) > 64:
         raise HTTPException(status_code=422, detail={"code": "mandate_id_invalid"})
-    actor = _identity_id(request)
-    if actor and actor.casefold() == body.trader.casefold():
+    from eurogas_nexus.security.segregation import names_of
+
+    if body.trader.strip().casefold() in names_of(getattr(request.state, "identity", None)):
         raise HTTPException(
             status_code=403,
             detail={

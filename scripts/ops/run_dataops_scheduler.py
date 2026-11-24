@@ -570,6 +570,32 @@ def deliver_market_events(session_factory, outcomes, *, now_utc) -> dict:
     }
 
 
+def track_strategies_if_due(session_factory, *, now_utc) -> dict:
+    """Evaluate tracked strategies that have newer inputs than their last evaluation.
+
+    Daily tracks re-run once a day on the new close; an intraday track gets its trailing
+    tick evaluated. Before this hook ``strategy_tracking.run_due`` had no scheduled caller, so
+    a daily track was evaluated once, at creation, and never again (persona review B1).
+    Its own transaction: a failure is reported and never stops ingestion.
+    """
+
+    from eurogas_nexus.application import strategy_tracking
+
+    try:
+        with session_factory() as session:
+            result = strategy_tracking.run_due(session, now_utc)
+            session.commit()
+    except Exception as exc:  # noqa: BLE001 - tracking never stops the ingestion loop
+        emit_event(
+            event="scheduler.strategy_tracking.failed",
+            level="error",
+            error_category="INTERNAL",
+            details={"error_type": exc.__class__.__name__},
+        )
+        return {"status": "failed", "error_type": exc.__class__.__name__}
+    return {"status": "ok", "evaluated": result.get("evaluated", 0)}
+
+
 def run_loop(
     *,
     interval_seconds: float,
@@ -651,6 +677,10 @@ def run_loop(
             # M4: the market event outbox (lineage, staleness, targeted re-evaluation).
             execution["market_events"] = deliver_market_events(
                 session_factory, execution.get("outcomes", []), now_utc=now_utc
+            )
+            # Tracked strategies with a newer close or tick than their last evaluation.
+            execution["strategy_tracking"] = track_strategies_if_due(
+                session_factory, now_utc=now_utc
             )
             failures = [
                 outcome
