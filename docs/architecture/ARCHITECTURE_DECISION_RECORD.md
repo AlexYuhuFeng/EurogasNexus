@@ -666,3 +666,11 @@ serves. Tests: `tests/domain/test_market_events_model.py`,
 `tests/integration/test_market_event_outbox.py`,
 `tests/integration/test_market_event_outbox_postgres.py`,
 `tests/unit/test_market_event_outbox_migration.py`.
+
+M5 (2026-11-24): producers capture changes from the stored rows rather than hooking each
+writer, because writers mix Core upserts and ORM merges. `application/market_event_capture.py`
+publishes settlements (`hub:<HUB>:<period>`, identity hub, period, venue and trade day), FX
+fixings (`fx:<BASE><QUOTE>`) and REMIT messages (`outage:<message id>`, versions as
+revisions) after each scheduler cycle and inside the settlement and FX importers' own
+transaction. Held content writes nothing. The consumer widens a EUR fixing to stored cross
+pairs. Tests: `tests/integration/test_market_event_capture.py`.

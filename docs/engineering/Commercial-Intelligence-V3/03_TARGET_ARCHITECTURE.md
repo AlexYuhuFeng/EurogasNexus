@@ -7,7 +7,7 @@ and a measured need. This page separates what exists on the branch from what is 
 ## The continuous loop
 
 ```text
- source publishes ──► ingestion run / desk entry ──► market event (outbox row, same transaction)
+ source publishes ──► ingestion run / importer / desk entry ──► market event (outbox row)
                                                          │
                                        pg_notify at commit (wake-up only)
                                                          ▼
@@ -30,8 +30,10 @@ and a measured need. This page separates what exists on the branch from what is 
 | Publish, process, drain, replay, status, staleness, timeline | Built | `src/eurogas_nexus/application/market_events.py` |
 | Producers: ingestion runs, firm marks | Built | `scripts/ops/run_dataops_scheduler.py`, `api/routes/public/assumptions.py` |
 | Consumer: opportunity impact (targeted re-evaluation) | Built | `OpportunityImpactConsumer` in `application/market_events.py` |
-| Operations CLI (status, staleness, timeline, drain, replay, listen) | Built | `scripts/ops/market_events.py` |
-| Producers: price and FX revisions, REMIT outages, contract and assumption edits | Planned (M5) | observation upserts, REMIT ingestion, contract and assumption services |
+| Producers: settlements, FX fixings, REMIT messages (change capture over the store) | Built (M5) | `src/eurogas_nexus/application/market_event_capture.py`, scheduler, `scripts/ops/import_settlements.py`, `scripts/ops/import_fx_fixings.py` |
+| FX cross reach (a EUR fixing reaches stored cross pairs) | Built (M5) | `_fx_crosses` in `application/market_events.py` |
+| Operations CLI (status, staleness, timeline, capture, drain, replay, listen) | Built | `scripts/ops/market_events.py` |
+| Producers: contract and assumption edits | Planned (M5b) | contract and assumption services |
 | Consumer: monitoring alerts from staleness and dead letters | Planned (M6) | monitoring worker |
 | New engine to alerts and stream; legacy engine retired | Planned (M7) | notifications, `/api/stream/opportunities` |
 | Outcome ledger | Planned (M9) | new tables, ADR first |

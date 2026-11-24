@@ -38,7 +38,7 @@ database (`opportunity_dependencies`):
 | `hub:` | `hub:TTF:2026-11-18`, `hub:NBP:2027-Q1` | Market hub and delivery period; key forms in `domain/valuation/snapshot.py` (`domain/ontology/markets.py`, `domain/valuation/periods.py`) |
 | `contract:` | `contract:demo-haldor-24` | Contract (`domain/contracts`) |
 | `assumption:` | `assumption:balancing.long_discount` | Approved assumption set key |
-| `fx:` / `rate:` | `fx:EURGBP:<value date>`, `rate:EUR` | Currency pair and rate curve (`domain/ontology/currency.py`) |
+| `fx:` / `rate:` | `fx:EURGBP` (the conversion pair), `rate:EUR` | Currency pair and rate curve (`domain/ontology/currency.py`) |
 | `tariff:` | `tariff:<point>:<direction>:<product>:<gas year>` | Transport tariff point |
 | `outage:` | `outage:<message id>` | REMIT unavailability |
 
@@ -51,3 +51,14 @@ event records that a mark changed, never the mark itself, because marks are desk
    research vocabulary are derived views (consolidation in roadmap M10).
 2. Add a counterparty concept before the outcome ledger (M9) needs it.
 3. Every new dependency-key prefix gets an ontology concept and a test that parses it.
+
+## How stored figures become events (M5)
+
+| Figure | Event | Subject and dependency key | Identity | Ordering |
+| --- | --- | --- | --- | --- |
+| Settlement (`market_observations`) | `price.updated` | `hub:<HUB>:<period label>`; rows whose span is no day, month, quarter or season (weekends, balance of month, calendar years) are not inputs and give no event | hub key, venue, trade day | Observation instant (as publication time): an earlier figure found after a later one is out of order |
+| FX fixing (`fx_observations`) | `fx.updated` | `fx:<BASE><QUOTE>` | source, pair, value date | A correction for the same value date is a revision |
+| REMIT message (`remit_umm_messages`) | `outage.published` | `outage:<message id>` | the message id | Publication time and version: a stale version arriving late changes nothing |
+
+Fixings are quoted against EUR, the pivot every conversion goes through, so the opportunity
+consumer treats `fx:EURUSD` as also moving every stored pair that contains USD.

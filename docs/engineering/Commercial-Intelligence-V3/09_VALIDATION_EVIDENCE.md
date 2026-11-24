@@ -61,6 +61,27 @@ RUNTIME_STORE_DATABASE_URL=postgresql+pg8000://postgres@127.0.0.1:55432/egn_m4 \
 Migration on PostgreSQL: `alembic upgrade head` to `0077_market_event_outbox`, then
 `alembic downgrade -1` and `alembic upgrade head` again, both clean.
 
+## M5 tests
+
+| Suite | Tests | Result |
+| --- | --- | --- |
+| `tests/integration/test_market_event_capture.py` | 15: period mapping (9 cases), builder keys and identities, capture once then a correction reaching only `sell_down`, REMIT versions as revisions, FX cross reach, importer transaction, scheduler capture | 15 pass (SQLite) |
+| `tests/integration/test_opportunity_schedule_race.py` | a change noted while the scheduled evaluation runs stays pending | Pass; fails on the old `run_due` |
+| `tests/integration/test_market_event_outbox_postgres.py` | 6: the 4 M4 tests, capture writes each figure once, the scheduled evaluation keeps a change noted while it runs | 6 pass on PostgreSQL 16; the last fails on the old `run_due` |
+| `tests/integration/test_market_event_outbox.py` | scheduler hook now reports `captured` | 11 pass |
+
+```bash
+RUNTIME_STORE_DATABASE_URL=postgresql+pg8000://postgres@127.0.0.1:55432/egn_m4 \
+  python -m pytest -q tests/integration/test_market_event_outbox_postgres.py \
+  tests/integration/test_market_event_outbox.py tests/integration/test_market_event_capture.py
+```
+
+On the demo seed, the first capture publishes the settlements that map to canonical periods,
+the 8 FX fixings and the 2 REMIT messages; delivering that history re-runs no evaluator,
+because no stored opportunity reads those keys. A second capture writes nothing.
+
+M5 full suite (SQLite, `python -m pytest -q tests`, 2026-11-24): 7,049 passed, 241 skipped, 0 failed in 38 min 27 s.
+
 ## Targeted re-evaluation, shown on the demo desk
 
 With `scripts/demo/seed_demo_desk.py` seeded (37 `hedge_gap` and 3 `sell_down`
@@ -72,7 +93,7 @@ opportunities), one `price.updated` event for `hub:TTF:2026-11-18` re-runs only
 ## Not yet evidenced
 
 - Throughput and latency under sustained load: no load test yet (planned with M6).
-- Producers other than ingestion runs and firm marks (M5).
+- Contract and assumption edits as events (M5b); live quotes are not captured (R14).
 - CI on GitHub for the branch: `ci.yml` runs on pushes to `main` and on pull requests
   only, so pushing this branch starts no CI run. It runs if a pull request is opened, or by
   hand through `workflow_dispatch`.

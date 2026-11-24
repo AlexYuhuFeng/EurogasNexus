@@ -54,8 +54,11 @@ the outbox over a broker. Evidence: [09_VALIDATION_EVIDENCE.md](09_VALIDATION_EV
 
 ## What comes next
 
-1. Publish dependency-keyed price and FX revisions from the observation upserts, so a
-   settlement correction reaches the opportunities that use it (M5).
+M5 is built: settlements, FX fixings and REMIT messages now publish events through change
+capture, so a settlement correction re-runs only the opportunities that use it, and the
+scheduled evaluation no longer loses a change noted while it runs.
+
+1. Contract and assumption edits publish events (M5b).
 2. Turn outbox staleness and dead letters into monitoring alerts (M6).
 3. Route the new engine's opportunities to alerts and retire the legacy intraday engine (M7).
 4. Take-or-pay obligations in the contract model (M8).

@@ -6,6 +6,19 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-24 — Commercial Intelligence V3, M5: price, FX and outage events (branch `innovation/continuous-commercial-intelligence`)
+
+- `application/market_event_capture.py` publishes `price.updated` (settlements mapped to a
+  day, month, quarter or season), `fx.updated` and `outage.published` (REMIT versions as
+  revisions of one message) from the stored rows: after each DataOps scheduler cycle over a
+  4-day window, and in `import_settlements.py` / `import_fx_fixings.py` in the importer's
+  transaction. `scripts/ops/market_events.py capture` backfills. No migration, no route.
+- The opportunity consumer widens a EUR fixing to stored cross pairs (`fx:GBPUSD` for
+  `fx:EURUSD`).
+- CP-13 `run_due` deletes pending input classes by condition in the store, so a change noted
+  while the evaluation runs stays pending (fixes R4; SQLite and PostgreSQL tests).
+- Open: contract and assumption edits as events (M5b); live quotes not captured (R14).
+
 ## 2026-11-24 — Commercial Intelligence V3, M4: market event outbox (branch `innovation/continuous-commercial-intelligence`)
 
 - Programme documents in [Commercial-Intelligence-V3/](Commercial-Intelligence-V3/10_PROGRAMME_STATE.md):

@@ -10,7 +10,8 @@ Phase 0 work (baseline, audit, these documents). Status is kept in
 | M2 | Capability audit and gap matrix | all | No | Done |
 | M3 | Target architecture, domain design, criteria, risks, decisions | all | No | Done |
 | M4 | Canonical market events, PostgreSQL outbox, targeted re-evaluation, replay, staleness, timeline | 1, 7, 10 | No | **Built, tested** |
-| M5 | Price and FX revisions as events: the observation upserts publish `price.updated` / `fx.updated` with dependency keys only when the value changes; REMIT outages publish `outage.published` with the message id as identity; contract and assumption edits publish | 1, 2, 7 | No (public sources and fixtures) | Next |
+| M5 | Settlements, FX fixings and REMIT messages publish events through change capture (scheduler window, importers in their own transaction); FX reaches cross pairs; the CP-13 lost-change race fixed | 1, 2, 7 | No (public sources and fixtures) | **Built, tested** |
+| M5b | Contract and assumption-set edits publish `contract.changed` / `assumption.changed` next to their `note_input_changed` calls; capture over live quotes if their volume allows | 1, 7 | No | Next |
 | M6 | Staleness and dead-letter alerting: monitoring reads `staleness()` and `status()` and raises alerts through the existing notification outbox; one freshness rule replaces the five | 10 | No | Planned |
 | M7 | New-engine opportunities to alerts and `/api/stream/opportunities`; retire the legacy intraday engine; notification row lock | 7 | No | Planned |
 | M8 | Take-or-pay: ACQ, make-up, carry-forward and shortfall exposure on contracts, with events on change | 5 | No | Planned |

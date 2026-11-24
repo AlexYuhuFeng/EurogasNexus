@@ -22,12 +22,26 @@ A criterion counts as met only when a named test or command shows it. Met criter
 | A13 | Migration 0077 upgrades and downgrades; tables match the models | `tests/unit/test_market_event_outbox_migration.py`; downgrade -1 / upgrade on PostgreSQL |
 | A14 | No existing test, lint or CI gate weakened | full suite and gates in 09 |
 
-## M5 to M9 (to be met)
+## M5: price, FX and outage events (met)
 
-- **M5.** A settlement correction from a public source produces one `price.updated`
-  revision with the hub-period key, and only dependent evaluators re-run; an unchanged
-  re-download produces none. REMIT updates keep the message id as identity across moved
-  start times.
+| # | Criterion | Evidence |
+| --- | --- | --- |
+| B1 | A settlement row maps to the period label an opportunity stores; spans that are no canonical period give no event | `test_a_settlement_row_maps_to_the_period_an_opportunity_stores` (9 cases) |
+| B2 | Builders give `hub:`, `fx:` and `outage:` keys; a same-day correction is the same event, the next trade day is not; REMIT versions share one identity | `test_builders_give_the_keys_opportunities_store` |
+| B3 | Capturing the same store twice writes nothing the second time | `test_capture_publishes_once_then_a_correction_reaches_only_its_readers` |
+| B4 | A new TTF day-ahead settlement, then its correction, each re-run only `sell_down` (trigger `outbox`); the correction is revision 2 superseding 1 | same test |
+| B5 | The old figure sent again after the correction writes nothing | same test |
+| B6 | REMIT versions 1 and 2 are revisions 1 and 2 of one event at priority 0; a stale copy of version 1 writes nothing | `test_remit_versions_are_revisions_of_one_event_and_late_versions_change_nothing` |
+| B7 | A EUR fixing reaches the stored cross pairs that contain its other currency | `test_a_fixing_reaches_the_cross_pairs_that_contain_its_currency` |
+| B8 | An importer's rows and their events commit or roll back together | `test_an_importer_captures_in_the_same_transaction` |
+| B9 | The scheduler captures after each cycle, and a second cycle captures nothing new | `test_the_scheduler_captures_after_ingestion` |
+| B10 | A change noted while the scheduled evaluation runs stays pending (fails on the old code) | `test_opportunity_schedule_race.py`, and on PostgreSQL `test_the_scheduled_evaluation_keeps_a_change_noted_while_it_runs` |
+| B11 | Capture on PostgreSQL writes each figure once | `test_capture_on_postgres_writes_each_figure_once` |
+
+## M5b to M9 (to be met)
+
+- **M5b.** Editing a contract or an approved assumption set publishes one event with its key,
+  and only the evaluators that read it re-run.
 - **M6.** A source past its expectation raises one alert (not one per cycle) and clears it
   when fresh; a dead letter raises an alert naming the consumer and event.
 - **M7.** Every new-engine opportunity that crosses the alert threshold reaches the
