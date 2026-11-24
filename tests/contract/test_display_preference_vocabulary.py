@@ -24,3 +24,14 @@ def test_the_client_offers_exactly_the_servers_reporting_currencies() -> None:
 
 def test_the_client_offers_exactly_the_servers_energy_units() -> None:
     assert _client_list("ENERGY_UNITS") == list(ENERGY_UNITS)
+
+
+def test_the_client_offers_exactly_the_servers_pnl_colour_conventions() -> None:
+    """The colour-vision friendly scheme (UX R1) is stored like the regional conventions."""
+
+    from eurogas_nexus.domain.settings.preferences import PREFERENCE_VOCABULARY
+
+    pnl = ROOT / "clients" / "web" / "src" / "app" / "model" / "pnlColor.ts"
+    block = re.search(r"PNL_COLOR_CONVENTIONS[^=]*=\s*\[([^\]]*)\]", pnl.read_text(encoding="utf-8"))
+    assert block, "PNL_COLOR_CONVENTIONS not found in pnlColor.ts"
+    assert re.findall(r'"([^"]+)"', block.group(1)) == list(PREFERENCE_VOCABULARY["pnl_colors"])

@@ -37,6 +37,7 @@ const CHOICES: Record<ChoiceKey, { value: string; labelKey?: string; label?: str
   pnl_colors: [
     { value: "green_up", labelKey: "preferences.pnl_green_up" },
     { value: "red_up", labelKey: "preferences.pnl_red_up" },
+    { value: "blue_orange", labelKey: "preferences.pnl_blue_orange" },
   ],
   time_zone: [
     { value: "device", labelKey: "preferences.time_zone.device" },

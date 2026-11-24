@@ -39,7 +39,7 @@ Each line is a decision; the reasoning is in the study and in [08](08_DECISION_L
 All twelve recommendations are adopted. Order, by user impact and risk:
 
 1. R5 keyboard focus that survives Windows High Contrast (a bug). **Done** (wip/ux).
-2. R1 a colour-blind-safe palette option and a colour-distance test.
+2. R1 a colour-blind-safe palette option and a colour-distance test. **Done** (wip/ux).
 3. R2 direction shown by ▲/▼ and the signed change; the flash keyed to the instrument.
 4. R3 one formatter per measure (proper minus sign, unit spacing) and a lint.
 5. R9 one licensed icon set (Lucide, ISC) behind one `Icon` component; status by shape and colour.

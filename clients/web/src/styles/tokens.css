@@ -120,18 +120,21 @@
   --ds-status-simulated-soft: #f1ebfd;
   --ds-status-stale: #52525b;
   --ds-status-stale-soft: #ededf0;
-  /* Profit and loss: the user's convention (green-up or red-up, app/model/pnlColor.ts) picks
-     which of the two is profit. */
+  /* Profit and loss: the user's convention (green-up, red-up or the colour-vision friendly
+     blue/orange, app/model/pnlColor.ts) picks which colour is profit. */
   --pnl-up: #1d6b3a;
   --pnl-down: #b42318;
   --pnl-profit: var(--pnl-up);
   --pnl-loss: var(--pnl-down);
-  /* Chart series, in order of use. Each meets 3:1 against the surface. */
+  /* Chart series, in order of use. Each meets 3:1 against the surface, and neighbours (and any
+     two of the first four) stay apart under simulated red-green and blue-yellow colour-vision
+     deficiency: series 4 is a dark wine, not a second violet-blue, so a four-line chart reads
+     for a deuteranope too (tests/tokenContrast.test.ts, CIEDE2000 floor). */
   --ds-series-1: #1d4ed8;
   --ds-series-2: #0f766e;
   --ds-series-3: #b45309;
-  --ds-series-4: #7c3aed;
-  --ds-series-5: #be185d;
+  --ds-series-4: #641f29;
+  --ds-series-5: #7c3aed;
   --ds-series-6: #4d7c0f;
   --ds-series-7: #0369a1;
   --ds-series-8: #52525b;
@@ -284,8 +287,8 @@
   --ds-series-1: #6ea8fe;
   --ds-series-2: #2dd4bf;
   --ds-series-3: #fbbf24;
-  --ds-series-4: #a78bfa;
-  --ds-series-5: #f472b6;
+  --ds-series-4: #dd3858;
+  --ds-series-5: #a78bfa;
   --ds-series-6: #a3e635;
   --ds-series-7: #38bdf8;
   --ds-series-8: #a8a8b3;
@@ -299,6 +302,31 @@
 :root[data-pnl="red_up"] {
   --pnl-profit: var(--pnl-down);
   --pnl-loss: var(--pnl-up);
+}
+
+/* Colour-vision friendly (UX R1, after Bloomberg's CVD schemes): profit, up and long are blue,
+   loss, down and short orange, and "ok" is blue, so no meaning rests on telling green from red.
+   Breach keeps a red, moved (light theme) to the vermilion that stays furthest from the amber
+   of "watch" for every simulated deficiency; the status label and its shape (R9) carry the rest.
+   tests/tokenContrast.test.ts checks contrast and the colour distance of these pairs. */
+:root[data-pnl="blue_orange"] {
+  --pnl-profit: #0b5cad;
+  --pnl-loss: #a1460a;
+  --ds-positive: #0b5cad;
+  --ds-negative: #a1460a;
+  --ds-status-ok: #0b5cad;
+  --ds-status-ok-soft: #e8f1fb;
+  --ds-status-breach: #b63943;
+}
+
+:root.dark[data-pnl="blue_orange"] {
+  --pnl-profit: #56b4e9;
+  --pnl-loss: #fb923c;
+  --ds-positive: #56b4e9;
+  --ds-negative: #fb923c;
+  --ds-status-ok: #56b4e9;
+  --ds-status-ok-soft: #10212f;
+  --ds-status-breach: #f87171;
 }
 
 /* Chinese at the same sizes, with 2 px more line height. */

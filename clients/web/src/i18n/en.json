@@ -2715,6 +2715,7 @@
   "preferences.pnl_colors": "Profit colour",
   "preferences.pnl_green_up": "Green profit, red loss",
   "preferences.pnl_red_up": "Red profit, green loss",
+  "preferences.pnl_blue_orange": "Blue profit, orange loss: colour-vision friendly",
   "position.mark": "Mark",
   "position.mark_quoted": "Month quote",
   "position.mark_derived": "Derived from a quarter, season or year quote",

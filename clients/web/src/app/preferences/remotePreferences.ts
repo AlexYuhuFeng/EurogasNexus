@@ -7,7 +7,7 @@ import {
   writeMarketViewPreference,
 } from "@/app/context/viewPreference";
 import { resolveSignInPreferences } from "./preferenceResolution";
-import { applyPnlColorConvention } from "@/app/model/pnlColor";
+import { applyPnlColorConvention, isPnlColorConvention } from "@/app/model/pnlColor";
 import { TIME_ZONE_STORAGE_KEY, useTimePreferenceStore } from "@/stores/timePreference";
 import { isTimeZonePreference } from "@/app/time/timeFormat";
 import { useDisplayPreferenceStore } from "@/stores/displayPreference";
@@ -94,7 +94,7 @@ function locallyChosen(principalId: string): Partial<Record<PreferenceKey, strin
     const layout = window.localStorage.getItem(BOARD_LAYOUT_STORAGE_KEY);
     if (layout === "board" || layout === "ladder") chosen.market_board_layout = layout;
     const pnl = window.localStorage.getItem(PNL_COLORS_STORAGE_KEY);
-    if (pnl === "green_up" || pnl === "red_up") chosen.pnl_colors = pnl;
+    if (isPnlColorConvention(pnl)) chosen.pnl_colors = pnl;
     const zone = window.localStorage.getItem(TIME_ZONE_STORAGE_KEY);
     if (isTimeZonePreference(zone)) chosen.time_zone = zone;
   } catch {

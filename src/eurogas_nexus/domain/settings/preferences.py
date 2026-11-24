@@ -44,8 +44,9 @@ PREFERENCE_VOCABULARY: dict[str, tuple[str, ...]] = {
     "market_view": ("overview", "curves", "network"),
     # Quote layout: hub board (hubs down) or execution-screen ladder (products down).
     "market_board_layout": ("board", "ladder"),
-    # Profit colour: green (Europe, Americas) or red (China and much of Asia).
-    "pnl_colors": ("green_up", "red_up"),
+    # Profit colour: green (Europe, Americas), red (China and much of Asia), or blue with
+    # orange loss, the colour-vision friendly scheme (UX R1).
+    "pnl_colors": ("green_up", "red_up", "blue_orange"),
     # Times shown in: the device's zone, UTC, or the gas market's clock (CET/CEST). Instants are
     # stored and sent in UTC whatever this says; gas days are never shifted.
     "time_zone": ("device", "utc", "market"),

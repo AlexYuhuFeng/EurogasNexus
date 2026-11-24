@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { applyPnlColorConvention, pnlClass } from "../src/app/model/pnlColor.ts";
+import { applyPnlColorConvention, isPnlColorConvention, PNL_COLOR_CONVENTIONS, pnlClass } from "../src/app/model/pnlColor.ts";
 
 test("sign decides the class; zero and unknown stay neutral", () => {
   assert.equal(pnlClass(12.5), "pnl-profit");
@@ -17,4 +17,13 @@ test("the convention is set on the root and defaults to green-up", () => {
   assert.equal(root.dataset.pnl, "red_up");
   applyPnlColorConvention("anything", root);
   assert.equal(root.dataset.pnl, "green_up");
+});
+
+test("the colour-vision friendly scheme is a convention of its own", () => {
+  const root = { dataset: {} as DOMStringMap };
+  applyPnlColorConvention("blue_orange", root);
+  assert.equal(root.dataset.pnl, "blue_orange");
+  assert.deepEqual(PNL_COLOR_CONVENTIONS, ["green_up", "red_up", "blue_orange"]);
+  assert.equal(isPnlColorConvention("blue_orange"), true);
+  assert.equal(isPnlColorConvention("purple"), false);
 });

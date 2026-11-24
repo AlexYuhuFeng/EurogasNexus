@@ -87,8 +87,8 @@ to be deleted.
 | Inverse | `--ds-ink`, `--ds-on-ink` |
 | Sign | `--ds-positive`, `--ds-negative`, `--ds-on-negative` |
 | Status | `--ds-status-{ok,watch,breach,info,simulated,stale}` and each `-soft` background |
-| Profit and loss | `--pnl-up`, `--pnl-down`; `--pnl-profit` / `--pnl-loss` follow the user's convention (`data-pnl="red_up"` swaps meaning, not colours) |
-| Chart series | `--ds-series-1` … `--ds-series-8`, each at least 3:1 against the surface |
+| Profit and loss | `--pnl-up`, `--pnl-down`; `--pnl-profit` / `--pnl-loss` follow the user's convention (`data-pnl="red_up"` swaps meaning, not colours; `data-pnl="blue_orange"`, the colour-vision friendly scheme, makes profit, up and "ok" blue and loss and down orange, so no meaning rests on green against red) |
+| Chart series | `--ds-series-1` … `--ds-series-8`, each at least 3:1 against the surface; neighbours, and any two of the first four, at least CIEDE2000 10 apart under normal vision and simulated deuteranopia, protanopia and tritanopia (Machado 2009) |
 | Brand | `--ds-brand-navy`, `--ds-brand-navy-deep` (the installer, splash and sign-in panel), `--ds-brand-blue` (`#1d4ed8`, the light theme's accent) and `--ds-brand-blue-light` (`#6ea8fe`, the dark theme's accent), `--ds-on-brand*` (text on navy). Fixed in both themes: they colour the mark, not the interface. See [BRAND_MARK.md](BRAND_MARK.md) |
 
 Simulated has its own colour (violet), so a simulated-price banner is never read as a warning

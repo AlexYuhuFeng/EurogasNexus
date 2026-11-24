@@ -2715,6 +2715,7 @@
   "preferences.pnl_colors": "盈利颜色",
   "preferences.pnl_green_up": "绿色盈利，红色亏损",
   "preferences.pnl_red_up": "红色盈利，绿色亏损",
+  "preferences.pnl_blue_orange": "蓝色盈利，橙色亏损：便于色觉差异者辨识",
   "position.mark": "盯市价",
   "position.mark_quoted": "月度报价",
   "position.mark_derived": "由季度、季节或年度报价推导",
