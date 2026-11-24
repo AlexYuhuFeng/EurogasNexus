@@ -214,6 +214,13 @@ evaluation read, with class, source, reference and as-of; unentitled values with
 need portfolio read and sit inside the commercial boundary; writes are audited without values.
 Census: 262 paths / 290 operations.
 
+Additive 2026-11-24 (QA-T-03, QA-T-04): each row of `GET /api/market/quotes` and of the
+market-context quotes slice adds `close_price`, `close_day`, `close_kind`, `close_source_system`
+and `close_simulated` (the previous close of the same hub and tenor from the desk's daily
+closes, a month-ahead close only for the same delivery month, else the feed's prior settlement
+with no day) and `as_of_utc`, `age_seconds`, `stale_after_seconds` (the source's declared
+cadence) and `freshness_state`. No existing field changes.
+
 Additive 2026-11-19 (My gas day): `GET /api/desk/today` appends `rows[5]` (`gas_day`: per hub
 for today and tomorrow, IN and OUT lines, net to clear in the hub's unit, the balancing band,
 cut-offs with their basis, the cost of leaving it open at the assumption set's cash-out

@@ -80,16 +80,16 @@ the draft SDK docs took a new quant to a first result verbatim. The S1 findings 
 
 | ID | Role | Finding | State |
 | --- | --- | --- | --- |
-| QA-T-01 | Trader | "Mid" is the last price, not (bid+ask)/2 | Next |
-| QA-T-02, QA-L-22 | Trader, LNG | Up to three prices for one month across screens; the demo curve has no drift | Next (with P-08) |
-| QA-T-03 | Trader | No change against the close; prices below the fold on the landing | Next |
-| QA-T-04, QA-R-07 | Trader, risk | Stale rows look live; old marks raise no stale alert; the feeds panel and Today disagree | Next |
+| QA-T-01 | Trader | "Mid" is the last price, not (bid+ask)/2 | Fixed: mid only from two sides, Last its own column, one-sided quotes marked; the backtest pool no longer stores a last print as a mid |
+| QA-T-02, QA-L-22 | Trader, LNG | Up to three prices for one month across screens; the demo curve has no drift | Demo drift fixed; one price resolver next (with P-08) |
+| QA-T-03 | Trader | No change against the close; prices below the fold on the landing | Change vs close fixed (quotes carry the close, kind, day and source). Row order kept as the owner set it (My gas day first); moving My market up is the owner's call |
+| QA-T-04, QA-R-07 | Trader, risk | Stale rows look live; old marks raise no stale alert; the feeds panel and Today disagree | Board rows fixed (age, cadence, freshness state, stale legs). Risk rows, the marks alert and one freshness contract next |
 | QA-T-05, QA-R-05 | All | Implausible, future and wrongly labelled ticks accepted | Ticks fixed in F1; firm marks and the "Updated" stamp next |
 | QA-T-06, QA-R-08 | Scheduler | The status write failed for all and the scheduler could not record | Fixed (F1, F1-8) |
-| QA-T-07 | Scheduler | Two daily balances with hard-coded rates | Next |
-| QA-T-08 | Scheduler | The nomination step's deadline uses the wrong cut-off | Next |
-| QA-T-09 | Scheduler | An outage is ignored in the gas-day balance | Next |
-| QA-L-01 | LNG | The gas-day card and the cargo plan give different send-out | Next |
+| QA-T-07 | Scheduler | Two daily balances with hard-coded rates | Fixed: one gas-day definition; the approved cash-out set or rates labelled as entered |
+| QA-T-08 | Scheduler | The nomination step's deadline uses the wrong cut-off | Fixed |
+| QA-T-09 | Scheduler | An outage is ignored in the gas-day balance | Fixed: supply capped by a REMIT outage at its source, named on the line |
+| QA-L-01 | LNG | The gas-day card and the cargo plan give different send-out | Fixed: a slot with a firm cargo takes the plan's send-out; QA-L-06 energy balance fixed too |
 | QA-L-02 | LNG | A backward roll is due after the target month stops trading | Next |
 | QA-L-03, QA-R-26 | Desk head, risk | Firm cargoes and their hedges are missing from the ladder | Next |
 | QA-L-04 | LNG | A vessel-feed import clears a cargo's book link | Next |

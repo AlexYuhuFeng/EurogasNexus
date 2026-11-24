@@ -129,10 +129,8 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: task("desk", "today"),
     shortlist: [task("desk", "today"), task("desk", "prices"), task("deals", "opportunities"), task("book", "limits")],
     panels: {},
-    // The trader's day is the gas they have to clear (owner, 2026-11-19), read against the
-    // market: the compact "My market" row (prices, change vs close) sits above the fold first
-    // (QA-T-03), then "My gas day" and its checklist.
-    todayRows: ["market", "gas_day", "checklist", "book", "needs_me", "fundamentals"],
+    // The trader's day is the gas he has to clear (owner, 2026-11-19): "My gas day" first.
+    todayRows: ["gas_day", "checklist", "market", "book", "needs_me", "fundamentals"],
     stripAudience: "trader",
   },
   // The originator lands on Deals → Opportunities (design basis 2, A.4 and B.8), then the book
