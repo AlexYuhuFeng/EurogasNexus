@@ -71,6 +71,12 @@ class EvaluationTrigger(Protocol):
         """Note a change; run (or schedule) a debounced full evaluation."""
 
 
+def _bound(session, moment: datetime) -> datetime:
+    """``moment`` as the store compares it (SQLite keeps naive UTC)."""
+
+    return moment.replace(tzinfo=None) if session.get_bind().dialect.name == "sqlite" else moment
+
+
 def _aware(value: datetime | None) -> datetime | None:
     if value is None:
         return None
@@ -192,8 +198,14 @@ def run_due(
         runner = run_evaluation
     summary = runner(session, trigger="schedule", triggered_by=SCHEDULE_PRINCIPAL, now_utc=now)
     covered = [row for row in pending if _aware(row.last_noted_at_utc) <= now]
-    for row in covered:
-        session.delete(row)
+    # Delete by condition in the store, not by the rows read above: a change noted after
+    # that read (a newer ``last_noted_at_utc``) stays pending for the next run. On
+    # PostgreSQL the DELETE re-checks the condition against a concurrently committed
+    # update, so the change is never lost (M5; it was, before, between read and delete).
+    session.query(OpportunityPendingInputRecord).filter(
+        OpportunityPendingInputRecord.input_class.in_([row.input_class for row in covered]),
+        OpportunityPendingInputRecord.last_noted_at_utc <= _bound(session, now),
+    ).delete(synchronize_session="fetch")
     session.flush()
     return {
         "status": "ran",
