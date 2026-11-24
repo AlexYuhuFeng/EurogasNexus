@@ -47,7 +47,7 @@ All twelve recommendations are adopted. Order, by user impact and risk:
 7. R10 one source of truth for motion, radii and control heights; exit easing. **Done** (wip/ux).
 8. R11 a Comfortable/Compact density preference (row height only). **Done** (wip/ux).
 9. R8 the command palette finds hubs, contracts, cargoes and vessels.
-10. R12 Settings split into Personal, Workspace, Organisation and Connection.
+10. R12 Settings split into Personal, Workspace, Organisation and Connection. **Done** (wip/ux).
 11. R6 desktop capabilities claimed only when their plugin ships (a correctness bug).
 12. R7 the native menu matches the current workspaces, is translated, and has the standard
     shortcuts.

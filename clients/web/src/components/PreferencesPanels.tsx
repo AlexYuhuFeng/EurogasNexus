@@ -5,6 +5,7 @@ import { LOCALES } from "@/i18n/locales";
 import { applyEffectivePreferences } from "@/app/preferences/remotePreferences";
 import { FOCUS_HUB_CHOICES, MAX_FOCUS_HUBS, STRIP_BUILT_IN, STRIP_CHOICES } from "@/app/preferences/stripPreferences";
 import { PanelHelp } from "@/components/ui/PanelHelp";
+import { Button } from "@/components/ui/Button";
 import { useTranslation } from "react-i18next";
 import { useHintsSeenStore } from "@/stores/hintsSeen";
 import { formatInstant, TIME_ZONE_PREFERENCES } from "@/app/time/timeFormat";
@@ -76,12 +77,33 @@ const LABEL_KEYS: Record<ChoiceKey, string> = {
   strip_quiet_line: "strip.pref.quiet_line",
 };
 
-const GENERAL_KEYS: ChoiceKey[] = ["language", "theme", "density", "time_zone", "market_view", "market_board_layout", "pnl_colors"];
+/** How the product looks and reads for this person: appearance, language, time, P&L colours. */
+const GENERAL_KEYS: ChoiceKey[] = ["language", "theme", "density", "pnl_colors", "time_zone"];
 /** Currency and units (design basis G2): the secondary value beside native figures, never the price itself. */
 const DISPLAY_KEYS: ChoiceKey[] = ["reporting_currency", "energy_unit"];
+/** Where the desk opens and how the board is laid out. */
+const LANDING_KEYS: ChoiceKey[] = ["market_view", "market_board_layout"];
 /** The situational strip's thresholds (role-first redesign §5.2), grouped under their own heading. */
 const STRIP_KEYS: ChoiceKey[] = ["strip_outage_gwh_d", "strip_outage_share_pct", "strip_price_move_pct", "strip_quiet_line"];
-const KEYS: ChoiceKey[] = [...GENERAL_KEYS, ...DISPLAY_KEYS, ...STRIP_KEYS];
+const KEYS: ChoiceKey[] = [...GENERAL_KEYS, ...DISPLAY_KEYS, ...LANDING_KEYS, ...STRIP_KEYS];
+
+/**
+ * Settings groups by who owns a setting and what it is about (UX R12): Personal is how the
+ * product looks and reads for this person; Workspace is how their desk opens and what the strip
+ * watches. Both are the person's own, stored per principal; each can go back to the
+ * organisation default in one step.
+ */
+export type PreferenceGroup = "personal" | "workspace";
+
+export const PREFERENCE_GROUP_KEYS: Record<PreferenceGroup, ChoiceKey[]> = {
+  personal: [...GENERAL_KEYS, ...DISPLAY_KEYS],
+  workspace: [...LANDING_KEYS, ...STRIP_KEYS],
+};
+
+/** Every key a group's "Reset to organisation default" clears, the hand-edited ones included. */
+export function resetKeys(group: PreferenceGroup): PreferenceKey[] {
+  return group === "workspace" ? [...PREFERENCE_GROUP_KEYS.workspace, "strip_focus_hubs"] : [...PREFERENCE_GROUP_KEYS.personal];
+}
 
 /** Mirrors BUILT_IN_DEFAULTS in domain/settings/preferences.py. */
 const BUILT_IN: Record<ChoiceKey, string> = {
@@ -181,13 +203,15 @@ function FocusHubsField({
 interface PersonalPreferencesPanelProps {
   t: Translate;
   principalId: string | null;
+  /** Which of the person's groups this panel edits (UX R12); Personal by default. */
+  group?: PreferenceGroup;
 }
 
 /**
  * The user's own choices, stored on the server per person. Each row shows what the
  * organisation default is, so "Use organisation default" is an informed choice.
  */
-export function PersonalPreferencesPanel({ t, principalId }: PersonalPreferencesPanelProps) {
+export function PersonalPreferencesPanel({ t, principalId, group = "personal" }: PersonalPreferencesPanelProps) {
   const [state, setState] = useState<PreferencesDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -202,9 +226,13 @@ export function PersonalPreferencesPanel({ t, principalId }: PersonalPreferences
     };
   }, [t]);
 
-  const save = async (key: PreferenceKey, value: string | null) => {
+  const groupKeys = PREFERENCE_GROUP_KEYS[group];
+  const cleared = resetKeys(group);
+  const anyPersonal = Boolean(state && cleared.some((key) => state.personal[key] !== undefined && state.personal[key] !== null));
+
+  const savePatch = async (patch: Partial<Record<PreferenceKey, string | null>>) => {
     try {
-      const response = await api.saveMyPreferences({ [key]: value });
+      const response = await api.saveMyPreferences(patch);
       setState(response.data);
       setError(null);
       await applyEffectivePreferences(response.data.effective, principalId);
@@ -212,14 +240,29 @@ export function PersonalPreferencesPanel({ t, principalId }: PersonalPreferences
       setError(t("preferences.save_failed"));
     }
   };
+  const save = (key: PreferenceKey, value: string | null) => savePatch({ [key]: value });
 
+  const titleId = `settings-${group}-title`;
   return (
-    <section className="workspace-panel settings-panel settings-personal-panel" aria-labelledby="settings-personal-title">
-      <h2 id="settings-personal-title">{t("preferences.personal_title")}</h2>
-      <PanelHelp text={t("preferences.personal_help")} label={t("panel.how_to_read")} />
+    <section
+      className={`workspace-panel settings-panel settings-${group}-panel`}
+      aria-labelledby={titleId}
+      data-preference-group={group}
+    >
+      <div className="settings-group-head">
+        <h2 id={titleId}>{t(group === "personal" ? "preferences.personal_title" : "settings.group.workspace_title")}</h2>
+        <Button
+          data-reset-group={group}
+          disabled={!anyPersonal}
+          onClick={() => void savePatch(Object.fromEntries(cleared.map((key) => [key, null])))}
+        >
+          {t("settings.group.reset")}
+        </Button>
+      </div>
+      <PanelHelp text={t(group === "personal" ? "preferences.personal_help" : "settings.group.workspace_help")} label={t("panel.how_to_read")} />
       {error && <p className="settings-backend-message" role="alert">{error}</p>}
       {state &&
-        KEYS.map((key) => {
+        groupKeys.map((key) => {
           const personal = state.personal[key];
           const options = key === "language"
             ? CHOICES.language.filter((item) => state.effective.enabled_languages.includes(item.value))
@@ -256,7 +299,7 @@ export function PersonalPreferencesPanel({ t, principalId }: PersonalPreferences
             </div>
           );
         })}
-      {state && (
+      {state && group === "workspace" && (
         <FocusHubsField
           t={t}
           value={state.personal.strip_focus_hubs}
@@ -264,12 +307,12 @@ export function PersonalPreferencesPanel({ t, principalId }: PersonalPreferences
           onChange={(next) => void save("strip_focus_hubs", next)}
         />
       )}
-      <p className="settings-preference-row" data-preference="hints_seen">
-        <span>{t("hints.title")}</span>
-        <button type="button" className="secondary-button" onClick={() => useHintsSeenStore.getState().replay()}>
-          {t("hints.replay")}
-        </button>
-      </p>
+      {group === "personal" && (
+        <p className="settings-preference-row" data-preference="hints_seen">
+          <span>{t("hints.title")}</span>
+          <Button onClick={() => useHintsSeenStore.getState().replay()}>{t("hints.replay")}</Button>
+        </p>
+      )}
       <small className="muted">{t("preferences.follows_you")}</small>
     </section>
   );

@@ -1105,13 +1105,47 @@
     font-size: var(--ds-text-xs);
   }
 
-  /* Personal preferences beside the organisation defaults they override (#19). */
-  .settings-preference-pair {
+  /* Settings in four groups by who owns them (UX R12): one tab row, then the group's panels. */
+  .settings-group-panel {
     grid-column: 1 / -1;
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr));
     gap: var(--ds-space-4);
     align-items: start;
+    min-width: 0;
+  }
+
+  .settings-group-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-3);
+    flex-wrap: wrap;
+  }
+
+  .settings-group-head h2 {
+    margin: 0;
+  }
+
+  .settings-advanced {
+    display: grid;
+    gap: var(--ds-space-3);
+    min-width: 0;
+  }
+
+  .settings-advanced > summary {
+    width: fit-content;
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-2);
+    border-radius: var(--ds-radius-sm);
+    color: var(--ds-text-2);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-control-sm);
+    cursor: pointer;
+  }
+
+  .settings-advanced > summary:hover {
+    background: var(--ds-surface-2);
+    color: var(--ds-text-1);
   }
 
   .settings-reference-counts {
