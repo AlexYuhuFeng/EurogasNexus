@@ -41,3 +41,30 @@ export function onChangeStreamStatus(listener: (open: boolean) => void): () => v
     statusListeners.delete(listener);
   };
 }
+
+/*
+ * A stream of its own reports its state under its topic (M7: `opportunities` is the opportunity
+ * stream, `/api/stream/opportunities`), so a page that listens to it falls back to polling only
+ * while that stream is down.
+ */
+const topicOpen = new Map<string, boolean>();
+const topicStatusListeners = new Map<string, Set<(open: boolean) => void>>();
+
+export function setTopicStreamOpen(topic: string, next: boolean): void {
+  if (topicOpen.get(topic) === next) return;
+  topicOpen.set(topic, next);
+  for (const listener of topicStatusListeners.get(topic) ?? []) listener(next);
+}
+
+export function topicStreamOpen(topic: string): boolean {
+  return topicOpen.get(topic) ?? false;
+}
+
+export function onTopicStreamStatus(topic: string, listener: (open: boolean) => void): () => void {
+  const set = topicStatusListeners.get(topic) ?? new Set<(open: boolean) => void>();
+  set.add(listener);
+  topicStatusListeners.set(topic, set);
+  return () => {
+    set.delete(listener);
+  };
+}

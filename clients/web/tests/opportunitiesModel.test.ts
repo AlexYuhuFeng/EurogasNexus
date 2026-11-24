@@ -20,6 +20,10 @@ import {
   showReadiness,
   timeLeft,
   withOpportunity,
+  ageText,
+  freshness,
+  readOpportunityNotice,
+  recentWithdrawals,
 } from "../src/app/model/opportunitiesModel.ts";
 
 function row(overrides: Partial<OpportunityRowDTO> = {}): OpportunityRowDTO {
@@ -243,4 +247,45 @@ test("one item per subject: title, figure, months and a truthful due line", asyn
   const spread = row({ subject: "TTF → THE", group: { count: 1, members: [members[1]], total_value: { amount: "71300", currency: "EUR" }, total_volume: null } });
   assert.equal(rowFigure(spread), "EUR 71k");
   assert.equal(rowTitle(spread).key, "opportunities.title.locational");
+});
+
+/* ------------------------------------------------------------------ live (M7) */
+
+test("a stream payload becomes a notice: an opening, a withdrawal with its reason, an evaluation", () => {
+  assert.deepEqual(
+    readOpportunityNotice({ event: "opportunity", opportunity_id: "o1", status: "open", reason: null, changed_at_utc: "2026-11-24T09:00:00+00:00" }),
+    { event: "opportunity", opportunityId: "o1", status: "open", reason: null, at: "2026-11-24T09:00:00+00:00" },
+  );
+  assert.equal(
+    readOpportunityNotice({ event: "opportunity", group: "expiry", opportunity_id: "o2", status: "withdrawn", reason: "expired", changed_at: "x" })?.reason,
+    "expired",
+  );
+  assert.equal(readOpportunityNotice({ event: "evaluated", as_of_utc: "2026-11-24T09:00:00+00:00" })?.event, "evaluated");
+  // Anything else, including the legacy intraday rows, is not a notice.
+  assert.equal(readOpportunityNotice({ opportunity_id: "o3", detected_at_utc: "x" }), null);
+  assert.equal(readOpportunityNotice({ event: "opportunity", opportunity_id: "o4", status: "maybe" }), null);
+  assert.equal(readOpportunityNotice(null), null);
+});
+
+test("the freshness line says live or polling and how old the evaluation is", () => {
+  const now = new Date("2026-11-24T09:10:00Z");
+  assert.deepEqual(freshness("2026-11-24T09:09:48Z", true, now), { mode: "live", age: "12 s" });
+  assert.deepEqual(freshness("2026-11-24T09:06:00Z", false, now), { mode: "polling", age: "4 min" });
+  assert.equal(ageText("2026-11-24T06:00:00Z", now), "3 h");
+  assert.equal(ageText("2026-11-22T09:00:00Z", now), "2 d");
+  assert.equal(ageText(null, now), null);
+  assert.equal(ageText("2026-11-24T09:11:00Z", now), "0 s"); // a clock ahead never reads negative
+});
+
+test("withdrawals are named once each, newest first; openings are not withdrawals", () => {
+  const notice = (id: string, status: "open" | "withdrawn", reason: string | null = null) => ({
+    event: "opportunity" as const, opportunityId: id, status, reason, at: null,
+  });
+  const recent = recentWithdrawals([
+    notice("a", "withdrawn", "expired"),
+    notice("b", "open"),
+    notice("c", "withdrawn", "blocked"),
+    notice("a", "withdrawn", "expired"),
+  ]);
+  assert.deepEqual(recent.map((item) => item.opportunityId), ["a", "c"]);
 });

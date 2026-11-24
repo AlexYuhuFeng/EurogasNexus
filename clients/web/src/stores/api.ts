@@ -112,7 +112,7 @@ import {
   openEventStream,
 } from "@/api/client";
 import { setDeploymentMapDefault } from "@/app/mapTileProviders";
-import { publishChangeNotice, setChangeStreamOpen } from "@/app/data/changeNotices";
+import { publishChangeNotice, setChangeStreamOpen, setTopicStreamOpen } from "@/app/data/changeNotices";
 import {
   DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
   DEFAULT_LOGOUT_TIMEOUT_MS,
@@ -231,6 +231,7 @@ function closeDecisionStreams() {
   decisionStreamClosers.forEach((close) => close());
   decisionStreamClosers = [];
   setChangeStreamOpen(false);
+  setTopicStreamOpen("opportunities", false);
 }
 
 /**
@@ -588,22 +589,6 @@ function mergeMarketQuotes(
   return Array.from(byId.values())
     .sort((left, right) => timestampMs(right.observed_at_utc) - timestampMs(left.observed_at_utc))
     .slice(0, 500);
-}
-
-function mergeIntradayOpportunities(
-  current: IntradayOpportunityDTO[],
-  incoming: IntradayOpportunityDTO[],
-): IntradayOpportunityDTO[] {
-  const byId = new Map(current.map((item) => [item.opportunity_id, item]));
-  incoming.forEach((item) => {
-    const existing = byId.get(item.opportunity_id);
-    if (!existing || timestampMs(item.detected_at_utc) >= timestampMs(existing.detected_at_utc)) {
-      byId.set(item.opportunity_id, item);
-    }
-  });
-  return Array.from(byId.values())
-    .sort((left, right) => timestampMs(right.detected_at_utc) - timestampMs(left.detected_at_utc))
-    .slice(0, 100);
 }
 
 /**
@@ -1965,27 +1950,24 @@ export const useApiStore = create<ApiState>((set, get) => ({
       ).close,
     );
 
+    // The opportunity engine's stream (M7): an opportunity opened or withdrawn, and each finished
+    // evaluation. A notice carries no figure; the Opportunities page re-reads its list on it
+    // (app/hooks/useOpportunityStream.ts) and polls while this stream is down.
     decisionStreamClosers.push(
-      openEventStream("/stream/opportunities", {
-        opportunities: (payload) => {
-          if (!streamIsCurrent()) return;
-          if (projectionLanes.marketContext.requested) return;
-          const opportunity = payload as IntradayOpportunityDTO;
-          if (
-            !opportunity ||
-            typeof opportunity !== "object" ||
-            !("opportunity_id" in opportunity)
-          ) {
-            return;
-          }
-          set((state) => ({
-            intradayOpportunities: mergeIntradayOpportunities(
-              state.intradayOpportunities,
-              [opportunity],
-            ),
-          }));
+      openEventStream(
+        "/stream/opportunities",
+        {
+          opportunity: (payload) => {
+            if (streamIsCurrent()) publishChangeNotice("opportunities", { event: "opportunity", ...(payload as object) });
+          },
+          evaluated: (payload) => {
+            if (streamIsCurrent()) publishChangeNotice("opportunities", { event: "evaluated", ...(payload as object) });
+          },
         },
-      }).close,
+        (status) => {
+          if (streamIsCurrent()) setTopicStreamOpen("opportunities", status === "open");
+        },
+      ).close,
     );
 
     decisionStreamClosers.push(

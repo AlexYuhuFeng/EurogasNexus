@@ -13,7 +13,10 @@ import eurogas_nexus.db.models  # noqa: F401  (registers every table)
 from eurogas_nexus.api.routes.public import streaming
 from eurogas_nexus.api.routes.public.streaming import StreamGuard, _event_stream
 from eurogas_nexus.db.base import Base
-from eurogas_nexus.db.models import IdentityPrincipalRecord, MarketQuoteRecord
+from eurogas_nexus.db.models import (
+    IdentityPrincipalRecord,
+    TradingBookRecord,
+)
 from eurogas_nexus.security import portfolio_scope
 from eurogas_nexus.security.identity import AuthenticatedPrincipal
 
@@ -69,15 +72,26 @@ def test_quotes_from_an_unlicensed_source_are_not_streamed(session):
     assert guard.__class__("quotes", _principal())(session, rows) == []
 
 
-def test_an_opportunity_needs_both_of_its_quotes_licensed(session):
-    session.add(_record(MarketQuoteRecord, quote_id="buy", source_system="EEX"))
-    session.add(_record(MarketQuoteRecord, quote_id="sell", source_system="ICE_OCM"))
+def test_an_opportunity_change_follows_the_opportunitys_own_read_rule(session, monkeypatch):
+    """M7: the stream serves the opportunity engine; a change is streamed to a caller who may
+    read the opportunity (every source family, and every book unless it is a market item)."""
+
+    for book in ("uk-nbp", "nl-ttf"):
+        session.add(_record(TradingBookRecord, book_id=book, legal_entity="E", region="NWE"))
     session.commit()
-    rows = [{"opportunity_id": "o1", "buy_quote_id": "buy", "sell_quote_id": "sell"}]
-    assert StreamGuard("opportunities", _principal("EEX"))(session, rows) == []
-    assert StreamGuard("opportunities", _principal("EEX", "ICE_OCM"))(session, rows) == rows
-    missing = [{"opportunity_id": "o2", "buy_quote_id": "buy", "sell_quote_id": "gone"}]
-    assert StreamGuard("opportunities", _principal("*"))(session, missing) == []
+    rows = [
+        {"opportunity_id": "o1", "lane": "must_act", "book_ids": ["uk-nbp"], "source_families": []},
+        {"opportunity_id": "o2", "lane": "market", "book_ids": [], "source_families": ["EEX"]},
+        {"opportunity_id": "o3", "lane": "market", "book_ids": [], "source_families": []},
+        {"opportunity_id": "o4", "lane": "could_act", "book_ids": ["nl-ttf"], "sent": False},
+    ]
+    every = StreamGuard("opportunity", _principal("*"))(session, rows)
+    assert [row["opportunity_id"] for row in every] == ["o1", "o2", "o3"]  # o4 never shown
+    unlicensed = StreamGuard("opportunity", _principal())(session, rows)
+    assert [row["opportunity_id"] for row in unlicensed] == ["o1", "o3"]
+    monkeypatch.setenv(portfolio_scope.ISOLATION_ENV, "true")
+    regional = StreamGuard("opportunity", _principal("BOOKS:BOOK:nl-ttf", "EEX"))
+    assert [row["opportunity_id"] for row in regional(session, rows)] == ["o2", "o3"]
 
 
 def test_a_limits_alert_is_streamed_only_to_callers_who_see_its_books(session, monkeypatch):

@@ -30,6 +30,42 @@
     font-size: var(--ds-text-sm);
   }
 
+  /* M7: whether the list follows the stream or the one-minute poll, and how old it is. The
+     word carries the state; the dot only repeats it. */
+  .opportunities-live {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+    white-space: nowrap;
+  }
+
+  .opportunities-live::before {
+    content: "";
+    inline-size: var(--ds-space-2);
+    block-size: var(--ds-space-2);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-border-strong);
+  }
+
+  .opportunities-live[data-stream="live"]::before {
+    background: var(--ds-positive);
+  }
+
+  .opportunities-withdrawn {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+    margin: 0;
+    padding: var(--ds-space-1) var(--ds-space-2);
+    border: 1px solid var(--ds-border-subtle);
+    border-radius: var(--ds-radius-sm);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
   .opportunities-head-side {
     display: flex;
     align-items: center;

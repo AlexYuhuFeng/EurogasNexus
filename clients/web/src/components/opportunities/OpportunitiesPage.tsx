@@ -8,6 +8,10 @@
  * On day one (no book, no prices) the page says why it is empty and shows what the engine needs,
  * each line with the one control that fixes it (H.1). The server builds every figure; this view
  * formats them in their native units.
+ *
+ * Live (M7): the page re-reads when the opportunity stream says one opened, was withdrawn or an
+ * evaluation finished, polls every minute while the stream is down, and says which of the two it
+ * is doing next to the "as of" and its age. A withdrawn opportunity is named once with its reason.
  */
 import { useCallback, useEffect, useState } from "react";
 
@@ -18,6 +22,7 @@ import {
   dueOf,
   emptyReason,
   evaluationLine,
+  freshness,
   groupMembers,
   memberCount,
   rowFigure,
@@ -30,6 +35,7 @@ import {
   markerTone,
   qualityMarker,
   readinessLines,
+  recentWithdrawals,
   rowLead,
   showReadiness,
   timeLeft,
@@ -39,6 +45,7 @@ import { Button, EmptyState, ExampleFrame, StatusBadge, useExampleView } from "@
 import { exampleOpportunityList } from "@/app/experience/examples";
 import { Instant } from "@/components/ui/Instant";
 import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/ui/SimulatedScope";
+import { useOpportunityStream } from "@/app/hooks/useOpportunityStream";
 import { OpportunityDetail } from "./OpportunityDetail";
 import { FirmMarksGrid } from "./FirmMarksGrid";
 
@@ -90,6 +97,13 @@ export function OpportunitiesPage({
   }, [revision]);
 
   const reload = useCallback(() => setRevision((value) => value + 1), []);
+  const stream = useOpportunityStream(reload);
+  const [clock, setClock] = useState(() => new Date());
+  useEffect(() => {
+    // The age beside "as of" moves on its own; nothing is read.
+    const timer = window.setInterval(() => setClock(new Date()), 15_000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const select = (id: string | null) => {
     setSelected(id);
@@ -105,8 +119,10 @@ export function OpportunitiesPage({
       .finally(() => setEvaluating(false));
   };
 
-  const now = new Date();
+  const now = clock;
   const evaluation = evaluationLine(list);
+  const fresh = freshness(list?.as_of_utc, stream.live, now);
+  const withdrawn = recentWithdrawals(stream.notices);
   // "See an example" (design H.1): an empty book can look at a bundled example list, inert.
   const exampleList = exampleView.example ? exampleOpportunityList(now) : null;
   const allRows = [...LANES, ...GROUPS].flatMap((bucket) => bucketRows(list, bucket));
@@ -132,6 +148,14 @@ export function OpportunitiesPage({
               t("opportunities.not_evaluated")
             )}
           </span>
+          <span
+            className="opportunities-live"
+            data-stream={fresh.mode}
+            title={t(`opportunities.live.${fresh.mode}_hint`)}
+          >
+            {fresh.age ? t("opportunities.live.age", { age: fresh.age }) + " · " : ""}
+            {t(`opportunities.live.${fresh.mode}`)}
+          </span>
           <Button variant="secondary" onClick={evaluate} disabled={evaluating}>
             {evaluating ? t("opportunities.evaluating") : t("opportunities.evaluate_now")}
           </Button>
@@ -139,6 +163,18 @@ export function OpportunitiesPage({
       </header>
 
       <SimulatedScope scope={scope} notice={t("opportunities.banner.simulated")}>
+
+      {withdrawn.length > 0 && (
+        <p className="opportunities-withdrawn" role="status" data-withdrawn={withdrawn.length}>
+          {t("opportunities.live.withdrawn", {
+            count: withdrawn.length,
+            reasons: [...new Set(withdrawn.map((item) => t(`opportunities.live.reason.${item.reason ?? "other"}`, { defaultValue: item.reason ?? "" })))].join(", "),
+          })}
+          <Button variant="quiet" size="sm" onClick={stream.clearNotices}>
+            {t("opportunities.live.dismiss")}
+          </Button>
+        </p>
+      )}
 
       {failed && !list && (
         <EmptyState id="opportunities-unavailable" reason={t("opportunities.unavailable")} next={t("opportunities.unavailable_next")} />

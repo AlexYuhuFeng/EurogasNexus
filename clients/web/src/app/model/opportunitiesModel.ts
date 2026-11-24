@@ -373,3 +373,80 @@ export function evaluationLine(list: OpportunityListDTO | null): { trigger: stri
   const next = evaluation && typeof evaluation.next === "object" ? evaluation.next : null;
   return { trigger: evaluation?.trigger ?? null, pending: next?.pending_inputs ?? [] };
 }
+
+/* ------------------------------------------------------------------ live (M7) */
+
+/**
+ * One notice on the opportunity stream (`/api/stream/opportunities`): an opportunity that opened
+ * or was withdrawn (expired, converted, blocked, fell to watch), or an evaluation that finished.
+ * It carries no figure; the page re-reads its list.
+ */
+export interface OpportunityStreamNotice {
+  event: "opportunity" | "evaluated";
+  opportunityId: string | null;
+  status: "open" | "withdrawn" | null;
+  reason: string | null;
+  at: string | null;
+}
+
+/** With the stream open, a safety re-read; with it down, the poll. */
+export const OPPORTUNITY_REFRESH_MS = 5 * 60_000;
+export const OPPORTUNITY_FALLBACK_MS = 60_000;
+/** Notices that arrive together (an evaluation and the changes it made) cause one read. */
+export const OPPORTUNITY_NOTICE_COALESCE_MS = 800;
+
+/** A stream payload as a notice, or null for anything else. */
+export function readOpportunityNotice(payload: unknown): OpportunityStreamNotice | null {
+  if (!payload || typeof payload !== "object") return null;
+  const item = payload as Record<string, unknown>;
+  const text = (key: string) => (typeof item[key] === "string" ? (item[key] as string) : null);
+  if (item.event === "evaluated") {
+    return { event: "evaluated", opportunityId: null, status: null, reason: null, at: text("as_of_utc") ?? text("changed_at") };
+  }
+  if (item.event !== "opportunity") return null;
+  const status = item.status === "open" || item.status === "withdrawn" ? item.status : null;
+  if (!text("opportunity_id") || !status) return null;
+  return {
+    event: "opportunity",
+    opportunityId: text("opportunity_id"),
+    status,
+    reason: text("reason"),
+    at: text("changed_at_utc") ?? text("changed_at"),
+  };
+}
+
+/** "12 s", "4 min", "3 h", "2 d": how long ago, for the freshness line. */
+export function ageText(asOf: string | null | undefined, now: Date): string | null {
+  if (!asOf) return null;
+  const ms = now.getTime() - new Date(asOf).getTime();
+  if (!Number.isFinite(ms)) return null;
+  const seconds = Math.max(0, Math.round(ms / 1000));
+  if (seconds < 60) return `${seconds} s`;
+  if (seconds < 3600) return `${Math.floor(seconds / 60)} min`;
+  if (seconds < 86_400) return `${Math.floor(seconds / 3600)} h`;
+  return `${Math.floor(seconds / 86_400)} d`;
+}
+
+/**
+ * The page's freshness line: whether changes arrive as they happen (`live`), or by the one-minute
+ * poll while the stream is down (`polling`), and how old the evaluation behind the list is.
+ */
+export function freshness(
+  asOf: string | null | undefined,
+  live: boolean,
+  now: Date,
+): { mode: "live" | "polling"; age: string | null } {
+  return { mode: live ? "live" : "polling", age: ageText(asOf, now) };
+}
+
+/** The opportunities withdrawn since the list was last read, newest first, one per id. */
+export function recentWithdrawals(notices: OpportunityStreamNotice[]): OpportunityStreamNotice[] {
+  const seen = new Set<string>();
+  const out: OpportunityStreamNotice[] = [];
+  for (const notice of [...notices].reverse()) {
+    if (notice.status !== "withdrawn" || !notice.opportunityId || seen.has(notice.opportunityId)) continue;
+    seen.add(notice.opportunityId);
+    out.push(notice);
+  }
+  return out;
+}

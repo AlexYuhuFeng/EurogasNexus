@@ -135,7 +135,11 @@ async def _event_stream(
                             announced.append(
                                 (
                                     name,
-                                    {"group": notice["group"], "changed_at": notice["changed_at"]},
+                                    {
+                                        **(notice.get("detail") or {}),
+                                        "group": notice["group"],
+                                        "changed_at": notice["changed_at"],
+                                    },
                                 )
                             )
         except Exception:
@@ -199,32 +203,164 @@ def _fetch_new_quotes(session: Session, cursor: Cursor) -> list[dict]:
     return [_columns_payload(row) for row in rows]
 
 
+#: Opportunity states the Opportunities page lists; any other state is a withdrawal.
+LISTED_OPPORTUNITY_STATES = frozenset({"actionable", "indicative"})
+
+
+def _opportunity_change(row, *, withdrawn_reason: str | None = None) -> dict:
+    """One opportunity's transition as the stream sends it: ``open`` while the page lists it,
+    ``withdrawn`` (with the reason) once it stops being viable. No figure: the page re-reads
+    its list, which carries the arithmetic and is filtered the same way."""
+
+    if withdrawn_reason is None and _as_utc(row.expires_at_utc) <= datetime.now(UTC):
+        withdrawn_reason = "expired"  # past its validity, before the engine records it
+    listed = (
+        withdrawn_reason is None and row.state in LISTED_OPPORTUNITY_STATES and bool(row.surfaced)
+    )
+    return {
+        "opportunity_id": row.opportunity_id,
+        "type": row.type,
+        "lane": row.lane,
+        "state": row.state,
+        "version": row.version,
+        "status": "open" if listed else "withdrawn",
+        "reason": None if listed else (withdrawn_reason or row.ended_reason or row.state),
+        "changed_at_utc": _as_utc(row.last_changed_utc),
+        "expires_at_utc": _as_utc(row.expires_at_utc),
+        "deadline_utc": _as_utc(row.deadline_utc) if row.deadline_utc else None,
+        "evaluation_id": row.evaluation_id,
+        "book_ids": list(row.book_ids or []),
+        "source_families": list(row.source_families or []),
+    }
+
+
 def _fetch_new_opportunities(session: Session, cursor: Cursor) -> list[dict]:
+    """Opportunities of the opportunity engine whose state or version moved after the cursor
+    (M7; the legacy intraday table is no longer streamed). A record not yet surfaced (state
+    ``new``) moves the cursor and is not sent: the page never showed it."""
+
     from sqlalchemy import and_, or_
 
-    from eurogas_nexus.db.models import IntradayOpportunityRecord
+    from eurogas_nexus.db.models import OpportunityRecord
 
-    query = session.query(IntradayOpportunityRecord)
+    query = session.query(OpportunityRecord)
     if cursor is not None:
         since_ts, since_pk = cursor
         query = query.filter(
             or_(
-                IntradayOpportunityRecord.detected_at_utc > since_ts,
+                OpportunityRecord.last_changed_utc > since_ts,
                 and_(
-                    IntradayOpportunityRecord.detected_at_utc == since_ts,
-                    IntradayOpportunityRecord.opportunity_id > since_pk,
+                    OpportunityRecord.last_changed_utc == since_ts,
+                    OpportunityRecord.opportunity_id > since_pk,
                 ),
             )
         )
     rows = (
         query.order_by(
-            IntradayOpportunityRecord.detected_at_utc.asc(),
-            IntradayOpportunityRecord.opportunity_id.asc(),
+            OpportunityRecord.last_changed_utc.asc(),
+            OpportunityRecord.opportunity_id.asc(),
         )
         .limit(PAGE_SIZE)
         .all()
     )
-    return [_columns_payload(row) for row in rows]
+    out = []
+    for row in rows:
+        change = _opportunity_change(row)
+        change["sent"] = row.state != "new"
+        out.append(change)
+    return out
+
+
+def _opportunity_visible(session, principal):
+    """The opportunity read rule for one caller (``listing.visible_to``), as a dict predicate."""
+
+    from types import SimpleNamespace
+
+    from eurogas_nexus.application.opportunities.listing import visible_to
+    from eurogas_nexus.application.projections.market_reads import row_allowed
+
+    if principal is None:
+        return lambda change: True
+    from eurogas_nexus.security.portfolio_scope import scope_for_principal, visible_book_ids
+
+    books = visible_book_ids(session, scope_for_principal(principal.data_scopes))
+
+    def visible(change: dict) -> bool:
+        row = SimpleNamespace(
+            lane=change.get("lane"),
+            book_ids=change.get("book_ids") or [],
+            source_families=change.get("source_families") or [],
+        )
+        return visible_to(row, books, lambda family: row_allowed(principal, family))
+
+    return visible
+
+
+def _fetch_opportunity_expiries(session: Session, cursor: Cursor, principal=None) -> list[dict]:
+    """Listed opportunities whose validity ended after the cursor: withdrawn at their expiry,
+    not at the engine's next run (which records ``expired`` and sends it again, harmlessly)."""
+
+    from eurogas_nexus.db.models import OpportunityRecord
+
+    now = datetime.now(UTC)
+    since = cursor[0] if cursor is not None else now
+    rows = (
+        session.query(OpportunityRecord)
+        .filter(OpportunityRecord.state.in_(sorted(LISTED_OPPORTUNITY_STATES)))
+        .filter(OpportunityRecord.surfaced.is_(True))
+        .filter(OpportunityRecord.expires_at_utc > since)
+        .filter(OpportunityRecord.expires_at_utc <= now)
+        .order_by(OpportunityRecord.expires_at_utc.asc())
+        .limit(NOTICE_PAGE)
+        .all()
+    )
+    visible = _opportunity_visible(session, principal)
+    out = []
+    for row in rows:
+        change = _opportunity_change(row, withdrawn_reason="expired")
+        change["changed_at_utc"] = _as_utc(row.expires_at_utc)
+        out.append(
+            {
+                "group": "expiry",
+                "changed_at": _as_utc(row.expires_at_utc),
+                "visible": visible(change),
+                "cursor": _as_utc(row.expires_at_utc),
+                "detail": change,
+            }
+        )
+    # Time itself moves the cursor: what expires later is found by a later poll.
+    out.append({"group": "expiry", "changed_at": now, "visible": False, "cursor": now})
+    return out
+
+
+def _fetch_evaluations(session: Session, cursor: Cursor, principal=None) -> list[dict]:
+    """Opportunity evaluations finished after the cursor: the page's "as of" moves and it
+    re-reads (a re-evaluation can change figures without changing a state). The run is
+    firm-wide; the notice names when and why it ran, not what it found."""
+
+    from eurogas_nexus.db.models import OpportunityEvaluationRecord
+
+    since = cursor[0] if cursor is not None else None
+    query = session.query(OpportunityEvaluationRecord).filter(
+        OpportunityEvaluationRecord.finished_at_utc.is_not(None)
+    )
+    if since is not None:
+        query = query.filter(OpportunityEvaluationRecord.finished_at_utc > since)
+    rows = query.order_by(OpportunityEvaluationRecord.finished_at_utc.asc()).limit(NOTICE_PAGE)
+    return [
+        {
+            "group": "evaluation",
+            "changed_at": _as_utc(row.finished_at_utc),
+            "visible": True,
+            "cursor": _as_utc(row.finished_at_utc),
+            "detail": {
+                "evaluation_id": row.evaluation_id,
+                "trigger": row.trigger,
+                "as_of_utc": _as_utc(row.as_of_utc),
+            },
+        }
+        for row in rows.all()
+    ]
 
 
 def _fetch_new_alerts(session: Session, cursor: Cursor) -> list[dict]:
@@ -439,12 +575,9 @@ class StreamGuard:
             from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
 
             return filter_entitled_rows(self.principal, rows, source_key="source_system")
-        if self.topic == "opportunities":
-            from eurogas_nexus.application.projections.market_reads import (
-                filter_entitled_opportunities,
-            )
-
-            return filter_entitled_opportunities(session, self.principal, rows)
+        if self.topic == "opportunity":
+            visible = _opportunity_visible(session, self.principal)
+            return [row for row in rows if row.get("sent", True) and visible(row)]
         if self.topic == "alerts":
             from eurogas_nexus.application.alert_scope import alert_visibility
             from eurogas_nexus.security.portfolio_scope import scope_for_principal
@@ -499,14 +632,25 @@ async def stream_quotes(request: Request) -> StreamingResponse:
 
 @router.get("/api/stream/opportunities")
 async def stream_opportunities(request: Request) -> StreamingResponse:
-    """Push newly persisted intraday opportunities."""
+    """Push the opportunity engine's changes as they happen (M7).
+
+    Events: ``opportunity`` when one opens (``status: open``) or stops being viable
+    (``status: withdrawn`` with ``reason``: expired, converted, blocked, watch), resumable by
+    ``Last-Event-ID``, including a withdrawal at the moment its validity ends; and
+    ``evaluated`` when an evaluation finishes (``as_of_utc``, ``trigger``). A notice carries no
+    figure: the page re-reads ``GET /api/opportunities``. Each is filtered by the
+    opportunity's own read rule (book scope and source entitlement). Until M7 this stream
+    sent the legacy intraday spread table, which ``GET /api/market/opportunities`` still
+    serves.
+    """
 
     return _stream_response(
-        "opportunities",
+        "opportunity",
         _fetch_new_opportunities,
-        "detected_at_utc",
+        "changed_at_utc",
         "opportunity_id",
         request,
+        notices=(("opportunity", _fetch_opportunity_expiries), ("evaluated", _fetch_evaluations)),
     )
 
 
