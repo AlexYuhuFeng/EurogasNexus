@@ -72,6 +72,10 @@ take from each and when.
 1. Review every surface against the standard in a real browser, per role (Q1).
 2. Fix the control and data blockers the review found (F1).
 3. Desk polish, SDK documentation, public tariffs, news and the map.
-4. Route the new engine's opportunities to alerts and the page; retire the legacy engine (M7).
+4. Route the new engine's opportunities to alerts and the page (M7, built): a price change
+   reaches the Opportunities page in about 7 s instead of 30 s and a reload; each alert names
+   its owner and escalation. Budgets per data class and the case against a separate streaming
+   platform are in [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md). Retiring the legacy engine
+   waits on its dependents (R19).
 
 Roadmap: [05_IMPLEMENTATION_ROADMAP.md](05_IMPLEMENTATION_ROADMAP.md).

@@ -28,7 +28,8 @@ nothing merged, no tag, no release package)
 | P-11 Book-scoped opportunity evaluation | Built and tested |
 | AIR-1 AI by role and improvement loop | Design done ([14](14_AI_ROLES_PERSONALISATION_AND_IMPROVEMENT_LOOP.md)); AIR-1 and AIR-2 met |
 | 16 Competitive and design study | Done ([16](16_COMPETITIVE_STUDY.md)) |
-| P-08 One price resolver; M7 live pipeline | In progress |
+| P-08 One price resolver | Built and tested |
+| M7 Live pipeline | Built and tested; M7-1 to M7-9 met, M7-10 (legacy engine removal) blocked by its dependents (R19); design and budgets in [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) |
 | LNG-2, GOV-1, UX-1, DATA-1, TAR-1, MAP-1, SCHED-1, NEWS-1, UX-2, LOOP-1, M8 to M11, M13 | Planned, in the order of [05](05_IMPLEMENTATION_ROADMAP.md) |
 | M12 Hosted pilot | Dropped by the user on 2026-11-24 (deployment later, outside this programme) |
 
@@ -51,7 +52,11 @@ nothing merged, no tag, no release package)
 | `dcbb498` | M5b, M6, LNG-1 documents; quality standard; research synthesis |
 | `0d3d6e1` | F1 audit blockers: gas-day status, scheduled tracks, segregation of duties, audited partial updates, feed plausibility |
 | `7a2b9de` | DOC README, docs index and SDK docs rewritten with verified examples; typed SDK errors; driverless database URLs |
-| (this commit) | F1-8 scheduling role: a scheduler records nomination status (ADR Decision 30) |
+| (F1-8 commit) | F1-8 scheduling role: a scheduler records nomination status (ADR Decision 30) |
+| `8db91e5` | M7(a) listen worker is the default trigger; drain without event cap; one-minute debounce |
+| `5411893` | M7(b) new-engine opportunities become alerts, routed to their owner, notified once |
+| `e2e92f5` | M7(c) `/api/stream/opportunities` serves the opportunity engine; the page follows it live |
+| (this commit) | M7 documents (15), latency measurement, legacy retirement blockers |
 
 ## What M5 built
 
@@ -69,8 +74,9 @@ The whole programme, the original brief and every addition of 2026-11-24, is one
 deduplicated plan in [05](05_IMPLEMENTATION_ROADMAP.md) ("Consolidated requirements" and
 "Order and reasoning"). In short:
 
-1. **P-08 and M7.** One price everywhere; the live pipeline with role-routed alerts and
-   opportunities pushed when they open and when they close.
+1. **P-08 and M7 (built).** One price everywhere; the listen worker, role-routed alerts and
+   opportunities pushed when they open and when they close. Left from M7: timed escalation
+   (R20), conflated quote events (R14), retiring the legacy engine (R19).
 2. **LNG-2.** A delayed cargo reaches the trader, scheduler, risk and, when material, the
    desk head (criteria LNG2-1 to LNG2-5 in [06](06_ACCEPTANCE_CRITERIA.md)).
 3. **GOV-1.** Audit with the change, entitlement reporting, maker-checker, AI controls.
@@ -87,7 +93,8 @@ python scripts/ops/market_events.py staleness
 python scripts/ops/market_events.py capture --since 2026-11-01T00:00:00Z --commit
 python scripts/ops/market_events.py drain --commit
 python scripts/ops/market_events.py replay opportunities --since 2026-11-24T00:00:00Z --commit
-python scripts/ops/market_events.py listen --interval 30   # PostgreSQL only
+python scripts/ops/market_events.py listen --interval 15   # PostgreSQL only; also runs the due sweep
+python scripts/ops/measure_live_latency.py after --samples 10   # API and listen worker running
 ```
 
 Without `--commit`, `capture`, `drain` and `replay` roll back, so they can be tried safely.

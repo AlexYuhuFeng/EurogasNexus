@@ -121,9 +121,53 @@ opportunities), one `price.updated` event for `hub:TTF:2026-11-18` re-runs only
 `hedge_gap`, each recorded as an evaluation with trigger `outbox`
 (`test_an_event_re_evaluates_only_the_evaluators_that_read_its_key`).
 
+## M7 live pipeline (2026-11-24)
+
+Latency from a price input committed to the opportunity change visible, measured with
+`scripts/ops/measure_live_latency.py` on a local PostgreSQL 16 with the demo desk
+(`seed_demo_desk.py`, evaluated twice), API (`uvicorn apps.api.main:app`) and listen worker on
+the same host. Each sample saves the firm's TTF mark for the next gas day (alternating about 44
+and 40 EUR/MWh, so the event-exposure opportunities move by more than the 20 % material-change
+threshold) with its `mark.changed` event in one transaction; the clock starts when the commit
+returns.
+
+| Mode | Measure | n | Median | Min | Max |
+| --- | --- | --- | --- | --- | --- |
+| before (script plays the 60 s tick, ten-batch cap, no listen worker) | commit to evaluation committed | 6 | 29.5 s | 16.6 s | 57.1 s |
+| before | of which waiting for the tick | 6 | 22.0 s | 10.8 s | 50.8 s |
+| before | evaluation | 6 | 6.4 s | 5.8 s | 7.8 s |
+| before | change on `/api/stream/opportunities` | 6 | never (legacy rows only; the page showed it on reload) | | |
+| after (listen worker, stream) | commit to `opportunity` event received | 12 | **6.6 s** | 6.0 s | 12.7 s |
+| after | commit to evaluation committed | 12 | 5.7 s | 5.3 s | 12.3 s |
+| after | evaluation | 12 | 5.5 s | 5.2 s | 6.5 s |
+
+The 12.7 s sample waited for the one-minute full sweep holding the evaluation lock. An earlier
+"before" run with an exchange settlement as the input (5 samples) gave the same shape: commit
+to evaluation committed median 17.4 s (7.2 to 48.4 s), evaluation 3.7 to 4.7 s; it changed no
+opportunity, because the firm caller holds no licence for that family on this store and the
+demo board outranks a simulated settlement.
+
+Outbox transport alone (`measure_live_latency.py throughput`, a consumer that does no work,
+one process): 1,000 events published at 219/s and delivered at 1,308/s; 5,000 events at 236/s
+and 1,889/s. The test events are deleted afterwards.
+
+Found and fixed during the measurement: `publish_firm_marks` gave no publication time, so a mark
+set back to an earlier value was refused as a replay and waited for the full sweep (about 20 s
+per sample in the run before the fix) (`test_a_mark_set_back_to_an_earlier_value_is_published_again`).
+A key whose latest stored revision predates the fix still refuses a return to an older value
+once; the next distinct value publishes normally.
+
+| Run | Command | Result |
+| --- | --- | --- |
+| M7 slices, SQLite | `pytest tests/integration/test_live_trigger.py tests/integration/test_opportunity_alerts.py tests/api/test_opportunity_stream.py tests/security/test_stream_entitlement.py` | 24 passed, 2 skipped (the PostgreSQL-only tests) |
+| M7 PostgreSQL-only tests | the same with `RUNTIME_STORE_DATABASE_URL` on PostgreSQL | 3 passed (`-k postgres`: the sweep lock, and two workers queueing and sending once) |
+| Contract and docs | `pytest tests/contract tests/docs` | 603 passed, 12 skipped |
+| Web | `npx tsc --noEmit -p .`; `npm test` | clean; 1,308 passed, 3 skipped |
+
 ## Not yet evidenced
 
-- Throughput and latency under sustained load: no load test yet (planned with M6).
+- Latency under sustained load: the M7 figures are single changes on an idle desk; the outbox
+  transport rate is measured, sustained mixed load is not.
 - Live quotes are not captured (R14, accepted). The cargo plan has no screen yet.
 - CI on GitHub for the branch: `ci.yml` runs on pushes to `main` and on pull requests
   only, so pushing this branch starts no CI run. It runs if a pull request is opened, or by

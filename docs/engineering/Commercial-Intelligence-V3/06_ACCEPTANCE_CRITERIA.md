@@ -101,11 +101,26 @@ with P-17, so that limits, terminal terms and freight routes share one maker-che
 | DOC-5 | A `postgresql://` URL without a driver uses the runtime's driver; an explicit driver is kept | `tests/integration/test_db_config.py::test_a_url_without_a_driver_uses_the_runtime_driver` |
 | DOC-6 | Every local Markdown link resolves | `scripts/ci/check_markdown_links.py` |
 
-## AIR AI by role, personal workspaces and the improvement loop (AIR-1 and AIR-2 met; the rest to be met)
+## M7 live pipeline (met except M7-10)
 
-Design: [14](14_AI_ROLES_PERSONALISATION_AND_IMPROVEMENT_LOOP.md). Stage in brackets.
+Design and budgets: [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md).
 | # | Criterion | Test |
 | --- | --- | --- |
+| M7-1 | The listen worker is deployed with the scheduler and runs the due full evaluation after each drain; a drain takes the whole backlog (no event cap) and hands back only when its time budget is spent; the debounce is one minute | `tests/integration/test_live_trigger.py` |
+| M7-2 | A full sweep and a targeted re-evaluation never merge at once: a second sweep is told busy while one holds the lock (PostgreSQL) | `test_a_second_sweep_is_told_busy_while_one_holds_the_lock_on_postgres` |
+| M7-3 | A listed new-engine opportunity raises one alert and one notification; the alert is resolved when the opportunity is withdrawn or its validity ends | `tests/integration/test_opportunity_alerts.py::test_a_listed_opportunity_raises_one_alert_and_notifies_once`, `::test_an_opportunity_that_stops_being_viable_is_withdrawn` |
+| M7-4 | Only listed opportunities alert, and an opportunity alert is shown by the opportunity's own read rule | `::test_only_listed_opportunities_alert`, `::test_an_opportunity_alert_is_shown_by_the_opportunitys_own_rule` |
+| M7-5 | Two workers cannot queue or send the same notification twice (PostgreSQL) | `::test_two_workers_queue_and_send_a_notification_once_on_postgres` |
+| M7-6 | Each alert type has an owner and an escalation named in its notification; opportunities and nomination deadlines have their own categories, and a channel subscribed to `alert` keeps receiving them | `::test_alerts_are_routed_to_their_owner_and_an_alert_subscription_keeps_them`, `tests/unit/test_gas_day_checklist.py::test_deadlines_feed_what_needs_me_and_the_outbox_once` |
+| M7-7 | `/api/stream/opportunities` pushes an opening, a withdrawal with its reason (including the end of the validity window before the engine runs again) and each finished evaluation, filtered by the opportunity's read rule | `tests/api/test_opportunity_stream.py`, `tests/security/test_stream_entitlement.py::test_an_opportunity_change_follows_the_opportunitys_own_read_rule` |
+| M7-8 | The Opportunities page re-reads on a notice, says how old its data is and whether it is live or polling every minute, and names withdrawals until dismissed | `clients/web/tests/opportunitiesModel.test.ts` (the three stream tests) |
+| M7-9 | End-to-end latency (price committed to the change on the stream) measured before and after on PostgreSQL | `scripts/ops/measure_live_latency.py`, figures in [09](09_VALIDATION_EVIDENCE.md) |
+| M7-10 | The legacy intraday engine is removed | Not met: blocked by its dependents ([15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) section 9, R19) |
+Not in M7: an alert on an LNG ETA or slot change, timed escalation when an owner has not
+acknowledged, and quote capture for the opportunity engine (R14). See 15 sections 2 and 5.
+## M8 and M9 (to be met)
+## AIR AI by role, personal workspaces and the improvement loop (AIR-1 and AIR-2 met; the rest to be met)
+Design: [14](14_AI_ROLES_PERSONALISATION_AND_IMPROVEMENT_LOOP.md). Stage in brackets.
 | AIR-1 | (1) A signed-in person sends a suggestion through `/api/support/reports` with category `suggestion`; it is stored as P4 whatever urgency was sent and queues a low-severity notification; no OpenAPI path or operation is added | `tests/api/test_support_api.py::test_a_suggestion_is_stored_as_p4_and_never_pages_the_desk` |
 | AIR-2 | (1) "Send feedback" in the account menu opens the report dialog in suggestion mode, without an urgency choice, and the client diagnostics carry the role composition | `clients/web/tests/supportReport.test.ts` (AIR-2 tests) |
 | AIR-3 | (2) Every AI use is in a machine-readable register with its level, roles, controls, evaluation set and threshold; a model call from a use not in the register fails a test | to be written |
@@ -129,12 +144,8 @@ arrives that it will be late. One acceptance test drives it end to end on Postgr
 | LNG2-3 | The trader who owns the book gets the hedge proposal; the scheduler gets the slot, berth and nomination consequences with the cut-offs they hit; risk gets the exposure and any limit it moves; the desk head gets it only when it is material by the configured threshold | to be written |
 | LNG2-4 | Each role's message is deduplicated, respects cooldown and materiality, says how current its inputs are, and is withdrawn when a later change makes it moot | to be written |
 | LNG2-5 | The same chain works for a departure, energy, slot or hedge change, not only an ETA delay | to be written |
-
 ## M7 to M9 (to be met)
 
-- **M7.** Every new-engine opportunity that crosses the alert threshold reaches the
-  notification outbox exactly once; the stream serves the new engine; the legacy path is
-  removed with its tests replaced.
 - **M8.** For a contract with ACQ and make-up terms, the shortfall and make-up balance
   match a hand-worked example to the cent, and a nomination change publishes an event.
 - **M9.** A recommendation can be followed to the decision taken and, where the client
