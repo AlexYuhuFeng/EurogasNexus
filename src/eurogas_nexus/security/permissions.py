@@ -162,6 +162,10 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/lng/cargoes/{cargo_id}/plan/what-if", Permission.READ),
     ("/api/lng/cargoes/{cargo_id}/hedges", Permission.GOVERNED),
     ("/api/market/", Permission.READ),
+    # DATA-1 import contracts: the catalogue is a declaration everyone may read; checking a
+    # file looks up books and ERP counterparties and stores nothing (ANALYST floor).
+    ("/api/imports/contracts", Permission.READ),
+    ("/api/imports/{contract_id}/validate", Permission.GOVERNED),
     # Comparable prices: forward FX and normalisation (a computation, nothing stored) are
     # market reads like the rest of the family.
     ("/api/market/fx-forward", Permission.READ),
@@ -472,6 +476,7 @@ COMMERCIAL_DATA_PREFIXES: tuple[str, ...] = (
     "/api/functional-runs/",
     "/api/functional-models/",
     "/api/market/",
+    "/api/imports/",
     "/api/monitoring/",
     "/api/projections/",
     "/api/stream/",

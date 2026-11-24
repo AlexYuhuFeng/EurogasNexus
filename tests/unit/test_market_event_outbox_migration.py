@@ -1,5 +1,6 @@
 """Migrations 0077 and 0082 on SQLite: the market event outbox tables match the models, up
-and down (0082 adds the change feed's ``writer_txid`` and its index, DATA-1)."""
+and down (0082 adds the change feed's ``writer_txid`` and its index, and the ERP reference
+table ``erp_references``, DATA-1)."""
 
 from __future__ import annotations
 
@@ -23,7 +24,11 @@ def _load(name: str):
 
 
 def test_chain_up_down_and_model_match():
-    from eurogas_nexus.db.models import MarketEventDeliveryRecord, MarketEventRecord
+    from eurogas_nexus.db.models import (
+        ErpReferenceRecord,
+        MarketEventDeliveryRecord,
+        MarketEventRecord,
+    )
 
     module = _load("0077_market_event_outbox.py")
     feed = _load("0082_data1_integration.py")
@@ -38,7 +43,7 @@ def test_chain_up_down_and_model_match():
         assert "writer_txid" not in columns
         feed.upgrade()
         inspector = inspect(connection)
-        for model in (MarketEventRecord, MarketEventDeliveryRecord):
+        for model in (MarketEventRecord, MarketEventDeliveryRecord, ErpReferenceRecord):
             columns = {c["name"] for c in inspector.get_columns(model.__tablename__)}
             assert columns == set(model.__table__.columns.keys())
             indexes = {i["name"] for i in inspector.get_indexes(model.__tablename__)}
@@ -48,5 +53,6 @@ def test_chain_up_down_and_model_match():
         feed.downgrade()
         columns = {c["name"] for c in inspect(connection).get_columns("market_events")}
         assert "writer_txid" not in columns and "seq" in columns
+        assert "erp_references" not in inspect(connection).get_table_names()
         module.downgrade()
         assert inspect(connection).get_table_names() == []

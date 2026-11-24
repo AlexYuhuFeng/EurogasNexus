@@ -33,6 +33,20 @@ actions `change_request.propose`, `.approve`, `.reject`, `.withdraw` and `lng.fr
 governed writes (503 `audit_unavailable` when their audit row cannot be written). Migration
 `0081_change_requests`. Census: 288 paths / 323 operations (284 / 319 before).
 
+Additive 2026-11-24 (ETRM and ERP import contracts, Commercial Intelligence V3 DATA-1): two
+paths, two operations. New `GET /api/imports/contracts` (READ): the versioned file contracts
+(`etrm.deals.v1`, `etrm.physical_positions.v1`, `etrm.nominations.v1`,
+`etrm.cargo_schedule.v1`, `erp.counterparties.v1`, `erp.invoices.v1`), each with its columns,
+required flags, key and target. New `POST /api/imports/{contract_id}/validate` (GOVERNED,
+ANALYST floor; `/api/imports/` is inside the commercial-data boundary): a `text/csv` body of at
+most 8 MB, `system` (required) and `on_error` (`reject_file` default, or `skip_rows`); it answers
+the report (rows, accepted, `refused[]` with line, reason code, message and key, and what
+storing would create, update, leave unchanged or remove) and stores nothing. 404
+`contract_unknown`; 422 `column_missing`, `column_forbidden`, `file_empty`, `encoding_invalid`;
+413 `file_too_large`. A contract id carries its version; a change that alters the meaning of an
+accepted file, or refuses one that was accepted, is a new version. Census: 288 paths / 323
+operations (+2 / +2). Contracts: `docs/integration/ETRM_ERP_IMPORT_CONTRACTS.md`.
+
 Additive 2026-11-24 (refreshable reads, Commercial Intelligence V3 DATA-1, lesson P7): no new
 path. `GET /api/market/prices`, `GET /api/market/observations` and `GET /api/market/fx` accept
 `format` (`json` default, unchanged; `csv`). The CSV is one header line in a fixed order, the same

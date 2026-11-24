@@ -768,3 +768,27 @@ second approver exists" (identities are unknowable under SSO); a bypass endpoint
 installs (an unaudited path round the control); effective-dated scheduling now (deferred).
 Tests: `tests/api/test_maker_checker_api.py`, `tests/unit/test_maker_checker.py`,
 `tests/integration/test_maker_checker_postgres.py`.
+
+## Decision 33: ERP counterparty and invoice references are kept in one reference table
+
+Accepted 2026-11-24 (branch `wip/data1`, programme
+[Commercial Intelligence V3](../engineering/Commercial-Intelligence-V3/05_IMPLEMENTATION_ROADMAP.md),
+slice DATA-1). The ETRM and ERP import contracts (`application/import_contracts.py`,
+[ETRM_ERP_IMPORT_CONTRACTS.md](../integration/ETRM_ERP_IMPORT_CONTRACTS.md)) land deals, the
+physical schedule, nomination statuses and the cargo schedule in the tables that already hold
+them. The ERP's counterparties and invoices had no home, so migration
+`0082_data1_integration` adds `erp_references`. It holds one row per (system, kind
+`counterparty` or `invoice`, the ERP's own number), with the link to this platform's
+counterparty (`counterparty_id`, as the credit lines name it), an invoice's ERP counterparty
+and trade reference, the contract's other columns as `fields` (JSON) and their digest
+`content_hash`, so a re-import of the same row changes nothing. It is a new table in the
+existing PostgreSQL database, not a new datastore, and it is a reference for reconciliation,
+not a ledger: nothing posts, pays or settles from it (AGENTS.md rule 8). The contracts refuse
+a file that carries bank details or tax or government identifiers, so none is stored. The
+same migration adds `market_events.writer_txid`, a nullable column stamped by PostgreSQL, so
+that the change feed (`GET /api/market/changes`) serves events in commit-safe order without a
+new table. Rejected: a table per ERP object (two now, more later, each with its own
+migration), columns on `credit_lines` (an invoice is not a credit line, and an ERP
+counterparty need not have one), and a connector per ERP product (vendor-specific code against
+the contract-first rule).
+Tests: `tests/api/test_data1_import_contracts.py`, `tests/unit/test_market_event_outbox_migration.py`.

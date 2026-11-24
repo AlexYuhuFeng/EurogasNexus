@@ -130,6 +130,9 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/market/prices",
         # DATA-1: what changed since a cursor (digests of market events, never values).
         "/api/market/changes",
+        # DATA-1: ETRM and ERP import contracts (the catalogue; a file check that stores nothing).
+        "/api/imports/contracts",
+        "/api/imports/{contract_id}/validate",
         "/api/market/price-conversion",
         "/api/market/financing-rate",
         "/api/market/interest-rates",

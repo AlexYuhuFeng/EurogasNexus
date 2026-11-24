@@ -85,6 +85,14 @@ MACHINE_SURFACE: dict[str, str] = {
         "DATA-1 change feed: an ETRM, BI tool or script syncs what changed since its cursor "
         "(SDK fetch_market_changes_result / sync_market_changes); no screen polls it"
     ),
+    "/api/imports/contracts": (
+        "DATA-1 ETRM/ERP import contract catalogue for integration middleware and the "
+        "operator script (scripts/ops/import_contract_file.py --list)"
+    ),
+    "/api/imports/{contract_id}/validate": (
+        "DATA-1 file check for integration middleware before a drop; stores nothing (the "
+        "operator script stores)"
+    ),
     "/api/weather/degree-days": (
         "caller-weighted degree-day computation (typed weather_degree_days SDK)"
     ),

@@ -40,6 +40,12 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
 - Refreshable reads (lesson P7, `application/refreshable_reads.py`): `format=csv` on the price
   strip, observations and FX, fixed headers, through the report CSV writer so the GOV-1 export
   decision and metering apply. How-to with an M query: `docs/sdk/POWER_QUERY.md`.
+- Import contracts (`application/import_contracts.py`): six versioned CSV contracts for ETRM
+  deals, the physical schedule, nomination statuses, the LNG cargo schedule, and ERP
+  counterparties and invoices; row-level reasons, idempotent re-import, nothing executed.
+  `GET /api/imports/contracts`, `POST /api/imports/{contract_id}/validate` (stores nothing),
+  `scripts/ops/import_contract_file.py` (dry run unless `--commit`). New table
+  `erp_references` in `0082` (ADR Decision 33). Census 292 paths / 327 operations with P-17.
 
 ## 2026-11-24 — Commercial Intelligence V3, LNG-2: a cargo change reaches each role (branch `wip/lng2`)
 

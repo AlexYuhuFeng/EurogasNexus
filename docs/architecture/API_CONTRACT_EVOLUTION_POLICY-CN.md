@@ -21,6 +21,17 @@
 `change_request.propose`、`.approve`、`.reject`、`.withdraw` 与 `lng.freight_route` 为受治理写入（审计行无法写入时返回
 503 `audit_unavailable`）。迁移 `0081_change_requests`。路径统计：288 条路径 / 323 个操作（此前 284 / 319）。
 
+2026-11-24 新增 ETRM 与 ERP 导入契约（Commercial Intelligence V3 DATA-1）：两条路径、两个操作。新增
+`GET /api/imports/contracts`（READ）：版本化文件契约（`etrm.deals.v1`、`etrm.physical_positions.v1`、
+`etrm.nominations.v1`、`etrm.cargo_schedule.v1`、`erp.counterparties.v1`、`erp.invoices.v1`），各含列、
+是否必填、键与落地表。新增 `POST /api/imports/{contract_id}/validate`（GOVERNED，ANALYST 起；
+`/api/imports/` 属于商业数据边界）：`text/csv` 请求体至多 8 MB，`system`（必填）与 `on_error`（默认
+`reject_file`，或 `skip_rows`）；返回报告（行数、接受数、`refused[]` 含行号、原因代码、说明与键，以及
+写入将新增、更新、不变或删除的数量），不写入任何数据。404 `contract_unknown`；422 `column_missing`、
+`column_forbidden`、`file_empty`、`encoding_invalid`；413 `file_too_large`。契约编号含版本；改变已接受
+文件含义或拒绝曾接受文件的变更须发布新版本。统计：288 条路径 / 323 个操作（+2 / +2）。契约说明：
+`docs/integration/ETRM_ERP_IMPORT_CONTRACTS.md`。
+
 2026-11-24 新增可刷新读取（Commercial Intelligence V3 DATA-1，经验 P7）：无新路径。`GET /api/market/prices`、
 `GET /api/market/observations` 与 `GET /api/market/fx` 接受 `format`（默认 `json`，不变；或 `csv`）。CSV 为一行
 固定顺序的表头，无论有无数据行、是否带 `as_of` 都相同（价格曲线按 `meta.columns` 顺序；观测与汇率按其 JSON

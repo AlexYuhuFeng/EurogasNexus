@@ -49,6 +49,7 @@ from eurogas_nexus.db.models.decision import (
     DecisionCaseRecord,
 )
 from eurogas_nexus.db.models.demand import NationalGasActualDemandRecord
+from eurogas_nexus.db.models.erp_references import ErpReferenceRecord
 from eurogas_nexus.db.models.freight_route import FreightRouteRecord
 from eurogas_nexus.db.models.functional import (
     FunctionalDependencyRecord,
@@ -361,6 +362,7 @@ __all__ = [
     "InterestRateObservationRecord",
     "OrganisationSettingRecord",
     "PowerObservationRecord",
+    "ErpReferenceRecord",
     "LicensedDataUseRecord",
     "MarketDataLicenceRecord",
     "MarketReportRecord",

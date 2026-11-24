@@ -10,6 +10,7 @@ supported integration points and the rules that make them safe.
 | Data | Book of record | Into Eurogas Nexus |
 |---|---|---|
 | Trades and positions | ETRM (Endur, Allegro, Openlink, RightAngle...) | `scripts/ops/import_etrm_trades.py`: extract by trade id, idempotent; cancellations remove trades; trades land in books |
+| Deals, physical schedule, nomination statuses, LNG cargo schedule; ERP counterparties and invoices | ETRM, scheduling system, ERP (SAP...) | Versioned import contracts ([ETRM_ERP_IMPORT_CONTRACTS.md](ETRM_ERP_IMPORT_CONTRACTS.md)): row-level reasons, idempotent re-import, `POST /api/imports/{contract_id}/validate` to check a file, `scripts/ops/import_contract_file.py` to store it |
 | Physical supply contracts | ETRM or contract system | `POST /api/route-cost/upstream-contracts` (operator), with edit tokens for concurrent edits |
 | Market prices | Exchanges and brokers under the firm's licence | settlement and screen imports, or licensed connectors |
 | Books and legal entities | ETRM / finance | `PUT /api/portfolio/books/{id}` mirrors the book hierarchy |
@@ -23,6 +24,8 @@ defined, so a reconciliation break shows up as a refused file, not as a silent m
 | Need | Use |
 |---|---|
 | Reports into Excel, an ERP or a data warehouse | `format=csv` on the position ladder (by hub, legal entity, region, business or book), gas-for-power and NW Europe balance; the *Export CSV* buttons do the same in the UI |
+| A spreadsheet that refreshes prices, settlements or FX | `format=csv` on `/api/market/prices`, `/api/market/observations` and `/api/market/fx` (`as_of` supported); [Power Query how-to](../sdk/POWER_QUERY.md) |
+| A copy kept in step with market events | `GET /api/market/changes` with a cursor (SDK `sync_market_changes`) |
 | Programmatic reads | The versioned REST API (`/api`, OpenAPI at `/openapi.json` in non-release profiles; contract rules in `docs/architecture/API_CONTRACT_EVOLUTION_POLICY.md`) or the Python SDK |
 | A decided trade idea to book | `GET /api/decision-cases/{case_id}/handoff`: signed, four-eyes, idempotent (below) |
 | Audit evidence | `GET /api/audit` (administration) and decision packs with their content hash |

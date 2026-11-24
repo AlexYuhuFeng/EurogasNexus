@@ -23,6 +23,7 @@ from eurogas_nexus.api.routes.public.functional import router as functional_rout
 from eurogas_nexus.api.routes.public.fundamentals import router as fundamentals_router
 from eurogas_nexus.api.routes.public.glossary import router as glossary_router
 from eurogas_nexus.api.routes.public.health import router as health_router
+from eurogas_nexus.api.routes.public.imports import router as imports_router
 from eurogas_nexus.api.routes.public.jobs import router as jobs_router
 from eurogas_nexus.api.routes.public.lng import router as lng_router
 from eurogas_nexus.api.routes.public.market import router as market_router
@@ -102,6 +103,7 @@ def register_routes(
         app.include_router(sources_router)
         app.include_router(source_operations_router)
         app.include_router(market_router)
+        app.include_router(imports_router)
         app.include_router(assumptions_router)
         app.include_router(market_normalisation_router)
         app.include_router(opportunities_router)
