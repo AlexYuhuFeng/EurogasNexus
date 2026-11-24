@@ -144,6 +144,14 @@ arrives that it will be late. One acceptance test drives it end to end on Postgr
 | LNG2-3 | The trader who owns the book gets the hedge proposal; the scheduler gets the slot, berth and nomination consequences with the cut-offs they hit; risk gets the exposure and any limit it moves; the desk head gets it only when it is material by the configured threshold | to be written |
 | LNG2-4 | Each role's message is deduplicated, respects cooldown and materiality, says how current its inputs are, and is withdrawn when a later change makes it moot | to be written |
 | LNG2-5 | The same chain works for a departure, energy, slot or hedge change, not only an ETA delay | to be written |
+
+## GOV-1 governance: audit with the change, AI controls, licensed-data use (in progress)
+Lessons P4 to P6 in [16](16_COMPETITIVE_STUDY.md); AI controls are AIR-3 to AIR-7 above.
+| # | Criterion | Test |
+| --- | --- | --- |
+| GOV1-1 | Each governed write (credit lines, mandates, hedge bands, LNG terminal terms, opportunity thresholds, assumption sets and approvals, firm marks, users, roles, groups, data licences, API keys and provider credentials, hedges on cargoes) writes its audit row in its own transaction; when the audit row cannot be written the write answers 503 `audit_unavailable` and nothing of it is stored | `tests/api/test_governed_audit_api.py::test_a_governed_write_fails_and_leaves_nothing_when_its_audit_row_cannot_be_written`, `tests/unit/test_governed_audit.py` |
+| GOV1-2 | The governed writes are one register (`GOVERNED_WRITES` in `application/audit_service.py`); every action in it is recorded by code, and none is recorded through the best-effort helper | `tests/unit/test_governed_audit.py::test_every_governed_action_is_recorded_somewhere_in_the_code`, `::test_no_governed_action_is_recorded_through_the_best_effort_helper` |
+| GOV1-3 | Reads, list events, sign-in events and refusals stay best-effort: a read answers even when its audit row cannot be written, and a fault in the change itself is reported as that fault, not as an audit failure | `test_a_read_still_answers_when_its_audit_row_cannot_be_written`, `test_a_fault_in_the_change_itself_is_not_reported_as_an_audit_failure` |
 ## M7 to M9 (to be met)
 
 - **M8.** For a contract with ACQ and make-up terms, the shortfall and make-up balance

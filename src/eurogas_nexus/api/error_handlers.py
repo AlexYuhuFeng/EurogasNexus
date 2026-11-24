@@ -43,6 +43,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from eurogas_nexus.domain.operations.error_taxonomy import code_for_status, error_payload
+from eurogas_nexus.governance.audit import GovernedAuditError
 from eurogas_nexus.security.identity import ROLE_RANK, Role
 
 #: Operator surfaces may carry technical detail; business surfaces never do.
@@ -104,6 +105,33 @@ def register_error_handlers(app: FastAPI) -> None:
             # The request reached the middleware that stamps an id, so only a generated one is
             # echoed here; otherwise the header would carry the same id twice.
             headers={} if existing_id else {"X-Request-Id": correlation_id},
+        )
+
+    @app.exception_handler(GovernedAuditError)
+    async def _governed_audit_error(request: Request, exc: GovernedAuditError) -> JSONResponse:
+        """A governed write whose audit row could not be written did not happen (GOV-1, P5).
+
+        The transaction was not committed, so nothing changed; the caller may retry once the
+        audit store is back. The cause's type name goes to an operator identity only.
+        """
+
+        correlation_id = getattr(request.state, "request_id", None) or uuid4().hex
+        operator = _is_operator_request(request)
+        payload = error_payload(
+            GovernedAuditError.code,
+            correlation_id=correlation_id,
+            operator=operator,
+            operator_detail=exc.cause_type if operator else None,
+        )
+        detail = {
+            "code": GovernedAuditError.code,
+            "action": exc.action,
+            "message": "The change was not made because its audit record could not be written.",
+        }
+        return JSONResponse(
+            status_code=503,
+            content={"detail": detail, **payload},
+            headers={"X-Request-Id": correlation_id},
         )
 
     @app.exception_handler(Exception)

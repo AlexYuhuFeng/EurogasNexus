@@ -26,7 +26,7 @@ from eurogas_nexus.db.models.commercial_assumptions import (
     ValuationSnapshotInputRecord,
     ValuationSnapshotRecord,
 )
-from eurogas_nexus.db.repositories.audit import record_audit_event
+from eurogas_nexus.db.repositories.audit import record_governed_audit
 from eurogas_nexus.domain.valuation.assumptions import (
     AssumptionError,
     AssumptionSetVersion,
@@ -198,7 +198,7 @@ def create_assumption_set(
         created_at_utc=now,
     )
     session.add(row)
-    record_audit_event(
+    record_governed_audit(
         session,
         event_type="desk.reference",
         principal=actor,
@@ -311,7 +311,7 @@ def create_assumption_version(
                 note=item.note,
             )
         )
-    record_audit_event(
+    record_governed_audit(
         session,
         event_type="desk.reference",
         principal=actor,
@@ -368,7 +368,7 @@ def approve_assumption_version(
     record.review_state = ReviewState.APPROVED.value
     record.approved_by = actor
     record.approved_at_utc = now
-    record_audit_event(
+    record_governed_audit(
         session,
         event_type="desk.reference",
         principal=actor,
@@ -531,7 +531,7 @@ def put_firm_marks(
             "utf-8"
         )
     ).hexdigest()
-    record_audit_event(
+    record_governed_audit(
         session,
         event_type="desk.reference",
         principal=actor,

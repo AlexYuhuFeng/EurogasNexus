@@ -221,7 +221,7 @@ def _write(
     actor = _identity_id(request) or "api"
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        from eurogas_nexus.db.repositories.audit import record_audit_event
+        from eurogas_nexus.application.audit_service import record_governed_audit
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
@@ -240,7 +240,8 @@ def _write(
                 setattr(row, name, value)
             row.updated_by = actor
             row.updated_at_utc = datetime.now(UTC)
-            record_audit_event(
+            # GOV-1 (P5): the audit row is part of the write; no row, no change.
+            record_governed_audit(
                 session,
                 event_type="risk.limits" if risk_only else "desk.reference",
                 principal=actor,

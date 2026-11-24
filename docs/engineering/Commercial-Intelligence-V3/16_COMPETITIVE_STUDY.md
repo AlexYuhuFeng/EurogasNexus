@@ -27,7 +27,7 @@ Each line is a decision; the reasoning is in the study and in [08](08_DECISION_L
 | P2 | Clients sync only what changed | Adopt: a change feed over `market_events` with entitlements, plus an SDK call | After M7 |
 | P3 | Estimates say they are estimates | Adopt: ETA basis and confidence on cargo imports and the cargo plan | LNG slice after QA-L-05 |
 | P4 | Each figure explains how it was made; method changes are governed | Adopt: curve derivation and excluded quotes exposed; an event when a calculation manifest changes; maker-checker (P-17) | With P-17 |
-| P5 | Audit is part of the write | Adopt: governed writes (limits, hedges, approvals, users, keys) write their audit row in the same transaction and fail without it | Next governance slice, before M8 |
+| P5 | Audit is part of the write | Adopt: governed writes (limits, hedges, approvals, users, keys) write their audit row in the same transaction and fail without it | **Built in GOV-1** (2026-11-24): one register of governed writes, audit in the same transaction, 503 `audit_unavailable` without it; the quarterly access report is still to do |
 | P6 | Licensed data use is reported | Adopt: usage log per licensed source; export decisions applied to files | With P5 |
 | P7 | Excel next to the API | Adopt the first step only: key-authenticated reads that Power Query can refresh, and a committed OpenAPI document. An add-in needs an ADR | After P2 |
 | P8 | Nomination tools earn their keep explaining mismatches | Adopt read-only: "why is this out" in the gas-day checklist, matching trades and confirmations to nominations. Nothing is sent | Scheduler slice |

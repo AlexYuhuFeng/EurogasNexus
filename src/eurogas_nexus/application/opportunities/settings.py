@@ -33,8 +33,8 @@ def save_thresholds(session, values: dict[str, Any], *, actor: str) -> Threshold
         ThresholdError: a setting outside its bounds.
     """
 
+    from eurogas_nexus.application.audit_service import record_governed_audit
     from eurogas_nexus.db.models import OpportunitySettingRecord
-    from eurogas_nexus.db.repositories.audit import record_audit_event
 
     before = load_thresholds(session)
     after = thresholds_from(values, before)
@@ -57,7 +57,7 @@ def save_thresholds(session, values: dict[str, Any], *, actor: str) -> Threshold
         row.value_json = stored
         row.updated_by = actor
         row.updated_at_utc = now
-    record_audit_event(
+    record_governed_audit(
         session,
         event_type="governance.settings",
         principal=actor,

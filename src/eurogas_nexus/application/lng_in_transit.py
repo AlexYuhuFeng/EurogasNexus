@@ -681,9 +681,9 @@ def record_hedges(
             )
         )
     session.flush()
-    from eurogas_nexus.db.repositories.audit import record_audit_event
+    from eurogas_nexus.application.audit_service import record_governed_audit
 
-    record_audit_event(
+    record_governed_audit(
         session,
         event_type="portfolio",
         principal=actor,

@@ -39,3 +39,17 @@ class AuditEvent:
     )
     source_system: str = ""
     human_review_required: bool = True
+
+
+class GovernedAuditError(RuntimeError):
+    """The audit row of a governed write could not be written, so the write must not happen.
+
+    受治理写入的审计行无法写入；调用方不得提交事务。
+    """
+
+    code = "audit_unavailable"
+
+    def __init__(self, action: str, cause: BaseException | None = None) -> None:
+        self.action = action
+        self.cause_type = cause.__class__.__name__ if cause is not None else None
+        super().__init__(f"audit row for {action} could not be written")

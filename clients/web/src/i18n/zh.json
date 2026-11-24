@@ -2029,6 +2029,8 @@
   "errors.rate_limited.action": "请稍等片刻后重试。",
   "errors.runtime_db_required.message": "该操作需要运行时数据库。",
   "errors.runtime_db_required.action": "需由运维人员配置运行时数据库。",
+  "errors.audit_unavailable.message": "由于无法写入审计记录，此项变更未执行。",
+  "errors.audit_unavailable.action": "未做任何更改。请稍后重试；若持续出现，请将关联 ID 提供给运维人员。",
   "errors.runtime_db_unavailable.message": "无法连接运行时数据库。",
   "errors.runtime_db_unavailable.action": "请稍后重试；若持续出现，请将关联 ID 提供给运维人员。",
   "errors.service_unavailable.message": "所需服务不可用。",

@@ -2029,6 +2029,8 @@
   "errors.rate_limited.action": "Wait a moment and repeat the request.",
   "errors.runtime_db_required.message": "This action needs the runtime database.",
   "errors.runtime_db_required.action": "An operator must configure the runtime database.",
+  "errors.audit_unavailable.message": "The change was not made because its audit record could not be written.",
+  "errors.audit_unavailable.action": "Nothing changed. Retry shortly; if it persists, quote the correlation id to an operator.",
   "errors.runtime_db_unavailable.message": "The runtime database could not be reached.",
   "errors.runtime_db_unavailable.action": "Retry shortly; if it persists, quote the correlation id to an operator.",
   "errors.service_unavailable.message": "A required service is unavailable.",

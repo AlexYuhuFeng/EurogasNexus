@@ -378,10 +378,11 @@ def _audit(
     outcome: str,
     detail: str = "",
 ) -> None:
-    try:
-        from eurogas_nexus.db.repositories.audit import record_audit_event
+    from eurogas_nexus.application.audit_service import governed_actions, record_governed_audit
 
-        record_audit_event(
+    if action in governed_actions():
+        # GOV-1 (P5): an identity or key change fails when its audit row cannot be written.
+        record_governed_audit(
             session,
             event_type="governance.identity",
             principal=principal,
@@ -393,6 +394,24 @@ def _audit(
             source_system="internal-api",
             now_utc=datetime.now(UTC),
         )
+        return
+    try:
+        from eurogas_nexus.db.repositories.audit import record_audit_event
+
+        # In a savepoint, so a failed row leaves the read's own transaction untouched.
+        with session.begin_nested():
+            record_audit_event(
+                session,
+                event_type="governance.identity",
+                principal=principal,
+                action=action,
+                resource=resource,
+                outcome=outcome,
+                severity="info",
+                detail=detail,
+                source_system="internal-api",
+                now_utc=datetime.now(UTC),
+            )
     except Exception:
         return
 

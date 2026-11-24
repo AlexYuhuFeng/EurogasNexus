@@ -8,6 +8,7 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.models import AuditEventRecord
+from eurogas_nexus.governance.audit import GovernedAuditError
 
 
 def list_audit_events_for_resource(
@@ -95,3 +96,33 @@ def record_audit_event(
     session.add(event)
     session.flush()
     return event
+
+
+def record_governed_audit(session: Session, **fields: object) -> AuditEventRecord:
+    """Write a governed write's audit row in the caller's transaction, or refuse the write.
+
+    The session is flushed first, so a fault in the change itself (a constraint, a lost
+    connection) surfaces as that fault and is not reported as an audit failure. Then the
+    audit row is added and flushed; any failure there raises :class:`GovernedAuditError`,
+    and the caller, which has not committed, loses the whole change.
+
+    Args:
+        session: The open session that holds the change.
+        **fields: The keyword fields of ``db.repositories.audit.record_audit_event``.
+
+    Returns:
+        The audit row (an ``AuditEventRecord``).
+
+    Raises:
+        GovernedAuditError: the audit row could not be written.
+    """
+
+    import eurogas_nexus.db.repositories.audit as audit_repository
+
+    session.flush()
+    action = str(fields.get("action") or "")
+    try:
+        # Looked up on the module at call time, so a test can make the write fail.
+        return audit_repository.record_audit_event(session, **fields)
+    except Exception as exc:  # noqa: BLE001 - any failure means the row is missing
+        raise GovernedAuditError(action, exc) from exc

@@ -113,6 +113,13 @@ M5 full suite (SQLite, `python -m pytest -q tests`, 2026-11-24): 7,049 passed, 2
 | AIR-2 suggestion mode, composition in diagnostics, EN and ZH labels | `node --test tests/supportReport.test.ts` (in `clients/web`) | 4 passed; full client suite 1,307 passed, 3 skipped; `tsc --noEmit` clean |
 | No path or operation added; contract and docs gates | `pytest tests/contract tests/docs` | 607 passed, 12 skipped (with the support tests) |
 
+## GOV-1 governance (2026-11-24, branch `wip/gov`)
+
+| What | Command | Result |
+| --- | --- | --- |
+| GOV1-1 to GOV1-3 audit with the change | `pytest tests/api/test_governed_audit_api.py tests/unit/test_governed_audit.py tests/unit/test_audit_service.py` | 11 passed |
+| Governed-write modules unchanged in behaviour otherwise | `pytest tests/api/test_assumptions_api.py tests/api/test_lng_cargo_plan_api.py tests/api/test_opportunities_api.py tests/api/test_risk_limits_api.py tests/api/test_risk_segregation_api.py tests/security/test_access_self_grant.py tests/security/test_enterprise_access_api.py tests/security/test_identity_admin_api.py tests/security/test_local_accounts_api.py tests/security/test_personal_api_keys.py tests/security/test_platform_admin_commercial_boundary.py tests/unit/test_error_taxonomy.py tests/contract/test_error_vocabulary_coverage.py` | 111 passed |
+
 ## Targeted re-evaluation, shown on the demo desk
 
 With `scripts/demo/seed_demo_desk.py` seeded (37 `hedge_gap` and 3 `sell_down`

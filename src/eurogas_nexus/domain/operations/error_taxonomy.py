@@ -338,6 +338,11 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
             recoverability=Recoverability.RETRY,
         ),
         _definition(
+            "audit_unavailable",
+            ErrorFamily.DEPENDENCY,
+            recoverability=Recoverability.RETRY,
+        ),
+        _definition(
             "runtime_db_required",
             ErrorFamily.CONFIGURATION,
             recoverability=Recoverability.AFTER_USER_ACTION,

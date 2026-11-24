@@ -575,9 +575,9 @@ def _write_provider_credential(provider_id: ProviderId, payload: CredentialUpdat
                     human_review_required=True,
                 )
             )
-            from eurogas_nexus.db.repositories.audit import record_audit_event
+            from eurogas_nexus.application.audit_service import record_governed_audit
 
-            record_audit_event(
+            record_governed_audit(
                 session,
                 event_type="credential.upsert",
                 principal="operator",
@@ -647,9 +647,9 @@ def delete_provider_credential(provider_id: ProviderId) -> dict:
             row = session.get(ProviderCredentialRecord, provider_id)
             if row is not None:
                 session.delete(row)
-                from eurogas_nexus.db.repositories.audit import record_audit_event
+                from eurogas_nexus.application.audit_service import record_governed_audit
 
-                record_audit_event(
+                record_governed_audit(
                     session,
                     event_type="credential.delete",
                     principal="operator",

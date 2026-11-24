@@ -162,9 +162,17 @@ def _audit(
     source_system: str = "access-api",
     now_utc: datetime | None = None,
 ) -> None:
-    from eurogas_nexus.db.repositories.audit import record_audit_event
+    from eurogas_nexus.application.audit_service import governed_actions
+    from eurogas_nexus.db.repositories import audit as audit_repository
 
-    record_audit_event(
+    # GOV-1 (P5): an account change is a governed write; its audit row is part of it and the
+    # change fails without it. Sign-in events keep the plain in-transaction record.
+    record = (
+        audit_repository.record_governed_audit
+        if action in governed_actions()
+        else audit_repository.record_audit_event
+    )
+    record(
         session,
         event_type=event_type,
         principal=actor[:128],

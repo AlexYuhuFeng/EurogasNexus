@@ -9,12 +9,14 @@ ADMIN role floor.
 
 from __future__ import annotations
 
+import json
 from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from eurogas_nexus.governance.audit import GovernedAuditError
 from eurogas_nexus.security.authorization import (
     Permission,
     authorize,
@@ -1101,6 +1103,8 @@ def post_api_key(body: ApiKeyCreateRequest, request: Request) -> dict:
         )
     except HTTPException:
         raise
+    except GovernedAuditError:
+        raise  # 503 audit_unavailable: the key was not created
     except Exception as exc:
         raise HTTPException(
             status_code=exc.status_code if hasattr(exc, "status_code") else 422,
@@ -1267,21 +1271,37 @@ def _audit_admin(
     before: dict | None = None,
     after: dict | None = None,
 ) -> None:
-    try:
-        from eurogas_nexus.db.repositories.audit import record_audit_event
+    """Audit an administration act in the caller's transaction.
 
-        record_audit_event(
-            session,
-            event_type="governance.access",
-            principal=actor,
-            action=action,
-            resource=resource,
-            outcome=outcome,
-            severity="info",
-            detail=detail,
-            source_system="access-api",
-            now_utc=datetime.now(UTC),
-        )
+    GOV-1 (P5): a change (a user, role, group, licence or key) is a governed write, so its
+    audit row is written with it and the change fails when the row cannot be written. A list
+    read or a refused change (outcome ``denied``) changed nothing and stays best-effort.
+    """
+
+    from eurogas_nexus.application.audit_service import governed_actions
+    from eurogas_nexus.db.repositories import audit as audit_repository
+
+    fields = {
+        "event_type": "governance.access",
+        "principal": actor,
+        "action": action,
+        "resource": resource,
+        "outcome": outcome,
+        "severity": "info",
+        "detail": detail,
+        "source_system": "access-api",
+        "now_utc": datetime.now(UTC),
+        # Stored as JSON: dates and decimals in a payload are kept as their text.
+        "before_summary": json.loads(json.dumps(before, default=str)) if before else None,
+        "after_summary": json.loads(json.dumps(after, default=str)) if after else None,
+    }
+    if action in governed_actions() and outcome != "denied":
+        audit_repository.record_governed_audit(session, **fields)
+        return
+    try:
+        # In a savepoint, so a failed row leaves the read's own transaction untouched.
+        with session.begin_nested():
+            audit_repository.record_audit_event(session, **fields)
     except Exception:
         return
 
