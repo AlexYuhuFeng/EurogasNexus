@@ -14,7 +14,9 @@ Cargo columns (case-insensitive; extra columns ignored)::
 
 ``status`` is one of loading, laden, discharging, delivered, ballast. ``track`` is
 ``lon lat iso-time`` triples separated by ``;``. A cargo with a ``book_id`` is the firm's
-own; without one it is market information.
+own; without one it is market information. A column the file leaves out, or a blank cell,
+is ``None`` here and keeps a stored cargo's value when the rows are stored
+(``application.lng_positions_import``): a vessel feed never takes a cargo out of its book.
 
 Slot columns::
 

@@ -28,7 +28,7 @@ Advice for a person; nothing is traded, nominated or booked.
 
 | Kind | When |
 | --- | --- |
-| `roll` | A short hedge sits in a month the gas left; one roll from that month to the month it moved to, due the day the earlier month stops trading |
+| `roll` | A short hedge sits in a month the gas left; one roll from that month to the month it moved to, due at the close of whichever of the two months stops trading first (the target month when the cargo arrives earlier); never into a month that has stopped trading (QA-L-02) |
 | `sell` / `buy_back` | Physical longer or shorter than the hedge in a month that still trades |
 | `short_notice` | The month has stopped trading: close the gap in balance-of-month or day-ahead |
 | `find_slot` | The ETA misses the window; the hedges have no gas behind them |
@@ -43,6 +43,24 @@ inputs, not the plan, so the plan before can be rebuilt; vessel position fixes a
 because they are not plan changes. `GET /api/lng/cargoes/{id}/plan` compares the current plan
 with the one before and says in one line what moved, for example "The new ETA misses the slot
 window." or "212,400 MWh of send-out moves into TTF 2027-01."
+
+An import (`scripts/ops/import_lng_positions.py`, `application/lng_positions_import.py`)
+updates a stored cargo or slot only in the fields its file supplies: a column it leaves out or
+a blank cell keeps the stored value, so a vessel feed without `book_id` never takes a cargo
+out of its book, and a cargo moves book only when a file names another book. The import
+publishes the cargo events in its own transaction and lists an ETA that overrides an ETA
+another source set (QA-L-04).
+
+## In the position ladder
+
+A firm cargo (book set, not on a ballast voyage) is on the position ladder and every read
+built on it (Today's book, the desk brief, mandate usage, VaR): its plan's send-out by gas day
+is physical at the terminal's hub, the hedges recorded on it are financial over their delivery
+month, both with `reference` `cargo:<id>` and volume only. Each ladder row names its cargoes
+(`cargoes`). A DES cargo contract on the ladder that names the cargo keeps the physical (the
+plan's send-out is not added again), and a hedge whose reference is a booked trade on the
+ladder is that trade. The gas day keeps the send-out on the slot's line and does not add
+recorded hedges, which are not booked trades (QA-L-03, QA-R-26).
 
 ## Interfaces
 
@@ -76,7 +94,9 @@ window." or "212,400 MWh of send-out moves into TTF 2027-01."
 
 - Send-out runs at a flat rate; a terminal's nominated profile per day is not yet read.
 - Hedges are recorded by the desk; they are not matched to ETRM trades automatically.
-- A FOB cargo still does not appear in the position ladder; the plan is where it shows.
+- A FOB cargo without a vessel in the feed (no `lng_cargo_id`) or without a plan is still
+  not on the ladder; a warning says so.
+- Credit exposure does not include recorded cargo hedges: they name no counterparty.
 - Vessel position, heading and route are not used for the ETA; the ETA is what the import
   says.
 - The screen has no Today row or What-needs-me item yet, the timeline has no crosshair or zoom,

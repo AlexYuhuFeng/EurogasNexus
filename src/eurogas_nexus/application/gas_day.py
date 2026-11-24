@@ -244,7 +244,8 @@ def contract_lines(
     contracts = {row.contract_id: row for row in inputs.contracts}
     out = []
     for leg in inputs.legs:
-        if leg.kind != "physical":
+        # A cargo's send-out is its slot's line (``lng_lines``), from the same plan.
+        if leg.kind != "physical" or leg.from_cargo:
             continue
         contract = contracts.get(leg.reference)
         for day in days:
@@ -298,7 +299,8 @@ def trade_lines(inputs, days: list[date], today: date) -> list[tuple[date, GasDa
     out: list[tuple[date, GasDayLine]] = []
     prompt: dict[tuple, dict] = {}
     for leg in inputs.legs:
-        if leg.kind != "financial":
+        # A hedge recorded on a cargo is not a booked trade: the trade, when booked, is.
+        if leg.kind != "financial" or leg.from_cargo:
             continue
         order = orders.get(leg.reference)
         simulated = bool(order is not None and str(order.source_system).endswith("_Sim"))
@@ -788,7 +790,8 @@ def gas_day_view(session, caller, *, now: datetime, inputs=None,
 
         inputs = ladder_inputs(caller, today, today, days[-1])
     scope = scope_of(session, caller, today)
-    contract_ids = [leg.reference for leg in inputs.legs if leg.kind == "physical"]
+    contract_ids = [leg.reference for leg in inputs.legs
+                    if leg.kind == "physical" and not leg.from_cargo]
     dated = [
         *contract_lines(inputs, days, nominations_for(session, contract_ids, days),
                         active_outages(session, caller, now, days)),

@@ -9,6 +9,7 @@ import { DataGrid, EmptyState, ExampleFrame, Field, KeyFigure, Select, Skeleton,
 import { examplePositionLadder } from "@/app/experience/examples";
 import {
   barShare,
+  cargoTitle,
   groupLadderByMonth,
   ladderMonthLabel,
   overallHedgeRatio,
@@ -272,8 +273,8 @@ function useLadderColumns(ladder: PositionLadderDTO | null, t: Translate) {
     return [
       { id: "month", header: t("position.month"), rowHeader: true, span: true, sortable: true, value: (row) => row.month, format: (value) => ladderMonthLabel(String(value)) },
       { id: "hub", header: t("position.hub"), sortable: true, value: (row) => row.hub },
-      { id: "physical", header: t("position.physical"), type: "number", sortable: true, value: (row) => row.physical_mwh, format: (value) => mwh(value as number) },
-      { id: "financial", header: t("position.financial"), type: "number", sortable: true, value: (row) => row.financial_mwh, format: (value) => mwh(value as number) },
+      { id: "physical", header: t("position.physical"), type: "number", sortable: true, value: (row) => row.physical_mwh, format: (value) => mwh(value as number), cellTitle: (row) => cargoTitle(row, t, mwh), cellAttributes: (row) => ({ "data-cargoes": row.cargoes?.map((cargo) => cargo.cargo_id).join(" ") || undefined }) },
+      { id: "financial", header: t("position.financial"), type: "number", sortable: true, value: (row) => row.financial_mwh, format: (value) => mwh(value as number), cellTitle: (row) => cargoTitle(row, t, mwh) },
       { id: "net", header: t("position.net"), unit: "MWh", type: "number", sortable: true, value: (row) => row.net_mwh, format: (value) => mwh(value as number), cellClassName: (row) => signClass(row.net_mwh) },
       {
         id: "bar",

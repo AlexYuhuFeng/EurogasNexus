@@ -125,6 +125,10 @@ class BookReads:
         }
         groups: dict[tuple[str, str], list] = defaultdict(list)
         for leg in self.inputs.legs:
+            # The residual is the booked balance, as before: a cargo's plan and the hedges
+            # recorded on it are positions (``positions``), not booked supply or trades.
+            if leg.from_cargo:
+                continue
             if leg.first_gas_day <= tomorrow <= leg.last_gas_day:
                 groups[(leg.book_id or "", leg.hub)].append(leg)
         rows = []

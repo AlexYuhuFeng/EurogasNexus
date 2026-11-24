@@ -3362,6 +3362,8 @@ export interface PositionLadderRowDTO {
   /** The hub's newest daily close behind the marks and its state (QA-R-07). */
   marks_as_of?: string | null;
   state?: FigureStateDTO;
+  /** The firm's cargoes in this row, by cargo id: plan send-out and the hedges recorded on it. */
+  cargoes?: { cargo_id: string; physical_mwh: number; financial_mwh: number }[];
 }
 
 /** A market-data licence the firm holds; licensed data scopes are granted against it. */
@@ -4440,7 +4442,7 @@ export interface PositionLadderDTO {
   var_95_1d: number | null;
   var_observations: number;
   horizon: { start: string; end: string };
-  legs: { physical: number; financial: number };
+  legs: { physical: number; financial: number; cargoes?: number };
   curve?: ForwardCurvePointDTO[];
   reporting_currency?: string | null;
   group_by?: string;

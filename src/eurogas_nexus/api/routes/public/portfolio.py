@@ -178,10 +178,13 @@ def get_position_ladder(
 
     Physical legs are the stored upstream contracts (daily contract quantity over their gas
     year, hub from the delivery point); financial legs are filled screen trades (buy long,
-    sell short) spread over their delivery days. Marks come from a monthly forward curve
-    built from the latest entitled quotes (months, quarters, seasons, years); a month the
-    curve does not reach falls back to the hub's latest daily close, and the warnings say
-    so. Legs in a currency other than the hub's mark are left unvalued.
+    sell short) spread over their delivery days. The firm's cargoes add their plan's send-out
+    by gas day (physical) and the hedges recorded on them (financial), each row naming the
+    cargoes in it (``cargoes``); a cargo a contract already holds is not counted twice.
+    Marks come from a monthly forward curve built from the latest entitled quotes (months,
+    quarters, seasons, years); a month the curve does not reach falls back to the hub's
+    latest daily close, and the warnings say so. Legs in a currency other than the hub's
+    mark are left unvalued.
     """
 
     from datetime import UTC, datetime, timedelta
@@ -261,7 +264,13 @@ def get_position_ladder(
     payload["legs"] = {
         "physical": sum(1 for leg in legs if leg.kind == "physical"),
         "financial": sum(1 for leg in legs if leg.kind == "financial"),
+        "cargoes": len({leg.reference for leg in legs if leg.from_cargo}),
     }
+    # QA-L-03: which firm cargoes a row holds, by cargo id (send-out and recorded hedges).
+    if format == "json":
+        by_cargo = _cargo_rows(legs, horizon_start, horizon_end)
+        for row in payload["rows"]:
+            row["cargoes"] = by_cargo.get((row["hub"], row["month"]), [])
     if group_by != "hub":
         payload["rollup"] = rollup(
             legs,
@@ -312,6 +321,28 @@ def get_position_ladder(
     return _env(
         payload, request, source="runtime-postgresql", warnings=[*warnings, *report.warnings]
     )
+
+
+def _cargo_rows(legs, horizon_start, horizon_end) -> dict[tuple[str, str], list[dict]]:
+    """Per (hub, month): each cargo's send-out and recorded hedge in that row, by cargo id."""
+
+    from eurogas_nexus.domain.portfolio.position_ladder import build_ladder
+
+    grouped: dict[str, list] = {}
+    for leg in legs:
+        if leg.from_cargo:
+            grouped.setdefault(leg.reference.removeprefix("cargo:"), []).append(leg)
+    out: dict[tuple[str, str], list[dict]] = {}
+    for cargo_id, members in sorted(grouped.items()):
+        for row in build_ladder(members, horizon_start=horizon_start, horizon_end=horizon_end):
+            out.setdefault((row.hub, row.month), []).append(
+                {
+                    "cargo_id": cargo_id,
+                    "physical_mwh": round(row.physical_mwh, 1),
+                    "financial_mwh": round(row.financial_mwh, 1),
+                }
+            )
+    return out
 
 
 def _ladder_methods(payload: dict, closes: dict, today) -> dict:

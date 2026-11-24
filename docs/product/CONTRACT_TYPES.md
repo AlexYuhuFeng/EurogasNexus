@@ -85,7 +85,7 @@ arrangement whose economics the cargo study already holds as "fee"; no customer 
 
 | Consumer | SUPPLY_GSA | UPSTREAM_TENDER | LNG_MSPA | LNG_CARGO |
 |---|---|---|---|---|
-| Position ladder | as today | DCQ over the tender's own dates at the point's hub; index-priced → price floats (unpriced on fixed MTM, said in warnings) | not read | DES: cargo MWh spread over the window at the terminal's hub; FOB: not on a European hub (warning) |
+| Position ladder | as today | DCQ over the tender's own dates at the point's hub; index-priced → price floats (unpriced on fixed MTM, said in warnings) | not read | DES: cargo MWh spread over the window at the terminal's hub; FOB: the cargo plan's send-out by gas day once `lng_cargo_id` names a planned firm cargo, else not on a European hub (warning) |
 | Credit | credit line `contract_ids` | also the terms' counterparty | — | the master's counterparty |
 | Resource pool / re-route (R) | as today | point, DCQ, swing as tolerances; index cost = latest price at the point + differential (simulated if that price is) | not read | DES only, at the terminal |
 | Opportunity reads (`contracts`) | as today | + kind, min/max DCQ | — | + kind |

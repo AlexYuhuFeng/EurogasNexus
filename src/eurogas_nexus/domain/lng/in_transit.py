@@ -446,6 +446,10 @@ def _with_suggestions(
                 if residual[target] <= BALANCED_MWH:
                     continue
                 amount = min(-residual[source], residual[target])
+                # A roll trades both months, so it is due before the first of the two stops
+                # trading: the source for a forward roll, the target for a backward one (the
+                # cargo arrives earlier and the hedge moves into the nearer month).
+                due = min(_close_of(source, holidays), _close_of(target, holidays))
                 items.append(
                     Suggestion(
                         kind="roll",
@@ -457,7 +461,7 @@ def _with_suggestions(
                         from_month=source,
                         to_month=target,
                         mwh=amount,
-                        due_utc=_close_of(source, holidays),
+                        due_utc=due,
                     )
                 )
                 residual[source] += amount

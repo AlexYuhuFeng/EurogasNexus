@@ -35,3 +35,20 @@ export function barShare(value: number, rows: readonly PositionLadderRowDTO[]): 
   const largest = Math.max(1, ...rows.map((row) => Math.abs(row.net_mwh)));
   return Math.min(1, Math.abs(value) / largest);
 }
+
+/**
+ * Provenance on demand (QA-L-03): the firm's cargoes behind a ladder row, one line per cargo id
+ * with its plan send-out and recorded hedge; undefined for a row with no cargo.
+ */
+export function cargoTitle(
+  row: Pick<PositionLadderRowDTO, "cargoes">,
+  t: (key: string, options?: Record<string, unknown>) => string,
+  format: (value: number) => string,
+): string | undefined {
+  if (!row.cargoes || row.cargoes.length === 0) return undefined;
+  return row.cargoes
+    .map((cargo) =>
+      t("position.cargo_line", { cargo: cargo.cargo_id, physical: format(cargo.physical_mwh), financial: format(cargo.financial_mwh) }),
+    )
+    .join("\n");
+}

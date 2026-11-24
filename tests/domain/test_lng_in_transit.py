@@ -1,6 +1,6 @@
 """A cargo in transit: berth, boil-off, send-out by gas day, hedge months and suggestions."""
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 
@@ -114,6 +114,44 @@ def test_eta_slip_into_next_month_suggests_a_roll_not_two_trades():
     assert change.boil_off_change_mwh == pytest.approx(1_000_000 * 0.00085 * 5)
     assert change.delivered_change_mwh < 0
     assert change.headline().endswith("moves into TTF 2027-01.")
+
+
+def test_a_backward_roll_is_due_before_the_nearer_month_stops_trading():
+    # QA-L-02: the hedge sits in January, the cargo now arrives in December. The roll trades
+    # December, which stops trading at the close on Fri 27 Nov, not on 30 Dec as January does.
+    january_hedge = (HedgeLeg(hub="TTF", month="2027-01", mwh=-950_000.0),)
+    plan = build_plan(
+        _cargo(datetime(2026, 12, 20, 12, tzinfo=UTC), hedges=january_hedge), now=NOW
+    )
+
+    rolls = [item for item in plan.suggestions if item.kind == "roll"]
+    assert len(rolls) == 1
+    roll = rolls[0]
+    assert (roll.from_month, roll.to_month) == ("2027-01", "2026-12")
+    assert roll.mwh == pytest.approx(950_000)
+    assert roll.due_utc == datetime(2026, 11, 28, tzinfo=UTC)
+    assert roll.due_utc.date() <= last_trading_day("2026-12") + timedelta(days=1)
+    # A forward roll keeps the earlier (source) month's close.
+    forward = build_plan(_cargo(datetime(2026, 12, 25, 12, tzinfo=UTC)), now=NOW)
+    (forward_roll,) = [item for item in forward.suggestions if item.kind == "roll"]
+    assert forward_roll.due_utc == datetime(2026, 11, 28, tzinfo=UTC)
+
+
+def test_a_backward_roll_into_a_month_that_stopped_trading_is_short_notice():
+    # On 30 Nov December no longer trades: no roll into it; the December gas is sold at short
+    # notice and the January short is bought back while January still trades.
+    january_hedge = (HedgeLeg(hub="TTF", month="2027-01", mwh=-950_000.0),)
+    late = datetime(2026, 11, 30, 9, tzinfo=UTC)
+    plan = build_plan(
+        _cargo(datetime(2026, 12, 20, 12, tzinfo=UTC), hedges=january_hedge), now=late
+    )
+
+    kinds = {item.kind: item for item in plan.suggestions}
+    assert "roll" not in kinds
+    assert kinds["short_notice"].from_month == "2026-12"
+    assert kinds["short_notice"].mwh > 0
+    assert kinds["buy_back"].from_month == "2027-01"
+    assert kinds["buy_back"].mwh == pytest.approx(-950_000)
 
 
 def test_a_month_that_stopped_trading_needs_short_notice_cover():

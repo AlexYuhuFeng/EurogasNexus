@@ -2706,6 +2706,7 @@
   "position.net": "净头寸",
   "position.net_bar": "多 / 空",
   "position.hedge_adds": "加仓 {{pct}}",
+  "position.cargo_line": "船货 {{cargo}}：外输 {{physical}} MWh，对冲 {{financial}} MWh",
   "position.hedge_adds_hint": "交易与实物头寸同向（多头上再买入、空头上再卖出），增加而非对冲风险。",
   "position.hedged": "已对冲",
   "position.mtm": "盯市价值",

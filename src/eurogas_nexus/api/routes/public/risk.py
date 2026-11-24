@@ -495,7 +495,7 @@ def get_hedge_approvals(request: Request) -> dict:
             "hub": leg.hub,
         }
         for leg in inputs.legs
-        if leg.kind == "physical"
+        if leg.kind == "physical" and not leg.from_cargo
     ]
     for row in rows:
         row["contract_name"] = names.get(row["contract_id"], row["contract_id"])

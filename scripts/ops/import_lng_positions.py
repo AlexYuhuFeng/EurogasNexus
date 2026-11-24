@@ -57,26 +57,31 @@ def main(argv: list[str] | None = None) -> int:
         print("Runtime DB URL missing. Set RUNTIME_STORE_DATABASE_URL or DATABASE_URL.")
         return 2
     print(f"Runtime DB: {redact_database_url(database_url)}")
-    from eurogas_nexus.db.models import LngCargoRecord, RegasSlotRecord, TradingBookRecord
+    from eurogas_nexus.application.lng_positions_import import store_lng_rows
+    from eurogas_nexus.db.models import TradingBookRecord
 
-    model = LngCargoRecord if args.kind == "cargoes" else RegasSlotRecord
     with get_session_factory(database_url=database_url)() as session:
         known = {row.book_id for row in session.query(TradingBookRecord.book_id).all()}
         unknown = [book for book in books if book not in known]
         if unknown:
             print(f"Refused: books not defined: {unknown}")
             return 2
-        for row in rows:
-            session.merge(model(**row))
-        # A new ETA, slot or energy is a cargo.changed event, so the cargo plan can show what
-        # the change did to the hub months and hedges (only the firm's cargoes publish).
-        from eurogas_nexus.application.market_event_capture import capture_desk
-
-        key = "cargo_id"
-        cargo_ids = sorted({row[key] for row in rows if row.get(key)})
-        capture_desk(session, cargo_ids=cargo_ids)
+        # A stored row keeps every field the file does not supply (a vessel feed has no
+        # book), and a new ETA, slot or energy of a firm cargo is a cargo.changed event, so
+        # the cargo plan can show what the change did to the hub months and hedges.
+        result = store_lng_rows(
+            session, "cargo" if args.kind == "cargoes" else "slot", rows
+        )
         session.commit()
-    print(f"Loaded {len(rows)} {args.kind}.")
+    for item in result["eta_disagreements"]:
+        print(
+            f"ETA of {item['cargo_id']} moves {item['hours']:+} h: {item['source']} says "
+            f"{item['eta_utc']}, {item['eta_before_source']} said {item['eta_before_utc']}"
+        )
+    print(
+        f"Loaded {len(rows)} {args.kind} ({result['created']} new, {result['updated']} "
+        f"updated); events: {result['events'].get('published') or {}}."
+    )
     return 0
 
 

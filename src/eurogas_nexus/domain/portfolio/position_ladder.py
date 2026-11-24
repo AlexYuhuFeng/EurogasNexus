@@ -22,6 +22,9 @@ from datetime import date, timedelta
 
 from eurogas_nexus.domain.ontology.markets import quote_currency
 
+#: Leg sources that come from the firm's cargoes in transit, not from a contract or a trade.
+CARGO_SOURCES = frozenset({"cargo_plan", "cargo_hedge"})
+
 #: Longest gap between two closes that still counts as one day's move: a weekend plus a
 #: holiday (Friday to Tuesday). A longer gap is missing data, not a one-day scenario.
 MAX_VAR_GAP_DAYS = 4
@@ -54,6 +57,13 @@ class PositionLeg:
     reference: str = ""
     book_id: str = ""  # trading book; "" while unassigned
     open_ended: bool = False  # evergreen contract ("2025+"): runs to the horizon, renews yearly
+    #: Where the leg comes from: "contract", "trade", "cargo_plan" (a firm cargo's send-out by
+    #: gas day) or "cargo_hedge" (a hedge the desk recorded against a cargo); "" when not said.
+    source: str = ""
+
+    @property
+    def from_cargo(self) -> bool:
+        return self.source in CARGO_SOURCES
 
 
 @dataclass(frozen=True)

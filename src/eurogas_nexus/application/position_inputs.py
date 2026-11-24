@@ -298,6 +298,136 @@ def rollup(legs, books, level, *, horizon_start, horizon_end, marks, fx_by_hub) 
     return rollup
 
 
+#: Cargo statuses whose send-out can still be ahead: a delivered cargo's terminal may still be
+#: sending out, a ballast voyage carries no cargo of the firm.
+CARGO_PHYSICAL_STATUSES = ("loading", "laden", "discharging", "delivered")
+_CARGO_UNDELIVERED = {"loading", "laden", "discharging"}
+
+
+def _cargo_of(terms) -> str | None:
+    """The vessel-feed cargo a cargo contract (Confirmation Notice) names, if any."""
+
+    return getattr(terms, "lng_cargo_id", None)
+
+
+def cargo_legs(
+    session, *, on_ladder: dict[str, str], booked_refs: set[str], now=None
+) -> tuple[list, list[str], set[str]]:
+    """The firm's cargoes on the ladder: send-out by gas day and the hedges recorded on them.
+
+    A cargo's physical exposure is its plan's send-out by gas day at the terminal's hub
+    (``application/lng_in_transit.send_out_plan``, decision log 2026-11-24): one physical leg
+    per gas day, ``source`` ``cargo_plan``. The hedges the desk recorded against the cargo
+    (``lng_cargo_hedges``, not retired) are financial legs over their delivery month,
+    ``source`` ``cargo_hedge``. Both carry ``reference`` ``cargo:<id>`` and the cargo's book.
+
+    Nothing is counted twice: a cargo that a contract leg already on the ladder names
+    (``on_ladder``: cargo id -> contract id, a DES Confirmation Notice) adds no send-out, and a
+    hedge whose reference is a trade already on the ladder (``booked_refs``) is not added
+    again. Returns the legs, warnings, and the ids of cargoes whose
+    send-out is on the ladder.
+    """
+
+    from calendar import monthrange
+    from datetime import UTC, date, datetime
+
+    from eurogas_nexus.application.lng_in_transit import CargoPlanError, send_out_plan
+    from eurogas_nexus.db.models import LngCargoHedgeRecord, LngCargoRecord
+    from eurogas_nexus.domain.portfolio.position_ladder import PositionLeg
+    from eurogas_nexus.security.portfolio_scope import restrict
+
+    moment = now or datetime.now(UTC)
+    rows = (
+        restrict(session.query(LngCargoRecord), LngCargoRecord, session)
+        .filter(LngCargoRecord.book_id.isnot(None))
+        .order_by(LngCargoRecord.cargo_id)
+        .all()
+    )
+    if not rows:
+        return [], [], set()
+    by_id = {row.cargo_id: row for row in rows}
+    legs: list = []
+    warnings: list[str] = []
+    planned: set[str] = set()
+    for row in rows:
+        if row.status not in CARGO_PHYSICAL_STATUSES:
+            continue
+        if row.cargo_id in on_ladder:
+            warnings.append(
+                f"cargo {row.cargo_id}: on the ladder as contract {on_ladder[row.cargo_id]}; "
+                "its plan's send-out is not added again"
+            )
+            continue
+        try:
+            plan, _slot_id = send_out_plan(session, row.cargo_id, now=moment)
+        except CargoPlanError as exc:
+            if row.status in _CARGO_UNDELIVERED:
+                warnings.append(
+                    f"cargo {row.cargo_id}: no send-out on the ladder ({exc.message})"
+                )
+            continue
+        hub = next((cover.hub for cover in plan.months if cover.physical_mwh > 0), None)
+        if hub is None or not plan.send_out:
+            if row.status in _CARGO_UNDELIVERED:
+                warnings.append(
+                    f"cargo {row.cargo_id}: no send-out on the ladder (slot {plan.slot_status})"
+                )
+            continue
+        planned.add(row.cargo_id)
+        for label, mwh in plan.send_out:
+            day = date.fromisoformat(label)
+            legs.append(
+                PositionLeg(
+                    kind="physical",
+                    hub=hub,
+                    first_gas_day=day,
+                    last_gas_day=day,
+                    mwh_per_day=mwh,
+                    reference=f"cargo:{row.cargo_id}",
+                    book_id=row.book_id or "",
+                    source="cargo_plan",
+                )
+            )
+    hedges = (
+        session.query(LngCargoHedgeRecord)
+        .filter(
+            LngCargoHedgeRecord.cargo_id.in_(sorted(by_id)),
+            LngCargoHedgeRecord.retired_at_utc.is_(None),
+        )
+        .order_by(LngCargoHedgeRecord.cargo_id, LngCargoHedgeRecord.delivery_month)
+        .all()
+    )
+    hedged: set[str] = set()
+    for hedge in hedges:
+        if hedge.reference and hedge.reference in booked_refs:
+            warnings.append(
+                f"cargo {hedge.cargo_id}: hedge {hedge.reference} is a trade already on the "
+                "ladder; not added again"
+            )
+            continue
+        year, month = (int(part) for part in hedge.delivery_month.split("-"))
+        days = monthrange(year, month)[1]
+        legs.append(
+            PositionLeg(
+                kind="financial",
+                hub=hedge.hub.upper(),
+                first_gas_day=date(year, month, 1),
+                last_gas_day=date(year, month, days),
+                mwh_per_day=float(hedge.mwh) / days,
+                reference=f"cargo:{hedge.cargo_id}",
+                book_id=by_id[hedge.cargo_id].book_id or "",
+                source="cargo_hedge",
+            )
+        )
+        hedged.add(hedge.cargo_id)
+    if planned or hedged:
+        warnings.append(
+            f"{len(planned | hedged)} cargo(es) on the ladder from their plans and recorded "
+            "hedges; volume only, not valued"
+        )
+    return legs, warnings, planned
+
+
 @dataclass
 class LadderInputs:
     """Legs and marks as the position ladder builds them, shared with the risk reads."""
@@ -358,16 +488,16 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
         orders = screen_orders(session, principal_id=caller.principal_id)
     from eurogas_nexus.domain.contracts import kinds
 
+    cargo_contracts: dict[str, str] = {}  # cargo id -> the contract leg that already holds it
+    fob_cargoes: list[tuple[str, str | None]] = []  # FOB contract id, the cargo it names
+
     for contract in contracts:
         # Contract kinds (CONTRACT_TYPES.md): a master is no position; an FOB cargo is
         # exposure to its formula, not to a European hub, until it is sold or discharged.
         terms = kinds.terms_of(contract.contract_kind, contract.kind_terms)
         if not kinds.feeds_book(contract.contract_kind, terms):
             if contract.contract_kind == kinds.LNG_CARGO:
-                warnings.append(
-                    f"contract {contract.contract_id}: an FOB cargo is not on a European hub "
-                    "until it is sold or discharged"
-                )
+                fob_cargoes.append((contract.contract_id, _cargo_of(terms)))
             continue
         window = kinds.position_window(contract.contract_kind, terms) or gas_year_window(
             contract.gas_year, horizon_end
@@ -415,8 +545,11 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
                 reference=contract.contract_id,
                 book_id=contract.book_id or "",
                 open_ended=(contract.gas_year or "").strip().endswith("+"),
+                source="contract",
             )
         )
+        if _cargo_of(terms):
+            cargo_contracts[_cargo_of(terms)] = contract.contract_id
     for order in orders:
         filled = float(order.filled_quantity_mwh or 0.0)
         if filled <= 0:
@@ -445,8 +578,24 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
                 price=float(order.price) if currency_matches else None,
                 reference=order.order_observation_id,
                 book_id=order_books.get(order.order_observation_id, ""),
+                source="trade",
             )
         )
+    with get_session_factory()() as session:
+        cargo, cargo_warnings, planned = cargo_legs(
+            session,
+            on_ladder=cargo_contracts,
+            booked_refs={order.order_observation_id for order in orders},
+        )
+    # An FOB cargo whose vessel has a plan is on the ladder by that plan's send-out.
+    warnings += [
+        f"contract {contract_id}: an FOB cargo is not on a European hub until it is sold or "
+        "discharged"
+        for contract_id, cargo_id in fob_cargoes
+        if cargo_id not in planned
+    ]
+    legs += cargo
+    warnings += cargo_warnings
     closes: dict[str, dict] = {}
     simulated_skipped = 0
     demo_marks_used = demo_marks_allowed()

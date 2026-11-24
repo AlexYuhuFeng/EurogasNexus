@@ -164,7 +164,7 @@ def test_ladder_combines_physical_supply_and_financial_hedge(tmp_path, monkeypat
     assert row["physical_mwh"] == 1_000.0 * days_in_month.days
     assert row["financial_mwh"] == -18_000.0
     assert row["hedge_ratio"] is not None and 0 < row["hedge_ratio"] < 1
-    assert data["legs"] == {"physical": 1, "financial": 1}
+    assert data["legs"] == {"physical": 1, "financial": 1, "cargoes": 0}
     assert data["mark_to_market"] is not None
     assert data["var_95_1d"] is not None and data["var_95_1d"] > 0
     assert any(
