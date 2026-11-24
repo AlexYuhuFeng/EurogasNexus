@@ -28,6 +28,9 @@ class Section:
     heading: str
     lines: list[str]
     sources: list[str] = field(default_factory=list)
+    #: The one price behind each price line (``price_resolver.price_payload``); served once,
+    #: as the brief's ``resolved_prices``.
+    resolved_prices: list[dict[str, Any]] = field(default_factory=list)
 
 
 @dataclass
@@ -44,7 +47,14 @@ class Brief:
 
     def as_dict(self) -> dict[str, Any]:
         data = dict(self.__dict__)
-        data["sections"] = [section.__dict__ for section in self.sections]
+        data["sections"] = [
+            {k: v for k, v in section.__dict__.items() if k != "resolved_prices"}
+            for section in self.sections
+        ]
+        # P-08: the price each price line states, as every other screen reads it (additive).
+        data["resolved_prices"] = [
+            item for section in self.sections for item in section.resolved_prices
+        ]
         return data
 
 
@@ -223,8 +233,19 @@ def _outages(session, caller, now, kind):
 
 
 def _prices(session, caller, now, kind):
-    from eurogas_nexus.application.projections.daily_closes import daily_rows, in_native_unit
+    """One line per hub: the front month where held, else day-ahead.
 
+    The front month states the one price for its month (``price_resolver``, P-08), the price
+    Today and the Prices board show, with its change against the previous close of the same
+    month; day-ahead states its close.
+    """
+
+    from eurogas_nexus.application.price_resolver import open_price_book, resolve_close_series
+    from eurogas_nexus.application.projections.daily_closes import daily_rows, in_native_unit
+    from eurogas_nexus.domain.portfolio.position_ladder import MAX_VAR_GAP_DAYS
+
+    book = open_price_book(session, caller, now=now)
+    resolved_prices: list[dict[str, Any]] = []
     closes: dict[str, dict] = {}
     demo = False
     for row in daily_rows(caller, now.date() - timedelta(days=10), now.date()):
@@ -241,19 +262,36 @@ def _prices(session, caller, now, kind):
             continue  # one line per hub: the front month when there is one
         days = sorted(series)
         last = series[days[-1]]
-        demo = demo or last["simulated"]
         # The desk's own quotation (NBP in p/th), through the unit authority.
         shown, unit = in_native_unit(hub, last["price"], last["unit"])
         product = T("front month" if tenor == "month-ahead" else "day-ahead",
                     "近月" if tenor == "month-ahead" else "日前")
-        text = T(f"{hub} {product} {shown:.2f} {unit} ({days[-1]:%d %b})",
-                 f"{hub}{product} {shown:.2f} {unit}（{days[-1].month}月{days[-1].day}日）")
+        day = days[-1]
+        change = None
         if len(days) > 1:
             change = shown - in_native_unit(hub, series[days[-2]]["price"], last["unit"])[0]
+        source = f"{last['source_system']}:{hub}:{tenor}"
+        simulated = bool(last["simulated"])
+        one = None
+        if tenor == "month-ahead":
+            one = resolve_close_series(book, hub, series, max_gap_days=MAX_VAR_GAP_DAYS)
+        if one is not None:
+            resolved = one["resolved"]
+            shown, unit, change = one["value"], one["unit"], one["change"]
+            day = resolved.as_of_utc.date() if resolved.as_of_utc is not None else day
+            simulated = resolved.simulated
+            source = f"{resolved.source_system}:{hub}:{tenor}"
+        demo = demo or simulated
+        text = T(f"{hub} {product} {shown:.2f} {unit} ({day:%d %b})",
+                 f"{hub}{product} {shown:.2f} {unit}（{day.month}月{day.day}日）")
+        if change is not None:
             text += T(f", {change:+.2f} on the day", f"，日变化{change:+.2f}")
         lines.append(text + T(".", "。"))
-        sources.append(f"{last['source_system']}:{hub}:{tenor}")
-    return Section("prices", T("Prices", "价格"), lines[:MAX_LINES], sources[:MAX_LINES]), demo
+        sources.append(source)
+        resolved_prices.append(one["payload"] if one is not None else None)
+    section = Section("prices", T("Prices", "价格"), lines[:MAX_LINES], sources[:MAX_LINES])
+    section.resolved_prices = [item for item in resolved_prices[:MAX_LINES] if item]
+    return section, demo
 
 
 def _positions(session, caller, now, kind):

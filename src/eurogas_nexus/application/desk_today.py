@@ -174,16 +174,26 @@ def build_today(
 ) -> dict[str, Any]:
     """The Today read for this caller. ``balance_reader`` returns the NW Europe balance."""
 
-    from eurogas_nexus.domain.market.gas_day import gas_day_label
+    from eurogas_nexus.application.price_resolver import shared_price_book
 
     now = now or datetime.now(UTC)
-    today = now.date()
     read = _Read()
-    book = _book(caller, today, read)
-    prices = _prices(caller, now, book, read)
+    # P-08: one price per hub and month for every figure on the page, the book's marks and
+    # the risk reads inside it (credit lines, mandates), loaded once.
+    price_book = _price_book(session, caller, now, read)
+    with shared_price_book(price_book):
+        return _compose_today(session, caller, now, balance_reader, read, price_book)
+
+
+def _compose_today(session, caller, now, balance_reader, read, price_book) -> dict[str, Any]:
+    from eurogas_nexus.domain.market.gas_day import gas_day_label
+
+    today = now.date()
+    book = _book(caller, today, read, now=now, price_book=price_book)
+    prices = _prices(caller, now, book, read, price_book)
     focus = focus_hubs(session, caller, book, prices)
     key_figures = _key_figures(caller, now, book, prices, read)
-    key_figures["market"] = _market(caller, now, focus, read)
+    key_figures["market"] = _market(caller, now, focus, read, price_book)
     changes = _changes(session, caller, now, read)
     gas_day, checklist = _gas_day(session, caller, now, book, read)
     rows = [
@@ -287,12 +297,27 @@ class _Book:
     demo_marks: bool = False
 
 
-def _book(caller: Caller, today: date, read: _Read) -> _Book:
+def _price_book(session, caller: Caller, now: datetime, read: _Read):
+    """The caller's price book at ``now`` (``application/price_resolver``), or ``None``."""
+
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from eurogas_nexus.application.price_resolver import open_price_book
+
+    try:
+        return open_price_book(session, caller, now=now)
+    except SQLAlchemyError as exc:
+        read.warnings.append(f"prices: not resolved ({exc.__class__.__name__})")
+        return None
+
+
+def _book(caller: Caller, today: date, read: _Read, *, now: datetime | None = None,
+          price_book=None) -> _Book:
     from eurogas_nexus.application.position_inputs import ladder_inputs
 
     end = _month_start(today, BOOK_HORIZON_MONTHS + 1) - timedelta(days=1)
     try:
-        inputs = ladder_inputs(caller, today, today, end)
+        inputs = ladder_inputs(caller, today, today, end, now=now, price_book=price_book)
     except Exception as exc:  # noqa: BLE001 - the other rows stand without the book
         read.warnings.append(f"book: not available ({exc.__class__.__name__})")
         return _Book()
@@ -307,16 +332,22 @@ def _book(caller: Caller, today: date, read: _Read) -> _Book:
 # ---------------------------------------------------------------- row 1: key figures
 
 
-def _prices(caller: Caller, now: datetime, book: _Book, read: _Read) -> dict[str, dict]:
-    """Per hub, the front-month close (day-ahead where no month-ahead) and its day change.
+def _prices(
+    caller: Caller, now: datetime, book: _Book, read: _Read, price_book=None
+) -> dict[str, dict]:
+    """Per hub, the front-month price (day-ahead where no month-ahead) and its day change.
 
     One series per hub: a provider's closes win over simulated ones (they never compete),
-    then the series with the newest close. The change is against the series' previous close
-    when it is at most four days earlier (a weekend and a holiday); further back it is not a
-    day change and is left empty.
+    then the series with the newest close. The series names the front month (its newest
+    close's delivery month); the price shown is the one price for that hub and month
+    (``price_resolver``: a fresher tick, a later close, or the close itself), with
+    ``resolved_price`` saying which (P-08). The change is against the previous close of the
+    same month when it is at most four days earlier (a weekend and a holiday); further back,
+    or for another month, it is not a day change and is left empty. Day-ahead keeps its close.
     """
 
     from eurogas_nexus.application.freshness_contract import close_state
+    from eurogas_nexus.application.price_resolver import resolve_close_series
     from eurogas_nexus.application.projections.daily_closes import daily_rows, in_native_unit
     from eurogas_nexus.domain.portfolio.position_ladder import MAX_VAR_GAP_DAYS
 
@@ -348,23 +379,40 @@ def _prices(caller: Caller, now: datetime, book: _Book, read: _Read) -> dict[str
             previous, _ = in_native_unit(hub, closes[days[-2]]["price"], last["unit"])
             change = round(shown - previous, 4)
             change_basis = days[-2].isoformat()
+        as_of = _iso(last.get("observed_at_utc")) or days[-1].isoformat()
         state = close_state(days[-1], now.date())
+        simulated = bool(last["simulated"])
+        shown_source = "Demo price" if simulated else source
+        resolved = None
+        if tenor == "month-ahead":
+            resolved = resolve_close_series(
+                price_book, hub, closes, max_gap_days=MAX_VAR_GAP_DAYS
+            )
+        if resolved is not None:
+            one = resolved["resolved"]
+            shown, unit = resolved["value"], resolved["unit"]
+            change = resolved["change"]
+            change_basis = resolved["change_vs"].isoformat() if resolved["change_vs"] else None
+            as_of = _iso(one.as_of_utc) or as_of
+            state, simulated = one.state, one.simulated
+            shown_source = "Demo price" if simulated else one.source_system
         out[hub] = read.add(
             figure(
                 f"price.{hub}",
                 f"{hub} {product}",
                 round(shown, 4),
                 unit,
-                _iso(last.get("observed_at_utc")) or days[-1].isoformat(),
+                as_of,
                 state,
-                simulated=bool(last["simulated"]),
-                source="Demo price" if last["simulated"] else source,
+                simulated=simulated,
+                source=shown_source,
                 hub=hub,
                 product=product,
                 tenor=tenor,
                 close_day=days[-1].isoformat(),
                 day_change=change,
                 day_change_vs=change_basis,
+                resolved_price=None if resolved is None else resolved["payload"],
             )
         )
     return out
@@ -755,7 +803,28 @@ def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, 
         price = prices.get(hub)
         # With demo marks on, a mark is simulated unless the hub's close is a provider's.
         demo = book.demo_marks and (price is None or price["simulated"])
-        if days:
+        one = (price or {}).get("resolved_price")
+        # A demo price marks the book only with demo marks on (rule 17), as the ladder's.
+        usable = one is not None and (not one["simulated"] or book.demo_marks)
+        if usable and one["unit_mwh"] == f"{currency}/MWh":
+            # P-08: the book is marked at the one price the key figure shows for its month,
+            # as the ladder marks that month.
+            mark = read.add(
+                figure(
+                    f"mark.{hub}",
+                    f"{hub} mark",
+                    one["value"],
+                    one["unit"],
+                    one["as_of_utc"] or price["as_of"],
+                    one["state"],
+                    simulated=demo or bool(one["simulated"]),
+                    same_as=f"price.{hub}",
+                    value_mwh=round(one["value_mwh"], 4),
+                    unit_mwh=one["unit_mwh"],
+                    resolved_price=one,
+                )
+            )
+        elif days:
             same = (
                 price is not None
                 and price["close_day"] == days[-1].isoformat()
@@ -779,15 +848,48 @@ def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, 
                     unit_mwh=f"{currency}/MWh",
                 )
             )
-        method = method_note(
-            "day_pnl_change",
-            inputs_as_of={
-                "positions": as_of,
-                "close": days[-1].isoformat() if days else None,
-                "previous_close": days[-2].isoformat() if len(days) > 1 else None,
-            },
-        )
-        if not days:
+        marked = mark is not None and mark.get("resolved_price") is not None
+        if marked:
+            # The P&L moves with the price the page shows: the mark against the previous close
+            # of the same month (the key figure's day change), per MWh.
+            method = method_note(
+                "day_pnl_change",
+                inputs_as_of={
+                    "positions": as_of,
+                    "close": mark["as_of"],
+                    "previous_close": price.get("day_change_vs"),
+                },
+            )
+        else:
+            method = method_note(
+                "day_pnl_change",
+                inputs_as_of={
+                    "positions": as_of,
+                    "close": days[-1].isoformat() if days else None,
+                    "previous_close": days[-2].isoformat() if len(days) > 1 else None,
+                },
+            )
+        if marked and hub not in offsetting:
+            if price.get("day_change") is None:
+                pnl = {"empty": empty("no_previous_close", f"No previous {hub} close",
+                                      "Import settlements")}
+            else:
+                from eurogas_nexus.domain.market.units import convert_price
+
+                moved = convert_price(price["day_change"], price["unit"], mark["unit_mwh"])
+                pnl = read.add(
+                    figure(
+                        f"pnl.day_change.{hub}",
+                        f"{hub} day P&L change",
+                        round(net_open.get(hub, 0.0) * moved, 2),
+                        currency,
+                        mark["as_of"],
+                        mark["state"],
+                        simulated=mark["simulated"],
+                        method=method,
+                    )
+                )
+        elif not days:
             pnl = {"empty": empty("no_mark", f"No licensed {hub} close to mark the book",
                                   "Import settlements or connect a licensed price feed")}
         elif hub in offsetting:
@@ -1118,17 +1220,22 @@ def focus_hubs(session, caller: Caller, book: _Book, prices: dict) -> list[str]:
     return ordered[:MARKET_HUBS]
 
 
-def _market(caller: Caller, now: datetime, focus: list[str], read: _Read) -> dict[str, Any]:
+def _market(
+    caller: Caller, now: datetime, focus: list[str], read: _Read, price_book=None
+) -> dict[str, Any]:
     """Row 1, "My market": DA and front month per focus hub, a 30-day series, the spreads.
 
     Each hub's day-ahead and month-ahead closes come from its best series (a provider's closes
     win over simulated ones, then the newest), in the hub's own quotation (NBP in p/th). The
+    front month shows the one price for its month (``price_resolver``, as the key figures and
+    the Prices board read it) with ``resolved_price``; the series stays the closes. The
     spreads are front month against TTF in EUR/MWh, converted with the forward FX for the
     delivery month (CP-01) and compared with the transport cost of the route the tariff
     register prices (``route_tariff_cost``); a leg or a rate not held is named, never zero.
     """
 
     from eurogas_nexus.application.freshness_contract import close_state
+    from eurogas_nexus.application.price_resolver import resolve_close_series
     from eurogas_nexus.application.projections.daily_closes import daily_rows, in_native_unit
     from eurogas_nexus.domain.portfolio.position_ladder import MAX_VAR_GAP_DAYS
 
@@ -1177,16 +1284,33 @@ def _market(caller: Caller, now: datetime, focus: list[str], read: _Read) -> dic
         for day in days[-MARKET_SERIES_DAYS:]:
             value, _ = in_native_unit(hub, closes[day]["price"], closes[day]["unit"])
             points.append({"day": day.isoformat(), "value": round(value, 4)})
+        as_of = _iso(last.get("observed_at_utc")) or days[-1].isoformat()
+        state = close_state(days[-1], today)
+        simulated = bool(last["simulated"])
+        shown_source = "Demo price" if simulated else source
+        price_mwh, unit_mwh = last.get("price_mwh"), last.get("unit_mwh")
+        resolved = None
+        if tenor == "month-ahead":
+            resolved = resolve_close_series(
+                price_book, hub, closes, max_gap_days=MAX_VAR_GAP_DAYS
+            )
+        if resolved is not None:
+            one = resolved["resolved"]
+            shown, unit, change = resolved["value"], resolved["unit"], resolved["change"]
+            as_of = _iso(one.as_of_utc) or as_of
+            state, simulated = one.state, one.simulated
+            shown_source = "Demo price" if simulated else one.source_system
+            price_mwh, unit_mwh = round(one.value, 6), one.unit
         return (
             figure(
                 key,
                 f"{hub} {product}",
                 round(shown, 4),
                 unit,
-                _iso(last.get("observed_at_utc")) or days[-1].isoformat(),
-                close_state(days[-1], today),
-                simulated=bool(last["simulated"]),
-                source="Demo price" if last["simulated"] else source,
+                as_of,
+                state,
+                simulated=simulated,
+                source=shown_source,
                 hub=hub,
                 product=product,
                 tenor=tenor,
@@ -1195,8 +1319,9 @@ def _market(caller: Caller, now: datetime, focus: list[str], read: _Read) -> dic
                 series=points,
                 period_start_utc=_iso(last.get("period_start_utc")),
                 period_end_utc=_iso(last.get("period_end_utc")),
-                price_mwh=last.get("price_mwh"),
-                unit_mwh=last.get("unit_mwh"),
+                price_mwh=price_mwh,
+                unit_mwh=unit_mwh,
+                resolved_price=None if resolved is None else resolved["payload"],
             )
         )
 
