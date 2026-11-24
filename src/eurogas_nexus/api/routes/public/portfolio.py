@@ -509,6 +509,10 @@ def put_book(book_id: str, body: BookRequest, request: Request) -> dict:
             from eurogas_nexus.application.opportunities.schedule import note_input_changed
 
             note_input_changed(session, "book", reason=f"book {book_id}")
+            if body.contract_ids:
+                from eurogas_nexus.application.market_event_capture import capture_desk
+
+                capture_desk(session, contract_ids=body.contract_ids)
             session.commit()
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc

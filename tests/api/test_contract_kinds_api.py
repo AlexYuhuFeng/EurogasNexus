@@ -12,7 +12,11 @@ from sqlalchemy.orm import Session
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.core.config import Settings
 from eurogas_nexus.db.base import Base
-from eurogas_nexus.db.models import UpstreamContractRevisionRecord, UpstreamResourceContractRecord
+from eurogas_nexus.db.models import (
+    MarketEventRecord,
+    UpstreamContractRevisionRecord,
+    UpstreamResourceContractRecord,
+)
 from eurogas_nexus.db.repositories.identity import (
     create_identity_api_key,
     create_identity_principal,
@@ -109,6 +113,18 @@ def test_master_cargo_and_tender_are_saved_with_derived_columns(tmp_path, monkey
         # The book's consumers see the cargo and the tender, never the master.
         book = {row["contract_id"] for row in list_upstream_contracts(session)}
         assert book == {"mspa-atlantic-cn07", "tender-skarv-q1"}
+        # M5b: each governed write published its contract.changed event in its transaction.
+        published = {
+            row.subject_key: row.revision
+            for row in session.query(MarketEventRecord)
+            .filter(MarketEventRecord.event_type == "contract.changed")
+            .all()
+        }
+        assert published == {
+            "contract:mspa-atlantic": 1,
+            "contract:mspa-atlantic-cn07": 1,
+            "contract:tender-skarv-q1": 1,
+        }
 
     listed = client.get(PATH, headers=headers).json()["data"]
     assert {row["contract_kind"] for row in listed} == {"LNG_MSPA", "LNG_CARGO", "UPSTREAM_TENDER"}
@@ -122,6 +138,14 @@ def test_master_cargo_and_tender_are_saved_with_derived_columns(tmp_path, monkey
     )
     assert retired.status_code == 409
     assert retired.json()["detail"]["code"] == "contract_has_active_confirmations"
+    with Session(create_engine(url, future=True)) as session:
+        # The refused retirement rolled back: no event for it.
+        assert (
+            session.query(MarketEventRecord)
+            .filter(MarketEventRecord.subject_key == "contract:mspa-atlantic")
+            .count()
+            == 1
+        )
 
 
 def test_refusals_name_the_problem(tmp_path, monkeypatch) -> None:

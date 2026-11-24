@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.core.config import Settings
 from eurogas_nexus.db.base import Base
-from eurogas_nexus.db.models import AuditEventRecord, TradingBookRecord
+from eurogas_nexus.db.models import AuditEventRecord, MarketEventRecord, TradingBookRecord
 from eurogas_nexus.db.repositories.identity import (
     create_identity_api_key,
     create_identity_principal,
@@ -152,6 +152,22 @@ def test_roles_for_assumption_sets(tmp_path, monkeypatch) -> None:
         assert "174000" not in (event.detail or "") and "3.0" not in (event.detail or "")
     created = next(e for e in events if e.action == "assumption_set.version.create")
     assert "lng.charter_hire" in created.detail and "values_sha256" in created.detail
+
+    # M5b: the approval publishes one event per key it sets, in its transaction, without
+    # the values.
+    with Session(engine) as session:
+        published = (
+            session.query(MarketEventRecord)
+            .filter(MarketEventRecord.event_type == "assumption.changed")
+            .all()
+        )
+    assert sorted(event.subject_key for event in published) == [
+        "assumption:financing.rate",
+        "assumption:lng.charter_hire",
+    ]
+    for event in published:
+        assert event.payload_json["state"] == "set" and event.payload_json["set_id"] == set_id
+        assert "174000" not in str(event.payload_json)
 
 
 def test_four_eyes_holds_even_for_a_person_with_both_roles(tmp_path, monkeypatch) -> None:

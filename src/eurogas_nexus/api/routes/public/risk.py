@@ -233,6 +233,11 @@ def _write(
             )
             # CP-13: a limit, hedge band or terminal terms change makes an evaluation due.
             note_input_changed(session, _INPUT_CLASS_BY_ACTION[action], reason=action)
+            if record_type.__tablename__ == "hedge_approvals":
+                from eurogas_nexus.application.market_event_capture import capture_desk
+
+                # M5b: a hedge band is part of the contract an opportunity reads.
+                capture_desk(session, contract_ids=[key])
             session.commit()
             return {"key": key, "created": created, "updated_by": actor}
     except sqlalchemy_error as exc:

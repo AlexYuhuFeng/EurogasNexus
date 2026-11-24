@@ -23,6 +23,7 @@ from datetime import date
 from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from eurogas_nexus.application.market_event_capture import capture_desk
 from eurogas_nexus.application.opportunities.schedule import note_input_changed
 from eurogas_nexus.domain.valuation.assumptions import (
     ASSUMPTION_CATALOGUE,
@@ -304,6 +305,7 @@ def approve_assumption_version(set_id: str, version: int, request: Request) -> d
         except AssumptionError as exc:
             raise _assumption_error(exc) from exc
         note_input_changed(session, "assumptions", reason=f"assumption set {set_id} v{version}")
+        capture_desk(session, set_ids=[set_id])
         session.commit()
     return _env(payload)
 

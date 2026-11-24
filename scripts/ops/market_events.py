@@ -79,7 +79,11 @@ def main(argv: list[str] | None = None) -> int:
     timeline.add_argument("--consumer", default="opportunities")
     capture = sub.add_parser("capture")
     capture.add_argument("--since")
-    capture.add_argument("--kind", action="append", choices=("prices", "fx", "outages"))
+    capture.add_argument(
+        "--kind",
+        action="append",
+        choices=("prices", "fx", "outages", "contracts", "assumptions"),
+    )
     capture.add_argument("--commit", action="store_true")
     drain = sub.add_parser("drain")
     drain.add_argument("--commit", action="store_true")
@@ -118,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
             report = market_event_capture.capture(
                 session,
                 since_utc=_instant(args.since),
-                kinds=tuple(args.kind or ("prices", "fx", "outages")),
+                kinds=tuple(args.kind or market_event_capture.KINDS),
             )
             report["committed"] = args.commit
         elif args.command == "drain":

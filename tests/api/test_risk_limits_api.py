@@ -12,6 +12,7 @@ from eurogas_nexus.api.app import create_app
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     AuditEventRecord,
+    MarketEventRecord,
     MarketObservationRecord,
     ScreenOrderObservationRecord,
     UpstreamResourceContractRecord,
@@ -431,6 +432,18 @@ def test_risk_approves_a_hedge_band_per_deal(tmp_path, monkeypatch):
     assert raised.status_code == 200
     again = client.get("/api/portfolio/hedge-approvals", headers=_h(who, "analyst")).json()
     assert again["data"]["rows"][0]["status"] == "ok"
+    # M5b: each band change is a contract change for the opportunities that read the deal,
+    # published in the same transaction, with a digest and no figure.
+    with Session(_engine) as session:
+        events = (
+            session.query(MarketEventRecord)
+            .filter(MarketEventRecord.subject_key == "contract:nbp-supply")
+            .order_by(MarketEventRecord.revision)
+            .all()
+        )
+    assert [event.revision for event in events] == [1, 2]
+    assert all(event.event_type == "contract.changed" for event in events)
+    assert set(events[-1].payload_json) == {"contract_id", "retired", "terms_digest"}
 
 
 def test_daily_balance_shows_what_is_left_to_sell_each_gas_day(tmp_path, monkeypatch):

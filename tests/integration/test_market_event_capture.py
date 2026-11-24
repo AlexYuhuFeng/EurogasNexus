@@ -34,6 +34,8 @@ from eurogas_nexus.db.models import (
 ROOT = Path(__file__).resolve().parents[2]
 NOW = datetime(2026, 11, 17, 9, 42, tzinfo=UTC)
 SINCE = datetime(2026, 1, 1, tzinfo=UTC)
+#: Market figures only: the desk tables are measured in test_desk_event_capture.py.
+MARKET = ("prices", "fx", "outages")
 
 
 @pytest.fixture()
@@ -158,24 +160,28 @@ def test_builders_give_the_keys_opportunities_store() -> None:
     assert price.dependency_keys == ("hub:TTF:2026-11-18",)
     assert price.payload["price"] == "31.25" and price.payload["trade_day"] == "2026-11-17"
     # A correction stored later the same trade day is the same event; the next day is not.
-    corrected = SimpleNamespace(**{**vars(settlement), "price": 31.4, "observed_at_utc": NOW
-                                   + timedelta(hours=2)})
+    corrected = SimpleNamespace(
+        **{**vars(settlement), "price": 31.4, "observed_at_utc": NOW + timedelta(hours=2)}
+    )
     next_day = SimpleNamespace(**{**vars(settlement), "observed_at_utc": NOW + timedelta(days=1)})
     later = NOW + timedelta(days=1)
     assert capture.settlement_event(corrected, ingested_at_utc=later).event_key == price.event_key
     assert capture.settlement_event(next_day, ingested_at_utc=later).event_key != price.event_key
 
     fixing = SimpleNamespace(
-        observation_id="fx-1", base_currency="EUR", quote_currency="gbp", rate=0.8712,
-        rate_type="reference", value_date="2026-11-17", source_system="ECB",
+        observation_id="fx-1",
+        base_currency="EUR",
+        quote_currency="gbp",
+        rate=0.8712,
+        rate_type="reference",
+        value_date="2026-11-17",
+        source_system="ECB",
     )
     fx = capture.fx_event(fixing, ingested_at_utc=NOW)
     assert fx.subject_key == fx.dependency_keys[0] == "fx:EURGBP"
     assert fx.input_class == "fx" and fx.payload["rate"] == "0.8712"
 
-    first = capture.outage_event(
-        _remit(1, published=NOW, start=datetime(2026, 11, 20, tzinfo=UTC))
-    )
+    first = capture.outage_event(_remit(1, published=NOW, start=datetime(2026, 11, 20, tzinfo=UTC)))
     moved = capture.outage_event(
         _remit(2, published=NOW + timedelta(hours=1), start=datetime(2026, 11, 21, tzinfo=UTC))
     )
@@ -190,7 +196,7 @@ def test_capture_publishes_once_then_a_correction_reaches_only_its_readers(engin
     later = NOW + timedelta(minutes=5)
     with Session(engine) as session:
         _seed_and_evaluate(session)
-        first = capture.capture(session, now_utc=later, since_utc=SINCE)
+        first = capture.capture(session, now_utc=later, since_utc=SINCE, kinds=MARKET)
         session.commit()
         assert first["published"]["price.updated"] > 0
         assert first["published"]["fx.updated"] > 0
@@ -199,7 +205,7 @@ def test_capture_publishes_once_then_a_correction_reaches_only_its_readers(engin
         assert first["skipped"] > 0
         # The same store captured again: every figure is already held, nothing is written.
         count = session.query(MarketEventRecord).count()
-        again = capture.capture(session, now_utc=later, since_utc=SINCE)
+        again = capture.capture(session, now_utc=later, since_utc=SINCE, kinds=MARKET)
         assert again["published"] == {} and again["unchanged"] == again["examined"]
         assert session.query(MarketEventRecord).count() == count
 
@@ -211,7 +217,7 @@ def test_capture_publishes_once_then_a_correction_reaches_only_its_readers(engin
 
         # An exchange settlement for the TTF day-ahead arrives, then is corrected in place.
         row = _store_ttf_day_ahead(session, 31.25, NOW)
-        arrived = capture.capture(session, now_utc=later, since_utc=SINCE)
+        arrived = capture.capture(session, now_utc=later, since_utc=SINCE, kinds=MARKET)
         session.commit()
         assert arrived["published"] == {"price.updated": 1}
         first = outbox.process(session, "opportunities", now_utc=later)
@@ -221,7 +227,9 @@ def test_capture_publishes_once_then_a_correction_reaches_only_its_readers(engin
         original = row.price
         row.price = 32.0
         session.flush()
-        corrected = capture.capture(session, now_utc=later + timedelta(minutes=1), since_utc=SINCE)
+        corrected = capture.capture(
+            session, now_utc=later + timedelta(minutes=1), since_utc=SINCE, kinds=MARKET
+        )
         session.commit()
         assert corrected["published"] == {"price.updated": 1}
         revisions = _price_events(session, "hub:TTF:2026-11-18")
@@ -241,7 +249,9 @@ def test_capture_publishes_once_then_a_correction_reaches_only_its_readers(engin
         # The source sends the old figure again: the correction stands, nothing is written.
         row.price = original
         session.flush()
-        replayed = capture.capture(session, now_utc=later + timedelta(minutes=2), since_utc=SINCE)
+        replayed = capture.capture(
+            session, now_utc=later + timedelta(minutes=2), since_utc=SINCE, kinds=MARKET
+        )
         assert replayed["published"] == {}
         assert len(_price_events(session, "hub:TTF:2026-11-18")) == len(revisions)
 
@@ -253,12 +263,22 @@ def test_remit_versions_are_revisions_of_one_event_and_late_versions_change_noth
     with Session(engine) as session:
         for version, hours, moved in ((1, 0, start), (2, 2, start + timedelta(days=1))):
             fields = vars(_remit(version, published=NOW + timedelta(hours=hours), start=moved))
-            session.add(RemitUmmRecord(**fields, asset_name="Storage X", asset_type="storage",
-                                       unit="GWh/d", reason="maintenance",
-                                       market_participant="SSO", remarks="",
-                                       source_reference="test"))
+            session.add(
+                RemitUmmRecord(
+                    **fields,
+                    asset_name="Storage X",
+                    asset_type="storage",
+                    unit="GWh/d",
+                    reason="maintenance",
+                    market_participant="SSO",
+                    remarks="",
+                    source_reference="test",
+                )
+            )
         session.flush()
-        result = capture.capture(session, now_utc=NOW + timedelta(hours=3), since_utc=SINCE)
+        result = capture.capture(
+            session, now_utc=NOW + timedelta(hours=3), since_utc=SINCE, kinds=MARKET
+        )
         session.commit()
         assert result["published"] == {"outage.published": 2}
         events = (
@@ -276,12 +296,22 @@ def test_remit_versions_are_revisions_of_one_event_and_late_versions_change_noth
         stale = vars(_remit(1, published=NOW, start=start, gwh="99"))
         stale["record_id"] = "UMM-77-v1-copy"
         stale["ingested_at_utc"] = NOW + timedelta(hours=4)
-        session.add(RemitUmmRecord(**stale, asset_name="Storage X", asset_type="storage",
-                                   unit="GWh/d", reason="maintenance",
-                                   market_participant="SSO", remarks="",
-                                   source_reference="test"))
+        session.add(
+            RemitUmmRecord(
+                **stale,
+                asset_name="Storage X",
+                asset_type="storage",
+                unit="GWh/d",
+                reason="maintenance",
+                market_participant="SSO",
+                remarks="",
+                source_reference="test",
+            )
+        )
         session.flush()
-        late = capture.capture(session, now_utc=NOW + timedelta(hours=5), since_utc=SINCE)
+        late = capture.capture(
+            session, now_utc=NOW + timedelta(hours=5), since_utc=SINCE, kinds=MARKET
+        )
         assert late["published"] == {}
 
 
@@ -294,7 +324,8 @@ def test_a_fixing_reaches_the_cross_pairs_that_contain_its_currency(engine) -> N
         session.flush()
         assert outbox._fx_crosses(session, ["fx:EURUSD"]) == {"fx:GBPUSD"}  # noqa: SLF001
         assert outbox._fx_crosses(session, ["fx:EURGBP"]) == {  # noqa: SLF001
-            "fx:GBPUSD", "fx:EURGBP"
+            "fx:GBPUSD",
+            "fx:EURGBP",
         }
         assert outbox._fx_crosses(session, ["hub:TTF:2026-12"]) == set()  # noqa: SLF001
         session.rollback()
@@ -303,10 +334,20 @@ def test_a_fixing_reaches_the_cross_pairs_that_contain_its_currency(engine) -> N
 def test_an_importer_captures_in_the_same_transaction(engine) -> None:
     with Session(engine) as session:
         row = FxObservationRecord(
-            observation_id="ecb-eurgbp-2026-11-17", pair="EUR/GBP", base_currency="EUR",
-            quote_currency="GBP", rate=0.8712, rate_type="reference", value_date="2026-11-17",
-            observed_at_utc=NOW, source_system="ECB", source_reference="test",
-            source_record_id=None, freshness="fresh", research_only=False, metadata_json={},
+            observation_id="ecb-eurgbp-2026-11-17",
+            pair="EUR/GBP",
+            base_currency="EUR",
+            quote_currency="GBP",
+            rate=0.8712,
+            rate_type="reference",
+            value_date="2026-11-17",
+            observed_at_utc=NOW,
+            source_system="ECB",
+            source_reference="test",
+            source_record_id=None,
+            freshness="fresh",
+            research_only=False,
+            metadata_json={},
         )
         stored = session.merge(row)
         assert capture.capture_rows(session, fixings=[stored], now_utc=NOW)["published"] == {
@@ -326,10 +367,18 @@ def test_the_scheduler_captures_after_ingestion(engine) -> None:
     factory = sessionmaker(engine)
     with factory() as session:
         fields = vars(_remit(1, published=NOW - timedelta(hours=1), start=NOW + timedelta(days=1)))
-        session.add(RemitUmmRecord(**fields, asset_name="Storage X", asset_type="storage",
-                                   unit="GWh/d", reason="maintenance",
-                                   market_participant="SSO", remarks="",
-                                   source_reference="test"))
+        session.add(
+            RemitUmmRecord(
+                **fields,
+                asset_name="Storage X",
+                asset_type="storage",
+                unit="GWh/d",
+                reason="maintenance",
+                market_participant="SSO",
+                remarks="",
+                source_reference="test",
+            )
+        )
         session.commit()
     tick = script.deliver_market_events(factory, [], now_utc=NOW)
     assert tick["status"] == "ok" and tick["captured"] == {"outage.published": 1}

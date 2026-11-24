@@ -303,12 +303,16 @@ def _refuse_unknown_sale_modes(modes: list) -> None:
         )
 
 
-def _note_book_changed(session, reason: str) -> None:
-    """CP-13: a contract write makes a scheduled opportunity evaluation due (same transaction)."""
+def _note_book_changed(session, contract_id: str, reason: str) -> None:
+    """A contract write, in its own transaction: CP-13 makes a scheduled opportunity
+    evaluation due, and (M5b) a ``contract.changed`` event reaches the opportunities that
+    read this contract."""
 
+    from eurogas_nexus.application.market_event_capture import capture_desk
     from eurogas_nexus.application.opportunities.schedule import note_input_changed
 
     note_input_changed(session, "book", reason=reason)
+    capture_desk(session, contract_ids=[contract_id])
 
 
 @router.post("/api/route-cost/upstream-contracts")
@@ -479,7 +483,7 @@ def upsert_upstream_contract(body: UpstreamContractUpsertRequest, request: Reque
                 "latest_revision": result.latest_revision,
                 "boundary_issues": [issue.as_dict() for issue in boundary.issues],
             }
-            _note_book_changed(session, f"contract {body.contract_id}")
+            _note_book_changed(session, body.contract_id, f"contract {body.contract_id}")
             session.commit()
             return _env(
                 data,
@@ -677,7 +681,7 @@ def _contract_lifecycle(
                 raise HTTPException(
                     status_code=refusal.status, detail={"code": refusal.code}
                 ) from refusal
-            _note_book_changed(session, f"contract {contract_id} {action}")
+            _note_book_changed(session, contract_id, f"contract {contract_id} {action}")
             session.commit()
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
