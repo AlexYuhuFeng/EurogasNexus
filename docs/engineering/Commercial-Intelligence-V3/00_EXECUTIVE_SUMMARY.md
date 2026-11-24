@@ -65,7 +65,6 @@ role. [11](11_COMMERCIAL_QUALITY_STANDARD.md) is that standard;
 [13](13_PERSONA_AND_PRACTICE_REVIEW.md) holds the review findings against it. The same day the user asked where AI
 should and should not take part in each role's work, how people shape their own workspace, and
 how feedback becomes a reviewed change: [14](14_AI_ROLES_PERSONALISATION_AND_IMPROVEMENT_LOOP.md).
-[13](13_PERSONA_AND_PRACTICE_REVIEW.md) holds the review findings against it.
 [16](16_COMPETITIVE_STUDY.md) compares the platform with market data vendors, ETRMs, LNG
 shipping tools and Kraken, and with best practice in client design, and records what we
 take from each and when.
