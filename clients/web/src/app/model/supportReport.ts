@@ -7,10 +7,21 @@
 
 export const REPORT_PROBLEM_EVENT = "eurogas:report-problem";
 
+export const REPORT_CATEGORIES = ["data", "wrong_figure", "access", "performance", "how_to", "other", "suggestion"] as const;
+export type ReportCategory = (typeof REPORT_CATEGORIES)[number];
+
+/**
+ * "Send feedback" is a report with this category: an improvement request, the first step of the
+ * improvement loop (docs/engineering/Commercial-Intelligence-V3/14). The server stores it as P4.
+ */
+export const SUGGESTION_CATEGORY = "suggestion" satisfies ReportCategory;
+
 export interface ReportPrefill {
   summary?: string;
-  category?: "data" | "wrong_figure" | "access" | "performance" | "how_to" | "other";
+  category?: ReportCategory;
   severity?: "P1" | "P2" | "P3" | "P4";
+  /** The reporter's role composition (presentation only), so feedback can be read by role. */
+  composition?: string | null;
 }
 
 export interface ClientContextFacts {
@@ -24,6 +35,8 @@ export interface ClientContextFacts {
   userAgent: string;
   dataStatus: string | null;
   endpointErrorCodes: Record<string, string>;
+  /** The role composition the client shows (`trader`, `lng`, ...); never an authority. */
+  composition?: string | null;
 }
 
 /** Keep only the page's navigation parameters (workspace, task, view), not record ids. */
@@ -46,10 +59,16 @@ export function supportClientContext(facts: ClientContextFacts): Record<string, 
     viewport: `${facts.viewport.width}x${facts.viewport.height}@${facts.viewport.devicePixelRatio}x`,
     user_agent: facts.userAgent.slice(0, 200),
     data_status: facts.dataStatus,
+    composition: facts.composition ?? null,
     failed_reads: Object.entries(facts.endpointErrorCodes)
       .slice(0, 30)
       .map(([endpoint, code]) => ({ endpoint, code })),
   };
+}
+
+/** Open the report dialog in suggestion mode ("Send feedback"). */
+export function requestFeedback(composition?: string | null): void {
+  requestProblemReport({ category: SUGGESTION_CATEGORY, severity: "P4", composition: composition ?? null });
 }
 
 /** Open the report dialog from anywhere, e.g. a stale-price banner's "Report to IT". */

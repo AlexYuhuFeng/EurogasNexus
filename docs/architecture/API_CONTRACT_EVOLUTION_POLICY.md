@@ -894,7 +894,7 @@ Migration `0055_desk_operations` also adds `support_reports`, `notification_chan
 
 | Path | Method | Permission | Purpose |
 |---|---|---|---|
-| `/api/support/reports` | POST | READ (any signed-in user) | Report a problem to the IT desk with diagnostics |
+| `/api/support/reports` | POST | READ (any signed-in user) | Report a problem to the IT desk with diagnostics, or send a suggestion (category `suggestion`, stored as P4) |
 | `/api/support/reports` | GET | READ | Operators see all reports, others their own (`scope`) |
 | `/api/support/reports/{report_id}` | PATCH | OPERATOR | Acknowledge, assign, resolve (resolution required); audited |
 | `/api/settings/notification-channels` | GET | ADMIN | Email channels with their last delivery |

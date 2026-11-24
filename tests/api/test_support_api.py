@@ -84,6 +84,37 @@ def test_a_trader_reports_a_problem_and_the_it_desk_resolves_it(tmp_path, monkey
     assert done.status_code == 200 and done.json()["data"]["assignee"]
 
 
+def test_a_suggestion_is_stored_as_p4_and_never_pages_the_desk(tmp_path, monkeypatch):
+    """AIR-1: feedback rides the problem-report path; whatever urgency is sent, it is P4."""
+
+    engine, who = _setup(tmp_path, monkeypatch)
+    client = TestClient(create_app())
+    body = {
+        "severity": "P1",
+        "category": "suggestion",
+        "summary": "Show NBP against TTF on my landing",
+        "description": "I compare the two every morning.",
+        "page": "/?workspace=desk&task=today",
+        "client_context": {"composition": "trader"},
+    }
+    created = client.post("/api/support/reports", json=body, headers=who["trader"])
+    assert created.status_code == 200, created.text
+    report = created.json()["data"]
+    assert report["report_id"].startswith("FB-")
+    assert report["severity"] == "P4" and report["category"] == "suggestion"
+    assert report["client_context"] == {"composition": "trader"}
+    with Session(engine) as session:
+        (outbox,) = session.query(NotificationOutboxRecord).all()
+    assert outbox.category == "support" and outbox.severity == "low"
+    assert "Suggestion:" in outbox.title and "P1" not in outbox.title
+    mine = client.get("/api/support/reports", headers=who["trader"]).json()["data"]["rows"]
+    assert [row["report_id"] for row in mine] == [report["report_id"]]
+    unknown = client.post(
+        "/api/support/reports", json={**body, "category": "wish"}, headers=who["trader"]
+    )
+    assert unknown.status_code == 422
+
+
 def test_email_channels_are_admin_only_and_addresses_are_checked(tmp_path, monkeypatch):
     _engine, who = _setup(tmp_path, monkeypatch)
     client = TestClient(create_app())

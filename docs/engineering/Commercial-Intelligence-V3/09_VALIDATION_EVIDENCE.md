@@ -105,6 +105,14 @@ M5 full suite (SQLite, `python -m pytest -q tests`, 2026-11-24): 7,049 passed, 2
 | SDK examples against a local demo server | `pytest tests/docs/test_sdk_examples.py` with the two example variables set | 12 passed |
 | Links | `python scripts/ci/check_markdown_links.py` | 441 files, all local links resolve |
 
+## AIR stage 1: suggestions through support reports (2026-11-24)
+
+| What | Command | Result |
+| --- | --- | --- |
+| AIR-1 a suggestion is P4, `FB-` id, low-severity notification, unknown category refused | `pytest tests/api/test_support_api.py` | 4 passed |
+| AIR-2 suggestion mode, composition in diagnostics, EN and ZH labels | `node --test tests/supportReport.test.ts` (in `clients/web`) | 4 passed; full client suite 1,307 passed, 3 skipped; `tsc --noEmit` clean |
+| No path or operation added; contract and docs gates | `pytest tests/contract tests/docs` | 607 passed, 12 skipped (with the support tests) |
+
 ## Targeted re-evaluation, shown on the demo desk
 
 With `scripts/demo/seed_demo_desk.py` seeded (37 `hedge_gap` and 3 `sell_down`

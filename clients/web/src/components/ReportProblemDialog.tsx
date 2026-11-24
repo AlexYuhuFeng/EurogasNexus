@@ -4,7 +4,9 @@ import { api, type SupportReportDTO } from "@/api/client";
 import { resolveHostKind } from "@/app/host/hostCapabilities";
 import { CLIENT_APPLICATION_VERSION } from "@/app/releaseMetadata";
 import {
+  REPORT_CATEGORIES,
   REPORT_PROBLEM_EVENT,
+  SUGGESTION_CATEGORY,
   type ReportPrefill,
   safePage,
   supportClientContext,
@@ -14,7 +16,6 @@ import { Button, Dialog, Field, Select, StatusBadge, Tabs } from "@/components/u
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-const CATEGORIES = ["data", "wrong_figure", "access", "performance", "how_to", "other"] as const;
 const SEVERITIES = ["P1", "P2", "P3", "P4"] as const;
 
 /**
@@ -22,6 +23,10 @@ const SEVERITIES = ["P1", "P2", "P3", "P4"] as const;
  * page, versions, screen and failing reads attached automatically, and to follow up on
  * earlier reports. Opened from the account menu, the answer bar ("report a problem") or by any
  * panel through `requestProblemReport`; it has no button of its own on the top bar.
+ *
+ * "Send feedback" opens it in suggestion mode (`requestFeedback`): the same report with category
+ * `suggestion`, no urgency to choose (the server stores P4), and the person's role composition in
+ * the diagnostics so the improvement loop can read feedback by role.
  */
 export function ReportProblemDialog({ t }: { t: Translate }) {
   const runtimeRelease = useApiStore((state) => state.runtimeRelease);
@@ -31,6 +36,8 @@ export function ReportProblemDialog({ t }: { t: Translate }) {
   const [tab, setTab] = useState<"new" | "mine">("new");
   const [severity, setSeverity] = useState<string>("P3");
   const [category, setCategory] = useState<string>("data");
+  const [composition, setComposition] = useState<string | null>(null);
+  const suggestion = category === SUGGESTION_CATEGORY;
   const [summary, setSummary] = useState("");
   const [description, setDescription] = useState("");
   const [sent, setSent] = useState<SupportReportDTO | null>(null);
@@ -43,8 +50,10 @@ export function ReportProblemDialog({ t }: { t: Translate }) {
     setError(null);
     setTab("new");
     if (prefill.summary) setSummary(prefill.summary);
-    if (prefill.category) setCategory(prefill.category);
-    if (prefill.severity) setSeverity(prefill.severity);
+    // A plain "Report a problem" after "Send feedback" must not stay in suggestion mode.
+    setCategory(prefill.category ?? "data");
+    setSeverity(prefill.severity ?? "P3");
+    setComposition(prefill.composition ?? null);
     setIsOpen(true);
   };
 
@@ -73,9 +82,10 @@ export function ReportProblemDialog({ t }: { t: Translate }) {
       userAgent: navigator.userAgent,
       dataStatus: dataStatus ?? null,
       endpointErrorCodes: { ...(endpointErrorCodes ?? {}) } as Record<string, string>,
+      composition,
     });
     api.reportProblem({
-      severity,
+      severity: suggestion ? "P4" : severity,
       category,
       summary: summary.trim(),
       description: description.trim(),
@@ -96,7 +106,7 @@ export function ReportProblemDialog({ t }: { t: Translate }) {
       <Dialog
         open={isOpen}
         onClose={() => setIsOpen(false)}
-        title={t("support.title")}
+        title={t(suggestion ? "feedback.title" : "support.title")}
         closeLabel={t("support.close")}
         size="md"
         className="report-dialog"
@@ -106,7 +116,7 @@ export function ReportProblemDialog({ t }: { t: Translate }) {
           idPrefix="report-tab"
           label={t("support.title")}
           tabs={[
-            { id: "new", label: t("support.tab_new") },
+            { id: "new", label: t(suggestion ? "feedback.tab_new" : "support.tab_new") },
             { id: "mine", label: t("support.tab_mine") },
           ]}
           activeId={tab}
@@ -117,30 +127,32 @@ export function ReportProblemDialog({ t }: { t: Translate }) {
         <div id="report-tab-panel" role="tabpanel" aria-labelledby={`report-tab-${tab}`} className="report-tab-panel">
         {tab === "new" && !sent && (
           <form className="report-form" onSubmit={(event) => { event.preventDefault(); submit(); }}>
-            <Field label={t("support.summary")}>
-              <input value={summary} maxLength={200} onChange={(event) => setSummary(event.target.value)} placeholder={t("support.summary_hint")} required minLength={5} />
+            <Field label={t(suggestion ? "feedback.summary" : "support.summary")}>
+              <input value={summary} maxLength={200} onChange={(event) => setSummary(event.target.value)} placeholder={t(suggestion ? "feedback.summary_hint" : "support.summary_hint")} required minLength={5} />
             </Field>
             <div className="report-form-row">
               <Field label={t("support.category")}>
-                <Select size="md" value={category} onChange={setCategory} options={CATEGORIES.map((value) => ({ value, label: t(`support.category_${value}`) }))} />
+                <Select size="md" value={category} onChange={setCategory} options={REPORT_CATEGORIES.map((value) => ({ value, label: t(`support.category_${value}`) }))} />
               </Field>
-              <Field label={t("support.severity")}>
-                <Select size="md" value={severity} onChange={setSeverity} options={SEVERITIES.map((value) => ({ value, label: t(`support.severity_${value}`) }))} />
-              </Field>
+              {!suggestion && (
+                <Field label={t("support.severity")}>
+                  <Select size="md" value={severity} onChange={setSeverity} options={SEVERITIES.map((value) => ({ value, label: t(`support.severity_${value}`) }))} />
+                </Field>
+              )}
             </div>
-            <Field label={t("support.description")} hint={t("support.attached")}>
-              <textarea rows={5} value={description} maxLength={8000} onChange={(event) => setDescription(event.target.value)} placeholder={t("support.description_hint")} />
+            <Field label={t("support.description")} hint={t(suggestion ? "feedback.attached" : "support.attached")}>
+              <textarea rows={5} value={description} maxLength={8000} onChange={(event) => setDescription(event.target.value)} placeholder={t(suggestion ? "feedback.description_hint" : "support.description_hint")} />
             </Field>
             {error && <p role="alert" className="limit-breaches">{error}</p>}
             <div className="report-form-actions">
-              <Button variant="primary" size="md" type="submit" disabled={busy || summary.trim().length < 5} loading={busy}>{t("support.send")}</Button>
+              <Button variant="primary" size="md" type="submit" disabled={busy || summary.trim().length < 5} loading={busy}>{t(suggestion ? "feedback.send" : "support.send")}</Button>
             </div>
           </form>
         )}
         {tab === "new" && sent && (
           <div className="report-sent" role="status">
             <strong>{t("support.sent_title", { id: sent.report_id })}</strong>
-            <p>{t("support.sent_body")}</p>
+            <p>{t(suggestion ? "feedback.sent_body" : "support.sent_body")}</p>
             <Button onClick={() => setTab("mine")}>{t("support.tab_mine")}</Button>
           </div>
         )}

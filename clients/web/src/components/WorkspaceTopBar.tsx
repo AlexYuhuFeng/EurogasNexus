@@ -29,7 +29,8 @@ import { heldApprovalSources } from "./PublicSourceApprovals";
 import { HeaderPreferencesMenu } from "./HeaderPreferencesMenu";
 import { ReportProblemDialog } from "./ReportProblemDialog";
 import { TopBarStatus, dataHealth } from "./TopBarStatus";
-import { requestProblemReport } from "@/app/model/supportReport";
+import { requestFeedback, requestProblemReport } from "@/app/model/supportReport";
+import { resolveComposition } from "@/app/experience/roleComposition";
 import { useDeskToday } from "@/app/hooks/useDeskToday";
 import { focusFigure } from "./TodayScreen";
 import "./WorkspaceTopBar.css";
@@ -374,6 +375,7 @@ export function WorkspaceTopBar({
                   onOpenHelp={() => onOpenPrimaryWorkspace("system")}
                   onOpenAdministration={seesAdministration ? () => onOpenPrimaryWorkspace("administration") : undefined}
                   onReportProblem={() => requestProblemReport({})}
+                  onSendFeedback={() => requestFeedback(resolveComposition(currentUser).composition.id)}
                   demoMode={demoMode}
                   onSignOut={onSignOut}
                 />

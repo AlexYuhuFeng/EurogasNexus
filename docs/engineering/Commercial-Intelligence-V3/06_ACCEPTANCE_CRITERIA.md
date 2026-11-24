@@ -101,13 +101,13 @@ with P-17, so that limits, terminal terms and freight routes share one maker-che
 | DOC-5 | A `postgresql://` URL without a driver uses the runtime's driver; an explicit driver is kept | `tests/integration/test_db_config.py::test_a_url_without_a_driver_uses_the_runtime_driver` |
 | DOC-6 | Every local Markdown link resolves | `scripts/ci/check_markdown_links.py` |
 
-## AIR AI by role, personal workspaces and the improvement loop (to be met)
+## AIR AI by role, personal workspaces and the improvement loop (AIR-1 and AIR-2 met; the rest to be met)
 
 Design: [14](14_AI_ROLES_PERSONALISATION_AND_IMPROVEMENT_LOOP.md). Stage in brackets.
 | # | Criterion | Test |
 | --- | --- | --- |
 | AIR-1 | (1) A signed-in person sends a suggestion through `/api/support/reports` with category `suggestion`; it is stored as P4 whatever urgency was sent and queues a low-severity notification; no OpenAPI path or operation is added | `tests/api/test_support_api.py::test_a_suggestion_is_stored_as_p4_and_never_pages_the_desk` |
-| AIR-2 | (1) "Send feedback" in the account menu opens the report dialog in suggestion mode, without an urgency choice, and the client diagnostics carry the role composition | `clients/web/tests/supportReport.test.ts` |
+| AIR-2 | (1) "Send feedback" in the account menu opens the report dialog in suggestion mode, without an urgency choice, and the client diagnostics carry the role composition | `clients/web/tests/supportReport.test.ts` (AIR-2 tests) |
 | AIR-3 | (2) Every AI use is in a machine-readable register with its level, roles, controls, evaluation set and threshold; a model call from a use not in the register fails a test | to be written |
 | AIR-4 | (2) Each AI use can be switched off in organisation settings; a switched-off use returns the rule text with basis `rule`, and the switch is audited | to be written |
 | AIR-5 | (2) Every AI audit row carries the prompt version, model id, evidence hash and output hash | to be written |

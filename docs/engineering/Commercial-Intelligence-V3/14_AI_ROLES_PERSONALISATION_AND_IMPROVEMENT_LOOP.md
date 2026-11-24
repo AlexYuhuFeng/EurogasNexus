@@ -426,7 +426,7 @@ proposed adjustments, so the dates are checked at each release review rather tha
 
 | Gap | Where it shows today |
 | --- | --- |
-| No way to send a suggestion in product; reports are problems for the IT desk only | `api/routes/public/support.py` categories; `components/ReportProblemDialog.tsx` |
+| No way to send a suggestion in product (closed by stage 1: category `suggestion`, "Send feedback") | `api/routes/public/support.py` categories; `components/ReportProblemDialog.tsx` |
 | Feedback lifecycle stops at open, acknowledged, resolved; no thread with the requester | `SupportReportUpdate` in `support.py` |
 | No change specification template, generator, repository map or impact analyser | `docs/engineering/` has RFC and ExecPlan templates for people, none for agents |
 | Compositions are hard-coded in the client; panel defaults empty; no saved views or component catalogue | `roleComposition.ts` (`panels: {}`), `panelTaxonomy.ts` (descriptive only) |
@@ -439,7 +439,7 @@ proposed adjustments, so the dates are checked at each release review rather tha
 
 | Stage | Slice | Why this order |
 | --- | --- | --- |
-| 1 | Suggestions through the existing support reports: category `suggestion`, P4, no new path; "Send feedback" in the account menu; composition in the client diagnostics | Capture first, at no contract cost |
+| 1 | Suggestions through the existing support reports: category `suggestion`, P4, no new path; "Send feedback" in the account menu; composition in the client diagnostics. **Built** (AIR-1, AIR-2) | Capture first, at no contract cost |
 | 2 | AI register and controls: a machine-readable register of AI uses (level, roles, controls, evaluation set, threshold), a per-use switch in organisation settings, prompt version and model id on audit rows and evaluation reports | Makes every later AI use safe by construction |
 | 3 | Feedback lifecycle and thread (statuses clarifying, specified, in build, shipped, declined; requester confirmation), the change specification template, the repository map with its currency test, the contract census command | The loop needs states and an executable specification before agents build from it |
 | 4 | Component catalogue as data with its parity test; saved views (manual builder), versions, team publishing by a lead | Personalisation without AI first |

@@ -31,6 +31,8 @@ interface HeaderPreferencesMenuProps {
   onOpenAdministration?: () => void;
   /** "Report a problem": the help desk form (it left the top bar; the answer bar finds it too). */
   onReportProblem?: () => void;
+  /** "Send feedback": an improvement suggestion through the same report dialog. */
+  onSendFeedback?: () => void;
   /** A demo deployment: said here once, quietly, instead of a chip on every page. */
   demoMode?: boolean;
   onSignOut: () => void;
@@ -48,6 +50,7 @@ export function HeaderPreferencesMenu({
   onOpenHelp,
   onOpenAdministration,
   onReportProblem,
+  onSendFeedback,
   demoMode = false,
   onSignOut,
 }: HeaderPreferencesMenuProps) {
@@ -235,6 +238,11 @@ export function HeaderPreferencesMenu({
             {onReportProblem && (
               <button type="button" role="menuitem" data-utility="report-problem" onClick={() => select(onReportProblem)}>
                 {t("topbar.report_problem")}
+              </button>
+            )}
+            {onSendFeedback && (
+              <button type="button" role="menuitem" data-utility="send-feedback" onClick={() => select(onSendFeedback)}>
+                {t("topbar.send_feedback")}
               </button>
             )}
             {currentUser.permissions.includes("identity.manage") && (

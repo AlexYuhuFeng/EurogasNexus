@@ -5,6 +5,10 @@ the client's allowlisted diagnostics (versions, failing reads with correlation i
 server's view at that moment (version, schema, failing and stale sources) land in one
 report, and the IT desk is notified on its channels. Reporters see their own reports and
 their status; operators see every report and work them.
+
+*Send feedback* uses the same report with category ``suggestion``: the first step of the
+improvement loop (Commercial Intelligence V3, document 14).
+A suggestion is stored as P4 whatever urgency was sent, so it never pages the IT desk.
 """
 
 from __future__ import annotations
@@ -27,7 +31,9 @@ from eurogas_nexus.api.routes.public.portfolio_common import (
 router = APIRouter(tags=["support"])
 
 _P_TO_SEVERITY = {"P1": "critical", "P2": "high", "P3": "medium", "P4": "low"}
-_CATEGORIES = ("data", "wrong_figure", "access", "performance", "how_to", "other")
+_CATEGORIES = ("data", "wrong_figure", "access", "performance", "how_to", "other", "suggestion")
+#: A suggestion is an improvement request, not an incident: always the lowest urgency.
+_SUGGESTION = "suggestion"
 _MAX_CONTEXT_BYTES = 32_000
 _OPERATOR_ROLES = {"OPERATOR", "ADMIN"}
 
@@ -105,9 +111,11 @@ class SupportReportBody(BaseModel):
 
 @router.post("/api/support/reports")
 def post_support_report(body: SupportReportBody, request: Request) -> dict:
-    """Send a problem to the IT desk with diagnostics attached (any signed-in user).
+    """Send a problem or a suggestion with diagnostics attached (any signed-in user).
 
-    向 IT 支持提交问题：附带客户端诊断包与服务器当时的状态，并通知 IT 渠道。
+    A ``suggestion`` is stored as P4 (``FB-`` id) whatever urgency was sent.
+
+    向 IT 支持提交问题或改进建议：附带客户端诊断包与服务器当时的状态；建议一律记为 P4。
     """
 
     from eurogas_nexus.application.notifications import queue_notification
@@ -121,7 +129,9 @@ def post_support_report(body: SupportReportBody, request: Request) -> dict:
     reporter = identity_id(request) or "anonymous"
     roles = sorted(_roles(request)) or ["UNKNOWN"]
     now = datetime.now(UTC)
-    report_id = f"SR-{now:%Y%m%d}-{uuid.uuid4().hex[:6].upper()}"
+    suggestion = body.category == _SUGGESTION
+    severity = "P4" if suggestion else body.severity
+    report_id = f"{'FB' if suggestion else 'SR'}-{now:%Y%m%d}-{uuid.uuid4().hex[:6].upper()}"
     sqlalchemy_error = sqlalchemy_error_type()
     try:
         from eurogas_nexus.db.models import SupportReportRecord
@@ -135,7 +145,7 @@ def post_support_report(body: SupportReportBody, request: Request) -> dict:
                 report_id=report_id,
                 reporter=reporter,
                 reporter_role=",".join(roles)[:32],
-                severity=body.severity,
+                severity=severity,
                 category=body.category,
                 summary=body.summary,
                 description=body.description,
@@ -152,8 +162,12 @@ def post_support_report(body: SupportReportBody, request: Request) -> dict:
             queue_notification(
                 session,
                 category="support",
-                severity=_P_TO_SEVERITY[body.severity],
-                title=f"{report_id} {body.severity} {body.summary}",
+                severity=_P_TO_SEVERITY[severity],
+                title=(
+                    f"{report_id} Suggestion: {body.summary}"
+                    if suggestion
+                    else f"{report_id} {severity} {body.summary}"
+                ),
                 body=(
                     f"Reported by {names.get(reporter, reporter)} ({record.reporter_role})"
                     f" on {body.page or '-'}.\n"
@@ -170,7 +184,7 @@ def post_support_report(body: SupportReportBody, request: Request) -> dict:
                 resource=f"support_report:{report_id}",
                 outcome="created",
                 severity="info",
-                detail=f"{body.severity} {body.category}",
+                detail=f"{severity} {body.category}",
             )
             session.commit()
             payload = _report_row(record, names)
