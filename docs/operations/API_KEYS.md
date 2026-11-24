@@ -34,11 +34,30 @@ deployment token, so an identity key sent there is refused with 403
 error — not an expired, revoked or unprovisioned identity key, and not a reason
 to change the deployment configuration.
 
+## Who issues a key
+
+A key acts as its owner, so nobody holds a key that acts as someone else:
+
+- a person creates their own key in Settings > Your API keys, or with
+  `GET`/`POST /api/me/api-keys` and `POST /api/me/api-keys/{id}/revoke`. Issuing
+  needs an interactive sign-in (session, SSO token or gateway header), never
+  another API key. The key expires after 90 days by default and 365 at most
+  (`422 key_expiry_out_of_range`), and may carry only scopes its owner holds
+  (`422 scope_not_held`); with none requested it carries the owner's data scopes.
+  Another person's key id answers 404;
+- an administrator creates keys for SERVICE principals and for themself only.
+  A request for another USER is refused with `403 personal_key_self_service`
+  and audited as denied.
+
+Keys issued before this rule keep working until they expire or are revoked;
+review `GET /api/access/api-keys` for keys an administrator issued to people and
+revoke any that are not wanted.
+
 ## Admin actions
 
 - `GET /api/access/api-keys` lists metadata (never secrets).
-- `POST /api/access/api-keys` creates a key for a principal; copy the one-time
-  `api_key` immediately.
+- `POST /api/access/api-keys` creates a key for a service principal or the
+  administrator; copy the one-time `api_key` immediately.
 - `POST /api/access/api-keys/{id}/revoke` revokes immediately.
 
 ## Data scope attenuation

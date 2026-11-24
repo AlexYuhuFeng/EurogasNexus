@@ -9,7 +9,7 @@ ADMIN role floor.
 
 from __future__ import annotations
 
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
@@ -77,6 +77,21 @@ class ApiKeyCreateRequest(BaseModel):
     scopes: list[str] = Field(default_factory=list)
 
 
+class OwnApiKeyCreateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    display_name: str = Field(default="personal", min_length=1, max_length=128)
+    expires_at_utc: datetime | None = None
+    scopes: list[str] = Field(default_factory=list, max_length=32)
+
+
+#: A personal key lives this long unless asked for less, and never longer than the maximum.
+OWN_KEY_DEFAULT_DAYS = 90
+OWN_KEY_MAX_DAYS = 365
+#: How a person must be signed in to issue a key for themselves: interactively, so a stolen
+#: key cannot mint a successor that outlives its revocation.
+INTERACTIVE_AUTH_METHODS = frozenset({"session", "oidc_access_token", "gateway_header"})
+
+
 class GroupCreateRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
     name: str = Field(min_length=1, max_length=128)
@@ -118,6 +133,141 @@ def own_groups(request: Request) -> dict:
             .all()
         )
         return _env([{"group_id": row.group_id, "name": row.name} for row in rows])
+
+
+def _own_key_principal(request: Request, *, issuing: bool) -> AuthenticatedPrincipal:
+    principal = getattr(request.state, "identity", None)
+    if principal is None:
+        raise HTTPException(status_code=401, detail={"code": "authentication_required"})
+    if principal.principal_type != "USER":
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "personal_keys_are_for_people",
+                "message": "A service principal's keys are issued by an administrator.",
+            },
+        )
+    if issuing and principal.auth_method not in INTERACTIVE_AUTH_METHODS:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "interactive_sign_in_required",
+                "message": "Sign in to the product to create a key; a key cannot create a key.",
+            },
+        )
+    return principal
+
+
+@router.get("/api/me/api-keys")
+def own_api_keys(request: Request) -> dict:
+    """The caller's own API keys (never the secret, which is shown once at creation).
+
+    调用者自己的 API 密钥列表（不含密钥本身，密钥仅在创建时显示一次）。
+    """
+
+    from eurogas_nexus.db.models import IdentityApiKeyRecord
+    from eurogas_nexus.db.repositories import identity as identity_repository
+
+    principal = _own_key_principal(request, issuing=False)
+    _require_db()
+    with _session() as session:
+        rows = (
+            session.query(IdentityApiKeyRecord)
+            .filter(IdentityApiKeyRecord.principal_id == principal.principal_id)
+            .order_by(IdentityApiKeyRecord.created_at_utc.desc())
+            .all()
+        )
+        return _env([identity_repository._key_payload(row) for row in rows])
+
+
+@router.post("/api/me/api-keys")
+def create_own_api_key(body: OwnApiKeyCreateRequest, request: Request) -> dict:
+    """Create a personal API key for the signed-in person, for the SDK or a script.
+
+    为当前登录用户创建个人 API 密钥（用于 SDK 或脚本）；密钥仅显示一次。
+
+    The key acts as the person and never beyond them: its scopes must be ones the person
+    holds, it expires (90 days by default, at most 365), and only an interactive sign-in
+    may create one. The secret is returned exactly once; the creation is audited.
+    """
+
+    from eurogas_nexus.db.repositories import identity as identity_repository
+
+    principal = _own_key_principal(request, issuing=True)
+    _require_db()
+    now = datetime.now(UTC)
+    expires = body.expires_at_utc or now + timedelta(days=OWN_KEY_DEFAULT_DAYS)
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=UTC)
+    if expires <= now or expires > now + timedelta(days=OWN_KEY_MAX_DAYS):
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "key_expiry_out_of_range",
+                "message": f"A personal key expires within {OWN_KEY_MAX_DAYS} days.",
+            },
+        )
+    held = {str(scope).upper() for scope in principal.data_scopes}
+    asked = [str(scope).strip().upper() for scope in body.scopes if str(scope).strip()]
+    not_held = sorted(scope for scope in asked if "*" not in held and scope not in held)
+    if not_held:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "code": "scope_not_held",
+                "message": "A key cannot reach data its owner cannot: " + ", ".join(not_held),
+            },
+        )
+    with _session() as session:
+        key, bearer = identity_repository.create_identity_api_key(
+            session,
+            principal.principal_id,
+            display_name=body.display_name,
+            expires_at_utc=expires,
+            scopes=asked or list(principal.data_scopes),
+            created_by=principal.principal_id,
+        )
+        _audit_admin(
+            session,
+            actor=principal.principal_id,
+            action="me.api_key.create",
+            resource=f"identity_api_key:{key.key_id}",
+            outcome="created",
+            detail=f"expires_at_utc={expires.isoformat()}",
+        )
+        payload = identity_repository._key_payload(key)
+        session.commit()
+    return _env(
+        {"key": payload, "api_key": bearer, "warning": "Copy the key now; it is shown once."}
+    )
+
+
+@router.post("/api/me/api-keys/{key_id}/revoke")
+def revoke_own_api_key(key_id: str, request: Request) -> dict:
+    """Revoke one of the caller's own API keys; any way of signing in may revoke.
+
+    撤销调用者自己的一个 API 密钥。
+    """
+
+    from eurogas_nexus.db.models import IdentityApiKeyRecord
+
+    principal = _own_key_principal(request, issuing=False)
+    _require_db()
+    with _session() as session:
+        key = session.get(IdentityApiKeyRecord, key_id)
+        if key is None or key.principal_id != principal.principal_id:
+            raise HTTPException(status_code=404, detail={"code": "api_key_not_found"})
+        if key.revoked_at_utc is None:
+            key.revoked_at_utc = datetime.now(UTC)
+        _audit_admin(
+            session,
+            actor=principal.principal_id,
+            action="me.api_key.revoke",
+            resource=f"identity_api_key:{key_id}",
+            outcome="revoked",
+        )
+        session.commit()
+    return _env({"key_id": key_id, "revoked": True})
 
 
 @router.get("/api/access/groups")
@@ -885,6 +1035,33 @@ def post_api_key(body: ApiKeyCreateRequest, request: Request) -> dict:
         from eurogas_nexus.db.repositories import identity as identity_repository
 
         with _session() as session:
+            target = identity_repository.get_identity_principal(session, body.principal_id)
+            # A key acts as its principal. An administrator issues keys for service
+            # principals; a person issues their own, so nobody can act as someone else.
+            if (
+                target is not None
+                and target.principal_type == "USER"
+                and target.principal_id != admin.principal_id
+            ):
+                _audit_admin(
+                    session,
+                    actor=admin.principal_id,
+                    action="access.api_key.create",
+                    resource=f"identity_principal:{body.principal_id}",
+                    outcome="denied",
+                    detail="personal_key_self_service",
+                )
+                session.commit()
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "code": "personal_key_self_service",
+                        "message": (
+                            "A person creates their own API key in Settings; an administrator "
+                            "creates keys for service principals only."
+                        ),
+                    },
+                )
             key, bearer = identity_repository.create_identity_api_key(
                 session,
                 body.principal_id,
@@ -910,6 +1087,8 @@ def post_api_key(body: ApiKeyCreateRequest, request: Request) -> dict:
                 "warning": "Copy the key now; it is returned exactly once.",
             }
         )
+    except HTTPException:
+        raise
     except Exception as exc:
         raise HTTPException(
             status_code=exc.status_code if hasattr(exc, "status_code") else 422,

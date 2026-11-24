@@ -117,6 +117,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `PUT /api/portfolio/credit-lines/{id}` | **未提交的字段保留原值（F1）**：此前不带 `contract_ids` 会清空关联及其超限；解除关联须显式传 `[]`。每次参考数据写入的审计事件逐字段记录变更前后值（并填写 `before_summary`/`after_summary`），响应新增 `changed` | 人物审查 P-01 |
 | `POST /api/market/ticks` | **许可标签须单独授权，不合理报价被拒绝（F1）**：`EEX`、`ICE_OCM`、`Trayport` 仅接受有效数据范围明确包含该源的密钥（`*` 密钥返回 `403 source_not_granted`）。价格超出该枢纽报价单位与产品的合理区间、远期产品为负、交易所时间晚于接收超过 120 秒、或中间价为同一合约上一报价的 3 倍以上（或三分之一以下）时，整批以 `422 ticks_invalid` 拒绝并说明原因，不存储任何内容 | 人物审查 P-03 |
 | `POST /api/desk/gas-day/status` | **不再返回 500（F1）**：写权限类别此前没有最低角色；现需 `gas_day.record` 权限（新增的 SCHEDULER 调度员角色与 ANALYST 持有），返回 403、404、422 或 200 | 人物审查 P-04 |
+| `POST /api/access/api-keys` | **收窄（F1）**：管理员只能为 SERVICE 服务主体或自己签发密钥；为其他 USER 签发返回 403 `personal_key_self_service` 并记为拒绝审计，因为密钥以其所属者身份行事。已有密钥不受影响。新增 `GET`/`POST /api/me/api-keys` 与 `POST /api/me/api-keys/{key_id}/revoke`，供本人在交互式登录下管理自己的密钥（默认 90 天到期，最长 365 天，范围不超过本人所持） | 实操审查 QA-R-02 |
 
 ## 被拒绝的请求字段
 

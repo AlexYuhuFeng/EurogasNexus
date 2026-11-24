@@ -84,6 +84,7 @@ A criterion counts as met only when a named test or command shows it. Met criter
 | F1-6 | Implausible prices, forward prices below zero, future exchange times and jumps no market makes are refused and nothing of the batch is stored | `tests/unit/test_feed_plausibility.py` |
 | F1-7 | Only a key whose scopes name a licensed family may deliver prices under its label | `test_a_licensed_label_needs_its_own_grant`, `tests/api/test_strategy_tracks_api.py::test_who_may_track_and_who_may_deliver_ticks` |
 | F1-8 | A scheduler (SCHEDULER) records nomination status; a reviewer cannot, and a scheduler edits nothing else | `tests/api/test_gas_day_status_api.py::test_a_scheduler_records_status_and_nothing_else` |
+| F1-9 | An administrator cannot issue a key for another person; a person issues, lists and revokes their own keys only from an interactive sign-in, within their own scopes and a 365-day limit | `tests/security/test_personal_api_keys.py`, `tests/security/test_enterprise_access_api.py` |
 
 Four-eyes on limit changes (P-01's second half) is left to the reference-data approval work
 with P-17, so that limits, terminal terms and freight routes share one maker-checker flow.

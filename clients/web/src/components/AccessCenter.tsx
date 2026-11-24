@@ -252,7 +252,9 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
                   onChange={(event) => setKeyPrincipalId(event.target.value)}
                 >
                   <option value="">{t("access.key.choose_principal")}</option>
-                  {users.map((user) => (
+                  {/* A key acts as its owner, so an administrator issues keys for service
+                      principals and themself only; people create their own in Settings. */}
+                  {users.filter((user) => user.principal_type !== "USER" || user.principal_id === currentUser?.principal_id).map((user) => (
                     <option key={user.principal_id} value={user.principal_id}>
                       {user.display_name} · {user.principal_id}
                     </option>

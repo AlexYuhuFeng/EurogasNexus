@@ -32,7 +32,7 @@ The SDK sends the first from `EUROGAS_NEXUS_PUBLIC_API_TOKEN` and the second fro
 |---|---|---|---|
 | `EUROGAS_NEXUS_PUBLIC_API_TOKEN` | `Authorization: Bearer <token>` | Deployment token, shared by every client of one installation | The administrator who deployed the server |
 | `EUROGAS_NEXUS_API_TOKEN` | same | Older name for the deployment token; used only when the first is unset | (legacy) |
-| `EUROGAS_NEXUS_IDENTITY_BEARER` | `X-Eurogas-Identity: <key>` | Identity key of one user or service account, `nexus_<key_id>_<secret>` | An administrator, in Admin > Access & Identity |
+| `EUROGAS_NEXUS_IDENTITY_BEARER` | `X-Eurogas-Identity: <key>` | Identity key of one user or service account, `nexus_<key_id>_<secret>` | You, in Settings > Your API keys; an administrator, for a service account |
 | `EUROGAS_NEXUS_PRINCIPAL` | `X-Eurogas-Principal: <name>` | Name of the acting operator, for operator routes called with the deployment token alone | Your operations team |
 
 ## How the SDK resolves credentials
@@ -98,10 +98,13 @@ print(me["name"], me["role"], me["data_scopes"])
 
 ## Get an identity key
 
-An administrator creates the key for a user or service account in Admin > Access &
-Identity, or with `POST /api/access/api-keys`. The key is shown once; store it at once.
-Revoking it, or disabling its owner, stops it on the next request. See
-[API keys](../operations/API_KEYS.md) for the administrator's side.
+A person creates their own key in Settings > Your API keys, or with `POST /api/me/api-keys`
+from a signed-in session. It acts as them, within their data access, and expires after 90 days
+(365 at most). An administrator creates keys for service accounts only, in Admin > Access &
+Identity or with `POST /api/access/api-keys`, because a key acts as its owner and nobody should
+hold a key that acts as someone else. The key is shown once; store it at once. Revoking it, or
+disabling its owner, stops it on the next request. See [API keys](../operations/API_KEYS.md) for
+the administrator's side.
 
 ## Operator routes
 

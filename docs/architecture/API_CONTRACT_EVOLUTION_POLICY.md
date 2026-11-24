@@ -220,7 +220,7 @@ cut-offs with their basis, the cost of leaving it open at the assumption set's c
 premium or discount, prompt trades done today, delegated parts) and `rows[6]` (`checklist`:
 per source the nomination status as recorded, agent, expected against nominated with the
 tolerance, LNG terminal steps, each open step's deadline and urgency); earlier rows keep their
-positions. `POST /api/desk/gas-day/status` (WRITE, `portfolio.write`) records a step's status
+positions. `POST /api/desk/gas-day/status` (WRITE, `gas_day.record`) records a step's status
 by hand for a line of the caller's own gas day (labelled `origin: manual`, audited; 404 for a
 line outside his scope, 422 for an unknown step, status or day). Census: 274 paths /
 306 operations (+1 / +1 on 273 / 305).
@@ -517,6 +517,7 @@ caller rather than additive.
 | `PUT /api/portfolio/credit-lines/{id}` | **A field left out keeps its stored value (2026-11-24, F1).** Before, a body without `contract_ids` cleared the links and with them any breach measured on those contracts. Unlinking is now an explicit `[]`. Every reference write's audit event lists each changed field as before -> after, with `before_summary` and `after_summary` filled; the response adds `changed` | Persona review P-01. Callers that always send the full line see no difference |
 | `POST /api/market/ticks` | **Licensed labels need their own grant, and implausible ticks are refused (2026-11-24, F1).** `EEX`, `ICE_OCM` and `Trayport` are accepted only from a key whose effective data scopes name that family (a `*` key gets `403 source_not_granted`; issue the feed adapter a key scoped to it). A batch with a price outside the band for the hub's quotation and product, a forward product below zero, an exchange time more than 120 s after receipt or a mid more than 3x (or under a third of) the previous one for the instrument is refused `422 ticks_invalid` with the reason, and nothing of it is stored. Simulated sources are unaffected by the grant | Persona review P-03: a fat finger or a pence-for-pounds slip reached strategies and the prompt panel, and any operator key could present prices as a licensed venue's |
 | `POST /api/desk/gas-day/status` | **Answers instead of failing (2026-11-24, F1).** The write category had no minimum role, so every call returned 500; it now needs `gas_day.record`, held by the new SCHEDULER role and by ANALYST, and answers 403, 404 `line_not_in_scope`, 422 `unknown_step` or 200 | Persona review P-04 |
+| `POST /api/access/api-keys` | **Narrowed (2026-11-24, F1).** An administrator may issue a key only for a SERVICE principal or for themself; a request for another USER answers 403 `personal_key_self_service` and is audited as denied, because a key acts as its owner. Existing keys are untouched. New `GET`/`POST /api/me/api-keys` and `POST /api/me/api-keys/{key_id}/revoke` let a person manage their own keys from an interactive sign-in (90-day default expiry, 365 at most, scopes limited to the owner's) | Hands-on review QA-R-02 |
 
 ## Non-Goals
 

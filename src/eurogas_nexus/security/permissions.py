@@ -61,6 +61,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/auth/logout", Permission.READ),
     ("/api/me", Permission.READ),
     ("/api/me/groups", Permission.READ),
+    # Personal API keys: the handler limits them to the caller's own keys and scopes.
+    ("/api/me/api-keys", Permission.READ),
+    ("/api/me/api-keys/{key_id}/revoke", Permission.READ),
     # A signed-in local-account user changes their own password (needs the current one).
     ("/api/me/password", Permission.READ),
     # A person's own presentation choices; they grant nothing (domain/settings).

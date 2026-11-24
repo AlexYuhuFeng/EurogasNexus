@@ -35,6 +35,7 @@ import {
 import { StatusBadge } from "@/components/ui";
 import { OrganisationDefaultsPanel, PersonalPreferencesPanel } from "@/components/PreferencesPanels";
 import { PanelHelp } from "@/components/ui/PanelHelp";
+import { PersonalApiKeysPanel } from "@/components/PersonalApiKeysPanel";
 
 type Translate = (key: string) => string;
 
@@ -135,6 +136,9 @@ export function SettingsCenter({
       <div className="span-3 settings-preference-pair">
         <PersonalPreferencesPanel t={t} principalId={principalId} />
         <OrganisationDefaultsPanel t={t} canManage={canManageOrganisation} />
+      </div>
+      <div className="workspace-panel span-3">
+        <PersonalApiKeysPanel t={t} />
       </div>
       {canManageOrganisation && (
         <div className="workspace-panel span-3">

@@ -166,9 +166,23 @@ def test_api_key_lifecycle_and_disabled_owner(tmp_path, monkeypatch) -> None:
         viewer_id, _viewer_key = _principal(
             session, name="key-owner", role="VIEWER", scopes=[]
         )
+        # An administrator issues keys for service principals, never to act as a person.
+        person_id = viewer_id
+        service = identity_repository.create_identity_principal(
+            session, name="feed-service", display_name="Feed service", role="VIEWER",
+            principal_type="SERVICE",
+        )
+        viewer_id = service.principal_id
         session.commit()
 
     client = TestClient(create_app(Settings(api_profile="release")))
+    as_person = client.post(
+        "/api/access/api-keys",
+        headers=_headers(admin_key),
+        json={"principal_id": person_id, "display_name": "x"},
+    )
+    assert as_person.status_code == 403
+    assert as_person.json()["detail"]["code"] == "personal_key_self_service"
     created = client.post(
         "/api/access/api-keys",
         headers=_headers(admin_key),

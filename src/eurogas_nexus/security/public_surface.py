@@ -242,6 +242,8 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/storage/sites",
         "/api/storage/target-trajectory",
         "/api/me/groups",
+        "/api/me/api-keys",
+        "/api/me/api-keys/{key_id}/revoke",
         "/api/me/password",
         "/api/me/preferences",
         "/api/access/groups",

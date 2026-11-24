@@ -95,7 +95,7 @@ the draft SDK docs took a new quant to a first result verbatim. The S1 findings 
 | QA-L-04 | LNG | A vessel-feed import clears a cargo's book link | Next |
 | QA-L-05 | LNG | No cargo screen | Next (cargo board) |
 | QA-R-01 | Risk | The credit-line form sends empty links; the breach and its alert vanish | Server half fixed in F1 (omitted fields kept); the form still sends empty lists: next |
-| QA-R-02 | Admin | An admin can mint a key for another person and act as them | Next |
+| QA-R-02 | Admin | An admin can mint a key for another person and act as them | Fixed (F1-9): people issue their own keys in Settings; admins issue for services only |
 | QA-R-03, QA-R-04 | Admin, risk | Trader+risk users and own mandates by name | Fixed in F1 (segregation, all names compared); a warning at user creation is next |
 | QA-R-06 | All | One spread gets opposite verdicts on Today and the Spreads board | Next |
 

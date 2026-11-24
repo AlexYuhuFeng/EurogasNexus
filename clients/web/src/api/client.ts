@@ -5710,6 +5710,12 @@ export const api = {
     post<AccessApiKeyDTO & { api_key: string }>("/access/api-keys", body),
   revokeAccessApiKey: (keyId: string) =>
     post<{ key_id: string; revoked: boolean }>(`/access/api-keys/${encodeURIComponent(keyId)}/revoke`, {}),
+  /** The signed-in person's own API keys (for the SDK and scripts); the secret is shown once. */
+  myApiKeys: () => get<AccessApiKeyDTO[]>("/me/api-keys"),
+  createMyApiKey: (body: { display_name: string; expires_at_utc?: string | null }) =>
+    post<{ key: AccessApiKeyDTO; api_key: string; warning: string }>("/me/api-keys", body),
+  revokeMyApiKey: (keyId: string) =>
+    post<{ key_id: string; revoked: boolean }>(`/me/api-keys/${encodeURIComponent(keyId)}/revoke`, {}),
   auditEvents: (params?: {
     actor?: string; action?: string; resource?: string; outcome?: string; limit?: string;
     /** Window bounds, ISO-8601 with an offset, and the continuation cursor (#59). */
