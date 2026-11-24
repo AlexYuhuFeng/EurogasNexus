@@ -30,8 +30,9 @@ import { visibleModes } from "../src/app/navigation/modeNavigation.ts";
  */
 const ROLE_PERMISSIONS: Record<string, string[]> = {
   VIEWER: ["agent.read", "capability.read", "market.read", "me.read", "portfolio.read", "review.read", "runtime.read", "source.read", "strategy.read"],
+  SCHEDULER: ["agent.read", "capability.read", "gas_day.record", "market.read", "me.read", "portfolio.read", "review.read", "runtime.read", "source.read", "strategy.read"],
   REVIEWER: ["agent.read", "capability.read", "market.read", "me.read", "portfolio.read", "review.read", "review.record", "runtime.read", "source.read", "strategy.read"],
-  ANALYST: ["agent.read", "agent.research", "analysis.query", "capability.invoke", "capability.read", "market.read", "me.read", "optimization.run", "portfolio.read", "portfolio.write", "review.read", "runtime.read", "scenario.create", "source.read", "strategy.create", "strategy.edit", "strategy.freeze", "strategy.read", "strategy.retire", "strategy.shadow.manage"],
+  ANALYST: ["agent.read", "agent.research", "analysis.query", "capability.invoke", "capability.read", "gas_day.record", "market.read", "me.read", "optimization.run", "portfolio.read", "portfolio.write", "review.read", "runtime.read", "scenario.create", "source.read", "strategy.create", "strategy.edit", "strategy.freeze", "strategy.read", "strategy.retire", "strategy.shadow.manage"],
   OPERATOR: ["agent.read", "agent.research", "capability.invoke", "capability.read", "market.read", "me.read", "portfolio.read", "review.read", "runtime.read", "source.backfill", "source.certification.manage", "source.credentials.write", "source.read", "source.run", "strategy.read", "strategy.shadow.manage"],
   ADMIN: ["api_keys.manage", "audit.read", "capability.read", "identity.manage", "identity.read", "me.read", "runtime.read", "source.backfill", "source.certification.manage", "source.credentials.write", "source.read", "source.run"],
 };
