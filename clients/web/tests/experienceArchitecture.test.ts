@@ -69,6 +69,7 @@ import {
 import {
   HOST_COMMANDS,
   HOST_COMMAND_CAPABILITIES,
+  DESKTOP_CAPABILITY_REQUIREMENTS,
   hostCapabilities,
   hostCommandCapability,
   hostSupportsCommand,
@@ -536,10 +537,13 @@ test("HostCapabilities is the single owner of the native boundary", () => {
   const desktop = hostCapabilities("desktop");
   assert.equal(browser.kind, "browser");
   assert.equal(desktop.kind, "desktop");
+  // A plugin-backed capability is true on the desktop only once its plugin ships (UX R6);
+  // tests/hostCapabilityPlugins.test.ts holds those to Cargo.toml. The rest the shell implements.
+  const pluginBacked = new Set<string>(Object.keys(DESKTOP_CAPABILITY_REQUIREMENTS));
   for (const capability of Object.keys(browser) as Array<keyof typeof browser>) {
     if (capability === "kind") continue;
     assert.equal(browser[capability], false, String(capability));
-    assert.equal(desktop[capability], true, String(capability));
+    if (!pluginBacked.has(capability)) assert.equal(desktop[capability], true, String(capability));
   }
 
   // Only allowlisted commands may cross the boundary, and the client must not name

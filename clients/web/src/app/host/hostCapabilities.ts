@@ -41,6 +41,8 @@ export interface HostCapabilities {
   readonly deploymentConfig: boolean;
   /** Run the desktop OIDC loopback handshake (open the browser, receive the callback). */
   readonly oidcLoopbackAuth: boolean;
+  /** Tell the shell the workspace is ready, so it swaps the splash screen for the window. */
+  readonly readinessSignal: boolean;
 }
 
 /** A capability name, i.e. every `HostCapabilities` key except `kind`. */
@@ -81,7 +83,8 @@ export function isHostCommand(value: string): value is HostCommand {
  */
 export const HOST_COMMAND_CAPABILITIES: Readonly<Record<HostCommand, HostCapabilityName>> = {
   read_deployment_config: "deploymentConfig",
-  notify_client_ready: "notifications",
+  // The ready handshake is the shell's own splash-to-window swap, not an OS notification.
+  notify_client_ready: "readinessSignal",
   clear_client_session_data: "secureStorage",
   start_loopback_auth: "oidcLoopbackAuth",
   open_browser_login_and_wait: "oidcLoopbackAuth",
@@ -109,25 +112,61 @@ export function currentHostScope(): HostScope {
   };
 }
 
+/**
+ * What a desktop host must ship before it may claim a capability (UX R6). A capability backed
+ * by a Tauri plugin or feature is claimed only when `clients/desktop/src-tauri/Cargo.toml`
+ * carries it (and, for windows, when the capability file grants creating them);
+ * `tests/hostCapabilityPlugins.test.ts` holds each `true` below to this list.
+ */
+export const DESKTOP_CAPABILITY_REQUIREMENTS = {
+  notifications: { crate: "tauri-plugin-notification" },
+  fileDialogs: { crate: "tauri-plugin-dialog" },
+  windowPersistence: { crate: "tauri-plugin-window-state" },
+  autoUpdate: { crate: "tauri-plugin-updater" },
+  deepLinks: { crate: "tauri-plugin-deep-link" },
+  systemTray: { tauriFeature: "tray-icon" },
+  multiWindow: { permission: "core:webview:allow-create-webview-window" },
+} as const satisfies Partial<Record<HostCapabilityName, { crate?: string; tauriFeature?: string; permission?: string }>>;
+
+/**
+ * Plugin-backed capabilities the shipped desktop shell implements. None does yet: the shell
+ * depends on `tauri`, `serde` and `serde_json` only, so claiming them let the workspace believe
+ * in notifications, restored windows, updates, deep links, a tray and extra windows that did
+ * not exist. Turn one on in the same change that adds its plugin.
+ */
+const DESKTOP_PLUGIN_CAPABILITIES: Readonly<Record<keyof typeof DESKTOP_CAPABILITY_REQUIREMENTS, boolean>> = {
+  notifications: false,
+  fileDialogs: false,
+  windowPersistence: false,
+  autoUpdate: false,
+  deepLinks: false,
+  systemTray: false,
+  multiWindow: false,
+};
+
 /** Capabilities by host. A browser deployment is complete without a native shell. */
 export function hostCapabilities(kind: HostKind = resolveHostKind()): HostCapabilities {
   const desktop = kind === "desktop";
+  const plugin = (name: keyof typeof DESKTOP_PLUGIN_CAPABILITIES) => desktop && DESKTOP_PLUGIN_CAPABILITIES[name];
   return {
     kind,
-    notifications: desktop,
-    fileDialogs: desktop,
-    multiWindow: desktop,
-    windowPersistence: desktop,
+    notifications: plugin("notifications"),
+    fileDialogs: plugin("fileDialogs"),
+    multiWindow: plugin("multiWindow"),
+    windowPersistence: plugin("windowPersistence"),
+    // Implemented by the shell itself (allowlisted commands in main.rs).
     secureStorage: desktop,
-    autoUpdate: desktop,
-    deepLinks: desktop,
-    systemTray: desktop,
+    autoUpdate: plugin("autoUpdate"),
+    deepLinks: plugin("deepLinks"),
+    systemTray: plugin("systemTray"),
+    // Declared so the diagnostics surface can say the native save is pending (diagnosticsBundle.ts).
     diagnosticsExport: desktop,
     // Deployment configuration and the OIDC loopback handshake are desktop-only:
     // a browser receives its base URL from the same origin it was served from and
     // authenticates inside the browser rather than through a loopback redirect.
     deploymentConfig: desktop,
     oidcLoopbackAuth: desktop,
+    readinessSignal: desktop,
   };
 }
 

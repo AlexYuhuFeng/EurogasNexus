@@ -48,7 +48,7 @@ All twelve recommendations are adopted. Order, by user impact and risk:
 8. R11 a Comfortable/Compact density preference (row height only). **Done** (wip/ux).
 9. R8 the command palette finds hubs, contracts, cargoes and vessels.
 10. R12 Settings split into Personal, Workspace, Organisation and Connection. **Done** (wip/ux).
-11. R6 desktop capabilities claimed only when their plugin ships (a correctness bug).
+11. R6 desktop capabilities claimed only when their plugin ships (a correctness bug). **Partly done** (wip/ux): the plugin-backed flags are false and a test pins any `true` to its crate; the plugins themselves are not added, because the desktop crate could not be built in that environment.
 12. R7 the native menu matches the current workspaces, is translated, and has the standard
     shortcuts.
 

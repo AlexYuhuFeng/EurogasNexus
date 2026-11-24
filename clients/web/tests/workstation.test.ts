@@ -73,12 +73,14 @@ test("a window profile is a layout over declared pages, never a second authority
 
 test("a host opens only the windows its capabilities allow, and a layout remembers no authority", () => {
   const profile = workstationProfile("market-monitor");
+  // A desktop shell with its window and notification plugins (UX R6: today's shell claims
+  // neither until they ship, so it falls back like a browser; checked at the end).
   const desktop = (capability: keyof ReturnType<typeof hostCapabilities>) =>
-    hostCapabilities("desktop")[capability];
+    capability === "multiWindow" || capability === "notifications" ? true : hostCapabilities("desktop")[capability];
   const browser = (capability: keyof ReturnType<typeof hostCapabilities>) =>
     hostCapabilities("browser")[capability];
   const withoutNotifications = (capability: keyof ReturnType<typeof hostCapabilities>) =>
-    capability === "notifications" ? false : hostCapabilities("desktop")[capability];
+    capability === "notifications" ? false : desktop(capability);
 
   assert.equal(openableWindows(profile, desktop).length, 2);
   // A shell without the notification capability still opens the analysis window;
@@ -106,6 +108,11 @@ test("a host opens only the windows its capabilities allow, and a layout remembe
     assert.equal(workspacePageIds.includes(plan.fallback.page), true, profile.id);
     assert.equal(plan.supported, false);
   }
+
+  // The shipped shell has no window plugin yet, so it plans the fallback page, honestly.
+  const shipped = planWorkstation("trading-desk", (capability) => hostCapabilities("desktop")[capability]);
+  assert.equal(shipped.supported, false);
+  assert.deepEqual(shipped.fallback, { page: "market", task: "curves" });
 
   // The persisted layout key is derived from ids only, so a layout cannot remember
   // an identity, a capability or a commercial value for the next person at the
