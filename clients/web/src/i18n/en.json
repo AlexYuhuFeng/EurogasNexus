@@ -2953,6 +2953,7 @@
   "limits.valid_until": "Approved until",
   "limits.save": "Save",
   "limits.saved": "Saved and audited.",
+  "limits.unlink_confirm": "Unlink all {{count}} deals from this line. Its exposure drops to zero and any breach on it clears.",
   "limits.mandate_id": "Mandate ID",
   "limits.display_name": "Name",
   "limits.books": "Books",

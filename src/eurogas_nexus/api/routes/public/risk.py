@@ -139,6 +139,9 @@ class CreditLineRequest(BaseModel):
     contract_ids: list[str] = Field(default_factory=list, max_length=500)
     receivable_days: int = Field(default=50, ge=0, le=120)
     valid_until: date | None = None
+    #: Unlinking every contract from a line that has some clears its exposure, so it is said
+    #: out loud rather than inferred from an empty list a form forgot to fill (QA-R-01).
+    unlink_contracts: bool = False
 
 
 class MandateRequest(BaseModel):
@@ -276,6 +279,46 @@ def _write(
         raise _db_unavailable(exc) from exc
 
 
+@router.get("/api/portfolio/credit-lines/{counterparty_id}")
+def get_credit_line(counterparty_id: str, request: Request) -> dict:
+    """One stored credit line, every field, for the risk function's edit form (QA-R-01).
+
+    The exposure row carries what the desk reads (limit, collateral, utilisation); the form
+    needs the rest (aliases, linked contracts, legal entity, receivable days) so that saving
+    one changed field does not send the others empty.
+    """
+
+    from eurogas_nexus.db.models import CreditLineRecord
+    from eurogas_nexus.db.session import get_session_factory
+
+    _require_risk_function(request)
+    if not _db_is_configured():
+        raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
+    try:
+        with get_session_factory()() as session:
+            row = session.get(CreditLineRecord, counterparty_id)
+            if row is None:
+                raise HTTPException(status_code=404, detail={"code": "credit_line_not_found"})
+            line = {
+                "counterparty_id": row.counterparty_id,
+                "name": row.name,
+                "aliases": list(row.aliases or []),
+                "legal_entity": row.legal_entity,
+                "limit_amount": float(row.limit_amount),
+                "currency": row.currency,
+                "collateral_amount": float(row.collateral_amount or 0.0),
+                "rating": row.rating,
+                "contract_ids": list(row.contract_ids or []),
+                "receivable_days": int(row.receivable_days or 0),
+                "valid_until": row.valid_until.isoformat() if row.valid_until else None,
+                "updated_by": row.updated_by,
+                "updated_at_utc": row.updated_at_utc.isoformat() if row.updated_at_utc else None,
+            }
+    except _sqlalchemy_error_type() as exc:
+        raise _db_unavailable(exc) from exc
+    return _env(line, request, "runtime-postgresql", [])
+
+
 @router.put("/api/portfolio/credit-lines/{counterparty_id}")
 def put_credit_line(counterparty_id: str, body: CreditLineRequest, request: Request) -> dict:
     """Record or change a counterparty's approved credit line (risk, audited)."""
@@ -284,14 +327,40 @@ def put_credit_line(counterparty_id: str, body: CreditLineRequest, request: Requ
 
     if not counterparty_id or len(counterparty_id) > 64:
         raise HTTPException(status_code=422, detail={"code": "counterparty_id_invalid"})
+    values = body.model_dump(exclude_unset=True)
+    unlink = bool(values.pop("unlink_contracts", False))
+    if "contract_ids" in values and not values["contract_ids"] and not unlink:
+        _require_risk_function(request)
+        if _db_is_configured():
+            from eurogas_nexus.db.session import get_session_factory
+
+            try:
+                with get_session_factory()() as session:
+                    stored = session.get(CreditLineRecord, counterparty_id)
+                    linked = list(stored.contract_ids or []) if stored is not None else []
+            except _sqlalchemy_error_type() as exc:
+                raise _db_unavailable(exc) from exc
+            if linked:
+                raise HTTPException(
+                    status_code=409,
+                    detail={
+                        "code": "unlink_not_confirmed",
+                        "message": "This would unlink every contract from the line and clear "
+                        "its exposure. Send unlink_contracts: true to do that.",
+                        "linked": len(linked),
+                    },
+                )
+    defaults = body.model_dump()
+    defaults.pop("unlink_contracts", None)
     # Fields left out keep their stored value: leaving ``contract_ids`` out must not unlink the
-    # contracts and clear a breach (persona review P-01). Unlinking is an explicit ``[]``.
+    # contracts and clear a breach (persona review P-01). Unlinking every contract from a line
+    # that has some needs ``unlink_contracts: true`` (QA-R-01).
     result = _write(
         request,
         record_type=CreditLineRecord,
         key=counterparty_id,
-        values=body.model_dump(exclude_unset=True),
-        defaults=body.model_dump(),
+        values=values,
+        defaults=defaults,
         action="risk.credit_line.update",
         resource=f"credit_line:{counterparty_id}",
     )

@@ -466,3 +466,60 @@ def test_daily_balance_shows_what_is_left_to_sell_each_gas_day(tmp_path, monkeyp
         # 600 MWh a day sold on screen and 600 bilaterally against 1,000 of supply: short 200.
         assert day["exchange_sold"] == 600 and day["bilateral_sold"] == 600
         assert day["residual_mwh"] == -200 and day["cash_out_cost"] == 300.0
+
+
+def test_the_edit_form_reads_the_whole_line_and_an_empty_list_does_not_unlink(
+    tmp_path, monkeypatch
+):
+    """Editing one field of a credit line keeps its deals (hands-on review QA-R-01).
+
+    The form reads every stored field before it saves, and an empty contract list from a form
+    that forgot them is refused unless unlinking is said out loud.
+    """
+
+    engine, who = _setup(tmp_path, monkeypatch)
+    client = TestClient(create_app())
+    line = {
+        "name": "Centrica plc",
+        "aliases": ["CENTRICA"],
+        "legal_entity": "EGN-UK",
+        "limit_amount": 1_000_000,
+        "currency": "GBP",
+        "contract_ids": ["nbp-supply"],
+        "receivable_days": 35,
+    }
+    path = "/api/portfolio/credit-lines/CNA"
+    assert client.put(path, json=line, headers=_h(who, "risk")).status_code == 200
+
+    assert client.get(path, headers=_h(who, "analyst")).status_code == 403
+    missing = client.get("/api/portfolio/credit-lines/NOPE", headers=_h(who, "risk"))
+    assert missing.status_code == 404
+    read = client.get(path, headers=_h(who, "risk"))
+    assert read.status_code == 200, read.text
+    stored = read.json()["data"]
+    assert stored["aliases"] == ["CENTRICA"] and stored["contract_ids"] == ["nbp-supply"]
+    assert stored["legal_entity"] == "EGN-UK" and stored["receivable_days"] == 35
+
+    raised = {**line, "limit_amount": 1_500_000, "contract_ids": []}
+    refused = client.put("/api/portfolio/credit-lines/CNA", json=raised, headers=_h(who, "risk"))
+    assert refused.status_code == 409
+    assert refused.json()["detail"] == {
+        "code": "unlink_not_confirmed",
+        "message": "This would unlink every contract from the line and clear its exposure. "
+        "Send unlink_contracts: true to do that.",
+        "linked": 1,
+    }
+    after = client.get("/api/portfolio/credit-lines/CNA", headers=_h(who, "risk")).json()["data"]
+    assert after["contract_ids"] == ["nbp-supply"] and after["limit_amount"] == 1_000_000
+
+    # The form sends what it read, with the one changed field.
+    edited = {key: stored[key] for key in line} | {"limit_amount": 1_500_000}
+    saved = client.put("/api/portfolio/credit-lines/CNA", json=edited, headers=_h(who, "risk"))
+    assert saved.status_code == 200 and saved.json()["data"]["changed"] == ["limit_amount"]
+
+    unlinked = client.put(
+        "/api/portfolio/credit-lines/CNA",
+        json={**edited, "contract_ids": [], "unlink_contracts": True},
+        headers=_h(who, "risk"),
+    )
+    assert unlinked.status_code == 200 and unlinked.json()["data"]["changed"] == ["contract_ids"]

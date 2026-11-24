@@ -4058,6 +4058,16 @@ export interface CreditLineInput {
   contract_ids: string[];
   receivable_days: number;
   valid_until?: string | null;
+  /** Unlinking every contract from a line that has some must be said out loud (409 otherwise). */
+  unlink_contracts?: boolean;
+}
+
+/** A stored credit line as the edit form reads it (GET /api/portfolio/credit-lines/{id}). */
+export interface CreditLineDTO {
+  counterparty_id: string; name: string; aliases: string[]; legal_entity: string | null;
+  limit_amount: number; currency: string; collateral_amount: number; rating: string | null;
+  contract_ids: string[]; receivable_days: number; valid_until: string | null;
+  updated_by: string; updated_at_utc: string | null;
 }
 
 export interface MandateInput {
@@ -5379,6 +5389,9 @@ export const api = {
     get<{ rows: CreditExposureRowDTO[]; as_of: string }>("/portfolio/credit-exposure", undefined, options),
   mandateUsage: (options?: ApiRequestOptions) =>
     get<{ rows: MandateUsageRowDTO[]; as_of: string }>("/portfolio/mandate-usage", undefined, options),
+  /** One stored credit line, every field, for the risk function's edit form (QA-R-01). */
+  creditLine: (counterpartyId: string) =>
+    get<CreditLineDTO>(`/portfolio/credit-lines/${encodeURIComponent(counterpartyId)}`),
   saveCreditLine: (counterpartyId: string, body: CreditLineInput) =>
     put<{ key: string; created: boolean }>(`/portfolio/credit-lines/${encodeURIComponent(counterpartyId)}`, body),
   saveTraderMandate: (mandateId: string, body: MandateInput) =>

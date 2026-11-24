@@ -65,12 +65,16 @@ def upsert_monitoring_alert(
         row.severity, 0
     )
     condition_returned = row.status == "resolved"
+    # A critical limit breach nobody has acknowledged keeps its severity when the figure
+    # improves (say a limit raised to 92 %): the change is shown, the breach is not forgotten
+    # until someone acknowledges it (QA-R-01).
+    held = needs_acknowledgement(row) and not severity_increased and not condition_returned
     if next_event_time > previous_event_time:
         row.occurrence_count += 1
         row.event_time_utc = candidate.event_time_utc
     row.category = candidate.category
     row.alert_type = candidate.alert_type
-    row.severity = candidate.severity
+    row.severity = row.severity if held else candidate.severity
     row.title_en = candidate.title_en
     row.title_zh_cn = candidate.title_zh_cn
     row.message_en = candidate.message_en
@@ -95,13 +99,37 @@ def upsert_monitoring_alert(
     return row
 
 
+#: How a held breach says its condition cleared (a warning line, so every client shows it).
+CLEARED_PREFIX = "Condition cleared at"
+
+
+def needs_acknowledgement(row: MonitoringAlertRecord) -> bool:
+    """A critical limit alert for human review that nobody has acknowledged yet."""
+
+    return (
+        row.category == "limits"
+        and row.severity == "critical"
+        and bool(row.human_review_required)
+        and row.status == "open"
+    )
+
+
+def _cleared_notes(warnings: list[str] | None) -> list[str]:
+    return [line for line in (warnings or []) if str(line).startswith(CLEARED_PREFIX)]
+
+
 def resolve_absent_monitoring_alerts(
     session: Session,
     active_fingerprints: set[str],
     *,
     now_utc: datetime,
 ) -> int:
-    """Resolve worker-managed conditions that are no longer active."""
+    """Resolve worker-managed conditions that are no longer active.
+
+    A critical limit breach that nobody acknowledged stays open when its condition clears (a
+    limit raised, a deal unlinked): it says when it cleared and waits for a person to
+    acknowledge it, and the next scan after that closes it (QA-R-01).
+    """
 
     rows = session.query(MonitoringAlertRecord).filter(
         MonitoringAlertRecord.status.in_(("open", "acknowledged"))
@@ -109,6 +137,15 @@ def resolve_absent_monitoring_alerts(
     resolved = 0
     for row in rows.all():
         if row.fingerprint in active_fingerprints:
+            continue
+        if needs_acknowledgement(row):
+            if not _cleared_notes(row.warnings):
+                when = _as_utc(now_utc).strftime("%Y-%m-%d %H:%M UTC")
+                row.warnings = [
+                    *(row.warnings or []),
+                    f"{CLEARED_PREFIX} {when}; acknowledge to close.",
+                ]
+                row.updated_at_utc = now_utc
             continue
         row.status = "resolved"
         row.resolved_at_utc = now_utc

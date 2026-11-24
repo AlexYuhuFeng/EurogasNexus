@@ -61,9 +61,11 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **284 paths / 318 operations**
+- OpenAPI public surface: **284 paths / 319 operations**
 
-  (2026-11-24: personal API keys, `GET`/`POST /api/me/api-keys` and
+  (2026-11-24: `GET /api/portfolio/credit-lines/{counterparty_id}` (REVIEW, risk function only)
+  so the edit form reads every stored field before it saves; 284 / 318 before.
+  2026-11-24: personal API keys, `GET`/`POST /api/me/api-keys` and
   `POST /api/me/api-keys/{key_id}/revoke` (READ; the handler limits each person to their own
   keys, an interactive sign-in creates them); 282 / 315 before.
   2026-11-24: LNG cargo in transit, `GET /api/lng/cargoes/plans`, `GET

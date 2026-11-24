@@ -85,6 +85,7 @@ A criterion counts as met only when a named test or command shows it. Met criter
 | F1-7 | Only a key whose scopes name a licensed family may deliver prices under its label | `test_a_licensed_label_needs_its_own_grant`, `tests/api/test_strategy_tracks_api.py::test_who_may_track_and_who_may_deliver_ticks` |
 | F1-8 | A scheduler (SCHEDULER) records nomination status; a reviewer cannot, and a scheduler edits nothing else | `tests/api/test_gas_day_status_api.py::test_a_scheduler_records_status_and_nothing_else` |
 | F1-9 | An administrator cannot issue a key for another person; a person issues, lists and revokes their own keys only from an interactive sign-in, within their own scopes and a 365-day limit | `tests/security/test_personal_api_keys.py`, `tests/security/test_enterprise_access_api.py` |
+| F1-10 | Editing one field of a credit line keeps its deals; unlinking all needs confirmation; a cleared critical limit alert waits for acknowledgement | `tests/api/test_risk_limits_api.py::test_the_edit_form_reads_the_whole_line_and_an_empty_list_does_not_unlink`, `tests/unit/test_limit_monitoring.py::test_a_cleared_breach_waits_for_acknowledgement` |
 
 Four-eyes on limit changes (P-01's second half) is left to the reference-data approval work
 with P-17, so that limits, terminal terms and freight routes share one maker-checker flow.

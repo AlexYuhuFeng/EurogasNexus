@@ -150,3 +150,30 @@ def test_a_configured_service_principal_does_not_narrow_the_limits_calculation(d
     }
     assert breached and alerted == breached
     assert not any("incomplete" in row.title_en for row in rows if row.entity_id in breached)
+
+
+def test_a_cleared_breach_waits_for_acknowledgement(desk):
+    """Raising a limit clears the breach, but the alert stays open, says when it cleared and
+    closes only after someone acknowledges it (hands-on review QA-R-01)."""
+
+    first = _scan(desk)
+    breaches = [key for key, row in first.items() if row.severity == "critical"]
+    assert breaches
+    key = breaches[0]
+    with Session(desk) as session:
+        line = session.get(CreditLineRecord, first[key].entity_id)
+        line.limit_amount = float(line.limit_amount) * 100  # comfortably inside the limit
+        session.commit()
+
+    held = _scan(desk)[key]
+    assert held.status == "open" and held.resolved_at_utc is None
+    assert held.severity == "critical"
+    assert any(line.startswith("Condition cleared at") for line in held.warnings)
+
+    with Session(desk) as session:
+        row = session.get(MonitoringAlertRecord, held.alert_id)
+        row.status = "acknowledged"
+        row.acknowledged_at_utc = NOW
+        session.commit()
+    closed = _scan(desk)[key]
+    assert closed.status == "resolved" and closed.resolved_at_utc is not None

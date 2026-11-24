@@ -67,6 +67,7 @@ const EMPTY_LINE = {
   contract_ids: "",
   receivable_days: "50",
   valid_until: "",
+  legal_entity: "",
 };
 
 const EMPTY_MANDATE = {
@@ -98,6 +99,11 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
   const [line, setLine] = useState(EMPTY_LINE);
   const [mandate, setMandate] = useState(EMPTY_MANDATE);
   const [editing, setEditing] = useState<"none" | "credit" | "mandate">("none");
+  // The deals the stored line had when the form read it, and whether the form has read it yet:
+  // a save before the read would send its links empty and clear the breach (QA-R-01).
+  const [linkedOnLoad, setLinkedOnLoad] = useState(0);
+  const [lineLoading, setLineLoading] = useState(false);
+  const [confirmUnlink, setConfirmUnlink] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   // The live principle (UX_REFERENCE rule 25): every choice below is a record the firm holds.
   const contracts = useApiStore((state) => state.upstreamContracts);
@@ -127,6 +133,30 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
       return;
     }
     const row = credit?.find((item) => item.counterparty_id === choice.id);
+    setLinkedOnLoad(0);
+    setConfirmUnlink(false);
+    setLineLoading(true);
+    // Every stored field, so saving one changed field sends the others as they are.
+    api.creditLine(choice.id)
+      .then((response) => {
+        const stored = response.data;
+        setLinkedOnLoad(stored.contract_ids.length);
+        setLine((current) => current.counterparty_id !== choice.id ? current : ({
+          ...current,
+          name: stored.name,
+          aliases: stored.aliases.join(", "),
+          legal_entity: stored.legal_entity ?? "",
+          limit_amount: String(stored.limit_amount),
+          currency: stored.currency,
+          collateral_amount: String(stored.collateral_amount),
+          rating: stored.rating ?? "",
+          contract_ids: stored.contract_ids.join(", "),
+          receivable_days: String(stored.receivable_days),
+          valid_until: stored.valid_until ?? "",
+        }));
+      })
+      .catch(fail)
+      .finally(() => setLineLoading(false));
     setLine((current) => ({
       ...current,
       counterparty_id: choice.id,
@@ -167,6 +197,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
 
   const fail = (caught: unknown) => setMessage(caught instanceof Error ? caught.message : String(caught));
 
+  const unlinkingAll = linkedOnLoad > 0 && splitList(line.contract_ids).length === 0;
   const saveLine = () => {
     const body: CreditLineInput = {
       name: line.name.trim(),
@@ -178,11 +209,15 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
       contract_ids: splitList(line.contract_ids),
       receivable_days: Number(line.receivable_days || 50),
       valid_until: line.valid_until || null,
+      legal_entity: line.legal_entity.trim() || null,
+      ...(unlinkingAll && confirmUnlink ? { unlink_contracts: true } : {}),
     };
     api.saveCreditLine(line.counterparty_id.trim(), body)
       .then(() => {
         setMessage(t("limits.saved"));
         setLine(EMPTY_LINE);
+        setLinkedOnLoad(0);
+        setConfirmUnlink(false);
         setEditing("none");
         load();
       })
@@ -397,11 +432,18 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
             emptyText={t("limits.no_contracts")}
             onChange={(ids) => setLine((current) => ({ ...current, contract_ids: joined(ids) }))}
           />
+          {unlinkingAll && (
+            <label className="limits-unlink-confirm">
+              <input type="checkbox" checked={confirmUnlink} onChange={(event) => setConfirmUnlink(event.target.checked)} />
+              <span>{t("limits.unlink_confirm", { count: linkedOnLoad })}</span>
+            </label>
+          )}
           <label><span>{t("limits.receivable_days")}</span><input inputMode="numeric" value={line.receivable_days} onChange={lineField("receivable_days")} /></label>
           <label><span>{t("limits.valid_until")}</span><PeriodPicker label={t("limits.valid_until")} value={line.valid_until} clearable onChange={(value) => lineField("valid_until")({ target: { value } } as never)} /></label>
           <button
             type="button"
-            disabled={!line.counterparty_id.trim() || !line.name.trim() || !(Number(line.limit_amount) >= 0) || !line.limit_amount}
+            aria-busy={lineLoading || undefined}
+            disabled={lineLoading || (unlinkingAll && !confirmUnlink) || !line.counterparty_id.trim() || !line.name.trim() || !(Number(line.limit_amount) >= 0) || !line.limit_amount}
             onClick={saveLine}
           >
             {t("limits.save")}

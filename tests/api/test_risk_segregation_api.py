@@ -130,10 +130,18 @@ def test_a_credit_line_change_keeps_what_it_leaves_out_and_audits_the_diff(tmp_p
         assert line.limit_amount == 2_000_000
         assert line.aliases == ["CENTRICA"]
 
-    # Unlinking is still possible, but only when asked for explicitly.
-    unlinked = client.put(
+    # Unlinking is still possible, but only when asked for explicitly: an empty list alone
+    # is what a form that never loaded the links sends (QA-R-01).
+    bare = client.put(
         path,
         json={"name": "Centrica plc", "limit_amount": 2_000_000, "contract_ids": []},
+        headers=_h(who, "risk"),
+    )
+    assert bare.status_code == 409 and bare.json()["detail"]["code"] == "unlink_not_confirmed"
+    unlinked = client.put(
+        path,
+        json={"name": "Centrica plc", "limit_amount": 2_000_000, "contract_ids": [],
+              "unlink_contracts": True},
         headers=_h(who, "risk"),
     )
     assert unlinked.json()["data"]["changed"] == ["contract_ids"]

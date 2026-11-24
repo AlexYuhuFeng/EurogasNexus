@@ -2953,6 +2953,7 @@
   "limits.valid_until": "批准有效期至",
   "limits.save": "保存",
   "limits.saved": "已保存并记入审计。",
+  "limits.unlink_confirm": "解除此授信下全部 {{count}} 笔交易的关联。其敞口将归零，相关超限随之解除。",
   "limits.mandate_id": "授权编号",
   "limits.display_name": "姓名",
   "limits.books": "账簿",
