@@ -52,7 +52,7 @@ export function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
-const SURFACES = ["--ds-bg", "--ds-surface", "--ds-surface-2", "--ds-surface-3"];
+const SURFACES = ["--ds-bg", "--ds-surface", "--ds-surface-2", "--ds-surface-3", "--ds-surface-raised", "--ds-surface-overlay"];
 const STATUSES = ["ok", "watch", "breach", "info", "simulated", "stale"];
 const TEXT_ROLES = [
   "--ds-text-1",

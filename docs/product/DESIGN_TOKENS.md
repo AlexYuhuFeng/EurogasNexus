@@ -20,7 +20,7 @@ between themes.
 | Controls | `--ds-control-sm`, `--ds-control`, `--ds-control-touch` | 28 (dense: tables, toolbars), 32 (forms), 44 (coarse pointer) |
 | Rows, chips | `--ds-row`, `--ds-row-header`, `--ds-chip` | 32, 28, 20 px (rows and badges are not controls) |
 | Radius | `--ds-radius-sm` `md` `pill` | 4 (controls, cells, badges), 8 (panels, popovers, dialogs), 999 (pills, avatars) |
-| Elevation | `--ds-shadow-pop`, `--ds-shadow-modal`, `--ds-focus` | two shadows only; panels use a border |
+| Elevation | `--ds-shadow-pop`, `--ds-shadow-modal`, `--ds-focus`; `--ds-surface-raised`, `--ds-surface-overlay` | two shadows only, each paired with its surface; panels use a border |
 | Focus | `--ds-focus` (ring), `--ds-focus-outline`, `--ds-focus-offset` | every focus rule pairs the ring with a 2 px transparent outline, which Windows High Contrast paints in the system colour after it drops box-shadow; `design-system.css` ends with a small `forced-colors` block (badges, selected row, dialogs). `tests/forcedColorsFocus.test.ts` |
 | Icons | `--ds-icon-xs` `sm` `md`, `--ds-icon-stroke` | 12 (status chips), 16 (inside controls), 20 (beside headings) px, stroke 1.75. Every icon is drawn by `Icon` (`components/ui/Icon.tsx`) from one licensed set, Lucide (ISC), curated by name; a glyph character (×, ▾, ‹) or a hand-drawn `<svg>` in a component fails `tests/iconSet.test.ts` |
 | Motion | `--ds-duration-fast` `base` `slow` `map`, `--ds-ease-out`; `--ds-duration-flash` | 80, 160, 240, 400 ms; off under reduced motion. A live cell's tick is a neutral 400 ms flash; its direction is a ▲/▼ that stays (`DirectionMark`) |
@@ -82,6 +82,7 @@ to be deleted.
 | Role | Tokens |
 |---|---|
 | Surfaces, lowest to highest | `--ds-bg`, `--ds-surface`, `--ds-surface-2` (hover, header), `--ds-surface-3` (pressed) |
+| Elevated surfaces | `--ds-surface-raised` with `--ds-shadow-pop` (popovers, menus, the alert drawer, docked map cards), `--ds-surface-overlay` with `--ds-shadow-modal` (dialogs, sheets, the command palette, the sign-in card). In light mode both are `--ds-surface` and the shadow lifts them; in dark mode they step lighter (OKLCH L 0.225, 0.251 against 0.186) and the shadow gains a 1 px top highlight, because a shadow barely shows on a dark ground. Inside a raised surface in dark mode, hover and pressed fills step up from its level. `tests/surfaceElevation.test.ts` |
 | Lines | `--ds-border-subtle` (between rows), `--ds-border` (around surfaces), `--ds-border-strong` (around controls) |
 | Text | `--ds-text-1`, `--ds-text-2`, `--ds-text-3`, `--ds-text-disabled` |
 | Action and selection | `--ds-accent`, `--ds-accent-hover`, `--ds-on-accent`, `--ds-accent-soft` (selected row), `--ds-focus-ring` |
@@ -90,6 +91,7 @@ to be deleted.
 | Status | `--ds-status-{ok,watch,breach,info,simulated,stale}` and each `-soft` background |
 | Profit and loss | `--pnl-up`, `--pnl-down`; `--pnl-profit` / `--pnl-loss` follow the user's convention (`data-pnl="red_up"` swaps meaning, not colours; `data-pnl="blue_orange"`, the colour-vision friendly scheme, makes profit, up and "ok" blue and loss and down orange, so no meaning rests on green against red) |
 | Chart series | `--ds-series-1` … `--ds-series-8`, each at least 3:1 against the surface; neighbours, and any two of the first four, at least CIEDE2000 10 apart under normal vision and simulated deuteranopia, protanopia and tritanopia (Machado 2009) |
+| Dark neutrals | the surfaces, lines and secondary text keep the zinc lightness steps but lean to the brand navy (OKLCH hue about 263, chroma 0.006 to 0.012): the dark theme reads as Eurogas without colouring any data |
 | Brand | `--ds-brand-navy`, `--ds-brand-navy-deep` (the installer, splash and sign-in panel), `--ds-brand-blue` (`#1d4ed8`, the light theme's accent) and `--ds-brand-blue-light` (`#6ea8fe`, the dark theme's accent), `--ds-on-brand*` (text on navy). Fixed in both themes: they colour the mark, not the interface. See [BRAND_MARK.md](BRAND_MARK.md) |
 
 Simulated has its own colour (violet), so a simulated-price banner is never read as a warning

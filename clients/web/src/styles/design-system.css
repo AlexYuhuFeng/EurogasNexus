@@ -1280,7 +1280,7 @@
     overflow-y: auto;
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-md);
-    background: var(--ds-surface);
+    background: var(--ds-surface-raised);
     box-shadow: var(--ds-shadow-pop);
     padding: var(--ds-space-4);
     color: var(--ds-text-1);
@@ -1924,7 +1924,7 @@
     padding: var(--ds-space-3);
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-sm);
-    background: var(--ds-surface);
+    background: var(--ds-surface-overlay);
     box-shadow: var(--ds-shadow-modal);
   }
 
@@ -3123,7 +3123,7 @@
     overflow: hidden;
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-md);
-    background: var(--ds-surface);
+    background: var(--ds-surface-overlay);
     box-shadow: var(--ds-shadow-modal);
     animation: ds-enter var(--ds-duration-slow) var(--ds-ease-out) both;
   }
@@ -3253,7 +3253,7 @@
     padding: var(--ds-space-3);
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-md);
-    background: var(--ds-surface);
+    background: var(--ds-surface-raised);
     box-shadow: var(--ds-shadow-pop);
     color: var(--ds-text-1);
     font-size: var(--ds-text-sm);
@@ -3916,7 +3916,7 @@
     padding: var(--ds-space-3);
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-sm);
-    background: var(--ds-surface);
+    background: var(--ds-surface-raised);
     box-shadow: var(--ds-shadow-pop);
   }
 
@@ -4493,6 +4493,19 @@
 /* Windows High Contrast and other forced-colour modes (MDN: small, targeted tweaks, not a second
    design). Box-shadow is removed there, so anything drawn with one gets a system-colour
    border or outline instead; the focus outline itself comes from --ds-focus-outline. */
+@layer ds-components {
+  /* UX R4: in dark mode a raised surface sits at the lightness of --ds-surface-2, so the hover
+     and pressed fills inside it (quiet buttons, list rows) step up from its own level instead.
+     An overlay is lighter still, so the panel greys read as a step down there and need nothing.
+     In light mode the elevated surfaces are the surface and this does not apply. */
+  :root.dark :is(.ds-popover, .first-use-hint, .converted-value, .map-detail-panel, .topbar-status-panel,
+    .ds-ipicker-panel, .topbar-preferences-popover, .alert-drawer,
+    [data-width-class="medium"] .app-header .topbar-context-disclosure-content) {
+    --ds-surface-2: color-mix(in oklab, var(--ds-surface-raised), var(--ds-text-1) 6%);
+    --ds-surface-3: color-mix(in oklab, var(--ds-surface-raised), var(--ds-text-1) 12%);
+  }
+}
+
 @layer ds-components {
   @media (forced-colors: active) {
     :focus-visible {

@@ -200,7 +200,7 @@
     overflow: auto;
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-md);
-    background: var(--ds-surface);
+    background: var(--ds-surface-raised);
     color: var(--ds-text-1);
     box-shadow: var(--ds-shadow-pop);
     font-size: var(--ds-text-sm);
@@ -303,7 +303,7 @@
     padding: 0;
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-md);
-    background: var(--ds-surface);
+    background: var(--ds-surface-overlay);
     color: var(--ds-text-1);
     box-shadow: var(--ds-shadow-modal);
   }

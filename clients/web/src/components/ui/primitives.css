@@ -389,7 +389,7 @@
     padding: var(--ds-space-2) var(--ds-space-3);
     border: 1px solid var(--ds-border-strong);
     border-radius: var(--ds-radius-md);
-    background: var(--ds-surface);
+    background: var(--ds-surface-raised);
     box-shadow: var(--ds-shadow-pop);
     color: var(--ds-text-1);
     font-size: var(--ds-text-sm);
@@ -503,7 +503,7 @@
     padding: var(--ds-space-1) var(--ds-space-2);
     border: 1px solid var(--ds-border);
     border-radius: var(--ds-radius-sm);
-    background: var(--ds-surface);
+    background: var(--ds-surface-raised);
     color: var(--ds-text-2);
     box-shadow: var(--ds-shadow-pop);
   }

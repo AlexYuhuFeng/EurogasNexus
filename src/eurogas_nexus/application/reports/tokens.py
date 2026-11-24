@@ -46,14 +46,14 @@ LIGHT: dict[str, str] = {
 
 #: Dark theme (screen only, under ``prefers-color-scheme: dark``).
 DARK: dict[str, str] = {
-    "bg": "#0b0b0d",
-    "surface": "#131316",
-    "surface-2": "#1a1a1e",
-    "border-subtle": "#1f1f23",
-    "border": "#2a2a30",
+    "bg": "#0a0b0e",
+    "surface": "#111317",
+    "surface-2": "#181b1f",
+    "border-subtle": "#1d2024",
+    "border": "#282b30",
     "text-1": "#f4f4f5",
-    "text-2": "#a8a8b3",
-    "text-3": "#9393a0",
+    "text-2": "#a5a9b1",
+    "text-3": "#91959c",
     "accent": "#6ea8fe",
     "positive": "#4ade80",
     "negative": "#f87171",

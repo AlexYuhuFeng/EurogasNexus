@@ -43,7 +43,7 @@ All twelve recommendations are adopted. Order, by user impact and risk:
 3. R2 direction shown by ▲/▼ and the signed change; the flash keyed to the instrument. **Done** (wip/ux).
 4. R3 one formatter per measure (proper minus sign, unit spacing) and a lint. **Done** (wip/ux).
 5. R9 one licensed icon set (Lucide, ISC) behind one `Icon` component; status by shape and colour. **Done** (wip/ux).
-6. R4 raised and overlay surfaces in dark mode; a slight brand tint.
+6. R4 raised and overlay surfaces in dark mode; a slight brand tint. **Done** (wip/ux).
 7. R10 one source of truth for motion, radii and control heights; exit easing.
 8. R11 a Comfortable/Compact density preference (row height only).
 9. R8 the command palette finds hubs, contracts, cargoes and vessels.

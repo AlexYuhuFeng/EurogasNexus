@@ -92,6 +92,11 @@
   --ds-surface: #ffffff;
   --ds-surface-2: #f4f4f5; /* raised row, hover, table header */
   --ds-surface-3: #e9e9ec; /* pressed, selected neutral */
+  /* Elevated surfaces (UX R4), each paired with its shadow: raised for popovers, menus and
+     docked cards (--ds-shadow-pop), overlay for dialogs, sheets and the command palette
+     (--ds-shadow-modal). In light mode the shadow alone lifts them, so they are the surface. */
+  --ds-surface-raised: var(--ds-surface);
+  --ds-surface-overlay: var(--ds-surface);
   /* Lines. */
   --ds-border-subtle: #efeff1; /* between rows */
   --ds-border: #e4e4e7;        /* around surfaces */
@@ -256,17 +261,22 @@
 
 :root.dark {
   color-scheme: dark;
-  --ds-bg: #0b0b0d;
-  --ds-surface: #131316;
-  --ds-surface-2: #1a1a1e;
-  --ds-surface-3: #242429;
-  --ds-border-subtle: #1f1f23;
-  --ds-border: #2a2a30;
-  --ds-border-strong: #3a3a41;
+  /* The neutrals keep the zinc lightness steps, tinted toward the brand navy (OKLCH hue about
+     263, chroma 0.006 to 0.012), so the dark theme reads as Eurogas without colouring data.
+     Shadows barely show on a dark ground, so the elevated surfaces step lighter (UX R4). */
+  --ds-bg: #0a0b0e;
+  --ds-surface: #111317;
+  --ds-surface-2: #181b1f;
+  --ds-surface-3: #22252a;
+  --ds-surface-raised: #191c20;
+  --ds-surface-overlay: #1f2227;
+  --ds-border-subtle: #1d2024;
+  --ds-border: #282b30;
+  --ds-border-strong: #373b41;
   --ds-text-1: #f4f4f5;
-  --ds-text-2: #a8a8b3;
-  --ds-text-3: #9393a0;
-  --ds-text-disabled: #5c5c66;
+  --ds-text-2: #a5a9b1;
+  --ds-text-3: #91959c;
+  --ds-text-disabled: #5a5d63;
   --ds-accent: #6ea8fe;
   --ds-accent-hover: #93bfff;
   --ds-on-accent: #0b0b0d;
@@ -300,9 +310,10 @@
   --ds-series-7: #38bdf8;
   --ds-series-8: #a8a8b3;
   --ds-scrim: rgb(0 0 0 / 55%);
-  --ds-shadow-pop: 0 1px 2px rgb(0 0 0 / 40%), 0 6px 16px -4px rgb(0 0 0 / 55%);
+  /* A 1 px top highlight marks the lit edge of an elevated surface where a shadow cannot. */
+  --ds-shadow-pop: inset 0 1px 0 color-mix(in oklab, white 6%, transparent), 0 1px 2px rgb(0 0 0 / 40%), 0 6px 16px -4px rgb(0 0 0 / 55%);
   --ds-scroll-shadow: rgb(0 0 0 / 60%);
-  --ds-shadow-modal: 0 2px 6px rgb(0 0 0 / 45%), 0 18px 44px -10px rgb(0 0 0 / 65%);
+  --ds-shadow-modal: inset 0 1px 0 color-mix(in oklab, white 6%, transparent), 0 2px 6px rgb(0 0 0 / 45%), 0 18px 44px -10px rgb(0 0 0 / 65%);
 }
 
 /* The convention swaps which colour means profit; it does not change the colours. */
