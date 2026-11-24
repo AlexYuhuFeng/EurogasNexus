@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import i18n from "i18next";
 import { enumLabel, isStatusCode } from "@/app/model/enumLabels";
+import { Icon } from "./Icon";
 import { statusBadgeClass, type StatusBadgeVariant } from "./statusBadgeClass";
 
 /**
@@ -17,7 +18,8 @@ function badgeText(children: ReactNode, title: string | undefined): { text: Reac
  * The state of a record or a figure, in a short sentence-case label (UX-02).
  *
  * `tone` is the design-system status: ok, watch, breach, info, simulated, stale or neutral. Each
- * has its own colour role (tokens.css) whose text meets AA on its soft background, and the label
+ * has its own colour role (tokens.css) whose text meets AA on its soft background, its own shape
+ * (UX R9: a check in a circle, a triangle, an octagon, an "i", a flask, a clock), and the label
  * always says the state in words, so colour is never the only signal.
  *
  * The older `variant` + `status` form maps a domain's lifecycle constant onto its existing class
@@ -57,6 +59,7 @@ export function StatusBadge(props: StatusBadgeProps) {
     const classes = ["status-badge", "ds-status", className].filter(Boolean).join(" ");
     return (
       <span className={classes} data-tone={props.tone} title={title}>
+        {props.tone !== "neutral" ? <Icon name={`status-${props.tone}`} size="xs" /> : null}
         {children}
       </span>
     );

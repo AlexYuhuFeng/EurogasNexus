@@ -50,21 +50,26 @@ test("Button: loading is busy and cannot be pressed twice; disabled stays disabl
 
 test("IconButton: the label is the accessible name and the tooltip; the glyph is hidden", async () => {
   const { IconButton } = await ui();
-  const html = render(h(IconButton, { label: "Close", icon: "×" }));
+  // UX R9: the icon is a name from the curated Lucide set, drawn as a hidden SVG.
+  const html = render(h(IconButton, { label: "Close", icon: "close" }));
   assert.match(html, /aria-label="Close"/);
   assert.match(html, /title="Close"/);
-  assert.match(html, /<span class="ds-icon" aria-hidden="true">×<\/span>/);
+  assert.match(html, /<svg [^>]*class="lucide lucide-x ds-icon-svg" data-icon="close" data-size="sm" aria-hidden="true" focusable="false">/);
   assert.match(html, /class="ds-button quiet-button ds-size-sm ds-icon-button"/);
   // An explicit tooltip may differ from the name; the name never disappears.
-  assert.match(render(h(IconButton, { label: "Help", icon: "?", title: "Report a problem" })), /aria-label="Help"[^>]*title="Report a problem"/);
+  assert.match(render(h(IconButton, { label: "Help", icon: "info", title: "Report a problem" })), /aria-label="Help"[^>]*title="Report a problem"/);
 });
 
 test("StatusBadge: a tone carries a colour role and the state in words", async () => {
   const { StatusBadge } = await ui();
   for (const tone of ["ok", "watch", "breach", "info", "simulated", "stale", "neutral"] as const) {
     const html = render(h(StatusBadge, { tone }, `state ${tone}`));
-    assert.match(html, new RegExp(`<span class="status-badge ds-status" data-tone="${tone}">state ${tone}</span>`));
+    // UX R9: each status has its own shape before the words (neutral has none).
+    const shape = tone === "neutral" ? "" : `<svg [^>]*data-icon="status-${tone}" data-size="xs"[^>]*>.*?</svg>`;
+    assert.match(html, new RegExp(`<span class="status-badge ds-status" data-tone="${tone}">${shape}state ${tone}</span>`));
   }
+  const shapes = ["ok", "watch", "breach", "info", "simulated", "stale"].map((tone) => render(h(StatusBadge, { tone: tone as "ok" }, "x")).match(/class="lucide ([a-z-]+)/)?.[1]);
+  assert.equal(new Set(shapes).size, 6, `six distinct shapes: ${shapes.join(", ")}`);
   // The domain form keeps its class family for existing call sites.
   assert.equal(
     render(h(StatusBadge, { variant: "job-state", status: "SUCCEEDED" }, "Done")),

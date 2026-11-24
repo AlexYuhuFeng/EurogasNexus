@@ -82,7 +82,7 @@ export function DataProblemNotice({
         </Button>
         <IconButton
           label={t("status.notice_dismiss")}
-          icon="×"
+          icon="close"
           size="sm"
           variant="quiet"
           onClick={() => {

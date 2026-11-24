@@ -126,6 +126,26 @@
     line-height: 1;
   }
 
+  /* ------------------------------------------------------------------- Icon */
+  /* Lucide draws strokes; CSS sets the size and one stroke weight for every icon. */
+  .ds-icon-svg {
+    flex: none;
+    width: var(--ds-icon-sm);
+    height: var(--ds-icon-sm);
+    stroke-width: var(--ds-icon-stroke);
+    vertical-align: middle;
+  }
+
+  .ds-icon-svg[data-size="xs"] {
+    width: var(--ds-icon-xs);
+    height: var(--ds-icon-xs);
+  }
+
+  .ds-icon-svg[data-size="md"] {
+    width: var(--ds-icon-md);
+    height: var(--ds-icon-md);
+  }
+
   /* -------------------------------------------------------- StatusBadge tones */
   .ds-status {
     display: inline-flex;

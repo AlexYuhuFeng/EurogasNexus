@@ -4,6 +4,7 @@ import { SUPPORTED_HUB_IDS } from "@/app/context";
 import { useCompactWidth } from "@/app/shell/useShellLayout";
 import { formatGasDay } from "@/app/time/timeFormat";
 import { Sheet, PeriodPicker } from "@/components/ui";
+import { Icon } from "@/components/ui/Icon";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -112,7 +113,7 @@ export function TradingContextControls({
             title={`${t("context.title")}: ${summary}`}
             onClick={() => setSheetOpen(true)}
           >
-            <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><path d="M2 4h12M4 8h8M6 12h4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+            <Icon name="filter" />
             <span className="trading-context-summary-text">{summary}</span>
           </button>
           <Sheet

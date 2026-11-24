@@ -23,6 +23,7 @@ import {
   type PickerEntry,
   type RecordOption,
 } from "./recordPickerModel";
+import { Icon } from "./Icon";
 
 export type { RecordOption } from "./recordPickerModel";
 
@@ -190,14 +191,14 @@ export function RecordPicker(props: RecordPickerProps) {
       >
         <span id={`${baseId}-value`} className="ds-ipicker-value">{triggerText}</span>
         {manualValue && <span className="ds-ipicker-meta">{t("record_picker.typed")}</span>}
-        <span className="ds-ipicker-caret" aria-hidden="true">▾</span>
+        <Icon name="chevron-down" size="xs" className="ds-ipicker-caret" />
       </button>
       {open && (
         <div className="ds-ipicker-panel" role="dialog" aria-label={label} data-level="hub">
           <div className="ds-ipicker-head">
             <span className="ds-ipicker-title">{label}</span>
             <button type="button" className="ds-ipicker-close" onClick={() => close(true)} aria-label={t("instrument_picker.close")}>
-              <span aria-hidden="true">×</span>
+              <Icon name="close" />
             </button>
           </div>
           <input

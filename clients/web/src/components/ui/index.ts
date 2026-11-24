@@ -1,3 +1,4 @@
+export { Icon, ICONS, type IconName, type IconSize } from "./Icon";
 export { DirectionMark } from "./DirectionMark";
 export { EvidenceBlock } from "./EvidenceBlock";
 export type { EvidenceBlockItem } from "./EvidenceBlock";

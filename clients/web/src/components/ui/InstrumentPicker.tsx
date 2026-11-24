@@ -49,6 +49,7 @@ import {
 } from "@/app/model/instrumentPicker";
 import { displayTime } from "@/app/time/displayTime";
 import { useSimulatedPills } from "./SimulatedScope";
+import { Icon } from "./Icon";
 
 export interface InstrumentPickerProps {
   catalogue: PickerCatalogue | null;
@@ -238,7 +239,7 @@ export function InstrumentPicker({
         <span id={`${baseId}-value`} className="ds-ipicker-value">{loading && !catalogue ? t("instrument_picker.loading") : triggerText}</span>
         {triggerUnit && <span className="ds-ipicker-unit">{triggerUnit}</span>}
         {triggerSimulated && pills && <span className="ds-ipicker-sim" title={t("instrument_picker.simulated_hint")}>{t("instrument_picker.sim")}</span>}
-        <span className="ds-ipicker-caret" aria-hidden="true">▾</span>
+        <Icon name="chevron-down" size="xs" className="ds-ipicker-caret" />
       </button>
       {state.open && (
         <div
@@ -262,7 +263,7 @@ export function InstrumentPicker({
                 className="ds-ipicker-back"
                 onClick={() => setState((current) => ({ ...current, level: "hub", hub: null, kind: null, query: "", active: 0 }))}
               >
-                <span aria-hidden="true">‹ </span>
+                <Icon name="chevron-left" />
                 {t("instrument_picker.back_to_hubs")}
               </button>
             ) : (
@@ -274,7 +275,7 @@ export function InstrumentPicker({
               </span>
             )}
             <button type="button" className="ds-ipicker-close" onClick={() => close(true)} aria-label={t("instrument_picker.close")}>
-              <span aria-hidden="true">×</span>
+              <Icon name="close" />
             </button>
           </div>
           <input
@@ -347,7 +348,7 @@ export function InstrumentPicker({
                     <span className="ds-ipicker-name">{hubName(hub)}</span>
                     <span className="ds-ipicker-meta">{unitLabel(hub.nativeUnit)}</span>
                     {hub.simulated && <span className="ds-ipicker-sim">{t("instrument_picker.sim")}</span>}
-                    {scope === "instrument" && <span className="ds-ipicker-more" aria-hidden="true">›</span>}
+                    {scope === "instrument" && <Icon name="chevron-right" className="ds-ipicker-more" />}
                   </li>
                 );
               }

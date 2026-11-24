@@ -1,5 +1,6 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { findPlaces, type MapFinderPlace } from "@/app/mapFinder";
+import { Icon } from "@/components/ui/Icon";
 
 export type { MapFinderPlace };
 
@@ -47,10 +48,7 @@ export function MapFinder({
         title={t("map.find.label")}
         onClick={() => setOpen(true)}
       >
-        <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
-          <circle cx="7" cy="7" r="4.6" fill="none" stroke="currentColor" strokeWidth="1.6" />
-          <path d="M10.4 10.4 14 14" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-        </svg>
+        <Icon name="search" />
       </button>
     );
   }

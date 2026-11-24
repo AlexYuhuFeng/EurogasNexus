@@ -14,7 +14,7 @@ licences.
 | Ecosystem | Packages | Copyleft / non-commercial | Notes |
 |---|---|---|---|
 | Python (runtime and dev locks) | 45 | 0 | `certifi` CA bundle is MPL-2.0; `pypdf` (contract intake, added 2026-10-31) is BSD-3-Clause |
-| npm (web and desktop locks) | 102 | 0 | `lightningcss` (build-time CSS tool) is MPL-2.0; `uplot` (charts, added 2026-11-16) is MIT |
+| npm (web and desktop locks) | 103 | 0 | `lightningcss` (build-time CSS tool) is MPL-2.0; `uplot` (charts, added 2026-11-16) is MIT; `lucide-react` (icons, added 2026-11-24) is ISC |
 | Rust (desktop crate graph) | 434 | 0 | `cssparser`, `cssparser-macros`, `selectors`, `dtoa-short`, `option-ext` are MPL-2.0; `r-efi` uses its reviewed MIT branch (RCLC-0001/0002) |
 
 No dependency had to be replaced. MPL-2.0 is file-level copyleft: the files may be
@@ -58,6 +58,19 @@ Non-code assets:
 
 Optional OCR for scanned contracts calls a Tesseract binary (Apache-2.0) that the customer
 installs; the product neither bundles it nor any GPL tool such as Poppler.
+
+## Icon set (UX R9, 2026-11-24)
+
+`lucide-react` 1.79.0, pinned exactly, is the one icon set. Licence: ISC for the package and
+the Lucide icons; the icons it inherits from Feather are MIT (both texts are in the package's
+`LICENSE`). Both permit proprietary commercial use and redistribution with the notice kept.
+Runtime packages pulled in: 1 (its only peer is React, already a dependency). Each icon is a
+separate ES module, so the bundle carries only the names `components/ui/Icon.tsx` imports.
+
+Purpose: every icon in the web and desktop clients, behind one `Icon` component. Scope:
+runtime. Network, process, data or deployment risk: none (inline SVG, no requests, no fonts).
+It is recorded in `clients/web/package-lock.json` (audited by the fail-closed npm gate) and in
+`THIRD_PARTY_NOTICES.md` (`web-node`, regenerated with `scripts/release/generate_sboms.py`).
 
 Data-provider terms, which carry more commercial risk here than code licences, are in
 [DATA_SOURCE_TERMS.md](DATA_SOURCE_TERMS.md).

@@ -48,6 +48,7 @@ import type { MapCargoDTO } from "@/api/client";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
 import { Segmented } from "@/components/ui";
+import { Icon } from "@/components/ui/Icon";
 
 type Translate = (key: string) => string;
 
@@ -750,9 +751,7 @@ export function NetworkWorkspace({
           title={compactLayout ? t("map.reset") : undefined}
         >
           {compactLayout ? (
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
-              <path d="M13 8a5 5 0 1 1-1.5-3.6M13 2.5v2.5h-2.5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <Icon name="reset" />
           ) : t("map.reset")}
         </button>
         {!controlsInSheet && layerChips}
@@ -766,12 +765,7 @@ export function NetworkWorkspace({
           onClick={fullscreen.toggle}
         >
           {compactLayout ? (
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
-              <path
-                d={fullscreen.active ? "M6 2v4H2M10 2v4h4M6 14v-4H2M10 14v-4h4" : "M2 6V2h4M14 6V2h-4M2 10v4h4M14 10v4h-4"}
-                fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"
-              />
-            </svg>
+            <Icon name={fullscreen.active ? "exit-full-screen" : "full-screen"} />
           ) : t(fullscreen.active ? "map.fullscreen.exit" : "map.fullscreen.enter")}
         </button>
         {fullscreen.active && (
@@ -950,10 +944,7 @@ export function NetworkWorkspace({
               setLegendOpen((open) => !open);
             }}
           >
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
-              <circle cx="8" cy="8" r="6.2" fill="none" stroke="currentColor" strokeWidth="1.4" />
-              <path d="M8 7.2v4M8 4.8v.1" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
-            </svg>
+            <Icon name="info" />
           </button>
         )}
         {mapHasVisibleEvidence && legendOpen && <div className="map-visual-legend" aria-label={t("map.visual_legend")}>

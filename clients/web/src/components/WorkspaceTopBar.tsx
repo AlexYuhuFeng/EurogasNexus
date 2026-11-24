@@ -34,6 +34,7 @@ import { resolveComposition } from "@/app/experience/roleComposition";
 import { useDeskToday } from "@/app/hooks/useDeskToday";
 import { focusFigure } from "./TodayScreen";
 import "./WorkspaceTopBar.css";
+import { Icon } from "@/components/ui/Icon";
 
 interface WorkspaceTopBarProps {
   activeWorkspace: WorkspacePageId;
@@ -223,7 +224,7 @@ export function WorkspaceTopBar({
               <span>{menuLabel}</span>
             </span>
           ) : null}
-          <svg className="topbar-menu-chevron" aria-hidden="true" width="12" height="12" viewBox="0 0 12 12"><path d="M3 4.5l3 3 3-3" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
+          <Icon name="chevron-down" size="xs" className="topbar-menu-chevron" />
         </button>
       ) : (
         <span className="topbar-brand-group">
@@ -312,7 +313,7 @@ export function WorkspaceTopBar({
           onClick={onOpenCommandPalette}
           aria-keyshortcuts={keyboardHints ? "Control+K Meta+K" : undefined}
         >
-          <svg className="topbar-command-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 18 18"><circle cx="8" cy="8" r="5.2" fill="none" stroke="currentColor" strokeWidth="1.6" /><path d="M12 12l4 4" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" /></svg>
+          <Icon name="search" className="topbar-command-icon" />
           {/* Search says so in words wherever there is room (a magnifier alone was unclear). */}
           <span className="topbar-command-label">{widthClass === "wide" ? t("topbar.command") : t("topbar.search")}</span>
           {keyboardHints && <kbd aria-hidden="true">{shortcutLabel}</kbd>}

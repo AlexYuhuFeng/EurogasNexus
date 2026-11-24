@@ -529,7 +529,7 @@ Package counts and the SHA-256 of every lock input are recorded in
 
 ## web-node
 
-90 packages recorded: 90 with a lock-declared license expression, 0 unknown (`NOASSERTION`), 0 exact reviewed choice(s).
+91 packages recorded: 91 with a lock-declared license expression, 0 unknown (`NOASSERTION`), 0 exact reviewed choice(s).
 
 - @babel/runtime 7.29.7 (MIT)
 - @emnapi/core 1.11.1 (MIT)
@@ -594,6 +594,7 @@ Package counts and the SHA-256 of every lock input are recorded in
 - lightningcss-linux-x64-musl 1.32.0 (MPL-2.0)
 - lightningcss-win32-arm64-msvc 1.32.0 (MPL-2.0)
 - lightningcss-win32-x64-msvc 1.32.0 (MPL-2.0)
+- lucide-react 1.79.0 (ISC)
 - maplibre-gl 6.10.0 (BSD-3-Clause)
 - minimist 1.2.8 (MIT)
 - murmurhash-js 1.0.0 (MIT)

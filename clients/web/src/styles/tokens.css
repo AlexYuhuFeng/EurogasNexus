@@ -62,7 +62,13 @@
   --ds-chip: 20px;          /* badges and status chips: not controls */
   --ds-row: 32px;           /* table and list rows */
   --ds-row-header: 28px;    /* table header row */
-  --ds-icon: 16px;
+  --ds-icon: 16px;          /* the box an IconButton draws its icon in */
+  /* Icons (Icon.tsx, Lucide): 12 px in status chips only, 16 px in controls, 20 px beside a
+     heading; one stroke weight for every icon so mixed sources never show. */
+  --ds-icon-xs: 12px;
+  --ds-icon-sm: 16px;
+  --ds-icon-md: 20px;
+  --ds-icon-stroke: 1.75;
   --ds-control-pad-sm: 8px;
   --ds-control-pad: 12px;
 

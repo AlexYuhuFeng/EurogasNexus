@@ -27,6 +27,7 @@ import { CapacityWorkspace, buildOperatingRows, type CapacityWorkspaceProps, typ
 import { DataGrid, Segmented, StatusBadge, WorkspaceTabs, type DataGridColumn } from "@/components/ui";
 import { ReportLink } from "@/components/ReportLink";
 import { WhyButton } from "@/components/WhyButton";
+import { Icon } from "@/components/ui/Icon";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -373,9 +374,7 @@ export function NetworkInfoPanel({
           title={t("network.panel.expand")}
           onClick={() => onExpand?.(tab)}
         >
-          <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
-            <path d="M10 3 5 8l5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-          </svg>
+          <Icon name="chevron-left" />
         </button>
         <nav className="network-panel-rail" aria-label={t("network.panel.rail_label")}>
           {tabs.map((item) => (
@@ -406,9 +405,7 @@ export function NetworkInfoPanel({
             title={t("network.panel.collapse")}
             onClick={onCollapse}
           >
-            <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true" focusable="false">
-              <path d="M6 3l5 5-5 5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" />
-            </svg>
+            <Icon name="chevron-right" />
           </button>
         )}
         <WorkspaceTabs
@@ -429,7 +426,7 @@ export function NetworkInfoPanel({
         <p className="network-panel-scope" data-panel-scope={scope.label}>
           <span>{t("network.panel.showing", { name: scope.kind === "zone" ? t("network.panel.zone", { hub: scope.label }) : scope.label })}</span>
           <button type="button" className="network-panel-scope-clear" onClick={onClearScope} aria-label={t("network.panel.clear_selection")} title={t("network.panel.clear_selection")}>
-            ×
+            <Icon name="close" />
           </button>
         </p>
       )}

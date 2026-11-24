@@ -35,6 +35,7 @@ import { useShellLayout } from "@/app/shell/useShellLayout";
 import { CONNECTOR_GROUPS, groupConnectors } from "@/app/model/connectorCatalogModel";
 import { formatRecordCount as recordCount } from "@/app/model/recordCount";
 import { formatMeasure } from "@/app/time/valueFormat";
+import { Icon } from "@/components/ui/Icon";
 
 interface SourceStats {
   total: number;
@@ -601,7 +602,7 @@ export function SourceCenter({
       >
         {compact && detailSheetOpen && (
           <button type="button" className="inspector-sheet-back" onClick={closeSheet}>
-            <span aria-hidden="true">‹</span> {t("experience.inspector.back")}
+            <Icon name="chevron-left" /> {t("experience.inspector.back")}
           </button>
         )}
         <div ref={detailHeadingRef} tabIndex={-1} className="source-detail-focus">

@@ -77,6 +77,7 @@ import { buildSites, siteOf, sitePipelines, siteSituation, type MapSelection, ty
 import { useApiStore } from "@/stores/api";
 import { useShellLayout } from "@/app/shell/useShellLayout";
 import { plainDecimal } from "@/app/time/valueFormat";
+import { Icon } from "@/components/ui/Icon";
 
 // Let Vite resolve and bundle the module worker and its shared imports in both dev and build.
 // MapLibre's default relative URL otherwise points inside Vite's optimized dependency cache.
@@ -2695,7 +2696,7 @@ export function GasNetworkMap({
                 title={t("map.tier.dismiss")}
                 onClick={hideTierHint}
               >
-                ×
+                <Icon name="close" />
               </button>
             </>
           )}

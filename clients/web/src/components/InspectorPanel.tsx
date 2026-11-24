@@ -20,6 +20,7 @@ import type { InspectorSubject } from "@/app/experience/inspectorContract";
 import { useShellLayout } from "@/app/shell/useShellLayout";
 import { Sheet } from "@/components/ui";
 import type { InspectorDetail } from "@/app/model/inspectorDetail";
+import { Icon } from "@/components/ui/Icon";
 
 interface InspectorPanelProps {
   subject: InspectorSubject;
@@ -96,7 +97,7 @@ export function InspectorPanel({
         dataAttributes={{ "data-shell-region": "inspector" }}
         headerStart={
           <button type="button" className="inspector-sheet-back" onClick={canGoBack ? onBack : onClose}>
-            <span aria-hidden="true">‹</span> {t("experience.inspector.back")}
+            <Icon name="chevron-left" /> {t("experience.inspector.back")}
           </button>
         }
       >
@@ -121,8 +122,8 @@ export function InspectorPanel({
               {t("experience.inspector.back")}
             </button>
           )}
-          <button type="button" aria-label={t("experience.inspector.close")} onClick={onClose}>
-            ×
+          <button type="button" aria-label={t("experience.inspector.close")} title={t("experience.inspector.close")} onClick={onClose}>
+            <Icon name="close" />
           </button>
         </div>
       </header>

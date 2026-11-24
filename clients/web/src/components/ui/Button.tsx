@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { Icon, type IconName } from "./Icon";
 
 /**
  * The one button (UX-02). Four meanings, two heights:
@@ -64,8 +65,8 @@ export function Button({
 export interface IconButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement>, "type" | "children" | "aria-label"> {
   /** The accessible name, also shown as the tooltip: an icon alone names nothing. */
   label: string;
-  /** The glyph or SVG; hidden from assistive technology, which reads `label`. */
-  icon: ReactNode;
+  /** An icon from the curated set (Icon.tsx); hidden from assistive technology, which reads `label`. */
+  icon: IconName;
   size?: ControlSize;
   variant?: Exclude<ButtonVariant, "primary" | "danger">;
   type?: "button" | "submit" | "reset";
@@ -90,7 +91,7 @@ export function IconButton({
       aria-label={label}
       title={title ?? label}
     >
-      <span className="ds-icon" aria-hidden="true">{icon}</span>
+      <Icon name={icon} size={size === "md" ? "md" : "sm"} />
     </button>
   );
 }

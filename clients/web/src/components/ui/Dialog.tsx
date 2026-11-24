@@ -172,7 +172,7 @@ export function Dialog({
             </div>
             {headerActions ? <div className="ds-dialog-head-actions">{headerActions}</div> : null}
             {hideClose ? null : (
-              <IconButton className="ds-dialog-close" size="md" label={closeLabel} icon="×" onClick={() => onCloseRef.current()} />
+              <IconButton className="ds-dialog-close" size="md" label={closeLabel} icon="close" onClick={() => onCloseRef.current()} />
             )}
           </header>
           <div className="ds-dialog-body">{children}</div>

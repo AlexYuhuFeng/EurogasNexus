@@ -13,6 +13,7 @@ import {
   type MapSelection,
   type Site,
 } from "@/app/mapSelection";
+import { Icon } from "@/components/ui/Icon";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -331,7 +332,7 @@ export function MapDetailPanel({
   const node = site?.members.find((member) => member.kind === "node");
   return (
     <aside className="map-detail-panel" aria-label={t("map.detail.title")}>
-      <button type="button" className="map-detail-close link-button" onClick={onClose} aria-label={t("map.detail.close")}>×</button>
+      <button type="button" className="map-detail-close link-button" onClick={onClose} aria-label={t("map.detail.close")} title={t("map.detail.close")}><Icon name="close" /></button>
       {body}
       {bookReasons && bookReasons.length > 0 && (
         <Section title={t("map.book.why")}>

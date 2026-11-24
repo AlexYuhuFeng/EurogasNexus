@@ -22,6 +22,7 @@ between themes.
 | Radius | `--ds-radius-sm` `md` `pill` | 4 (controls, cells, badges), 8 (panels, popovers, dialogs), 999 (pills, avatars) |
 | Elevation | `--ds-shadow-pop`, `--ds-shadow-modal`, `--ds-focus` | two shadows only; panels use a border |
 | Focus | `--ds-focus` (ring), `--ds-focus-outline`, `--ds-focus-offset` | every focus rule pairs the ring with a 2 px transparent outline, which Windows High Contrast paints in the system colour after it drops box-shadow; `design-system.css` ends with a small `forced-colors` block (badges, selected row, dialogs). `tests/forcedColorsFocus.test.ts` |
+| Icons | `--ds-icon-xs` `sm` `md`, `--ds-icon-stroke` | 12 (status chips), 16 (inside controls), 20 (beside headings) px, stroke 1.75. Every icon is drawn by `Icon` (`components/ui/Icon.tsx`) from one licensed set, Lucide (ISC), curated by name; a glyph character (×, ▾, ‹) or a hand-drawn `<svg>` in a component fails `tests/iconSet.test.ts` |
 | Motion | `--ds-duration-fast` `base` `slow` `map`, `--ds-ease-out`; `--ds-duration-flash` | 80, 160, 240, 400 ms; off under reduced motion. A live cell's tick is a neutral 400 ms flash; its direction is a ▲/▼ that stays (`DirectionMark`) |
 
 These follow the review's M.2 scale. Where it left a choice: `md` is 15 px for panel titles and
@@ -182,8 +183,9 @@ In `clients/web/src/components/ui/`, styled by `primitives.css` (tokens only):
 | Primitive | Notes |
 |---|---|
 | `Button` | `primary`, `secondary`, `quiet`, `danger`; `sm` 28 / `md` 32; `type` always explicit; loading is busy and disabled; disabled looks disabled |
-| `IconButton` | required `label` is the accessible name and tooltip; glyph hidden from screen readers |
-| `StatusBadge` | `tone`: ok, watch, breach, info, simulated, stale, neutral; the older `variant`/`status` form still works |
+| `Icon` | `name` from the curated set (close, chevrons, sort, search, alerts, calendar, filter, reset, full screen, info, and one shape per status), `size` xs/sm/md; always `aria-hidden`: the control or the text beside it names it |
+| `IconButton` | `icon` is an `Icon` name; required `label` is the accessible name and tooltip; the icon is hidden from screen readers |
+| `StatusBadge` | `tone`: ok, watch, breach, info, simulated, stale, neutral; each tone but neutral leads with its own shape (ok a check in a circle, watch a triangle, breach an octagon, stale a clock, simulated a flask, info an "i"), so a state never rests on colour; the older `variant`/`status` form still works |
 | `KeyFigure` | label, value (tabular), unit, optional delta (P&L convention), age and non-current state in words; `MetricStrip` renders its items with it. `notes` puts "Why" and "Method" on the label line as quiet inline links (`inline` on `WhyButton`/`MethodNote`), so a figure has one height with or without them; a position is signed (+/−) in neutral ink, never in P&L colour |
 | `Panel` | title row with meta and actions slot, body; the section is labelled by its title |
 | `EmptyState` | cause, next step, one action; `compact` one-line form |

@@ -33,6 +33,7 @@ import {
   type DayValue,
   type PeriodKind,
 } from "./periodModel";
+import { Icon } from "./Icon";
 
 export interface PeriodPickerProps {
   kind?: PeriodKind;
@@ -89,7 +90,7 @@ export function PeriodPicker({
           data-period-value={value}
         >
           <span className={shown ? undefined : "ds-period-placeholder"}>{shown || placeholder || t("period.choose")}</span>
-          <svg aria-hidden="true" width="14" height="14" viewBox="0 0 16 16"><rect x="2" y="3" width="12" height="11" rx="1.5" fill="none" stroke="currentColor" strokeWidth="1.4" /><path d="M2 6.5h12M5 1.5v3M11 1.5v3" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" /></svg>
+          <Icon name="calendar" />
         </button>
       )}
     >
@@ -160,9 +161,9 @@ function DayCalendar({
   return (
     <div className="ds-period-calendar">
       <div className="ds-period-head">
-        <button type="button" className="ds-period-nav" aria-label={t("period.previous_month")} onClick={() => setFocus(clampDay(addMonths(focus, -1), min, max))}>‹</button>
+        <button type="button" className="ds-period-nav" aria-label={t("period.previous_month")} title={t("period.previous_month")} onClick={() => setFocus(clampDay(addMonths(focus, -1), min, max))}><Icon name="chevron-left" /></button>
         <strong id={headingId} aria-live="polite">{monthYearLabel(focus.year, focus.month, language)}</strong>
-        <button type="button" className="ds-period-nav" aria-label={t("period.next_month")} onClick={() => setFocus(clampDay(addMonths(focus, 1), min, max))}>›</button>
+        <button type="button" className="ds-period-nav" aria-label={t("period.next_month")} title={t("period.next_month")} onClick={() => setFocus(clampDay(addMonths(focus, 1), min, max))}><Icon name="chevron-right" /></button>
       </div>
       <table ref={gridRef} role="grid" aria-labelledby={headingId} className="ds-period-grid" onKeyDown={onKeyDown}>
         <thead>
@@ -265,9 +266,9 @@ function MonthGrid({
   return (
     <div className="ds-period-calendar">
       <div className="ds-period-head">
-        <button type="button" className="ds-period-nav" aria-label={t("period.previous_year")} onClick={() => setYear(year - 1)}>‹</button>
+        <button type="button" className="ds-period-nav" aria-label={t("period.previous_year")} title={t("period.previous_year")} onClick={() => setYear(year - 1)}><Icon name="chevron-left" /></button>
         <strong aria-live="polite">{year}</strong>
-        <button type="button" className="ds-period-nav" aria-label={t("period.next_year")} onClick={() => setYear(year + 1)}>›</button>
+        <button type="button" className="ds-period-nav" aria-label={t("period.next_year")} title={t("period.next_year")} onClick={() => setYear(year + 1)}><Icon name="chevron-right" /></button>
       </div>
       <div ref={gridRef} className="ds-period-months" role="group" aria-label={String(year)} onKeyDown={onKeyDown}>
         {Array.from({ length: 12 }, (_, index) => index + 1).map((month) => (

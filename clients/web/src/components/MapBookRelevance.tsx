@@ -3,6 +3,7 @@ import type { BookOpportunityPathDTO, BookProposalDTO, BookRelevanceDTO } from "
 import { benefitLabel, groupOpportunities, opportunityLabel, reachableLine, reasonLine, type Translate } from "@/app/mapBookRelevance";
 import { formatDeliveryMonth, formatInstant } from "@/app/time/timeFormat";
 import { formatMeasure } from "@/app/time/valueFormat";
+import { Icon } from "@/components/ui/Icon";
 
 /** The reasons the opportunity core accepts for a dismissal (domain DismissReason). */
 const DISMISS_REASONS = [
@@ -117,7 +118,7 @@ export function OpportunityCard({
   };
   return (
     <aside className="map-detail-panel map-opportunity-card" aria-label={t("map.book.opportunity")}>
-      <button type="button" className="map-detail-close link-button" onClick={onClose} aria-label={t("map.detail.close")}>×</button>
+      <button type="button" className="map-detail-close link-button" onClick={onClose} aria-label={t("map.detail.close")} title={t("map.detail.close")}><Icon name="close" /></button>
       <header className="map-detail-header">
         <h3>{item.claim}</h3>
         <div className="map-detail-roles">

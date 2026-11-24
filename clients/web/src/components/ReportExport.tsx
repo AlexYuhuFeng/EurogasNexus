@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import { downloadReport, type ReportFormat } from "@/api/client";
 import { Popover } from "@/components/ui/Popover";
+import { Icon } from "@/components/ui/Icon";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -40,7 +41,7 @@ export function ReportExport({
         className="report-export-menu"
         trigger={(props) => (
           <button {...props} type="button" className="report-export" aria-busy={busy !== null} disabled={busy !== null}>
-            {t("report.export")} <span aria-hidden="true">▾</span>
+            {t("report.export")} <Icon name="chevron-down" />
           </button>
         )}
       >

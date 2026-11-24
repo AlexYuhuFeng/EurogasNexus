@@ -57,6 +57,7 @@ import {
   type SortState,
   type SortValue,
 } from "./dataGridModel";
+import { Icon } from "./Icon";
 
 export { phoneColumnSplit };
 
@@ -265,7 +266,7 @@ function RowView<R>({ row, rowId, columns, spans, index, tabbable, interactive, 
             title={detailsLabel}
             onClick={() => onToggle?.(rowId)}
           >
-            <span aria-hidden="true">{expanded ? "▾" : "▸"}</span>
+            <Icon name={expanded ? "chevron-down" : "chevron-right"} />
           </button>
         </td>
       ) : null}
@@ -458,7 +459,7 @@ export function DataGrid<R>({
                     <button type="button" className="ds-grid-sort" onClick={() => pressSort(column)} data-sorted={sorted}>
                       {heading}
                       <span className="ds-grid-sort-mark" aria-hidden="true">
-                        {sorted === "ascending" ? "▲" : sorted === "descending" ? "▼" : ""}
+                        {sorted ? <Icon name={sorted === "ascending" ? "sort-ascending" : "sort-descending"} size="xs" /> : null}
                       </span>
                     </button>
                   ) : (

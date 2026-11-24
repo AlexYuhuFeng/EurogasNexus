@@ -35,6 +35,7 @@ import {
 } from "@/app/model/copilotModel";
 import { useCopilot, useCopilotSources, type CopilotController } from "@/app/hooks/useCopilot";
 import "./copilot-panel.css";
+import { Icon } from "@/components/ui/Icon";
 
 type Translate = (key: string) => string;
 
@@ -83,8 +84,8 @@ export function CopilotPanel({
           <button type="button" onClick={onClose}>
             {t("experience.copilot.back")}
           </button>
-          <button type="button" aria-label={t("experience.copilot.close")} onClick={onClose}>
-            ×
+          <button type="button" aria-label={t("experience.copilot.close")} title={t("experience.copilot.close")} onClick={onClose}>
+            <Icon name="close" />
           </button>
         </div>
       </header>
