@@ -151,25 +151,30 @@ def list_quotes(
         )
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
+        from eurogas_nexus.application.price_resolver import attach_resolved, open_price_book
         from eurogas_nexus.db.session import get_session_factory
 
+        now = datetime.now(UTC)
         with get_session_factory()() as session:
-            rows = market_quotes(
-                session,
-                hub=hub,
-                product=product,
-                source_system=source_system,
-                limit=limit,
+            rows = _filter_entitled_rows(
+                request,
+                market_quotes(
+                    session,
+                    hub=hub,
+                    product=product,
+                    source_system=source_system,
+                    limit=limit,
+                ),
+                source_key="source_system",
+            )
+            # P-08: the one price every screen reads for each quote's hub and window.
+            book = open_price_book(
+                session, request, now=now, hubs={str(row.get("hub") or "") for row in rows}
             )
         # Each quote with its as-of, age against the source's cadence and the previous close
         # (additive fields; the close is read from the desk's daily closes for this caller).
-        now = datetime.now(UTC)
         return _env(
-            annotate_quotes(
-                _filter_entitled_rows(request, rows, source_key="source_system"),
-                quote_close_rows(request, now),
-                now=now,
-            ),
+            attach_resolved(annotate_quotes(rows, quote_close_rows(request, now), now=now), book),
             source="runtime-postgresql",
         )
     except sqlalchemy_error as exc:
