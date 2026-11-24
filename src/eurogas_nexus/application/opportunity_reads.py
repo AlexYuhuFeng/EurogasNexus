@@ -10,8 +10,9 @@ the book only through its snapshot and a replay serves the same rows.
   currency;
 - ``mandates``: trader mandates (books, hubs, monthly net limit);
 - ``held_capacity``: capacity the firm holds on a route (route candidates with booked legs);
-- ``residuals``: tomorrow's balance per book and hub (supply corrected by measured delivery,
-  plus purchases, less sales);
+- ``residuals``: tomorrow's balance per book and hub: the gas day's own lines
+  (``application/gas_day.hub_daily_balance``, the figure Today and the daily balance show),
+  each book's band from its own approved set, else the firm-wide set;
 - ``outage_feed``: whether an outage feed is held at all (so "no outage on the path" can be
   told apart from "not assessed").
 """
@@ -19,7 +20,7 @@ the book only through its snapshot and a replay serves the same rows.
 from __future__ import annotations
 
 from collections import defaultdict
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 #: Months of positions read: the current month and the next six (design J.2 candidate set).
@@ -34,9 +35,11 @@ def _month_start(day: date, offset: int) -> date:
 class BookReads:
     """The book as one caller sees it on one day, read once and shared by the collections."""
 
-    def __init__(self, caller, today: date) -> None:
+    def __init__(self, caller, today: date, *, as_of_utc: datetime | None = None) -> None:
         self.caller = caller
         self.today = today
+        #: The evaluation instant (the gas day and its cut-offs are read at it).
+        self.as_of_utc = as_of_utc or datetime.combine(today, time(12), tzinfo=UTC)
         self._inputs = None
 
     @property
@@ -112,75 +115,71 @@ class BookReads:
         return rows
 
     def residuals(self, session) -> list[dict[str, Any]]:
-        """Tomorrow's residual per (book, hub): supply x measured delivery + bought - sold."""
+        """Tomorrow's residual per (book, hub): the gas day's own lines, book by book.
 
+        The figure is the daily balance's (``application/gas_day.hub_daily_balance``): the
+        physical lines net (contracts nominated where held, else their quantity, capped by an
+        outage; LNG send-out; storage and imports less offtake, injection and exports) plus
+        purchases less sales, every line in the books the caller may see. A residual within
+        the book's band (its own approved set, else the firm-wide set, else 2 %) is balanced
+        and not listed. The contracts' measured delivery is shown, not applied (QA-T-07).
+        """
+
+        from eurogas_nexus.application.gas_day import gas_day_view, hub_daily_balance
         from eurogas_nexus.db.models import ContractDeliveryRecord
-        from eurogas_nexus.domain.portfolio.daily_balance import BalanceLeg, daily_balance
+        from eurogas_nexus.domain.market.gas_day import gas_day_label
 
-        tomorrow = self.today + timedelta(days=1)
-        etrm = {
-            order.order_observation_id
-            for order in self.inputs.orders
-            if str(order.provider_id).upper() == "ETRM"
-        }
-        groups: dict[tuple[str, str], list] = defaultdict(list)
-        for leg in self.inputs.legs:
-            # The residual is the booked balance, as before: a cargo's plan and the hedges
-            # recorded on it are positions (``positions``), not booked supply or trades.
-            if leg.from_cargo:
-                continue
-            if leg.first_gas_day <= tomorrow <= leg.last_gas_day:
-                groups[(leg.book_id or "", leg.hub)].append(leg)
+        tomorrow = date.fromisoformat(gas_day_label(self.as_of_utc)) + timedelta(days=1)
+        view = gas_day_view(
+            session, self.caller, now=self.as_of_utc, inputs=self.inputs, days=[tomorrow],
+            all_books=True,
+        )
         rows = []
-        for (book, hub), legs in sorted(groups.items()):
-            contract_ids = [leg.reference for leg in legs if leg.kind == "physical"]
-            ratio = 1.0
-            if contract_ids:
-                records = (
-                    session.query(ContractDeliveryRecord)
-                    .filter(ContractDeliveryRecord.contract_id.in_(contract_ids))
-                    .filter(ContractDeliveryRecord.gas_day >= self.today - timedelta(days=30))
-                    .all()
-                )
-                nominated = sum(
-                    r.nominated_mwh or 0.0 for r in records if r.allocated_mwh is not None
-                )
-                allocated = sum(
-                    r.allocated_mwh or 0.0 for r in records if r.nominated_mwh is not None
-                )
-                if nominated > 0:
-                    ratio = allocated / nominated
-            (row,) = daily_balance(
-                [tomorrow],
-                [
-                    BalanceLeg(
-                        leg.reference,
-                        leg.first_gas_day,
-                        leg.last_gas_day,
-                        leg.mwh_per_day,
-                        "supply"
-                        if leg.kind == "physical"
-                        else "bilateral"
-                        if leg.reference in etrm
-                        else "exchange",
+        for hub, balance in sorted(view.balances[tomorrow].items()):
+            for book in sorted({line.book_id or "" for line in balance.lines}):
+                (row,) = hub_daily_balance(session, view, hub, book_id=book)
+                if row["state"] == "balanced":
+                    continue
+                contract_ids = list(dict.fromkeys(
+                    line["ref"].split(":", 1)[1]
+                    for line in row["lines"] if line["ref"].startswith("contract:")
+                ))
+                ratio = 1.0
+                if contract_ids:
+                    records = (
+                        session.query(ContractDeliveryRecord)
+                        .filter(ContractDeliveryRecord.contract_id.in_(contract_ids))
+                        .filter(ContractDeliveryRecord.gas_day >= tomorrow - timedelta(days=31))
+                        .filter(ContractDeliveryRecord.gas_day < tomorrow - timedelta(days=1))
+                        .all()
                     )
-                    for leg in legs
-                ],
-                delivery_ratio=ratio,
-            )
-            if row["state"] == "balanced":
-                continue
-            rows.append(
-                {
-                    "book_id": book or None,
-                    "hub": hub,
-                    "gas_day": tomorrow.isoformat(),
-                    "residual_mwh": row["residual_mwh"],
-                    "supply_mwh": row["supply"],
-                    "delivery_ratio": round(ratio, 4),
-                    "contracts": contract_ids,
-                }
-            )
+                    nominated = sum(
+                        r.nominated_mwh or 0.0 for r in records if r.allocated_mwh is not None
+                    )
+                    allocated = sum(
+                        r.allocated_mwh or 0.0 for r in records if r.nominated_mwh is not None
+                    )
+                    if nominated > 0:
+                        ratio = allocated / nominated
+                rows.append(
+                    {
+                        "book_id": book or None,
+                        "hub": hub,
+                        "gas_day": tomorrow.isoformat(),
+                        "residual_mwh": row["residual_mwh"],
+                        "state": row["state"],
+                        "supply_mwh": row["supply"],
+                        "physical_in_mwh": row["physical_in_mwh"],
+                        "physical_out_mwh": row["physical_out_mwh"],
+                        "band_mwh": row["band"]["mwh"],
+                        "definition": "gas_day",
+                        "delivery_ratio": round(ratio, 4),
+                        "delivery_ratio_applied": False,
+                        "contracts": contract_ids,
+                        "lines": len(row["lines"]),
+                        "lines_simulated": row["simulated"],
+                    }
+                )
         return rows
 
 

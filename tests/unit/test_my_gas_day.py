@@ -378,3 +378,41 @@ def test_the_daily_balance_is_the_gas_day_row_with_the_approved_rate(desk):
     assert today["supply"] + today["bilateral_bought"] + today["exchange_bought"] - (
         today["bilateral_sold"] + today["exchange_sold"]) == pytest.approx(
             today["residual_mwh"], abs=0.2)
+
+
+def test_the_opportunity_residuals_are_each_books_gas_day_balance(desk):
+    """P-11: the sell-down residual is tomorrow's daily balance (the gas day's own lines),
+    book by book, every book whatever mandate names the caller, the measured delivery shown
+    and not applied; the books' residuals add up to the hub's balance."""
+
+    from eurogas_nexus.application.gas_day import gas_day_view, hub_daily_balance
+    from eurogas_nexus.application.opportunity_reads import BookReads
+
+    tomorrow = TODAY + timedelta(days=1)
+    with Session(desk) as session:
+        rows = BookReads(_caller("demo.trader"), TODAY, as_of_utc=NOW).residuals(session)
+        view = gas_day_view(session, _caller("demo.operations"), now=NOW, days=[tomorrow])
+        by_hub = {hub: hub_daily_balance(session, view, hub)[0] for hub in ("NBP", "TTF")}
+        books = {
+            hub: {
+                book: hub_daily_balance(session, view, hub, book_id=book)[0]
+                for book in ("demo-uk-nbp", "demo-nl-ttf")
+            }
+            for hub in by_hub
+        }
+    keyed = {(row["hub"], row["book_id"]): row for row in rows}
+    # The NBP trader's mandate does not narrow the firm's evaluation: the NL book is there.
+    assert ("TTF", "demo-nl-ttf") in keyed and ("NBP", "demo-uk-nbp") in keyed
+    for (hub, book), row in keyed.items():
+        balance = books[hub][book]
+        assert row["gas_day"] == tomorrow.isoformat() and row["definition"] == "gas_day"
+        assert row["residual_mwh"] == balance["residual_mwh"] and row["state"] == balance["state"]
+        assert row["supply_mwh"] == balance["supply"]
+        assert row["delivery_ratio_applied"] is False
+    for hub, total in by_hub.items():
+        assert sum(item["residual_mwh"] for item in books[hub].values()) == pytest.approx(
+            total["residual_mwh"], abs=0.2
+        )
+    # Each book's cash-out rate is its own set's (the NL book's TTF residual, in EUR).
+    nl = books["TTF"]["demo-nl-ttf"]["cash_out"]
+    assert nl["assumption_set"] == "Demo demo-nl-ttf balancing"

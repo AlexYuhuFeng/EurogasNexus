@@ -777,9 +777,13 @@ class GasDayView:
 
 
 def gas_day_view(session, caller, *, now: datetime, inputs=None,
-                 days: list[date] | None = None) -> GasDayView:
+                 days: list[date] | None = None, all_books: bool = False) -> GasDayView:
     """The caller's lines and balances per hub for ``days`` (today's and tomorrow's gas day
-    unless given: the daily balance reads further days from the same lines)."""
+    unless given: the daily balance reads further days from the same lines).
+
+    ``all_books``: every line the caller may see, whatever mandate names him (the view
+    without a trader: the firm's evaluation reads each book's balance from it).
+    """
 
     from eurogas_nexus.domain.market.gas_day import gas_day_label
 
@@ -790,6 +794,8 @@ def gas_day_view(session, caller, *, now: datetime, inputs=None,
 
         inputs = ladder_inputs(caller, today, today, days[-1])
     scope = scope_of(session, caller, today)
+    if all_books:
+        scope = Scope(None, None, (), scope.visible)
     contract_ids = [leg.reference for leg in inputs.legs
                     if leg.kind == "physical" and not leg.from_cargo]
     dated = [
@@ -822,8 +828,13 @@ def hub_daily_balance(
     short_premium: float | None = None,
     long_discount: float | None = None,
     flat_band_mwh: float = 0.0,
+    book_id: str | None = None,
 ) -> list[dict[str, Any]]:
     """One hub's balance for each day of the view, from the same lines as "My gas day".
+
+    ``book_id``: that book's lines only, its band and cash-out rate from the book's own
+    approved set, else the firm-wide set (``""`` for lines booked to no book). The firm's
+    opportunity evaluation reads each book's residual this way.
 
     The daily balance (``GET /api/portfolio/daily-balance``) reads this, so Today and Book >
     Delivery give one figure per hub and day (QA-T-07): ``supply`` is the physical lines net
@@ -843,6 +854,11 @@ def hub_daily_balance(
     for day in view.days:
         balance = view.balances[day].get(hub) or HubBalance(hub)
         lines = sorted(balance.lines, key=_order)
+        if book_id is not None:
+            lines = [x for x in lines if (x.book_id or "") == book_id]
+        in_mwh = sum(x.mwh for x in lines if x.direction == IN)
+        out_mwh = sum(x.mwh for x in lines if x.direction == OUT)
+        net_mwh = in_mwh - out_mwh
         physical_in = sum(x.mwh for x in lines if x.venue is None and x.direction == IN)
         physical_out = sum(x.mwh for x in lines if x.venue is None and x.direction == OUT)
         traded = {
@@ -853,28 +869,28 @@ def hub_daily_balance(
         }
         books = sorted({x.book_id for x in lines if x.book_id})
         approved = cash_out_assumption(session, books, hub, day)
-        band = balance_band(approved, balance.in_mwh, balance.out_mwh)
+        band = balance_band(approved, in_mwh, out_mwh)
         if flat_band_mwh:
             band = {"pct": None, "mwh": round(flat_band_mwh, 1), "basis": "entered", "set": None}
-        state = state_within(balance.net_mwh, band)
+        state = state_within(net_mwh, band)
         assumption = approved
         if manual:
             assumption = {"set": "entered by hand", "version": None,
                           "currency": quote_currency(hub), "short_premium": short_premium,
                           "long_discount": long_discount}
-        cost = cost_of_nothing(balance.net_mwh, assumption, hub, state)
+        cost = cost_of_nothing(net_mwh, assumption, hub, state)
         if manual and cost.get("basis") == "assumption":
             cost["basis"] = "entered"
         rows.append({
             "gas_day": day.isoformat(),
             "supply": round(physical_in - physical_out, 1) + 0.0,
             **{key: round(value, 1) for key, value in traded.items()},
-            "residual_mwh": round(balance.net_mwh, 1) + 0.0,
+            "residual_mwh": round(net_mwh, 1) + 0.0,
             "state": state,
             "cash_out_cost": cost.get("value"),
             "physical_in_mwh": round(physical_in, 1),
             "physical_out_mwh": round(physical_out, 1),
-            "net": native_quantity(hub, balance.net_mwh, day),
+            "net": native_quantity(hub, net_mwh, day),
             "band": band,
             "cash_out": cost,
             "lines": [_line_payload(line, day) for line in lines],
