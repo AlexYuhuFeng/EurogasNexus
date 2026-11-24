@@ -4903,6 +4903,7 @@
   "today.market.series": "{{name}} over the last {{days}} closes",
   "today.market.spreads": "Spreads against TTF",
   "today.market.route_cost": "route cost {{value}} {{unit}}",
+  "today.market.net": "net {{value}}",
   "today.market.in_the_money": "in the money",
   "today.market.out_of_the_money": "out of the money",
   "today.market.no_route": "route cost not given",

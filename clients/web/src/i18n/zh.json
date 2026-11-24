@@ -4903,6 +4903,7 @@
   "today.market.series": "{{name}} 最近 {{days}} 个收盘价",
   "today.market.spreads": "相对 TTF 的价差",
   "today.market.route_cost": "运输成本 {{value}} {{unit}}",
+  "today.market.net": "净值 {{value}}",
   "today.market.in_the_money": "有利可图",
   "today.market.out_of_the_money": "无利可图",
   "today.market.no_route": "未给出运输成本",

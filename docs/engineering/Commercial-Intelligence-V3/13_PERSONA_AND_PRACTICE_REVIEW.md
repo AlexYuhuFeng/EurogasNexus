@@ -97,7 +97,7 @@ the draft SDK docs took a new quant to a first result verbatim. The S1 findings 
 | QA-R-01 | Risk | The credit-line form sends empty links; the breach and its alert vanish | Server half fixed in F1 (omitted fields kept); the form still sends empty lists: next |
 | QA-R-02 | Admin | An admin can mint a key for another person and act as them | Fixed (F1-9): people issue their own keys in Settings; admins issue for services only |
 | QA-R-03, QA-R-04 | Admin, risk | Trader+risk users and own mandates by name | Fixed in F1 (segregation, all names compared); a warning at user creation is next |
-| QA-R-06 | All | One spread gets opposite verdicts on Today and the Spreads board | Next |
+| QA-R-06 | All | One spread gets opposite verdicts on Today and the Spreads board | Fixed: one direction rule (`spread_direction`), Today shows the flow and net. Both screens still choose their route separately (S2) |
 
 The full reports, screenshots and scripts are kept in the session workspace; the S2 and S3
 findings are worked through after the S1s.

@@ -281,6 +281,14 @@ def test_the_section_e_rows_my_market_needs_me_and_europe_storage(desk):
         route = spread["route_cost"]
         # A route cost is a figure with a verdict, or no figure and the reason: never zero.
         assert (route["value"] is not None and route["verdict"]) or route["reason"]
+        if route["value"] is not None:
+            # Priced from the cheaper hub to the dearer one, and judged on the absolute spread,
+            # as Research > Spreads judges it (QA-R-06).
+            hub, reference = spread["pair"].split("–")
+            dearer = hub if spread["value"] >= 0 else reference
+            assert route["to"] == dearer and route["from"] != dearer
+            assert route["net"] == round(abs(spread["value"]) - route["value"], 3)
+            assert route["verdict"] == ("in_the_money" if route["net"] > 0 else "out_of_the_money")
     assert spreads["NBP–TTF"]["fx"]["base"] == "GBP"  # the forward FX it used is named
     # What needs me: at most five, each with its kind and an object to open.
     assert 1 <= len(needs_me["items"]) <= 5 and needs_me["quiet"] is None

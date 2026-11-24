@@ -2139,6 +2139,11 @@ export interface TodaySpreadDTO extends TodayFigureDTO {
     value: number | null;
     unit: string;
     verdict: "in_the_money" | "out_of_the_money" | null;
+    /** The flow the cost is priced for: cheaper hub to dearer hub, as Research > Spreads. */
+    from?: string;
+    to?: string;
+    /** The spread's absolute value less the route cost. */
+    net?: number;
     via?: string[];
     reason?: string;
   };
@@ -5705,17 +5710,17 @@ export const api = {
   marketDataLicences: () => get<MarketDataLicenceDTO[]>("/access/market-data-licences"),
   saveMarketDataLicence: (licenceId: string, body: MarketDataLicenceInput) =>
     put<MarketDataLicenceDTO>(`/access/market-data-licences/${encodeURIComponent(licenceId)}`, body),
-  accessApiKeys: () => get<AccessApiKeyDTO[]>("/access/api-keys"),
-  createAccessApiKey: (body: AccessApiKeyCreateInputDTO) =>
-    post<AccessApiKeyDTO & { api_key: string }>("/access/api-keys", body),
-  revokeAccessApiKey: (keyId: string) =>
-    post<{ key_id: string; revoked: boolean }>(`/access/api-keys/${encodeURIComponent(keyId)}/revoke`, {}),
   /** The signed-in person's own API keys (for the SDK and scripts); the secret is shown once. */
   myApiKeys: () => get<AccessApiKeyDTO[]>("/me/api-keys"),
   createMyApiKey: (body: { display_name: string; expires_at_utc?: string | null }) =>
     post<{ key: AccessApiKeyDTO; api_key: string; warning: string }>("/me/api-keys", body),
   revokeMyApiKey: (keyId: string) =>
     post<{ key_id: string; revoked: boolean }>(`/me/api-keys/${encodeURIComponent(keyId)}/revoke`, {}),
+  accessApiKeys: () => get<AccessApiKeyDTO[]>("/access/api-keys"),
+  createAccessApiKey: (body: AccessApiKeyCreateInputDTO) =>
+    post<AccessApiKeyDTO & { api_key: string }>("/access/api-keys", body),
+  revokeAccessApiKey: (keyId: string) =>
+    post<{ key_id: string; revoked: boolean }>(`/access/api-keys/${encodeURIComponent(keyId)}/revoke`, {}),
   auditEvents: (params?: {
     actor?: string; action?: string; resource?: string; outcome?: string; limit?: string;
     /** Window bounds, ISO-8601 with an offset, and the continuation cursor (#59). */

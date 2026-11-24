@@ -1234,6 +1234,7 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
         normalise_value,
     )
     from eurogas_nexus.application.route_tariff_cost import load_tariff_rows, route_cost
+    from eurogas_nexus.application.spreads_board import spread_direction
     from eurogas_nexus.domain.market.fx_forward import Delivery
 
     today = now.date()
@@ -1297,11 +1298,16 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
             except Exception as exc:  # noqa: BLE001
                 read.warnings.append(f"tariffs: not available ({exc.__class__.__name__})")
                 tariffs = []
-        route = route_cost(reference, hub, delivery, tariffs)
+        # The route runs from the cheaper hub to the dearer one, the rule Research > Spreads
+        # uses, and the spread earns its absolute value less that cost (QA-R-06).
+        start, end = spread_direction(spread, hub, reference)
+        route = route_cost(start, end, delivery, tariffs)
         cost = route.total if route.currency == "EUR" else None
         if cost is not None:
-            verdict = "in_the_money" if spread > cost else "out_of_the_money"
+            net = abs(spread) - cost
+            verdict = "in_the_money" if net > 0 else "out_of_the_money"
             route_view = {"value": round(cost, 3), "unit": "EUR/MWh", "verdict": verdict,
+                          "from": start, "to": end, "net": round(net, 3),
                           "via": list(route.via), "input_class": route.input_class}
         else:
             reason = ("legs not held: " + ", ".join(route.missing_legs())) if route.legs and not \

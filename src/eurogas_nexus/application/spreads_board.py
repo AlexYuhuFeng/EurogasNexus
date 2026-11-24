@@ -41,6 +41,18 @@ SPARK_DAYS = 30
 # ----------------------------------------------------------------------------- series
 
 
+
+def spread_direction(gross: float, hub: str, reference: str) -> tuple[str, str]:
+    """Where the gas would flow to earn a spread of ``hub`` minus ``reference``.
+
+    Gas moves from the cheaper hub to the dearer one, so a positive spread is priced from the
+    reference to the hub and a negative one from the hub to the reference, and the spread earns
+    its absolute value less that route's cost. Desk > Today and Research > Spreads both use this
+    rule, so one spread never gets two verdicts (QA-R-06).
+    """
+
+    return (reference, hub) if gross >= 0 else (hub, reference)
+
 def _daily(holdings: Holdings, hub: str, tenor: str) -> dict[date, dict[str, Any]]:
     """One close per trade date for a hub and tenor: a real series beats a simulated one."""
 
@@ -170,7 +182,7 @@ def _pair(holdings: Holdings, hub: str, tenor: str) -> dict[str, Any]:
         out.update(_why("no_fx_delivery", "FX for the delivery period not held"))
         return out
     gross = a - b
-    start_hub, end_hub = (REFERENCE_HUB, hub) if gross >= 0 else (hub, REFERENCE_HUB)
+    start_hub, end_hub = spread_direction(gross, hub, REFERENCE_HUB)
     choice, product = _route(holdings, start_hub, end_hub, delivery)
     route = choice.chosen
     cost = _route_cost_eur(holdings, route, delivery)

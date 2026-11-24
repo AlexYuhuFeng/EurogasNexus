@@ -272,7 +272,9 @@ function SpreadLine({ spread, t, language }: { spread: TodayMarketDTO["spreads"]
       {item.simulated && <SimulatedMark t={t} />}
       {route.value != null && route.verdict ? (
         <span className="today-spread-route" data-verdict={route.verdict} title={(route.via ?? []).join(" · ")}>
+          {route.from && route.to && <>{route.from} → {route.to}{" · "}</>}
           {t("today.market.route_cost", { value: formatValue(route.value, route.unit), unit: route.unit })}
+          {route.net != null && <>{" · "}{t("today.market.net", { value: formatValue(route.net, route.unit, true) })}</>}
           {" · "}
           <strong>{t(`today.market.${route.verdict}`)}</strong>
         </span>
