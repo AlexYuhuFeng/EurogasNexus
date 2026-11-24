@@ -83,8 +83,8 @@ the draft SDK docs took a new quant to a first result verbatim. The S1 findings 
 | QA-T-01 | Trader | "Mid" is the last price, not (bid+ask)/2 | Fixed: mid only from two sides, Last its own column, one-sided quotes marked; the backtest pool no longer stores a last print as a mid |
 | QA-T-02, QA-L-22 | Trader, LNG | Up to three prices for one month across screens; the demo curve has no drift | Demo drift fixed; one price resolver next (with P-08) |
 | QA-T-03 | Trader | No change against the close; prices below the fold on the landing | Change vs close fixed (quotes carry the close, kind, day and source). Fixed: My market is first for traders, under a strip with the next cut-off, overdue steps and open imbalances (owner, 2026-11-24) |
-| QA-T-04, QA-R-07 | Trader, risk | Stale rows look live; old marks raise no stale alert; the feeds panel and Today disagree | Board rows fixed (age, cadence, freshness state, stale legs). Risk rows, the marks alert and one freshness contract next |
-| QA-T-05, QA-R-05 | All | Implausible, future and wrongly labelled ticks accepted | Ticks fixed in F1; firm marks and the "Updated" stamp next |
+| QA-T-04, QA-R-07 | Trader, risk | Stale rows look live; old marks raise no stale alert; the feeds panel and Today disagree | Fixed: board rows (age, cadence, freshness state, stale legs); credit, mandate and ladder rows carry `marks_as_of` and a state, said in text on Risk limits and Position; a `marks_stale` warning when marks are over one business day old; Today and the Data feeds popover judge with one freshness contract (`PROJECTION_STATE`, docs/operations/DATA_FRESHNESS.md) |
+| QA-T-05, QA-R-05 | All | Implausible, future and wrongly labelled ticks accepted | Fixed: ticks in F1; firm marks refused with 422 `value_implausible` outside the per-unit tick bands; the Prices "Updated" stamp is capped at the server's receive time |
 | QA-T-06, QA-R-08 | Scheduler | The status write failed for all and the scheduler could not record | Fixed (F1, F1-8) |
 | QA-T-07 | Scheduler | Two daily balances with hard-coded rates | Fixed: one gas-day definition; the approved cash-out set or rates labelled as entered |
 | QA-T-08 | Scheduler | The nomination step's deadline uses the wrong cut-off | Fixed |
@@ -96,7 +96,7 @@ the draft SDK docs took a new quant to a first result verbatim. The S1 findings 
 | QA-L-05 | LNG | No cargo screen | Next (cargo board) |
 | QA-R-01 | Risk | The credit-line form sends empty links; the breach and its alert vanish | Fixed (F1-10): the form reads the whole line, unlinking all is confirmed, a cleared breach waits for acknowledgement. Maker-checker on increases waits for P-17 |
 | QA-R-02 | Admin | An admin can mint a key for another person and act as them | Fixed (F1-9): people issue their own keys in Settings; admins issue for services only |
-| QA-R-03, QA-R-04 | Admin, risk | Trader+risk users and own mandates by name | Fixed in F1 (segregation, all names compared); a warning at user creation is next |
+| QA-R-03, QA-R-04 | Admin, risk | Trader+risk users and own mandates by name | Fixed in F1 (segregation, all names compared); creating or editing a user with ANALYST and REVIEWER returns `segregation_warning`, shown in Admin > Users before and after saving (not blocked) |
 | QA-R-06 | All | One spread gets opposite verdicts on Today and the Spreads board | Fixed: one direction rule (`spread_direction`), Today shows the flow and net. Both screens still choose their route separately (S2) |
 
 The full reports, screenshots and scripts are kept in the session workspace; the S2 and S3
