@@ -161,6 +161,51 @@ def test_l1_and_w1_hold_exactly_on_their_planted_days(store):
             assert abs(row.price - da[day].price) <= 0.25 + 1e-6, (hub, day)
 
 
+def test_s1_leaves_its_gas_days_open_and_the_schedule_balances_every_other_day():
+    """S1: the demo schedule leaves the book open only on gas days 18 to 20 of a month.
+
+    Hand-worked, a fresh seed at 09:00 UTC, tomorrow's lines with the demo outages in force
+    (Haldor 52 of 70 mcm/d out all day; the Kestrel line 9 of 40 out for 22 of 24 hours),
+    every book's band 2 % of its larger side:
+      UK at NBP: 24,000 x 18/70 = 6,171.4 + 10,000 Brae + 4,000 BBL in; 6,000 sold +
+        14,200 offtake out: -28.6 (band 403.4), balanced; 9,000 offtake: +5,171.4, long.
+      NL at TTF: 18,000 x (1 - 9/40 x 22/24) = 14,287.5 + 4,800 send-out in; 14,000 +
+        5,100 injection out: -12.5 (band 382.0), balanced; 7,000 injection: -1,912.5, short.
+    """
+
+    days = [date(2026, 12, 1) + timedelta(days=n) for n in range(31)]
+    assert [day.day for day in days if MARKET.s1_planted(day)] == [18, 19, 20]
+    balanced, planted = date(2026, 12, 3), date(2026, 12, 18)
+    volume = {row[0]: row[-1] for row in SEED.DEMO_GAS_DAY_SCHEDULE}
+    mwh = {
+        (suffix, day): SEED.demo_gas_day_mwh(suffix, day, volume[suffix])
+        for suffix in volume
+        for day in (balanced, planted)
+    }
+    for suffix in volume:
+        assert mwh[(suffix, balanced)] == volume[suffix]
+        assert mwh[(suffix, planted)] == MARKET.S1_OPEN_MWH.get(suffix, volume[suffix])
+
+    def uk_nbp(day):
+        into = 24_000 * 18 / 70 + 10_000 + mwh[("uk-bbl-import", day)]
+        out = 6_000 + mwh[("uk-offtake", day)]
+        return into - out, 0.02 * max(into, out)
+
+    def nl_ttf(day):
+        into = 18_000 * (1 - 9 / 40 * 22 / 24) + 4_800
+        out = mwh[("nl-offtake", day)] + mwh[("nl-storage", day)]
+        return into - out, 0.02 * max(into, out)
+
+    assert uk_nbp(balanced)[0] == pytest.approx(-28.6, abs=0.1)
+    assert nl_ttf(balanced)[0] == pytest.approx(-12.5, abs=0.1)
+    for net, band in (uk_nbp(balanced), nl_ttf(balanced)):
+        assert abs(net) <= band
+    assert uk_nbp(planted)[0] == pytest.approx(5_171.4, abs=0.1)
+    assert nl_ttf(planted)[0] == pytest.approx(-1_912.5, abs=0.1)
+    for net, band in (uk_nbp(planted), nl_ttf(planted)):
+        assert abs(net) > band
+
+
 def test_t1_only_cegh_winter_over_summer_exceeds_storage_cost(store):
     newest = max(_closes(store, "TTF", "day-ahead"))
     exceeding = set()

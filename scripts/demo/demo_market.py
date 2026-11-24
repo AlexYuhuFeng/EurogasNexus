@@ -64,6 +64,10 @@ L1_PLANTED_EXCESS = 1.20
 L1_NO_ARB_MARGIN = 0.65
 O1_OUTAGE_PREMIUM_EUR = 0.60
 W1_PLANTED_GAP = 1.50
+#: S1: the gas days of each month on which the demo schedule leaves the book open, and the
+#: schedule lines' volumes then (MWh; every other gas day the seed's balanced volumes apply).
+S1_DAYS_OF_MONTH = frozenset({18, 19, 20})
+S1_OPEN_MWH = {"uk-offtake": 9_000.0, "nl-storage": 7_000.0}
 #: The arbitrage band (``DemoMarket.arbitrage_free``): TTF is the reference; the graph hubs are
 #: held in this order; every route nets at least ARBITRAGE_MARGIN below its cost, and a hub's
 #: price below TTF at least REFERENCE_MARGIN below the cost of reaching TTF (so L1's 1.20 at
@@ -142,6 +146,14 @@ PLANTED_CASES: tuple[PlantedCase, ...] = (
         "day-ahead carries +0.60 EUR/MWh (inside the arbitrage band on non-planted days); the "
         "outage's exposure on the demo contracts it cuts is an E item in 'must act'.",
     ),
+    PlantedCase(
+        "S1-open-gas-day", "S (sell-down, must act)", ("NBP", "TTF"), ("DA",),
+        "On gas days 18 to 20 of each month the demo schedule leaves the book open: the UK "
+        f"book's industrial offtake falls to {S1_OPEN_MWH['uk-offtake']:,.0f} MWh (long at "
+        f"NBP) and the NL book injects {S1_OPEN_MWH['nl-storage']:,.0f} MWh into storage "
+        "(short at TTF), so the day before shows both as sell-down items. On every other gas "
+        "day the schedule balances each book within its band, with the demo outages in force.",
+    ),
 )
 
 
@@ -151,6 +163,12 @@ def l1_planted(day: date) -> bool:
 
 def w1_planted(day: date) -> bool:
     return day.toordinal() % 17 == 5
+
+
+def s1_planted(gas_day: date) -> bool:
+    """S1 is planted on the gas day itself (found the day before, as tomorrow's residual)."""
+
+    return gas_day.day in S1_DAYS_OF_MONTH
 
 
 def month_start(day: date, offset: int = 0) -> date:

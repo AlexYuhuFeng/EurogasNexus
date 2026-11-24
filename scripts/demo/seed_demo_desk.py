@@ -1163,9 +1163,15 @@ def seed_demo_storage_and_assumptions(session, now: datetime) -> dict[str, int]:
 
 #: The demo gas day (Today → My gas day): what the schedule holds each day at the demo hubs.
 #: (suffix, book, hub, direction, kind, label, point, MWh). Fictional; marked simulated.
+#: The volumes balance each book within its band on a freshly seeded gas day, with the two
+#: demo outages in force (Haldor capped to 18/70 of 24,000 MWh/d; Kestrel to 31/40 over most
+#: of the day): UK at NBP 6,171.4 + 10,000 + 4,000 in, 6,000 sold + 14,200 offtake out; NL at
+#: TTF about 14,290 + 4,800 send-out in, 14,000 + 5,100 out. On the planted S1 gas days
+#: (``demo_market.S1_OPEN_MWH``) the offtake and the injection leave the book open instead.
+#: The UK book's TTF line keeps what BBL does not export (the TTF desk's split, below).
 DEMO_GAS_DAY_SCHEDULE = (
     ("uk-offtake", "demo-uk-nbp", "NBP", "out", "customer_offtake",
-     "Demo industrial offtake (fictional)", "Teesside", 9_000.0),
+     "Demo industrial offtake (fictional)", "Teesside", 14_200.0),
     ("uk-bbl-import", "demo-uk-nbp", "NBP", "in", "import",
      "BBL import on held capacity", "Bacton (BBL)", 4_000.0),
     ("uk-bbl-export", "demo-uk-nbp", "TTF", "out", "export",
@@ -1173,8 +1179,17 @@ DEMO_GAS_DAY_SCHEDULE = (
     ("nl-offtake", "demo-nl-ttf", "TTF", "out", "customer_offtake",
      "Demo city-gate offtake (fictional)", "Groningen", 14_000.0),
     ("nl-storage", "demo-nl-ttf", "TTF", "out", "storage_injection",
-     "Demo NL storage (fictional)", None, 7_000.0),
+     "Demo NL storage (fictional)", None, 5_100.0),
 )
+
+
+def demo_gas_day_mwh(suffix: str, day: date, mwh: float) -> float:
+    """A schedule line's volume on ``day``: the open volume on a planted S1 gas day."""
+
+    market = _load_demo_market()
+    if market.s1_planted(day):
+        return market.S1_OPEN_MWH.get(suffix, mwh)
+    return mwh
 #: The demo's delegated split: the TTF desk clears the part of the UK book's TTF delivery that
 #: is not exported through BBL (inside its mandate: DEMO-NL-1 holds TTF).
 DEMO_GAS_DAY_SPLIT_MWH = 2_000.0
@@ -1227,7 +1242,8 @@ def seed_demo_gas_day(session, now: datetime) -> dict[str, int]:
             session.add(GasDayScheduleLineRecord(
                 line_id=line_id, gas_day=day, hub=hub, book_id=book, direction=direction,
                 kind=kind, label=label, point=point, counterparty=None, contract_id=None,
-                quantity_mwh=mwh, source_system=SOURCE, source_reference="demo:gas-day-schedule",
+                quantity_mwh=demo_gas_day_mwh(suffix, day, mwh), source_system=SOURCE,
+                source_reference="demo:gas-day-schedule",
                 simulated=True, updated_at_utc=now,
             ))
             counts["gas_day_lines"] += 1

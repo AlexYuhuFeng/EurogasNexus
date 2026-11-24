@@ -248,6 +248,7 @@ Planted dislocations (and no others) give the opportunity evaluators something t
 | `W1-ttf-wd-over-da` | market P (TTF WD over DA) | TTF, WD vs DA | WD 1.50 over DA on days with ordinal % 17 = 5; elsewhere, and at every other hub, \|WD - DA\| <= 0.25 |
 | `T1-cegh-winter-over-summer` | market T; book T on the demo storage at CEGH | CEGH, Sum vs Win | A 1.00 EUR/MWh far-winter premium on winter months 6+ months ahead, so its next winter over the summer before exceeds the storage cost (3.80 EUR/MWh); every other hub stays below. Standing: found every day |
 | `O1-nbp-outage-basis` | E (event exposure, must act) | NBP, DA | +0.60 EUR/MWh on NBP DA while the demo's unplanned NBP-zone outage is active, inside the band on non-planted days; the outage's cut to the demo contracts is the E item |
+| `S1-open-gas-day` | S (sell-down, must act), the day before | UK book at NBP, NL book at TTF, next gas day | On gas days 18 to 20 of each month the industrial offtake falls to 9,000 MWh (UK long at NBP) and the NL storage injection rises to 7,000 MWh (NL short at TTF); every other gas day the demo schedule balances each book within its band (outages in force). The UK book's TTF residual, left after the BBL export, has no TTF rate and is a "cannot evaluate", not listed |
 
 Not planted but true of the demo every day: the hedge gap of the Haldor contract (G), the
 outage exposures (E), and, on most days, the held BBL capacity TTF -> NBP (C: charges sunk, so
@@ -257,7 +258,8 @@ NBP's premium inside the band is worth capturing), plus book T "storage not held
 The cases are also in `PLANTED_CASES` in `scripts/demo/demo_market.py`, and the closes and quotes
 they touch carry `demo_planted_case` in their metadata. `tests/unit/test_demo_market.py` checks
 that each holds on exactly its days; `tests/integration/test_demo_planted_cases.py` seeds a fresh
-store at 09:00 on an L1 day, a W1 day and a quiet day, evaluates twice and asserts the exact set
+store at 09:00 on an L1 day, a W1 day, the day before an S1 gas day and a quiet day, evaluates
+twice and asserts the exact set
 listed.
 
 ## Reaching it from other devices

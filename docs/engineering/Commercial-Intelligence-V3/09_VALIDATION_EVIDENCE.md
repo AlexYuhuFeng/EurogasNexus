@@ -262,6 +262,23 @@ head`, all clean; the four columns are nullable.
 | Related suites with DATA1-1 and DATA1-2 | `pytest` the DATA-1 tests, the pinned migration tests, `tests/sdk`, `tests/contract`, `tests/docs`; `ruff check src tests scripts` | 897 passed, 13 skipped; ruff clean |
 | Market, price and SDK reads unchanged otherwise | `pytest tests/api/test_one_price_across_screens.py tests/api/test_trader_desk_api.py tests/api/test_market_fx_api.py tests/api/test_projections_api.py tests/api/test_context_api.py tests/api/test_market_normalisation_api.py tests/api/test_research_data_api.py tests/api/test_error_envelope.py tests/sdk tests/security/test_public_api_auth.py tests/security/test_identity_row_entitlement.py tests/security/test_platform_admin_commercial_boundary.py tests/unit/test_demo_desk_seed.py tests/unit/test_projections_application.py tests/contract tests/docs` (with the DATA1-1 tests) | 1,018 passed, 12 skipped |
 
+## Demo planted cases after P-11 (2026-11-24, branch `wip/fix-planted`)
+
+`test_demo_planted_cases` failed on every day after P-11 (first bad commit `07abf30`): two
+must-act sell-down items, `NBP · long` (UK book, +5,171.4 MWh) and `TTF · short` (NL book,
+-1,912.5 MWh), were listed daily. The residuals were checked line by line on a 2 Dec seed
+(the BBL export at TTF and import at NBP net; Haldor capped to 18/70, Kestrel to 31/40 over
+22 h) and are correct: the demo schedule did not balance. It now balances each book on every
+gas day except the planted S1 days (18 to 20 of each month).
+
+| Run | Command | Result |
+| --- | --- | --- |
+| Planted cases (L1, W1, quiet, new S1 day) | `pytest tests/integration/test_demo_planted_cases.py` | 6 passed |
+| Integration | `pytest tests/integration` | 209 passed, 160 skipped |
+| Sell-down, gas day, daily balance, Today, demo seed and market | 16 files under `tests/api`, `tests/domain`, `tests/sdk`, `tests/unit` | 139 passed |
+| Contract and docs | `pytest tests/contract tests/docs` | 605 passed, 12 skipped |
+| Lint | `ruff check src tests scripts` | All checks passed |
+
 ## Not yet evidenced
 
 - Latency under sustained load: the M7 figures are single changes on an idle desk; the outbox
