@@ -384,6 +384,15 @@ def put_firm_marks(body: FirmMarksPut, request: Request) -> dict:
     with _session() as session:
         stored = put_marks(session, entries, actor=principal.principal_id)
         note_input_changed(session, "marks", reason="firm marks")
+        # M4: one market event per hub and period, so the opportunities that read the mark
+        # are re-evaluated without waiting for the debounced full evaluation.
+        from datetime import UTC, datetime
+
+        from eurogas_nexus.application.market_events import publish_firm_marks
+
+        publish_firm_marks(
+            session, entries, actor=principal.principal_id, now_utc=datetime.now(UTC)
+        )
         session.commit()
         rows = [mark_payload(mark) for mark in stored]
     return _env({"marks": rows})

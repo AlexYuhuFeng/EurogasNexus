@@ -531,6 +531,40 @@ def evaluate_opportunities_if_due(session_factory, outcomes, *, now_utc) -> dict
     }
 
 
+def deliver_market_events(session_factory, outcomes, *, now_utc) -> dict:
+    """M4: record a ``source.ingested`` event per run that wrote rows, then drain the outbox.
+
+    Its own transactions, after the CP-13 hook: a failure is reported and never undoes or stops
+    ingestion. Consumers that raise are retried by the outbox, not here.
+    """
+
+    from eurogas_nexus.application import market_events
+
+    try:
+        with session_factory() as session:
+            published = [
+                market_events.publish(session, event).kind.value
+                for event in market_events.ingestion_events(session, outcomes, now_utc=now_utc)
+            ]
+            session.commit()
+        batches = market_events.drain(session_factory, now_utc=now_utc)
+    except Exception as exc:  # noqa: BLE001 - the outbox never stops the ingestion loop
+        emit_event(
+            event="scheduler.market_events.failed",
+            level="error",
+            error_category="INTERNAL",
+            details={"error_type": exc.__class__.__name__},
+        )
+        return {"status": "failed", "error_type": exc.__class__.__name__}
+    return {
+        "status": "ok",
+        "published": published,
+        "processed": sum(batch.get("processed", 0) for batch in batches),
+        "failed": sum(batch.get("failed", 0) for batch in batches),
+        "dead": sum(batch.get("dead", 0) for batch in batches),
+    }
+
+
 def run_loop(
     *,
     interval_seconds: float,
@@ -607,6 +641,10 @@ def run_loop(
             # CP-13: ingestions that wrote rows mark their input class pending; a debounced
             # full opportunity evaluation follows. Never stops the ingestion loop.
             execution["opportunity_evaluation"] = evaluate_opportunities_if_due(
+                session_factory, execution.get("outcomes", []), now_utc=now_utc
+            )
+            # M4: the market event outbox (lineage, staleness, targeted re-evaluation).
+            execution["market_events"] = deliver_market_events(
                 session_factory, execution.get("outcomes", []), now_utc=now_utc
             )
             failures = [
