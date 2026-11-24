@@ -3600,6 +3600,84 @@ export interface MapCargoDTO {
   track: Array<[number, number]>;
   /** When the vessel was at each track point (ISO, null when not reported); newer servers. */
   track_times?: Array<string | null>;
+  /** MAP-1: "reported" when `position` is the feed's; null when no position was reported. */
+  position_basis?: "reported" | null;
+  /** MAP-1: what the ETA rests on (LNG-2's basis, confidence, source and when it was stored). */
+  eta?: MapEtaBasisDTO | null;
+}
+
+/** What a cargo's ETA rests on (LNG-2; on the map since MAP-1). */
+export interface MapEtaBasisDTO {
+  /** master_notice, ais_declared, feed_estimate, schedule, manual, contract_window or null. */
+  basis: string | null;
+  confidence: "high" | "medium" | "low" | null;
+  source: string | null;
+  recorded_at_utc: string | null;
+  text: string;
+}
+
+/** A published figure at a site, with its source and gas day (MAP-1). */
+export interface MapAssetCapacityDTO {
+  direction: string;
+  capacity_type: "firm_technical";
+  gwh_d: number;
+  gas_day: string;
+  operator_key: string | null;
+  source_system: string;
+  observed_at_utc: string | null;
+  basis: "published";
+}
+
+export interface MapAssetFlowDTO {
+  direction: string;
+  gwh_d: number;
+  gas_day: string | null;
+  operator_key: string | null;
+  source_system: string;
+}
+
+/** GIE inventory: the site's own row, or its country's (said as such). */
+export interface MapAssetStockDTO {
+  basis: "site" | "country_aggregate";
+  scope: string;
+  dataset: string;
+  gas_day: string;
+  inventory_twh: number | null;
+  working_capacity_twh?: number | null;
+  fill_pct?: number | null;
+  injection_twh_d?: number | null;
+  withdrawal_twh_d?: number | null;
+  dtmi_twh?: number | null;
+  send_out_twh_d?: number | null;
+  source_system: string;
+  observed_at_utc: string | null;
+  freshness: string;
+}
+
+/** An LNG terminal or storage site at its reference point (MAP-1). */
+export interface MapAssetDTO {
+  asset_id: string;
+  kind: "lng_terminal" | "storage";
+  name: string;
+  country: string | null;
+  eic: string | null;
+  location: MapLocationDTO;
+  capacity: MapAssetCapacityDTO[];
+  flow: MapAssetFlowDTO[];
+  stock: MapAssetStockDTO | null;
+}
+
+/** One stored closed gas day of point flows, for the map's time scrubber (MAP-1). */
+export interface MapFlowDayDTO {
+  gas_day: string;
+  flows: Array<{
+    point_id: string;
+    ref_id: string | null;
+    direction: string;
+    gwh_d: number;
+    operator_key: string | null;
+    source_system: string;
+  }>;
 }
 
 export interface MapRegasSlotDTO {
@@ -3663,6 +3741,11 @@ export interface MapSituationDTO {
   vessel_feed?: { entitled: boolean | null; market_cargoes: number; simulated: number; families: string[] };
   /** The "Our book" view's relevance classes (design basis 2, J.5); newer servers. */
   book_relevance?: BookRelevanceDTO | null;
+  /** MAP-1: terminals and storage sites with the figures the platform holds (newer servers). */
+  assets?: MapAssetDTO[];
+  asset_rule?: string;
+  /** MAP-1: every stored closed gas day of point flows, oldest first (newer servers). */
+  flow_days?: MapFlowDayDTO[];
 }
 
 /** Why an object is on the "Our book" view: a reason key and its values. */

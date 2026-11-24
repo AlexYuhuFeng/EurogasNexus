@@ -42,6 +42,8 @@
 @import url("../components/cargo-roles.css");
 /* Book → Exposure (P-17): changes awaiting a second person, and who set and approved a figure. */
 @import url("../components/pending-changes.css");
+/* The map scene (MAP-1): 2D or 3D, the flows' gas day, and the key with its figures. */
+@import url("../components/mapScene/map-scene.css");
 
 /* ------------------------------------------------------------- element base */
 @layer ds-base {

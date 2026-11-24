@@ -77,7 +77,11 @@ import { buildSites, siteOf, sitePipelines, siteSituation, type MapSelection, ty
 import { useApiStore } from "@/stores/api";
 import { useShellLayout } from "@/app/shell/useShellLayout";
 import { plainDecimal } from "@/app/time/valueFormat";
+import { useInstantFormatter } from "@/app/time/useInstant";
 import { Icon } from "@/components/ui/Icon";
+import { useMapScene } from "@/components/mapScene/useMapScene";
+import { MapSceneControls } from "@/components/mapScene/MapSceneControls";
+import { flowDayOptions, type SceneDimension } from "@/app/mapScene";
 
 // Let Vite resolve and bundle the module worker and its shared imports in both dev and build.
 // MapLibre's default relative URL otherwise points inside Vite's optimized dependency cache.
@@ -370,6 +374,15 @@ const remembered: {
   camera: { center: [number, number]; zoom: number } | null;
   selection: MapSelection | null;
 } = { camera: null, selection: null };
+
+/** 2D or 3D (MAP-1), remembered on the device; 2D unless the user chose 3D. */
+function storedDimension(): SceneDimension {
+  try {
+    return window.localStorage.getItem("egn.map.dimension") === "3d" ? "3d" : "2d";
+  } catch {
+    return "2d";
+  }
+}
 
 export function GasNetworkMap({
   nodes,
@@ -2593,6 +2606,51 @@ export function GasNetworkMap({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mapReady, replayPathKey]);
 
+  // MAP-1: terminal and storage columns, moving flows, voyages with estimated positions. Its
+  // layers are added after the map's own (this hook's effects run after the ones above).
+  const [dimension, setDimension] = useState<SceneDimension>(() => (compact ? "2d" : storedDimension()));
+  const chooseDimension = (next: SceneDimension) => {
+    setDimension(next);
+    try {
+      window.localStorage.setItem("egn.map.dimension", next);
+    } catch {
+      // Not remembered; kept for this visit.
+    }
+  };
+  const [flowDay, setFlowDay] = useState<string | null>(null);
+  const flowDays = useMemo(() => flowDayOptions(situation), [situation]);
+  // A stored day that has left the window falls back to the latest.
+  const shownFlowDay = flowDay !== null && flowDays.includes(flowDay) ? flowDay : null;
+  const sceneProject = useCallback(
+    (lon: number, lat: number): [number, number] => transformCoordinate(mapTileProvider.id, lon, lat),
+    [mapTileProvider.id],
+  );
+  const formatSceneInstant = useInstantFormatter();
+  const sceneWhen = useCallback(
+    (iso: string) => formatSceneInstant(iso, { date: "always" })?.text ?? iso,
+    [formatSceneInstant],
+  );
+  const scene = useMapScene({
+    map: mapRef.current,
+    ready: mapReady,
+    enabled: !compact,
+    situation,
+    nodes,
+    edges,
+    theme: effectiveTheme,
+    flowColour: SITUATION_COLOURS[effectiveTheme].flow,
+    project: sceneProject,
+    dimension,
+    flowDay: shownFlowDay,
+    activeLayers,
+    t: t as (key: string, options?: Record<string, unknown>) => string,
+    when: sceneWhen,
+    onSelectRef: (refId) => {
+      const next = selectForRef.current(refId);
+      if (next) setSelection(next);
+    },
+  });
+
   // Everything the map can locate, for the finder. Positions come from the same sources
   // as the layers, so the finder never lands somewhere the map would not draw.
   const finderPlaces = useMemo<MapFinderPlace[]>(() => {
@@ -2666,6 +2724,23 @@ export function GasNetworkMap({
       <div ref={containerRef} className="maplibre-canvas" />
       {mapReady && !compact && (
         <MapFinder places={finderPlaces} onPick={flyToPlace} t={t} collapsible={phoneWidth} />
+      )}
+      {mapReady && !compact && (
+        <MapSceneControls
+          dimension={dimension}
+          onDimension={chooseDimension}
+          flowDays={flowDays}
+          flowDay={shownFlowDay}
+          onFlowDay={setFlowDay}
+          flowCounts={scene.flows}
+          situation={situation}
+          now={scene.now}
+          t={t as (key: string, options?: Record<string, unknown>) => string}
+          onFlyTo={(at, zoom) => {
+            const map = mapRef.current;
+            if (map) focusOn(map, toMapCoordinates(at[0], at[1]), zoom);
+          }}
+        />
       )}
       {selection && detailCard && (
         <MapDetailPanel

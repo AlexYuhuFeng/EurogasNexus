@@ -33,7 +33,8 @@ nothing merged, no tag, no release package)
 | LNG-2 A cargo change reaches each role | Built and tested; LNG2-1 to LNG2-5 met ([06](06_ACCEPTANCE_CRITERIA.md)); who hears what in [12](12_LNG_CARGO_IN_TRANSIT.md); commit to every role's notification measured in [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) section 8 |
 | GOV-1 Audit with the change, AI controls, licensed-data use | Built and tested; GOV1-1 to GOV1-6 met ([06](06_ACCEPTANCE_CRITERIA.md)); maker-checker (P-17) built and tested, P17-1 to P17-9 met (migration `0081_change_requests`, ADR Decision 32); effective-dated changes not yet built |
 | DATA-1 Data integration | Built and tested; DATA1-1 (as-of reads), DATA1-2 (change feed), DATA1-3 (Power Query reads) and DATA1-4 (ETRM and ERP import contracts) met ([06](06_ACCEPTANCE_CRITERIA.md)) |
-| UX-1, TAR-1, MAP-1, SCHED-1, NEWS-1, UX-2, LOOP-1, M8 to M11, M13 | Planned, in the order of [05](05_IMPLEMENTATION_ROADMAP.md) |
+| MAP-1 The map | Built and tested on `wip/map1`; MAP1-1 to MAP1-6 met ([06](06_ACCEPTANCE_CRITERIA.md)): terminals and storage from ENTSOG published capacity with GIE inventory labelled by scope, carriers with reported and labelled estimated positions and ETA basis, flows with a direction only where the operator's side is known and a gas-day scrubber, 2D/3D with reduced motion. Not yet: frame rate measured in a browser, page-to-page transitions |
+| UX-1, TAR-1, SCHED-1, NEWS-1, UX-2, LOOP-1, M8 to M11, M13 | Planned, in the order of [05](05_IMPLEMENTATION_ROADMAP.md) |
 | M12 Hosted pilot | Dropped by the user on 2026-11-24 (deployment later, outside this programme) |
 
 ## Commits on the branch
@@ -90,7 +91,7 @@ deduplicated plan in [05](05_IMPLEMENTATION_ROADMAP.md) ("Consolidated requireme
    escalation when a role does not act (R20, as for M7), routing to a named person on duty.
 3. **GOV-1.** Audit with the change, entitlement reporting, maker-checker, AI controls.
 4. **UX-1.** The twelve design-study fixes, installer and sign-in.
-5. **DATA-1 (built).** Then **TAR-1, MAP-1, SCHED-1, NEWS-1, UX-2, LOOP-1**, M8 to M11 and M13.
+5. **DATA-1 (built), MAP-1 (built on `wip/map1`).** Then **TAR-1, SCHED-1, NEWS-1, UX-2, LOOP-1**, M8 to M11 and M13.
 
 A persona review round follows each user-facing slice.
 

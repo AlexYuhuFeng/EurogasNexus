@@ -6,6 +6,23 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-24 — Commercial Intelligence V3, MAP-1: the map (branch `wip/map1`)
+
+- `GET /api/portfolio/map-situation` gained `assets` (LNG terminals and storage sites with
+  ENTSOG's newest firm technical capacity per direction, the latest closed-day flow, and GIE
+  inventory labelled `site` or `country_aggregate`; `application/map_assets.py`), `asset_rule`,
+  `flow_days` (stored closed gas days of the entitled flows), and per cargo `eta` (the LNG-2
+  basis object) and `position_basis`. Same entitlement as the read's other items. No route,
+  table, migration or service; census unchanged (292 paths / 327 operations).
+- Web: the network map gained a scene (`app/mapScene.ts` pure model, `app/mapSceneCards.ts`,
+  `components/mapScene/useMapScene.ts`, `MapSceneControls.tsx`, `map-scene.css` in
+  `@layer ds-components`): 3D columns (`fill-extrusion`) or 2D circles for sites, reported and
+  labelled estimated vessel positions (great-circle interpolation to the ETA), animated flows
+  with direction only where the operator's side is known, a gas-day scrubber, 2D/3D with an
+  eased camera and reduced-motion fallbacks, and a keyboard key. EN and ZH strings. No npm
+  package added; basemap unchanged (bundled outline by default, D4).
+- Not yet: frame rate measured in a browser; page-to-page transitions.
+
 ## 2026-11-24 — Commercial Intelligence V3, P-17: maker-checker on limits and reference data (branch `wip/p17`)
 
 - A change to a credit line, trader mandate, deal hedge band, firm marks, LNG terminal terms or

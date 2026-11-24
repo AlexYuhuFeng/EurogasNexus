@@ -279,7 +279,21 @@ gas day except the planted S1 days (18 to 20 of each month).
 | Contract and docs | `pytest tests/contract tests/docs` | 605 passed, 12 skipped |
 | Lint | `ruff check src tests scripts` | All checks passed |
 
+## MAP-1 the map (2026-11-24, branch `wip/map1`)
+
+| What | Command | Result |
+| --- | --- | --- |
+| MAP1-1 to MAP1-4 site figures, flow days, ETA basis and entitlement | `pytest tests/unit/test_map1_assets.py tests/api/test_map_situation_api.py` | 4 new unit tests and 1 new API test pass; with the existing map tests, 59 passed |
+| API contract and docs with the additive fields | `pytest tests/contract tests/docs tests/unit/test_map1_assets.py`; `ruff check src tests scripts` | 609 passed, 12 skipped; ruff clean. Census unchanged (no route added) |
+| MAP1-1 to MAP1-6 map models (layers, estimates, flow orientation, scrubber, reduced motion, colours, cards) | `node --test --experimental-strip-types tests/mapScene.test.ts` (in `clients/web`) | 16 passed |
+| Web client | `npx tsc --noEmit -p .`; `npm test`; `node scripts/cssTokenLint.mjs` | clean; 1,389 tests, 1,386 passed, 3 skipped (baseline 1,373, 1,370 passed); token lint unchanged (the new stylesheet is clean) |
+| Bundle (`npm run build`), against `333254d` | `index-*.js` 2,215.21 kB (gzip 616.73) from 2,181.64 (606.88): +33.6 kB, gzip +9.9; `index-*.css` 392.37 kB (gzip 60.38) from 389.52 (59.84): +2.9 kB, gzip +0.5; `vendor-map` 1,037.39 kB and the MapLibre worker 507.72 kB unchanged | No npm package added |
+| Frame behaviour | Not measured: this environment has no browser. The map writes the p95 frame interval of the flow animation to `data-map-scene-frame-p95` on `.gas-map`, summarised by `app/mapSceneFrames.ts` (tested) | To be read in a browser on the desk's reference machine |
+
 ## Not yet evidenced
+
+- MAP-1 frame rate: the flow animation and 3D columns have not been measured in a browser;
+  read `data-map-scene-frame-p95` on the reference machine with every layer on.
 
 - Latency under sustained load: the M7 figures are single changes on an idle desk; the outbox
   transport rate is measured, sustained mixed load is not.
