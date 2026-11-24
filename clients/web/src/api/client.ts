@@ -1415,6 +1415,28 @@ export interface PipelineHealthDTO {
   open_alerts: number;
 }
 
+/** The one price every screen shows for a hub and delivery period at one instant (P-08):
+ * the freshest in-date tick or settlement, else the firm's mark, else the freshest held
+ * (stated stale). `value`/`unit` in the hub's quotation, `value_mwh`/`unit_mwh` per MWh. */
+export interface ResolvedPriceDTO {
+  hub: string;
+  period_start: string;
+  period_end: string;
+  side: "mid" | "bid" | "ask";
+  value: number;
+  unit: string;
+  value_mwh: number;
+  unit_mwh: string;
+  kind: "live_tick" | "settlement" | "firm_mark" | "derived";
+  source_system: string;
+  as_of_utc: string | null;
+  state: "current" | "late" | "stale";
+  freshness_state: string;
+  simulated: boolean;
+  basis: string;
+  reference: string;
+}
+
 export interface MarketQuoteDTO {
   quote_id: string; source_system: string; source_record_id?: string | null;
   venue: string; instrument_id: string; hub: string; product: string;
@@ -1435,6 +1457,8 @@ export interface MarketQuoteDTO {
   close_price?: number | null; close_day?: string | null;
   close_kind?: "settlement" | "close" | "prior_settlement" | null;
   close_source_system?: string | null; close_simulated?: boolean | null;
+  /** The one price every screen shows for this hub and delivery window now (P-08). */
+  resolved_price?: ResolvedPriceDTO | null;
 }
 
 export interface IntradayOpportunityDTO {
@@ -2084,6 +2108,8 @@ export interface DeskBriefDTO {
   lead: string | null;
   lead_basis: "model" | "none";
   sections: { key: string; heading: string; lines: string[]; sources: string[] }[];
+  /** The price behind each hub line of the prices section (P-08). */
+  resolved_prices?: ResolvedPriceDTO[];
   text: string;
   simulated: boolean;
   warnings: string[];
@@ -2124,6 +2150,7 @@ export interface TodayPriceDTO extends TodayFigureDTO {
   close_day: string;
   day_change: number | null;
   day_change_vs: string | null;
+  resolved_price?: ResolvedPriceDTO | null;
 }
 
 export interface TodayWhyDTO {
@@ -2139,6 +2166,8 @@ export interface TodayMarketFigureDTO extends TodayFigureDTO {
   close_day: string;
   day_change: number | null;
   series: { day: string; value: number }[];
+  /** Month-ahead only: the one price every screen shows for the front month (P-08). */
+  resolved_price?: ResolvedPriceDTO | null;
 }
 
 /** A front-month spread against TTF in EUR/MWh, with the route cost or why it is not given. */
@@ -2429,7 +2458,14 @@ export interface TodayBookRowDTO {
     position_front_month: TodayFigureDTO;
     net_open_mwh: number;
     /** In the hub's quotation (NBP GBp/th); the book's per-MWh value travels with it. */
-    mark: (TodayFigureDTO & { same_as: string | null; value_mwh?: number; unit_mwh?: string }) | null;
+    mark:
+      | (TodayFigureDTO & {
+          same_as: string | null;
+          value_mwh?: number;
+          unit_mwh?: string;
+          resolved_price?: ResolvedPriceDTO | null;
+        })
+      | null;
     day_pnl_change: TodayFigureDTO | { empty: TodayEmptyDTO };
   }[];
 }
@@ -3352,7 +3388,8 @@ export interface PositionLadderRowDTO {
   hedge_ratio: number | null;
   /** Price the month is marked at, in the hub's unit; null when nothing marks it. */
   mark?: number | null;
-  /** "quoted", "derived" (from a quarter, season or year), "front" (prompt) or "flat". */
+  /** "quoted" (a tick or settlement), "firm_mark", "derived" (from a quarter, season or
+   * year), "front" (prompt) or "flat". */
   mark_method?: string | null;
   /** The unit of `mark`: the hub's currency per MWh. */
   mark_unit?: string;
@@ -3364,6 +3401,8 @@ export interface PositionLadderRowDTO {
   state?: FigureStateDTO;
   /** The firm's cargoes in this row, by cargo id: plan send-out and the hedges recorded on it. */
   cargoes?: { cargo_id: string; physical_mwh: number; financial_mwh: number }[];
+  /** The price behind `mark`: kind, source, as-of and state (P-08). */
+  resolved_price?: ResolvedPriceDTO | null;
 }
 
 /** A market-data licence the firm holds; licensed data scopes are granted against it. */
