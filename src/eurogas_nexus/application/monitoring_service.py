@@ -21,7 +21,6 @@ from eurogas_nexus.application.service_identity import (
 )
 from eurogas_nexus.db.models import (
     IngestionRunRecord,
-    IntradayOpportunityRecord,
     MonitoringAlertRecord,
     StrategyAlertRecord,
 )
@@ -222,62 +221,92 @@ def enrich_monitoring_alert(
     return result
 
 
+#: Words for each opportunity state that raises an alert (M7): what a trader reads in a list.
+_OPPORTUNITY_STATE_WORDS = {
+    "actionable": ("Opportunity open", "机会开启", "warning"),
+    "indicative": ("Indicative opportunity", "指示性机会", "info"),
+}
+
+
 def _opportunity_candidates(
     session: Session,
     now_utc: datetime,
 ) -> list[MonitoringCandidate]:
+    """One alert per opportunity the engine lists (M7): open while it is listed, resolved
+    (withdrawn) the scan after it stops being viable.
+
+    "Listed" is the engine's own threshold: surfaced after the persistence count, and in state
+    ``actionable`` (warning) or ``indicative`` (info, standing on marks or settlements). An
+    opportunity that expires, is converted to a case, goes blocked or falls to watch is no
+    longer a candidate, so its alert resolves; that is the withdrawal. The fingerprint is the
+    record id, which the engine keeps for one opportunity key, so a re-evaluation updates the
+    alert and the notification outbox writes it once. The evidence names the books and source
+    families behind it; ``alert_scope`` shows it only to callers who may read the opportunity.
+    """
+
+    from decimal import Decimal
+
+    from eurogas_nexus.application.opportunities.listing import subject_of
+    from eurogas_nexus.db.models import OpportunityRecord
+    from eurogas_nexus.domain.opportunities.model import decimal_text
+
     rows = (
-        session.query(IntradayOpportunityRecord)
-        .filter(IntradayOpportunityRecord.valid_until_utc >= now_utc)
-        .order_by(IntradayOpportunityRecord.detected_at_utc.desc())
+        session.query(OpportunityRecord)
+        .filter(OpportunityRecord.surfaced.is_(True))
+        .filter(OpportunityRecord.state.in_(tuple(_OPPORTUNITY_STATE_WORDS)))
+        .order_by(OpportunityRecord.last_changed_utc.desc())
         .limit(500)
         .all()
     )
-    latest: dict[str, IntradayOpportunityRecord] = {}
-    for row in rows:
-        fingerprint = _opportunity_fingerprint(row)
-        latest.setdefault(fingerprint, row)
-
     candidates: list[MonitoringCandidate] = []
-    for fingerprint, row in latest.items():
-        if row.status not in {"ACTIONABLE_REVIEW", "BLOCKED"}:
-            continue
-        actionable = row.status == "ACTIONABLE_REVIEW"
-        severity = "warning" if actionable else "info"
-        margin = _format_amount(row.net_margin, row.comparison_currency, row.comparison_unit)
-        route = f"{row.buy_hub} -> {row.sell_hub} via {row.route_name}"
-        title_en = (
-            "Intraday spread requires review"
-            if actionable
-            else "Route opportunity is blocked"
+    for row in rows:
+        expires = _as_utc(row.expires_at_utc)
+        if expires <= now_utc:
+            continue  # past its validity: withdrawn even before the engine's next run
+        title_en, title_zh_cn, severity = _OPPORTUNITY_STATE_WORDS[row.state]
+        subject = subject_of(row)
+        figure = (
+            f"{decimal_text(Decimal(str(row.value_amount)))} {row.value_currency}"
+            if row.value_amount is not None
+            else f"{decimal_text(Decimal(str(row.headline_value)))} {row.headline_unit}"
         )
-        title_zh_cn = "日内价差机会待复核" if actionable else "路径机会当前受阻"
-        message_en = (
-            f"{route}; net margin {margin}."
-            if actionable
-            else f"{route}; required inputs or access are incomplete."
-        )
-        message_zh_cn = (
-            f"{route}；净边际为 {margin}。"
-            if actionable
-            else f"{route}；必要输入、容量或准入条件不完整。"
-        )
+        until = expires.strftime("%Y-%m-%d %H:%M UTC")
         candidates.append(
             MonitoringCandidate(
-                fingerprint=fingerprint,
-                category="market_opportunity",
-                alert_type=row.opportunity_type.lower(),
+                fingerprint=f"opportunity:{row.opportunity_id}",
+                category="opportunity",
+                alert_type=row.type,
                 severity=severity,
-                title_en=title_en,
-                title_zh_cn=title_zh_cn,
-                message_en=message_en,
-                message_zh_cn=message_zh_cn,
-                entity_type="intraday_opportunity",
+                title_en=f"{title_en}: {subject}",
+                title_zh_cn=f"{title_zh_cn}：{subject}",
+                message_en=(
+                    f"{row.claim_text} {row.period_label}, {figure}. Valid until {until}; "
+                    "for review, nothing is traded."
+                ),
+                message_zh_cn=(
+                    f"{row.claim_text} {row.period_label}，{figure}。有效至 {until}；"
+                    "仅供复核，不会下单。"
+                ),
+                entity_type="opportunity",
                 entity_id=row.opportunity_id,
-                event_time_utc=row.detected_at_utc,
-                evidence_snapshot=_opportunity_evidence(row),
-                source_refs=list(row.source_refs or []),
-                warnings=list(row.warnings or []),
+                event_time_utc=row.last_changed_utc,
+                evidence_snapshot={
+                    "opportunity_id": row.opportunity_id,
+                    "type": row.type,
+                    "lane": row.lane,
+                    "state": row.state,
+                    "version": row.version,
+                    "period": row.period_label,
+                    "book_ids": list(row.book_ids or []),
+                    "source_families": list(row.source_families or []),
+                    "expires_at_utc": expires.isoformat(),
+                    "deadline_utc": (
+                        _as_utc(row.deadline_utc).isoformat() if row.deadline_utc else None
+                    ),
+                    "evaluation_id": row.evaluation_id,
+                },
+                source_refs=[f"opportunity:{row.opportunity_id}", f"snapshot:{row.snapshot_id}"],
+                warnings=[],
                 simulated=bool(row.simulated),
                 human_review_required=True,
             )
@@ -1414,49 +1443,6 @@ def _parse_bilingual_summary(content: str) -> tuple[str, str]:
     return content.strip(), content.strip()
 
 
-def _opportunity_fingerprint(row: IntradayOpportunityRecord) -> str:
-    return ":".join(
-        (
-            "opportunity",
-            row.opportunity_type.lower(),
-            row.route_id.lower(),
-            row.product.lower(),
-            row.buy_hub.lower(),
-            row.sell_hub.lower(),
-        )
-    )
-
-
-def _opportunity_evidence(row: IntradayOpportunityRecord) -> dict[str, Any]:
-    return {
-        "opportunity_id": row.opportunity_id,
-        "status": row.status,
-        "route_id": row.route_id,
-        "route_name": row.route_name,
-        "buy_venue": row.buy_venue,
-        "sell_venue": row.sell_venue,
-        "buy_hub": row.buy_hub,
-        "sell_hub": row.sell_hub,
-        "product": row.product,
-        "buy_ask": row.buy_ask,
-        "sell_bid": row.sell_bid,
-        "gross_spread": row.gross_spread,
-        "route_cost": row.route_cost,
-        "trading_cost": row.trading_cost,
-        "risk_buffer": row.risk_buffer,
-        "net_margin": row.net_margin,
-        "max_quantity_mwh": row.max_quantity_mwh,
-        "indicative_net_value": row.indicative_net_value,
-        "comparison_currency": row.comparison_currency,
-        "comparison_unit": row.comparison_unit,
-        "quote_age_seconds": row.quote_age_seconds,
-        "confidence_score": row.confidence_score,
-        "assumptions": row.assumptions,
-        "missing_inputs": row.missing_inputs,
-        "valid_until_utc": _as_utc(row.valid_until_utc).isoformat(),
-    }
-
-
 def _normalize_severity(value: str) -> str:
     normalized = value.strip().lower()
     if normalized in {"critical", "error", "high"}:
@@ -1464,12 +1450,6 @@ def _normalize_severity(value: str) -> str:
     if normalized in {"warning", "warn", "medium"}:
         return "warning"
     return "info"
-
-
-def _format_amount(value: float | None, currency: str, unit: str) -> str:
-    if value is None:
-        return "unavailable"
-    return f"{currency} {value:.4f}/{unit}"
 
 
 def _as_utc(value: datetime) -> datetime:

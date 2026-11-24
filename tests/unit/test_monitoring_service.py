@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
@@ -12,8 +13,8 @@ from eurogas_nexus.application.service_identity import SERVICE_PRINCIPAL_ENV
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     IngestionRunRecord,
-    IntradayOpportunityRecord,
     MonitoringAlertRecord,
+    OpportunityRecord,
 )
 from eurogas_nexus.db.repositories.identity import create_identity_principal
 from eurogas_nexus.llm import DeepSeekCallResult
@@ -41,45 +42,44 @@ def _provision_service_identity(session, monkeypatch) -> None:
     monkeypatch.setenv(SERVICE_PRINCIPAL_ENV, SERVICE_PRINCIPAL_NAME)
 
 
-def _opportunity(now: datetime) -> IntradayOpportunityRecord:
-    return IntradayOpportunityRecord(
-        opportunity_id=f"opp-{now.timestamp()}",
-        scan_id=f"scan-{now.timestamp()}",
-        opportunity_type="CROSS_HUB_SPREAD",
-        status="ACTIONABLE_REVIEW",
-        buy_quote_id="quote-buy",
-        sell_quote_id="quote-sell",
-        route_id="ttf-bbl-nbp",
-        route_name="TTF-BBL-NBP",
-        buy_venue="EEX_SIM",
-        sell_venue="ICE_OCM_SIM",
-        buy_hub="TTF",
-        sell_hub="NBP",
-        product="within-day",
-        delivery_start_utc=now,
-        delivery_end_utc=now + timedelta(hours=1),
-        comparison_currency="GBP",
-        comparison_unit="MWh",
-        buy_ask=27.0,
-        sell_bid=29.0,
-        gross_spread=2.0,
-        route_cost=0.8,
-        trading_cost=0.1,
-        risk_buffer=0.2,
-        net_margin=0.9,
-        max_quantity_mwh=1000.0,
-        indicative_net_value=900.0,
-        quote_age_seconds=2.0,
-        confidence_score=0.93,
-        cost_components=[],
-        source_refs=["simulated-eex", "simulated-ice-ocm"],
-        assumptions=["preview-price-input"],
-        missing_inputs=[],
-        warnings=[],
-        detected_at_utc=now,
-        valid_until_utc=now + timedelta(minutes=2),
+def _opportunity(now: datetime) -> OpportunityRecord:
+    """A listed opportunity of the opportunity engine (M7: the new engine raises alerts)."""
+
+    return OpportunityRecord(
+        opportunity_id=f"opp-{int(now.timestamp())}",
+        opp_key=f"key-{int(now.timestamp())}",
+        type="locational",
+        lane="could_act",
+        state="actionable",
+        assessed_state="actionable",
+        version=1,
+        version_basis=Decimal("900"),
+        claim_key="locational.buy_sell",
+        claim_fields={"buy_hub": "TTF", "sell_hub": "NBP"},
+        claim_text="Buy TTF, sell NBP",
+        headline_value=Decimal("0.90"),
+        headline_unit="EUR/MWh",
+        value_amount=Decimal("900"),
+        value_currency="EUR",
+        period_label="Dec-26",
+        period_start=date(2026, 12, 1),
+        period_end=date(2026, 12, 31),
+        quality_class="sourced",
         simulated=True,
-        human_review_required=True,
+        book_ids=[],
+        source_families=[],
+        reasons=[],
+        first_seen_utc=now,
+        last_evaluated_utc=now,
+        last_changed_utc=now,
+        consecutive_seen=2,
+        consecutive_missed=0,
+        surfaced=True,
+        expires_at_utc=now + timedelta(hours=6),
+        snapshot_id="snap-1",
+        evaluation_id="oeval-1",
+        evaluator="locational",
+        evaluator_version="1",
     )
 
 

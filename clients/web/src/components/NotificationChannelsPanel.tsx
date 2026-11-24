@@ -6,7 +6,9 @@ import { idFromName } from "@/components/ui/recordPickerModel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-const CATEGORIES = ["alert", "support", "limits", "tariff", "source", "report"];
+/** The server's notification categories (application/notifications.py); `alert` also receives
+ * `opportunity`, `nomination` and `source` (application/alert_routing.py). */
+const CATEGORIES = ["alert", "opportunity", "nomination", "limits", "source", "tariff", "support", "report"];
 const EMPTY = { channel_id: "", name: "", recipients: "", categories: [] as string[], min_severity: "high" };
 
 /**

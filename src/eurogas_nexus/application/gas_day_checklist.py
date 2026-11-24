@@ -385,6 +385,7 @@ def queue_deadline_notifications(session, *, now: datetime) -> int:
     line, step and deadline, so a step notifies once however often the worker runs.
     """
 
+    from eurogas_nexus.application.alert_routing import NOMINATION_DEADLINE, addressed_line
     from eurogas_nexus.application.caller import firm_caller
     from eurogas_nexus.application.notifications import queue_notification
     from eurogas_nexus.security.portfolio_scope import firm_wide_scope
@@ -397,14 +398,16 @@ def queue_deadline_notifications(session, *, now: datetime) -> int:
             continue
         queued += queue_notification(
             session,
-            category="alert",
+            # Scheduling's own category; an ``alert`` subscription still receives it.
+            category=NOMINATION_DEADLINE.notification_category,
             severity="warning" if item["urgency"] == "due_soon" else "high",
             title=f"{item['hub']} {item['title']}: {item['step'].replace('_', ' ')} "
                   f"{item['status'].replace('_', ' ')}",
             body=(f"Gas day {item['gas_day']}, {item['hub']}: {item['title']} - "
                   f"{item['step'].replace('_', ' ')} is {item['status'].replace('_', ' ')}; "
                   f"deadline {item['deadline_utc']}. Recorded in Today's gas day checklist; "
-                  "nominations are made in the scheduling system."),
+                  "nominations are made in the scheduling system.\n\n"
+                  f"{addressed_line(NOMINATION_DEADLINE)}"),
             dedupe_key=f"gasday:{item['id']}:{item['deadline_utc']}",
             now=now,
         )

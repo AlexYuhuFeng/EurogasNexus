@@ -149,7 +149,11 @@ def test_deadlines_feed_what_needs_me_and_the_outbox_once(desk):
         again = queue_deadline_notifications(session, now=TODAY_AT(11) + timedelta(minutes=5))
         session.commit()
         assert first >= 1 and again == 0
-        titles = [row.title for row in session.query(NotificationOutboxRecord)]
+        rows = session.query(NotificationOutboxRecord).all()
+        titles = [row.title for row in rows]
+        # Routed to scheduling (M7); an ``alert`` subscription still receives it.
+        assert {row.category for row in rows} == {"nomination"}
+        assert all(row.body.endswith("If not acted on: Trader.") for row in rows)
     assert any("Brae North" in title for title in titles)
 
 

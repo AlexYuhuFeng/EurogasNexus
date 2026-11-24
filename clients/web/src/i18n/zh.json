@@ -3181,6 +3181,8 @@
   "notify.category_tariff": "费率截止日期",
   "notify.category_source": "数据源中断",
   "notify.category_report": "定时报告",
+  "notify.category_opportunity": "机会开启或撤回（交易台）",
+  "notify.category_nomination": "提名截止与交割（调度）",
   "support.hint": "报告给 IT",
   "support.hint_title": "数据不完整。通知 IT 支持，诊断信息将自动附上。",
   "support.hint_summary": "工作区数据显示为{{state}}",

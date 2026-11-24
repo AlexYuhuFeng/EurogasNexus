@@ -2,10 +2,16 @@
 
 Anything worth telling someone about is written once to ``notification_outbox`` with a
 dedupe key (a monitoring alert, a problem report to the IT desk, a tariff deadline), so the
-same event never notifies twice. The worker dispatches each outbox row to every enabled
-channel whose categories and minimum severity match, records one delivery per channel and
-retries a failed delivery up to :data:`MAX_ATTEMPTS` times, at least
-:data:`RETRY_AFTER` apart. Nothing is sent from a request thread.
+same event never notifies twice, even when two workers queue it at once (the second insert
+meets the unique key and writes nothing). The worker dispatches each outbox row to every
+enabled channel whose categories and minimum severity match, records one delivery per channel
+and retries a failed delivery up to :data:`MAX_ATTEMPTS` times, at least :data:`RETRY_AFTER`
+apart. On PostgreSQL a worker locks the rows it dispatches (``FOR UPDATE SKIP LOCKED``), so two
+workers never send the same row. Nothing is sent from a request thread.
+
+A monitoring alert is routed by ``alert_routing``: its owner and escalation name the job
+functions it is for, and its category decides the channels (``opportunity``, ``nomination``
+and ``source`` are also received by an ``alert`` subscription).
 
 A channel is a list of email addresses (Settings → Notifications, administrators), sent
 through the firm's own SMTP relay (``EUROGAS_NEXUS_SMTP_*``); no third-party mail or chat
@@ -24,7 +30,16 @@ from datetime import UTC, datetime, timedelta
 from email.message import EmailMessage
 
 SEVERITY_ORDER = {"info": 0, "low": 1, "medium": 2, "warning": 2, "high": 3, "critical": 4}
-CATEGORIES = ("alert", "support", "limits", "tariff", "source", "report")
+CATEGORIES = (
+    "alert",
+    "support",
+    "limits",
+    "tariff",
+    "source",
+    "report",
+    "opportunity",
+    "nomination",
+)
 KINDS = ("email",)
 MAX_ATTEMPTS = 3
 RETRY_AFTER = timedelta(minutes=5)
@@ -57,6 +72,8 @@ def queue_notification(
 ) -> bool:
     """Write one outbox row unless the same event is already there; True when written."""
 
+    from sqlalchemy.exc import IntegrityError
+
     from eurogas_nexus.db.models import NotificationOutboxRecord
 
     if (
@@ -65,24 +82,32 @@ def queue_notification(
         .first()
     ):
         return False
-    session.add(
-        NotificationOutboxRecord(
-            notification_id=uuid.uuid4().hex,
-            category=category,
-            severity=severity.casefold(),
-            title=title[:256],
-            body=body[:8000],
-            dedupe_key=dedupe_key[:200],
-            created_at_utc=now,
-            dispatched_at_utc=None,
-        )
+    row = NotificationOutboxRecord(
+        notification_id=uuid.uuid4().hex,
+        category=category,
+        severity=severity.casefold(),
+        title=title[:256],
+        body=body[:8000],
+        dedupe_key=dedupe_key[:200],
+        created_at_utc=now,
+        dispatched_at_utc=None,
     )
+    try:
+        # Another worker may queue the same event between the read above and this write: the
+        # unique dedupe key refuses the second copy (on PostgreSQL it waits for the first to
+        # commit) and only this savepoint rolls back.
+        with session.begin_nested():
+            session.add(row)
+            session.flush()
+    except IntegrityError:
+        return False
     return True
 
 
 def mirror_monitoring_alerts(session, *, now: datetime) -> int:
     """Queue every open monitoring alert once (keyed by alert id)."""
 
+    from eurogas_nexus.application.alert_routing import addressed_line, route_for
     from eurogas_nexus.db.models import MonitoringAlertRecord
 
     queued = 0
@@ -92,12 +117,13 @@ def mirror_monitoring_alerts(session, *, now: datetime) -> int:
         .filter(MonitoringAlertRecord.acknowledged_at_utc.is_(None))
         .all()
     ):
+        route = route_for(alert.category)
         queued += queue_notification(
             session,
-            category="limits" if alert.category == "limits" else "alert",
+            category=route.notification_category,
             severity=alert.severity,
             title=alert.title_en,
-            body=alert.message_en,
+            body=f"{alert.message_en}\n\n{addressed_line(route)}",
             dedupe_key=f"alert:{alert.alert_id}",
             now=now,
         )
@@ -140,8 +166,13 @@ DEFAULT_SENDERS: dict[str, Sender] = {
 def channel_matches(channel, message: Message) -> bool:
     if not channel.enabled:
         return False
+    from eurogas_nexus.application.alert_routing import UMBRELLA
+
     categories = channel.categories or []
-    if categories and message.category not in categories:
+    if categories and not any(
+        message.category == item or message.category in UMBRELLA.get(item, ())
+        for item in categories
+    ):
         return False
     return severity_rank(message.severity) >= severity_rank(channel.min_severity)
 
@@ -158,13 +189,17 @@ def dispatch(session, *, now: datetime, senders: dict[str, Sender] | None = None
     senders = senders or DEFAULT_SENDERS
     channels = session.query(NotificationChannelRecord).all()
     counts = {"sent": 0, "failed": 0, "skipped": 0}
-    pending = (
+    query = (
         session.query(NotificationOutboxRecord)
         .filter(NotificationOutboxRecord.dispatched_at_utc.is_(None))
         .order_by(NotificationOutboxRecord.created_at_utc)
         .limit(200)
-        .all()
     )
+    if session.get_bind().dialect.name == "postgresql":
+        # The row lock: a second worker skips the rows this one is sending (M7), so a message
+        # is never sent twice; the lock holds until the caller commits.
+        query = query.with_for_update(skip_locked=True)
+    pending = query.all()
     for row in pending:
         message = Message(row.category, row.severity, row.title, row.body)
         settled = True

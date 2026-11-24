@@ -7,6 +7,7 @@ See docs/engineering/Commercial-Intelligence-V3/15_LIVE_PIPELINE_AND_LATENCY_BUD
 from __future__ import annotations
 
 import importlib.util
+import os
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
@@ -154,3 +155,31 @@ def test_the_listen_worker_is_deployed_with_the_scheduler() -> None:
     assert worker["restart"] == "unless-stopped"
     dockerfile = (ROOT / "deploy" / "runtime" / "Dockerfile.api").read_text()
     assert "scripts/ops/market_events.py" in dockerfile
+
+
+@pytest.mark.skipif(
+    not os.environ.get("RUNTIME_STORE_DATABASE_URL", "").startswith("postgresql"),
+    reason="needs PostgreSQL (scripts/ci/run_postgres_ci.sh)",
+)
+def test_a_second_sweep_is_told_busy_while_one_holds_the_lock_on_postgres() -> None:
+    pg = create_engine(os.environ["RUNTIME_STORE_DATABASE_URL"], future=True)
+    holder, other = Session(pg), Session(pg)
+    try:
+        schedule.note_input_changed(other, "prices", reason="m7 lock test", at_utc=NOW)
+        other.commit()
+        assert schedule.evaluation_lock(holder, wait=False) is True
+        assert schedule.run_due(other, now_utc=NOW, runner=lambda *a, **k: {}) == {
+            "status": "busy"
+        }
+        other.rollback()
+        holder.rollback()  # released at the end of the holder's transaction
+        assert schedule.evaluation_lock(other, wait=False) is True
+    finally:
+        other.rollback()
+        from eurogas_nexus.db.models import OpportunityPendingInputRecord
+
+        other.query(OpportunityPendingInputRecord).delete()
+        other.commit()
+        holder.close()
+        other.close()
+        pg.dispose()

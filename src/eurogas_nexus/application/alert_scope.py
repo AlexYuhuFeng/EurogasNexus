@@ -11,6 +11,9 @@ kinds are narrower:
   carries a licensed figure, so it is shown only to callers entitled to the source family of
   that price (the row entitlement every price read applies). Public and demo families are
   visible to every caller; outside a request with no principal, a licensed one is hidden.
+- An opportunity alert (M7) is shown by the opportunity's own rule (``opportunities.listing.
+  visible_to``): every source family behind it must be one the caller may read, and unless it
+  is a market item (lane ``market``) every book behind it must be one the caller can see.
 """
 
 from __future__ import annotations
@@ -23,6 +26,8 @@ from typing import Any
 BOOK_SCOPED_CATEGORIES = frozenset({"limits", "delivery"})
 #: Alert categories that carry a price and name its source system in the evidence.
 SOURCE_SCOPED_CATEGORIES = frozenset({"market", "fundamentals"})
+#: Alerts about one opportunity of the opportunity engine.
+OPPORTUNITY_CATEGORY = "opportunity"
 
 _request_principal: ContextVar[Any] = ContextVar("eurogas_alert_principal", default=None)
 _UNSET = object()
@@ -66,6 +71,17 @@ def alert_visibility(session, *, principal: Any = _UNSET, **scope: Any) -> Calla
     def visible(row: Any) -> bool:
         get = row.get if isinstance(row, dict) else lambda key: getattr(row, key, None)
         category = get("category")
+        if category == OPPORTUNITY_CATEGORY:
+            evidence = get("evidence_snapshot") or {}
+            if not all(
+                _source_allowed(reader, str(family))
+                for family in evidence.get("source_families") or []
+            ):
+                return False
+            if allowed is None or evidence.get("lane") == "market":
+                return True
+            books = evidence.get("book_ids") or []
+            return bool(books) and all(book in allowed for book in books)
         if category in SOURCE_SCOPED_CATEGORIES:
             source = (get("evidence_snapshot") or {}).get("source_system")
             if source and not _source_allowed(reader, str(source)):

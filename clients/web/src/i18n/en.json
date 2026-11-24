@@ -3181,6 +3181,8 @@
   "notify.category_tariff": "Tariff deadlines",
   "notify.category_source": "Source outages",
   "notify.category_report": "Scheduled reports",
+  "notify.category_opportunity": "Opportunities opened or withdrawn (trading desk)",
+  "notify.category_nomination": "Nomination cut-offs and deliveries (scheduling)",
   "support.hint": "Report to IT",
   "support.hint_title": "Data is incomplete. Tell the IT desk; diagnostics are attached.",
   "support.hint_summary": "Workspace data shows as {{state}}",
