@@ -8,7 +8,7 @@ Generated from the source of `eurogas_nexus_sdk`. Each function takes the server
 
 Field-level descriptions are in each model's docstring: `help(eurogas_nexus_sdk.market.MarketQuote)`.
 
-Surface: 34 modules, 155 public functions, 134 public models. 17 functions have no docstring and 4 have no type annotations.
+Surface: 34 modules, 157 public functions, 135 public models. 17 functions have no docstring and 4 have no type annotations.
 
 | Module | Functions | Models | Purpose |
 |---|---|---|---|
@@ -25,7 +25,7 @@ Surface: 34 modules, 155 public functions, 134 public models. 17 functions have 
 | [`lng`](#lng) | 2 | 2 | SDK client for /api/lng. |
 | [`lng_cargo_plan`](#lng_cargo_plan) | 4 | 3 | SDK client for a cargo in transit as one plan (``/api/lng/cargoes``). |
 | [`lng_economics_only`](#lng_economics_only) | 0 | 9 | Typed SDK carriers for ``POST /api/research/lng-economics-only``. |
-| [`market`](#market) | 17 | 8 | SDK client for /api/market. |
+| [`market`](#market) | 19 | 9 | SDK client for /api/market. |
 | [`monitoring`](#monitoring) | 4 | 3 | SDK client for persisted monitoring alerts and DeepSeek interaction. |
 | [`native_physical`](#native_physical) | 4 | 3 | Typed native-unit physical observation reads for RFC 0005. |
 | [`optimization`](#optimization) | 8 | 16 | SDK client for the phase-two optimization and evidence APIs. |
@@ -353,6 +353,8 @@ SDK client for /api/market.
 | `fetch_interest_rates_result` | `GET /api/market/interest-rates` | `SdkResult[dict[str, Any]]` | Fetch overnight benchmark fixings (SONIA, €STR, SOFR) and the benchmark catalogue. |
 | `resolve_financing_rate_result` | `GET /api/market/financing-rate` | `SdkResult[dict[str, Any]]` | Resolve a contract financing rate (benchmark fixing on/before ``as_of`` + spread). |
 | `fetch_price_strip_result` | `GET /api/market/prices` | `SdkResult[list[PriceStripRow]]` | Fetch the monthly price strip (curve) of some hubs, live or as known at an instant. |
+| `fetch_market_changes_result` | `GET /api/market/changes` | `SdkResult[list[MarketChange]]` | Fetch one page of what changed since a cursor (oldest first). |
+| `sync_market_changes` | `GET /api/market/changes` | `tuple[list[MarketChange], str | None]` | Read every change since ``after`` (up to ``max_pages`` pages) and the cursor to keep. |
 
 Signatures:
 
@@ -374,6 +376,8 @@ convert_gas_price_result(base_url: str, *, value: float, from_unit: str, to_unit
 fetch_interest_rates_result(base_url: str, *, benchmark: str | None = None, limit: int = 30) -> SdkResult[dict[str, Any]]
 resolve_financing_rate_result(base_url: str, *, benchmark: str, spread_bps: float = 0.0, as_of: str | None = None) -> SdkResult[dict[str, Any]]
 fetch_price_strip_result(base_url: str, *, hubs: list[str], start: str | None = None, months: int = 12, side: str = mid, include_simulated: bool = False, as_of: str | None = None) -> SdkResult[list[PriceStripRow]]
+fetch_market_changes_result(base_url: str, *, after: str | None = None, kinds: list[str] | None = None, subject: str | None = None, limit: int = 200) -> SdkResult[list[MarketChange]]
+sync_market_changes(base_url: str, *, after: str | None = None, kinds: list[str] | None = None, subject: str | None = None, page_size: int = 500, max_pages: int = 20) -> tuple[list[MarketChange], str | None]
 ```
 
 Models:
@@ -386,6 +390,7 @@ Models:
 - `NormalizedMarketObservation` (38 fields). A market observation normalized to a common hub/tenor schema.
 - `GasProduct` (10 fields). One resolved gas product from ``GET /api/market/products``.
 - `PriceStripRow` (21 fields). One hub and delivery month of the price strip (``GET /api/market/prices``, DATA-1).
+- `MarketChange` (15 fields). One change in the market event feed (``GET /api/market/changes``, DATA-1).
 
 ## monitoring
 

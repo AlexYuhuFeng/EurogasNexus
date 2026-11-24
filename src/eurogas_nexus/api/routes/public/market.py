@@ -290,6 +290,84 @@ def list_prices(
         raise _db_unavailable(exc) from exc
 
 
+@router.get("/api/market/changes")
+def list_market_changes(
+    request: Request,
+    after: str | None = Query(
+        default=None,
+        description="The next_cursor of the previous page; omitted: from the first event; "
+        "'latest': no events, only the cursor of the newest one",
+    ),
+    kinds: list[str] = Query(
+        default=[], description="Event types, repeated or comma-separated (price.updated...)"
+    ),
+    subject: str | None = Query(
+        default=None, max_length=160, description="Subject key prefix, e.g. hub:TTF or cargo:"
+    ),
+    limit: int = Query(default=200, ge=1, le=1000),
+) -> dict:
+    """What changed since a cursor: market events, oldest first, as digests (DATA-1, P2).
+
+    Read-only and poll-safe: each page ends with ``meta.next_cursor``; asking again with it
+    returns only what was recorded since, in a stable order that never skips a committed
+    event. Each change names the event (key, type, subject, revision, ``insert`` or
+    ``update``, times, source, the snapshot keys it touches) and never its value: read the
+    value through the entitled read (for a price, ``/api/market/observations?as_of=``).
+    Entitlement is per caller: a market event by its source family, a desk event only for a
+    caller who may read the portfolio across every book. Retention: the outbox is
+    append-only and nothing prunes it.
+    """
+
+    from eurogas_nexus.application.change_feed import (
+        CHANGE_COLUMNS,
+        ChangeFeedError,
+        parse_cursor,
+        parse_kinds,
+        read_changes,
+    )
+
+    try:
+        position = parse_cursor(after)
+        wanted = parse_kinds(kinds)
+    except ChangeFeedError as exc:
+        raise HTTPException(
+            status_code=422, detail={"code": exc.code, "message": exc.message}
+        ) from exc
+    if not _db_is_configured():
+        envelope = _env(
+            [],
+            source="runtime-db-not-configured",
+            warnings=["Runtime DB is not configured; market changes are unavailable."],
+        )
+        envelope["meta"].update({"next_cursor": after, "has_more": False})
+        return envelope
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            page = read_changes(
+                session,
+                current_principal(request),
+                after=position,
+                kinds=wanted,
+                subject_prefix=subject,
+                limit=limit,
+            )
+        envelope = _env(page.changes, source="runtime-postgresql")
+        envelope["meta"].update(
+            {
+                "next_cursor": page.next_cursor,
+                "has_more": page.has_more,
+                "columns": list(CHANGE_COLUMNS),
+                "retention": "full history; market events are append-only and never pruned",
+            }
+        )
+        return envelope
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+
+
 @router.get("/api/market/opportunities")
 def list_opportunities(
     request: Request,

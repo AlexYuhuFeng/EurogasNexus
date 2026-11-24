@@ -828,3 +828,116 @@ def fetch_price_strip_result(
         params["as_of"] = as_of
     data, meta = get_envelope(api_url(base_url, "market/prices"), params=params)
     return SdkResult([PriceStripRow.model_validate(row) for row in data], meta)
+
+
+class MarketChange(BaseModel):
+    """One change in the market event feed (``GET /api/market/changes``, DATA-1).
+
+    A digest, never the value: read the figure through the entitled read it belongs to.
+
+    Attributes:
+        cursor: The feed position just after this change.
+        event_id: The event revision's id.
+        event_key: The identity every revision of the event shares.
+        event_type: ``price.updated``, ``fx.updated``, ``cargo.changed``...
+        operation: ``insert`` for revision 1, ``update`` for a later revision.
+        revision: The revision number.
+        supersedes_event_id: The revision this one replaces, if any.
+        subject_key: What changed (``hub:TTF:2027-01``, ``fx:EURGBP``, ``cargo:<id>``).
+        source_id: The source or writer.
+        input_class: The valuation input class it changes, if any.
+        dependency_keys: The snapshot input keys the change touches.
+        content_hash: Digest of what the event says.
+        market_time_utc: When the fact applies.
+        published_at_utc: When the source published it.
+        ingested_at_utc: When this platform recorded it.
+    """
+
+    cursor: str
+    event_id: str
+    event_key: str
+    event_type: str
+    operation: str
+    revision: int
+    supersedes_event_id: str | None = None
+    subject_key: str
+    source_id: str
+    input_class: str | None = None
+    dependency_keys: list[str] = Field(default_factory=list)
+    content_hash: str
+    market_time_utc: str | None = None
+    published_at_utc: str | None = None
+    ingested_at_utc: str
+
+
+def fetch_market_changes_result(
+    base_url: str,
+    *,
+    after: str | None = None,
+    kinds: list[str] | None = None,
+    subject: str | None = None,
+    limit: int = 200,
+) -> SdkResult[list[MarketChange]]:
+    """Fetch one page of what changed since a cursor (oldest first).
+
+    Args:
+        base_url: Operator-provided server root URL.
+        after: ``meta.next_cursor`` of the previous page; None from the first event;
+            ``"latest"`` for no events and the cursor of the newest one.
+        kinds: Event types to include; every type when None.
+        subject: Subject key prefix (``hub:TTF``, ``cargo:``); every subject when None.
+        limit: Changes per page, 1 to 1000.
+
+    Returns:
+        An SdkResult whose meta carries ``next_cursor`` (store it) and ``has_more``.
+
+    Raises:
+        httpx.HTTPStatusError: 422 for an unknown cursor or event type.
+    """
+    params: dict[str, Any] = {"limit": limit}
+    if after:
+        params["after"] = after
+    if kinds:
+        params["kinds"] = list(kinds)
+    if subject:
+        params["subject"] = subject
+    data, meta = get_envelope(api_url(base_url, "market/changes"), params=params)
+    return SdkResult([MarketChange.model_validate(row) for row in data], meta)
+
+
+def sync_market_changes(
+    base_url: str,
+    *,
+    after: str | None = None,
+    kinds: list[str] | None = None,
+    subject: str | None = None,
+    page_size: int = 500,
+    max_pages: int = 20,
+) -> tuple[list[MarketChange], str | None]:
+    """Read every change since ``after`` (up to ``max_pages`` pages) and the cursor to keep.
+
+    Args:
+        base_url: Operator-provided server root URL.
+        after: The cursor kept from the last sync; None from the first event.
+        kinds: Event types to include; every type when None.
+        subject: Subject key prefix; every subject when None.
+        page_size: Changes per request, 1 to 1000.
+        max_pages: Requests at most; call again with the returned cursor for the rest.
+
+    Returns:
+        The changes, oldest first, and the cursor to pass next time.
+
+    Raises:
+        httpx.HTTPStatusError: 422 for an unknown cursor or event type.
+    """
+    changes: list[MarketChange] = []
+    cursor = after
+    for _ in range(max(1, max_pages)):
+        page = fetch_market_changes_result(
+            base_url, after=cursor, kinds=kinds, subject=subject, limit=page_size
+        )
+        changes.extend(page.data)
+        cursor = getattr(page.meta, "next_cursor", None) or cursor
+        if not getattr(page.meta, "has_more", False):
+            break
+    return changes, cursor

@@ -81,6 +81,10 @@ MACHINE_SURFACE: dict[str, str] = {
         "and spreadsheets refreshing it with Power Query; the screens read prices through the "
         "same resolver in their own routes"
     ),
+    "/api/market/changes": (
+        "DATA-1 change feed: an ETRM, BI tool or script syncs what changed since its cursor "
+        "(SDK fetch_market_changes_result / sync_market_changes); no screen polls it"
+    ),
     "/api/weather/degree-days": (
         "caller-weighted degree-day computation (typed weather_degree_days SDK)"
     ),

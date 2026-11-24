@@ -128,6 +128,8 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/market/quotes",
         # DATA-1: the monthly price strip, live or as known at an instant.
         "/api/market/prices",
+        # DATA-1: what changed since a cursor (digests of market events, never values).
+        "/api/market/changes",
         "/api/market/price-conversion",
         "/api/market/financing-rate",
         "/api/market/interest-rates",

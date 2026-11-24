@@ -32,6 +32,11 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   current then from the market event outbox (no new table); ticks count from their receipt.
   New `GET /api/market/prices`: the monthly price strip from the P-08 resolver, live or as of,
   one flat row per hub and month with revision, publication and first-held times.
+- Change feed (lesson P2, `application/change_feed.py`): `GET /api/market/changes` serves digests
+  of market events after a cursor, entitlement-filtered per caller. Migration
+  `0082_data1_integration` (expand-only, on `0080`) adds `market_events.writer_txid`, stamped by
+  PostgreSQL; the feed orders by (writer, `seq`) and serves only up to the snapshot horizon, so
+  no committed event is skipped. SDK `fetch_market_changes_result` and `sync_market_changes`.
 
 ## 2026-11-24 — Commercial Intelligence V3, LNG-2: a cargo change reaches each role (branch `wip/lng2`)
 

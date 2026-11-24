@@ -21,6 +21,20 @@
 `change_request.propose`、`.approve`、`.reject`、`.withdraw` 与 `lng.freight_route` 为受治理写入（审计行无法写入时返回
 503 `audit_unavailable`）。迁移 `0081_change_requests`。路径统计：288 条路径 / 323 个操作（此前 284 / 319）。
 
+2026-11-24 新增变更流（Commercial Intelligence V3 DATA-1，经验 P2）：一条路径、一个操作。
+新增 `GET /api/market/changes`（READ，沿用 `/api/market/` 权限）：按游标返回其后记录的市场事件，从旧到新
+（`after` 为本接口给出的游标，不给则从头开始，或 `latest`；`kinds` 可重复或以逗号分隔的事件类型；`subject`
+为主题键前缀；`limit` 1 至 1000，默认 200）。每条变更只是摘要，列序稳定（`meta.columns`）：`cursor`、
+`event_id`、`event_key`、`event_type`、`operation`（修订 1 为 `insert`，其后为 `update`）、`revision`、
+`supersedes_event_id`、`subject_key`、`source_id`、`input_class`、`dependency_keys`、`content_hash` 以及
+市场、发布、入库时间；从不返回事件数值，数值仍经授权读取接口获取。`meta` 含 `next_cursor`、`has_more` 与
+`retention`。市场事件仅在调用者可读取其数据源族时返回（与市场读取一样计量）；交易台事件（合同、货船、估值、
+假设、限额、运费）仅返回给持有 `portfolio.read` 且可见全部账簿的调用者。被隐藏的事件同样推进游标，且不向调用者
+计数。游标无效 422 `cursor_invalid`，事件类型未知 422 `kind_unknown`。排序为（写入事务，`seq`），且只返回
+写入事务已结束的事件，因此不会跳过任何已提交事件（迁移 0082 为 `market_events` 新增可空列 `writer_txid`，
+仅扩展）。保留：`market_events` 不做清理，游标长期有效；将来若引入保留策略，过期游标须返回 410
+`cursor_expired`。统计：286 条路径 / 321 个操作（+1 / +1）。设计：`application/change_feed.py`。
+
 2026-11-24 新增按时点读取（Commercial Intelligence V3 DATA-1，经验 P1）：一条路径、一个操作。
 `GET /api/market/observations` 与 `GET /api/market/fx` 接受 `as_of`（ISO 8601 UTC）：每个数值按该时刻
 当时有效的修订返回，此后才首次入库的数值不返回；各行新增 `revision`、`revision_basis`（`market_event`

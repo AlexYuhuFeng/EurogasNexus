@@ -7,7 +7,7 @@ describes.
 **Branch:** `innovation/continuous-commercial-intelligence` (pushed; no pull request opened,
 nothing merged, no tag, no release package)
 **Baseline:** `main@6d21b898661d6466418b3aaeab505a7bc4fb4013`
-**Schema head on the branch:** `0080_lng_eta_basis` (LNG-2), on `0079_licensed_data_use` (GOV-1, P6)
+**Schema head on the branch:** `0080_lng_eta_basis` (LNG-2), on `0079_licensed_data_use` (GOV-1, P6); `wip/data1` adds `0082_data1_integration` on `0080` (expand-only; P-17's `0081` lands in parallel, so the integrator re-points `0082`)
 
 ## Where the programme stands
 
@@ -32,7 +32,7 @@ nothing merged, no tag, no release package)
 | M7 Live pipeline | Built and tested; M7-1 to M7-9 met, M7-10 (legacy engine removal) blocked by its dependents (R19); design and budgets in [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) |
 | LNG-2 A cargo change reaches each role | Built and tested; LNG2-1 to LNG2-5 met ([06](06_ACCEPTANCE_CRITERIA.md)); who hears what in [12](12_LNG_CARGO_IN_TRANSIT.md); commit to every role's notification measured in [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) section 8 |
 | GOV-1 Audit with the change, AI controls, licensed-data use | Built and tested; GOV1-1 to GOV1-6 met ([06](06_ACCEPTANCE_CRITERIA.md)); maker-checker (P-17) built and tested, P17-1 to P17-9 met (migration `0081_change_requests`, ADR Decision 32); effective-dated changes not yet built |
-| DATA-1 Data integration | In progress on `wip/data1`: DATA1-1 (as-of reads) met ([06](06_ACCEPTANCE_CRITERIA.md)) |
+| DATA-1 Data integration | In progress on `wip/data1`: DATA1-1 (as-of reads) and DATA1-2 (change feed) met ([06](06_ACCEPTANCE_CRITERIA.md)) |
 | UX-1, TAR-1, MAP-1, SCHED-1, NEWS-1, UX-2, LOOP-1, M8 to M11, M13 | Planned, in the order of [05](05_IMPLEMENTATION_ROADMAP.md) |
 | M12 Hosted pilot | Dropped by the user on 2026-11-24 (deployment later, outside this programme) |
 

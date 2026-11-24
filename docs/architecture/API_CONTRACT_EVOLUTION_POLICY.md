@@ -33,6 +33,25 @@ actions `change_request.propose`, `.approve`, `.reject`, `.withdraw` and `lng.fr
 governed writes (503 `audit_unavailable` when their audit row cannot be written). Migration
 `0081_change_requests`. Census: 288 paths / 323 operations (284 / 319 before).
 
+Additive 2026-11-24 (change feed, Commercial Intelligence V3 DATA-1, lesson P2): one path, one
+operation. New `GET /api/market/changes` (READ, `/api/market/` floor): the market events recorded
+after a cursor, oldest first (`after` = a cursor this feed gave, none for the start, or `latest`;
+`kinds` repeated or comma-separated event types; `subject` a subject-key prefix; `limit` 1 to
+1000, default 200). Each change is a digest in a stable column order (`meta.columns`): `cursor`,
+`event_id`, `event_key`, `event_type`, `operation` (`insert` for revision 1, else `update`),
+`revision`, `supersedes_event_id`, `subject_key`, `source_id`, `input_class`, `dependency_keys`,
+`content_hash` and the market, published and ingested times; never the event's values, which stay
+behind the entitled reads. `meta` carries `next_cursor`, `has_more` and `retention`. A market
+event is shown when the caller may read its source family (metered like the market reads); a
+desk event (contract, cargo, mark, assumption, limit, freight) only to a caller holding
+`portfolio.read` who sees every book. Withheld events still move the cursor and are not counted
+to the caller. An unusable cursor is 422 `cursor_invalid`, an unknown event type 422
+`kind_unknown`. Order is (writer transaction, `seq`) and only events whose writer transaction has
+ended are served, so no committed event is ever skipped (migration 0082 adds the nullable
+`market_events.writer_txid`, expand-only). Retention: nothing prunes `market_events`, so a cursor
+stays valid; a future retention policy must answer 410 `cursor_expired` for an expired one.
+Census: 286 paths / 321 operations (+1 / +1). Design: `application/change_feed.py`.
+
 Additive 2026-11-24 (as-of reads, Commercial Intelligence V3 DATA-1, lesson P1): one path, one
 operation. `GET /api/market/observations` and `GET /api/market/fx` accept `as_of` (ISO 8601 UTC):
 each figure is answered at the revision current at that instant, a figure first held later is

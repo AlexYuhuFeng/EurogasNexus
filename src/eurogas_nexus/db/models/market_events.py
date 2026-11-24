@@ -11,6 +11,10 @@
 
 PostgreSQL is the only store; there is no broker. ``LISTEN/NOTIFY`` only wakes a worker
 early, the tables are the truth.
+
+DATA-1: ``writer_txid`` is the writing transaction's id (PostgreSQL fills it by default,
+migration ``0082_data1_integration``); the change feed orders by it and ``seq`` so a reader
+never skips an event committed after one it has already read.
 """
 
 from __future__ import annotations
@@ -22,6 +26,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     DateTime,
+    FetchedValue,
     ForeignKey,
     Index,
     Integer,
@@ -44,6 +49,7 @@ class MarketEventRecord(Base):
         UniqueConstraint("event_key", "revision", name="uq_market_events_key_revision"),
         Index("ix_market_events_subject", "subject_key", "ingested_at_utc"),
         Index("ix_market_events_source", "source_id", "ingested_at_utc"),
+        Index("ix_market_events_feed", "writer_txid", "seq"),
     )
 
     seq: Mapped[int] = mapped_column(SEQ, primary_key=True, autoincrement=True)
@@ -67,6 +73,11 @@ class MarketEventRecord(Base):
     )
     ingested_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    #: The writing transaction (PostgreSQL default ``pg_current_xact_id()``; NULL on SQLite
+    #: and for rows written before migration 0082). Never set by code.
+    writer_txid: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True, server_default=FetchedValue()
+    )
 
 
 class MarketEventDeliveryRecord(Base):
