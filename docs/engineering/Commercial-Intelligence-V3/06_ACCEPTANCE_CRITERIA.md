@@ -101,6 +101,19 @@ with P-17, so that limits, terminal terms and freight routes share one maker-che
 | DOC-5 | A `postgresql://` URL without a driver uses the runtime's driver; an explicit driver is kept | `tests/integration/test_db_config.py::test_a_url_without_a_driver_uses_the_runtime_driver` |
 | DOC-6 | Every local Markdown link resolves | `scripts/ci/check_markdown_links.py` |
 
+## LNG-2 a delayed cargo reaches each role (to be met)
+
+The owner's scenario (2026-11-24): a firm cargo due in three days is hedged forward; news
+arrives that it will be late. One acceptance test drives it end to end on PostgreSQL.
+
+| ID | Criterion | Evidence |
+| --- | --- | --- |
+| LNG2-1 | An ETA change from any source (import, vessel feed, manual edit) publishes one `cargo.changed` event and the plan is rebuilt from it within the published latency for cargo data (doc 15, the live pipeline and latency budget) | to be written |
+| LNG2-2 | The rebuilt plan names the hedge months that gained or lost gas, the mismatched forward sales and the roll or buy-back it proposes, with the arithmetic; nothing is executed | to be written |
+| LNG2-3 | The trader who owns the book gets the hedge proposal; the scheduler gets the slot, berth and nomination consequences with the cut-offs they hit; risk gets the exposure and any limit it moves; the desk head gets it only when it is material by the configured threshold | to be written |
+| LNG2-4 | Each role's message is deduplicated, respects cooldown and materiality, says how current its inputs are, and is withdrawn when a later change makes it moot | to be written |
+| LNG2-5 | The same chain works for a departure, energy, slot or hedge change, not only an ETA delay | to be written |
+
 ## M7 to M9 (to be met)
 
 - **M7.** Every new-engine opportunity that crosses the alert threshold reaches the

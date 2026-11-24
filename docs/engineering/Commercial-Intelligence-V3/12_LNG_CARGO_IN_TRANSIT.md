@@ -51,6 +51,24 @@ out of its book, and a cargo moves book only when a file names another book. The
 publishes the cargo events in its own transaction and lists an ETA that overrides an ETA
 another source set (QA-L-04).
 
+## Who hears about a change (target, LNG-2)
+
+A cargo change matters to several people for different reasons. Taking the owner's example,
+a cargo due in three days and hedged forward is reported late:
+
+- **Trader (book owner):** the forward sales no longer match the arrival window; the plan
+  proposes the roll or buy-back by month, with the due time before either month stops
+  trading. Approval stays with the trader.
+- **Scheduler and operations:** the slot window, berth and send-out move; which nominations
+  and cut-offs that touches.
+- **Risk:** the change in exposure by month and any limit or mandate it moves.
+- **Desk head:** only when the change is material by the configured threshold.
+
+The links are canonical: a cargo belongs to a book, its hedges are recorded on it, its
+send-out is on the ladder by gas day, and its slot belongs to a terminal and hub. So the
+chain is the same for any schedule change. Routing to people builds on the M7 alert work;
+the acceptance tests are LNG2-1 to LNG2-5 in [06](06_ACCEPTANCE_CRITERIA.md).
+
 ## In the position ladder
 
 A firm cargo (book set, not on a ballast voyage) is on the position ladder and every read
