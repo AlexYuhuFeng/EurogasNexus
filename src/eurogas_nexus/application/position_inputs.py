@@ -11,7 +11,7 @@ Keeping it here, not inside one router, means the risk reads cannot drift from t
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any
 
 from eurogas_nexus.application.caller import caller_of
@@ -444,12 +444,21 @@ class LadderInputs:
     eur_rates: dict[str, float]
     flat_months: int
     simulated_skipped: int
+    #: Per (hub, month) the resolved price behind the mark (``price_resolver.price_payload``).
+    resolved: dict = field(default_factory=dict)
 
 
-def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
+def ladder_inputs(
+    who: Any, today, horizon_start, horizon_end, *, now=None, price_book=None
+) -> LadderInputs:
     """Physical and financial legs in the caller's books, and the monthly marks for them.
 
     ``who`` is the API request or an explicit :class:`Caller` (a worker running firm-wide).
+    Each month's mark is the one price every screen reads for that hub and month
+    (``price_resolver``, P-08): the forward curve's month, a flat fill or a curve-derived
+    month enter as ``derived`` candidates beside the held ticks, closes and firm marks.
+    ``price_book`` (or the book a composed read shares) is used when given; ``now`` is the
+    instant (default: now, or the end of ``today`` for a past day).
     """
 
     from datetime import date, datetime, timedelta
@@ -597,6 +606,7 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
     legs += cargo
     warnings += cargo_warnings
     closes: dict[str, dict] = {}
+    closes_as_of: dict[str, datetime] = {}
     simulated_skipped = 0
     demo_marks_used = demo_marks_allowed()
     for row in daily_rows(
@@ -619,6 +629,9 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
         if tenor == "month-ahead" or row["day"] not in series:
             # Marks are money per MWh (positions are MWh): NBP's p/th through the authority.
             series[row["day"]] = row["price_mwh"]
+            observed = closes_as_of.get(row["hub"])
+            if observed is None or row["observed_at_utc"] >= observed:
+                closes_as_of[row["hub"]] = row["observed_at_utc"]
     curve = build_forward_curve(
         curve_quotes(caller, today - timedelta(days=CURVE_QUOTE_LOOKBACK_DAYS), today),
         first_month=horizon_start,
@@ -637,6 +650,19 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
                     mark_method[key] = "flat"
                     flat_months += 1
                 month = (month.replace(day=1) + timedelta(days=32)).replace(day=1)
+    resolved, demo_resolved = _resolve_marks(
+        caller,
+        marks,
+        mark_method,
+        closes_as_of,
+        horizon_start=horizon_start,
+        horizon_end=horizon_end,
+        today=today,
+        now=now,
+        price_book=price_book,
+    )
+    flat_months = sum(1 for method in mark_method.values() if method == "flat")
+    demo_marks_used = demo_marks_used or demo_resolved
     if demo_marks_used:
         warnings.append(
             # Shown to traders: plain words, not the switch's name (UX_REFERENCE rule 3). The
@@ -656,4 +682,95 @@ def ladder_inputs(who: Any, today, horizon_start, horizon_end) -> LadderInputs:
         eur_rates=eur_rates,
         flat_months=flat_months,
         simulated_skipped=simulated_skipped,
+        resolved=resolved,
     )
+
+
+#: Ladder ``mark_method`` for a month the resolver priced from a held price.
+_METHOD_OF_KIND = {"live_tick": "quoted", "settlement": "quoted", "firm_mark": "firm_mark"}
+
+
+def _resolve_marks(
+    caller,
+    marks: dict,
+    mark_method: dict,
+    closes_as_of: dict,
+    *,
+    horizon_start,
+    horizon_end,
+    today,
+    now,
+    price_book,
+) -> tuple[dict, bool]:
+    """Replace each month's mark by the one price for it (P-08); returns the payloads.
+
+    The curve month, flat fill or curve-derived month already in ``marks`` enters as a
+    ``derived`` candidate (as of the hub's newest close) beside the held ticks, closes and
+    firm marks, so a month's own price wins when it is in date and the old mark stands where
+    nothing else is held. ``marks`` and ``mark_method`` are updated in place.
+    """
+
+    from datetime import UTC, datetime, time, timedelta
+
+    from eurogas_nexus.application.price_resolver import (
+        current_price_book,
+        open_price_book,
+        price_payload,
+    )
+    from eurogas_nexus.domain.market.price_resolution import DERIVED, PriceCandidate
+
+    allow_simulated = demo_marks_allowed()
+    book = price_book or current_price_book(caller.principal)
+    if book is None:
+        moment = now
+        if moment is None:
+            moment = datetime.now(UTC)
+            if today < moment.date():
+                moment = datetime.combine(today, time.max, tzinfo=UTC)
+        try:
+            book = open_price_book(None, caller, now=moment, allow_simulated=allow_simulated)
+        except Exception:  # noqa: BLE001 - the curve marks stand without the resolver
+            return {}, False
+    hubs = {hub for hub, _ in marks} | {c.hub for c in book.candidates}
+    months = []
+    month = horizon_start.replace(day=1)
+    while month <= horizon_end:
+        months.append(month)
+        month = (month + timedelta(days=32)).replace(day=1)
+    resolved: dict = {}
+    demo_used = False
+    for hub in sorted(hubs):
+        if hub not in HUB_CURRENCY:
+            continue
+        currency = HUB_CURRENCY[hub]
+        as_of = closes_as_of.get(hub)
+        for first in months:
+            key = (hub, f"{first.year:04d}-{first.month:02d}")
+            end = (first + timedelta(days=32)).replace(day=1)
+            extra = []
+            if key in marks and mark_method.get(key) != "quoted":
+                extra.append(
+                    PriceCandidate(
+                        hub=hub,
+                        period_start=first,
+                        period_end=end,
+                        kind=DERIVED,
+                        value=float(marks[key]),
+                        unit=f"{currency}/MWh",
+                        source_system=f"curve:{mark_method.get(key)}",
+                        as_of_utc=as_of if as_of is None or as_of.tzinfo else as_of.replace(
+                            tzinfo=UTC),
+                        reference=f"{hub}:{key[1]}:{mark_method.get(key)}",
+                    )
+                )
+            answer = book.resolve(
+                hub, first, end, extra=extra, allow_simulated=allow_simulated
+            )
+            if answer is None or answer.unit != f"{currency}/MWh":
+                continue
+            if answer.kind != DERIVED:
+                marks[key] = answer.value
+                mark_method[key] = _METHOD_OF_KIND.get(answer.kind, "quoted")
+            demo_used = demo_used or answer.simulated
+            resolved[key] = price_payload(answer)
+    return resolved, demo_used

@@ -181,10 +181,12 @@ def get_position_ladder(
     sell short) spread over their delivery days. The firm's cargoes add their plan's send-out
     by gas day (physical) and the hedges recorded on them (financial), each row naming the
     cargoes in it (``cargoes``); a cargo a contract already holds is not counted twice.
-    Marks come from a monthly forward curve built from the latest entitled quotes (months,
-    quarters, seasons, years); a month the curve does not reach falls back to the hub's
-    latest daily close, and the warnings say so. Legs in a currency other than the hub's
-    mark are left unvalued.
+    Each month's mark is the one price every screen reads for that hub and month (P-08,
+    ``application/price_resolver``): the freshest in-date tick or settlement, else the firm's
+    mark, else the monthly forward curve built from the latest entitled quotes (months,
+    quarters, seasons, years) or, beyond it, the hub's latest daily close, and the warnings
+    say so; ``resolved_price`` on each row names the kind, source, as-of and state. Legs in a
+    currency other than the hub's mark are left unvalued.
     """
 
     from datetime import UTC, datetime, timedelta
@@ -271,6 +273,9 @@ def get_position_ladder(
         by_cargo = _cargo_rows(legs, horizon_start, horizon_end)
         for row in payload["rows"]:
             row["cargoes"] = by_cargo.get((row["hub"], row["month"]), [])
+            # P-08: the one price behind the mark (kind, source, as-of, state), as every
+            # other screen reads that hub and month; null where no price is held.
+            row["resolved_price"] = inputs.resolved.get((row["hub"], row["month"]))
     if group_by != "hub":
         payload["rollup"] = rollup(
             legs,
