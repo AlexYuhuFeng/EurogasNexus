@@ -308,13 +308,20 @@ def decide_publication(event: MarketEvent, held: Sequence[HeldRevision]) -> Publ
         return PublishDecision(
             PublishKind.DUPLICATE, latest.revision, reason="same content as the latest revision"
         )
-    if any(item.content_hash == event.content_hash for item in ordered[:-1]):
+    latest_published = _aware(latest.published_at_utc)
+    later = (
+        event.published_at_utc is not None
+        and latest_published is not None
+        and event.published_at_utc > latest_published
+    )
+    # Content of an older revision is a replay, unless it was published after the latest
+    # revision: then the source (or the desk) has gone back to it, and that is news.
+    if not later and any(item.content_hash == event.content_hash for item in ordered[:-1]):
         return PublishDecision(
             PublishKind.OUT_OF_ORDER,
             latest.revision,
             reason="content of an older revision; the latest revision stands",
         )
-    latest_published = _aware(latest.published_at_utc)
     if (
         event.published_at_utc is not None
         and latest_published is not None

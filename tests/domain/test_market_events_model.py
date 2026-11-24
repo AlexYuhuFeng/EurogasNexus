@@ -103,6 +103,13 @@ def test_the_publication_decision() -> None:
     # A new figure published before the latest revision is history arriving late.
     late = _price(value="30.00", published_at_utc=NOW - timedelta(hours=2))
     assert decide_publication(late, both).kind is PublishKind.OUT_OF_ORDER
+    # The source goes back to the first figure in a later publication: that is news.
+    back = _price(published_at_utc=correction.published_at_utc + timedelta(minutes=5))
+    assert back.content_hash == first.content_hash
+    restored = decide_publication(back, both)
+    assert (restored.kind, restored.revision, restored.supersedes_revision) == (
+        PublishKind.REVISION, 3, 2,
+    )
 
 
 @pytest.mark.parametrize(
