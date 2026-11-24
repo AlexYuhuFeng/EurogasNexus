@@ -32,7 +32,8 @@ def test_the_client_offers_exactly_the_servers_pnl_colour_conventions() -> None:
     from eurogas_nexus.domain.settings.preferences import PREFERENCE_VOCABULARY
 
     pnl = ROOT / "clients" / "web" / "src" / "app" / "model" / "pnlColor.ts"
-    block = re.search(r"PNL_COLOR_CONVENTIONS[^=]*=\s*\[([^\]]*)\]", pnl.read_text(encoding="utf-8"))
+    source = pnl.read_text(encoding="utf-8")
+    block = re.search(r"PNL_COLOR_CONVENTIONS[^=]*=\s*\[([^\]]*)\]", source)
     assert block, "PNL_COLOR_CONVENTIONS not found in pnlColor.ts"
     assert re.findall(r'"([^"]+)"', block.group(1)) == list(PREFERENCE_VOCABULARY["pnl_colors"])
 
