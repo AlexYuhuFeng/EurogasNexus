@@ -23,6 +23,7 @@ nothing merged, no tag, no release package)
 | LNG-1 Cargo in transit | Built and tested; E1 to E9 met ([12](12_LNG_CARGO_IN_TRANSIT.md)) |
 | Q1 Quality standard and hands-on review | In progress ([11](11_COMMERCIAL_QUALITY_STANDARD.md)) |
 | F1 Audit blockers | Built and tested; F1-1 to F1-7 met ([06](06_ACCEPTANCE_CRITERIA.md)) |
+| DOC Documentation and SDK | Built and tested; DOC-1 to DOC-6 met |
 | M7 to M11, M13 | Planned ([05](05_IMPLEMENTATION_ROADMAP.md)) |
 | M12 Hosted pilot | Dropped by the user on 2026-11-24 (deployment later, outside this programme) |
 
@@ -43,7 +44,8 @@ nothing merged, no tag, no release package)
 | `224e17d` | M6 stale feeds and the outbox raise monitoring alerts |
 | `877b355` | LNG-1 cargo in transit as one plan (migration 0078) |
 | `dcbb498` | M5b, M6, LNG-1 documents; quality standard; research synthesis |
-| (this commit) | F1 audit blockers: gas-day status, scheduled tracks, segregation of duties, audited partial updates, feed plausibility |
+| `0d3d6e1` | F1 audit blockers: gas-day status, scheduled tracks, segregation of duties, audited partial updates, feed plausibility |
+| (this commit) | DOC README, docs index and SDK docs rewritten with verified examples; typed SDK errors; driverless database URLs |
 
 ## What M5 built
 

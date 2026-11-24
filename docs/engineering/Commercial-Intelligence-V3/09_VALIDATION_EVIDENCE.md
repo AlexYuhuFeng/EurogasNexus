@@ -96,6 +96,15 @@ M5 full suite (SQLite, `python -m pytest -q tests`, 2026-11-24): 7,049 passed, 2
 | Lint | `ruff check .` | clean |
 | API census | `app.openapi()` | 282 paths / 315 operations (+4 / +4) |
 
+## F1 and DOC (2026-11-24)
+
+| Run | Command | Result |
+| --- | --- | --- |
+| Pre-push gate on `dcbb498` | `scripts/ci/pre_push_check.sh` | 4,598 passed, 81 skipped; web types and tests clean |
+| SDK, database URL, reference | `pytest tests/sdk tests/integration/test_db_config.py tests/contract/test_sdk_reference_current.py tests/contract/test_db_foundation.py tests/unit/test_database_url_mapping.py` | 294 passed |
+| SDK examples against a local demo server | `pytest tests/docs/test_sdk_examples.py` with the two example variables set | 12 passed |
+| Links | `python scripts/ci/check_markdown_links.py` | 441 files, all local links resolve |
+
 ## Targeted re-evaluation, shown on the demo desk
 
 With `scripts/demo/seed_demo_desk.py` seeded (37 `hedge_gap` and 3 `sell_down`

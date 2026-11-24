@@ -67,8 +67,8 @@ repeated price queries, remove the 1,000-event drain cap (M7).
 | P-19 | S2 | C6 | The value flash has no direction and fires on tenor switches | Directional flash on value change only | Next |
 | P-20 | S2 | A4, C2 | Units and decimals differ between screens ("GBp/th" and "p/th"; 3 and 2 dp) | One formatter per measure | Next |
 | P-21 | S2 | C5 | The command palette finds pages only, not instruments | Instrument search | Next |
-| P-22 | S2 | D1, E2 | The SDK cannot be used from its docs: no install or auth steps, both examples fail with 503 | Rewritten SDK docs, verified examples | Next |
-| P-23 | S2 | E2 | The README's develop path fails at its second command (database URL driver) | Rewritten README | Next |
+| P-22 | S2 | D1, E2 | The SDK cannot be used from its docs: no install or auth steps, both examples fail with 503 | Rewritten SDK docs, verified examples | DOC |
+| P-23 | S2 | E2 | The README's develop path fails at its second command (database URL driver) | Rewritten README; driverless URLs use the runtime driver | DOC |
 | P-24 | S3 | C12 | Installer images are 1x and blur at high DPI; no signing; sign-in has no autofocus | Installer and sign-in polish | Next |
 
 ## Data the platform should add, and how

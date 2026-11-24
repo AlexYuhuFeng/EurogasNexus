@@ -34,6 +34,19 @@ def resolve_database_url(environ: Mapping[str, str | None] | None = None) -> str
     return None
 
 
+def default_driver_url(url: str) -> str:
+    """``postgres://`` or ``postgresql://`` without a driver means the runtime's, pg8000.
+
+    Managed services and most guides write the URL without a driver, and SQLAlchemy then asks
+    for psycopg2, which the product does not install. A URL that names its driver is kept.
+    """
+
+    scheme, separator, rest = url.partition("://")
+    if separator and scheme.lower() in {"postgres", "postgresql"}:
+        return f"postgresql+pg8000://{rest}"
+    return url
+
+
 def redact_database_url(database_url: str | None) -> str | None:
     """Return a DB URL safe for logs and reports."""
 
@@ -62,6 +75,7 @@ def get_engine(
     resolved_url = database_url.strip() if database_url else resolve_database_url()
     if not resolved_url:
         raise ValueError("Database URL is required to create an engine.")
+    resolved_url = default_driver_url(resolved_url)
 
     engine_options: dict[str, object] = {
         "echo": echo,

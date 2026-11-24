@@ -1,35 +1,108 @@
-# Documentation Index
+# Documentation index
 
-Mandarin companion: [README-CN.md](README-CN.md)
+[简体中文](README-CN.md)
 
-## Client documentation
+Start from what you want to do. The first part of this page sorts the documentation by role
+and by kind (learn, do a task, look something up, understand); the second part is the full
+catalogue for specialists and contributors. If two documents disagree, the current or
+normative one listed in the catalogue wins; report the conflict.
 
-For day-to-day use, start with the [Client guide](guides/README.md). It links first sign-in,
-role workflows, data interpretation, support and client handover. Read the matching
-[Chinese edition](guides/README-CN.md) for Chinese operating instructions.
+## By role
 
-The sections below are the technical documentation index for specialists and contributors.
+| Role | Learn | Do | Look up |
+|---|---|---|---|
+| Trader | [First sign-in](user/QUICK_START.md) | [Trader guide](guides/TRADER.md), [market workflow](user/MARKET_WORKFLOW.md) | [Terminology](architecture/TERMINOLOGY.md), [times and zones](user/TIMES_AND_ZONES.md) |
+| Analyst, quant | [Python SDK quickstart](sdk/QUICKSTART.md) | [Analyst and quant guide](guides/ANALYST_QUANT.md), [SDK examples](sdk/EXAMPLES.md), [Strategy Lab](user/STRATEGY_LAB.md) | [SDK reference](sdk/REFERENCE.md), [data science functions](api/DATA_SCIENCE_FUNCTIONS.md) |
+| Risk, finance | [First sign-in](user/QUICK_START.md) | [Risk and finance guide](guides/RISK_AND_FINANCE.md), [portfolio workflow](user/PORTFOLIO_WORKFLOW.md) | [Data status and provenance](user/DATA_STATUS_AND_PROVENANCE.md) |
+| Management | [First sign-in](user/QUICK_START.md) | [Management guide](guides/MANAGEMENT.md), [reports](user/REPORTS.md) | [Roles and responsibilities](product/ROLES_AND_RESPONSIBILITIES.md) |
+| Legal, compliance | [First sign-in](user/QUICK_START.md) | [Legal and compliance guide](guides/LEGAL_COMPLIANCE.md), [decision review](user/DECISION_REVIEW.md) | [Data source terms](legal/DATA_SOURCE_TERMS.md), [compliance audit](compliance/COMPLIANCE_AUDIT.md) |
+| IT admin, data operator | [Client onboarding](guides/CLIENT_ONBOARDING.md) | [Administration and operations guide](guides/ADMIN_AND_OPERATIONS.md), [runbooks](#runbooks) | [Server configuration template](../deploy/runtime/env.server.example), [API keys](operations/API_KEYS.md) |
+| Developer integrating another system | [Python SDK quickstart](sdk/QUICKSTART.md) | [SDK authentication](sdk/AUTHENTICATION.md), [SDK troubleshooting](sdk/TROUBLESHOOTING.md), [ETRM/ERP integration](integration/ERP_ETRM_INTEGRATION.md) | [SDK reference](sdk/REFERENCE.md), [API conventions](api/API_CONVENTIONS.md), [API contract](api/API_CONTRACT.md) |
+| Contributor | [Local development](operations/LOCAL_DEVELOPMENT.md) | [Validation](operations/VALIDATION.md), [contributing](../CONTRIBUTING.md) | [Coding standards](engineering/CODING_STANDARDS.md), [architecture decisions](architecture/ARCHITECTURE_DECISION_RECORD.md) |
 
-This index is the authoritative entry point for repository documentation. It
-separates current/normative material from runbooks, design references, and
-historical public references. If two documents disagree, follow
-the current/normative document listed here and report the conflict.
+## Tutorials: learn by doing
 
-## Start here by role
+- [First sign-in](user/QUICK_START.md): open the product and find your way around.
+- [User manual](user/manual/README.md), step by step with screenshots:
+  [trader](user/manual/TRADER.md) · [risk](user/manual/RISK.md) ·
+  [IT desk](user/manual/IT_DESK.md) · [administrator](user/manual/ADMIN.md).
+- [Python SDK quickstart](sdk/QUICKSTART.md): a local demo server and a first call from
+  Python in about five minutes.
+- [Demo desk](guides/DEMO_DESK.md): the fictional book used in demonstrations and training.
 
-[Guides by role](guides/README.md): [Trader](guides/TRADER.md) ·
-[Analyst and quant](guides/ANALYST_QUANT.md) · [Risk and finance](guides/RISK_AND_FINANCE.md) ·
-[Management](guides/MANAGEMENT.md) · [Legal and compliance](guides/LEGAL_COMPLIANCE.md) ·
-[IT admin and data operations](guides/ADMIN_AND_OPERATIONS.md)
+## How-to guides: do a task
 
-[User manual](user/manual/README.md), step by step with screenshots, and every workflow by
-role: [Trader](user/manual/TRADER.md) · [Risk](user/manual/RISK.md) ·
-[IT desk](user/manual/IT_DESK.md) · [Administrator](user/manual/ADMIN.md)
+Using the product:
+[guides by role](guides/README.md) · [the answer bar](user/ANSWER_BAR.md) ·
+[market workflow](user/MARKET_WORKFLOW.md) · [portfolio workflow](user/PORTFOLIO_WORKFLOW.md) ·
+[Strategy Lab](user/STRATEGY_LAB.md) · [shadow monitoring](user/SHADOW_MONITORING.md) ·
+[decision review](user/DECISION_REVIEW.md) · [reports](user/REPORTS.md) ·
+[support and updates](guides/SUPPORT_AND_UPDATES.md)
 
-[Demo desk](guides/DEMO_DESK.md): a fictional book for demonstrations and training, and how
-its credit, mandate and position figures are produced.
+Using the Python SDK:
+[authentication](sdk/AUTHENTICATION.md) · [examples by task](sdk/EXAMPLES.md) ·
+[troubleshooting](sdk/TROUBLESHOOTING.md) · [SDK readme](../packages/python-sdk/README.md)
 
-## Architecture and operations
+Installing and running a server:
+[deployment roles](deployment/DEPLOYMENT_ROLES-EN.md) ·
+[install on Windows](release/INSTALL_WINDOWS.md) · [install on Linux](release/INSTALL_LINUX.md) ·
+[provider credentials](deployment/PROVIDER_CREDENTIALS.md) ·
+[SSO/OIDC](operations/SSO_OIDC.md) · [user access](operations/USER_ACCESS.md) ·
+[API keys](operations/API_KEYS.md) · [live price sources](operations/LIVE_PRICE_SOURCES.md) ·
+[self-hosted demo server](deployment/SELF_HOSTED_DEMO.md); the full list is under
+[runbooks](#runbooks).
+
+## Reference: look something up
+
+- Python SDK: [reference](sdk/REFERENCE.md), generated from the code by
+  `scripts/docs/generate_sdk_reference.py`.
+- REST API: [conventions](api/API_CONVENTIONS.md) · [contract](api/API_CONTRACT.md) ·
+  [path policy](api/API_PATH_POLICY.md) · [profiles](api/API_PROFILES.md) ·
+  [data science functions](api/DATA_SCIENCE_FUNCTIONS.md). A running server in the
+  development profile serves the live OpenAPI description at `/docs`, `/redoc` and
+  `/openapi.json`; the release profile hides them.
+- Error codes: [SDK troubleshooting](sdk/TROUBLESHOOTING.md#error-codes) and the
+  [error taxonomy](engineering/Architecture-V2/W8-01_ERROR_TAXONOMY.md).
+- Server configuration: [`deploy/runtime/env.server.example`](../deploy/runtime/env.server.example),
+  checked by `python scripts/ops/check_config.py --strict`.
+- Product language: [terminology](architecture/TERMINOLOGY.md) ·
+  [times and zones](user/TIMES_AND_ZONES.md).
+- Changes: [changelog](../CHANGELOG.md) · [release channels](release/RELEASE_CHANNELS.md) ·
+  [API contract evolution policy](architecture/API_CONTRACT_EVOLUTION_POLICY.md).
+
+## Explanation: understand how it works
+
+- [Architecture](architecture/ARCHITECTURE.md) · [global deployment](architecture/GLOBAL_DEPLOYMENT.md) ·
+  [central data platform](architecture/CENTRAL_DATA_PLATFORM.md)
+- [Data status and provenance](user/DATA_STATUS_AND_PROVENANCE.md): what the labels on every
+  number mean.
+- [Identity, authorization and audit governance](operations/IDENTITY_AUDIT_GOVERNANCE.md) ·
+  [actor identity model](architecture/ACTOR_IDENTITY_MODEL.md)
+- [Product boundary policy](policies/PRODUCT_BOUNDARY_POLICY.md): why the product never
+  executes, nominates or settles.
+- [Research data foundation](#research-data-foundation) · [ML readiness](research/ML_READINESS.md) ·
+  [gas and power](research/GAS_POWER_COUPLING.md)
+- [Assessment against a trading house's needs](product/TRADING_HOUSE_ASSESSMENT.md)
+
+## Known inaccuracies
+
+Found during the documentation review of 24 November 2026. Until each is corrected, prefer
+the documents above.
+
+| Document | Problem |
+|---|---|
+| [SDK client design spec](clients/SDK_CLIENT_DESIGN_SPEC.md) | Describes files (`client.py`, `config.py`, `errors.py` and others), routes and an error-classification layer that do not exist, and marks shipped modules as planned. Use the [SDK reference](sdk/REFERENCE.md). |
+| [API profiles](api/API_PROFILES.md) | Says the current routes are only `GET /api/health`; the server serves over 300 operations. |
+| [API conventions](api/API_CONVENTIONS.md) | Describes errors under `detail` only; error answers also carry top-level `error`, `family`, `severity`, `recoverability`, `message_key`, `action_key` and `correlation_id`. See [SDK troubleshooting](sdk/TROUBLESHOOTING.md#read-the-error). |
+| [Live PostgreSQL](operations/LIVE_POSTGRESQL.md) | Says a bare `postgresql://` URL selects psycopg2; with SQLAlchemy 2.1 it selects psycopg (version 3). The advice, use `postgresql+pg8000://`, is right. |
+| [Deployment roles](deployment/DEPLOYMENT_ROLES-EN.md) | Does not mention `EUROGAS_NEXUS_PUBLIC_API_TOKEN`, without which every data route answers 503. |
+| [Market data sourcing](operations/MARKET_DATA_SOURCING.md) | Links to a heading `#market-data-licences` that does not exist in the administration guide. |
+
+## Catalogue
+
+The complete list, for specialists and contributors.
+
+### Architecture and operations
 
 - [Architecture](architecture/ARCHITECTURE.md) and
   [global deployment](architecture/GLOBAL_DEPLOYMENT.md); [central data platform](architecture/CENTRAL_DATA_PLATFORM.md): how the firm's data reaches the product
@@ -50,15 +123,7 @@ its credit, mandate and position figures are produced.
 - [Documentation policy](engineering/DOCUMENTATION_POLICY.md) and
   [repository hygiene](engineering/REPOSITORY_HYGIENE.md)
 
-## Read first
-
-1. [Changelog](../CHANGELOG.md)
-2. [Release readiness](release/RELEASE_READINESS.md) — current release status,
-   validated gates, and known production gaps.
-3. [Project directory and ownership](../PROJECT_DIRECTORY.md)
-4. [Architecture decisions](architecture/ARCHITECTURE_DECISION_RECORD.md)
-
-## Product planning
+### Product planning
 
 - [Platform strategy](product/PLATFORM_STRATEGY.md): Windows, Linux, iPad, iPhone, Android, HarmonyOS (macOS not built)
 - [Connectors](product/CONNECTORS.md): one model for data feeds, imports and model services; plugins
@@ -77,13 +142,13 @@ its credit, mandate and position figures are produced.
 - [Gas-day calendar compatibility](product/GAS_DAY_CALENDAR_COMPATIBILITY.md)
 - [Data operations specification](product/DATA_OPERATIONS_SPEC.md)
 
-## Normative and current
+### Normative and current
 
 These documents define binding engineering boundaries. Contracts and policies
 are normative. Language companions (`-EN` / `-CN`) must describe the same
 behavior.
 
-### Governance and process
+#### Governance and process
 
 | Document | Authority |
 | --- | --- |
@@ -93,7 +158,7 @@ behavior.
 | [API path policy](api/API_PATH_POLICY.md) | Normative for route prefixes |
 | [Terminology standard](architecture/TERMINOLOGY.md) | Normative for product language |
 
-### Engineering governance
+#### Engineering governance
 
 - [Engineering governance index](engineering/README.md)
 - [RFC process](engineering/RFC_PROCESS.md)
@@ -101,14 +166,16 @@ behavior.
 - [ExecPlan index](engineering/EXECPLAN_INDEX.md) /
   [template](engineering/EXECPLAN_TEMPLATE.md)
 
-### Architecture and contracts
+#### Architecture and contracts
 
 - [API contract](api/API_CONTRACT.md)
 - [Data science function catalog](api/DATA_SCIENCE_FUNCTIONS.md)
 - [Public API conventions](api/API_CONVENTIONS.md)
 - [Database contract](architecture/DB_CONTRACT.md)
 - [Runtime store contract](architecture/RUNTIME_STORE_CONTRACT.md)
-- [SDK and CLI contract](clients/SDK_CLI_CONTRACT.md) / [CN](clients/SDK_CLI_CONTRACT-CN.md)
+- [SDK and CLI contract](clients/SDK_CLI_CONTRACT.md) / [CN](clients/SDK_CLI_CONTRACT-CN.md);
+  Python SDK [quickstart](sdk/QUICKSTART.md), [authentication](sdk/AUTHENTICATION.md),
+  [examples](sdk/EXAMPLES.md), [reference](sdk/REFERENCE.md), [troubleshooting](sdk/TROUBLESHOOTING.md)
 - [Resource-pool contract EN](architecture/RESOURCE_POOL_CONTRACT-EN.md) /
   [CN](architecture/RESOURCE_POOL_CONTRACT-CN.md)
 - [Testing contract](architecture/TESTING_CONTRACT.md)
@@ -125,7 +192,7 @@ behavior.
   [CN](ontology/OWL_GAS_ROLE_MODEL-CN.md)
 - [Natural-gas subject architecture](ontology/europe-natural-gas.md)
 
-### Architecture V2 programme
+#### Architecture V2 programme
 
 Architecture V2 is the binding target architecture and product-experience interaction authority
 (ADR-0016). Start at the entrypoint; the programme state is the checkpoint.
@@ -160,7 +227,7 @@ Architecture V2 is the binding target architecture and product-experience intera
   [unified job model](engineering/Architecture-V2/W8-02_UNIFIED_JOB_MODEL.md).
 - Wave 9 contracts: [shell surfaces: Inspector and command palette](engineering/Architecture-V2/W9-01_SHELL_SURFACES_INSPECTOR_AND_PALETTE.md).
 
-### Research data foundation
+#### Research data foundation
 
 - [Energy ontology](research/ENERGY_ONTOLOGY.md)
 - [Temporal data model](research/TEMPORAL_DATA_MODEL.md)
@@ -183,7 +250,7 @@ Architecture V2 is the binding target architecture and product-experience intera
 - [Agent evaluation](agents/AGENT_EVALUATION.md)
 - [Agent security and entitlement](agents/SECURITY_AND_ENTITLEMENT.md)
 
-### Client standards
+#### Client standards
 
 - [Client documentation index](clients/README.md)
 - [UI and content standards](clients/UI_CONTENT_STANDARDS.md) — single
@@ -204,13 +271,13 @@ Architecture V2 is the binding target architecture and product-experience intera
 - [Operational glossary context spec EN](clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-EN.md) /
   [CN](clients/OPERATIONAL_GLOSSARY_CONTEXT_SPEC-CN.md)
 
-### Policies
+#### Policies
 
 - [Product boundary policy](policies/PRODUCT_BOUNDARY_POLICY.md)
 - [Data policy](policies/DATA_POLICY.md)
 - [Dependency policy](policies/DEPENDENCY_POLICY.md)
 
-## Current runbooks
+### Runbooks
 
 Operational procedures and operator-facing guides:
 
@@ -258,7 +325,7 @@ Operational procedures and operator-facing guides:
 - [Market positioning imports EN](operations/MARKET_POSITIONING_IMPORTS-EN.md) /
   [CN](operations/MARKET_POSITIONING_IMPORTS-CN.md)
 
-## User and UAT documentation
+### User and UAT documentation
 
 - [Quick start](user/QUICK_START.md)
 - [The answer bar](user/ANSWER_BAR.md): calculations, conversions, look-ups and Ask in the search bar
@@ -278,7 +345,7 @@ Operational procedures and operator-facing guides:
 - [I18N report](uat/I18N_REPORT.md)
 - [RC acceptance report](uat/RC_ACCEPTANCE_REPORT.md)
 
-## Release, security, and deployment
+### Release, security, and deployment
 
 - [Release readiness](release/RELEASE_READINESS.md)
 - [Vendor remediation acceptance record](release/VENDOR_REMEDIATION_ACCEPTANCE.md) — the reviewing
@@ -306,15 +373,19 @@ Operational procedures and operator-facing guides:
 - [Deployment handover index](deployment/HANDOVER_INDEX.md) — what a receiving team can verify for
   itself, what is signed where, and which items only they can close
 
-## Document status rules
+### Document status rules
 
 - Current architecture policies, API contracts, client standards, and
   current runbooks are normative.
 - `*-EN.md` and `*-CN.md` are language companions and must describe the same
   behavior.
 
-## Documentation maintenance
+### Documentation maintenance
 
+- `docs/sdk/REFERENCE.md` is generated; `python scripts/docs/generate_sdk_reference.py --check docs/sdk/REFERENCE.md`
+  fails when it is out of date.
+- The scripts in `examples/sdk` are run by `tests/docs/test_sdk_examples.py` when
+  `EUROGAS_NEXUS_EXAMPLES_BASE_URL` and `EUROGAS_NEXUS_EXAMPLES_API_TOKEN` are set.
 - Internal Markdown links are checked by
   [`scripts/ci/check_markdown_links.py`](../scripts/ci/check_markdown_links.py).
 - Remove obsolete documents after current references are updated; do not keep

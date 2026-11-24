@@ -29,7 +29,11 @@ def _configured_database_url() -> str:
     if config is None:
         raise RuntimeError("Alembic config is unavailable outside an Alembic runtime.")
 
-    return resolve_database_url() or config.get_main_option("sqlalchemy.url")
+    from eurogas_nexus.db.session import default_driver_url
+
+    url = resolve_database_url() or config.get_main_option("sqlalchemy.url")
+    # ``postgresql://`` means the runtime's driver (pg8000), as for the server's engine.
+    return default_driver_url(url) if url else url
 
 
 def run_migrations_offline() -> None:

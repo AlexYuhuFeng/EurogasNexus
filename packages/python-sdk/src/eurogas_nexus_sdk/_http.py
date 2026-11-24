@@ -30,6 +30,90 @@ IDENTITY_HEADER = "X-Eurogas-Identity"
 _UNSET = object()
 
 
+class NexusAPIError(httpx.HTTPStatusError):
+    """A refusal or failure from the Eurogas Nexus API, with the server's stable fields.
+
+    Every SDK call raises this from ``response.raise_for_status()``. It is an
+    ``httpx.HTTPStatusError``, so existing ``except httpx.HTTPStatusError`` handlers keep
+    working; new code can read the fields instead of parsing the body:
+
+    * ``status_code``: the HTTP status;
+    * ``code``: the endpoint's own stable code (``permission_denied``, ``cargo_not_found``,
+      ...) when it gave one, else the envelope's ``error``; ``None`` when the body carried
+      neither (a proxy page, for example);
+    * ``error`` and ``family``: the envelope's catalogue code and family (``not_found``,
+      ``VALIDATION``), the same for every endpoint;
+    * ``message``: what the server said, in words;
+    * ``recoverability``: the server's hint (``retry``, ``fix_request``, ...) when given;
+    * ``correlation_id``: quote it to an administrator to find the request in the logs;
+    * ``detail``: the full ``detail`` object as sent.
+    """
+
+    def __init__(self, response: httpx.Response) -> None:
+        body: Any = None
+        try:
+            body = response.json()
+        except ValueError:
+            body = None
+        detail = body.get("detail") if isinstance(body, dict) else None
+        self.status_code = response.status_code
+        self.detail = detail
+        self.code: str | None = None
+        self.message = ""
+        if isinstance(detail, dict):
+            self.code = detail.get("code")
+            self.message = str(detail.get("message") or "")
+        elif isinstance(detail, list):  # request validation: one entry per field
+            self.code = "validation_failed"
+            self.message = "; ".join(
+                f"{'.'.join(str(part) for part in item.get('loc', ()))}: {item.get('msg')}"
+                for item in detail
+                if isinstance(item, dict)
+            )
+        elif isinstance(detail, str):
+            self.message = detail
+        envelope = body if isinstance(body, dict) else {}
+        self.error = envelope.get("error")
+        self.family = envelope.get("family")
+        if self.code is None and isinstance(self.error, str):
+            self.code = self.error
+        self.recoverability = envelope.get("recoverability")
+        self.correlation_id = envelope.get("correlation_id") or response.headers.get(
+            "x-request-id"
+        )
+        text = f"{response.status_code} {self.code or response.reason_phrase}"
+        if self.message:
+            text += f": {self.message}"
+        if self.correlation_id:
+            text += f" (correlation id {self.correlation_id})"
+        super().__init__(text, request=response.request, response=response)
+
+
+def _raise_typed(response: httpx.Response) -> httpx.Response:
+    if response.is_success:
+        return response
+    raise NexusAPIError(response)
+
+
+def _clean(url: str) -> str:
+    """Collapse doubled slashes in the path, so ``base_url`` may end with ``/`` everywhere."""
+
+    scheme, separator, rest = url.partition("://")
+    if not separator:
+        return url
+    path, query_mark, query = rest.partition("?")
+    while "//" in path:
+        path = path.replace("//", "/")
+    return f"{scheme}://{path}{query_mark}{query}"
+
+
+def _typed(response: httpx.Response) -> httpx.Response:
+    """Make ``response.raise_for_status()`` raise :class:`NexusAPIError`."""
+
+    response.raise_for_status = lambda: _raise_typed(response)  # type: ignore[method-assign]
+    return response
+
+
 def resolve_api_token(environ: dict[str, str] | None = None) -> str:
     """Return the configured deployment token, preferring the canonical name.
 
@@ -78,7 +162,7 @@ def put(
     call_kwargs = dict(kwargs)
     if merged:
         call_kwargs["headers"] = merged
-    return httpx.put(url, json=json, timeout=timeout, **call_kwargs)
+    return _typed(httpx.put(_clean(url), json=json, timeout=timeout, **call_kwargs))
 
 
 def patch(
@@ -95,7 +179,7 @@ def patch(
     call_kwargs = dict(kwargs)
     if merged:
         call_kwargs["headers"] = merged
-    return httpx.patch(url, json=json, timeout=timeout, **call_kwargs)
+    return _typed(httpx.patch(_clean(url), json=json, timeout=timeout, **call_kwargs))
 
 
 def get(
@@ -119,7 +203,7 @@ def get(
         call_kwargs["headers"] = merged
     if params is not _UNSET:
         call_kwargs["params"] = params
-    return httpx.get(url, timeout=timeout, **call_kwargs)
+    return _typed(httpx.get(_clean(url), timeout=timeout, **call_kwargs))
 
 
 def post(
@@ -136,4 +220,4 @@ def post(
     call_kwargs = dict(kwargs)
     if merged:
         call_kwargs["headers"] = merged
-    return httpx.post(url, json=json, timeout=timeout, **call_kwargs)
+    return _typed(httpx.post(_clean(url), json=json, timeout=timeout, **call_kwargs))

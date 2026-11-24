@@ -82,7 +82,8 @@ class ShadowRuntimeStatusDTO(BaseModel):
     last_heartbeat_at_utc: str | None = None
     active_monitors: int
     pending_evaluations: int
-    failed_evaluations_24h: int
+    #: ``None`` while the scheduler is offline: nothing was counted, which is not zero.
+    failed_evaluations_24h: int | None = None
     duplicate_claims_prevented: int
 
 

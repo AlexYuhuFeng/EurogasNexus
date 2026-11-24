@@ -112,3 +112,15 @@ def test_get_engine_does_not_pass_postgresql_options_to_sqlite(
     assert engine is sentinel
     assert "connect_args" not in captured
     assert "pool_timeout" not in captured
+
+
+def test_a_url_without_a_driver_uses_the_runtime_driver(monkeypatch: pytest.MonkeyPatch) -> None:
+    captured: dict[str, Any] = {}
+    monkeypatch.setattr(
+        db_session, "create_engine", lambda url, **kwargs: captured.setdefault("url", url)
+    )
+    get_engine("postgresql://user:password@database.invalid/eurogas")
+    assert captured["url"].drivername == "postgresql+pg8000"
+    assert db_session.default_driver_url("postgres://h/db") == "postgresql+pg8000://h/db"
+    assert db_session.default_driver_url("postgresql+psycopg://h/db") == "postgresql+psycopg://h/db"
+    assert db_session.default_driver_url("sqlite:///x.db") == "sqlite:///x.db"

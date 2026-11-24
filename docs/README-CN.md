@@ -12,6 +12,18 @@
 
 以下为实施、技术和文档维护团队使用的专项索引。
 
+## 按角色
+
+| 角色 | 入门 | 办事 | 查阅 |
+|---|---|---|---|
+| 交易员 | [首次登录](user/QUICK_START.md) | [交易员指南](guides/TRADER.md) | [术语](architecture/TERMINOLOGY.md) |
+| 分析师、量化 | [Python SDK 快速开始（英文）](sdk/QUICKSTART.md) | [SDK 示例（英文）](sdk/EXAMPLES.md) | [SDK 参考（英文，由代码生成）](sdk/REFERENCE.md) |
+| 风险、财务 | [首次登录](user/QUICK_START.md) | [风险与财务指南](guides/RISK_AND_FINANCE.md) | [数据状态与来源](user/DATA_STATUS_AND_PROVENANCE.md) |
+| IT 管理员、数据运维 | [客户上线](guides/CLIENT_ONBOARDING.md) | [管理与运维指南](guides/ADMIN_AND_OPERATIONS.md) | [API 密钥](operations/API_KEYS.md) |
+| 对接其他系统的开发者 | [Python SDK 快速开始（英文）](sdk/QUICKSTART.md) | [SDK 认证](sdk/AUTHENTICATION.md)、[SDK 故障排查](sdk/TROUBLESHOOTING.md)（英文） | [API 约定](api/API_CONVENTIONS.md)、[API 合同](api/API_CONTRACT.md) |
+
+Python SDK 文档目前只有英文版；其中每个示例都在测试中对真实服务器运行验证。
+
 ## 先读
 
 1. [更新日志](../CHANGELOG.md)

@@ -148,8 +148,11 @@ def _fx_factor(currency_from: str, currency_to: str, eur_rates: Mapping[str, flo
     try:
         return table.rate(currency_from, currency_to)
     except CurrencyError as exc:
+        needed = " and ".join(
+            f"EUR/{code}" for code in (currency_from, currency_to) if code != "EUR"
+        )
         raise UnitConversionError(
-            f"explicit EUR/{currency_from}/{currency_to} FX rate required"
+            f"an FX rate from {currency_from} to {currency_to} is required: pass {needed}"
         ) from exc
 
 

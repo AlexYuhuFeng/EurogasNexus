@@ -6,11 +6,13 @@ Import typed clients from submodules, for example:
     from eurogas_nexus_sdk.research import compute_route_cost, RouteCostResult
 """
 
+from eurogas_nexus_sdk._http import NexusAPIError
 from eurogas_nexus_sdk._transport import ResponseMeta, SdkProtocolError, SdkResult
 from eurogas_nexus_sdk.health_client import HealthPayload, fetch_health  # noqa: F401
 
 __all__ = [
     "HealthPayload",
+    "NexusAPIError",
     "ResponseMeta",
     "SdkProtocolError",
     "SdkResult",

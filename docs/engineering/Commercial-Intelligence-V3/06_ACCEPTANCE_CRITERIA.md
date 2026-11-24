@@ -87,6 +87,17 @@ A criterion counts as met only when a named test or command shows it. Met criter
 Four-eyes on limit changes (P-01's second half) is left to the reference-data approval work
 with P-17, so that limits, terminal terms and freight routes share one maker-checker flow.
 
+## DOC documentation and SDK (met)
+
+| # | Criterion | Test |
+| --- | --- | --- |
+| DOC-1 | Every SDK example in the docs runs against a demo server and prints what the docs say | `tests/docs/test_sdk_examples.py` (needs `EUROGAS_NEXUS_EXAMPLES_BASE_URL` and `EUROGAS_NEXUS_EXAMPLES_API_TOKEN`; 12 passed against a local demo server) |
+| DOC-2 | The SDK reference is generated from the code and cannot fall behind it | `tests/contract/test_sdk_reference_current.py` |
+| DOC-3 | A refusal raises `NexusAPIError` carrying the server's code, message, recoverability and correlation id, and stays an `httpx.HTTPStatusError` | `tests/sdk/test_sdk_errors_and_urls.py` |
+| DOC-4 | A base URL with a trailing slash works | `test_a_base_url_may_end_with_a_slash` |
+| DOC-5 | A `postgresql://` URL without a driver uses the runtime's driver; an explicit driver is kept | `tests/integration/test_db_config.py::test_a_url_without_a_driver_uses_the_runtime_driver` |
+| DOC-6 | Every local Markdown link resolves | `scripts/ci/check_markdown_links.py` |
+
 ## M7 to M9 (to be met)
 
 - **M7.** Every new-engine opportunity that crosses the alert threshold reaches the
