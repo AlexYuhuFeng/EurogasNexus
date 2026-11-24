@@ -107,6 +107,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `GET /api/portfolio/credit-exposure`、`GET /api/portfolio/mandate-usage` | 每行 `marks_as_of`、`state`、`freshness_state`（附加字段，2026-11-24，QA-R-07） | 估值所用日收盘价的日期（该行各枢纽最新收盘价中最旧者；授权按 MWh 计量，为 `null`），`state` 为 `current`、`late`（晚一个工作日）、`stale`（更早）、`never`（授权为 `current`），`freshness_state` 为同一判定的行情用语（FRESH、LATE、STALE、MISSING） |
 | `GET /api/portfolio/position-ladder` | 每行 `marks_as_of`、`state`；顶层 `marks_as_of`、`marks_state`（附加字段，2026-11-24，QA-R-07） | 枢纽最新收盘价及其状态；顶层为所持枢纽中最不新者，盯市与 VaR 据此说明估值日期。监控扫描新增 `limits` 告警 `marks_stale`（指纹 `marks_stale:credit`，警告级，按账簿可见），任一信用额度的估值价延迟或过期时触发 |
 | `GET /api/access/users`、`POST /api/access/users`、`PATCH /api/access/users/{id}` | `segregation_warning`（附加字段，2026-11-24，QA-R-03） | 授权同时含 ANALYST 与 REVIEWER 时为 `code` `segregation_of_duties`、`roles`、`message`，否则为 `null`；不拒绝授权，服务器拒绝该人的风控写操作 |
+| `GET /api/opportunities/{opportunity_id}`（`object.assumptions[]`，以及冻结它的版本载荷与决策案证据） | `book_id`、`set_id`、`set_name`、`set_version`（附加字段，2026-11-24，P-11） | 取值所依据的已批准假设集：`book_id` 为持有该值的账簿自有假设集，全公司假设集时为 `null`；`origin` 仍为 `firm_set`。账簿范围取值的 `input_key` 为 `assumption:<key>@book:<book_id>`，其依赖键仍为 `assumption:<key>` |
 
 ## 有意收窄的行为变更
 
@@ -132,6 +133,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `PUT /api/market/firm-marks` | **按行情点的合理区间拒绝（2026-11-24，QA-R-05）**：估值价按 `POST /api/market/ticks` 所用的按单位合理区间检查（`domain/market/feed.py`）：EUR/MWh 上限 500，月度及更长期间不低于 0（单日期间可至 -50）；GBp/th 上限 1,500（单日 -150）。其他 EUR 或 GBP 单位先换算；USD、CAD 单位沿用原 -500..5,000 边界。超出时返回 `422 value_implausible`，附该单元格 `index`，`message` 写明区间，整张表不存储。此前远期月份的 4,200 与 -50 EUR/MWh 均被存储 | 实测审查 QA-R-05：不合理的公司估值价以公司自有数字进入估值 |
 | `GET /api/projections/market-context`（切片 `freshness.state`、`data_sources` 行），`GET /api/projections/portfolio-snapshot`（`data_sources` 行） | **统一新鲜度规则（2026-11-24，QA-R-07）**：行所属来源在连接器清单中有声明时，状态取新鲜度契约的判定（来源的 `FreshnessPolicy` 与日历，即 `GET /api/desk/today` `stale_figures` 所用规则）：正常时限内 `FRESH`，至过期阈值前 `LATE`，之后 `STALE`，无数据 `MISSING`。此前凡超过声明期望即为 `STALE`（10 分钟前的 EEX 行情点；现为 `LATE`，3 天后过期）。`SOURCE_STALE` 警告仅随 `STALE`。行中无已声明来源的切片沿用仅按期望的判定。`expected_within_minutes` 与块的键不变 | “数据源”弹窗对每个数据源都显示“过期”，而今日页显示所有数字均为最新 |
 | `GET /api/desk/today`（信用额度的 `rows[0].tightest_limit`） | **使用该额度自身的估值日期（2026-11-24，QA-R-07）**：`as_of` 与 `state` 取该行的 `marks_as_of` 与 `state`（其枢纽中最旧的收盘价）；此前取任一枢纽的最新收盘价，以旧枢纽估值的额度可能显示为最新 | 限额页、今日页与 `marks_stale` 告警使用同一判定 |
+| `GET /api/opportunities`、`GET /api/opportunities/{opportunity_id}`（`sell_down` 类型；`locational` 日前候选） | **按账簿自有假设集与燃气日余量评估（2026-11-24，P-11）**：全公司评估先读账簿自有的已批准假设集，再回退到全公司假设集（卖出余量的不平衡折价与溢价；区位机会的负荷率、燃料与损耗、短期乘数）；币种与枢纽不同的账簿不平衡费率不予使用。余量为该账簿明日燃气日自身明细的日平衡（与 `GET /api/portfolio/daily-balance`、“我的燃气日”同一口径），在账簿平衡带内视为平衡，不再按实测交付比例缩放（快照中的余量输入注明 `definition: gas_day`、`delivery_ratio_applied: false`）。此前显示“无法评估”的卖出余量记录，在账簿持有费率时现可估值，数值随之变化，数量腿与首条证伪条件改写（评估器版本 2）。仅供决策参考 | 人物审查 P-11；与 QA-T-07 同一平衡口径 |
 
 ## 被拒绝的请求字段
 

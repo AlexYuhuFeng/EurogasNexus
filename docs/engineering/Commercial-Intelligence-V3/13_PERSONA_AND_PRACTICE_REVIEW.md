@@ -56,7 +56,7 @@ repeated price queries, remove the 1,000-event drain cap (M7).
 | P-08 | S2 | A1, A4 | Three prices for TTF Dec-26 at one instant; a stale quote beats a fresh settlement | Freshest entitled source within each class's maximum age | Next after F1 |
 | P-09 | S2 | B3 | Four LNG economics implementations rank the same cargo's terminals differently | One LNG economics kernel | Planned |
 | P-10 | S2 | B5, B6 | The opportunity stream and monitoring read the legacy table | M7 | M7 |
-| P-11 | S2 | B1 | Book-owned assumption sets are ignored by the firm-wide evaluation; sell-down always "cannot evaluate" | Evaluate per book or key by zone | Planned |
+| P-11 | S2 | B1 | Book-owned assumption sets are ignored by the firm-wide evaluation; sell-down always "cannot evaluate" | **Fixed 2026-11-24**: the evaluation reads each book's own approved set, else the firm-wide set (sell-down cash-out rate; locational load factor, fuel and short-term multiplier); the sell-down residual is each book's daily balance from the gas day's own lines. On the demo desk the UK book's NBP and the NL book's TTF residuals are now valued | Done |
 | P-12 | S2 | B1 | Hedge-gap alerts run past the band's validity (37 items, 26 outside it) | Respect `valid_until` | Planned |
 | P-13 | S2 | A1 | An own cargo's feed ETA contradicts its contract window unchecked | **Done in LNG-1** (contract warning on the plan) | Done |
 | P-14 | S2 | B1 | A FOB cargo is invisible in the position ladder | Plan shows it (LNG-1); ladder leg next | Partly done |
