@@ -387,7 +387,9 @@ def test_the_scheduler_hook_records_and_drains_and_never_fails_the_loop(
     tick = script.deliver_market_events(
         factory, [{"run_id": "tick-1", "status": "SUCCEEDED"}], now_utc=NOW
     )
-    assert tick == {"status": "ok", "published": ["new"], "processed": 1, "failed": 0, "dead": 0}
+    assert tick == {
+        "status": "ok", "published": ["new"], "captured": {}, "processed": 1, "failed": 0, "dead": 0
+    }
 
     def boom(*_a, **_k):
         raise RuntimeError("store away")

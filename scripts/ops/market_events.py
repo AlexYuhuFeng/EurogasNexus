@@ -1,7 +1,8 @@
-"""Operate the market event outbox (M4): status, staleness, timeline, drain, replay, listen.
+"""Operate the market event outbox (M4/M5): status, staleness, timeline, capture, drain,
+replay, listen.
 
-Read-only by default. ``drain`` and ``replay`` write only with ``--commit``; without it they
-report what they would do and roll back. ``listen`` (PostgreSQL only) waits on the
+Read-only by default. ``capture``, ``drain`` and ``replay`` write only with ``--commit``;
+without it they report what they would do and roll back. ``listen`` (PostgreSQL only) waits on the
 ``market_events`` notification channel and drains when woken or every ``--interval`` seconds,
 so a lost notice costs latency, never an event.
 
@@ -10,6 +11,7 @@ Examples::
     python scripts/ops/market_events.py status
     python scripts/ops/market_events.py staleness
     python scripts/ops/market_events.py timeline mev-...-r1 --consumer opportunities
+    python scripts/ops/market_events.py capture --since 2026-11-01T00:00:00Z --commit
     python scripts/ops/market_events.py drain --commit
     python scripts/ops/market_events.py replay opportunities --since 2026-11-24T00:00:00Z --commit
 """
@@ -75,6 +77,10 @@ def main(argv: list[str] | None = None) -> int:
     timeline = sub.add_parser("timeline")
     timeline.add_argument("event_id")
     timeline.add_argument("--consumer", default="opportunities")
+    capture = sub.add_parser("capture")
+    capture.add_argument("--since")
+    capture.add_argument("--kind", action="append", choices=("prices", "fx", "outages"))
+    capture.add_argument("--commit", action="store_true")
     drain = sub.add_parser("drain")
     drain.add_argument("--commit", action="store_true")
     drain.add_argument("--limit", type=int, default=100)
@@ -106,6 +112,15 @@ def main(argv: list[str] | None = None) -> int:
             report = market_events.timeline(session, args.event_id, args.consumer) or {
                 "status": "not_found"
             }
+        elif args.command == "capture":
+            from eurogas_nexus.application import market_event_capture
+
+            report = market_event_capture.capture(
+                session,
+                since_utc=_instant(args.since),
+                kinds=tuple(args.kind or ("prices", "fx", "outages")),
+            )
+            report["committed"] = args.commit
         elif args.command == "drain":
             report = {
                 "batches": [

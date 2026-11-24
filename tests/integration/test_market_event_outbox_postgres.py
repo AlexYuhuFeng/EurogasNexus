@@ -1,4 +1,5 @@
-"""The market event outbox on PostgreSQL (M4): notify at commit, skip-locked claims, uniqueness.
+"""The market event outbox on PostgreSQL (M4/M5): notify at commit, skip-locked claims,
+uniqueness, change capture, and the scheduled evaluation keeping a change noted mid-run.
 
 Run via ``scripts/ci/run_postgres_ci.sh`` (``RUNTIME_STORE_DATABASE_URL`` set, migrated to head).
 """
@@ -8,7 +9,8 @@ from __future__ import annotations
 import os
 import threading
 import time
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
@@ -16,8 +18,10 @@ from sqlalchemy import create_engine, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from eurogas_nexus.application import market_event_capture as capture
 from eurogas_nexus.application import market_events as outbox
-from eurogas_nexus.db.models import MarketEventRecord
+from eurogas_nexus.application.opportunities import schedule
+from eurogas_nexus.db.models import MarketEventRecord, OpportunityPendingInputRecord
 from eurogas_nexus.domain.market_events import MarketEvent
 
 pytestmark = pytest.mark.skipif(
@@ -165,3 +169,63 @@ def test_two_publishers_racing_on_one_event_write_it_once(setup) -> None:
     with Session(engine) as session:
         rows = session.query(MarketEventRecord).filter(MarketEventRecord.source_id == source)
         assert rows.count() == 1
+
+
+def _umm(source, version, published):
+    return SimpleNamespace(
+        record_id=f"{source}-v{version}", message_id=f"{source}-UMM", version=version,
+        published_at_utc=published, ingested_at_utc=published, event_status="active",
+        unavailability_type="planned", event_start_utc=NOW + timedelta(days=version),
+        event_stop_utc=None, asset_eic="21Z0", balancing_zone="THE", direction="entry",
+        unavailable_gwh_d=10.0 * version, unavailable_mcm_d=None, source_system=source,
+    )
+
+
+def test_capture_on_postgres_writes_each_figure_once(setup) -> None:
+    engine, source, _consumer = setup
+    rows = [_umm(source, 1, NOW), _umm(source, 2, NOW + timedelta(minutes=5))]
+    with Session(engine) as session:
+        first = capture.capture_rows(session, outages=rows, now_utc=NOW + timedelta(minutes=6))
+        session.commit()
+    with Session(engine) as session:
+        again = capture.capture_rows(session, outages=rows, now_utc=NOW + timedelta(minutes=7))
+        session.commit()
+        held = (
+            session.query(MarketEventRecord.revision)
+            .filter(MarketEventRecord.source_id == source)
+            .order_by(MarketEventRecord.revision)
+            .all()
+        )
+    assert first["published"] == {"outage.published": 2}
+    assert again["published"] == {} and again["unchanged"] == 2
+    assert [row[0] for row in held] == [1, 2]
+
+
+def test_the_scheduled_evaluation_keeps_a_change_noted_while_it_runs(setup) -> None:
+    engine, _source, _consumer = setup
+    input_class = "freight"
+    with Session(engine) as session:
+        session.query(OpportunityPendingInputRecord).delete()
+        schedule.note_input_changed(session, input_class, reason="before", at_utc=NOW)
+        session.commit()
+
+    def runner(session, **_kwargs):
+        with Session(engine) as other:
+            schedule.note_input_changed(
+                other, input_class, reason="during", at_utc=NOW + timedelta(minutes=10)
+            )
+            other.commit()
+        return {"status": "ok"}
+
+    try:
+        with Session(engine) as session:
+            ran = schedule.run_due(session, now_utc=NOW + timedelta(minutes=6), runner=runner)
+            session.commit()
+        assert ran["status"] == "ran"
+        with Session(engine) as session:
+            kept = session.get(OpportunityPendingInputRecord, input_class)
+            assert kept is not None and kept.last_reason == "during"
+    finally:
+        with Session(engine) as session:
+            session.query(OpportunityPendingInputRecord).delete()
+            session.commit()

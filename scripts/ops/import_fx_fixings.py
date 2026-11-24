@@ -63,13 +63,15 @@ def main(argv: list[str] | None = None) -> int:
         print("Runtime DB URL missing. Set RUNTIME_STORE_DATABASE_URL or DATABASE_URL.")
         return 2
     print(f"Runtime DB: {redact_database_url(database_url)}")
+    from eurogas_nexus.application.market_event_capture import capture_rows
     from eurogas_nexus.db.models import FxObservationRecord
 
     with get_session_factory(database_url=database_url)() as session:
-        for row in rows:
-            session.merge(FxObservationRecord(**row.as_record()))
+        stored = [session.merge(FxObservationRecord(**row.as_record())) for row in rows]
+        # Same transaction as the rows: a changed fixing is an FX event (M5).
+        events = capture_rows(session, fixings=stored)
         session.commit()
-    print(f"Upserted {len(rows)} {fixing.source_system} fixes.")
+    print(f"Upserted {len(rows)} {fixing.source_system} fixes; events {events['published']}.")
     return 0
 
 

@@ -54,13 +54,15 @@ def main(argv: list[str] | None = None) -> int:
         print("Runtime DB URL missing. Set RUNTIME_STORE_DATABASE_URL or DATABASE_URL.")
         return 2
     print(f"Runtime DB: {redact_database_url(database_url)}")
+    from eurogas_nexus.application.market_event_capture import capture_rows
     from eurogas_nexus.db.models import MarketObservationRecord
 
     with get_session_factory(database_url=database_url)() as session:
-        for row in result.rows:
-            session.merge(MarketObservationRecord(**row))
+        stored = [session.merge(MarketObservationRecord(**row)) for row in result.rows]
+        # Same transaction as the rows: a changed settlement is a price event (M5).
+        events = capture_rows(session, settlements=stored)
         session.commit()
-    print(f"Stored {len(result.rows)} {args.source} settlements.")
+    print(f"Stored {len(result.rows)} {args.source} settlements; events {events['published']}.")
     return 0
 
 

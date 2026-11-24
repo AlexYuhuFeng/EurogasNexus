@@ -691,7 +691,7 @@ class OpportunityImpactConsumer:
         from eurogas_nexus.domain.opportunities.evaluator import registered
 
         keys = sorted({key for record in records for key in (record.dependency_keys or [])})
-        affected = affected_by(session, keys)
+        affected = affected_by(session, sorted(set(keys) | _fx_crosses(session, keys)))
         names: list[str] = []
         if affected:
             names = sorted(
@@ -732,6 +732,37 @@ class OpportunityImpactConsumer:
         result["evaluation_id"] = summary.get("evaluation_id")
         result["evaluation_status"] = summary.get("status")
         return result
+
+
+def _fx_crosses(session, keys: Sequence[str]) -> set[str]:
+    """Stored ``fx:`` keys a fixing also moves.
+
+    Fixings are quoted against EUR, the pivot every conversion goes through, so a change to
+    ``fx:EURUSD`` moves every stored pair that contains USD (``fx:GBPUSD``, ``fx:USDGBP``).
+    A non-EUR fixing moves pairs that contain either of its currencies.
+    """
+
+    from eurogas_nexus.db.models import OpportunityDependencyRecord
+
+    currencies: set[str] = set()
+    for key in keys:
+        pair = key[3:] if key.startswith("fx:") else ""
+        if len(pair) == 6 and pair.isalpha():
+            currencies.update(code for code in (pair[:3], pair[3:]) if code != "EUR")
+    if not currencies:
+        return set()
+    stored = {
+        row[0]
+        for row in session.query(OpportunityDependencyRecord.input_key)
+        .filter(OpportunityDependencyRecord.input_key.like("fx:%"))
+        .distinct()
+        .all()
+    }
+    return {
+        key
+        for key in stored
+        if len(key) >= 9 and {key[3:6], key[6:9]} & currencies
+    }
 
 
 _BUILTIN_REGISTERED = False

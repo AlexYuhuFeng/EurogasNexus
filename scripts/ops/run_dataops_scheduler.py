@@ -532,13 +532,14 @@ def evaluate_opportunities_if_due(session_factory, outcomes, *, now_utc) -> dict
 
 
 def deliver_market_events(session_factory, outcomes, *, now_utc) -> dict:
-    """M4: record a ``source.ingested`` event per run that wrote rows, then drain the outbox.
+    """M4/M5: record a ``source.ingested`` event per run that wrote rows, capture price, FX and
+    REMIT changes in the lookback window (M5), then drain the outbox.
 
     Its own transactions, after the CP-13 hook: a failure is reported and never undoes or stops
     ingestion. Consumers that raise are retried by the outbox, not here.
     """
 
-    from eurogas_nexus.application import market_events
+    from eurogas_nexus.application import market_event_capture, market_events
 
     try:
         with session_factory() as session:
@@ -546,6 +547,9 @@ def deliver_market_events(session_factory, outcomes, *, now_utc) -> dict:
                 market_events.publish(session, event).kind.value
                 for event in market_events.ingestion_events(session, outcomes, now_utc=now_utc)
             ]
+            session.commit()
+        with session_factory() as session:
+            captured = market_event_capture.capture(session, now_utc=now_utc)
             session.commit()
         batches = market_events.drain(session_factory, now_utc=now_utc)
     except Exception as exc:  # noqa: BLE001 - the outbox never stops the ingestion loop
@@ -559,6 +563,7 @@ def deliver_market_events(session_factory, outcomes, *, now_utc) -> dict:
     return {
         "status": "ok",
         "published": published,
+        "captured": captured["published"],
         "processed": sum(batch.get("processed", 0) for batch in batches),
         "failed": sum(batch.get("failed", 0) for batch in batches),
         "dead": sum(batch.get("dead", 0) for batch in batches),
