@@ -4,6 +4,7 @@ import { api, type NweBalanceDTO, type NweBalanceDayDTO } from "@/api/client";
 import { DataGrid, type DataGridColumn } from "@/components/ui";
 import { Chart, limitStack, stackForm, type ChartData } from "@/components/ui/charts";
 import { ReportExport } from "./ReportExport";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -120,7 +121,7 @@ export function NweBalancePanel({ t, simulated = false }: {
       },
       { id: "lng", header: t("nwe.lng"), unit, type: "number", value: (row) => row.lng_gwh, format: (value) => gwh(value as number) },
       { id: "storage", header: t("nwe.storage"), unit, type: "number", value: (row) => row.storage_net_withdrawal_gwh, format: (value) => gwh(value as number) },
-      { id: "fill", header: t("nwe.fill"), unit: "%", type: "number", value: (row) => row.fill_pct ?? null, format: (value) => (value == null ? "–" : (value as number).toFixed(1)) },
+      { id: "fill", header: t("nwe.fill"), unit: "%", type: "number", value: (row) => row.fill_pct ?? null, format: (value) => formatMeasure("percent", value as number | null, { bare: true }) },
     ];
   }, [balance, simulated, t]);
 

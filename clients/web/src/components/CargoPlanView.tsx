@@ -42,7 +42,7 @@ import {
   type WhatIfRow,
 } from "@/app/model/cargoBoardModel";
 import { formatDeliveryMonth, formatInstant } from "@/app/time/timeFormat";
-import { formatAmount } from "@/app/time/valueFormat";
+import { formatAmount, plainDecimal } from "@/app/time/valueFormat";
 import { useInstantFormatter } from "@/app/time/useInstant";
 import { Button, DataGrid, Field, Instant, Segmented, Select, Sheet, StatusBadge, type DataGridColumn } from "@/components/ui";
 import { Chart, Waterfall } from "@/components/ui/charts";
@@ -306,8 +306,8 @@ function Timeline({ plan, t, format }: { plan: CargoPlanDTO; t: Translate; forma
   const from = Math.min(...instants);
   const to = Math.max(...instants);
   const span = to - from || 1;
-  const pct = (value: number) => `${(((value - from) / span) * 96 + 2).toFixed(2)}%`;
-  const pctWidth = (start: number, end: number) => `${(((end - start) / span) * 96).toFixed(2)}%`;
+  const pct = (value: number) => `${plainDecimal(((value - from) / span) * 96 + 2, 2)}%`;
+  const pctWidth = (start: number, end: number) => `${plainDecimal(((end - start) / span) * 96, 2)}%`;
   const describe = marks.map((mark) => `${t(mark.labelKey)} ${format(new Date(mark.at).toISOString())}`).join("; ");
   return (
     <div className="cargo-timeline" role="img" aria-label={describe}>

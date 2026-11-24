@@ -52,6 +52,7 @@ import { Button, DataGrid, DirectionMark, InstrumentPicker, Segmented, Toolbar, 
 import { directionOf } from "@/components/ui/dataGridModel";
 import { sumRecordCounts } from "@/app/workspaceDerivedData";
 import { ReferenceIndexEvidence } from "@/components/ReferenceIndexEvidence";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -206,14 +207,9 @@ const displayPriceUnit = (currency: string, unit: string): string => {
 
 const formatPrice = (row: NormalizedMarketObsDTO | null): string => {
   if (!row) return "n/a";
-  return `${row.price.toFixed(2)} ${displayPriceUnit(row.currency, row.unit)}`;
+  return formatMeasure("price", row.price, { unit: displayPriceUnit(row.currency, row.unit) });
 };
 
-const formatSpread = (value: number | null, unit?: string): string => {
-  if (value == null) return "n/a";
-  const prefix = value > 0 ? "+" : "";
-  return `${prefix}${value.toFixed(2)} ${unit ?? "MWh"}`;
-};
 
 const getObservedTime = (row: NormalizedMarketObsDTO): string =>
   row.observed_at_utc ?? row.period_end_utc ?? row.period_start_utc;
@@ -242,7 +238,7 @@ const formatTimestamp = (value: string | null | undefined): string =>
 
 const formatCadence = (seconds: number | null): string => {
   if (seconds == null) return "n/a";
-  if (seconds < 60) return `${seconds.toFixed(0)}s`;
+  if (seconds < 60) return `${Math.round(seconds)}s`;
   if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
   return `${Math.round(seconds / 3600)}h`;
 };
@@ -364,7 +360,7 @@ const quoteDelta = (quotes: MarketQuoteDTO[]): number | null => {
 
 const formatDelta = (value: number | null): string => {
   if (value == null) return "n/a";
-  return `${value > 0 ? "+" : ""}${value.toFixed(3)}`;
+  return formatMeasure("change", value);
 };
 
 type BoardView = "board" | "ladder" | "prompt";
@@ -690,7 +686,7 @@ export function MarketTerminal({
       bidAskText: quote
         ? `${formatPriceValue(bid?.value)} / ${formatPriceValue(ask?.value)}`
         : last
-          ? (last.value === null ? "n/a" : last.value.toFixed(2))
+          ? formatMeasure("price", last.value, { missing: "n/a" })
           : "–",
       tenor: row.tenor,
       quote: quote ?? null,
@@ -744,10 +740,10 @@ export function MarketTerminal({
         text: value.value === null
           ? t("prices.board.reporting_refused", { reason: value.refused ?? "" })
           : t(value.pair ? "prices.board.reporting" : "prices.board.reporting_plain", {
-              value: value.value.toFixed(3),
+              value: formatMeasure("price", value.value),
               unit: value.unit,
               pair: value.pair ?? "",
-              rate: value.rate === null ? "" : value.rate.toFixed(4),
+              rate: formatMeasure("fx_rate", value.rate, { missing: "" }),
               method: value.method === "derived: covered interest parity"
                 ? t("spreads.fx.derived")
                 : value.method === "licensed"
@@ -787,7 +783,7 @@ export function MarketTerminal({
     return t("market.close_basis", {
       kind: t(`market.close_kind.${row.close.kind}`),
       day: row.close.day ?? t("market.close_day_unstated"),
-      price: row.close.native === null ? "n/a" : row.close.native.toFixed(3),
+      price: formatMeasure("price", row.close.native, { missing: "n/a" }),
       unit: row.unit ?? "",
       source: row.close.sourceSystem ?? row.sourceLabel,
     }) + (row.close.simulated ? ` · ${t("today.simulated_short")}` : "");
@@ -858,11 +854,11 @@ export function MarketTerminal({
         if (row.mid === null && row.oneSided) {
           return (
             <span data-one-sided={row.oneSided.side} title={t("market.one_sided_title")}>
-              {(value as number).toFixed(3)} <small className="market-one-sided">{t(`market.one_sided.${row.oneSided.side}`)}</small>
+              {formatMeasure("price", value as number)} <small className="market-one-sided">{t(`market.one_sided.${row.oneSided.side}`)}</small>
             </span>
           );
         }
-        return (value as number).toFixed(3);
+        return formatMeasure("price", value as number);
       },
       // The reporting unit on hover (G3): converted on the server, with its rate and method.
       cellAttributes: (row) => {
@@ -881,7 +877,7 @@ export function MarketTerminal({
       type: "number",
       sortable: true,
       value: (row) => row.last,
-      format: (value) => (value == null ? "–" : (value as number).toFixed(3)),
+      format: (value) => formatMeasure("price", value as number | null),
       cellTitle: asOfTitle,
     } satisfies DataGridColumn<BoardRow>] : []),
     ...(anyChange ? [{
@@ -922,7 +918,7 @@ export function MarketTerminal({
       type: "number" as const,
       sortable: true,
       value: (row: BoardRow) => spreadToTtf(row),
-      format: (value: unknown) => (value == null ? "–" : `${(value as number) >= 0 ? "+" : ""}${(value as number).toFixed(2)}`),
+      format: (value: unknown) => formatMeasure("spread", value as number | null),
       // A spread with a stale leg is marked in the cell, not shown as if both legs were live.
       state: (row: BoardRow) => (spreadToTtf(row) !== null && (row.stale || ttfStale)
         ? { kind: "stale" as const, label: t("prices.board.spread_stale_label"), description: t("prices.board.spread_stale") }
@@ -937,7 +933,7 @@ export function MarketTerminal({
       headerTitle: tenorLabel(tenor, t),
       type: "number",
       value: (row) => row.lane[index] ?? null,
-      format: (value) => (value == null ? "–" : (value as number).toFixed(2)),
+      format: (value) => formatMeasure("price", value as number | null),
       cellClassName: () => (tenor === activeTenor ? "market-curve-active" : "market-curve"),
     }] : [])),
     ...(allSimulated ? [] : [{
@@ -1106,7 +1102,7 @@ export function MarketTerminal({
             ? <strong>{t("data.unavailable")}</strong>
             : latestFxPerPair(fxRates).slice(0, 4).map((rate) => (
               <strong key={`fx-${rate.pair}-${rate.observed_at_utc}`} title={formatTimestamp(rate.observed_at_utc)}>
-                {rate.pair} {rate.rate.toFixed(4)} <small>{rate.source_system ? sourceSystemLabel(rate.source_system) : t("market.ecb_source")}</small>
+                {rate.pair} {formatMeasure("fx_rate", rate.rate)} <small>{rate.source_system ? sourceSystemLabel(rate.source_system) : t("market.ecb_source")}</small>
               </strong>
             ))}
         </div>
@@ -1224,5 +1220,5 @@ function latestFxPerPair<T extends { pair: string; observed_at_utc: string }>(ra
 }
 
 function formatPriceValue(value: number | null | undefined): string {
-  return value == null || !Number.isFinite(value) ? "n/a" : value.toFixed(3);
+  return formatMeasure("price", value, { missing: "n/a" });
 }

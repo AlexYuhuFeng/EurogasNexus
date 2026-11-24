@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { warningLabel } from "@/app/warningLabel";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string) => string;
 type RouteState = ResourcePoolMapPath["routeState"];
@@ -49,8 +50,7 @@ function formatQuantity(value: number | null): string {
 }
 
 function formatMoney(value: number | null): string {
-  if (value === null || Number.isNaN(value)) return "n/a";
-  return `${value.toFixed(2)} GBP/MWh`;
+  return formatMeasure("unit_value", value, { unit: "GBP/MWh", missing: "n/a" });
 }
 
 function formatPnl(value: number | null): string {
@@ -60,8 +60,7 @@ function formatPnl(value: number | null): string {
 }
 
 function formatPct(value: number | null): string {
-  if (value === null || Number.isNaN(value)) return "n/a";
-  return `${value.toFixed(1)}%`;
+  return formatMeasure("percent", value, { missing: "n/a" });
 }
 
 function routeGeometryLabel(state: RouteGeometryState, t: Translate): string {

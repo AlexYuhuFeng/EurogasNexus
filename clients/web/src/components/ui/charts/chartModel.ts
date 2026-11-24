@@ -15,6 +15,7 @@
  */
 import { gasDayStartUtc } from "../../../app/tradingContext.ts";
 import { seasonLabel } from "./seasonModel.ts";
+import { plainDecimal } from "../../../app/time/valueFormat.ts";
 
 /**
  * `season`: one value per day of a gas (or calendar) year, keyed "MM-DD" in season order
@@ -267,7 +268,7 @@ export function chartCsv(data: ChartData): string {
   ];
   const lines = [header.map(csvCell).join(",")];
   const number = (value: number | null | undefined, decimals = 4) =>
-    value == null || !Number.isFinite(value) ? "" : String(Number(value.toFixed(decimals)));
+    value == null || !Number.isFinite(value) ? "" : String(Number(plainDecimal(value, decimals)));
   data.x.forEach((key, index) => {
     const cells = [key];
     for (const item of data.series) cells.push(number(item.values[index], item.decimals ?? 4));

@@ -141,6 +141,109 @@ export function formatAmount(value: number, language: string, digits = 0): strin
 /** Decimals a gas price reads in, as on the board. */
 export const PRICE_DIGITS = 3;
 
+// ---------------------------------------------------------------------------------------------
+// One formatter per measure (UX R3, P-20). A component never writes `toFixed` for a figure a
+// person reads: it names the measure, and this table gives the decimals, the sign rule and the
+// grouping. Every result writes a true minus (U+2212), a space between the number and its unit
+// and a space before % (NIST SP 811 §7). tests/numberFormatUsage.test.ts fails on a new
+// `toFixed(` under components/.
+
+export type Measure =
+  /** A quoted gas price in the hub's quotation (EUR/MWh, p/th, USD/MMBtu), as on the board. */
+  | "price"
+  /** A signed change of a price (tick, against the close). */
+  | "change"
+  /** A spread between two prices, always signed. */
+  | "spread"
+  /** A value per unit that is not a quoted gas price: route cost, margin, power, carbon, spark spread. */
+  | "unit_value"
+  /** A quantity of energy or volume (MWh, GWh/d, mcm/d). */
+  | "volume"
+  /** Profit and loss in a currency, always signed. */
+  | "pnl"
+  /** A share or fill level. */
+  | "percent"
+  /** A change in percentage points or a percentage change, always signed. */
+  | "percent_change"
+  /** An exchange rate. */
+  | "fx_rate"
+  /** A published tariff, at the precision the operator publishes. */
+  | "tariff"
+  /** An air temperature. */
+  | "temperature"
+  /** A latitude or longitude in degrees. */
+  | "coordinate"
+  /** A statistic without a unit (R², a coefficient). */
+  | "ratio";
+
+interface MeasureRule {
+  decimals: number;
+  /** `always`: + before a positive value; `negative`: only the minus. Zero never has a sign. */
+  sign: "always" | "negative";
+  /** Thousands separators in the app's language (quantities and money, not prices). */
+  grouping: boolean;
+  /** The unit when the measure has one of its own. */
+  unit?: string;
+}
+
+export const MEASURES: Readonly<Record<Measure, MeasureRule>> = {
+  price: { decimals: PRICE_DIGITS, sign: "negative", grouping: false },
+  change: { decimals: PRICE_DIGITS, sign: "always", grouping: false },
+  spread: { decimals: PRICE_DIGITS, sign: "always", grouping: false },
+  unit_value: { decimals: 2, sign: "negative", grouping: false },
+  volume: { decimals: 0, sign: "negative", grouping: true },
+  pnl: { decimals: 0, sign: "always", grouping: true },
+  percent: { decimals: 1, sign: "negative", grouping: false, unit: "%" },
+  percent_change: { decimals: 1, sign: "always", grouping: false, unit: "%" },
+  fx_rate: { decimals: 4, sign: "negative", grouping: false },
+  tariff: { decimals: 4, sign: "negative", grouping: false },
+  temperature: { decimals: 1, sign: "negative", grouping: false, unit: "°C" },
+  coordinate: { decimals: 4, sign: "negative", grouping: false },
+  ratio: { decimals: 2, sign: "negative", grouping: false },
+};
+
+export interface MeasureOptions {
+  /** The unit written after the number ("EUR/MWh", "GWh/d"); the measure's own unit otherwise. */
+  unit?: string | null;
+  /** Leave the unit out (it is named once in the column header). */
+  bare?: boolean;
+  /** Overrides the table, for a figure whose precision is part of its meaning. */
+  decimals?: number;
+  /** Overrides the sign rule. */
+  signed?: boolean;
+  /** App language (i18n.language); grouping and digits follow it, never the browser's locale. */
+  language?: string;
+  /** What a missing value reads (default "–"). */
+  missing?: string;
+}
+
+/** A figure as a person reads it: "34.125 EUR/MWh", "−1,250 MWh", "+0.4 %", "21.3 °C". */
+export function formatMeasure(measure: Measure, value: number | null | undefined, options: MeasureOptions = {}): string {
+  if (value === null || value === undefined || !Number.isFinite(value)) return options.missing ?? "–";
+  const rule = MEASURES[measure];
+  const decimals = options.decimals ?? rule.decimals;
+  const digits = new Intl.NumberFormat(formattingLocale(options.language ?? "en"), {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+    useGrouping: rule.grouping,
+  }).format(Math.abs(value));
+  // A value that rounds to zero has no sign (never "−0.000").
+  const zero = Number(digits.replace(/[^0-9.]/g, "")) === 0;
+  const always = options.signed ?? rule.sign === "always";
+  const sign = zero ? "" : value < 0 ? "\u2212" : always ? "+" : "";
+  const unit = options.bare ? null : (options.unit ?? rule.unit ?? null);
+  return unit ? `${sign}${digits} ${unit}` : `${sign}${digits}`;
+}
+
+/**
+ * A number for a machine, not a reader: a form field's value, a CSV cell, an SVG coordinate or a
+ * CSS length. ASCII minus, no grouping, no unit. Components use this, never `toFixed`, so the
+ * formatter lint can tell the two apart.
+ */
+export function plainDecimal(value: number, decimals: number): string {
+  return value.toFixed(decimals);
+}
+
 /** What one conversion says about its rate (G3, G6): pair, rate, source, date, method. */
 export interface RateStatement {
   pair: string;

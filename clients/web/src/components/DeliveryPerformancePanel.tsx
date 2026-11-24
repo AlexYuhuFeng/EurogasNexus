@@ -5,6 +5,7 @@ import { api, type DeliveryPerformanceDTO, type DeliveryPerformanceRowDTO } from
 import { ReportExport } from "./ReportExport";
 import { DataGrid, Field, Select, type DataGridColumn } from "@/components/ui";
 import { AlignedPanels, type ChartData } from "@/components/ui/charts";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -52,7 +53,7 @@ export function DeliveryPerformancePanel({ t }: { t: Translate }) {
     { id: "deviation", header: t("delivery.net_deviation"), unit: "MWh", type: "number", sortable: true, value: (row) => row.net_deviation_mwh, format: (value) => qty(value as number) },
     { id: "imbalance", header: t("delivery.imbalance"), unit: "MWh", type: "number", sortable: true, value: (row) => row.imbalance_mwh, format: (value) => qty(value as number) },
     { id: "short-long", header: t("delivery.short_long"), type: "number", value: (row) => row.short_days, render: (row) => `${row.short_days} / ${row.long_days}` },
-    { id: "cv", header: t("delivery.cv"), unit: "%", type: "number", sortable: true, value: (row) => row.cv_pct, format: (value) => (value == null ? "–" : (value as number).toFixed(1)) },
+    { id: "cv", header: t("delivery.cv"), unit: "%", type: "number", sortable: true, value: (row) => row.cv_pct, format: (value) => formatMeasure("percent", value as number | null, { bare: true }) },
     {
       id: "trend",
       header: t("delivery.trend"),
@@ -60,7 +61,7 @@ export function DeliveryPerformancePanel({ t }: { t: Translate }) {
       type: "number",
       sortable: true,
       value: (row) => row.trend_7d_vs_dcq_pct,
-      format: (value) => (value == null ? "–" : `${(value as number) > 0 ? "+" : ""}${(value as number).toFixed(1)}`),
+      format: (value) => formatMeasure("percent_change", value as number | null, { bare: true }),
     },
     {
       id: "flags",

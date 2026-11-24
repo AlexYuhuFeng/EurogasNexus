@@ -56,9 +56,10 @@ import { Button, RecordPicker, Segmented, Select, WorkProgress } from "@/compone
 import { contractOptions } from "@/app/model/recordOptions";
 import type { UpstreamContractDTO } from "@/api/client";
 import { Chart, Waterfall, type ChartData } from "@/components/ui/charts";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 const fixed = (value: number | null | undefined, decimals = 2): string =>
-  value === null || value === undefined || !Number.isFinite(value) ? "–" : value.toFixed(decimals).replace("-", "−");
+  formatMeasure("ratio", value, { decimals });
 
 const signed = (value: number | null | undefined, decimals = 2): string =>
   value === null || value === undefined || !Number.isFinite(value) ? "–" : `${value > 0 ? "+" : ""}${fixed(value, decimals)}`;

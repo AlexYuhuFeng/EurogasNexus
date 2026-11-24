@@ -6,6 +6,7 @@ import {
   type DayBoardModel,
   type DayBoardSummaryState,
 } from "@/app/model/dayBoardModel";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string) => string;
 
@@ -280,7 +281,7 @@ export function DayBoardPanel({ t, model, onOpenTask, onOpenAlerts }: DayBoardPa
                       <span className="day-board-limit">
                         <small>{t("day_board.decisions.margin")}</small>
                         <strong>
-                          {declared(row.netMargin, (value) => value.toFixed(2))}
+                          {declared(row.netMargin, (value) => formatMeasure("unit_value", value))}
                         </strong>
                         <small>
                           {t("day_board.decisions.max_quantity")}:{" "}
@@ -288,7 +289,7 @@ export function DayBoardPanel({ t, model, onOpenTask, onOpenAlerts }: DayBoardPa
                         </small>
                         <small>
                           {t("day_board.decisions.confidence")}:{" "}
-                          {(row.confidenceScore * 100).toFixed(0)}%
+                          {formatMeasure("percent", row.confidenceScore * 100, { decimals: 0 })}
                         </small>
                       </span>
                       <span className="day-board-evidence">

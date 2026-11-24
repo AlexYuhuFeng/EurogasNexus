@@ -15,7 +15,7 @@ between themes.
 |---|---|---|
 | Type size / line | `--ds-text-xs` `sm` `base` `md` `xl` `num`, with `--ds-line-*` | 11/16, 12/16, 13/20, 15/22, 18/24, 20/24 px; Chinese adds 2 px of line height |
 | Weight | `--ds-weight-regular` `medium` `semibold` | 400, 500, 600 (browser 700 for `strong`, `b`, `th` is reset) |
-| Figures | `--ds-numeric` | `tabular-nums`, set on `body`: every figure lines up |
+| Figures | `--ds-numeric` | `tabular-nums`, set on `body`: every figure lines up. A component writes a figure with `formatMeasure(measure, value)` (`app/time/valueFormat.ts`): one table gives each measure (price 3 dp, unit value 2 dp, volume, P&L, percent, FX rate, tariff, temperature) its decimals, sign rule and grouping, with a true minus (U+2212), a space before the unit and before %. `toFixed` under `components/` fails `tests/numberFormatUsage.test.ts`; machine values use `plainDecimal` |
 | Space | `--ds-space-05` `1` `2` `3` `4` `6` `8` | 2, 4, 8, 12, 16, 24, 32 px |
 | Controls | `--ds-control-sm`, `--ds-control`, `--ds-control-touch` | 28 (dense: tables, toolbars), 32 (forms), 44 (coarse pointer) |
 | Rows, chips | `--ds-row`, `--ds-row-header`, `--ds-chip` | 32, 28, 20 px (rows and badges are not controls) |

@@ -1,6 +1,7 @@
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { fetchWeatherForecasts, type ForecastPointReadingDTO, type ForecastReadEnvelopeDTO } from "@/api/client";
 import { PanelHeader } from "@/components/ui";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 interface WeatherForecastEvidenceProps {
   t: (key: string) => string;
@@ -25,7 +26,7 @@ function ReadingDetails({ row, t }: { row: ForecastPointReadingDTO; t: (key: str
       <p>{t("sources.weather.observation")}: <code style={hashStyle}>{row.observation_id}</code></p>
       <p>{t("sources.weather.series")}: {row.series_id} · {t("sources.weather.entity")}: {row.entity_id}</p>
       <p>{t("sources.weather.model")}: {row.model} · {t("sources.weather.run")}: {row.run_id} · {t("sources.weather.point")}: {row.point_id}</p>
-      <p>{t("sources.weather.requested")}: {row.requested_latitude.toFixed(4)}, {row.requested_longitude.toFixed(4)}</p>
+      <p>{t("sources.weather.requested")}: {formatMeasure("coordinate", row.requested_latitude)}, {formatMeasure("coordinate", row.requested_longitude)}</p>
       <p><strong>{t("sources.weather.raw_hash")}</strong> <code style={hashStyle}>{row.raw_grib_sha256}</code></p>
       <p><strong>{t("sources.weather.record_hash")}</strong> <code style={hashStyle}>{row.record_content_sha256}</code></p>
     </details>
@@ -202,8 +203,8 @@ export function WeatherForecastEvidence({ t }: WeatherForecastEvidenceProps) {
                     <td>{readingTime(row.valid_at_utc)}</td>
                     <td>{readingTime(row.issued_at_utc)}</td>
                     <td>{readingTime(row.available_at_utc)}</td>
-                    <td>{row.temperature_c.toFixed(2)} °C</td>
-                    <td><span>{row.grid_latitude.toFixed(4)}, {row.grid_longitude.toFixed(4)}</span><ReadingDetails row={row} t={t} /></td>
+                    <td>{formatMeasure("temperature", row.temperature_c, { decimals: 2 })}</td>
+                    <td><span>{formatMeasure("coordinate", row.grid_latitude)}, {formatMeasure("coordinate", row.grid_longitude)}</span><ReadingDetails row={row} t={t} /></td>
                   </tr>
                 ))}</tbody>
               </table>

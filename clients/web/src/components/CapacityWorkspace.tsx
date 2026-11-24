@@ -13,6 +13,7 @@ import type {
   TsoAccessPointDTO,
   TsoTariffDTO,
 } from "@/api/client";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string) => string;
 type CapacityView = "network" | "storage" | "lng";
@@ -533,7 +534,7 @@ export function CapacityWorkspace({
           <div className="capacity-inspector-section">
             <span>{t("capacity.tariffs")}</span>
             {selectedTariffs.slice(0, 5).map((row) => (
-              <div key={row.tariff_id}><strong>{row.capacity_product}</strong><span>{row.tariff_value.toFixed(4)} {row.currency}/{row.unit}</span><small>{row.effective_from} · {row.tariff_status}</small></div>
+              <div key={row.tariff_id}><strong>{row.capacity_product}</strong><span>{formatMeasure("tariff", row.tariff_value, { unit: `${row.currency}/${row.unit}` })}</span><small>{row.effective_from} · {row.tariff_status}</small></div>
             ))}
             {selectedTariffs.length === 0 && <p>{t("capacity.no_tariff_record")}</p>}
           </div>

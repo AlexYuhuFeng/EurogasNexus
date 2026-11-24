@@ -10,6 +10,7 @@ import { useTranslation } from "react-i18next";
 
 import "@/styles/promptDesk.css";
 import { Chart, type ChartData } from "@/components/ui/charts";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 export interface BacktestAnalysis {
   points: Array<{ date: string; cumulative_pnl?: number; drawdown?: number }>;
@@ -21,7 +22,7 @@ export interface BacktestAnalysis {
 }
 
 function fixed(value: number | null | undefined, places: number): string {
-  return value === null || value === undefined || Number.isNaN(value) ? "–" : value.toFixed(places);
+  return formatMeasure("ratio", value, { decimals: places });
 }
 
 export function BacktestDetails({ analysis, unit, currency, simulated }: { analysis: BacktestAnalysis; unit: string; currency: string; simulated: boolean }) {

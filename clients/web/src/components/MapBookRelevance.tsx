@@ -2,6 +2,7 @@ import { useState } from "react";
 import type { BookOpportunityPathDTO, BookProposalDTO, BookRelevanceDTO } from "@/api/client";
 import { benefitLabel, groupOpportunities, opportunityLabel, reachableLine, reasonLine, type Translate } from "@/app/mapBookRelevance";
 import { formatDeliveryMonth, formatInstant } from "@/app/time/timeFormat";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 /** The reasons the opportunity core accepts for a dismissal (domain DismissReason). */
 const DISMISS_REASONS = [
@@ -377,7 +378,7 @@ export function MapBookRelevance({
                     {path.from_hub} → {path.to_hub}
                     {path.net_gbp_mwh !== null && (
                       <span className="map-book-net" data-figure="book-net-gbp-mwh">
-                        {" "}{path.net_gbp_mwh.toFixed(2)} GBP/MWh{path.simulated ? <small> sim</small> : null}
+                        {" "}{formatMeasure("unit_value", path.net_gbp_mwh, { unit: "GBP/MWh" })}{path.simulated ? <small> sim</small> : null}
                       </span>
                     )}
                   </strong>

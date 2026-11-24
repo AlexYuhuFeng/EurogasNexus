@@ -10,6 +10,7 @@
  */
 import { gasDayStartUtc } from "../../../app/tradingContext.ts";
 import { gasDayLabel } from "./chartModel.ts";
+import { plainDecimal } from "../../../app/time/valueFormat.ts";
 
 export type SparkAxis = "gas-day" | "time";
 
@@ -105,7 +106,7 @@ export function sparkGeometry(
 export function sparkPath(segments: readonly SparkPoint[][]): string {
   return segments
     .filter((segment) => segment.length > 1)
-    .map((segment) => segment.map((point, index) => `${index === 0 ? "M" : "L"}${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" "))
+    .map((segment) => segment.map((point, index) => `${index === 0 ? "M" : "L"}${plainDecimal(point.x, 1)} ${plainDecimal(point.y, 1)}`).join(" "))
     .join(" ");
 }
 

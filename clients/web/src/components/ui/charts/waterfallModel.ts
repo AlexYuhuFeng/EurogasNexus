@@ -7,6 +7,7 @@
  * model checks it against the running sum, so a waterfall whose bars do not add up says so
  * instead of drawing a convincing picture of a wrong sum.
  */
+import { plainDecimal } from "../../../app/time/valueFormat.ts";
 
 export interface WaterfallItem {
   id: string;
@@ -101,8 +102,8 @@ export function waterfallCsv(model: WaterfallModel, unit: string, header: { step
   const cell = (value: string) => (/[",\n]/.test(value) ? `"${value.replace(/"/g, '""')}"` : value);
   const lines = [[header.step, `${header.change} (${unit})`, `${header.total} (${unit})`].map(cell).join(",")];
   for (const step of model.steps) {
-    const change = step.kind === "total" ? "" : String(Number(step.value.toFixed(6)));
-    lines.push([cell(step.label + (step.simulated ? " [simulated]" : "")), change, String(Number(step.to.toFixed(6)))].join(","));
+    const change = step.kind === "total" ? "" : String(Number(plainDecimal(step.value, 6)));
+    lines.push([cell(step.label + (step.simulated ? " [simulated]" : "")), change, String(Number(plainDecimal(step.to, 6)))].join(","));
   }
   return `${lines.join("\n")}\n`;
 }

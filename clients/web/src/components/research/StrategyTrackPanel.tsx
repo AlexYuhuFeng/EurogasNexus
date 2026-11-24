@@ -16,6 +16,7 @@ import { api } from "@/api/client";
 import type { StrategySpecDTO } from "@/api/spreads";
 import type { StrategyTrackDTO } from "@/api/strategyTracks";
 import { Button, Instant } from "@/components/ui";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 const PROMPT = new Set(["WD", "DA", "WE", "BOM"]);
 const INTRADAY_RULE = {
@@ -24,7 +25,7 @@ const INTRADAY_RULE = {
 };
 
 function fixed(value: number | null | undefined, places: number): string {
-  return value === null || value === undefined ? "–" : value.toFixed(places);
+  return formatMeasure("ratio", value, { decimals: places });
 }
 
 function useSecondClock(): number {

@@ -15,6 +15,7 @@ import {
   overallHedgeRatio,
 } from "@/app/model/positionLadderModel";
 import { pnlClass } from "@/app/model/pnlColor";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -32,7 +33,7 @@ function money(value: number | null | undefined): string {
 }
 
 function price(value: number | null | undefined): string {
-  return value == null || !Number.isFinite(value) ? "–" : value.toFixed(3);
+  return formatMeasure("price", value);
 }
 
 function percent(value: number | null | undefined): string {

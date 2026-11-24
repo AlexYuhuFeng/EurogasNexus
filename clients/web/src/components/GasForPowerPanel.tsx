@@ -4,13 +4,15 @@ import { api, type GasForPowerDayDTO } from "@/api/client";
 import { ReportExport } from "./ReportExport";
 import { DataGrid, Field, Select, type DataGridColumn } from "@/components/ui";
 import { pnlClass } from "@/app/model/pnlColor";
+import { formatMeasure, type Measure } from "@/app/time/valueFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 const ZONES = ["DE_LU", "NL", "BE", "FR", "GB"];
 
-function num(value: number | null | undefined, digits = 2): string {
-  return value == null || !Number.isFinite(value) ? "–" : value.toFixed(digits);
+/** Each column's figure in its measure; the unit is named once in the header. */
+function num(value: number | null | undefined, measure: Measure, decimals?: number): string {
+  return formatMeasure(measure, value, { bare: true, decimals });
 }
 
 /**
@@ -43,24 +45,24 @@ export function GasForPowerPanel({ t }: { t: Translate }) {
   // One table (UX-06); each figure column names its unit in the header.
   const columns = useMemo<DataGridColumn<GasForPowerDayDTO>[]>(() => {
     const first = rows?.[0];
-    const figure = (id: string, header: string, pick: (row: GasForPowerDayDTO) => number | null | undefined, digits = 2, signed = false): DataGridColumn<GasForPowerDayDTO> => ({
+    const figure = (id: string, header: string, pick: (row: GasForPowerDayDTO) => number | null | undefined, measure: Measure = "unit_value", signed = false, decimals?: number): DataGridColumn<GasForPowerDayDTO> => ({
       id,
       header,
       type: "number",
       value: (row) => pick(row) ?? null,
-      format: (value) => num(value as number | null, digits),
+      format: (value) => num(value as number | null, measure, decimals),
       cellClassName: signed ? (row) => pnlClass(pick(row)) || undefined : undefined,
     });
     return [
       { id: "day", header: t("gfp.day"), rowHeader: true, value: (row) => row.day },
       figure("power", t("gfp.power", { currency }), (row) => row.power_price),
-      figure("residual", t("gfp.residual"), (row) => row.residual_load_mw, 0),
-      figure("burn", t("gfp.burn"), (row) => row.implied_gas_burn_gwh, 1),
-      figure("gas", t("gfp.gas", { hub: first?.gas_hub ?? "" }), (row) => row.gas_price, 3),
+      figure("residual", t("gfp.residual"), (row) => row.residual_load_mw, "volume"),
+      figure("burn", t("gfp.burn"), (row) => row.implied_gas_burn_gwh, "volume", false, 1),
+      figure("gas", t("gfp.gas", { hub: first?.gas_hub ?? "" }), (row) => row.gas_price, "price"),
       figure("carbon", t("gfp.carbon", { market: first?.carbon_market ?? "" }), (row) => row.carbon_price),
-      figure("css", t("gfp.css"), (row) => row.clean_spark_spread, 2, true),
-      figure("cds", t("gfp.cds"), (row) => row.clean_dark_spread, 2, true),
-      figure("switch", t("gfp.switch"), (row) => row.fuel_switch_gas_price, 3),
+      figure("css", t("gfp.css"), (row) => row.clean_spark_spread, "unit_value", true),
+      figure("cds", t("gfp.cds"), (row) => row.clean_dark_spread, "unit_value", true),
+      figure("switch", t("gfp.switch"), (row) => row.fuel_switch_gas_price, "price"),
     ];
   }, [rows, currency, t]);
 

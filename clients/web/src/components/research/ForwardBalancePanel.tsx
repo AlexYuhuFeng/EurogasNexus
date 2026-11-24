@@ -12,6 +12,7 @@ import {
 import { DataGrid, Segmented, type DataGridColumn } from "@/components/ui";
 import { Chart } from "@/components/ui/charts";
 import { gasDayLabel, periodLabel } from "@/components/ui/charts/chartModel";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -112,12 +113,12 @@ export function ForwardBalancePanel({ t }: { t: Translate }) {
           const where = bandPosition(row.fill, row.bandLow, row.bandHigh);
           return (
             <>
-              {row.fill == null ? "–" : row.fill.toFixed(1)}
+              {formatMeasure("percent", row.fill, { bare: true })}
               {where && where !== "within" && <small className="muted"> {t(`fb.band_${where}`)}</small>}
             </>
           );
         },
-        cellTitle: (row) => (row.bandLow != null && row.bandHigh != null ? `${dto?.storage.band_label ?? ""}: ${row.bandLow.toFixed(1)}–${row.bandHigh.toFixed(1)} %` : undefined),
+        cellTitle: (row) => (row.bandLow != null && row.bandHigh != null ? `${dto?.storage.band_label ?? ""}: ${formatMeasure("percent", row.bandLow, { bare: true })}–${formatMeasure("percent", row.bandHigh)}` : undefined),
       },
     ];
   }, [dto, t, unit]);
@@ -178,7 +179,7 @@ export function ForwardBalancePanel({ t }: { t: Translate }) {
         <p className="panel-meaning" data-fb-target>
           {target.implied_fill_pct == null
             ? t("fb.target_beyond", { pct: target.pct, date: gasDayLabel(target.deadline, true) })
-            : t("fb.target_implied", { pct: target.pct, date: gasDayLabel(target.deadline, true), fill: target.implied_fill_pct.toFixed(1), gap: (target.gap_pts ?? 0).toFixed(1) })}
+            : t("fb.target_implied", { pct: target.pct, date: gasDayLabel(target.deadline, true), fill: formatMeasure("percent", target.implied_fill_pct, { bare: true }), gap: formatMeasure("percent", target.gap_pts ?? 0, { bare: true }) })}
         </p>
       )}
       {rows.length > 0 && (
@@ -209,8 +210,8 @@ export function ForwardBalancePanel({ t }: { t: Translate }) {
             <p className="panel-meaning">
               {t("fb.model", {
                 a: gwh(dto.demand_model.a_gwh_d),
-                b: dto.demand_model.b_gwh_d_per_hdd.toFixed(0),
-                r2: dto.demand_model.r2.toFixed(2),
+                b: formatMeasure("volume", dto.demand_model.b_gwh_d_per_hdd, { bare: true }),
+                r2: formatMeasure("ratio", dto.demand_model.r2),
                 months: dto.demand_model.months,
                 resid: gwh(dto.demand_model.residual_std_gwh_d),
               })}
@@ -226,7 +227,7 @@ export function ForwardBalancePanel({ t }: { t: Translate }) {
                 <tr key={row.horizon_days}>
                   <th scope="row">D+{row.horizon_days}</th>
                   <td>{gwh(row.mae_gwh_d)}</td>
-                  <td>{row.mape_pct == null ? "–" : `${row.mape_pct.toFixed(1)} %`}</td>
+                  <td>{formatMeasure("percent", row.mape_pct)}</td>
                   <td>{gwh(row.bias_gwh_d)}</td>
                 </tr>
               ))}
@@ -240,7 +241,7 @@ export function ForwardBalancePanel({ t }: { t: Translate }) {
           </table>
           <p className="panel-meaning" data-fb-curve>
             {dto.forward_curve.months.length
-              ? t("fb.curve", { hub: dto.forward_curve.hub, prices: dto.forward_curve.months.map((m) => `${periodLabel(m.month)} ${m.price.toFixed(2)}`).join(" · ") })
+              ? t("fb.curve", { hub: dto.forward_curve.hub, prices: dto.forward_curve.months.map((m) => `${periodLabel(m.month)} ${formatMeasure("price", m.price)}`).join(" · ") })
               : t("fb.curve_none", { hub: dto.forward_curve.hub })}
           </p>
           <ul className="position-notes">

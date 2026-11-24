@@ -13,17 +13,17 @@ import "@/styles/promptDesk.css";
 import { api } from "@/api/client";
 import type { PromptMarketDTO, PromptQuoteDTO } from "@/api/strategyTracks";
 import { EmptyState, Instant, Segmented, Skeleton } from "@/components/ui";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 const POLL_MS = 2_000;
 const HUBS = ["TTF", "NBP"] as const;
 
 function num(value: number | null | undefined, places = 3): string {
-  return value === null || value === undefined ? "–" : value.toFixed(places);
+  return formatMeasure("price", value, { decimals: places });
 }
 
 function signed(value: number | null | undefined, places = 3): string {
-  if (value === null || value === undefined) return "–";
-  return `${value > 0 ? "+" : ""}${value.toFixed(places)}`;
+  return formatMeasure("change", value, { decimals: places });
 }
 
 export function PromptDeskPanel({ hub: initialHub }: { hub: string }) {

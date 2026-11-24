@@ -441,10 +441,13 @@ test("unknown required numbers cannot be transported, and the editor's save refu
   assert.match(model, /buildResourcePoolOptimizationRequest/);
 });
 
-test("numeric summaries render unknown as n/a rather than 0 or NaN", () => {
+test("numeric summaries render unknown as n/a rather than 0 or NaN", async () => {
   const workbench = readWebSource("components/ContractWorkbench.tsx");
   // Both formatters refuse every non-finite value, so a poisoned or unknown term cannot render
   // as a number.
   assert.match(workbench, /function formatQuantity\(value: number \| null \| undefined\): string \{\s*if \(value === null \|\| value === undefined \|\| !Number\.isFinite\(value\)\) return "n\/a";/);
-  assert.match(workbench, /function formatMoney\(value: number \| null \| undefined\): string \{\s*if \(value === null \|\| value === undefined \|\| !Number\.isFinite\(value\)\) return "n\/a";/);
+  // Money goes through the one formatter per measure (UX R3), which refuses every non-finite value.
+  assert.match(workbench, /function formatMoney\(value: number \| null \| undefined\): string \{\s*return formatMeasure\("unit_value", value, \{ missing: "n\/a" \}\);/);
+  const { formatMeasure } = await import("../src/app/time/valueFormat.ts");
+  for (const poisoned of [null, undefined, Number.NaN, Number.POSITIVE_INFINITY]) assert.equal(formatMeasure("unit_value", poisoned, { missing: "n/a" }), "n/a");
 });

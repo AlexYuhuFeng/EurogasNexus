@@ -74,6 +74,7 @@ import {
   type DataGridColumn,
   type FigureState,
 } from "@/components/ui";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -265,7 +266,7 @@ function SpreadLine({ spread, t, language }: { spread: TodayMarketDTO["spreads"]
   }
   const item = spread as TodaySpreadDTO;
   const route = item.route_cost;
-  const fx = item.fx ? t("today.market.fx", { base: item.fx.base, quote: item.fx.quote, rate: Number(item.fx.rate).toFixed(4) }) : undefined;
+  const fx = item.fx ? t("today.market.fx", { base: item.fx.base, quote: item.fx.quote, rate: formatMeasure("fx_rate", Number(item.fx.rate)) }) : undefined;
   return (
     <li className="today-spread" data-spread={item.pair} id={figureAnchorId(item.key)} tabIndex={-1}>
       <span className="today-spread-pair">{item.label}</span>

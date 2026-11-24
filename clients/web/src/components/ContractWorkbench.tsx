@@ -47,6 +47,7 @@ import {
   hubLabelKey,
   pointOptions,
 } from "@/app/contractChoices";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 /** A select over closed options, keeping a recorded value that is not one of them. */
 function ChoiceSelect({ value, options, onChange, blank, recordedLabel, labelFor }: {
@@ -260,8 +261,7 @@ function formatQuantity(value: number | null | undefined): string {
 }
 
 function formatMoney(value: number | null | undefined): string {
-  if (value === null || value === undefined || !Number.isFinite(value)) return "n/a";
-  return value.toFixed(2);
+  return formatMeasure("unit_value", value, { missing: "n/a" });
 }
 
 

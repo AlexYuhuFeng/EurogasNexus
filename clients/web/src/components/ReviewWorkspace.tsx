@@ -20,6 +20,7 @@ import type {
 import { api } from "@/api/client";
 import { useCachedRead } from "@/app/data/readCache";
 import { PanelHelp } from "@/components/ui/PanelHelp";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string) => string;
 
@@ -199,7 +200,7 @@ export function ReviewWorkspace({
           columns={[
             { id: "option", header: t("result.optimal"), rowHeader: true, value: (allocation) => saleOptionById.get(allocation.option_id)?.label ?? allocation.option_id },
             { id: "allocated", header: t("home.allocated"), unit: "MWh/d", type: "number", value: (allocation) => allocation.allocated_quantity_mwh_per_day, format: (value) => (value as number).toLocaleString("en-GB") },
-            { id: "cost", header: t("result.route_cost"), unit: "GBP/MWh", type: "number", value: (allocation) => allocation.total_cost_gbp_mwh, format: (value) => (value as number).toFixed(2) },
+            { id: "cost", header: t("result.route_cost"), unit: "GBP/MWh", type: "number", value: (allocation) => allocation.total_cost_gbp_mwh, format: (value) => formatMeasure("unit_value", value as number) },
             { id: "pnl", header: t("review.pnl"), unit: "GBP/d", type: "number", value: (allocation) => allocation.net_pnl_gbp_per_day, format: (value) => Math.round(value as number).toLocaleString("en-GB") },
           ]}
         />

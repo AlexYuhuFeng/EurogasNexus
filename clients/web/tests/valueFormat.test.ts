@@ -162,3 +162,23 @@ test("a position reads in the reader's energy unit on hover; the server converts
   const client = readFileSync(new URL("../src/app/time/useConversion.ts", import.meta.url), "utf8");
   assert.match(client, /to_quantity_unit: target!/);
 });
+
+test("one formatter per measure: true minus, unit after a space, a space before %", async () => {
+  const { formatMeasure, plainDecimal } = await import("../src/app/time/valueFormat.ts");
+  assert.equal(formatMeasure("price", 34.1254, { unit: "EUR/MWh" }), "34.125 EUR/MWh");
+  assert.equal(formatMeasure("price", -1.5), "−1.500");
+  assert.equal(formatMeasure("change", 0.25), "+0.250");
+  assert.equal(formatMeasure("change", -0.0001), "0.000", "a change that rounds to zero has no sign");
+  assert.equal(formatMeasure("unit_value", 12.345, { unit: "GBP/MWh" }), "12.35 GBP/MWh");
+  assert.equal(formatMeasure("volume", -12500, { unit: "MWh" }), "−12,500 MWh");
+  assert.equal(formatMeasure("pnl", 1234567, { unit: "EUR" }), "+1,234,567 EUR");
+  assert.equal(formatMeasure("percent", 45.67), "45.7 %");
+  assert.equal(formatMeasure("percent", 45.67, { bare: true }), "45.7");
+  assert.equal(formatMeasure("percent_change", -2.04), "−2.0 %");
+  assert.equal(formatMeasure("temperature", 4.25), "4.3 °C");
+  assert.equal(formatMeasure("fx_rate", 0.85123), "0.8512");
+  assert.equal(formatMeasure("price", null), "–");
+  assert.equal(formatMeasure("price", Number.NaN, { missing: "n/a" }), "n/a");
+  assert.equal(formatMeasure("volume", 1234.5, { language: "zh-CN", decimals: 1 }), "1,234.5");
+  assert.equal(plainDecimal(-1.5, 3), "-1.500", "a machine value keeps the ASCII minus");
+});

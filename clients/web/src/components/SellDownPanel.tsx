@@ -10,6 +10,7 @@ import { useApiStore } from "@/stores/api";
 import { useCachedRead } from "@/app/data/readCache";
 import { useDeskToday } from "@/app/hooks/useDeskToday";
 import { useTranslation } from "react-i18next";
+import { formatMeasure, plainDecimal } from "@/app/time/valueFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -60,8 +61,8 @@ export function SellDownPanel({ t }: { t: Translate }) {
   const [typed, setTyped] = useState<{ da: boolean; wd: boolean }>({ da: false, wd: false });
   // A new hub, or a new board read, refills what was not typed by hand.
   useEffect(() => {
-    if (!typed.da) setDa(boardDa ? boardDa.value.toFixed(3) : "");
-    if (!typed.wd) setWd(boardWd ? boardWd.value.toFixed(3) : boardDa ? boardDa.value.toFixed(3) : "");
+    if (!typed.da) setDa(boardDa ? plainDecimal(boardDa.value, 3) : "");
+    if (!typed.wd) setWd(boardWd ? plainDecimal(boardWd.value, 3) : boardDa ? plainDecimal(boardDa.value, 3) : "");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [hub, boardDa?.value, boardWd?.value]);
   const sourceLine = (price: ReturnType<typeof latestBoardPrice>, wasTyped: boolean) =>
@@ -123,7 +124,7 @@ export function SellDownPanel({ t }: { t: Translate }) {
           )}
           <dl className="contract-command-facts">
             <div><dt>{t("selldown.expected")}</dt><dd>{formatQuantity(plan.expected_supply_mwh)} <small>± {formatQuantity(plan.supply_stdev_mwh)}</small></dd></div>
-            <div><dt>{t("selldown.p_short")}</dt><dd>{plan.probability_short_pct.toFixed(1)}%</dd></div>
+            <div><dt>{t("selldown.p_short")}</dt><dd>{formatMeasure("percent", plan.probability_short_pct)}</dd></div>
             <div><dt>{t("selldown.cost")}</dt><dd>{formatMoney(plan.expected_cost_vs_perfect, currency)} <small>{t("selldown.vs_all", { cost: formatMoney(plan.sell_all_cost_vs_perfect, currency) })}</small></dd></div>
             <div><dt>{t("selldown.basis")}</dt><dd><small>{plan.volatility_basis}</small></dd></div>
           </dl>

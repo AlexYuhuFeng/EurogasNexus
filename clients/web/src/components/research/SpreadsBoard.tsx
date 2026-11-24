@@ -14,9 +14,10 @@ import { unitLabel } from "@/app/model/instrumentPicker";
 import { useSimulatedPills } from "@/components/ui/SimulatedScope";
 import { PercentileStrip, Sparkline } from "@/components/ui/charts";
 import { followLink } from "./NextSteps";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 const fixed = (value: number | null | undefined, decimals = 2): string =>
-  value === null || value === undefined || !Number.isFinite(value) ? "–" : value.toFixed(decimals).replace("-", "−");
+  formatMeasure("ratio", value, { decimals });
 const signed = (value: number | null | undefined, decimals = 2): string =>
   value === null || value === undefined || !Number.isFinite(value) ? "–" : `${value > 0 ? "+" : ""}${fixed(value, decimals)}`;
 

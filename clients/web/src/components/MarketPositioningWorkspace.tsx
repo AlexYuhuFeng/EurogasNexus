@@ -8,6 +8,7 @@ import { DataGrid, type DataGridColumn } from "@/components/ui";
 import { WhyButton } from "./WhyButton";
 import { api } from "@/api/client";
 import { useCachedRead } from "@/app/data/readCache";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string) => string;
 
@@ -59,7 +60,7 @@ export function MarketPositioningWorkspace({
       cellTitle: (order) => t("orders.quantity_hint").replace("{{filled}}", order.filled_quantity_mwh.toLocaleString()).replace("{{total}}", order.quantity_mwh.toLocaleString()).replace("{{remaining}}", order.remaining_quantity_mwh.toLocaleString()),
     },
     // Prices are quoted per order in the venue's unit, so the unit is in the cell.
-    { id: "price", header: t("orders.col.price"), type: "number", sortable: true, value: (order) => order.price, render: (order) => <>{order.price.toFixed(3)} <small className="ds-grid-unit">{order.unit}</small></> },
+    { id: "price", header: t("orders.col.price"), type: "number", sortable: true, value: (order) => order.price, render: (order) => <>{formatMeasure("price", order.price)} <small className="ds-grid-unit">{order.unit}</small></> },
     { id: "status", header: t("orders.col.status"), sortable: true, value: (order) => order.status },
   ];
   const pnlColumns: DataGridColumn<PortfolioPnlSnapshotDTO>[] = [

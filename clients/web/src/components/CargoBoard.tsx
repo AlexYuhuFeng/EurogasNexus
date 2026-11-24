@@ -35,7 +35,7 @@ import {
 } from "@/app/model/cargoBoardModel";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import { formatDeliveryMonth, resolveTimeZone } from "@/app/time/timeFormat";
-import { formatAmount } from "@/app/time/valueFormat";
+import { formatAmount, plainDecimal } from "@/app/time/valueFormat";
 import { useInstantFormatter } from "@/app/time/useInstant";
 import { useTimePreferenceStore } from "@/stores/timePreference";
 import { Button, DataGrid, EmptyState, Instant, Segmented, StatusBadge, UpdatingMark, type DataGridColumn } from "@/components/ui";
@@ -359,7 +359,7 @@ export function CargoBoard({ t, language, canRecordHedges }: { t: Translate; lan
 function SlotMiniBar({ line, t }: { line: CargoPlanBoardLineDTO; t: Translate }) {
   const bar = slotBar(line);
   if (!bar) return <span className="muted">{line.slot ? "–" : t("lng.cargo.no_slot_short")}</span>;
-  const pct = (share: number) => `${Math.max(0, Math.min(100, share * 100)).toFixed(1)}%`;
+  const pct = (share: number) => `${plainDecimal(Math.max(0, Math.min(100, share * 100)), 1)}%`;
   return (
     <span className="cargo-slot-bar" data-eta={bar.position} role="img" aria-label={t(`lng.cargo.slot_${bar.position}`)}>
       <span className="cargo-slot-window" style={{ left: pct(bar.windowStart), width: pct(bar.windowEnd - bar.windowStart) }} />

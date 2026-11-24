@@ -34,6 +34,7 @@ import { useUrlView } from "@/app/navigation/useUrlView";
 import { useShellLayout } from "@/app/shell/useShellLayout";
 import { CONNECTOR_GROUPS, groupConnectors } from "@/app/model/connectorCatalogModel";
 import { formatRecordCount as recordCount } from "@/app/model/recordCount";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 interface SourceStats {
   total: number;
@@ -926,7 +927,7 @@ export function SourceCenter({
                 <strong>{row.point_name}</strong>
                 <span>{row.direction}</span>
                 <span>{row.capacity_type}</span>
-                <span>{row.capacity_mcm_d.toFixed(2)}</span>
+                <span>{formatMeasure("volume", row.capacity_mcm_d, { bare: true, decimals: 2 })}</span>
               </div>
             ))}
             {latestCapacityRows.length === 0 && (
@@ -940,7 +941,7 @@ export function SourceCenter({
                 <strong>{tariff.source_point_name}</strong>
                 <span>{tariff.direction}</span>
                 <span>{tariff.capacity_product}</span>
-                <span>{tariff.tariff_value.toFixed(4)} {tariff.currency}/MWh</span>
+                <span>{formatMeasure("tariff", tariff.tariff_value, { unit: `${tariff.currency}/MWh` })}</span>
               </div>
             ))}
             {tsoTariffs.length === 0 && (

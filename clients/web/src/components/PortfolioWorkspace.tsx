@@ -31,6 +31,7 @@ import {
   type PortfolioTask,
 } from "@/app/model/commercialWorkflowModel";
 import "./commercial-workflow.css";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 function money(value: number | null | undefined, suffix = ""): string {
   if (value === null || value === undefined || Number.isNaN(value)) return "n/a";
@@ -63,7 +64,7 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
     <div className="commercial-overview">
       <section className="commercial-metric-strip" aria-label={t("portfolio.overview")}>
         <span><small>{t("portfolio.scope.quantity")}</small><strong>{totalVolume.toLocaleString()} MWh/d</strong></span>
-        <span><small>{t("portfolio.weighted_cost")}</small><strong>{weightedCost === null ? "n/a" : `${weightedCost.toFixed(2)} GBP/MWh`}</strong></span>
+        <span><small>{t("portfolio.weighted_cost")}</small><strong>{weightedCost === null ? "n/a" : formatMeasure("unit_value", weightedCost, { unit: "GBP/MWh" })}</strong></span>
         {/* Allocation figures exist only after a scenario run; before one, three "n/a" cells
             become one statement (#69). */}
         {poolResult ? (
@@ -107,7 +108,7 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
             { id: "resource", header: t("portfolio.resource"), rowHeader: true, sortable: true, value: (resource) => resource.resource_name },
             { id: "zone", header: t("portfolio.zone"), sortable: true, value: (resource) => resource.location_point_name },
             { id: "quantity", header: t("portfolio.quantity"), unit: "MWh/d", type: "number", sortable: true, value: (resource) => resource.available_quantity_mwh_per_day, format: (value) => (value as number).toLocaleString("en-GB") },
-            { id: "cost", header: t("portfolio.all_in_cost"), unit: "GBP/MWh", type: "number", sortable: true, value: (resource) => resource.contract_cost_gbp_mwh + (resource.variable_cost_gbp_mwh ?? 0), format: (value) => (value as number).toFixed(2) },
+            { id: "cost", header: t("portfolio.all_in_cost"), unit: "GBP/MWh", type: "number", sortable: true, value: (resource) => resource.contract_cost_gbp_mwh + (resource.variable_cost_gbp_mwh ?? 0), format: (value) => formatMeasure("unit_value", value as number) },
             { id: "access", header: t("portfolio.access"), value: (resource) => resource.required_tso_access?.join(", ") || t("home.none_declared") },
           ]}
         />

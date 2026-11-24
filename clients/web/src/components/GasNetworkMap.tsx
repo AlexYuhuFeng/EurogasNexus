@@ -76,6 +76,7 @@ import {
 import { buildSites, siteOf, sitePipelines, siteSituation, type MapSelection, type Site } from "@/app/mapSelection";
 import { useApiStore } from "@/stores/api";
 import { useShellLayout } from "@/app/shell/useShellLayout";
+import { plainDecimal } from "@/app/time/valueFormat";
 
 // Let Vite resolve and bundle the module worker and its shared imports in both dev and build.
 // MapLibre's default relative URL otherwise points inside Vite's optimized dependency cache.
@@ -1534,7 +1535,7 @@ export function GasNetworkMap({
       for (const contract of situation?.contracts ?? []) {
         const { lon, lat, ref_id: refId } = contract.location;
         if (!Number.isFinite(lon) || !Number.isFinite(lat) || (refId && flowEnds.has(refId))) continue;
-        const key = refId || `${lon.toFixed(4)},${lat.toFixed(4)}`;
+        const key = refId || `${plainDecimal(lon, 4)},${plainDecimal(lat, 4)}`;
         const place = byPlace.get(key) ?? { lon, lat, mwhD: 0, names: [] };
         place.mwhD += contract.delivery_mwh_d;
         place.names.push(contract.contract_name);

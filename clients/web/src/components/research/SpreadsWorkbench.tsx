@@ -44,9 +44,10 @@ import { SpreadsBoard } from "./SpreadsBoard";
 import { Chart, Waterfall, type ChartData } from "@/components/ui/charts";
 import { BacktestDetails, type BacktestAnalysis } from "@/components/research/BacktestDetails";
 import { StrategyTrackPanel } from "@/components/research/StrategyTrackPanel";
+import { formatMeasure } from "@/app/time/valueFormat";
 
 const fixed = (value: number | null | undefined, decimals = 3): string =>
-  value === null || value === undefined || !Number.isFinite(value) ? "–" : value.toFixed(decimals).replace("-", "−");
+  formatMeasure("ratio", value, { decimals });
 
 // Examples in the interface's language only (each locale holds its own three).
 const EXAMPLES = ["spreads.example.ttf_nbp", "spreads.example.nbp_m1", "spreads.example.third"] as const;

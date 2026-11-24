@@ -16,7 +16,7 @@ import { MarksAsOf, marksRowAttributes } from "./MarksAsOf";
 import { DataGrid, StatusBadge, type DataGridColumn, type StatusTone, PeriodPicker, RecordPicker, UpdatingMark } from "@/components/ui";
 import { idFromName } from "@/components/ui/recordPickerModel";
 import { bookOptions, contractOptions, counterpartyOptions, hubOptions, personOptions } from "@/app/model/recordOptions";
-import { REPORTING_CURRENCIES } from "@/app/time/valueFormat";
+import { REPORTING_CURRENCIES, formatMeasure } from "@/app/time/valueFormat";
 import { deskMonthsIn, formatDeliveryMonth } from "@/app/time/timeFormat";
 import { useConvertedAmount } from "@/app/time/useConversion";
 import { ConvertedValue } from "@/components/ui/ConvertedValue";
@@ -44,9 +44,9 @@ function Utilisation({ pct }: { pct: number | null }) {
   if (pct === null) return <span className="muted">-</span>;
   const width = Math.max(0, Math.min(100, pct));
   return (
-    <span className="limit-meter" title={`${pct.toFixed(1)}%`}>
+    <span className="limit-meter" title={formatMeasure("percent", pct)}>
       <span className="limit-meter-bar" style={{ width: `${width}%` }} data-over={pct > 100 ? "true" : undefined} />
-      <span className="limit-meter-value">{pct.toFixed(0)}%</span>
+      <span className="limit-meter-value">{formatMeasure("percent", pct, { decimals: 0 })}</span>
     </span>
   );
 }
