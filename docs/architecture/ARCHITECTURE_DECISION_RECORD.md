@@ -627,3 +627,42 @@ package, and code converts only through it:
 
 The position ladder and the gas price converter use the shared FX table. Tests:
 `tests/unit/test_foundation_currency_units_time.py`.
+
+## Decision 28: Market events go through a PostgreSQL transactional outbox, not a broker
+
+Accepted 2026-11-24 (branch `innovation/continuous-commercial-intelligence`, programme
+[Commercial Intelligence V3](../engineering/Commercial-Intelligence-V3/03_TARGET_ARCHITECTURE.md)).
+Before this decision a market change reached the opportunity engine only as a class-level
+flag (`opportunity_pending_inputs`, CP-13): no event identity, no revisions at event level,
+no replay and no way to re-evaluate only what a change touches. The platform now records
+each change as a canonical market event in the runtime store, in the same transaction as
+the data it describes, and delivers it to registered consumers from there:
+
+- `domain/market_events`: the pure event model. Identity is a hash of source, type,
+  subject and market time (or an explicit identity such as a REMIT message id); content is
+  a hash of the canonical payload and dependency keys, never of publication or ingestion
+  time. A changed figure is a new revision that supersedes the last; the same figure again
+  is a duplicate; a figure older than the latest revision is out of order. Neither of the
+  last two writes anything. Five timestamps are kept: market event, source publication,
+  platform ingestion, processing completion and user notification.
+- Migration `0077_market_event_outbox`: `market_events` (unique `event_key, revision`) and
+  `market_event_deliveries` (one row per consumer and event, with status, attempts,
+  backoff, last error and result).
+- `application/market_events.py`: `publish` (savepoint, decision, insert, supersede the
+  previous revision's undelivered rows, fan out to consumers, `pg_notify` at commit);
+  `process` claims due rows by priority with `FOR UPDATE SKIP LOCKED` on PostgreSQL, runs
+  each batch in a savepoint, retries with exponential backoff (1 min doubling, cap 1 h) and
+  dead-letters after 5 attempts; `replay` re-arms or creates deliveries for the current
+  revision of each event; `status`, `staleness` and `timeline` serve operations.
+- The first consumer re-evaluates only the evaluators whose stored opportunities depend on
+  the event's keys (`opportunity_dependencies`), with trigger `outbox`. Discovery of new
+  opportunities stays with the CP-13 debounced full evaluation.
+
+Polling is authoritative; `LISTEN/NOTIFY` only wakes a worker early. Kafka, a separate
+broker and new services stay out (AGENTS.md rule 5, Decision 2 and
+[STREAMING_KAFKA_CONTRACT.md](STREAMING_KAFKA_CONTRACT.md)) until a measured need such as
+cross-installation fan-out or sustained throughput beyond what one PostgreSQL primary
+serves. Tests: `tests/domain/test_market_events_model.py`,
+`tests/integration/test_market_event_outbox.py`,
+`tests/integration/test_market_event_outbox_postgres.py`,
+`tests/unit/test_market_event_outbox_migration.py`.

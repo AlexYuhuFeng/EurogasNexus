@@ -6,6 +6,21 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-24 — Commercial Intelligence V3, M4: market event outbox (branch `innovation/continuous-commercial-intelligence`)
+
+- Programme documents in [Commercial-Intelligence-V3/](Commercial-Intelligence-V3/10_PROGRAMME_STATE.md):
+  baseline `main@6d21b89`, audit of 12 capabilities, gap matrix, target architecture,
+  roadmap M1 to M13, acceptance criteria, risks, decisions, evidence.
+- Canonical market events (`domain/market_events`) and a PostgreSQL transactional outbox
+  (`application/market_events.py`, migration `0077_market_event_outbox`, ADR Decision 28):
+  identity and content hashes, revisions, five timestamps, priority, skip-locked claims,
+  backoff and dead letters, replay, staleness, timeline. The opportunity consumer re-runs
+  only evaluators whose opportunities depend on the event's keys (trigger `outbox`).
+  Producers: ingestion runs and firm marks (digest only). No new route (census unchanged).
+- Open: prices, FX, outages and desk edits do not publish yet (M5); no alerting from
+  staleness or dead letters yet (M6). Migration 0077 chains from 0076; an unpushed branch
+  using 0076 must renumber on merge.
+
 ## 2026-11-19 — Today → My gas day, stage 2: the checklist (branch `today-gas-day`, not pushed)
 
 - Today `rows[6]` `checklist` (`application/gas_day_checklist.py`), same view and scope as
