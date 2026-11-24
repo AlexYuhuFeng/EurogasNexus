@@ -17,7 +17,7 @@ from __future__ import annotations
 import csv
 import io
 import json
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from datetime import UTC, datetime
 from typing import Any
 
@@ -83,16 +83,28 @@ def _decision_about(decision) -> list[tuple[str, str]]:
     return [("Licensed data", ", ".join(decision.licensed_families)), ("Use", use)]
 
 
-def csv_response(rows: Iterable[Mapping[str, Any]], *, report: str) -> Response:
-    """The rows as a CSV download; columns in first-seen order across all rows."""
+def csv_response(
+    rows: Iterable[Mapping[str, Any]],
+    *,
+    report: str,
+    columns: Sequence[str] | None = None,
+) -> Response:
+    """The rows as a CSV download; columns in first-seen order across all rows.
+
+    ``columns`` fixes the header instead (DATA-1, Power Query): those columns in that order,
+    even when there are no rows, so a refreshed query keeps its shape.
+    """
 
     rows = list(rows)  # built first: the rows' reads are what the decision is about
     decision = _export_decision("csv")
-    columns: list[str] = []
-    for row in rows:
-        for key in row:
-            if key not in columns:
-                columns.append(key)
+    if columns is not None:
+        columns = list(columns)
+    else:
+        columns = []
+        for row in rows:
+            for key in row:
+                if key not in columns:
+                    columns.append(key)
     buffer = io.StringIO()
     buffer.write("﻿")
     writer = csv.writer(buffer, lineterminator="\r\n")

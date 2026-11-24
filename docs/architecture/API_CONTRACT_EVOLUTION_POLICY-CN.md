@@ -21,6 +21,15 @@
 `change_request.propose`、`.approve`、`.reject`、`.withdraw` 与 `lng.freight_route` 为受治理写入（审计行无法写入时返回
 503 `audit_unavailable`）。迁移 `0081_change_requests`。路径统计：288 条路径 / 323 个操作（此前 284 / 319）。
 
+2026-11-24 新增可刷新读取（Commercial Intelligence V3 DATA-1，经验 P7）：无新路径。`GET /api/market/prices`、
+`GET /api/market/observations` 与 `GET /api/market/fx` 接受 `format`（默认 `json`，不变；或 `csv`）。CSV 为一行
+固定顺序的表头，无论有无数据行、是否带 `as_of` 都相同（价格曲线按 `meta.columns` 顺序；观测与汇率按其 JSON
+字段，版本列 `revision`、`revision_basis`、`published_at_utc`、`known_from_utc`、`revision_event_id`、
+`as_of_utc` 位于 `metadata_json` 之前，不带 `as_of` 时为空），UTF-8 带字节序标记，嵌套值写为 JSON 文本。文件
+按其数据行来源的授权数据族应用 GOV-1 导出决定（`X-Eurogas-Export-Decision`；条款未登记时 403
+`export_denied`），并计为一次导出。未知 `format` 返回 422。接口统计不变：286 条路径 / 321 个操作。操作说明：
+`docs/sdk/POWER_QUERY.md`。
+
 2026-11-24 新增变更流（Commercial Intelligence V3 DATA-1，经验 P2）：一条路径、一个操作。
 新增 `GET /api/market/changes`（READ，沿用 `/api/market/` 权限）：按游标返回其后记录的市场事件，从旧到新
 （`after` 为本接口给出的游标，不给则从头开始，或 `latest`；`kinds` 可重复或以逗号分隔的事件类型；`subject`

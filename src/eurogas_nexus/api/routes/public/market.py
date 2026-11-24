@@ -29,6 +29,12 @@ from eurogas_nexus.application.projections.market_reads import (
     quote_close_rows,
     source_family_filter,
 )
+from eurogas_nexus.application.refreshable_reads import (
+    FORMAT_DESCRIPTION,
+    FX_COLUMNS,
+    OBSERVATION_COLUMNS,
+    REFRESH_FORMAT_PATTERN,
+)
 from eurogas_nexus.domain.market.fx_fixings import (
     FxFixingError,
     resolve_fixing,
@@ -66,6 +72,15 @@ _AS_OF_DESCRIPTION = (
 )
 
 
+def _flat_csv(rows: list[dict], *, columns, report: str):
+    """DATA-1 refreshable read: the rows as CSV with a fixed header (export decision applied)."""
+
+    from eurogas_nexus.api.csv_export import csv_response
+    from eurogas_nexus.application.refreshable_reads import flat_rows
+
+    return csv_response(flat_rows(rows, columns), report=report, columns=columns)
+
+
 def _as_of(text: str | None) -> datetime | None:
     """The parsed ``as_of``; 422 ``as_of_invalid`` / ``as_of_in_future`` when unusable."""
 
@@ -83,6 +98,9 @@ def _as_of(text: str | None) -> datetime | None:
 def list_observations(
     request: Request,
     as_of: str | None = Query(default=None, description=_AS_OF_DESCRIPTION),
+    format: str = Query(
+        default="json", pattern=REFRESH_FORMAT_PATTERN, description=FORMAT_DESCRIPTION
+    ),
 ) -> dict:
     """List market observations from the runtime DB.
 
@@ -91,6 +109,7 @@ def list_observations(
     Args:
         request: Incoming FastAPI request (used for row entitlement).
         as_of: DATA-1, read as known at this instant (see ``application/as_of_reads``).
+        format: DATA-1, ``csv`` for flat rows with a fixed header (Power Query).
 
     Returns:
         Enveloped observation rows or an empty enveloped response.
@@ -99,7 +118,10 @@ def list_observations(
         HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
     """
 
+    moment = _as_of(as_of)
     if not _db_is_configured():
+        if format == "csv":
+            return _flat_csv([], columns=OBSERVATION_COLUMNS, report="market-observations")
         return _env(
             [],
             source="runtime-db-not-configured",
@@ -110,7 +132,6 @@ def list_observations(
     try:
         from eurogas_nexus.db.session import get_session_factory
 
-        moment = _as_of(as_of)
         with get_session_factory()() as session:
             if moment is None:
                 rows = market_observations(session)
@@ -118,10 +139,10 @@ def list_observations(
                 from eurogas_nexus.application.as_of_reads import market_observations_as_of
 
                 rows = market_observations_as_of(session, moment)
-        return _env(
-            _filter_entitled_rows(request, rows, source_key="source_system"),
-            source="runtime-postgresql",
-        )
+        rows = _filter_entitled_rows(request, rows, source_key="source_system")
+        if format == "csv":
+            return _flat_csv(rows, columns=OBSERVATION_COLUMNS, report="market-observations")
+        return _env(rows, source="runtime-postgresql")
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
@@ -130,6 +151,9 @@ def list_observations(
 def list_fx(
     request: Request,
     as_of: str | None = Query(default=None, description=_AS_OF_DESCRIPTION),
+    format: str = Query(
+        default="json", pattern=REFRESH_FORMAT_PATTERN, description=FORMAT_DESCRIPTION
+    ),
 ) -> dict:
     """List ECB FX observations from the runtime DB.
 
@@ -138,6 +162,7 @@ def list_fx(
     Args:
         request: Incoming FastAPI request (unused except wiring).
         as_of: DATA-1, read the ``fx_observations`` fixings as known at this instant.
+        format: DATA-1, ``csv`` for flat rows with a fixed header (Power Query).
 
     Returns:
         Enveloped FX rows or an empty enveloped response.
@@ -146,7 +171,10 @@ def list_fx(
         HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
     """
 
+    moment = _as_of(as_of)
     if not _db_is_configured():
+        if format == "csv":
+            return _flat_csv([], columns=FX_COLUMNS, report="market-fx")
         return _env(
             [],
             source="runtime-db-not-configured",
@@ -157,7 +185,6 @@ def list_fx(
     try:
         from eurogas_nexus.db.session import get_session_factory
 
-        moment = _as_of(as_of)
         with get_session_factory()() as session:
             if moment is None:
                 rows = fx_observations(session)
@@ -166,10 +193,10 @@ def list_fx(
 
                 rows = fx_observations_as_of(session, moment)
         # Licensed fixes (WMR/BFIX) share this table: filter like every other row read.
-        return _env(
-            _filter_entitled_rows(request, rows, source_key="source_system"),
-            source="runtime-postgresql",
-        )
+        rows = _filter_entitled_rows(request, rows, source_key="source_system")
+        if format == "csv":
+            return _flat_csv(rows, columns=FX_COLUMNS, report="market-fx")
+        return _env(rows, source="runtime-postgresql")
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
@@ -231,6 +258,9 @@ def list_prices(
     side: str = Query(default="mid", pattern="^(mid|bid|ask)$"),
     include_simulated: bool = Query(default=False),
     as_of: str | None = Query(default=None, description=_AS_OF_DESCRIPTION),
+    format: str = Query(
+        default="json", pattern=REFRESH_FORMAT_PATTERN, description=FORMAT_DESCRIPTION
+    ),
 ) -> dict:
     """The monthly price strip (curve) of each hub: the one price per month (DATA-1, P-08).
 
@@ -239,7 +269,8 @@ def list_prices(
     ``known_from_utc``. With ``as_of`` the strip is the one known at that instant (ticks
     received by then, each settlement at its revision current then, the marks in force).
     A month with no price held is a row with empty price fields. Simulated prices are left
-    out unless ``include_simulated`` is true, and are marked when included.
+    out unless ``include_simulated`` is true, and are marked when included. ``format=csv``
+    answers the same rows as a file with the fixed column order (Power Query, DATA-1).
     """
 
     from eurogas_nexus.application.price_strip import (
@@ -260,6 +291,8 @@ def list_prices(
             status_code=422, detail={"code": exc.code, "message": exc.message}
         ) from exc
     if not _db_is_configured():
+        if format == "csv":
+            return _flat_csv([], columns=PRICE_STRIP_COLUMNS, report="price-strip")
         envelope = _env(
             [],
             source="runtime-db-not-configured",
@@ -282,6 +315,8 @@ def list_prices(
                 include_simulated=include_simulated,
                 now=now,
             )
+        if format == "csv":
+            return _flat_csv(rows, columns=PRICE_STRIP_COLUMNS, report="price-strip")
         envelope = _env(rows, source="runtime-postgresql")
         envelope["meta"]["columns"] = list(PRICE_STRIP_COLUMNS)
         envelope["meta"]["as_of_utc"] = None if moment is None else moment.isoformat()

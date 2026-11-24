@@ -37,6 +37,9 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   `0082_data1_integration` (expand-only, on `0080`) adds `market_events.writer_txid`, stamped by
   PostgreSQL; the feed orders by (writer, `seq`) and serves only up to the snapshot horizon, so
   no committed event is skipped. SDK `fetch_market_changes_result` and `sync_market_changes`.
+- Refreshable reads (lesson P7, `application/refreshable_reads.py`): `format=csv` on the price
+  strip, observations and FX, fixed headers, through the report CSV writer so the GOV-1 export
+  decision and metering apply. How-to with an M query: `docs/sdk/POWER_QUERY.md`.
 
 ## 2026-11-24 — Commercial Intelligence V3, LNG-2: a cargo change reaches each role (branch `wip/lng2`)
 

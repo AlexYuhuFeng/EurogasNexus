@@ -252,6 +252,8 @@ head`, all clean; the four columns are nullable.
 | --- | --- | --- |
 | DATA1-1 as-of reads (P1) | `pytest tests/api/test_data1_as_of_reads.py` | 12 passed |
 | DATA1-2 change feed (P2) | `pytest tests/api/test_data1_change_feed.py` | 8 passed |
+| DATA1-3 Power Query refreshable reads (P7) | `pytest tests/api/test_data1_refreshable_reads.py` | 5 passed |
+| Reads, files and licence metering with DATA1-1 to DATA1-3 | `pytest` the three DATA-1 API suites, `tests/api/test_licensed_use_api.py`, `tests/api/test_market_fx_api.py`, `tests/api/test_one_price_across_screens.py`, `tests/api/test_research_data_api.py`, `tests/api/test_error_envelope.py`, the CSV and report API tests, `tests/security/test_public_api_auth.py`, `tests/security/test_identity_row_entitlement.py`, `tests/contract`, `tests/docs`, `tests/sdk`; `ruff check src tests scripts` | 934 passed, 12 skipped; ruff clean |
 | DATA1-2 never skips a committed event (PostgreSQL 16) | `alembic upgrade head`, `downgrade 0080_lng_eta_basis`, `upgrade head` on a fresh store; `RUNTIME_STORE_DATABASE_URL=postgresql+pg8000://... pytest tests/integration/test_change_feed_postgres.py tests/integration/test_market_event_outbox_postgres.py` | migration up, down, up clean; 9 passed |
 | Migration 0082 and the schema pins | `pytest tests/unit/*migration*.py tests/db tests/api/test_release_metadata_api.py tests/unit/test_reliability_ops.py tests/unit/test_runtime_db_validation.py tests/unit/test_backup_restore_readiness.py tests/unit/test_migration_preflight.py` | 158 passed, 2 skipped |
 | Related suites with DATA1-1 and DATA1-2 | `pytest` the DATA-1 tests, the pinned migration tests, `tests/sdk`, `tests/contract`, `tests/docs`; `ruff check src tests scripts` | 897 passed, 13 skipped; ruff clean |

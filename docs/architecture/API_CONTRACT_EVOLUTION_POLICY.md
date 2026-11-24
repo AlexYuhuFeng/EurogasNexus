@@ -33,6 +33,18 @@ actions `change_request.propose`, `.approve`, `.reject`, `.withdraw` and `lng.fr
 governed writes (503 `audit_unavailable` when their audit row cannot be written). Migration
 `0081_change_requests`. Census: 288 paths / 323 operations (284 / 319 before).
 
+Additive 2026-11-24 (refreshable reads, Commercial Intelligence V3 DATA-1, lesson P7): no new
+path. `GET /api/market/prices`, `GET /api/market/observations` and `GET /api/market/fx` accept
+`format` (`json` default, unchanged; `csv`). The CSV is one header line in a fixed order, the same
+with or without rows and with or without `as_of` (strip: the `meta.columns` order; observations
+and FX: their JSON fields with the version columns `revision`, `revision_basis`,
+`published_at_utc`, `known_from_utc`, `revision_event_id`, `as_of_utc` before `metadata_json`,
+empty without `as_of`), UTF-8 with a byte-order mark, nested values as JSON text. The file
+carries the GOV-1 export decision of the licensed families its rows came from
+(`X-Eurogas-Export-Decision`, 403 `export_denied` when terms are unregistered) and is metered as
+an export. An unknown `format` is 422. Census unchanged: 286 paths / 321 operations. How-to:
+`docs/sdk/POWER_QUERY.md`.
+
 Additive 2026-11-24 (change feed, Commercial Intelligence V3 DATA-1, lesson P2): one path, one
 operation. New `GET /api/market/changes` (READ, `/api/market/` floor): the market events recorded
 after a cursor, oldest first (`after` = a cursor this feed gave, none for the start, or `latest`;

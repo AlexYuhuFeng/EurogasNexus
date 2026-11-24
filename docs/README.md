@@ -41,7 +41,8 @@ Using the product:
 
 Using the Python SDK:
 [authentication](sdk/AUTHENTICATION.md) · [examples by task](sdk/EXAMPLES.md) ·
-[troubleshooting](sdk/TROUBLESHOOTING.md) · [SDK readme](../packages/python-sdk/README.md)
+[troubleshooting](sdk/TROUBLESHOOTING.md) · [SDK readme](../packages/python-sdk/README.md) ·
+[Excel Power Query](sdk/POWER_QUERY.md)
 
 Installing and running a server:
 [deployment roles](deployment/DEPLOYMENT_ROLES-EN.md) ·
