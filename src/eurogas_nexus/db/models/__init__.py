@@ -28,6 +28,7 @@ from eurogas_nexus.db.models.backtest import (
 )
 from eurogas_nexus.db.models.books import TradingBookRecord
 from eurogas_nexus.db.models.certification import ProviderCertificationRecord
+from eurogas_nexus.db.models.change_requests import ChangeRequestRecord
 from eurogas_nexus.db.models.commercial_assumptions import (
     AssumptionSetRecord,
     AssumptionSetVersionRecord,
@@ -335,6 +336,7 @@ __all__ = [
     "DecisionCaseRecord",
     "NationalGasActualDemandRecord",
     "CapacityObservationRecord",
+    "ChangeRequestRecord",
     "CompanyTsoAccessRecord",
     "CostObservationRecord",
     "AssumptionSetRecord",

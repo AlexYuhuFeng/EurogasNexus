@@ -23,6 +23,11 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/portfolio/desk-replay",
         "/api/portfolio/hedge-approvals",
         "/api/portfolio/hedge-approvals/{contract_id}",
+        # P-17 maker-checker: proposals to limits and reference data and their decision.
+        "/api/portfolio/change-requests",
+        "/api/portfolio/change-requests/{change_id}/approve",
+        "/api/portfolio/change-requests/{change_id}/reject",
+        "/api/portfolio/change-requests/{change_id}/withdraw",
         "/api/analysis/ask",
         # Commercial design basis 2, CP-07: assumption sets, firm marks, valuation snapshots.
         "/api/assumption-sets",

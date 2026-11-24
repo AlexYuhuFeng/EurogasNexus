@@ -55,7 +55,12 @@ def store(tmp_path, monkeypatch):
     now = datetime.now(UTC)
     bearers = {}
     with Session(engine) as db:
-        for name, role in (("c-analyst", "ANALYST"), ("c-viewer", "VIEWER")):
+        # c-desk2: the second person on the desk who approves a route (P-17).
+        for name, role in (
+            ("c-analyst", "ANALYST"),
+            ("c-desk2", "ANALYST"),
+            ("c-viewer", "VIEWER"),
+        ):
             row = identity_repository.create_identity_principal(
                 db, name=name, display_name=name, role=role, data_scopes=["*"]
             )
@@ -153,6 +158,22 @@ def _h(bearer):
     return {"X-Eurogas-Api-Key": PUBLIC_TOKEN, "X-Eurogas-Identity": bearer}
 
 
+def _route(client, bearers, route_id: str, route: dict) -> dict:
+    """Propose a route (202) and have a second person on the desk approve it (P-17)."""
+
+    proposed = client.put(
+        f"/api/lng/freight-routes/{route_id}", json=route, headers=_h(bearers["c-analyst"])
+    )
+    assert proposed.status_code == 202, proposed.text
+    change_id = proposed.json()["data"]["change"]["change_id"]
+    approved = client.post(
+        f"/api/portfolio/change-requests/{change_id}/approve", headers=_h(bearers["c-desk2"])
+    )
+    assert approved.status_code == 200, approved.text
+    listed = client.get("/api/lng/freight-routes", headers=_h(bearers["c-viewer"])).json()
+    return next(row for row in listed["data"] if row["route_id"] == route_id)
+
+
 def test_fob_and_des_cargoes_in_one_table(store):
     engine, bearers, arrival = store
     client = TestClient(create_app(Settings(api_profile="release")))
@@ -170,23 +191,16 @@ def test_fob_and_des_cargoes_in_one_table(store):
         ).status_code
         == 403
     )
-    saved = client.put(
-        "/api/lng/freight-routes/sabine-rotterdam", json=route, headers=_h(bearers["c-analyst"])
-    )
-    assert saved.status_code == 200 and saved.json()["data"]["version"] == 1
-    again = client.put(
-        "/api/lng/freight-routes/sabine-rotterdam",
-        json={**route, "distance_nm": 4950},
-        headers=_h(bearers["c-analyst"]),
-    ).json()["data"]
+    saved = _route(client, bearers, "sabine-rotterdam", route)
+    assert saved["version"] == 1
+    assert saved["provenance"]["second_approval"] is True
+    again = _route(client, bearers, "sabine-rotterdam", {**route, "distance_nm": 4950})
     assert again["version"] == 2  # a change adds a version
     listed = client.get("/api/lng/freight-routes", headers=_h(bearers["c-viewer"])).json()["data"]
     assert [(r["route_id"], r["version"], r["distance_nm"]) for r in listed] == [
         ("sabine-rotterdam", 2, 4950.0)
     ]
-    client.put(
-        "/api/lng/freight-routes/sabine-rotterdam", json=route, headers=_h(bearers["c-analyst"])
-    )
+    _route(client, bearers, "sabine-rotterdam", route)
     body = {
         "arrival_month": arrival,
         "cargoes": [
@@ -222,16 +236,17 @@ def test_fob_and_des_cargoes_in_one_table(store):
 def test_an_entered_zero_is_a_value_and_a_past_arrival_is_refused(store):
     _engine, bearers, arrival = store
     client = TestClient(create_app(Settings(api_profile="release")))
-    client.put(
-        "/api/lng/freight-routes/r1",
-        json={
+    _route(
+        client,
+        bearers,
+        "r1",
+        {
             "load_port": "A",
             "discharge_port": "B",
             "routing": "direct",
             "distance_nm": 1000,
             "source": "synthetic",
         },
-        headers=_h(bearers["c-analyst"]),
     )
     body = {
         "arrival_month": arrival,

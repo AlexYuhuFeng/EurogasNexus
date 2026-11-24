@@ -130,6 +130,21 @@ GOVERNED_WRITES: tuple[GovernedWrite, ...] = (
         ("lng.cargo_hedges",),
         "application/lng_in_transit.py (PUT /api/lng/cargoes/{cargo_id}/hedges)",
     ),
+    GovernedWrite(
+        "freight routes",
+        ("lng.freight_route",),
+        "application/lng_cargo_economics.py (PUT /api/lng/freight-routes/{route_id})",
+    ),
+    GovernedWrite(
+        "maker-checker: proposals and their approval, rejection and withdrawal (P-17)",
+        (
+            "change_request.propose",
+            "change_request.approve",
+            "change_request.reject",
+            "change_request.withdraw",
+        ),
+        "application/maker_checker.py (/api/portfolio/change-requests)",
+    ),
 )
 
 

@@ -21,6 +21,11 @@ from typing import Any
 
 from eurogas_nexus.domain.ai.register import AI_FEATURES_SETTING
 from eurogas_nexus.domain.ontology.markets import european_gas_hubs
+from eurogas_nexus.governance.four_eyes import (
+    FOUR_EYES_SETTING,
+    FourEyesSettingError,
+    validate_four_eyes,
+)
 
 #: The interface languages the clients ship. A new language is added here and in the
 #: client locale registry (clients/web/src/i18n/locales.ts) with its translation file.
@@ -193,14 +198,21 @@ def validate_organisation_defaults(values: Mapping[str, Any]) -> dict[str, Any]:
         raise SettingsError(f"{personal_only[0]} is a personal preference, not a default")
     enabled = values.get("enabled_languages")
     switches = values.get(AI_FEATURES_SETTING)
+    four_eyes = values.get(FOUR_EYES_SETTING)
     rest = {
         key: value
         for key, value in values.items()
-        if key not in {"enabled_languages", AI_FEATURES_SETTING}
+        if key not in {"enabled_languages", AI_FEATURES_SETTING, FOUR_EYES_SETTING}
     }
     accepted: dict[str, Any] = validate_preferences(rest)
     if switches is not None:
         accepted[AI_FEATURES_SETTING] = validate_ai_features(switches)
+    if four_eyes is not None:
+        # P-17: which reference writes need a second person (governance/four_eyes.py).
+        try:
+            accepted[FOUR_EYES_SETTING] = validate_four_eyes(four_eyes)
+        except FourEyesSettingError as exc:
+            raise SettingsError(str(exc)) from exc
     if enabled is not None:
         if (
             not isinstance(enabled, list)

@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from eurogas_nexus.api.routes.public import observation_window
@@ -316,6 +316,8 @@ class FreightRouteBody(BaseModel):
     distance_nm: float = Field(gt=0, le=30_000)
     canal: str = Field(default="none", pattern="^(none|suez|panama)$")
     source: str = Field(min_length=1, max_length=256)
+    #: Why the distance changes; shown to the person who approves it (P-17).
+    change_reason: str | None = Field(default=None, max_length=500)
 
 
 class CargoBody(BaseModel):
@@ -391,29 +393,85 @@ def list_freight_routes() -> dict:
     """Voyage distances the firm holds, latest version of each route (READ)."""
 
     from eurogas_nexus.application import lng_cargo_economics as cargo
+    from eurogas_nexus.application.maker_checker import provenance_for
 
     with _register_session() as session:
-        return _runtime_env([cargo.route_payload(row) for row in cargo.current_routes(session)])
+        rows = cargo.current_routes(session)
+        # P-17: who recorded each distance, and who approved it when a second person did.
+        provenance = provenance_for(
+            session, [(r.row_id, r.recorded_by, r.recorded_at_utc, r.change_id) for r in rows]
+        )
+        return _runtime_env(
+            [{**cargo.route_payload(row), "provenance": provenance[row.row_id]} for row in rows]
+        )
 
 
 @router.put("/api/lng/freight-routes/{route_id}")
-def record_freight_route(route_id: str, body: FreightRouteBody, request: Request) -> dict:
-    """Add a version of one route's distance (LNG desk reference data, audited)."""
+def record_freight_route(
+    route_id: str, body: FreightRouteBody, request: Request, response: Response
+) -> dict:
+    """Add a version of one route's distance (LNG desk reference data, audited).
+
+    With four eyes in force (P-17, the default) the version is proposed and answers 202 with
+    ``pending_approval``; another person on the desk approves it.
+    """
 
     from eurogas_nexus.application import lng_cargo_economics as cargo
+    from eurogas_nexus.application import maker_checker
     from eurogas_nexus.security.authorization import Permission
 
     if not route_id or len(route_id) > 96:
         raise HTTPException(status_code=422, detail={"code": "route_id_invalid"})
     actor = _actor(request, Permission.PORTFOLIO_WRITE)
+    values = body.model_dump()
+    reason = values.pop("change_reason", None) or ""
     with _register_session() as session:
+        if maker_checker.four_eyes_required(session, "lng.freight_route"):
+            try:
+                cargo.validate_route(values)
+            except cargo.CargoEconomicsError as exc:
+                raise _cargo_error(exc) from exc
+            names = list(cargo.ROUTE_FIELDS)
+            held = maker_checker.route_snapshot(session, route_id, names)
+            changed = [
+                name for name in names if held is None or held.get(name) != values.get(name)
+            ]
+            if not changed:
+                held_row = cargo.current_route(session, route_id)
+                return _runtime_env({**cargo.route_payload(held_row), "pending_approval": False})
+            try:
+                change = maker_checker.propose_change(
+                    session,
+                    action="lng.freight_route",
+                    target_key=route_id,
+                    resource=f"freight_route:{route_id}",
+                    subject=f"{values['load_port']} – {values['discharge_port']}",
+                    payload={"values": values},
+                    before=None if held is None else {name: held[name] for name in changed},
+                    after={name: values.get(name) for name in changed},
+                    reason=reason,
+                    actor=actor,
+                )
+            except maker_checker.ChangeRequestError as exc:
+                raise HTTPException(status_code=exc.status, detail=exc.detail()) from exc
+            session.commit()
+            response.status_code = 202
+            return _runtime_env(
+                {
+                    "route_id": route_id,
+                    "pending_approval": True,
+                    "change": maker_checker.describe(
+                        session, change, identity=getattr(request.state, "identity", None)
+                    ),
+                }
+            )
         try:
-            payload = cargo.record_route(session, route_id, body.model_dump(), actor=actor)
+            payload = cargo.record_route(session, route_id, values, actor=actor)
         except cargo.CargoEconomicsError as exc:
             session.rollback()
             raise _cargo_error(exc) from exc
         session.commit()
-        return _runtime_env(payload)
+        return _runtime_env({**payload, "pending_approval": False})
 
 
 @router.post("/api/lng/cargo-economics")

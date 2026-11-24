@@ -230,6 +230,21 @@ head`, all clean; the four columns are nullable.
 | Markdown links | `python scripts/ci/check_markdown_links.py` | All local links resolve |
 | Web | `npx tsc --noEmit -p .`; `npm test` | clean; 1,366 tests, 1,363 passed, 3 skipped, 0 failed |
 
+## P-17 maker-checker on limits and reference data (2026-11-24, branch `wip/p17`)
+
+| Run | Command | Result |
+| --- | --- | --- |
+| P-17 tests | `pytest tests/api/test_maker_checker_api.py tests/unit/test_maker_checker.py` | 10 passed |
+| Writes now proposed and approved (limits, segregation, governed audit, assumptions and marks, outbox, scheduling, LNG cargo economics) | `pytest tests/api/test_risk_limits_api.py tests/api/test_risk_segregation_api.py tests/api/test_governed_audit_api.py tests/api/test_assumptions_api.py tests/integration/test_market_event_outbox.py tests/integration/test_opportunity_scheduling.py tests/integration/test_lng_cargo_economics_api.py` | 40 passed |
+| API, security and DB suites | `pytest tests/api tests/security tests/db` | 1,437 passed, 2 skipped |
+| Integration suite (SQLite) | `pytest tests/integration` | 205 passed, 161 skipped, 3 failed: `test_demo_planted_cases.py` (L1, W1, quiet), which fail the same way on the base commit `e772502` (an extra `S` item on the demo seed), not caused by this slice |
+| Unit, domain, SDK and eval suites | `pytest tests/unit tests/domain tests/sdk tests/evals` | 3,858 passed, 46 skipped (after updating `tests/unit/test_freight_route_migration.py`, whose model match now allows the `change_id` that 0081 adds; 3,857 passed and that 1 failed before) |
+| Migration `0081_change_requests` on PostgreSQL 16 | `alembic upgrade head`, `downgrade -1`, `upgrade head` on a fresh database | all clean |
+| PostgreSQL tests on that database | `pytest tests/integration/test_maker_checker_postgres.py tests/integration/test_schema_matches_models_postgres.py`; `pytest tests/integration -k postgres` | 2 passed; 147 passed, 16 skipped |
+| Contract and docs | `pytest tests/contract tests/docs` | 605 passed, 12 skipped (census 288 paths / 323 operations) |
+| Lint | `ruff check src tests scripts` | All checks passed |
+| Markdown links | `python scripts/ci/check_markdown_links.py` | All local links resolve |
+
 ## Not yet evidenced
 
 - Latency under sustained load: the M7 figures are single changes on an idle desk; the outbox

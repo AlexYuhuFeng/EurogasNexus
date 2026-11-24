@@ -46,7 +46,7 @@ repeated price queries, remove the 1,000-event drain cap (M7).
 
 | ID | Sev | Standard | Finding | Fix | Status |
 | --- | --- | --- | --- | --- | --- |
-| P-01 | S1 | B7, F4 | One reviewer can save a credit line with a shorter contract list and clear a breach in one call | Partial update with before/after audit (done); four-eyes with P-17 | Partly done (F1) |
+| P-01 | S1 | B7, F4 | One reviewer can save a credit line with a shorter contract list and clear a breach in one call | Partial update with before/after audit (done); four-eyes with P-17 (done) | **Done in F1 and P-17** |
 | P-02 | S1 | B7, F4 | ANALYST plus REVIEWER on one person can approve their own work; the own-mandate check compares an id with a free-text label | Segregation of duties; own mandate under any name | **Done in F1** |
 | P-03 | S1 | A7 | Prices 100x, negative or in the future are accepted into strategies and the prompt panel; any operator key can label quotes as a licensed feed | Plausibility bands per hub, refuse future times, bind source label to the key's entitlement | **Done in F1** |
 | P-04 | S1 | F1 | `POST /api/desk/gas-day/status` always returns 500 | Give the route a permission with a role | **Done in F1** |
@@ -62,7 +62,7 @@ repeated price queries, remove the 1,000-event drain cap (M7).
 | P-14 | S2 | B1 | A FOB cargo is invisible in the position ladder | Plan shows it (LNG-1); ladder leg next | Partly done |
 | P-15 | S2 | B1 | The HH pricing month has no effect (no HH forward held) | HH, JKM forward connectors under the customer's licence | Needs data licence |
 | P-16 | S2 | D5 | ETRM import truncates ids to 64 characters, has no snapshot mode, hard-deletes; screen fills and ETRM trades are double counted | Integration layer with snapshot semantics | Planned |
-| P-17 | S2 | B7 | LNG terminal terms and freight routes change with no second approval | Four-eyes with effective dates | Planned |
+| P-17 | S2 | B7 | LNG terminal terms and freight routes change with no second approval | Four-eyes with effective dates | **Four-eyes done in P-17** (also on limits, hedge bands and firm marks, with figure provenance); effective dates not yet built |
 | P-18 | S2 | C1, A2 | No price above the fold on the trader's landing; stale and live look the same | Desk polish | Next |
 | P-19 | S2 | C6 | The value flash has no direction and fires on tenor switches | Directional flash on value change only | Next |
 | P-20 | S2 | A4, C2 | Units and decimals differ between screens ("GBp/th" and "p/th"; 3 and 2 dp) | One formatter per measure | Next |

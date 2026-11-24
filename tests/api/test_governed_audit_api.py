@@ -20,6 +20,7 @@ from eurogas_nexus.api.app import create_app
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     AuditEventRecord,
+    ChangeRequestRecord,
     CreditLineRecord,
     HedgeApprovalRecord,
     LngCargoHedgeRecord,
@@ -34,6 +35,7 @@ from eurogas_nexus.db.repositories.identity import (
     create_identity_api_key,
     create_identity_principal,
 )
+from eurogas_nexus.governance.four_eyes import FOUR_EYES_BY_ACTION
 
 PUBLIC_TOKEN = "test-public-api-token"
 
@@ -60,7 +62,12 @@ def _setup(tmp_path, monkeypatch):
     now = datetime.now(UTC).replace(microsecond=0)
     who: dict[str, dict[str, str]] = {}
     with Session(engine) as session:
-        for name, role in (("analyst", "ANALYST"), ("risk", "REVIEWER"), ("admin", "ADMIN")):
+        for name, role in (
+            ("analyst", "ANALYST"),
+            ("risk", "REVIEWER"),
+            ("checker", "REVIEWER"),
+            ("admin", "ADMIN"),
+        ):
             row = create_identity_principal(
                 session, name=name, display_name=name, role=role, data_scopes=["*"]
             )
@@ -211,13 +218,30 @@ def test_a_governed_write_fails_and_leaves_nothing_when_its_audit_row_cannot_be_
         assert refused.status_code == 503, (path, refused.text)
         payload = refused.json()
         assert payload["error"] == "audit_unavailable", path
-        assert payload["detail"]["action"] == action
+        # P-17: a write under four eyes is first a proposal, refused the same way.
+        proposed = "change_request.propose" if action in FOUR_EYES_BY_ACTION else action
+        assert payload["detail"]["action"] == proposed
         assert payload["recoverability"] == "retry"
         with Session(engine) as session:
             assert session.query(record).count() == 0, path
             assert session.query(AuditEventRecord).filter_by(action=action).count() == 0
+            assert session.query(ChangeRequestRecord).filter_by(state="pending").count() == 0
 
         done = client.request(method, path, json=body, headers=who[actor])
+        if action in FOUR_EYES_BY_ACTION:
+            # P-17: the write was proposed (its own audit row, nothing applied); the approval
+            # is the same write and fails the same way when its audit row cannot be written.
+            assert done.status_code == 202, (path, done.text)
+            change_id = done.json()["data"]["change"]["change_id"]
+            approve = f"/api/portfolio/change-requests/{change_id}/approve"
+            with _audit_store_refuses():
+                refused = client.post(approve, headers=who["checker"])
+            assert refused.status_code == 503, (path, refused.text)
+            assert refused.json()["detail"]["action"] == action
+            with Session(engine) as session:
+                assert session.query(record).count() == 0, path
+                assert session.get(ChangeRequestRecord, change_id).state == "pending"
+            done = client.post(approve, headers=who["checker"])
         assert done.status_code == 200, (path, done.text)
         with Session(engine) as session:
             assert session.query(record).count() >= 1, path

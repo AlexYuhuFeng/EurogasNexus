@@ -1,5 +1,26 @@
 # API 契约演化策略
 
+2026-11-24 变更与新增（限额与参考数据的双人复核，Commercial Intelligence V3 P-17，ADR 决策 32）。**状态码变更：**
+当该写入启用四眼复核（默认启用）时，`PUT /api/portfolio/credit-lines/{id}`、`PUT /api/portfolio/trader-mandates/{id}`、
+`PUT /api/portfolio/hedge-approvals/{id}`、`PUT /api/portfolio/lng-terminal-terms/{id}`、`PUT /api/market/firm-marks`
+与 `PUT /api/lng/freight-routes/{route_id}` 返回 **202**（而非 200），附 `pending_approval: true`、`changed`（将变更的字段）
+与 `change`（提议），在另一位有权限的人批准前不保存任何内容；未作修改的保存返回 200 且 `pending_approval: false`；
+同一记录的第二个提议返回 409 `change_pending`。某写入关闭四眼复核时仍返回 200，并附 `pending_approval: false`。
+把任何 2xx 视为成功的客户端仍可工作，但不得把 202 当作已生效。上述请求体均接受可选的 `change_reason`（最多 500 字符）。
+新路径：`GET /api/portfolio/change-requests`（READ；`state` 为 pending、decided 或 all；`resource`；`limit`）返回
+`changes[]`（`change_id`、`action`、`kind`、`label`、`label_zh`、`subject`、`target_key`、`new_record`、
+`fields[]`（`name`、`before`、`after`）、`reason`、`state`、`proposed_by`、`proposed_by_name`、`proposed_at_utc`、
+`decided_by`、`decided_by_name`、`decided_at_utc`、`decision_note`、`own`、`may_approve`、`may_reject`、
+`may_withdraw`、`approver`）与 `four_eyes[]`（各写入、其审批人及当前是否需要）；
+`POST /api/portfolio/change-requests/{change_id}/approve`、`.../reject`（请求体 `note`，必填）与 `.../withdraw`
+（REVIEW；403 `four_eyes_required`、`own_mandate`、`segregation_of_duties` 或 `not_the_proposer`；409
+`change_not_pending` 或 `change_stale`；422 `note_required`）。新增 `provenance`（`second_approval`、`set_by`、
+`set_by_name`、`set_at_utc`、`approved_by`、`approved_by_name`、`approved_at_utc`、`change_id`、`reason`），见于
+`GET /api/portfolio/credit-lines/{id}` 以及信用敞口、交易员授权使用、套保审批、LNG 接收站条款、公司估值标记和航运路线的各行。
+`PUT /api/settings/organisation` 接受 `four_eyes`（上述六个动作到 true 或 false 的对象；ADMIN，记入审计）。审计动作
+`change_request.propose`、`.approve`、`.reject`、`.withdraw` 与 `lng.freight_route` 为受治理写入（审计行无法写入时返回
+503 `audit_unavailable`）。迁移 `0081_change_requests`。路径统计：288 条路径 / 323 个操作（此前 284 / 319）。
+
 2026-11-24 新增（货物变更送达各角色，Commercial Intelligence V3 LNG-2）：无新路径。
 `GET /api/lng/cargoes/plans` 与 `GET /api/lng/cargoes/{cargo_id}/plan` 新增 `cargo.eta`
 （`basis`、`confidence`、`source`、`recorded_at_utc`、`text`）；看板行新增 `attention[]`（每条未结角色消息一项：

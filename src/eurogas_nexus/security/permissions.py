@@ -415,6 +415,12 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("PUT", "/api/portfolio/trader-mandates/{mandate_id}", Permission.REVIEW),
     # Terminal landing costs are LNG desk reference data (analyst, audited).
     ("PUT", "/api/portfolio/lng-terminal-terms/{terminal_id}", Permission.GOVERNED),
+    # P-17 maker-checker: deciding a proposal needs at least the risk function's floor; the
+    # handler checks the authority for the kind of change and that the approver is not the
+    # proposer.
+    ("POST", "/api/portfolio/change-requests/{change_id}/approve", Permission.REVIEW),
+    ("POST", "/api/portfolio/change-requests/{change_id}/reject", Permission.REVIEW),
+    ("POST", "/api/portfolio/change-requests/{change_id}/withdraw", Permission.REVIEW),
     # Reading a contract PDF into a draft (nothing stored); the save stays the governed write.
     ("POST", "/api/contracts/intake", Permission.GOVERNED),
     # The tariff publication register is reference data everyone reads; the desk maintains it.

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from eurogas_nexus.api.positions import ladder_inputs
@@ -122,7 +122,39 @@ def _limits_report(request: Request, format: str, compute, *, report: str, title
     else:
         note = method_note("mandate_usage", inputs_as_of={"positions": today.isoformat()})
     rows = [{**row, "method": note} for row in result.rows]
+    try:
+        rows = _with_limit_provenance(report, rows)
+    except _sqlalchemy_error_type() as exc:
+        raise _db_unavailable(exc) from exc
     return _env({"rows": rows, "as_of": today.isoformat()}, request, "runtime-postgresql", warnings)
+
+
+def _with_limit_provenance(report: str, rows: list[dict]) -> list[dict]:
+    """Each line or mandate with who set it and who approved it (P-17)."""
+
+    from eurogas_nexus.application.maker_checker import provenance_for
+    from eurogas_nexus.db.models import CreditLineRecord, TraderMandateRecord
+    from eurogas_nexus.db.session import get_session_factory
+
+    record_type, field = (
+        (CreditLineRecord, "counterparty_id")
+        if report == "credit-exposure"
+        else (TraderMandateRecord, "mandate_id")
+    )
+    keys = {row.get(field) for row in rows if row.get(field)}
+    if not keys:
+        return rows
+    column = getattr(record_type, field)
+    with get_session_factory()() as session:
+        records = session.query(record_type).filter(column.in_(keys)).all()
+        provenance = provenance_for(
+            session,
+            [
+                (getattr(r, field), r.updated_by, r.updated_at_utc, r.change_id)
+                for r in records
+            ],
+        )
+    return [{**row, "provenance": provenance.get(row.get(field))} for row in rows]
 
 
 class CreditLineRequest(BaseModel):
@@ -142,6 +174,8 @@ class CreditLineRequest(BaseModel):
     #: Unlinking every contract from a line that has some clears its exposure, so it is said
     #: out loud rather than inferred from an empty list a form forgot to fill (QA-R-01).
     unlink_contracts: bool = False
+    #: Why the change is made; shown to the person who approves it (P-17).
+    change_reason: str | None = Field(default=None, max_length=500)
 
 
 class MandateRequest(BaseModel):
@@ -160,6 +194,8 @@ class MandateRequest(BaseModel):
     min_hedge_ratio_pct: float | None = Field(default=None, ge=0, le=200)
     max_hedge_ratio_pct: float | None = Field(default=None, ge=0, le=200)
     instruments: list[str] = Field(default_factory=list, max_length=6)
+    #: Why the change is made; shown to the person who approves it (P-17).
+    change_reason: str | None = Field(default=None, max_length=500)
 
 
 def _require_risk_function(request: Request, what: str = "Credit lines and mandates") -> None:
@@ -177,27 +213,13 @@ def _require_risk_function(request: Request, what: str = "Credit lines and manda
         raise HTTPException(status_code=403, detail=refusal)
 
 
-#: What each reference write changes for the opportunity evaluators (CP-13).
-_INPUT_CLASS_BY_ACTION = {
-    "risk.credit_line.update": "limits",
-    "risk.mandate.update": "limits",
-    "risk.hedge_approval.update": "book",
-    "lng.terminal_terms.update": "tariffs",
-}
-
-
-def _json_safe(value):
-    """A stored value as JSON for the audit trail's before and after (dates as ISO text)."""
-
-    if isinstance(value, (date, datetime)):
-        return value.isoformat()
-    if isinstance(value, (list, tuple)):
-        return [_json_safe(item) for item in value]
-    return value
+def _change_error(exc) -> HTTPException:
+    return HTTPException(status_code=exc.status, detail=exc.detail())
 
 
 def _write(
     request: Request,
+    response: Response,
     *,
     record_type,
     key: str,
@@ -206,13 +228,18 @@ def _write(
     resource: str,
     risk_only: bool = True,
     defaults: dict | None = None,
+    reason: str = "",
+    subject: str = "",
 ):
-    """Create or change one reference row, audited with each changed field's before and after.
+    """Create or change one reference row, or propose it for a second person's approval.
 
     ``values`` holds the fields the caller sent; ``defaults`` fill the rest only when the row
-    is new, so a field left out of a change keeps its stored value.
+    is new, so a field left out of a change keeps its stored value. When four eyes is in force
+    for ``action`` (P-17, default on), nothing changes yet: the change is recorded as a
+    proposal with each field before and after, and the route answers 202 with it.
     """
-    from eurogas_nexus.application.opportunities.schedule import note_input_changed
+    from eurogas_nexus.application import maker_checker
+    from eurogas_nexus.application.reference_rows import json_safe, plan_row, write_row
 
     if risk_only:
         _require_risk_function(request)
@@ -221,63 +248,64 @@ def _write(
     actor = _identity_id(request) or "api"
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        from eurogas_nexus.application.audit_service import record_governed_audit
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
-            row = session.get(record_type, key)
-            created = row is None
-            if row is None:
-                row = record_type(**{record_type.__mapper__.primary_key[0].key: key})
-                session.add(row)
-                values = {**(defaults or {}), **values}
-            changes = {
-                name: (None if created else getattr(row, name, None), value)
-                for name, value in values.items()
-                if created or getattr(row, name, None) != value
-            }
-            for name, value in values.items():
-                setattr(row, name, value)
-            row.updated_by = actor
-            row.updated_at_utc = datetime.now(UTC)
-            # GOV-1 (P5): the audit row is part of the write; no row, no change.
-            record_governed_audit(
+            if maker_checker.four_eyes_required(session, action):
+                planned = plan_row(session, record_type, key, values, defaults)
+                if not planned.created and not planned.changes:
+                    return {"key": key, "created": False, "changed": [], "pending_approval": False}
+                try:
+                    change = maker_checker.propose_change(
+                        session,
+                        action=action,
+                        target_key=key,
+                        resource=resource,
+                        subject=subject or key,
+                        payload={"values": {k: json_safe(v) for k, v in planned.values.items()}},
+                        before=planned.before(),
+                        after=planned.after(),
+                        reason=reason,
+                        actor=actor,
+                    )
+                except maker_checker.ChangeRequestError as exc:
+                    raise _change_error(exc) from exc
+                session.commit()
+                response.status_code = 202
+                return {
+                    "key": key,
+                    "created": False,
+                    "changed": sorted(planned.changes),
+                    "pending_approval": True,
+                    "change": maker_checker.describe(
+                        session, change, identity=getattr(request.state, "identity", None)
+                    ),
+                }
+            result = write_row(
                 session,
-                event_type="risk.limits" if risk_only else "desk.reference",
-                principal=actor,
+                record_type=record_type,
+                key=key,
+                values=values,
+                defaults=defaults,
                 action=action,
                 resource=resource,
-                outcome="created" if created else "updated",
-                severity="info",
-                detail="; ".join(
-                    f"{name}: {before!r} -> {after!r}" if not created else f"{name}={after!r}"
-                    for name, (before, after) in changes.items()
-                    if name != "aliases"
-                )[:1000]
-                or "no change",
-                before_summary=None
-                if created
-                else {name: _json_safe(before) for name, (before, _after) in changes.items()},
-                after_summary={
-                    name: _json_safe(after) for name, (_before, after) in changes.items()
-                },
+                actor=actor,
+                event_type="risk.limits" if risk_only else "desk.reference",
             )
-            # CP-13: a limit, hedge band or terminal terms change makes an evaluation due.
-            note_input_changed(session, _INPUT_CLASS_BY_ACTION[action], reason=action)
-            if record_type.__tablename__ == "hedge_approvals":
-                from eurogas_nexus.application.market_event_capture import capture_desk
-
-                # M5b: a hedge band is part of the contract an opportunity reads.
-                capture_desk(session, contract_ids=[key])
             session.commit()
-            return {
-                "key": key,
-                "created": created,
-                "updated_by": actor,
-                "changed": sorted(changes),
-            }
+            return {**result, "pending_approval": False}
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
+
+
+def _provenance(rows: list[tuple[str, str | None, object, str | None]]) -> dict[str, dict]:
+    """Who set each figure, and who approved it when a second person did (P-17)."""
+
+    from eurogas_nexus.application.maker_checker import provenance_for
+    from eurogas_nexus.db.session import get_session_factory
+
+    with get_session_factory()() as session:
+        return provenance_for(session, rows)
 
 
 @router.get("/api/portfolio/credit-lines/{counterparty_id}")
@@ -315,20 +343,29 @@ def get_credit_line(counterparty_id: str, request: Request) -> dict:
                 "updated_by": row.updated_by,
                 "updated_at_utc": row.updated_at_utc.isoformat() if row.updated_at_utc else None,
             }
+            source = (row.counterparty_id, row.updated_by, row.updated_at_utc, row.change_id)
+        line["provenance"] = _provenance([source])[counterparty_id]
     except _sqlalchemy_error_type() as exc:
         raise _db_unavailable(exc) from exc
     return _env(line, request, "runtime-postgresql", [])
 
 
 @router.put("/api/portfolio/credit-lines/{counterparty_id}")
-def put_credit_line(counterparty_id: str, body: CreditLineRequest, request: Request) -> dict:
-    """Record or change a counterparty's approved credit line (risk, audited)."""
+def put_credit_line(
+    counterparty_id: str, body: CreditLineRequest, request: Request, response: Response
+) -> dict:
+    """Record or change a counterparty's approved credit line (risk, audited).
+
+    With four eyes in force (P-17, the default) the change is proposed and answers 202; it
+    takes effect when a different person in the risk function approves it.
+    """
 
     from eurogas_nexus.db.models import CreditLineRecord
 
     if not counterparty_id or len(counterparty_id) > 64:
         raise HTTPException(status_code=422, detail={"code": "counterparty_id_invalid"})
     values = body.model_dump(exclude_unset=True)
+    reason = values.pop("change_reason", None) or ""
     unlink = bool(values.pop("unlink_contracts", False))
     if "contract_ids" in values and not values["contract_ids"] and not unlink:
         _require_risk_function(request)
@@ -353,24 +390,33 @@ def put_credit_line(counterparty_id: str, body: CreditLineRequest, request: Requ
                 )
     defaults = body.model_dump()
     defaults.pop("unlink_contracts", None)
+    defaults.pop("change_reason", None)
     # Fields left out keep their stored value: leaving ``contract_ids`` out must not unlink the
     # contracts and clear a breach (persona review P-01). Unlinking every contract from a line
     # that has some needs ``unlink_contracts: true`` (QA-R-01).
     result = _write(
         request,
+        response,
         record_type=CreditLineRecord,
         key=counterparty_id,
         values=values,
         defaults=defaults,
         action="risk.credit_line.update",
         resource=f"credit_line:{counterparty_id}",
+        reason=reason,
+        subject=values.get("name") or counterparty_id,
     )
     return _env(result, request, "runtime-postgresql", [])
 
 
 @router.put("/api/portfolio/trader-mandates/{mandate_id}")
-def put_trader_mandate(mandate_id: str, body: MandateRequest, request: Request) -> dict:
-    """Record or change a trader's mandate (risk, audited; never one's own)."""
+def put_trader_mandate(
+    mandate_id: str, body: MandateRequest, request: Request, response: Response
+) -> dict:
+    """Record or change a trader's mandate (risk, audited; never one's own).
+
+    With four eyes in force (P-17) the change is proposed and answers 202.
+    """
 
     from eurogas_nexus.db.models import TraderMandateRecord
 
@@ -387,6 +433,7 @@ def put_trader_mandate(mandate_id: str, body: MandateRequest, request: Request) 
             },
         )
     values = body.model_dump()
+    reason = values.pop("change_reason", None) or ""
     values["hubs"] = [hub.upper() for hub in values["hubs"]]
     allowed = {"physical", "future", "forward", "swap", "option"}
     values["instruments"] = [item.casefold() for item in values["instruments"]]
@@ -400,11 +447,14 @@ def put_trader_mandate(mandate_id: str, body: MandateRequest, request: Request) 
         raise HTTPException(status_code=422, detail={"code": "hedge_band_inverted"})
     result = _write(
         request,
+        response,
         record_type=TraderMandateRecord,
         key=mandate_id,
         values=values,
         action="risk.mandate.update",
         resource=f"trader_mandate:{mandate_id}",
+        reason=reason,
+        subject=values["display_name"],
     )
     return _env(result, request, "runtime-postgresql", [])
 
@@ -422,6 +472,8 @@ class HedgeApprovalRequest(BaseModel):
     approval_ref: str | None = Field(default=None, max_length=128)
     valid_until: date | None = None
     notes: str | None = Field(default=None, max_length=500)
+    #: Why the change is made; shown to the person who approves it (P-17).
+    change_reason: str | None = Field(default=None, max_length=500)
 
 
 @router.get("/api/portfolio/hedge-approvals")
@@ -483,6 +535,14 @@ def get_hedge_approvals(request: Request) -> dict:
         row["notes"] = record.notes
         row["updated_by"] = record.updated_by
         rows.append(row)
+    try:
+        provenance = _provenance(
+            [(r.contract_id, r.updated_by, r.updated_at_utc, r.change_id) for r in records]
+        )
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    for row in rows:
+        row["provenance"] = provenance.get(row["contract_id"])
     warnings = list(inputs.warnings)
     if any(not row["contract_found"] for row in rows):
         warnings.append("an approval names a contract that is retired or not in this book scope")
@@ -504,8 +564,13 @@ def get_hedge_approvals(request: Request) -> dict:
 
 
 @router.put("/api/portfolio/hedge-approvals/{contract_id}")
-def put_hedge_approval(contract_id: str, body: HedgeApprovalRequest, request: Request) -> dict:
-    """Record or change a contract's approved hedge band (risk, audited)."""
+def put_hedge_approval(
+    contract_id: str, body: HedgeApprovalRequest, request: Request, response: Response
+) -> dict:
+    """Record or change a contract's approved hedge band (risk, audited).
+
+    With four eyes in force (P-17) the change is proposed and answers 202.
+    """
 
     from eurogas_nexus.db.models import HedgeApprovalRecord
 
@@ -516,13 +581,17 @@ def put_hedge_approval(contract_id: str, body: HedgeApprovalRequest, request: Re
         raise HTTPException(status_code=422, detail={"code": "hedge_band_missing"})
     if low is not None and high is not None and low > high:
         raise HTTPException(status_code=422, detail={"code": "hedge_band_inverted"})
+    values = body.model_dump()
+    reason = values.pop("change_reason", None) or ""
     result = _write(
         request,
+        response,
         record_type=HedgeApprovalRecord,
         key=contract_id,
-        values=body.model_dump(),
+        values=values,
         action="risk.hedge_approval.update",
         resource=f"hedge_approval:{contract_id}",
+        reason=reason,
     )
     return _env(result, request, "runtime-postgresql", [])
 
@@ -552,6 +621,8 @@ class TerminalTermsRequest(BaseModel):
     fixed_per_cargo: float = Field(default=0.0, ge=0, le=10_000_000)
     source_url: str | None = Field(default=None, max_length=500)
     effective_from: str | None = Field(default=None, max_length=32)
+    #: Why the change is made; shown to the person who approves it (P-17).
+    change_reason: str | None = Field(default=None, max_length=500)
 
 
 def _terms_row(record) -> dict:
@@ -605,16 +676,28 @@ def list_lng_terminal_terms(request: Request) -> dict:
         return _not_configured(request)
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
-        rows = [_terms_row(record) for record in _load_terms()]
+        records = _load_terms()
+        rows = [_terms_row(record) for record in records]
+        provenance = _provenance(
+            [(r.terminal_id, r.updated_by, r.updated_at_utc, r.change_id) for r in records]
+        )
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
+    for row in rows:
+        row["provenance"] = provenance.get(row["terminal_id"])
     warnings = [] if rows else ["No terminal terms yet; the LNG desk enters them per terminal."]
     return _env({"rows": rows}, request, "runtime-postgresql", warnings)
 
 
 @router.put("/api/portfolio/lng-terminal-terms/{terminal_id}")
-def put_lng_terminal_terms(terminal_id: str, body: TerminalTermsRequest, request: Request) -> dict:
-    """Record a terminal's landing costs (LNG desk, audited). ``source_note`` names the tariff."""
+def put_lng_terminal_terms(
+    terminal_id: str, body: TerminalTermsRequest, request: Request, response: Response
+) -> dict:
+    """Record a terminal's landing costs (LNG desk, audited). ``source_note`` names the tariff.
+
+    With four eyes in force (P-17) the change is proposed and answers 202; another person on
+    the desk approves it.
+    """
 
     from eurogas_nexus.db.models import LngTerminalTermsRecord
     from eurogas_nexus.domain.ontology.markets import find_market
@@ -622,6 +705,7 @@ def put_lng_terminal_terms(terminal_id: str, body: TerminalTermsRequest, request
     if not terminal_id or len(terminal_id) > 64:
         raise HTTPException(status_code=422, detail={"code": "terminal_id_invalid"})
     values = body.model_dump()
+    reason = values.pop("change_reason", None) or ""
     values["hub"] = values["hub"].upper()
     if values["source_url"] and not values["source_url"].startswith("https://"):
         raise HTTPException(status_code=422, detail={"code": "source_url_must_be_https"})
@@ -629,12 +713,15 @@ def put_lng_terminal_terms(terminal_id: str, body: TerminalTermsRequest, request
         raise HTTPException(status_code=422, detail={"code": "unknown_hub", "hub": values["hub"]})
     result = _write(
         request,
+        response,
         record_type=LngTerminalTermsRecord,
         key=terminal_id,
         values=values,
         action="lng.terminal_terms.update",
         resource=f"lng_terminal_terms:{terminal_id}",
         risk_only=False,
+        reason=reason,
+        subject=values["name"],
     )
     return _env(result, request, "runtime-postgresql", [])
 

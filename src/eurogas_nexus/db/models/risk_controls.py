@@ -35,6 +35,8 @@ class CreditLineRecord(Base):
     valid_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     updated_by: Mapped[str] = mapped_column(String(128), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: The approved proposal that set this row (P-17); ``None`` when set without a second person.
+    change_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class TraderMandateRecord(Base):
@@ -60,6 +62,8 @@ class TraderMandateRecord(Base):
     valid_until: Mapped[date | None] = mapped_column(Date, nullable=True)
     updated_by: Mapped[str] = mapped_column(String(128), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: The approved proposal that set this row (P-17); ``None`` when set without a second person.
+    change_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class HedgeApprovalRecord(Base):
@@ -81,6 +85,8 @@ class HedgeApprovalRecord(Base):
     notes: Mapped[str | None] = mapped_column(String(500), nullable=True)
     updated_by: Mapped[str] = mapped_column(String(128), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: The approved proposal that set this row (P-17); ``None`` when set without a second person.
+    change_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class ContractDeliveryRecord(Base):
@@ -138,3 +144,5 @@ class LngTerminalTermsRecord(Base):
     source_note: Mapped[str] = mapped_column(String(256), nullable=False)
     updated_by: Mapped[str] = mapped_column(String(128), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: The approved proposal that set this row (P-17); ``None`` when set without a second person.
+    change_id: Mapped[str | None] = mapped_column(String(40), nullable=True)

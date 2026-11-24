@@ -407,6 +407,11 @@ def test_a_firm_mark_write_publishes_one_event_per_cell(engine) -> None:
             session, name="m4-trader", display_name="m", role="ANALYST", data_scopes=["*"]
         )
         _key, bearer = identity_repository.create_identity_api_key(session, row.principal_id)
+        # P-17: the risk function approves the desk's marks before they take effect.
+        risk = identity_repository.create_identity_principal(
+            session, name="m4-risk", display_name="r", role="REVIEWER", data_scopes=["*"]
+        )
+        _key, risk_bearer = identity_repository.create_identity_api_key(session, risk.principal_id)
         session.commit()
     client = TestClient(create_app(Settings(api_profile="release")))
     headers = {"X-Eurogas-Api-Key": PUBLIC_TOKEN, "X-Eurogas-Identity": bearer}
@@ -416,7 +421,16 @@ def test_a_firm_mark_write_publishes_one_event_per_cell(engine) -> None:
             {"hub": "NBP", "period": "2027-01", "value": 80.0, "unit": "GBp/th"},
         ]
     }
-    assert client.put("/api/market/firm-marks", json=body, headers=headers).status_code == 200
+    proposed = client.put("/api/market/firm-marks", json=body, headers=headers)
+    assert proposed.status_code == 202, proposed.text
+    with Session(engine) as session:
+        assert session.query(MarketEventRecord).count() == 0  # nothing until approved
+    change_id = proposed.json()["data"]["change"]["change_id"]
+    approved = client.post(
+        f"/api/portfolio/change-requests/{change_id}/approve",
+        headers={"X-Eurogas-Api-Key": PUBLIC_TOKEN, "X-Eurogas-Identity": risk_bearer},
+    )
+    assert approved.status_code == 200, approved.text
     with Session(engine) as session:
         events = session.query(MarketEventRecord).order_by(MarketEventRecord.subject_key).all()
         assert [(e.event_type, e.subject_key, e.dependency_keys) for e in events] == [

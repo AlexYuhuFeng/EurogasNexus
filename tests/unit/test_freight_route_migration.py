@@ -26,6 +26,8 @@ def test_chain_up_down_and_model_match():
         module.op = Operations(MigrationContext.configure(connection=connection))
         module.upgrade()
         columns = {c["name"] for c in inspect(connection).get_columns("freight_route")}
-        assert columns == set(FreightRouteRecord.__table__.columns.keys())
+        # 0081_change_requests (P-17) adds `change_id` later; tested in test_maker_checker.py.
+        assert columns | {"change_id"} == set(FreightRouteRecord.__table__.columns.keys())
+        assert "change_id" not in columns
         module.downgrade()
         assert inspect(connection).get_table_names() == []

@@ -6,6 +6,22 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-24 — Commercial Intelligence V3, P-17: maker-checker on limits and reference data (branch `wip/p17`)
+
+- A change to a credit line, trader mandate, deal hedge band, firm marks, LNG terminal terms or
+  freight route is a proposal (202) until a different authorised person approves it
+  (`application/maker_checker.py`; register and approvers in `governance/four_eyes.py`; the
+  shared write path in `application/reference_rows.py`). Proposal, approval, rejection and
+  withdrawal are governed writes; `lng.freight_route` is now one too.
+- Migration `0081_change_requests` (down_revision `0080_lng_eta_basis`; `0082` is reserved for
+  DATA-1): table `change_requests` and a nullable `change_id` on the six governed tables, so
+  each figure keeps who proposed and who approved it (`provenance` on the reads). ADR
+  Decision 32.
+- Organisation setting `four_eyes` (default on for all six; an administrator switches a write
+  off, audited) keeps one-person and demo installations working.
+- Routes `GET /api/portfolio/change-requests` and `POST .../{change_id}/approve|reject|withdraw`
+  (288 paths / 323 operations). Not built: effective-dated changes.
+
 ## 2026-11-24 — Commercial Intelligence V3, LNG-2: a cargo change reaches each role (branch `wip/lng2`)
 
 - `cargo_roles` outbox consumer (`application/lng_cargo_alerts.py`) rebuilds a cargo's plan on

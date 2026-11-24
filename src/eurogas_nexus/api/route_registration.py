@@ -10,6 +10,7 @@ from eurogas_nexus.api.routes.public.agents import router as agents_router
 from eurogas_nexus.api.routes.public.analysis import router as analysis_router
 from eurogas_nexus.api.routes.public.assumptions import router as assumptions_router
 from eurogas_nexus.api.routes.public.auth import router as auth_router
+from eurogas_nexus.api.routes.public.change_requests import router as change_requests_router
 from eurogas_nexus.api.routes.public.contracts import router as contracts_router
 from eurogas_nexus.api.routes.public.cost_observations import router as cost_observations_router
 from eurogas_nexus.api.routes.public.credentials import router as credentials_router
@@ -107,6 +108,7 @@ def register_routes(
         app.include_router(monitoring_router)
         app.include_router(portfolio_router)
         app.include_router(risk_router)
+        app.include_router(change_requests_router)
         app.include_router(support_router)
         app.include_router(fundamentals_router)
         app.include_router(physical_router)

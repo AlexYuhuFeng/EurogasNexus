@@ -738,3 +738,33 @@ family restricts it to internal use, and a family with no registered terms is re
 (fail closed). Rejected: one row per request (volume without meaning), a declared family per
 route (routes compose several sources), a broker or analytics store (rule 5).
 Tests: `tests/unit/test_licensed_use.py`, `tests/api/test_licensed_use_api.py`.
+
+## Decision 32: Changes to limits and reference data are proposed and approved in one table
+
+Accepted 2026-11-24 (branch `wip/p17`, programme
+[Commercial Intelligence V3](../engineering/Commercial-Intelligence-V3/13_PERSONA_AND_PRACTICE_REVIEW.md),
+finding P-17 and P-01's second half). A change to a credit line, a trader mandate, a deal hedge
+band, the firm's marks, LNG terminal terms or a freight route takes effect only when a
+different authorised person approves it (four eyes, as in an ETRM's or a bank's market-risk
+controls). The writes and who approves each are one register in code
+(`governance/four_eyes.py`): the risk function (REVIEWER and no front-office role) for limits,
+bands and marks (for marks, the independent price check), another person with portfolio write
+for terminal terms and freight routes, and never the trader for their own mandate. A proposal
+is one row in migration `0081_change_requests` (`change_requests`: the action, the record it
+targets, the payload, each field before and after, the reason, the proposer and time, and the
+decision); approval re-reads the stored figures `FOR UPDATE`, refuses a stale proposal, applies
+the payload through the same write path as before (`application/reference_rows.py`,
+`application/maker_checker.py`) and stamps a nullable `change_id` on the governed row, so each
+figure keeps who proposed and who approved it (`provenance` on the reads). Proposal, approval,
+rejection and withdrawal are governed writes (`record_governed_audit`, same transaction). It is
+one table and six nullable columns in the existing PostgreSQL database, not a new service or
+datastore, and no workflow engine. Which writes need two people is the organisation setting
+`four_eyes` (default on for all six; an administrator switches one off, itself an audited
+governed write), so a one-person or demo installation still works. Approved assumption sets
+keep their own always-on draft and approval (CP-07). Writes answer 202 with the proposal
+(recorded in the [API contract evolution policy](API_CONTRACT_EVOLUTION_POLICY.md)).
+Rejected: a separate pending copy of each table (six schemas to keep in step); detecting "no
+second approver exists" (identities are unknowable under SSO); a bypass endpoint for one-person
+installs (an unaudited path round the control); effective-dated scheduling now (deferred).
+Tests: `tests/api/test_maker_checker_api.py`, `tests/unit/test_maker_checker.py`,
+`tests/integration/test_maker_checker_postgres.py`.

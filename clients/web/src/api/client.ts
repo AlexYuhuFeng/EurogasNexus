@@ -2686,6 +2686,74 @@ export interface OpportunityDetailDTO extends OpportunityRowDTO {
   next_steps: ("open_as_case" | "watch" | "dismiss")[];
 }
 
+/** P-17: who set a figure, and who approved it when a second person had to (maker-checker). */
+export interface FigureProvenanceDTO {
+  second_approval: boolean;
+  set_by: string | null;
+  set_by_name: string | null;
+  set_at_utc: string | null;
+  approved_by: string | null;
+  approved_by_name: string | null;
+  approved_at_utc: string | null;
+  change_id: string | null;
+  reason: string | null;
+}
+
+/** One field of a proposed change, before and after (`null` before for a new record). */
+export interface ChangeFieldDTO {
+  name: string;
+  before: unknown;
+  after: unknown;
+}
+
+/** A proposed change to a limit or reference data (`/api/portfolio/change-requests`, P-17). */
+export interface ChangeRequestDTO {
+  change_id: string;
+  action: string;
+  kind: string;
+  label: string;
+  label_zh: string;
+  resource: string;
+  target_key: string;
+  subject: string;
+  new_record: boolean;
+  fields: ChangeFieldDTO[];
+  reason: string;
+  state: "pending" | "approved" | "rejected" | "withdrawn";
+  proposed_by: string;
+  proposed_by_name: string | null;
+  proposed_at_utc: string | null;
+  decided_by: string | null;
+  decided_by_name: string | null;
+  decided_at_utc: string | null;
+  decision_note: string | null;
+  own: boolean;
+  may_approve: boolean;
+  may_reject: boolean;
+  may_withdraw: boolean;
+  approver: "risk_function" | "desk";
+}
+
+/** Whether one governed write needs a second person now (organisation setting `four_eyes`). */
+export interface FourEyesWriteDTO {
+  action: string;
+  kind: string;
+  label: string;
+  label_zh: string;
+  approver: "risk_function" | "desk";
+  required: boolean;
+  default_on: boolean;
+}
+
+/** A write under four eyes answers 202 with the proposal; 200 when it applied at once. */
+export interface GovernedSaveDTO {
+  key?: string;
+  created?: boolean;
+  changed?: string[];
+  pending_approval?: boolean;
+  change?: ChangeRequestDTO;
+}
+
 /** One of the firm's own marks (`/api/market/firm-marks`): always "firm's mark", never a market price. */
 export interface FirmMarkDTO {
   mark_id: string;
@@ -2699,6 +2767,7 @@ export interface FirmMarkDTO {
   entered_by: string;
   entered_at_utc: string;
   note: string;
+  provenance?: FigureProvenanceDTO;
 }
 
 /** ``GET /api/desk/today`` (UX-05): the four rows of the Today screen, computed once. */
@@ -4109,6 +4178,7 @@ export interface CreditExposureRowDTO {
   state?: FigureStateDTO;
   freshness_state?: string;
   method?: RiskMethodNoteDTO;
+  provenance?: FigureProvenanceDTO;
 }
 
 /** One trader's open positions against their mandate. */
@@ -4137,6 +4207,7 @@ export interface MandateUsageRowDTO {
   marks_as_of?: string | null;
   state?: FigureStateDTO;
   freshness_state?: string;
+  provenance?: FigureProvenanceDTO;
 }
 
 export interface CreditLineInput {
@@ -4152,6 +4223,8 @@ export interface CreditLineInput {
   valid_until?: string | null;
   /** Unlinking every contract from a line that has some must be said out loud (409 otherwise). */
   unlink_contracts?: boolean;
+  /** Why (P-17): shown to the person who approves the change. */
+  change_reason?: string;
 }
 
 /** A stored credit line as the edit form reads it (GET /api/portfolio/credit-lines/{id}). */
@@ -4160,6 +4233,7 @@ export interface CreditLineDTO {
   limit_amount: number; currency: string; collateral_amount: number; rating: string | null;
   contract_ids: string[]; receivable_days: number; valid_until: string | null;
   updated_by: string; updated_at_utc: string | null;
+  provenance?: FigureProvenanceDTO;
 }
 
 export interface MandateInput {
@@ -4175,6 +4249,7 @@ export interface MandateInput {
   min_hedge_ratio_pct?: number | null;
   max_hedge_ratio_pct?: number | null;
   instruments?: string[];
+  change_reason?: string;
 }
 
 export interface SellDownInput {
@@ -4245,6 +4320,7 @@ export interface HedgeApprovalRowDTO {
   contract_found: boolean;
   notes: string | null;
   updated_by: string;
+  provenance?: FigureProvenanceDTO;
 }
 
 export interface HedgeApprovalInput {
@@ -4253,6 +4329,7 @@ export interface HedgeApprovalInput {
   approval_ref: string | null;
   valid_until: string | null;
   notes: string | null;
+  change_reason?: string;
 }
 
 export interface SellDownPlanDTO {
@@ -4340,12 +4417,20 @@ export interface LngTerminalTermsDTO {
   retrieved_at_utc?: string | null;
   updated_by?: string;
   updated_at_utc?: string | null;
+  provenance?: FigureProvenanceDTO;
 }
 
 export type LngTerminalTermsInput = Omit<
   LngTerminalTermsDTO,
-  "terminal_id" | "currency" | "updated_by" | "updated_at_utc" | "by_cargo_class" | "source_sha256" | "retrieved_at_utc"
->;
+  | "terminal_id"
+  | "currency"
+  | "updated_by"
+  | "updated_at_utc"
+  | "by_cargo_class"
+  | "source_sha256"
+  | "retrieved_at_utc"
+  | "provenance"
+> & { change_reason?: string };
 
 export interface SupportReportDTO {
   report_id: string;
@@ -5293,7 +5378,7 @@ export const api = {
     get<{ marks: FirmMarkDTO[]; statement: string }>("/market/firm-marks", undefined, options),
 
   putFirmMarks: (marks: { hub: string; period: string; value: number; unit: string; note?: string }[]) =>
-    put<{ marks: FirmMarkDTO[] }>("/market/firm-marks", { marks }),
+    put<{ marks: FirmMarkDTO[] } & GovernedSaveDTO>("/market/firm-marks", { marks }),
 
   openOpportunityCase: (opportunityId: string) =>
     post<{ case: { case_id: string } | null; evidence_ref: string }>(
@@ -5503,9 +5588,9 @@ export const api = {
   creditLine: (counterpartyId: string) =>
     get<CreditLineDTO>(`/portfolio/credit-lines/${encodeURIComponent(counterpartyId)}`),
   saveCreditLine: (counterpartyId: string, body: CreditLineInput) =>
-    put<{ key: string; created: boolean }>(`/portfolio/credit-lines/${encodeURIComponent(counterpartyId)}`, body),
+    put<GovernedSaveDTO>(`/portfolio/credit-lines/${encodeURIComponent(counterpartyId)}`, body),
   saveTraderMandate: (mandateId: string, body: MandateInput) =>
-    put<{ key: string; created: boolean }>(`/portfolio/trader-mandates/${encodeURIComponent(mandateId)}`, body),
+    put<GovernedSaveDTO>(`/portfolio/trader-mandates/${encodeURIComponent(mandateId)}`, body),
   deliveryPerformance: (days = 90, contractId?: string, options?: ApiRequestOptions) =>
     get<DeliveryPerformanceDTO>(
       "/contracts/delivery-performance",
@@ -5515,7 +5600,7 @@ export const api = {
   lngTerminalTerms: (options?: ApiRequestOptions) =>
     get<{ rows: LngTerminalTermsDTO[] }>("/portfolio/lng-terminal-terms", undefined, options),
   saveLngTerminalTerms: (terminalId: string, body: LngTerminalTermsInput) =>
-    put<{ key: string; created: boolean }>(`/portfolio/lng-terminal-terms/${encodeURIComponent(terminalId)}`, body),
+    put<GovernedSaveDTO>(`/portfolio/lng-terminal-terms/${encodeURIComponent(terminalId)}`, body),
   lngTerminalTariffRegister: (options?: ApiRequestOptions) =>
     get<LngTerminalTariffRegisterDTO>("/lng/terminal-tariffs", undefined, options),
   reviewLngTerminalTariff: (tariffId: string) =>
@@ -5534,8 +5619,13 @@ export const api = {
     get<{ sets: AssumptionSetSummaryDTO[] }>("/assumption-sets", undefined, options),
   freightRoutes: (options?: ApiRequestOptions) =>
     get<FreightRouteDTO[]>("/lng/freight-routes", undefined, options),
-  saveFreightRoute: (routeId: string, body: Omit<FreightRouteDTO, "route_id" | "version" | "recorded_by" | "recorded_at_utc">) =>
-    put<FreightRouteDTO>(`/lng/freight-routes/${encodeURIComponent(routeId)}`, body),
+  saveFreightRoute: (
+    routeId: string,
+    body: Omit<FreightRouteDTO, "route_id" | "version" | "recorded_by" | "recorded_at_utc" | "provenance"> & {
+      change_reason?: string;
+    },
+  ) =>
+    put<Partial<FreightRouteDTO> & GovernedSaveDTO>(`/lng/freight-routes/${encodeURIComponent(routeId)}`, body),
   cargoEconomics: (body: {
     arrival_month: string;
     product?: "spot" | "term" | "prompt" | "annual";
@@ -5608,8 +5698,21 @@ export const api = {
       /** Contracts a band can be approved for: identity and hub, no commercial terms. */
       contracts: { contract_id: string; contract_name: string; hub: string }[];
     }>("/portfolio/hedge-approvals", undefined, options),
+  /** P-17: proposals the caller made or may decide, and which writes need a second person. */
+  changeRequests: (state: "pending" | "decided" | "all" = "pending", options?: ApiRequestOptions) =>
+    get<{ changes: ChangeRequestDTO[]; four_eyes: FourEyesWriteDTO[] }>(
+      "/portfolio/change-requests",
+      { state },
+      options,
+    ),
+  approveChangeRequest: (changeId: string) =>
+    post<ChangeRequestDTO>(`/portfolio/change-requests/${encodeURIComponent(changeId)}/approve`, {}),
+  rejectChangeRequest: (changeId: string, note: string) =>
+    post<ChangeRequestDTO>(`/portfolio/change-requests/${encodeURIComponent(changeId)}/reject`, { note }),
+  withdrawChangeRequest: (changeId: string, note = "") =>
+    post<ChangeRequestDTO>(`/portfolio/change-requests/${encodeURIComponent(changeId)}/withdraw`, { note }),
   saveHedgeApproval: (contractId: string, body: HedgeApprovalInput) =>
-    put<{ key: string; created: boolean }>(`/portfolio/hedge-approvals/${encodeURIComponent(contractId)}`, body),
+    put<GovernedSaveDTO>(`/portfolio/hedge-approvals/${encodeURIComponent(contractId)}`, body),
   sellDownPlan: (body: SellDownInput, options?: ApiRequestOptions) =>
     post<SellDownPlanDTO>("/portfolio/sell-down-plan", body, options),
   tradingBooks: (options?: ApiRequestOptions) => get<TradingBooksDTO>("/portfolio/books", undefined, options),
@@ -6210,6 +6313,7 @@ export interface FreightRouteDTO {
   source: string;
   recorded_by: string;
   recorded_at_utc: string | null;
+  provenance?: FigureProvenanceDTO;
 }
 
 export interface CargoLegDTO {

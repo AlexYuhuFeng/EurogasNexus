@@ -489,14 +489,33 @@ def current_firm_marks(
     return [_mark_domain(row) for row in rows]
 
 
+def mark_change_ids(session: Session, mark_ids: Iterable[str]) -> dict[str, str | None]:
+    """``mark_id -> change_id``: the approved proposal that set each mark (P-17), if any."""
+
+    ids = list(mark_ids)
+    if not ids:
+        return {}
+    return dict(
+        session.query(FirmMarkRecord.mark_id, FirmMarkRecord.change_id)
+        .filter(FirmMarkRecord.mark_id.in_(ids))
+        .all()
+    )
+
+
 def put_firm_marks(
     session: Session,
     entries: Iterable[FirmMarkEntry],
     *,
     actor: str,
     now_utc: datetime | None = None,
+    approved_by: str | None = None,
+    change_id: str | None = None,
 ) -> list[FirmMark]:
-    """Store a grid of marks; each supersedes the current mark for its hub and period."""
+    """Store a grid of marks; each supersedes the current mark for its hub and period.
+
+    ``actor`` entered the marks. When a second person approved them (P-17), ``approved_by``
+    and ``change_id`` say so: each row keeps the change id and the audit row names both.
+    """
 
     now = now_utc or datetime.now(UTC)
     stored: list[FirmMark] = []
@@ -522,6 +541,7 @@ def put_firm_marks(
             note=entry.note,
             entered_by=actor,
             entered_at_utc=now,
+            change_id=change_id,
         )
         session.add(row)
         session.flush()
@@ -531,23 +551,26 @@ def put_firm_marks(
             "utf-8"
         )
     ).hexdigest()
+    summary: dict = {
+        "count": len(items),
+        "cells": sorted(f"{e.hub}:{e.period.label}" for e in items),
+        "values_sha256": digest,
+    }
+    if approved_by:
+        # P-17: the principal is the approver; the proposal (who entered the marks, why) is
+        # the correlated change request. Still no values on the audit row.
+        summary["second_approval"] = True
     record_governed_audit(
         session,
         event_type="desk.reference",
-        principal=actor,
+        principal=approved_by or actor,
         action="market.firm_marks.update",
         resource="firm_marks:" + ",".join(sorted({entry.hub for entry in items})),
         outcome="recorded",
-        detail=json.dumps(
-            {
-                "count": len(items),
-                "cells": sorted(f"{e.hub}:{e.period.label}" for e in items),
-                "values_sha256": digest,
-            },
-            sort_keys=True,
-        )[:2000],
+        detail=json.dumps(summary, sort_keys=True)[:2000],
         source_system="assumptions-api",
         now_utc=now,
+        correlation_id=change_id,
     )
     session.flush()
     return stored

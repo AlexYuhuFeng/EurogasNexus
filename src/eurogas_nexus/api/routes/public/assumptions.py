@@ -20,7 +20,7 @@ from __future__ import annotations
 
 from datetime import date
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from eurogas_nexus.application.market_event_capture import capture_desk
@@ -331,6 +331,8 @@ class FirmMarksPut(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     marks: list[FirmMarkIn] = Field(min_length=1, max_length=400)
+    #: Why the marks change; shown to the person who approves them (P-17).
+    change_reason: str | None = Field(default=None, max_length=500)
 
 
 @router.get("/api/market/firm-marks")
@@ -338,13 +340,25 @@ def get_firm_marks(request: Request, hub: str | None = Query(default=None, max_l
     """The firm's marks in force, each labelled "firm's mark"."""
 
     _require(request, Permission.PORTFOLIO_READ)
+    from eurogas_nexus.application.maker_checker import provenance_for
     from eurogas_nexus.db.repositories.commercial_assumptions import (
         current_firm_marks,
+        mark_change_ids,
         mark_payload,
     )
 
     with _session() as session:
-        rows = [mark_payload(mark) for mark in current_firm_marks(session, hub=hub)]
+        marks = current_firm_marks(session, hub=hub)
+        change_ids = mark_change_ids(session, [mark.mark_id for mark in marks])
+        # P-17: who entered each mark, and who approved it when a second person did.
+        provenance = provenance_for(
+            session,
+            [
+                (mark.mark_id, mark.entered_by, mark.entered_at_utc, change_ids.get(mark.mark_id))
+                for mark in marks
+            ],
+        )
+        rows = [{**mark_payload(mark), "provenance": provenance[mark.mark_id]} for mark in marks]
     return _env(
         {
             "marks": rows,
@@ -354,11 +368,16 @@ def get_firm_marks(request: Request, hub: str | None = Query(default=None, max_l
 
 
 @router.put("/api/market/firm-marks")
-def put_firm_marks(body: FirmMarksPut, request: Request) -> dict:
+def put_firm_marks(body: FirmMarksPut, request: Request, response: Response) -> dict:
     """Store marks (portfolio-assumption write); audited without the values.
 
+    With four eyes in force (P-17, the default) the grid is proposed and answers 202 with
+    ``pending_approval``; the marks take effect when the risk function approves them (an
+    independent check of the desk's marks).
+
     Raises:
-        HTTPException: 422 with the rule's code and the offending cell.
+        HTTPException: 422 with the rule's code and the offending cell; 409
+            ``change_pending`` while the same hubs have marks waiting for approval.
     """
 
     principal = _require(request, Permission.PORTFOLIO_WRITE)
@@ -376,28 +395,62 @@ def put_firm_marks(body: FirmMarksPut, request: Request) -> dict:
     cells = [(entry.hub, entry.period.label) for entry in entries]
     if len(set(cells)) != len(cells):
         raise HTTPException(status_code=422, detail={"code": "duplicate_cell"})
+    from eurogas_nexus.application import maker_checker
     from eurogas_nexus.db.repositories.commercial_assumptions import (
         mark_payload,
     )
-    from eurogas_nexus.db.repositories.commercial_assumptions import (
-        put_firm_marks as put_marks,
-    )
 
     with _session() as session:
-        stored = put_marks(session, entries, actor=principal.principal_id)
-        note_input_changed(session, "marks", reason="firm marks")
-        # M4: one market event per hub and period, so the opportunities that read the mark
-        # are re-evaluated without waiting for the debounced full evaluation.
-        from datetime import UTC, datetime
-
-        from eurogas_nexus.application.market_events import publish_firm_marks
-
-        publish_firm_marks(
-            session, entries, actor=principal.principal_id, now_utc=datetime.now(UTC)
-        )
+        if maker_checker.four_eyes_required(session, "market.firm_marks.update"):
+            cells = [f"{entry.hub}:{entry.period.label}" for entry in entries]
+            before = maker_checker.firm_mark_cells(session, cells)
+            after = {
+                f"{entry.hub}:{entry.period.label}": maker_checker.mark_text(entry.value)
+                for entry in entries
+            }
+            hubs = sorted({entry.hub for entry in entries})
+            if before == after:
+                # The same marks again are the same facts: nothing to approve.
+                return _env({"marks": [], "pending_approval": False, "changed": []})
+            try:
+                change = maker_checker.propose_change(
+                    session,
+                    action="market.firm_marks.update",
+                    target_key=",".join(hubs),
+                    resource="firm_marks:" + ",".join(hubs),
+                    subject=f"{', '.join(hubs)}: {len(entries)} marks",
+                    payload={
+                        "marks": [
+                            {
+                                "hub": entry.hub,
+                                "period": entry.period.label,
+                                "value": str(entry.value),
+                                "unit": entry.unit,
+                                "note": entry.note,
+                            }
+                            for entry in entries
+                        ]
+                    },
+                    before=before,
+                    after=after,
+                    reason=body.change_reason or "",
+                    actor=principal.principal_id,
+                )
+            except maker_checker.ChangeRequestError as exc:
+                raise HTTPException(status_code=exc.status, detail=exc.detail()) from exc
+            session.commit()
+            response.status_code = 202
+            return _env(
+                {
+                    "marks": [],
+                    "pending_approval": True,
+                    "change": maker_checker.describe(session, change, identity=principal),
+                }
+            )
+        stored = maker_checker.store_firm_marks(session, entries, actor=principal.principal_id)
         session.commit()
         rows = [mark_payload(mark) for mark in stored]
-    return _env({"marks": rows})
+    return _env({"marks": rows, "pending_approval": False})
 
 
 # ------------------------------------------------------------------- valuation snapshots

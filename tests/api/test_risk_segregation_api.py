@@ -19,7 +19,7 @@ from eurogas_nexus.db.repositories.identity import (
     create_identity_principal,
 )
 from eurogas_nexus.security.segregation import risk_function_refusal
-from tests.api.test_risk_limits_api import PUBLIC_TOKEN, _h, _setup
+from tests.api.test_risk_limits_api import PUBLIC_TOKEN, _approved, _h, _setup
 
 
 def _add_dual_role(engine, who):
@@ -82,18 +82,27 @@ def test_a_trader_who_is_also_a_reviewer_cannot_set_limits(tmp_path, monkeypatch
         "max_net_mwh_per_month": 10_000,
     }
     band = {"min_hedge_ratio_pct": 50, "max_hedge_ratio_pct": 90}
+    # Limits wait for a second person (P-17, 202); opportunity thresholds apply at once.
     attempts = (
-        ("/api/portfolio/credit-lines/CNA", LINE),
-        ("/api/portfolio/trader-mandates/M9", mandate),
-        ("/api/portfolio/hedge-approvals/nbp-supply", band),
-        ("/api/opportunities/settings", {"persistence": 2}),
+        ("/api/portfolio/credit-lines/CNA", LINE, 202),
+        ("/api/portfolio/trader-mandates/M9", mandate, 202),
+        ("/api/portfolio/hedge-approvals/nbp-supply", band, 202),
+        ("/api/opportunities/settings", {"persistence": 2}, 200),
     )
-    for path, body in attempts:
+    for path, body, status in attempts:
         refused = client.put(path, json=body, headers=_h(who, "dual"))
         assert refused.status_code == 403, (path, refused.text)
         assert refused.json()["detail"]["code"] == "segregation_of_duties", path
         allowed = client.put(path, json=body, headers=_h(who, "risk"))
-        assert allowed.status_code == 200, (path, allowed.text)
+        assert allowed.status_code == status, (path, allowed.text)
+        if status == 202:
+            # Nor may the dual-role person approve someone else's limit change.
+            change_id = allowed.json()["data"]["change"]["change_id"]
+            approve = client.post(
+                f"/api/portfolio/change-requests/{change_id}/approve", headers=_h(who, "dual")
+            )
+            assert approve.status_code == 403, (path, approve.text)
+            assert approve.json()["detail"]["code"] == "segregation_of_duties", path
 
 
 def test_a_mandate_cannot_be_ones_own_under_any_name(tmp_path, monkeypatch):
@@ -115,15 +124,14 @@ def test_a_credit_line_change_keeps_what_it_leaves_out_and_audits_the_diff(tmp_p
     engine, who = _setup(tmp_path, monkeypatch)
     client = TestClient(create_app())
     path = "/api/portfolio/credit-lines/CNA"
-    assert client.put(path, json=LINE, headers=_h(who, "risk")).status_code == 200
+    _approved(client, who, client.put(path, json=LINE, headers=_h(who, "risk")))
 
     # Raise the limit only: the contract links must survive (P-01: before this fix the
     # omitted list became empty and the breach measured against the contract vanished).
     raised = client.put(
         path, json={"name": "Centrica plc", "limit_amount": 2_000_000}, headers=_h(who, "risk")
     )
-    assert raised.status_code == 200, raised.text
-    assert raised.json()["data"]["changed"] == ["limit_amount"]
+    assert _approved(client, who, raised)["changed"] == ["limit_amount"]
     with Session(engine) as session:
         line = session.get(CreditLineRecord, "CNA")
         assert line.contract_ids == ["nbp-supply"]
@@ -144,14 +152,17 @@ def test_a_credit_line_change_keeps_what_it_leaves_out_and_audits_the_diff(tmp_p
               "unlink_contracts": True},
         headers=_h(who, "risk"),
     )
-    assert unlinked.json()["data"]["changed"] == ["contract_ids"]
+    assert _approved(client, who, unlinked)["changed"] == ["contract_ids"]
 
+    # Nothing to change proposes nothing and writes nothing.
     unchanged = client.put(
         path,
         json={"name": "Centrica plc", "limit_amount": 2_000_000, "contract_ids": []},
         headers=_h(who, "risk"),
     )
+    assert unchanged.status_code == 200, unchanged.text
     assert unchanged.json()["data"]["changed"] == []
+    assert unchanged.json()["data"]["pending_approval"] is False
 
     with Session(engine) as session:
         rows = (
@@ -162,9 +173,10 @@ def test_a_credit_line_change_keeps_what_it_leaves_out_and_audits_the_diff(tmp_p
         )
         details = [row.detail for row in rows]
         summaries = [(row.before_summary, row.after_summary) for row in rows]
-    assert len(details) == 4
+    assert len(details) == 3
     assert "limit_amount: 1000000" in details[1] and "-> 2000000" in details[1]
     assert summaries[1] == ({"limit_amount": 1_000_000}, {"limit_amount": 2_000_000})
     assert "contract_ids: ['nbp-supply'] -> []" in details[2]
     assert summaries[2] == ({"contract_ids": ["nbp-supply"]}, {"contract_ids": []})
-    assert details[3] == "no change"
+    # Each applied change names who proposed it and who approved it.
+    assert all("proposed by" in detail and "approved by" in detail for detail in details)

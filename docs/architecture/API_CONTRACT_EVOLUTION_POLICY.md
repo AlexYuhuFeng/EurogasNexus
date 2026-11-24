@@ -4,6 +4,35 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Changed and additive 2026-11-24 (maker-checker on limits and reference data, Commercial
+Intelligence V3 P-17, ADR Decision 32). **Status change:** while four eyes is on for the write
+(the default), `PUT /api/portfolio/credit-lines/{id}`, `PUT /api/portfolio/trader-mandates/{id}`,
+`PUT /api/portfolio/hedge-approvals/{id}`, `PUT /api/portfolio/lng-terminal-terms/{id}`,
+`PUT /api/market/firm-marks` and `PUT /api/lng/freight-routes/{route_id}` answer **202** with
+`pending_approval: true`, `changed` (the fields that would change) and `change` (the proposal)
+instead of 200, and store nothing until a different authorised person approves; an unchanged
+save answers 200 with `pending_approval: false`; a second proposal for the same record answers
+409 `change_pending`. With four eyes off for a write the answer is 200 as before, plus
+`pending_approval: false`. Clients that treat any 2xx as success keep working but must not read a
+202 as applied. Each of those bodies accepts an optional `change_reason` (at most 500
+characters). New paths: `GET /api/portfolio/change-requests` (READ; `state` pending, decided or
+all; `resource`; `limit`) answers `changes[]` (`change_id`, `action`, `kind`, `label`,
+`label_zh`, `subject`, `target_key`, `new_record`, `fields[]` with `name`, `before`, `after`,
+`reason`, `state`, `proposed_by`, `proposed_by_name`, `proposed_at_utc`, `decided_by`,
+`decided_by_name`, `decided_at_utc`, `decision_note`, `own`, `may_approve`, `may_reject`,
+`may_withdraw`, `approver`) and `four_eyes[]` (each write, its approver and whether it is
+required now); `POST /api/portfolio/change-requests/{change_id}/approve`, `.../reject` (body
+`note`, required) and `.../withdraw` (REVIEW; 403 `four_eyes_required`, `own_mandate`,
+`segregation_of_duties` or `not_the_proposer`; 409 `change_not_pending` or `change_stale`; 422
+`note_required`). Additive `provenance` (`second_approval`, `set_by`, `set_by_name`,
+`set_at_utc`, `approved_by`, `approved_by_name`, `approved_at_utc`, `change_id`, `reason`) on
+`GET /api/portfolio/credit-lines/{id}`, the rows of credit exposure, mandate usage, hedge
+approvals, LNG terminal terms, firm marks and freight routes. `PUT /api/settings/organisation`
+accepts `four_eyes` (an object of those six actions to true or false; ADMIN, audited). The audit
+actions `change_request.propose`, `.approve`, `.reject`, `.withdraw` and `lng.freight_route` are
+governed writes (503 `audit_unavailable` when their audit row cannot be written). Migration
+`0081_change_requests`. Census: 288 paths / 323 operations (284 / 319 before).
+
 Additive 2026-11-24 (a cargo change reaches each role, Commercial Intelligence V3 LNG-2): no new
 path. `GET /api/lng/cargoes/plans` and `GET /api/lng/cargoes/{cargo_id}/plan` add `cargo.eta`
 (`basis`, `confidence`, `source`, `recorded_at_utc`, `text`); the board lines add `attention[]`

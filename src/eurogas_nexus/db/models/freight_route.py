@@ -41,3 +41,5 @@ class FreightRouteRecord(Base):
     source: Mapped[str] = mapped_column(String(256), nullable=False)
     recorded_by: Mapped[str] = mapped_column(String(128), nullable=False)
     recorded_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: The approved proposal that set this row (P-17); ``None`` when set without a second person.
+    change_id: Mapped[str | None] = mapped_column(String(40), nullable=True)

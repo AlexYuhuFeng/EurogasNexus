@@ -206,6 +206,11 @@ def test_a_firm_mark_write_makes_an_evaluation_due(engine) -> None:
             session, name="m-trader", display_name="m", role="ANALYST", data_scopes=["*"]
         )
         _key, bearer = identity_repository.create_identity_api_key(session, row.principal_id)
+        # P-17: the risk function approves the desk's marks before they take effect.
+        risk = identity_repository.create_identity_principal(
+            session, name="m-risk", display_name="r", role="REVIEWER", data_scopes=["*"]
+        )
+        _key, risk_bearer = identity_repository.create_identity_api_key(session, risk.principal_id)
         session.commit()
     client = TestClient(create_app(Settings(api_profile="release")))
     response = client.put(
@@ -213,7 +218,15 @@ def test_a_firm_mark_write_makes_an_evaluation_due(engine) -> None:
         json={"marks": [{"hub": "TTF", "period": "2027-01", "value": 30.0, "unit": "EUR/MWh"}]},
         headers={"X-Eurogas-Api-Key": PUBLIC_TOKEN, "X-Eurogas-Identity": bearer},
     )
-    assert response.status_code == 200, response.text
+    assert response.status_code == 202, response.text
+    with Session(engine) as session:
+        assert session.get(OpportunityPendingInputRecord, "marks") is None  # not yet approved
+    change_id = response.json()["data"]["change"]["change_id"]
+    approved = client.post(
+        f"/api/portfolio/change-requests/{change_id}/approve",
+        headers={"X-Eurogas-Api-Key": PUBLIC_TOKEN, "X-Eurogas-Identity": risk_bearer},
+    )
+    assert approved.status_code == 200, approved.text
     with Session(engine) as session:
         pending = session.get(OpportunityPendingInputRecord, "marks")
         assert pending is not None and pending.last_reason == "firm marks"

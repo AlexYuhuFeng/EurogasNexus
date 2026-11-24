@@ -111,11 +111,13 @@ def current_route(session, route_id: str):
     )
 
 
-def record_route(session, route_id: str, values: dict[str, Any], *, actor: str) -> dict[str, Any]:
-    """Add a version of one route (never overwrites); audited."""
+def validate_route(values: dict[str, Any]) -> str:
+    """Check a route's values and return its source text.
 
-    from eurogas_nexus.db.models import FreightRouteRecord
-    from eurogas_nexus.db.repositories.audit import record_audit_event
+    Raises:
+        CargoEconomicsError: ``routing_invalid``, ``canal_invalid``, ``distance_invalid`` or
+            ``source_required``.
+    """
 
     if values.get("routing") not in ROUTINGS:
         raise CargoEconomicsError("routing_invalid", "routing is direct, suez, panama or cape")
@@ -127,6 +129,41 @@ def record_route(session, route_id: str, values: dict[str, Any], *, actor: str) 
     source = str(values.get("source") or "").strip()
     if not source:
         raise CargoEconomicsError("source_required", "Say where the distance comes from.")
+    return source
+
+
+#: The fields of a route version a proposal compares and an approval applies (P-17).
+ROUTE_FIELDS = (
+    "load_port",
+    "discharge_port",
+    "discharge_terminal_id",
+    "routing",
+    "distance_nm",
+    "canal",
+    "source",
+)
+
+
+def record_route(
+    session,
+    route_id: str,
+    values: dict[str, Any],
+    *,
+    actor: str,
+    approved_by: str | None = None,
+    change_id: str | None = None,
+) -> dict[str, Any]:
+    """Add a version of one route (never overwrites); a governed write, audited with it.
+
+    ``actor`` recorded the distance; ``approved_by`` and ``change_id`` name the second person
+    and the proposal when one approved it (P-17).
+    """
+
+    from eurogas_nexus.application.audit_service import record_governed_audit
+    from eurogas_nexus.db.models import FreightRouteRecord
+
+    source = validate_route(values)
+    distance = values["distance_nm"]
     held = current_route(session, route_id)
     row = FreightRouteRecord(
         row_id=f"frt-{uuid4().hex[:20]}",
@@ -141,16 +178,21 @@ def record_route(session, route_id: str, values: dict[str, Any], *, actor: str) 
         source=source[:256],
         recorded_by=actor[:128],
         recorded_at_utc=datetime.now(UTC),
+        change_id=change_id,
     )
     session.add(row)
-    session.flush()
-    record_audit_event(
+    detail = f"version {row.version}"
+    if approved_by:
+        detail = f"proposed by {actor}, approved by {approved_by} ({change_id}); {detail}"
+    # GOV-1 (P5): a route's distance is reference data a cargo's economics reads.
+    record_governed_audit(
         session,
         event_type="reference_data",
-        principal=actor,
+        principal=approved_by or actor,
         action="lng.freight_route",
         resource=f"freight_route:{route_id}",
-        detail=f"version {row.version}",
+        detail=detail,
+        after_summary={name: getattr(row, name) for name in ROUTE_FIELDS},
     )
     from eurogas_nexus.application.opportunities.schedule import note_input_changed
 

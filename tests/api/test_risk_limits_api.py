@@ -35,7 +35,14 @@ def _setup(tmp_path, monkeypatch):
     )
     who = {}
     with Session(engine) as session:
-        for name, role in (("analyst", "ANALYST"), ("risk", "REVIEWER"), ("jdoe", "REVIEWER")):
+        for name, role in (
+            ("analyst", "ANALYST"),
+            ("risk", "REVIEWER"),
+            ("jdoe", "REVIEWER"),
+            # P-17: the second person who approves a risk change, and one on the desk.
+            ("checker", "REVIEWER"),
+            ("desk2", "ANALYST"),
+        ):
             row = create_identity_principal(
                 session, name=name, display_name=name, role=role, data_scopes=["*"]
             )
@@ -139,6 +146,21 @@ def _h(who, name):
     return {k: v for k, v in who[name].items() if k != "principal"}
 
 
+def _approved(client, who, proposed, approver="checker"):
+    """P-17: a change is proposed (202) and takes effect when a second person approves it."""
+
+    assert proposed.status_code == 202, proposed.text
+    data = proposed.json()["data"]
+    assert data["pending_approval"] is True
+    change_id = data["change"]["change_id"]
+    approved = client.post(
+        f"/api/portfolio/change-requests/{change_id}/approve", headers=_h(who, approver)
+    )
+    assert approved.status_code == 200, approved.text
+    assert approved.json()["data"]["state"] == "approved"
+    return data
+
+
 def test_credit_lines_and_mandates_are_maintained_by_risk_and_measured(tmp_path, monkeypatch):
     engine, who = _setup(tmp_path, monkeypatch)
     client = TestClient(create_app())
@@ -153,8 +175,7 @@ def test_credit_lines_and_mandates_are_maintained_by_risk_and_measured(tmp_path,
     denied = client.put("/api/portfolio/credit-lines/CNA", json=line, headers=_h(who, "analyst"))
     assert denied.status_code == 403
     saved = client.put("/api/portfolio/credit-lines/CNA", json=line, headers=_h(who, "risk"))
-    assert saved.status_code == 200, saved.text
-    assert saved.json()["data"]["created"] is True
+    assert _approved(client, who, saved)["change"]["new_record"] is True
 
     exposure = client.get("/api/portfolio/credit-exposure", headers=_h(who, "analyst"))
     assert exposure.status_code == 200, exposure.text
@@ -177,7 +198,7 @@ def test_credit_lines_and_mandates_are_maintained_by_risk_and_measured(tmp_path,
     assert own.status_code == 403 and own.json()["detail"]["code"] == "own_mandate"
     mandate["trader"] = "jdoe"  # the account label on the trader's screen trades
     ok = client.put("/api/portfolio/trader-mandates/M1", json=mandate, headers=_h(who, "risk"))
-    assert ok.status_code == 200, ok.text
+    _approved(client, who, ok)
     usage = client.get("/api/portfolio/mandate-usage", headers=_h(who, "analyst")).json()
     (mrow,) = usage["data"]["rows"]
     assert mrow["status"] == "breach" and mrow["legs"] == 1
@@ -245,7 +266,7 @@ def test_lng_cargo_bid_prices_each_terminal_from_the_curve(tmp_path, monkeypatch
     saved = client.put(
         "/api/portfolio/lng-terminal-terms/grain", json=terms, headers=_h(who, "analyst")
     )
-    assert saved.status_code == 200, saved.text
+    _approved(client, who, saved, approver="desk2")
     listed = client.get("/api/portfolio/lng-terminal-terms", headers=_h(who, "analyst")).json()
     assert listed["data"]["rows"][0]["currency"] == "GBP"
     nxt = (datetime.now(UTC).replace(day=1) + timedelta(days=32)).strftime("%Y-%m")
@@ -413,7 +434,7 @@ def test_risk_approves_a_hedge_band_per_deal(tmp_path, monkeypatch):
     inverted = {"min_hedge_ratio_pct": 60, "max_hedge_ratio_pct": 50}
     assert client.put(path, json=inverted, headers=_h(who, "risk")).status_code == 422
     saved = client.put(path, json=band, headers=_h(who, "risk"))
-    assert saved.status_code == 200, saved.text
+    _approved(client, who, saved)
     # Risk reads the approvable contracts here (no commercial terms), not the library.
     read = client.get("/api/portfolio/hedge-approvals", headers=_h(who, "risk"))
     assert read.status_code == 200
@@ -429,7 +450,7 @@ def test_risk_approves_a_hedge_band_per_deal(tmp_path, monkeypatch):
     assert 55 <= first["hedge_pct"] <= 62
     assert row["status"] == "breach" and "over the approved 50%" in row["breaches"][0]
     raised = client.put(path, json={**band, "max_hedge_ratio_pct": 80}, headers=_h(who, "risk"))
-    assert raised.status_code == 200
+    _approved(client, who, raised)
     again = client.get("/api/portfolio/hedge-approvals", headers=_h(who, "analyst")).json()
     assert again["data"]["rows"][0]["status"] == "ok"
     # M5b: each band change is a contract change for the opportunities that read the deal,
@@ -503,7 +524,7 @@ def test_the_edit_form_reads_the_whole_line_and_an_empty_list_does_not_unlink(
         "receivable_days": 35,
     }
     path = "/api/portfolio/credit-lines/CNA"
-    assert client.put(path, json=line, headers=_h(who, "risk")).status_code == 200
+    _approved(client, who, client.put(path, json=line, headers=_h(who, "risk")))
 
     assert client.get(path, headers=_h(who, "analyst")).status_code == 403
     missing = client.get("/api/portfolio/credit-lines/NOPE", headers=_h(who, "risk"))
@@ -529,11 +550,11 @@ def test_the_edit_form_reads_the_whole_line_and_an_empty_list_does_not_unlink(
     # The form sends what it read, with the one changed field.
     edited = {key: stored[key] for key in line} | {"limit_amount": 1_500_000}
     saved = client.put("/api/portfolio/credit-lines/CNA", json=edited, headers=_h(who, "risk"))
-    assert saved.status_code == 200 and saved.json()["data"]["changed"] == ["limit_amount"]
+    assert _approved(client, who, saved)["changed"] == ["limit_amount"]
 
     unlinked = client.put(
         "/api/portfolio/credit-lines/CNA",
         json={**edited, "contract_ids": [], "unlink_contracts": True},
         headers=_h(who, "risk"),
     )
-    assert unlinked.status_code == 200 and unlinked.json()["data"]["changed"] == ["contract_ids"]
+    assert _approved(client, who, unlinked)["changed"] == ["contract_ids"]

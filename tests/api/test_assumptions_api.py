@@ -232,15 +232,28 @@ def test_firm_marks_are_labelled_and_audited_without_values(tmp_path, monkeypatc
     }
     assert client.put("/api/market/firm-marks", headers=who["viewer"], json=grid).status_code == 403
     assert client.put("/api/market/firm-marks", headers=who["risk"], json=grid).status_code == 403
+    # P-17: the desk's marks are proposed and take effect when the risk function approves.
     stored = client.put("/api/market/firm-marks", headers=who["trader"], json=grid)
-    assert stored.status_code == 200, stored.text
-    assert {row["input_class"] for row in stored.json()["data"]["marks"]} == {"firm_mark"}
+    assert stored.status_code == 202, stored.text
+    assert stored.json()["data"]["pending_approval"] is True
+    assert client.get("/api/market/firm-marks", headers=who["viewer"]).json()["data"]["marks"] == []
+    change_id = stored.json()["data"]["change"]["change_id"]
+    approve = f"/api/portfolio/change-requests/{change_id}/approve"
+    assert client.post(approve, headers=who["trader2"]).status_code == 403
+    assert client.post(approve, headers=who["risk"]).status_code == 200
 
     again = {"marks": [{"hub": "TTF", "period": "2027-01", "value": 31.5, "unit": "EUR/MWh"}]}
+    proposed = client.put("/api/market/firm-marks", headers=who["trader2"], json=again)
+    assert proposed.status_code == 202, proposed.text
+    change_id = proposed.json()["data"]["change"]["change_id"]
     assert (
-        client.put("/api/market/firm-marks", headers=who["trader2"], json=again).status_code == 200
+        client.post(
+            f"/api/portfolio/change-requests/{change_id}/approve", headers=who["risk"]
+        ).status_code
+        == 200
     )
     read = client.get("/api/market/firm-marks", headers=who["viewer"]).json()["data"]
+    assert {row["input_class"] for row in read["marks"]} == {"firm_mark"}
     rows = {(row["hub"], row["period"]): row for row in read["marks"]}
     assert rows[("TTF", "2027-01")]["value"] == "31.5"
     assert rows[("NBP", "2027-01")]["unit"] == "GBp/th"

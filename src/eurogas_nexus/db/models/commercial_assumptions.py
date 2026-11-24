@@ -117,6 +117,8 @@ class FirmMarkRecord(Base):
     superseded_at_utc: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+    #: The approved proposal that set this row (P-17); ``None`` when set without a second person.
+    change_id: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class ValuationSnapshotRecord(Base):
