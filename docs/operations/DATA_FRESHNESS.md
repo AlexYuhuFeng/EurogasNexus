@@ -68,6 +68,32 @@ warning, never critical, so Today does not read it as a breach. The web Risk lim
 Position page state the marks date and its state in text ("stale · marks 18 Nov"), not colour
 alone.
 
+**One price per hub and period (P-08).** Every screen that states a hub price for a delivery
+period reads it from one resolver (`domain/market/price_resolution.resolve_price`, loaded by
+`application/price_resolver.open_price_book`): the Prices board (`/api/market/quotes`), Today
+(key figures, My market front month, the book row's mark), the desk brief, the position
+ladder marks, the spreads board's month-ahead legs, and the valuation snapshot behind the
+opportunity scan and LNG cargo economics. The candidates for a hub, period and instant are:
+
+| Class | `kind` | From | In date when |
+| --- | --- | --- | --- |
+| Live tick | `live_tick` | Newest two-sided (or one side) quote per source | The source's declared freshness policy (`receipt_state`; `current` within `normal_max_age`, `late` until `stale_after`); a source with no declaration falls back to its registry expectation, else `stale` |
+| Settlement/close | `settlement` | Energy-price observations (settlements, closes, curve rows) | The business-day close rule (`close_state`: the previous weekday's close is `current`, one weekday behind `late`) |
+| Firm mark | `firm_mark` | The firm's current marks (`operator-input`) | The same close rule on the mark's day |
+| Derived | `derived` | A ladder figure the curve filled (`curve:<method>`) | The hub's newest close |
+
+The rule, in order: the freshest in-date (`current` or `late`) tick or settlement, a tie going
+to the tick; else the newest in-date firm mark (a mark never beats an in-date market price);
+else an in-date derived figure; else the freshest candidate held, stated `stale`. Only sources
+the caller is entitled to (`row_allowed`) are candidates; simulated (`_Sim`, demo) prices only
+where demo marks are allowed, and a real price always beats a simulated one. Prices observed
+after the instant are ignored. Screens read candidates observed in the last 10 days (the
+valuation snapshot 400). Each screen adds `resolved_price` (`value`, `unit`, `value_mwh`,
+`kind`, `source_system`, `as_of_utc`, `state`, `freshness_state`, `simulated`, `basis`,
+`reference`) so the trader sees which price it is and how old. Today and the desk brief
+resolve once per request and share the book, so every figure on one page is one instant.
+Day-ahead figures still read the day-ahead close.
+
 **TSO tariff registers** (`src-national-gas-nts`, `src-bbl`, `src-iuk`, `src-gts`,
 `src-natran`, `src-german-tso`, `src-fluxys-belgium`, `src-cnmc-enagas`) are
 `integration = manual_register`: the Sources page labels them "Manual register", the
