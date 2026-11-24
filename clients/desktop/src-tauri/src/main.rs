@@ -309,11 +309,14 @@ fn main() {
                             let _ = window.maximize();
                         }
                     }
+                    // Command ids only, never data: the Web workspace runs the matching
+                    // palette command and checks the person's permission (UX R7).
                     "palette.toggle"
-                    | "navigate.primary.market"
-                    | "navigate.primary.portfolio"
-                    | "navigate.primary.strategy"
-                    | "navigate.primary.decision"
+                    | "navigate.mode.desk"
+                    | "navigate.mode.deals"
+                    | "navigate.mode.book"
+                    | "navigate.mode.research"
+                    | "navigate.page.settings"
                     | "navigate.primary.system"
                     | "navigate.primary.administration" => {
                         let _ = window.emit("workstation-command", id);
@@ -328,15 +331,39 @@ fn main() {
                 .expect("main window is configured");
             // Native window commands work even when the API is unavailable.
             // Navigation remains a permission-checked command in the shared client.
+            // The four working modes (app/navigation/modeNavigation.ts) with the Web
+            // workspace's own shortcuts (WORKSTATION_SHORTCUTS in app/host/workstation.ts),
+            // then the utilities and Settings on the platform's Ctrl/Cmd+, (UX R7).
+            let search = MenuItemBuilder::with_id("palette.toggle", "Search…")
+                .accelerator("CmdOrCtrl+K")
+                .build(app)?;
+            let desk = MenuItemBuilder::with_id("navigate.mode.desk", "Desk")
+                .accelerator("CmdOrCtrl+Shift+1")
+                .build(app)?;
+            let deals = MenuItemBuilder::with_id("navigate.mode.deals", "Deals")
+                .accelerator("CmdOrCtrl+Shift+2")
+                .build(app)?;
+            let book = MenuItemBuilder::with_id("navigate.mode.book", "Book")
+                .accelerator("CmdOrCtrl+Shift+3")
+                .build(app)?;
+            let research = MenuItemBuilder::with_id("navigate.mode.research", "Research")
+                .accelerator("CmdOrCtrl+Shift+4")
+                .build(app)?;
+            let settings = MenuItemBuilder::with_id("navigate.page.settings", "Settings…")
+                .accelerator("CmdOrCtrl+Comma")
+                .build(app)?;
             let workspace_menu = SubmenuBuilder::new(app, "Workspace")
-                .text("palette.toggle", "Search commands…")
+                .item(&search)
                 .separator()
-                .text("navigate.primary.market", "Market")
-                .text("navigate.primary.portfolio", "Portfolio")
-                .text("navigate.primary.strategy", "Strategy Lab")
-                .text("navigate.primary.decision", "Decision Center")
-                .text("navigate.primary.system", "System")
-                .text("navigate.primary.administration", "Administration")
+                .item(&desk)
+                .item(&deals)
+                .item(&book)
+                .item(&research)
+                .separator()
+                .text("navigate.primary.system", "Help & Settings")
+                .text("navigate.primary.administration", "Admin")
+                .separator()
+                .item(&settings)
                 .build()?;
             let edit_menu = SubmenuBuilder::new(app, "Edit")
                 .undo()

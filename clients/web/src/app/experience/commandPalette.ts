@@ -479,8 +479,8 @@ export function commandById(id: string): PaletteCommand | undefined {
 }
 
 /**
- * Command ids from before the four modes, still sent by the desktop host's menu: each runs the
- * mode its area became (Market → Desk, Portfolio → Book, Strategy → Research, Decision Center →
+ * Command ids from before the four modes, still sent by desktop shells installed before UX R7
+ * (the current menu sends the mode ids): each runs the mode its area became (Market → Desk, Portfolio → Book, Strategy → Research, Decision Center →
  * Deals).
  */
 export const LEGACY_COMMAND_IDS: Readonly<Record<string, string>> = {

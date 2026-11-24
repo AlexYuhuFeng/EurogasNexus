@@ -50,7 +50,9 @@ All twelve recommendations are adopted. Order, by user impact and risk:
 10. R12 Settings split into Personal, Workspace, Organisation and Connection. **Done** (wip/ux).
 11. R6 desktop capabilities claimed only when their plugin ships (a correctness bug). **Partly done** (wip/ux): the plugin-backed flags are false and a test pins any `true` to its crate; the plugins themselves are not added, because the desktop crate could not be built in that environment.
 12. R7 the native menu matches the current workspaces, is translated, and has the standard
-    shortcuts.
+    shortcuts. **Partly done** (wip/ux): Desk, Deals, Book, Research with Ctrl/⌘+Shift+1–4,
+    Search… on Ctrl/⌘+K and Settings… on Ctrl/⌘+, ; the labels are still English only, and
+    View and Help menus are not added.
 
 ### What we do not take
 
