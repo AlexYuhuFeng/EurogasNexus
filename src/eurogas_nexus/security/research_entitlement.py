@@ -38,11 +38,12 @@ def authorized_source_definitions(
     return tuple(
         definition
         for definition in source_definitions()
-        if principal_allows_source_family(principal, definition.provider)
-        and (
+        if (
             not restrictions
             or definition.provider.casefold() in restrictions
         )
+        # Restrictions first: a source the caller did not ask for is not a read (GOV-1, P6).
+        and principal_allows_source_family(principal, definition.provider)
     )
 
 

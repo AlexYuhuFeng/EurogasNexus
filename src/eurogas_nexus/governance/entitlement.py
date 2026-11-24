@@ -157,3 +157,67 @@ def export_check(
         restrictions=["internal-research-only", "no-redistribution"],
         reason=f"Dataset scope '{dataset_scope.value}' restricts export.",
     )
+
+
+#: Restrictions written on a file that carries licensed data the licence does not let
+#: leave the firm.
+FILE_RESTRICTIONS = ("internal-use-only", "no-redistribution")
+
+_EXPORT_RANK = {
+    ExportDecision.ALLOWED: 0,
+    ExportDecision.RESTRICTED: 1,
+    ExportDecision.UNKNOWN: 2,
+    ExportDecision.DENIED: 3,
+}
+
+
+@dataclass(frozen=True)
+class FileExportDecision:
+    """The export decision for one file (CSV, XLSX, PDF) and the families behind it."""
+
+    decision: ExportDecision
+    licensed_families: tuple[str, ...] = ()
+    restrictions: tuple[str, ...] = ()
+    reason: str = ""
+
+
+def file_export_decision(
+    licensed_families: set[str] | frozenset[str] | tuple[str, ...],
+    *,
+    redistributable: set[str] | frozenset[str] = frozenset(),
+    registered: set[str] | frozenset[str] = frozenset(),
+) -> FileExportDecision:
+    """Apply :func:`export_check` to each licensed family a file's rows were read from.
+
+    GOV-1 (P6). A file with no licensed data is allowed. A family whose current licence
+    lets derived figures leave the firm (``market_data_licences.redistribution_allowed``)
+    is exported as public data with clearance. Any other family the governance register
+    knows, or the firm holds a current licence for (``registered``), restricts the file to
+    internal use; a family known to neither denies it (fail closed). The file's decision is
+    the strictest of its families'.
+    """
+
+    families = tuple(sorted({f for f in licensed_families if f}))
+    if not families:
+        return FileExportDecision(ExportDecision.ALLOWED, reason="No licensed data.")
+    worst = ExportDecision.ALLOWED
+    reasons = []
+    for family in families:
+        if family in redistributable:
+            evaluation = export_check(EntitlementScope.PUBLIC, allow_public_export=True)
+        elif family in registered:
+            evaluation = export_check(EntitlementScope.INTERNAL_RESEARCH)
+        else:
+            evaluation = export_check(EntitlementScope(entitlement_scope_for_source(family)))
+        if _EXPORT_RANK[evaluation.decision] > _EXPORT_RANK[worst]:
+            worst = evaluation.decision
+        if evaluation.decision is not ExportDecision.ALLOWED:
+            reasons.append(f"{family}: {evaluation.decision.value}")
+    if worst is ExportDecision.UNKNOWN:
+        worst = ExportDecision.DENIED
+    return FileExportDecision(
+        decision=worst,
+        licensed_families=families,
+        restrictions=FILE_RESTRICTIONS if worst is ExportDecision.RESTRICTED else (),
+        reason="; ".join(reasons) or "Every licence allows redistribution.",
+    )

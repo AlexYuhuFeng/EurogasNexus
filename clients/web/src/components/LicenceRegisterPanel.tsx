@@ -19,7 +19,8 @@ const EMPTY: MarketDataLicenceInput & { licence_id: string } = {
 
 /**
  * The firm's market-data licences and who holds each one. Licensed data scopes are granted
- * to people only against a licence here; the holder list is the vendor usage report.
+ * to people only against a licence here; the holder list and the recorded 30-day use (reads,
+ * file exports, people) are the vendor usage report.
  */
 export function LicenceRegisterPanel({ t }: { t: Translate }) {
   const [licences, setLicences] = useState<MarketDataLicenceDTO[] | null>(null);
@@ -77,6 +78,21 @@ export function LicenceRegisterPanel({ t }: { t: Translate }) {
               value: (row) => (row.licence_type === "NAMED_USER" ? row.seats_used ?? 0 : row.holders.length),
               render: (row) => (row.licence_type === "NAMED_USER" ? `${row.seats_used ?? 0} / ${row.seats ?? 0}` : row.holders.length),
               cellTitle: (row) => row.holders.map((holder) => holder.display_name).join(", "),
+            },
+            {
+              id: "usage",
+              header: t("licence.usage"),
+              type: "number",
+              sortable: true,
+              value: (row) => row.usage_30d?.reads ?? 0,
+              render: (row) =>
+                t("licence.usage_value", {
+                  reads: row.usage_30d?.reads ?? 0,
+                  exports: row.usage_30d?.exports ?? 0,
+                  people: row.usage_30d?.principals ?? 0,
+                }),
+              cellTitle: (row) =>
+                row.usage_30d?.last_read_utc ? t("licence.usage_last", { when: row.usage_30d.last_read_utc }) : "",
             },
           ]}
         />

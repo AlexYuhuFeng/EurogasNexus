@@ -715,3 +715,26 @@ letting OPERATIONS grant the write (breaks D4); giving schedulers ANALYST (strat
 scenarios and book edits they do not need). Tests: `tests/api/test_gas_day_status_api.py`,
 `tests/unit/test_demo_identity_access.py`.
 
+
+## Decision 31: Licensed data use is counted per request into one aggregated table
+
+Accepted 2026-11-24 (branch `wip/gov`, programme
+[Commercial Intelligence V3](../engineering/Commercial-Intelligence-V3/16_COMPETITIVE_STUDY.md),
+lesson P6, slice GOV-1). Exchanges and data vendors ask the firm to declare who used their
+data and what left the platform as a file. The entitlement checks
+(`security/identity.principal_allows_source_family`,
+`domain/dataops/entitlement.principal_allows_source`) already decide every licensed read, so
+they note each vendor-licensed family they allow in a per-request meter
+(`governance/usage.py`, a context variable, no I/O). One ASGI middleware
+(`api/middleware/licensed_use.py`) counts each family once per request, after the response,
+off the event loop, into migration `0079_licensed_data_use` (`licensed_data_use`: day,
+principal, family, route template, reads, first and last read; primary key on the first four,
+an upsert). It is a new table in the existing PostgreSQL database, not a new datastore.
+Usage of a read is best-effort, like the read's audit (P5 makes only governed writes fail
+closed). File exports (CSV, XLSX, PDF through `api/csv_export.py`) read the same meter and
+apply `ExportDecision` per family (`governance/entitlement.file_export_decision`): a current
+licence that allows redistribution allows the file, any other registered or known licensed
+family restricts it to internal use, and a family with no registered terms is refused
+(fail closed). Rejected: one row per request (volume without meaning), a declared family per
+route (routes compose several sources), a broker or analytics store (rule 5).
+Tests: `tests/unit/test_licensed_use.py`, `tests/api/test_licensed_use_api.py`.

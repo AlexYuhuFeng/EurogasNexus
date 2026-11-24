@@ -7,7 +7,7 @@ describes.
 **Branch:** `innovation/continuous-commercial-intelligence` (pushed; no pull request opened,
 nothing merged, no tag, no release package)
 **Baseline:** `main@6d21b898661d6466418b3aaeab505a7bc4fb4013`
-**Schema head on the branch:** `0078_lng_cargo_hedges` (LNG-1)
+**Schema head on the branch:** `0078_lng_cargo_hedges` (LNG-1); `0079_licensed_data_use` on `wip/gov` (GOV-1, P6)
 
 ## Where the programme stands
 

@@ -14,6 +14,7 @@ from eurogas_nexus.domain.dataops.contracts import (
     DerivedAccessDecision,
     EntitlementOutcome,
 )
+from eurogas_nexus.governance.usage import note_licensed_read
 from eurogas_nexus.security.identity import (
     PUBLIC_BASELINE_SOURCE_FAMILIES,
     AuthenticatedPrincipal,
@@ -45,7 +46,19 @@ def principal_allows_source(principal: AuthenticatedPrincipal, source_system: st
     if family in PUBLIC_BASELINE_SOURCE_FAMILIES:
         return True
     scopes = {str(scope).strip().casefold() for scope in principal.data_scopes}
-    return "*" in scopes or family.casefold() in scopes
+    allowed = "*" in scopes or family.casefold() in scopes
+    if allowed:
+        note_licensed_read(family)  # GOV-1 (P6): usage of a licensed family
+    return allowed
+
+
+def _note_licensed(source_system: object) -> None:
+    """Note a licensed family the compatibility principal reads without a check."""
+
+    if isinstance(source_system, str):
+        family = source_family_for_entitlement(source_system)
+        if family and family not in PUBLIC_BASELINE_SOURCE_FAMILIES:
+            note_licensed_read(family)
 
 
 def allowed_source_families(principal: AuthenticatedPrincipal) -> set[str]:
@@ -78,7 +91,10 @@ def filter_rows_for_principal(
     """
 
     if principal.auth_method == "legacy_public_token":
-        return list(rows)
+        rows = list(rows)
+        for row in rows:
+            _note_licensed(row.get(source_key))
+        return rows
     filtered: list[dict[str, Any]] = []
     for row in rows:
         value = row.get(source_key)
@@ -103,6 +119,9 @@ def derived_result_access(
     """
 
     if principal.auth_method == "legacy_public_token":
+        source_systems = list(source_systems)
+        for source_system in source_systems:
+            _note_licensed(source_system)
         return DerivedAccessDecision(outcome=EntitlementOutcome.ALLOWED)
     blocked: list[str] = []
     for source_system in dict.fromkeys(str(value) for value in source_systems):

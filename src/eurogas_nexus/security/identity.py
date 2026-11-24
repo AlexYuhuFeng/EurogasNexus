@@ -276,4 +276,10 @@ def principal_allows_source_family(
     if family in PUBLIC_BASELINE_SOURCE_FAMILIES:
         return True
     scopes = {normalize_data_scope(scope).casefold() for scope in principal.data_scopes}
-    return "*" in scopes or family.casefold() in scopes
+    allowed = "*" in scopes or family.casefold() in scopes
+    if allowed:
+        # GOV-1 (P6): a licensed family read in a request is recorded as usage.
+        from eurogas_nexus.governance.usage import note_licensed_read
+
+        note_licensed_read(family)
+    return allowed

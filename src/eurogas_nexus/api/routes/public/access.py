@@ -927,6 +927,22 @@ def _require_licences(
     )
 
 
+_NO_USAGE = {"principals": 0, "reads": 0, "exports": 0, "last_read_utc": None}
+
+
+def _licence_usage(session) -> dict[str, dict]:
+    """Recorded use of each licensed family over 30 days (GOV-1, P6), keyed in upper case."""
+
+    from eurogas_nexus.application.licensed_use import licence_usage
+
+    try:
+        with session.begin_nested():
+            usage = licence_usage(session)
+    except Exception:  # noqa: BLE001 - the register still answers without its usage column
+        return {}
+    return {family.upper(): value for family, value in usage.items()}
+
+
 @router.get("/api/access/market-data-licences")
 def list_market_data_licences(request: Request) -> dict:
     """The licence register with each licence's current holders (vendor usage report)."""
@@ -936,8 +952,12 @@ def list_market_data_licences(request: Request) -> dict:
     with _session() as session:
         rows, _ = _licences(session)
         holders = _holders_by_family(session)
+        usage = _licence_usage(session)
         payload = [
-            _licence_payload(row, holders.get(row.source_family.upper(), []))
+            {
+                **_licence_payload(row, holders.get(row.source_family.upper(), [])),
+                "usage_30d": usage.get(row.source_family.upper(), _NO_USAGE),
+            }
             for row in sorted(rows, key=lambda r: (r.source_family, r.licence_id))
         ]
         _audit_admin(

@@ -14,6 +14,7 @@ from eurogas_nexus.api.dependencies.route_permission import require_route_permis
 from eurogas_nexus.api.error_handlers import register_error_handlers
 from eurogas_nexus.api.middleware.compression import ApiReadCompressionMiddleware
 from eurogas_nexus.api.middleware.conditional import ConditionalReadMiddleware
+from eurogas_nexus.api.middleware.licensed_use import LicensedUseMiddleware
 from eurogas_nexus.api.middleware.observability import HttpObservabilityMiddleware
 from eurogas_nexus.api.middleware.origin_csrf import OriginCsrfGuardMiddleware
 from eurogas_nexus.api.middleware.request_id import RequestIdMiddleware
@@ -90,6 +91,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # correlation id alongside it.
     register_error_handlers(app)
 
+    # Innermost: one licensed-data usage meter per API request (GOV-1, P6).
+    app.add_middleware(LicensedUseMiddleware)
     # Inside the compression: the ETag is a hash of the uncompressed answer.
     app.add_middleware(ConditionalReadMiddleware)
     app.add_middleware(ApiReadCompressionMiddleware)

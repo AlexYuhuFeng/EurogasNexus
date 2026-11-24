@@ -6,8 +6,10 @@ from eurogas_nexus.governance.entitlement import (
     EntitlementScope,
     ExportDecision,
     ExportEvaluation,
+    FileExportDecision,
     entitlement_check,
     export_check,
+    file_export_decision,
 )
 
 __all__ = [
@@ -17,6 +19,8 @@ __all__ = [
     "EntitlementScope",
     "ExportDecision",
     "ExportEvaluation",
+    "FileExportDecision",
     "entitlement_check",
     "export_check",
+    "file_export_decision",
 ]

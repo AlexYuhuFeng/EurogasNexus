@@ -119,6 +119,8 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `POST /api/monitoring/alerts/{alert_id}/analysis` | `provider_status` 新值 `switched_off`，告警 `ai_use_switched_off:alert_analysis`（附加取值，2026-11-24，GOV-1） | 组织关闭了告警分析：不调用模型，`answer` 与 `analysis_id` 为 `null`，告警自身文本保留 |
 | `POST /api/analysis/query`、`POST /api/reports/portfolio` | 模型状态新值 `AI_USE_SWITCHED_OFF`（附加取值，2026-11-24，GOV-1） | 组织关闭了分析用途：不调用模型，保留确定性答案 |
 | AI 请求的审计行（解释、简报与市场报告的 `ai.explain`；`ai.ask`、`ai.spreads`、`ai.report_plan`、`ai.alert_analysis`；分析查询与组合报告的 `llm.invoke`；`monitoring.enrichment.provider_call`） | `after_summary.ai`（`use`、`prompt_version`、`prompt_fingerprint`、`model_id`、`model_evaluated`、`calls`、`hashes[]` 含 `input_sha256`、`output_sha256`、`status`）（附加字段，2026-11-24，GOV-1） | 调用了模型时写入；只有哈希，从不含文本；`GET /api/audit/events` 在显示 `after_summary` 处显示 |
+| `GET /api/access/market-data-licences` | 每个许可的 `usage_30d`（`principals`、`reads`、`exports`、`last_read_utc`）（附加字段，2026-11-24，GOV-1，P6） | 该许可数据源族近 30 天的使用记录：不同人员数、请求次数、文件导出次数与最近读取时间；无记录时为零 |
+| 所有报告文件（提供 `format=csv`、`xlsx`、`pdf` 的路由） | 响应头 `X-Eurogas-Export-Decision`（`allowed` 或 `restricted`）、`X-Eurogas-Licensed-Sources`、`X-Eurogas-Export-Restrictions`；XLSX 与 PDF 的说明行 `Licensed data` 与 `Use`（附加字段，2026-11-24，GOV-1，P6） | 依据文件各行所读取的许可数据源族得出的导出决策；列与行不变 |
 
 ## 有意收窄的行为变更
 
@@ -153,6 +155,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `PUT /api/settings/organisation` | **受治理的写入，并校验 `ai_features`（2026-11-24，GOV-1）**：审计行与变更在同一事务中写入；审计行无法写入时变更不保存，返回 503 `audit_unavailable`（此前审计失败被吞掉）；审计行现带 `before_summary` 与 `after_summary`。`ai_features` 中非已登记 AI 用途的键或非布尔值返回 422 `setting_invalid` | AI 开关属于管控，变更不得缺少审计行（P5） |
 | 所有 AI 接口（`POST /api/analysis/explain`、`/brief`、`/ask`、`/query`，`POST /api/reports/market`、`/plan`、`/portfolio`，`POST /api/research/spreads/interpret`，`POST /api/monitoring/alerts/{alert_id}/analysis`，告警增强） | **组织关闭的用途不调用模型（2026-11-24，GOV-1）**：读者得到依据为 `rule` 的规则文本，与未配置模型时相同；设置库已配置但无法读取时，AI 视为关闭 | 按用途的停用开关（NIST AI RMF Manage 2.4） |
 | 代表模型发起的能力调用：`POST /api/agent/research` 运行与 MCP 能力工具 | **超出模型工具白名单即拒绝（2026-11-24，GOV-1）**：AI 用途未列出、调用者任一角色均不允许模型调用、或从不由模型调用（`dataset.export`、`review.record_analytical_decision`、`shadow.start`、`shadow.pause`、`shadow.resume`、`strategy.freeze_version`）的能力，以 `PERMISSION_DENIED` 拦截，详情 `ai_tool_not_allowed: ...`，并记审计（`ai.tool.refused`）；人员直接调用同一能力不受影响 | 有界的代理权限（OWASP LLM Top 10，过度代理） |
+| 所有报告文件（`format=csv`、`xlsx`、`pdf`） | **无已登记导出条款的许可数据文件被拒绝（2026-11-24，GOV-1，P6）**：若各行读取自既不在治理登记表中、也无许可登记表中当前许可覆盖的供应商许可数据源族，文件返回 403 `export_denied` 并附 `licensed_families`；同一数据的 JSON 读取不变 | 失败即关闭的导出策略（`ExportDecision`）：文件会离开平台 |
 
 ## 被拒绝的请求字段
 

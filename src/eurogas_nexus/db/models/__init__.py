@@ -78,7 +78,7 @@ from eurogas_nexus.db.models.lng_terminal_tariff import (
     LngTerminalOperatorTermsRecord,
     LngTerminalTariffRecord,
 )
-from eurogas_nexus.db.models.market_data import MarketDataLicenceRecord
+from eurogas_nexus.db.models.market_data import LicensedDataUseRecord, MarketDataLicenceRecord
 from eurogas_nexus.db.models.market_events import (
     MarketEventDeliveryRecord,
     MarketEventRecord,
@@ -359,6 +359,7 @@ __all__ = [
     "InterestRateObservationRecord",
     "OrganisationSettingRecord",
     "PowerObservationRecord",
+    "LicensedDataUseRecord",
     "MarketDataLicenceRecord",
     "MarketReportRecord",
     "TradingBookRecord",

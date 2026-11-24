@@ -3428,6 +3428,8 @@ export interface MarketDataLicenceDTO extends MarketDataLicenceInput {
   seats_used: number | null;
   updated_by: string;
   updated_at_utc: string;
+  /** Recorded use of the licence's source family over 30 days (GOV-1, P6). */
+  usage_30d?: { principals: number; reads: number; exports: number; last_read_utc: string | null };
 }
 
 export interface NweBalanceDayDTO {

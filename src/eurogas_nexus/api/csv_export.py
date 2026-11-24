@@ -4,6 +4,12 @@ A report route accepts ``format=csv`` and returns the same rows as ``text/csv`` 
 byte-order mark, so Excel opens non-ASCII text correctly), with a stable header order and a
 file name that carries the report and the date. Nested values are written as JSON text, and
 the response says which rows it holds in ``X-Eurogas-Report-Rows``.
+
+GOV-1 (P6): every file applies the export decision to the licensed source families its rows
+were read from (``application/licensed_use.file_decision``). A denied file is refused with
+403 ``export_denied``; a restricted file is delivered marked ``X-Eurogas-Export-Decision:
+restricted`` with its restrictions and licensed families in headers and, in XLSX and PDF,
+in the file's own description; the file write is counted as an export in the usage record.
 """
 
 from __future__ import annotations
@@ -15,6 +21,7 @@ from collections.abc import Iterable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
+from fastapi import HTTPException
 from fastapi.responses import Response
 
 
@@ -28,10 +35,59 @@ def _cell(value: Any) -> str:
     return str(value)
 
 
+def _export_decision(file_format: str):
+    """The export decision for this request's file; refuses a denied one (GOV-1, P6)."""
+
+    from eurogas_nexus.application.licensed_use import file_decision
+    from eurogas_nexus.governance.entitlement import ExportDecision
+    from eurogas_nexus.governance.usage import current_meter
+
+    meter = current_meter()
+    decision = file_decision(meter.families if meter is not None else ())
+    if decision.decision is ExportDecision.DENIED:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "export_denied",
+                "message": (
+                    "This file would carry licensed data whose export terms are not "
+                    "registered (fail-closed export policy)."
+                ),
+                "licensed_families": list(decision.licensed_families),
+                "research_only": True,
+                "human_review_required": True,
+            },
+        )
+    if meter is not None:
+        meter.export_format = file_format
+    return decision
+
+
+def _decision_headers(decision) -> dict[str, str]:
+    headers = {"X-Eurogas-Export-Decision": decision.decision.value}
+    if decision.licensed_families:
+        headers["X-Eurogas-Licensed-Sources"] = ",".join(decision.licensed_families)
+    if decision.restrictions:
+        headers["X-Eurogas-Export-Restrictions"] = ",".join(decision.restrictions)
+    return headers
+
+
+def _decision_about(decision) -> list[tuple[str, str]]:
+    if not decision.licensed_families:
+        return []
+    use = (
+        "Internal use only; not for redistribution outside the firm"
+        if decision.restrictions
+        else "Redistribution allowed by the licence"
+    )
+    return [("Licensed data", ", ".join(decision.licensed_families)), ("Use", use)]
+
+
 def csv_response(rows: Iterable[Mapping[str, Any]], *, report: str) -> Response:
     """The rows as a CSV download; columns in first-seen order across all rows."""
 
-    rows = list(rows)
+    rows = list(rows)  # built first: the rows' reads are what the decision is about
+    decision = _export_decision("csv")
     columns: list[str] = []
     for row in rows:
         for key in row:
@@ -50,6 +106,7 @@ def csv_response(rows: Iterable[Mapping[str, Any]], *, report: str) -> Response:
         headers={
             "Content-Disposition": f'attachment; filename="eurogas-nexus-{report}-{stamp}.csv"',
             "X-Eurogas-Report-Rows": str(len(rows)),
+            **_decision_headers(decision),
         },
     )
 
@@ -74,6 +131,7 @@ def report_response(
     from eurogas_nexus.core.report_files import pdf_bytes, xlsx_bytes
 
     rows = list(rows)
+    decision = _export_decision(format)
     now = datetime.now(UTC)
     stamp = now.strftime("%Y%m%dT%H%MZ")
     heading = title or report.replace("-", " ").capitalize()
@@ -81,6 +139,7 @@ def report_response(
         ("Report", heading),
         ("Generated (UTC)", now.strftime("%Y-%m-%d %H:%M")),
         *(about or []),
+        *_decision_about(decision),
     ]
     if format == "xlsx":
         content, media, suffix = xlsx_bytes(rows, sheet=heading, about=details), _XLSX, "xlsx"
@@ -98,5 +157,6 @@ def report_response(
                 f'attachment; filename="eurogas-nexus-{report}-{stamp}.{suffix}"'
             ),
             "X-Eurogas-Report-Rows": str(len(rows)),
+            **_decision_headers(decision),
         },
     )

@@ -122,6 +122,10 @@ M5 full suite (SQLite, `python -m pytest -q tests`, 2026-11-24): 7,049 passed, 2
 | GOV1-4, AIR-3 to AIR-7 AI controls stage 2 | `pytest tests/unit/test_ai_register.py tests/evals/test_ai_gate.py tests/api/test_ai_controls_api.py` | 34 passed |
 | AI evaluation gate, offline | `python scripts/ai/ai_gate.py` (record written by `--record`: 11 uses, default model `deepseek-v4-flash`) | AI gate passes |
 | AI uses unchanged in behaviour otherwise | `pytest tests/evals tests/unit/test_mcp_capability_adapter.py tests/unit/test_explain.py tests/unit/test_desk_ask.py tests/unit/test_spreads_workbench.py tests/api/test_preferences_api.py tests/unit/test_settings_preferences.py tests/api/test_monitoring_api.py tests/security/test_ai_authority.py` with the report, monitoring, agent and analysis modules | 531 passed |
+| GOV1-5, GOV1-6 licensed data use and file export decisions (P6) | `pytest tests/unit/test_licensed_use.py tests/api/test_licensed_use_api.py` | 20 passed |
+| Migration `0079_licensed_data_use` and the pinned schema head | `pytest tests/unit/test_licensed_use.py::test_migration_0079_matches_the_model_up_and_down` and the seven migration tests that pin `DB_SCHEMA_REVISION` | passed on SQLite; the PostgreSQL-marked tests were not run (no PostgreSQL role or driver available to this worktree) |
+| Licence register shows 30-day use (web) | `npx tsc --noEmit -p .`; `npm test` (in `clients/web`) | clean; 1,307 passed, 3 skipped |
+| Regression after GOV-1 slices 1 to 3 | `pytest tests/api tests/security tests/contract tests/docs tests/evals tests/db` with the migration, entitlement and report-file unit tests | 2,319 passed, 14 skipped |
 
 ## Targeted re-evaluation, shown on the demo desk
 
