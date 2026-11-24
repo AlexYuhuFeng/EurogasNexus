@@ -208,3 +208,19 @@ test("strip audience per composition (§5.2)", () => {
   assert.equal(audience(["VIEWER"], ["OPERATIONS"]), "operations");
   assert.equal(audience(["REVIEWER"], ["MANAGEMENT", "REVIEWER_MANAGEMENT"]), "desk_head");
 });
+
+test("a trader whose book scope names an LNG book lands on the cargo board (QA-L-05)", () => {
+  const trader = user(["ANALYST"], ["TRADER"]);
+  assert.equal(resolveComposition(trader).composition.id, "trader");
+  const lng: CurrentUserDTO = { ...trader, experience: { ...trader.experience!, scope_refs: ["PORTFOLIO:EU-LNG-1"] } };
+  const resolved = resolveComposition(lng);
+  assert.equal(resolved.composition.id, "lng");
+  assert.deepEqual(resolved.composition.landing, { kind: "task", mode: "desk", task: "cargoes" });
+  assert.equal(resolved.jobFunction, "TRADER");
+  assert.equal(resolved.grantsAuthority, false);
+  // The landing is a task the person can open.
+  assert.ok(visibleModes(lng).find((mode) => mode.id === "desk")?.tasks.some((item) => item.id === "cargoes"));
+  // An LNG book scope does not change another function's composition.
+  const risk = user(["REVIEWER"], ["RISK_MANAGER"]);
+  assert.equal(resolveComposition({ ...risk, experience: { ...risk.experience!, scope_refs: ["PORTFOLIO:EU-LNG-1"] } }).composition.id, "risk");
+});

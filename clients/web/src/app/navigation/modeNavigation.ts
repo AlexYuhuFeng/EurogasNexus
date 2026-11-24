@@ -64,6 +64,9 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
       // One Network task: the map with outages, capacity and flows in the panel beside it. The
       // retired "Outages & capacity" task and its `capacity` page land here (AGENTS rule 9).
       { id: "network", labelKey: "nav.mode.desk.network", page: "market", pageTask: "network", alsoPages: ["network", "capacity"], permissions: ["market.read"], aliasKeys: ["nav.network", "nav.mode.desk.events", "nav.mode.desk.events.short", "market.task.capacity", "nav.capacity"] },
+      // The firm's LNG cargoes in transit, each with its plan from ETA to hedge months (QA-L-05).
+      // The book's own cargoes: book read, like Position.
+      { id: "cargoes", labelKey: "nav.mode.desk.cargoes", page: "market", pageTask: "cargoes", permissions: ["portfolio.read"], aliasKeys: ["lng.cargo.alias_plan", "lng.cargo.alias_vessels"] },
     ],
   },
   {

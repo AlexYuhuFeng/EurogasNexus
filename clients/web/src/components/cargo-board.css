@@ -1,0 +1,393 @@
+@layer legacy {
+/* LNG cargo board (Desk > Cargoes) and one cargo's plan sheet (QA-L-05). Tokens only. */
+
+.cargo-board {
+  display: grid;
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+
+.cargo-board-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2) var(--ds-space-4);
+  align-items: flex-end;
+  justify-content: space-between;
+}
+
+.cargo-board-title {
+  margin: 0;
+  font-size: var(--ds-text-md);
+  font-weight: var(--ds-weight-semibold);
+}
+
+.cargo-board-sub,
+.cargo-board-note,
+.cargo-board-keys {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+}
+
+.cargo-board-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  align-items: center;
+}
+
+.cargo-board-advisory {
+  margin: 0;
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+  font-style: italic;
+}
+
+.cargo-board-error {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  align-items: center;
+  border: 1px solid var(--ds-status-breach);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-status-breach-soft);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  font-size: var(--ds-text-sm);
+}
+
+.cargo-board-grid {
+  min-width: 0;
+}
+
+.cargo-board-id {
+  display: grid;
+  gap: var(--ds-space-05);
+}
+
+.cargo-board-change {
+  font-size: var(--ds-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.cargo-board-change[data-direction="later"] {
+  color: var(--ds-status-watch);
+}
+
+.cargo-board-change[data-direction="earlier"] {
+  color: var(--ds-status-info);
+}
+
+.cargo-board-stale {
+  color: var(--ds-status-stale);
+}
+
+.cargo-board-fix {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+}
+
+.cargo-board-overdue {
+  color: var(--ds-status-breach);
+  font-weight: var(--ds-weight-medium);
+}
+
+.cargo-board-countdown {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Slot window with the ETA mark: where the ship lands against its window. */
+.cargo-slot-bar {
+  position: relative;
+  display: inline-block;
+  width: 6rem;
+  height: 0.5rem;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-surface-3);
+  vertical-align: middle;
+}
+
+.cargo-slot-window {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-status-ok-soft);
+  border: 1px solid var(--ds-status-ok);
+}
+
+.cargo-slot-eta {
+  position: absolute;
+  top: -0.2rem;
+  bottom: -0.2rem;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--ds-text-1);
+}
+
+.cargo-slot-bar[data-eta="after"] .cargo-slot-eta {
+  background: var(--ds-status-breach);
+}
+
+.cargo-slot-bar[data-eta="before"] .cargo-slot-eta {
+  background: var(--ds-status-watch);
+}
+
+.cargo-cover-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1);
+}
+
+/* Header strip: open hub × month, next expiry, what needs action today. */
+.cargo-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cargo-strip-cell {
+  display: grid;
+  gap: var(--ds-space-05);
+  min-width: 8rem;
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+  padding: var(--ds-space-2) var(--ds-space-3);
+}
+
+.cargo-strip-label {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+}
+
+.cargo-strip-open {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-1) var(--ds-space-3);
+  font-size: var(--ds-text-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+/* The plan sheet. */
+.cargo-plan {
+  display: grid;
+  gap: var(--ds-space-4);
+  min-width: 0;
+}
+
+.cargo-plan-head {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.cargo-plan-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 12rem), 1fr));
+  gap: var(--ds-space-2) var(--ds-space-3);
+  margin: 0;
+  font-size: var(--ds-text-sm);
+}
+
+.cargo-plan-facts dt {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+}
+
+.cargo-plan-facts dd {
+  margin: 0;
+}
+
+.cargo-plan-section {
+  display: grid;
+  gap: var(--ds-space-2);
+  min-width: 0;
+  border-top: 1px solid var(--ds-border-subtle);
+  padding-top: var(--ds-space-3);
+}
+
+.cargo-plan-section h3 {
+  margin: 0;
+  font-size: var(--ds-text-base);
+  font-weight: var(--ds-weight-semibold);
+}
+
+.cargo-plan-headline {
+  margin: 0;
+  font-weight: var(--ds-weight-medium);
+}
+
+.cargo-plan-warning {
+  margin: 0;
+  border-left: 3px solid var(--ds-status-watch);
+  background: var(--ds-status-watch-soft);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  font-size: var(--ds-text-sm);
+}
+
+.cargo-plan-legs,
+.cargo-plan-inputs,
+.cargo-plan-suggestions {
+  display: grid;
+  gap: var(--ds-space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--ds-text-sm);
+}
+
+.cargo-plan-inputs li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  align-items: center;
+}
+
+.cargo-plan-suggestions > li {
+  display: grid;
+  gap: var(--ds-space-1);
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  padding: var(--ds-space-2) var(--ds-space-3);
+}
+
+.cargo-plan-suggestions p {
+  margin: 0;
+}
+
+.cargo-plan-suggestion-head {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+  align-items: center;
+  justify-content: space-between;
+}
+
+.cargo-plan-arith {
+  color: var(--ds-text-2);
+  font-family: var(--ds-font-mono);
+  font-size: var(--ds-text-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Timeline: departure → ETA → window → berth → send-out → last trading days. */
+.cargo-timeline {
+  display: grid;
+  gap: var(--ds-space-2);
+}
+
+.cargo-timeline-track {
+  position: relative;
+  height: 1.5rem;
+  border-bottom: 1px solid var(--ds-border-strong);
+}
+
+.cargo-timeline-window {
+  position: absolute;
+  bottom: 0;
+  height: 0.75rem;
+  border: 1px solid var(--ds-status-ok);
+  background: var(--ds-status-ok-soft);
+}
+
+.cargo-timeline-sendout {
+  position: absolute;
+  bottom: 0;
+  height: 0.375rem;
+  background: var(--ds-series-1);
+}
+
+.cargo-timeline-mark {
+  position: absolute;
+  bottom: 0;
+  width: 2px;
+  height: 1.5rem;
+  margin-left: -1px;
+  background: var(--ds-text-1);
+}
+
+.cargo-timeline-mark.is-expiry {
+  background: var(--ds-status-watch);
+}
+
+.cargo-timeline-legend {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 14rem), 1fr));
+  gap: var(--ds-space-1) var(--ds-space-3);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: var(--ds-text-xs);
+}
+
+.cargo-timeline-legend li {
+  display: flex;
+  gap: var(--ds-space-2);
+  justify-content: space-between;
+}
+
+.cargo-timeline-legend li[data-kind="expiry"] {
+  color: var(--ds-status-watch);
+}
+
+/* What-if and hedge editor. */
+.cargo-whatif,
+.cargo-hedge {
+  display: grid;
+  gap: var(--ds-space-3);
+  min-width: 0;
+}
+
+.cargo-hedge-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--ds-text-sm);
+}
+
+.cargo-hedge-table th {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+  font-weight: var(--ds-weight-medium);
+  text-align: start;
+}
+
+.cargo-hedge-table td {
+  padding: var(--ds-space-1);
+  vertical-align: top;
+}
+
+.cargo-hedge-table input {
+  width: 100%;
+  min-width: 5rem;
+}
+
+.cargo-hedge-table tr[data-invalid="true"] td {
+  background: var(--ds-status-breach-soft);
+}
+
+.cargo-hedge-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--ds-space-2);
+}
+
+@media (max-width: 40rem) {
+  .cargo-hedge-table thead {
+    display: none;
+  }
+
+  .cargo-hedge-table tr {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .cargo-slot-eta,
+  .cargo-timeline-mark {
+    transition: left var(--ds-duration-base) var(--ds-ease-out);
+  }
+}
+}

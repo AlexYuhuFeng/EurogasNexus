@@ -11,6 +11,7 @@ import { SimulatedScope, simulatedScopeOf } from "@/components/ui/SimulatedScope
 import { FirstUseHints } from "@/components/ui/FirstUseHints";
 import { FIRST_USE_HINTS } from "@/app/experience/firstUseHints";
 import { SourceApprovalNotice } from "@/components/PublicSourceApprovals";
+import { CargoBoard } from "@/components/CargoBoard";
 import { TodayFreshness, TodayHeadActions, TodayHeadline, TodayScreen } from "@/components/TodayScreen";
 import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useDeskToday } from "@/app/hooks/useDeskToday";
@@ -73,7 +74,7 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
     navigation.openWorkspace("market", next);
   };
 
-  // The Desk mode's task row (WF-05): Today, Prices and Network are this page's tasks.
+  // The Desk mode's task row (WF-05): Today, Prices, Network and Cargoes are this page's tasks.
   const mode = useModeHeader("market", task, navigation.openWorkspace, t);
   // One read for the first screen; the context line on every market task uses it to say
   // "Demo data" once on the demo desk instead of counting a static store's feeds as stale.
@@ -128,8 +129,11 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
           controls={
             task === "overview"
               ? <TodayHeadline today={desk.today} language={controller.i18n.language} t={t} />
-              : // On Prices the board's tenor selector is the product choice: no second one here.
-                tradingContextControlsFor(traderContext, t, { product: task !== "curves" })
+              : task === "cargoes"
+                ? // The cargo board is the book's cargoes: no hub or tenor filter applies to it.
+                  undefined
+                : // On Prices the board's tenor selector is the product choice: no second one here.
+                  tradingContextControlsFor(traderContext, t, { product: task !== "curves" })
           }
           variant={task === "overview" ? "line" : "strip"}
           freshness={
@@ -257,6 +261,13 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             <PriceCharts markets={api.normalizedMarkets} t={t} />
           </SimulatedScope>
           </>
+        )}
+        {task === "cargoes" && (
+          <CargoBoard
+            t={t}
+            language={controller.i18n.language}
+            canRecordHedges={Array.isArray(api.currentUser?.permissions) && api.currentUser.permissions.includes("portfolio.write")}
+          />
         )}
         {task === "network" && (
           // The map is rendered once at the shell and kept (app/data/keepAlive.tsx): this slot

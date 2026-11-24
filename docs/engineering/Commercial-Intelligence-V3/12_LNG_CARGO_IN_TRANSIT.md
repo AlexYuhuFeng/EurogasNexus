@@ -53,7 +53,23 @@ window." or "212,400 MWh of send-out moves into TTF 2027-01."
 - Python SDK: `eurogas_nexus_sdk.lng_cargo_plan` (`fetch_cargo_plans`, `fetch_cargo_plan`,
   `try_cargo_eta`, `record_cargo_hedges`).
 - Web client transport: `api.cargoPlans`, `api.cargoPlan`, `api.cargoPlanWhatIf`,
-  `api.saveCargoHedges`. The screen follows the hands-on review (Q1).
+  `api.saveCargoHedges`.
+- Screen (QA-L-05): Desk → Cargoes (`?workspace=market&task=cargoes`, `&cargo=<id>` opens one
+  plan). The board lists the book's cargoes, missed and no-slot rows pinned first, then by the
+  next action's due time; a strip above sums the open hub months, the next futures expiry and
+  what needs action today. Each cell's hover names its source, unit and as-of. Keys: ↑ ↓,
+  Enter (plan), `w` (what-if), `h` (hedges). The plan sheet shows the header, what changed, a
+  timeline, the energy waterfall (with its table and CSV), send-out by gas day coloured by
+  delivery month, the hub × month grid with the recorded hedge legs, suggestions by due time
+  with their arithmetic, and the inputs with their sources. The what-if says nothing is
+  stored; the hedge editor validates before the PUT. Advice only: nothing books, nominates or
+  trades. The board is the landing of the `lng` composition (a trader whose book scope names an
+  LNG book) and the palette finds a cargo by id, vessel or IMO. Pure logic:
+  `clients/web/src/app/model/cargoBoardModel.ts`.
+- Live updates: no cargo channel exists. The board re-reads on the session's `map` change
+  notices for the `cargoes` and `slots` groups, and polls every minute while that stream is down.
+- Import cadence: no source declares one for cargo files, so the board states its own (24 h
+  for an ETRM file, 6 h for a vessel feed) and marks an import older than that as late.
 - Storage: migration `0078_lng_cargo_hedges` (ADR Decision 29).
 
 ## Limits today
@@ -63,3 +79,5 @@ window." or "212,400 MWh of send-out moves into TTF 2027-01."
 - A FOB cargo still does not appear in the position ladder; the plan is where it shows.
 - Vessel position, heading and route are not used for the ETA; the ETA is what the import
   says.
+- The screen has no Today row or What-needs-me item yet, the timeline has no crosshair or zoom,
+  and a changed row's flash is neutral rather than coloured by direction.

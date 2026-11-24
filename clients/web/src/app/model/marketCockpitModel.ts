@@ -1,6 +1,7 @@
-export type MarketTask = "overview" | "curves" | "network";
+export type MarketTask = "overview" | "curves" | "network" | "cargoes";
 
-export const MARKET_TASKS: MarketTask[] = ["overview", "curves", "network"];
+/** `cargoes`: the LNG cargo board and each cargo's plan (QA-L-05). */
+export const MARKET_TASKS: MarketTask[] = ["overview", "curves", "network", "cargoes"];
 
 /**
  * Task names that no longer have a page of their own and the task that now shows them. The

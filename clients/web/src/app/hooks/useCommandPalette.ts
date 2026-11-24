@@ -19,6 +19,7 @@ import {
   DEFAULT_PALETTE_LIMIT,
   buildPaletteCommands,
   filterPaletteCommands,
+  cargoCommands,
   glossaryCommands,
   inspectionCommands,
   isPaletteDismissKey,
@@ -27,6 +28,7 @@ import {
   currentCommandId,
   paletteCommandAvailable,
   type PaletteAvailability,
+  type PaletteCargo,
   type PaletteCommand,
 } from "@/app/experience/commandPalette";
 import type { InspectorSubjectKind } from "@/app/experience/vocabulary";
@@ -68,6 +70,8 @@ export interface CommandPaletteOptions {
   visible?: (command: PaletteCommand) => boolean;
   /** Glossary terms the palette can find. */
   glossaryTerms?: ReadonlyArray<{ term: string; aliases?: readonly string[] }>;
+  /** The book's cargoes the palette can find by id, vessel or IMO (QA-L-05). */
+  cargoes?: readonly PaletteCargo[];
   onNavigate: (command: PaletteCommand) => void;
   onInspect: (kind: InspectorSubjectKind, ref: string) => void;
   onUtility: (utility: NonNullable<PaletteCommand["target"]["utility"]>) => void;
@@ -114,11 +118,13 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
       ...inspectionCommands(options.context, options.activeWorkspace),
       // Glossary terms are found by name or alias (#34); they never show for an empty query.
       ...glossaryCommands(options.glossaryTerms ?? []),
+      ...cargoCommands(options.cargoes ?? []).filter((command) => (visible ? visible(command) : true)),
     ],
     [
       offersAiCommands,
       visible,
       options.glossaryTerms,
+      options.cargoes,
       options.activeWorkspace,
       options.context.routeId,
       options.context.resourceId,

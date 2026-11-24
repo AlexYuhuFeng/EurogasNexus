@@ -16,8 +16,8 @@ function readWebSource(relativePath: string): string {
   return readFileSync(new URL(`../src/${relativePath}`, import.meta.url), "utf8");
 }
 
-test("market cockpit has three linked tasks; the retired capacity task lands on Network", () => {
-  assert.deepEqual(MARKET_TASKS, ["overview", "curves", "network"]);
+test("market cockpit has four linked tasks; the retired capacity task lands on Network", () => {
+  assert.deepEqual(MARKET_TASKS, ["overview", "curves", "network", "cargoes"]);
   // "Outages & capacity" became the Network page's panel beside the map.
   assert.equal(marketTaskFromSearch("?task=capacity"), "network");
 });

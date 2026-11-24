@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { CommandPalette } from "@/components/CommandPalette";
 import { InspectorPanel } from "@/components/InspectorPanel";
 import { RestrictedSurface } from "@/components/RestrictedSurface";
@@ -44,7 +44,8 @@ import { useCompactWidth } from "@/app/shell/useShellLayout";
 import { useWideContent } from "@/app/shell/useWideContent";
 import { FirstRunSetupGate } from "@/components/FirstRunSetup";
 import { useTimePreferenceStore } from "@/stores/timePreference";
-import { invalidateReads, setReadCacheScope } from "@/app/data/readCache";
+import { invalidateReads, setReadCacheScope, useCachedRead } from "@/app/data/readCache";
+import { CARGO_BOARD_KEY, readCargoBoard } from "@/app/hooks/useCargoBoard";
 import { onApiWrite } from "@/api/client";
 
 import { scrollMemoryKey, useScrollMemory } from "@/app/shell/useScrollMemory";
@@ -287,6 +288,12 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     },
     [currentUser],
   );
+  // The palette finds the book's cargoes by id, vessel or IMO (QA-L-05). The board is read
+  // once the palette has first been opened, by a person who may read the book, and shares the
+  // cargo board's cached read.
+  const [cargoesWanted, setCargoesWanted] = useState(false);
+  const canReadBook = Array.isArray(currentUser?.permissions) && currentUser.permissions.includes("portfolio.read");
+  const paletteCargoes = useCachedRead(cargoesWanted && canReadBook ? CARGO_BOARD_KEY : null, readCargoBoard);
   const palette = useCommandPalette({
     activeWorkspace: navigation.activeWorkspace,
     context: {
@@ -299,6 +306,7 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     activeContextComplete: Boolean(composition.available),
     labels: (command: PaletteCommand) => paletteLabel(command, t),
     glossaryTerms: api.glossaryTerms,
+    cargoes: paletteCargoes.data ?? undefined,
     aliases: paletteAliases,
     visible: paletteVisible,
     onNavigate: (command: PaletteCommand) => {
@@ -314,6 +322,13 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
           // An administration or research sub-view: write it and let a mounted page follow.
           const url = new URL(window.location.href);
           url.search = viewToSearch(url.search, page, view);
+          window.history.replaceState(window.history.state, "", url);
+          window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
+        }
+        if (command.target.cargo) {
+          // The cargo board opens at the cargo it was found by (its `cargo` URL parameter).
+          const url = new URL(window.location.href);
+          url.searchParams.set("cargo", command.target.cargo);
           window.history.replaceState(window.history.state, "", url);
           window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
         }
@@ -341,6 +356,10 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
       else void api.signOut();
     },
   });
+
+  useEffect(() => {
+    if (palette.open) setCargoesWanted(true);
+  }, [palette.open]);
 
   // The answer bar inside the palette (instant answers, look-ups, Ask).
   const answerBar = useAnswerBar({

@@ -62,7 +62,7 @@ function layoutFor(input: {
 }
 
 test("every market task composes on a market page that resolves the same task back", () => {
-  assert.deepEqual(MARKET_TASKS, ["overview", "curves", "network"]);
+  assert.deepEqual(MARKET_TASKS, ["overview", "curves", "network", "cargoes"]);
   assert.equal(DEFAULT_MARKET_TASK, "overview");
 
   for (const task of MARKET_TASKS) {

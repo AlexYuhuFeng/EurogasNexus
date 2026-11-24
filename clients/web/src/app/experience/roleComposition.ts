@@ -57,6 +57,7 @@ export function isJobFunctionId(value: string | null | undefined): value is JobF
 
 export const COMPOSITION_IDS = [
   "trader",
+  "lng",
   "originator",
   "analyst",
   "risk",
@@ -136,6 +137,17 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     // cut-off, overdue steps and any open net, so nothing urgent sits below the fold.
     todayRows: ["market", "gas_day", "checklist", "book", "needs_me", "fundamentals"],
     todayGasDayStrip: true,
+    stripAudience: "trader",
+  },
+  // QA-L-05: a trader whose books hold LNG cargoes lands on the cargo board, then Today and
+  // Prices. The server declares no LNG job function, so this is chosen from the person's book
+  // scope (see `servesLngBook`); a declared LNG function would be the cleaner selector.
+  lng: {
+    id: "lng",
+    landing: task("desk", "cargoes"),
+    shortlist: [task("desk", "cargoes"), task("desk", "today"), task("desk", "prices"), task("book", "limits")],
+    panels: {},
+    todayRows: ["gas_day", "checklist", "market", "book", "needs_me", "fundamentals"],
     stripAudience: "trader",
   },
   // The originator lands on Deals → Opportunities (design basis 2, A.4 and B.8), then the book
@@ -267,6 +279,14 @@ export function fallbackComposition(user: CurrentUserDTO | null | undefined): Co
   return "desk_head";
 }
 
+/**
+ * Whether the person's book scope names an LNG book (`PORTFOLIO:...LNG...`). Composition only:
+ * the scope is the server's, and choosing a landing from it grants nothing.
+ */
+export function servesLngBook(user: CurrentUserDTO | null | undefined): boolean {
+  return (user?.experience?.scope_refs ?? []).some((ref) => /^PORTFOLIO:.*LNG/i.test(ref));
+}
+
 export interface ResolvedComposition {
   readonly composition: RoleComposition;
   /** The job function that chose it; null when it came from the permissions. */
@@ -287,7 +307,9 @@ export function resolveComposition(
 ): ResolvedComposition {
   const declared = declaredJobFunctions(user);
   const chosen = viewAs && isJobFunctionId(viewAs) && declared.includes(viewAs) ? viewAs : (declared[0] ?? null);
-  const id = chosen ? JOB_FUNCTION_COMPOSITION[chosen] : fallbackComposition(user);
+  const base = chosen ? JOB_FUNCTION_COMPOSITION[chosen] : fallbackComposition(user);
+  // A trader of an LNG book: the trader's composition with the cargo board first (QA-L-05).
+  const id: CompositionId = base === "trader" && servesLngBook(user) ? "lng" : base;
   return { composition: ROLE_COMPOSITIONS[id], jobFunction: chosen, declared, grantsAuthority: false };
 }
 
@@ -321,6 +343,7 @@ const JOB_FUNCTION_PERSON: Readonly<Record<JobFunctionId, PersonFunction>> = {
 
 const COMPOSITION_PERSON: Readonly<Record<CompositionId, PersonFunction>> = {
   trader: "trader",
+  lng: "trader",
   originator: "originator",
   analyst: "analyst",
   risk: "risk",

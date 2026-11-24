@@ -78,7 +78,39 @@ export interface PaletteCommand {
     readonly aiAction?: AiActionKind;
     readonly inspector?: InspectorSubjectKind;
     readonly utility?: "access-identity" | "sign-out" | "brief-morning" | "brief-eod" | "report-problem" | "help";
+    /** A cargo to open on Desk · Cargoes (QA-L-05). */
+    readonly cargo?: string;
   };
+  /** Found by a query only, never listed for an empty one (a glossary term, a cargo). */
+  readonly findOnly?: boolean;
+}
+
+/** The facts of a cargo the palette finds it by. */
+export interface PaletteCargo {
+  readonly cargo_id: string;
+  readonly vessel_name?: string | null;
+  readonly vessel_imo?: string | null;
+  readonly destination_terminal?: string | null;
+}
+
+/**
+ * The book's cargoes as palette results (QA-L-05): a cargo id, vessel name or IMO number opens
+ * that cargo's plan on Desk · Cargoes. Offered where the Cargoes task is.
+ */
+export function cargoCommands(cargoes: readonly PaletteCargo[]): PaletteCommand[] {
+  return cargoes.map((cargo) => ({
+    id: `cargo.${cargo.cargo_id}`,
+    group: "navigate" as const,
+    kind: "task" as const,
+    labelKey: "nav.mode.desk.cargoes",
+    label: cargo.vessel_name ? `${cargo.cargo_id} · ${cargo.vessel_name}` : cargo.cargo_id,
+    keywords: [cargo.cargo_id, cargo.vessel_name, cargo.vessel_imo, cargo.vessel_imo ? `IMO ${cargo.vessel_imo}` : null, cargo.destination_terminal]
+      .filter((word): word is string => Boolean(word)),
+    consequence: "read" as const,
+    placement: actionPlacement("read"),
+    findOnly: true,
+    target: { mode: "desk" as ModeId, modeTask: "cargoes", page: "market" as WorkspacePageId, view: "cargoes", cargo: cargo.cargo_id },
+  }));
 }
 
 /** Glossary terms as palette results (#34): "NBP" finds the NBP entry, aliases included. */
@@ -401,7 +433,7 @@ export function filterPaletteCommands(
     return true;
   });
   const needle = query.trim().toLowerCase();
-  if (!needle) return unique.filter((command) => command.group !== "glossary").slice(0, limit);
+  if (!needle) return unique.filter((command) => command.group !== "glossary" && !command.findOnly).slice(0, limit);
   const prefix: PaletteCommand[] = [];
   const contains: PaletteCommand[] = [];
   for (const command of unique) {

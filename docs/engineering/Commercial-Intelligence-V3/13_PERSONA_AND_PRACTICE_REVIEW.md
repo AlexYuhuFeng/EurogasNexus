@@ -93,7 +93,7 @@ the draft SDK docs took a new quant to a first result verbatim. The S1 findings 
 | QA-L-02 | LNG | A backward roll is due after the target month stops trading | Next |
 | QA-L-03, QA-R-26 | Desk head, risk | Firm cargoes and their hedges are missing from the ladder | Next |
 | QA-L-04 | LNG | A vessel-feed import clears a cargo's book link | Next |
-| QA-L-05 | LNG | No cargo screen | Next (cargo board) |
+| QA-L-05 | LNG | No cargo screen | Fixed: Desk → Cargoes board (pinned missed and no-slot rows, header strip, hover provenance, keys) and the plan sheet (timeline, waterfall, send-out, hub months, suggestions with arithmetic, what-if, hedge editor); LNG landing and palette search. A Today row and What-needs-me items next |
 | QA-R-01 | Risk | The credit-line form sends empty links; the breach and its alert vanish | Fixed (F1-10): the form reads the whole line, unlinking all is confirmed, a cleared breach waits for acknowledgement. Maker-checker on increases waits for P-17 |
 | QA-R-02 | Admin | An admin can mint a key for another person and act as them | Fixed (F1-9): people issue their own keys in Settings; admins issue for services only |
 | QA-R-03, QA-R-04 | Admin, risk | Trader+risk users and own mandates by name | Fixed in F1 (segregation, all names compared); creating or editing a user with ANALYST and REVIEWER returns `segregation_warning`, shown in Admin > Users before and after saving (not blocked) |

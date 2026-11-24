@@ -5518,7 +5518,7 @@ export const api = {
     post<{ change: CargoPlanChangeDTO }>(`/lng/cargoes/${encodeURIComponent(cargoId)}/plan/what-if`, body, options),
   /** Replace the hedge legs that cover a cargo (a short hedge is negative MWh). */
   saveCargoHedges: (cargoId: string, legs: CargoHedgeLegDTO[]) =>
-    put<{ cargo_id: string; legs: CargoHedgeLegDTO[] }>(`/lng/cargoes/${encodeURIComponent(cargoId)}/hedges`, { legs }),
+    put<{ cargo_id: string; legs: number; events?: unknown }>(`/lng/cargoes/${encodeURIComponent(cargoId)}/hedges`, { legs }),
   tariffPublications: (options?: ApiRequestOptions) =>
     get<{ rows: TariffPublicationDTO[] }>("/route-cost/tariff-publications", undefined, options),
   saveTariffPublication: (
@@ -6322,41 +6322,126 @@ export interface CargoPlanBodyDTO {
   boil_off_mwh: number;
   gas_in_kind_mwh: number;
   delivered_mwh: number;
+  /** Loaded less boil-off up to the ETA (what stays aboard with no berth). */
+  energy_at_eta_mwh?: number;
   send_out: { gas_day: string; mwh: number }[];
+  send_out_end_utc?: string | null;
   months: CargoPlanMonthDTO[];
   demurrage_hours: number;
   demurrage_cost: number | null;
   suggestions: CargoPlanSuggestionDTO[];
 }
 
+export interface CargoPlanMonthShiftDTO {
+  hub: string;
+  month: string;
+  physical_before_mwh: number;
+  physical_after_mwh: number;
+  change_mwh: number;
+}
+
 export interface CargoPlanChangeDTO {
   headline: string;
+  slot_status_before?: CargoPlanBodyDTO["slot_status"];
+  slot_status_after?: CargoPlanBodyDTO["slot_status"];
   boil_off_change_mwh: number;
   delivered_change_mwh: number;
+  months?: CargoPlanMonthShiftDTO[];
   before: CargoPlanBodyDTO;
-  after: CargoPlanBodyDTO;
+  /** Present on a what-if; the stored plan's own `last_change` leaves it out (it is `plan`). */
+  after?: CargoPlanBodyDTO;
   [key: string]: unknown;
 }
 
+/** The slot a cargo is aimed at, as the plan used it. */
+export interface CargoSlotDTO {
+  slot_id: string;
+  terminal: string;
+  window_start_utc: string;
+  window_end_utc: string;
+  send_out_mwh_per_day: number;
+}
+
+/** When the cargo's plan inputs last changed, what changed and who changed it (additive). */
+export interface CargoChangeMetaDTO {
+  at_utc: string;
+  /** `eta`, `departure`, `energy`, `slot`, `hedges`, `status`, `destination`; `recorded` first. */
+  kinds: string[];
+  /** The person who recorded a hedge set, else `import <source_system>`. */
+  by: string;
+  eta_before_utc: string | null;
+}
+
+/** The board's and the plan's cargo line (`_summary` on the server). */
+export interface CargoSummaryDTO {
+  cargo_id: string;
+  vessel_name?: string | null;
+  vessel_imo?: string | null;
+  status?: string;
+  book_id?: string | null;
+  load_port?: string | null;
+  destination_terminal?: string | null;
+  departed_at_utc?: string | null;
+  eta_utc?: string | null;
+  source_system?: string;
+  imported_at_utc?: string | null;
+  simulated?: boolean;
+  slot_status?: CargoPlanBodyDTO["slot_status"];
+  hub?: string | null;
+  slot?: CargoSlotDTO | null;
+  /** The cargo record's loaded energy (MWh). */
+  loaded_mwh?: number | null;
+  delivered_mwh?: number;
+  suggestions?: number;
+  changed?: CargoChangeMetaDTO | null;
+}
+
+export interface CargoHedgeLegHeldDTO extends CargoHedgeLegDTO {
+  created_by: string;
+  created_at_utc: string;
+}
+
+export interface CargoSlotOptionDTO {
+  slot_id: string;
+  terminal: string;
+  window_start_utc: string;
+  window_end_utc: string;
+  send_out_gwh_d: number | null;
+  held_by: string | null;
+  /** False when another cargo holds the slot. */
+  free: boolean;
+}
+
 export interface CargoPlanDTO {
-  cargo: Record<string, unknown> & { cargo_id: string; vessel_name?: string | null };
-  inputs: { input: string; value: unknown; source: string }[];
+  cargo: CargoSummaryDTO & Record<string, unknown>;
+  inputs: { input: string; value?: unknown; source: string }[];
   plan: CargoPlanBodyDTO;
-  contract: Record<string, unknown> | null;
+  contract: (Record<string, unknown> & {
+    contract_id?: string;
+    warning?: string | null;
+    mspa?: { master_contract_id: string; laytime_hours: number | null; demurrage_usd_per_day: number | null } | null;
+  }) | null;
   last_change: CargoPlanChangeDTO | null;
+  /** The hedge legs held against the cargo, with who recorded them (additive). */
+  hedges?: CargoHedgeLegHeldDTO[];
+  /** Slots a what-if may move the cargo to (additive). */
+  slot_options?: CargoSlotOptionDTO[];
   as_of_utc: string;
   advisory: string;
 }
 
-export interface CargoPlanBoardLineDTO {
-  cargo_id: string;
-  vessel_name?: string | null;
-  slot_status?: CargoPlanBodyDTO["slot_status"];
+export interface CargoPlanBoardLineDTO extends CargoSummaryDTO {
   /** What the last schedule or hedge change did; null before the second recorded state. */
   headline?: string | null;
   contract_warning?: string | null;
   /** The first suggestion's text, if any. */
   next?: string | null;
+  /** The non-deadline suggestion due first (additive). */
+  next_action?: CargoPlanSuggestionDTO | null;
+  /** The next futures expiry that matters for the cargo (additive). */
+  next_expiry?: CargoPlanSuggestionDTO | null;
+  /** The plan's hub months (additive). */
+  months?: CargoPlanMonthDTO[];
   /** Set instead of the plan when the cargo's inputs cannot be planned (e.g. cargo_incomplete). */
   error?: string;
   [key: string]: unknown;

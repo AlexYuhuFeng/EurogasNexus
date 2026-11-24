@@ -36,7 +36,7 @@ function lands(search: string): string {
 test("the primary row is four modes in the plan's order, each with its tasks", () => {
   assert.deepEqual(PRODUCT_MODES.map((mode) => mode.id), ["desk", "deals", "book", "research"]);
   assert.deepEqual(PRODUCT_MODES.map((mode) => mode.tasks.map((task) => task.id)), [
-    ["today", "prices", "network"],
+    ["today", "prices", "network", "cargoes"],
     // Opportunities first (CP-14); Evaluate, Optimise and Routes & netback left with CP-00.
     ["opportunities", "contracts", "review"],
     // Nominations and Storage are one Planning task, two views behind a switch (A.4).
@@ -76,6 +76,7 @@ test("every old task address lands on its new task; Decision Center's tasks each
     "market.overview": "desk/today",
     "market.curves": "desk/prices",
     "market.network": "desk/network",
+    "market.cargoes": "desk/cargoes",
     // The retired task lands on Network (its Capacity tab, networkPanelModel).
     "market.capacity": "desk/network",
     "contracts.overview": "book/position",
@@ -183,14 +184,14 @@ test("a mode or task the role cannot use is absent; a mode never grants anything
   assert.deepEqual(ids(user(["ADMIN"], ["identity.manage", "source.read"], false)), []);
   // A reviewer reviews and reads, but prepares no nomination or storage plan.
   assert.deepEqual(ids(user(["REVIEWER"], reviewer)), [
-    "desk:today,prices,network",
+    "desk:today,prices,network,cargoes",
     "deals:opportunities,contracts,review",
     "book:position,limits,delivery",
     "research:fundamentals,spreads,cargo,reports",
   ]);
   assert.equal(modeLanding("book", user(["REVIEWER"], reviewer))?.id, "position");
   // An analyst has everything.
-  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 14);
+  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 15);
   // No identity, or an older server without a permission list: what it had before.
   assert.equal(visibleModes(null).length, 4);
   assert.equal(visibleModes(user(["TRADER"], undefined)).length, 4);
