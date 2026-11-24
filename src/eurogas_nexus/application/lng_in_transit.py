@@ -377,6 +377,25 @@ def cargo_plan(
     }
 
 
+def send_out_plan(session, cargo_id: str, *, now: datetime | None = None
+                  ) -> tuple[CargoPlan, str | None]:
+    """The cargo's plan as :func:`cargo_plan` builds it, and the id of the slot it uses.
+
+    For a reader that needs the send-out by gas day (My gas day), so the gas-day line and the
+    cargo plan are one figure. Raises :class:`CargoPlanError` when the plan cannot be built.
+    """
+
+    moment = _aware(now) or datetime.now(UTC)
+    row, slot, hedges = _cargo_rows(session, cargo_id)
+    contract = _cargo_contract(session, cargo_id)
+    cargo, _sources = _inputs(
+        session, _state(row, slot, hedges, moment), now=moment,
+        contract_boil_off=None if contract is None or contract[1] is None
+        else contract[1].boil_off_pct_per_day,
+    )
+    return build_plan(cargo, now=moment), (None if cargo.slot is None else cargo.slot.slot_id)
+
+
 def what_if(session, cargo_id: str, changes: dict[str, Any], *, now: datetime | None = None):
     """The plan now against the plan under a changed ETA, slot or berth delay."""
 

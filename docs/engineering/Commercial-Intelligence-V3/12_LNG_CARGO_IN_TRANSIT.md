@@ -15,8 +15,8 @@ ETA -> berth (slot window) -> boil-off -> gas in kind -> delivered energy
 | --- | --- | --- |
 | Berth | On time if the ETA is inside the slot window; waiting at anchor until it opens if early; missed if after it closes (no send-out assumed); no slot if none is linked | ETA from the ETRM or vessel feed import; slot from `regas_slots` |
 | Boil-off | Loaded energy x rate x days from loading to berth (waiting boils off too) | Contract terms (`boil_off_pct_per_day`), else the approved assumption `lng.boil_off`, else the desk standard 0.10 %/day, named as such |
-| Gas in kind | Terminal's retention share of the energy at berth | Terminal terms |
-| Send-out | From berth at the slot's send-out rate until the delivered energy is gone, cut at 06:00 CET gas-day boundaries | Slot |
+| Gas in kind | Terminal's retention share of the energy at berth; 0 with no berth (missed or no slot: nothing is unloaded, nothing is delivered, and `energy_at_eta_mwh` is what stays aboard) | Terminal terms |
+| Send-out | From berth at the slot's send-out rate until the delivered energy is gone, cut at 06:00 CET gas-day boundaries. Today's "My gas day" and checklist take this send-out for a slot holding a firm cargo (`basis` `cargo_plan`); a slot without a cargo is spread over its window and labelled as an assumption | Slot |
 | Hub months | Send-out summed by hub and delivery month; the hub comes from the terminal | Terminal register, else the identity resolver |
 | Hedge cover | Recorded legs per hub and month (short is negative); net = physical + hedge | `lng_cargo_hedges` |
 | Last trading day | Two UK business days before the month (ICE Endex TTF rule) | Calendar; holidays passed in |

@@ -2,7 +2,7 @@
  * My gas day (Today row 6): presentation rules only. Every figure comes from the server
  * (`application/gas_day.py`); nothing is recomputed here except how long until a cut-off.
  */
-import type { GasDayCutoffDTO, GasDayHubDTO, GasDayLineDTO, GasDayQuantityDTO } from "@/api/client";
+import type { DailyBalanceDTO, GasDayCutoffDTO, GasDayHubDTO, GasDayLineDTO, GasDayQuantityDTO } from "@/api/client";
 
 /** The next cut-off of the day that has not passed at `nowMs` (the end of the day last). */
 export function nextCutoff(cutoffs: readonly GasDayCutoffDTO[], nowMs: number): GasDayCutoffDTO | null {
@@ -64,4 +64,22 @@ export function cutoffUrgency(atUtc: string, nowMs: number): "open" | "soon" | "
   if (minutes <= 30) return "imminent";
   if (minutes <= 120) return "soon";
   return "open";
+}
+
+type Translate = (key: string, options?: Record<string, unknown>) => string;
+
+/**
+ * The daily balance's cash-out rate and where it came from, read from the response: the
+ * approved assumption set and version, or "entered by hand"; never a client default (QA-T-07).
+ */
+export function dailyBalanceRateText(balance: DailyBalanceDTO, t: Translate): string | null {
+  const cost = balance.days.find((day) => day.cash_out?.rate != null)?.cash_out;
+  if (cost?.rate != null) {
+    const side = t(cost.side === "short_premium" ? "balance.side_short_premium" : "balance.side_long_discount");
+    if (cost.basis === "entered") return t("balance.rate_entered", { rate: cost.rate, unit: cost.rate_unit ?? "", side });
+    return t("balance.rate_source", {
+      rate: cost.rate, unit: cost.rate_unit ?? "", side, set: cost.assumption_set ?? "", version: cost.assumption_version ?? "",
+    });
+  }
+  return balance.days.some((day) => day.cash_out?.basis === "missing") ? t("balance.rate_missing") : null;
 }

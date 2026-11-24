@@ -193,7 +193,9 @@ class CargoPlan:
     wait_hours: float
     days_to_berth: float
     boil_off_mwh: float
+    #: Kept by the terminal as fuel: 0 when there is no berth (nothing is unloaded).
     gas_in_kind_mwh: float
+    #: Sent out from berth (the send-out by gas day adds up to it): 0 when there is no berth.
     delivered_mwh: float
     send_out: tuple[tuple[str, float], ...]  # (gas day label, MWh)
     send_out_end_utc: datetime | None
@@ -201,6 +203,10 @@ class CargoPlan:
     demurrage_hours: float
     demurrage_cost: float | None
     suggestions: tuple[Suggestion, ...] = field(default=())
+    #: Energy aboard when the ship arrives: loaded less boil-off up to the ETA. With no berth
+    #: it is the cargo as it stands (loaded = boil-off + energy at ETA); with a berth, waiting
+    #: and berth delay boil off more (loaded = boil-off + gas in kind + delivered).
+    energy_at_eta_mwh: float = 0.0
 
     def month(self, hub: str, month: str) -> MonthCover | None:
         for cover in self.months:
@@ -218,6 +224,7 @@ class CargoPlan:
             "boil_off_mwh": round(self.boil_off_mwh, 1),
             "gas_in_kind_mwh": round(self.gas_in_kind_mwh, 1),
             "delivered_mwh": round(self.delivered_mwh, 1),
+            "energy_at_eta_mwh": round(self.energy_at_eta_mwh, 1),
             "send_out": [{"gas_day": day, "mwh": round(mwh, 1)} for day, mwh in self.send_out],
             "send_out_end_utc": (
                 None if self.send_out_end_utc is None else self.send_out_end_utc.isoformat()
@@ -323,8 +330,13 @@ def build_plan(
     days_to_berth = (until - cargo.loaded_at_utc).total_seconds() / 86400
     boil_off = cargo.loaded_mwh * cargo.boil_off_pct_per_day / 100 * days_to_berth
     at_berth = max(cargo.loaded_mwh - boil_off, 0.0)
-    in_kind = at_berth * (slot.gas_in_kind_pct / 100) if slot is not None else 0.0
-    delivered = at_berth - in_kind
+    to_eta = (cargo.eta_utc - cargo.loaded_at_utc).total_seconds() / 86400
+    at_eta = max(cargo.loaded_mwh * (1 - cargo.boil_off_pct_per_day / 100 * to_eta), 0.0)
+    # Gas in kind is taken from what is unloaded: with no berth nothing is, and nothing is
+    # delivered either (the energy stays aboard: ``energy_at_eta_mwh``).
+    berthed = berth is not None and slot is not None
+    in_kind = at_berth * (slot.gas_in_kind_pct / 100) if berthed else 0.0
+    delivered = at_berth - in_kind if berthed else 0.0
 
     send_out: list[tuple[str, float]] = []
     send_out_end = None
@@ -370,7 +382,8 @@ def build_plan(
         days_to_berth=days_to_berth,
         boil_off_mwh=boil_off,
         gas_in_kind_mwh=in_kind,
-        delivered_mwh=delivered if berth is not None else at_berth,
+        delivered_mwh=delivered,
+        energy_at_eta_mwh=at_eta,
         send_out=tuple(send_out),
         send_out_end_utc=send_out_end,
         months=months,

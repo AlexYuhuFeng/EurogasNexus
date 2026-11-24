@@ -148,6 +148,27 @@ def test_missed_slot_has_no_send_out_and_flags_the_orphaned_hedge():
     ).headline() == "The new ETA misses the slot window."
 
 
+def test_a_missed_slot_adds_up_with_no_gas_in_kind_and_names_the_energy_at_eta():
+    # QA-L-06. No berth: nothing is unloaded, so the terminal keeps nothing and nothing is
+    # delivered; the energy aboard at the ETA is its own figure, and the chain adds up.
+    eta = datetime(2027, 1, 2, tzinfo=UTC)
+    plan = build_plan(_cargo(eta), now=NOW)
+    assert plan.gas_in_kind_mwh == 0 and plan.delivered_mwh == 0
+    days = (eta - LOADED).total_seconds() / 86400
+    assert plan.boil_off_mwh == pytest.approx(1_000_000 * 0.085 / 100 * days)
+    assert plan.energy_at_eta_mwh == pytest.approx(1_000_000 - plan.boil_off_mwh)
+    assert plan.boil_off_mwh + plan.gas_in_kind_mwh + plan.energy_at_eta_mwh == pytest.approx(
+        1_000_000)
+    assert plan.as_dict()["energy_at_eta_mwh"] == round(plan.energy_at_eta_mwh, 1)
+    # Missing the slot loses the delivery; it never gains energy.
+    on_time = build_plan(_cargo(datetime(2026, 12, 20, tzinfo=UTC)), now=NOW)
+    assert compare(on_time, plan).delivered_change_mwh == pytest.approx(-on_time.delivered_mwh)
+    # With a berth the chain is unchanged: loaded = boil-off + gas in kind + delivered.
+    assert on_time.boil_off_mwh + on_time.gas_in_kind_mwh + on_time.delivered_mwh == (
+        pytest.approx(1_000_000))
+    assert on_time.energy_at_eta_mwh >= on_time.delivered_mwh
+
+
 def test_early_arrival_waits_for_the_window_and_boils_off_meanwhile():
     slot = _slot(window_start_utc=datetime(2026, 12, 22, tzinfo=UTC))
     plan = build_plan(_cargo(datetime(2026, 12, 20, tzinfo=UTC), slot=slot), now=NOW)

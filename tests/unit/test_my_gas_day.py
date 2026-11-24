@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 import eurogas_nexus.db.models  # noqa: F401  (registers every table)
 from eurogas_nexus.application.caller import Caller
 from eurogas_nexus.application.gas_day import my_gas_day, native_quantity
+from eurogas_nexus.application.gas_day_checklist import checklist
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.domain.market.hub_cutoffs import (
     last_renomination,
@@ -198,10 +199,13 @@ def test_the_ttf_trader_holds_his_book_and_the_split_he_was_given(desk):
     assert ttf["cost_of_nothing"]["basis"] == "assumption"
     assert ttf["cost_of_nothing"]["side"] == "short_premium"
     assert ttf["cost_of_nothing"]["value"] == pytest.approx(-ttf["net"]["mwh"] * 1.80, abs=0.05)
-    # Tomorrow the LNG send-out makes the hub long.
+    # Tomorrow the LNG send-out covers what the Kestrel outage takes off the supply: within
+    # the band. The slot holds no cargo, so its rate over the window is the line (assumed).
     _, tomorrow = _day(desk, _caller("demo.nl.trader"), "tomorrow")
-    assert tomorrow["TTF"]["state"] == "long"
-    assert any(line["kind"] == "lng_send_out" for line in tomorrow["TTF"]["lines"])
+    assert tomorrow["TTF"]["state"] == "balanced"
+    lng = next(line for line in tomorrow["TTF"]["lines"] if line["kind"] == "lng_send_out")
+    assert lng["basis"] == "slot" and lng["source_ref"] is None
+    assert lng["quantity"]["mwh"] == 4_800
 
 
 def test_operations_without_a_mandate_sees_every_book_once(desk):
@@ -262,3 +266,115 @@ def test_today_appends_the_row_without_moving_the_others(desk):
     assert keys == ["key_figures", "changes", "book", "fundamentals", "needs_me", "gas_day",
                     "checklist"]
     assert today["rows"][5]["populated"] is True, today["warnings"]
+
+
+# ------------------------------------------------------------------ outages (QA-T-09)
+
+
+def test_an_outage_at_the_source_caps_the_supply_line_and_names_the_message(desk):
+    _, hubs = _day(desk, _caller("demo.trader"))
+    haldor = _refs(hubs["NBP"])["contract:demo-haldor-24"]
+    # The demo Haldor field: 52 of 70 mcm/d out all day. 24,000 MWh/d x (1 - 52/70) is what
+    # the field can deliver; the 21,120 nominated is above it, so the line is capped.
+    assert haldor["quantity"]["mwh"] == pytest.approx(24_000 * (1 - 52 / 70), abs=0.1)
+    (outage,) = haldor["adjustments"]
+    assert outage["kind"] == "outage" and outage["source"] == "REMIT"
+    assert outage["id"] == "demo-umm-1" and outage["asset"].startswith("Demo Haldor field")
+    assert outage["share_out_pct"] == pytest.approx(74.29) and outage["day_share_pct"] == 100
+    assert outage["quantity"]["mwh"] == pytest.approx(21_120 - 24_000 * (1 - 52 / 70), abs=0.1)
+    # A contract whose source has no outage is untouched.
+    assert _refs(hubs["NBP"])["contract:demo-brae-10"]["adjustments"] == []
+
+
+def test_an_outage_covering_part_of_the_gas_day_takes_its_share_of_the_day(desk):
+    from eurogas_nexus.db.models import RemitUmmRecord
+
+    with Session(desk) as session:
+        row = session.query(RemitUmmRecord).filter(
+            RemitUmmRecord.message_id == "demo-umm-1").one()
+        # Ends at 11:00 UTC tomorrow: a quarter of tomorrow's gas day (05:00 to 05:00 UTC).
+        row.event_stop_utc = datetime(2026, 11, 20, 11)
+        session.commit()
+    _, tomorrow = _day(desk, _caller("demo.trader"), "tomorrow")
+    haldor = _refs(tomorrow["NBP"])["contract:demo-haldor-24"]
+    assert haldor["adjustments"][0]["day_share_pct"] == 25.0
+    assert haldor["quantity"]["mwh"] == pytest.approx(24_000 * (1 - 52 / 70 * 0.25), abs=0.1)
+
+
+# ------------------------------------------------------------------ LNG send-out (QA-L-01)
+
+
+def _cargo_at_the_slot(engine, eta: datetime) -> str:
+    from eurogas_nexus.db.models import LngCargoRecord, RegasSlotRecord
+
+    slot_id = "demo-slot-gate-20261120"
+    with Session(engine) as session:
+        session.add(LngCargoRecord(
+            cargo_id="test-cargo-1", vessel_name="Test vessel", status="laden",
+            load_port="Sabine Pass", departed_at_utc=NOW - timedelta(days=10),
+            destination_terminal="Demo Rotterdam terminal", eta_utc=eta, energy_gwh=1_000.0,
+            book_id="demo-nl-ttf", source_system="ETRM_CSV", source_reference="etrm:test",
+            updated_at_utc=NOW,
+        ))
+        session.get(RegasSlotRecord, slot_id).cargo_id = "test-cargo-1"
+        session.commit()
+    return slot_id
+
+
+def test_a_cargo_that_misses_the_slot_window_sends_out_nothing_that_gas_day(desk):
+    # The window is tomorrow's gas day (20 Nov 05:00 to 21 Nov 05:00 UTC); the ship arrives
+    # on 22 Nov: the slot is missed, and the plan sends out nothing on the 20th.
+    slot_id = _cargo_at_the_slot(desk, datetime(2026, 11, 22, 12, tzinfo=UTC))
+    _, tomorrow = _day(desk, _caller("demo.nl.trader"), "tomorrow")
+    lng = _refs(tomorrow["TTF"])[f"lng:{slot_id}"]
+    assert lng["basis"] == "cargo_plan" and lng["source_ref"] == "cargo:test-cargo-1"
+    assert lng["quantity"]["mwh"] == 0
+    with Session(desk) as session:
+        row = checklist(session, _caller("demo.nl.trader"), now=NOW)
+    items = next(d for d in row["days"] if d["which"] == "tomorrow")["items"]
+    send_out = next(item for item in items if item["step"] == "lng_send_out")
+    assert send_out["expected"]["mwh"] == 0 and send_out["expected"]["basis"] == "cargo_plan"
+
+
+def test_a_cargo_on_time_sends_out_what_its_plan_says(desk):
+    from eurogas_nexus.application.lng_in_transit import send_out_plan
+
+    slot_id = _cargo_at_the_slot(desk, datetime(2026, 11, 20, 17, tzinfo=UTC))
+    with Session(desk) as session:
+        plan, planned_slot = send_out_plan(session, "test-cargo-1", now=NOW)
+    assert planned_slot == slot_id and plan.slot_status == "on_time"
+    by_day = dict(plan.send_out)
+    _, tomorrow = _day(desk, _caller("demo.nl.trader"), "tomorrow")
+    lng = _refs(tomorrow["TTF"])[f"lng:{slot_id}"]
+    # Berth at 17:00 UTC: 12 of the gas day's 24 hours at 4,800 MWh/d, not the whole day.
+    assert lng["quantity"]["mwh"] == pytest.approx(by_day["2026-11-20"], abs=0.1)
+    assert lng["quantity"]["mwh"] == pytest.approx(2_400, abs=0.1)
+
+
+# ------------------------------------------------------------------ one daily balance (QA-T-07)
+
+
+def test_the_daily_balance_is_the_gas_day_row_with_the_approved_rate(desk):
+    from eurogas_nexus.application.gas_day import gas_day_view, hub_daily_balance
+
+    caller = _caller("demo.operations")
+    _, hubs = _day(desk, caller)
+    with Session(desk) as session:
+        view = gas_day_view(session, caller, now=NOW)
+        rows = hub_daily_balance(session, view, "NBP")
+    today = rows[0]
+    nbp = hubs["NBP"]
+    assert today["gas_day"] == "2026-11-19"
+    assert today["residual_mwh"] == pytest.approx(nbp["net"]["mwh"], abs=0.1)
+    assert today["state"] == nbp["state"]
+    assert today["cash_out"] == nbp["cost_of_nothing"]
+    # The rate comes from the approved set in force, named with its version, never a default.
+    assert today["cash_out"]["basis"] == "assumption"
+    assert today["cash_out"]["assumption_set"] and today["cash_out"]["assumption_version"]
+    assert today["cash_out_cost"] == nbp["cost_of_nothing"]["value"]
+    # The BBL import and the customer offtake are physical lines: in the supply, as on Today.
+    refs = {line["ref"] for line in today["lines"]}
+    assert any("bbl-import" in ref for ref in refs) and any("offtake" in ref for ref in refs)
+    assert today["supply"] + today["bilateral_bought"] + today["exchange_bought"] - (
+        today["bilateral_sold"] + today["exchange_sold"]) == pytest.approx(
+            today["residual_mwh"], abs=0.2)

@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { api, type DailyBalanceDTO } from "@/api/client";
 import { formatQuantity } from "@/app/model/riskLimitsModel";
+import { dailyBalanceRateText } from "@/app/model/gasDayModel";
 import { GAS_HUBS } from "@/app/contractChoices";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 import { DataGrid, type DataGridColumn } from "@/components/ui";
@@ -18,15 +19,14 @@ function signed(value: number): string {
 /**
  * The desk's gas balance per gas day at one hub. Gas is balanced daily: whatever is still
  * long or short at the end of a gas day is cashed out by the TSO at a penal price. For each
- * coming day this shows expected supply (contracts corrected by how they deliver), what has
- * been bought and sold on the exchange and bilaterally, and the residual still to close,
- * with what leaving it open would cost at the desk's own cash-out spreads.
+ * coming day this shows the physical lines net, what has been bought and sold on the exchange
+ * and bilaterally, and the residual still to close, with what leaving it open would cost. One
+ * server definition (`application/gas_day`, the lines of Today's "My gas day"); the cash-out
+ * rate is the approved assumption the response names, never typed in here (QA-T-07).
  */
 export function DailyBalancePanel({ t }: { t: Translate }) {
   const [hub, setHub] = useState("NBP");
   const [days, setDays] = useState(7);
-  const [shortPremium, setShortPremium] = useState("1.5");
-  const [longDiscount, setLongDiscount] = useState("0.3");
   const [balance, setBalance] = useState<DailyBalanceDTO | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -35,15 +35,7 @@ export function DailyBalancePanel({ t }: { t: Translate }) {
     const controller = new AbortController();
     setError(null);
     api
-      .dailyBalance(
-        {
-          hub,
-          days,
-          short_premium_per_mwh: shortPremium === "" ? undefined : Number(shortPremium),
-          long_discount_per_mwh: longDiscount === "" ? undefined : Number(longDiscount),
-        },
-        { signal: controller.signal },
-      )
+      .dailyBalance({ hub, days }, { signal: controller.signal })
       .then((response) => {
         setBalance(response.data);
         setWarnings(response.meta?.warnings ?? []);
@@ -52,7 +44,7 @@ export function DailyBalancePanel({ t }: { t: Translate }) {
         if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : String(caught));
       });
     return () => controller.abort();
-  }, [hub, days, shortPremium, longDiscount]);
+  }, [hub, days]);
 
   const currency = balance?.currency ?? (hub === "NBP" ? "GBP" : "EUR");
   const open = balance?.days.filter((day) => day.state !== "balanced") ?? [];
@@ -100,8 +92,6 @@ export function DailyBalancePanel({ t }: { t: Translate }) {
             {[3, 7, 14, 31].map((count) => <option key={count} value={count}>{t("balance.days_n", { count })}</option>)}
           </select>
         </label>
-        <label><span>{t("balance.short_premium", { currency })}</span><input inputMode="decimal" value={shortPremium} onChange={(event) => setShortPremium(event.target.value)} /></label>
-        <label><span>{t("balance.long_discount", { currency })}</span><input inputMode="decimal" value={longDiscount} onChange={(event) => setLongDiscount(event.target.value)} /></label>
       </div>
       {error && <p role="alert" className="limit-breaches">{error}</p>}
       {balance && (
@@ -112,7 +102,7 @@ export function DailyBalancePanel({ t }: { t: Translate }) {
                 ? t("balance.headline_open", { count: open.length, cost: `${currency} ${Math.round(exposure).toLocaleString()}` })
                 : t("balance.headline_flat")}
             </strong>{" "}
-            <small className="muted">{t("balance.delivery_ratio", { pct: (balance.delivery_ratio * 100).toFixed(1) })}</small>
+            <small className="muted">{dailyBalanceRateText(balance, t)}</small>
           </p>
           <DataGrid
             id="daily-balance"

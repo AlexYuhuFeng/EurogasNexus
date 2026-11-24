@@ -208,6 +208,10 @@ def _nomination_item(line, day, cutoffs, events, nominated, contracts, native_qu
         "status": status,
         "deadline": deadline,
         "simulated": line.simulated,
+        # An outage at the line's source on the day (source and id), so the row links to it.
+        "outages": [{"source": item.source, "id": item.ref, "asset": item.label,
+                     "share_out_pct": round(item.share * 100.0, 2)}
+                    for item in line.adjustments if item.kind == "outage"],
         "target": {"mode": "book", "task": "delivery",
                    "params": {"contract": contract_id} if contract_id else {}},
     }
@@ -236,13 +240,18 @@ def _lng_steps(session, line, day, cutoffs, events, now) -> list[dict[str, Any]]
                                "passed": start <= now}
                   if start >= gas_day_start_for_date(day) else None})
     send_out = events.get((day, line.ref, "lng_send_out"))
+    # The cargo plan's send-out for the day where the slot holds a cargo (the gas-day line),
+    # else the slot's rate.
+    rate = (line.mwh if line.basis == "cargo_plan"
+            else float(slot.send_out_gwh_d or 0) * 1000.0)
+    # Still to send: the nomination cut-off, passed or not (a missed one is overdue, as for a
+    # contract's nomination); once sent, the last renomination still ahead.
+    to_send = send_out is None or send_out.status == "to_send"
     steps.append({**base, "step": "lng_send_out",
-                  "expected": {"value": round(float(slot.send_out_gwh_d or 0) * 1000.0, 1),
-                               "unit": "MWh/d", "mwh": round(float(slot.send_out_gwh_d or 0)
-                                                             * 1000.0, 1)},
+                  "expected": {"value": round(rate, 1), "unit": "MWh/d", "mwh": round(rate, 1),
+                               "basis": line.basis, "source_ref": line.source_ref},
                   "status": _status_payload(send_out, "to_send", "none"),
-                  "deadline": _deadline(open_cuts, ("nomination", "last_renomination"))
-                  if send_out is None or send_out.status in OPEN
+                  "deadline": _deadline(cutoffs, ("nomination",)) if to_send
                   else _deadline(open_cuts, ("last_renomination",))})
     inventory = events.get((day, line.ref, "lng_inventory"))
     steps.append({**base, "step": "lng_inventory",

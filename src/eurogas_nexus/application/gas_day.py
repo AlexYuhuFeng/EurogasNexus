@@ -40,6 +40,7 @@ from eurogas_nexus.domain.portfolio.gas_day_balance import (
     Delegation,
     GasDayLine,
     HubBalance,
+    LineAdjustment,
     balance_for,
 )
 
@@ -167,11 +168,79 @@ def _point(contract) -> str | None:
     return text or None
 
 
-def contract_lines(
-    inputs, days: Iterable[date], nominations: dict
-) -> list[tuple[date, GasDayLine]]:
-    """Physical legs (contracts) delivering on each day: nominated where held, else DCQ."""
+def active_outages(session, caller, now: datetime, days: list[date]) -> list[dict[str, Any]]:
+    """REMIT outages running on any of the days, from the service the outage list, the ticker
+    and the map read (``application/remit_outages``), as the caller may see them."""
 
+    from eurogas_nexus.application.remit_outages import load_outage_rows
+    from eurogas_nexus.domain.dataops.entitlement import filter_rows_for_principal
+
+    horizon = max((days[-1] - days[0]).days + 2, 2)
+    rows = load_outage_rows(session, now=now, horizon_days=horizon)
+    principal = getattr(caller, "principal", None)
+    return filter_rows_for_principal(principal, rows) if principal is not None else rows
+
+
+def outage_adjustments(contract_name: str, hub: str, day: date,
+                       outages: Iterable[dict[str, Any]]) -> list[LineAdjustment]:
+    """The outages at a contract's source on one gas day, each with the share of the asset out
+    and the share of the gas day it covers.
+
+    The link is the one the event-exposure opportunity uses (``domain/opportunities/
+    event_exposure.source_name``): the contract's source name in the outage's asset name, in
+    the contract hub's balancing zone, so Today and Opportunities read one outage alike.
+    """
+
+    from eurogas_nexus.domain.market.gas_day import gas_day_start_for_date
+    from eurogas_nexus.domain.opportunities.event_exposure import source_name
+
+    source = source_name(contract_name or "")
+    if source is None:
+        return []
+    day_start = gas_day_start_for_date(day)
+    day_end = gas_day_start_for_date(day + timedelta(days=1))
+    found = []
+    for row in outages:
+        if hub.upper() not in str(row.get("balancing_zone") or "").upper():
+            continue
+        if source.casefold() not in str(row.get("facility_name") or "").casefold():
+            continue
+        technical, unavailable = row.get("technical_capacity"), row.get("unavailable_capacity")
+        if not technical or unavailable is None:
+            continue
+        start = _aware(row.get("start_utc")) or day_start
+        end = _aware(row.get("end_utc")) or day_end
+        overlap = (min(end, day_end) - max(start, day_start)).total_seconds()
+        if overlap <= 0:
+            continue
+        found.append(LineAdjustment(
+            kind="outage",
+            source=str(row.get("source_system") or "REMIT"),
+            ref=str(row.get("event_id")),
+            label=str(row.get("facility_name") or ""),
+            mwh=0.0,
+            share=min(max(float(unavailable) / float(technical), 0.0), 1.0),
+            day_share=overlap / (day_end - day_start).total_seconds(),
+            version=row.get("version"),
+            source_reference=row.get("source_reference"),
+            simulated=str(row.get("source_reference") or "").lower().startswith("demo"),
+        ))
+    return found
+
+
+def contract_lines(
+    inputs, days: Iterable[date], nominations: dict,
+    outages: Iterable[dict[str, Any]] = (),
+) -> list[tuple[date, GasDayLine]]:
+    """Physical legs (contracts) delivering on each day: nominated where held, else DCQ.
+
+    A supply line whose source has an outage on the day is capped at what the asset can still
+    deliver: the daily contract quantity less the share out over the share of the day it runs
+    (the largest outage where several messages name the source). The outage is on the line,
+    with its source and id, also when the nomination is already under the cap.
+    """
+
+    outages = list(outages)
     contracts = {row.contract_id: row for row in inputs.contracts}
     out = []
     for leg in inputs.legs:
@@ -188,6 +257,21 @@ def contract_lines(
             kind = "upstream" if resource in UPSTREAM_TYPES else "supply"
             if mwh < 0:
                 kind = "sale"
+            adjustments: tuple[LineAdjustment, ...] = ()
+            if mwh > 0 and leg.mwh_per_day > 0 and outages:
+                found = outage_adjustments(
+                    str(getattr(contract, "contract_name", None) or leg.reference), leg.hub,
+                    day, outages)
+                if found:
+                    cut = max(item.share * item.day_share for item in found)
+                    cap = leg.mwh_per_day * (1.0 - cut)
+                    taken = max(float(mwh) - cap, 0.0)
+                    worst = max(found, key=lambda item: item.share * item.day_share)
+                    adjustments = tuple(
+                        LineAdjustment(**{**item.__dict__,
+                                          "mwh": round(taken, 3) if item is worst else 0.0})
+                        for item in found)
+                    mwh = min(float(mwh), cap)
             out.append((day, GasDayLine(
                 ref=f"contract:{leg.reference}",
                 hub=leg.hub,
@@ -198,6 +282,8 @@ def contract_lines(
                 mwh=abs(float(mwh)),
                 basis=basis,
                 point=_point(contract) if contract is not None else None,
+                simulated=any(item.simulated for item in adjustments),
+                adjustments=adjustments,
             )))
     return out
 
@@ -224,17 +310,18 @@ def trade_lines(inputs, days: list[date], today: date) -> list[tuple[date, GasDa
             and booked is not None and gas_day_label(booked) == today.isoformat()
         )
         direction = IN if leg.mwh_per_day > 0 else OUT
+        provider = str(getattr(order, "provider_id", "") or "").upper()
+        venue = "bilateral" if provider == "ETRM" else "exchange"
         for day in days:
             if not leg.first_gas_day <= day <= leg.last_gas_day:
                 continue
             if is_prompt:
-                key = (day, leg.hub, leg.book_id or "", direction)
+                key = (day, leg.hub, leg.book_id or "", direction, venue)
                 entry = prompt.setdefault(key, {"mwh": 0.0, "count": 0, "simulated": False})
                 entry["mwh"] += abs(leg.mwh_per_day)
                 entry["count"] += 1
                 entry["simulated"] = entry["simulated"] or simulated
                 continue
-            provider = str(getattr(order, "provider_id", "") or "").upper()
             label = (str(order.account_label) if provider == "ETRM" and order is not None
                      else str(getattr(order, "venue", None) or "Exchange"))
             out.append((day, GasDayLine(
@@ -248,10 +335,14 @@ def trade_lines(inputs, days: list[date], today: date) -> list[tuple[date, GasDa
                 basis="booked",
                 point=str(getattr(order, "contract_code", "") or "") or None,
                 simulated=simulated,
+                venue=venue,
             )))
-    for (day, hub, book, direction), entry in sorted(prompt.items()):
+    for (day, hub, book, direction, venue), entry in sorted(prompt.items()):
+        # Bilateral prompt deals (ETRM) are kept apart from screen trades, so a balance by
+        # venue reads the same lines; the screen line keeps its reference.
+        suffix = ":bilateral" if venue == "bilateral" else ""
         out.append((day, GasDayLine(
-            ref=f"prompt:{book}:{hub}:{direction}:{day.isoformat()}",
+            ref=f"prompt:{book}:{hub}:{direction}:{day.isoformat()}{suffix}",
             hub=hub,
             book_id=book,
             direction=direction,
@@ -261,6 +352,7 @@ def trade_lines(inputs, days: list[date], today: date) -> list[tuple[date, GasDa
             basis="booked_today",
             simulated=entry["simulated"],
             prompt_trade=True,
+            venue=venue,
         )))
     return out
 
@@ -272,13 +364,42 @@ def _terminal_hubs(session) -> dict[str, str]:
             for row in session.query(LngTerminalTermsRecord).all()}
 
 
-def lng_lines(session, days: list[date], visible) -> list[tuple[date, GasDayLine]]:
-    """Send-out from the regas slots the firm holds, on each gas day the window covers."""
+def _cargo_send_out(session, slot, now: datetime) -> dict[str, float] | None:
+    """MWh by gas day from the cargo plan (``application/lng_in_transit``) of the firm cargo
+    the slot holds, sent out from berth; None when the slot holds no cargo or no plan can be
+    built for it (the slot's own rate is then the line, labelled as an assumption)."""
+
+    if not slot.cargo_id:
+        return None
+    from eurogas_nexus.application.lng_in_transit import CargoPlanError, send_out_plan
+
+    try:
+        plan, slot_id = send_out_plan(session, slot.cargo_id, now=now)
+    except CargoPlanError:
+        return None
+    if slot_id != slot.slot_id:
+        return {}  # the cargo is planned at another slot: none of it leaves this one
+    out: dict[str, float] = {}
+    for label, mwh in plan.send_out:
+        out[label] = out.get(label, 0.0) + mwh
+    return out
+
+
+def lng_lines(session, days: list[date], visible,
+              now: datetime | None = None) -> list[tuple[date, GasDayLine]]:
+    """Send-out from the regas slots the firm holds.
+
+    A slot with a firm cargo takes the cargo plan's send-out by gas day (from berth, so a
+    cargo that misses the window sends out nothing on its days), basis ``cargo_plan``. A slot
+    without a cargo spreads its send-out rate over the gas days its window covers, basis
+    ``slot``: an assumption, labelled so.
+    """
 
     from eurogas_nexus.db.models.lng_positions import RegasSlotRecord
     from eurogas_nexus.domain.market.gas_day import gas_day_start_for_date
     from eurogas_nexus.domain.ontology.identity import resolve_hub
 
+    now = now or datetime.now(UTC)
     first = gas_day_start_for_date(days[0])
     last = gas_day_start_for_date(days[-1] + timedelta(days=1))
     terminals = _terminal_hubs(session)
@@ -288,9 +409,14 @@ def lng_lines(session, days: list[date], visible) -> list[tuple[date, GasDayLine
         if visible is not None and slot.book_id not in visible:
             continue
         start, end = _aware(slot.window_start_utc), _aware(slot.window_end_utc)
-        if start is None or end is None or end <= first or start >= last:
+        if start is None or end is None or not slot.send_out_gwh_d:
             continue
-        if not slot.send_out_gwh_d:
+        in_window = not (end <= first or start >= last)
+        planned = _cargo_send_out(session, slot, now) if slot.cargo_id else None
+        if planned is None and not in_window:
+            continue
+        if planned is not None and not in_window and not any(
+                day.isoformat() in planned for day in days):
             continue
         hub = terminals.get(str(slot.terminal_name).lower()) or resolve_hub(slot.terminal_name).hub
         if hub is None:
@@ -299,6 +425,22 @@ def lng_lines(session, days: list[date], visible) -> list[tuple[date, GasDayLine
             day_start = gas_day_start_for_date(day)
             day_end = gas_day_start_for_date(day + timedelta(days=1))
             overlap = (min(end, day_end) - max(start, day_start)).total_seconds()
+            if planned is not None:
+                if overlap <= 0 and day.isoformat() not in planned:
+                    continue
+                out.append((day, GasDayLine(
+                    ref=f"lng:{slot.slot_id}",
+                    hub=hub,
+                    book_id=slot.book_id or "",
+                    direction=IN,
+                    kind="lng_send_out",
+                    label=str(slot.terminal_name),
+                    mwh=planned.get(day.isoformat(), 0.0),
+                    basis="cargo_plan",
+                    simulated=str(slot.source_system).endswith("_Sim"),
+                    source_ref=f"cargo:{slot.cargo_id}",
+                )))
+                continue
             if overlap <= 0:
                 continue
             share = overlap / (day_end - day_start).total_seconds()
@@ -535,6 +677,22 @@ def _target(line: GasDayLine) -> dict[str, Any]:
     return {"mode": "book", "task": "delivery", "params": {}}
 
 
+def _adjustment_payload(item: LineAdjustment, hub: str, day: date) -> dict[str, Any]:
+    return {
+        "kind": item.kind,
+        "source": item.source,
+        "id": item.ref,
+        "version": item.version,
+        "source_reference": item.source_reference,
+        "asset": item.label,
+        "share_out_pct": round(item.share * 100.0, 2),
+        "day_share_pct": round(item.day_share * 100.0, 2),
+        "quantity": native_quantity(hub, item.mwh, day),
+        "simulated": item.simulated,
+        "target": {"mode": "desk", "task": "events", "params": {"event": item.ref}},
+    }
+
+
 def _line_payload(line: GasDayLine, day: date) -> dict[str, Any]:
     return {
         "ref": line.ref,
@@ -548,6 +706,8 @@ def _line_payload(line: GasDayLine, day: date) -> dict[str, Any]:
         "simulated": line.simulated,
         "prompt_trade": line.prompt_trade,
         "target": _target(line),
+        "source_ref": line.source_ref,
+        "adjustments": [_adjustment_payload(item, line.hub, day) for item in line.adjustments],
     }
 
 
@@ -614,11 +774,15 @@ class GasDayView:
     contracts: dict[str, Any]
 
 
-def gas_day_view(session, caller, *, now: datetime, inputs=None) -> GasDayView:
+def gas_day_view(session, caller, *, now: datetime, inputs=None,
+                 days: list[date] | None = None) -> GasDayView:
+    """The caller's lines and balances per hub for ``days`` (today's and tomorrow's gas day
+    unless given: the daily balance reads further days from the same lines)."""
+
     from eurogas_nexus.domain.market.gas_day import gas_day_label
 
     today = date.fromisoformat(gas_day_label(now))
-    days = [today, today + timedelta(days=1)]
+    days = list(days) if days else [today, today + timedelta(days=1)]
     if inputs is None:
         from eurogas_nexus.application.position_inputs import ladder_inputs
 
@@ -626,9 +790,10 @@ def gas_day_view(session, caller, *, now: datetime, inputs=None) -> GasDayView:
     scope = scope_of(session, caller, today)
     contract_ids = [leg.reference for leg in inputs.legs if leg.kind == "physical"]
     dated = [
-        *contract_lines(inputs, days, nominations_for(session, contract_ids, days)),
+        *contract_lines(inputs, days, nominations_for(session, contract_ids, days),
+                        active_outages(session, caller, now, days)),
         *trade_lines(inputs, days, today),
-        *lng_lines(session, days, scope.visible),
+        *lng_lines(session, days, scope.visible, now),
         *schedule_lines(session, days, scope.visible),
     ]
     balances = {}
@@ -644,6 +809,75 @@ def gas_day_view(session, caller, *, now: datetime, inputs=None) -> GasDayView:
         book_names={book_id: book.name for book_id, book in (inputs.books or {}).items()},
         contracts={row.contract_id: row for row in inputs.contracts},
     )
+
+
+def hub_daily_balance(
+    session,
+    view: GasDayView,
+    hub: str,
+    *,
+    short_premium: float | None = None,
+    long_discount: float | None = None,
+    flat_band_mwh: float = 0.0,
+) -> list[dict[str, Any]]:
+    """One hub's balance for each day of the view, from the same lines as "My gas day".
+
+    The daily balance (``GET /api/portfolio/daily-balance``) reads this, so Today and Book >
+    Delivery give one figure per hub and day (QA-T-07): ``supply`` is the physical lines net
+    (contracts nominated where held, else their quantity, capped by an outage at the source;
+    LNG send-out; storage and imports less offtake, injection and exports), trades by venue,
+    the residual is the net, its state within the gas day's band, and its cost at the approved
+    cash-out premium or discount for the hub's books. A premium or discount given here is
+    entered by hand and labelled so (``basis`` ``entered``); a band given in MWh replaces the
+    percentage band.
+    """
+
+    from eurogas_nexus.domain.ontology.markets import quote_currency
+
+    hub = hub.upper()
+    manual = short_premium is not None or long_discount is not None
+    rows = []
+    for day in view.days:
+        balance = view.balances[day].get(hub) or HubBalance(hub)
+        lines = sorted(balance.lines, key=_order)
+        physical_in = sum(x.mwh for x in lines if x.venue is None and x.direction == IN)
+        physical_out = sum(x.mwh for x in lines if x.venue is None and x.direction == OUT)
+        traded = {
+            f"{venue}_{side}": sum(
+                x.mwh for x in lines
+                if x.venue == venue and x.direction == (IN if side == "bought" else OUT))
+            for venue in ("exchange", "bilateral") for side in ("bought", "sold")
+        }
+        books = sorted({x.book_id for x in lines if x.book_id})
+        approved = cash_out_assumption(session, books, hub, day)
+        band = balance_band(approved, balance.in_mwh, balance.out_mwh)
+        if flat_band_mwh:
+            band = {"pct": None, "mwh": round(flat_band_mwh, 1), "basis": "entered", "set": None}
+        state = state_within(balance.net_mwh, band)
+        assumption = approved
+        if manual:
+            assumption = {"set": "entered by hand", "version": None,
+                          "currency": quote_currency(hub), "short_premium": short_premium,
+                          "long_discount": long_discount}
+        cost = cost_of_nothing(balance.net_mwh, assumption, hub, state)
+        if manual and cost.get("basis") == "assumption":
+            cost["basis"] = "entered"
+        rows.append({
+            "gas_day": day.isoformat(),
+            "supply": round(physical_in - physical_out, 1) + 0.0,
+            **{key: round(value, 1) for key, value in traded.items()},
+            "residual_mwh": round(balance.net_mwh, 1) + 0.0,
+            "state": state,
+            "cash_out_cost": cost.get("value"),
+            "physical_in_mwh": round(physical_in, 1),
+            "physical_out_mwh": round(physical_out, 1),
+            "net": native_quantity(hub, balance.net_mwh, day),
+            "band": band,
+            "cash_out": cost,
+            "lines": [_line_payload(line, day) for line in lines],
+            "simulated": any(line.simulated for line in lines),
+        })
+    return rows
 
 
 def my_gas_day(session, caller, *, now: datetime, inputs=None,

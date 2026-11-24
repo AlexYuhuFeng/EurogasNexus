@@ -466,6 +466,20 @@ def test_daily_balance_shows_what_is_left_to_sell_each_gas_day(tmp_path, monkeyp
         # 600 MWh a day sold on screen and 600 bilaterally against 1,000 of supply: short 200.
         assert day["exchange_sold"] == 600 and day["bilateral_sold"] == 600
         assert day["residual_mwh"] == -200 and day["cash_out_cost"] == 300.0
+    # QA-T-07: the rates given are entered by hand and labelled so; the lines are the gas
+    # day's own, so the residual is their net.
+    assert today["cash_out"]["basis"] == "entered" and today["cash_out"]["rate"] == 0.5
+    assert today["cash_out"]["assumption_set"] == "entered by hand"
+    assert data["definition"] == "gas_day" and data["delivery_ratio_applied"] is False
+    assert [line["ref"] for line in today["lines"]] == ["contract:nbp-supply"]
+    assert today["physical_in_mwh"] - today["physical_out_mwh"] == today["supply"]
+    # Without rates nothing is assumed in the client or the server: the approved set, or
+    # "missing" with no figure.
+    plain = client.get("/api/portfolio/daily-balance?hub=NBP&days=3",
+                       headers=_h(who, "analyst")).json()["data"]["days"][0]
+    assert plain["cash_out"]["basis"] in {"assumption", "missing"}
+    if plain["cash_out"]["basis"] == "missing":
+        assert plain["cash_out_cost"] is None
 
 
 def test_the_edit_form_reads_the_whole_line_and_an_empty_list_does_not_unlink(

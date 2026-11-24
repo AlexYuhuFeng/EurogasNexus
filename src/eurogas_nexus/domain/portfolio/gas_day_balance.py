@@ -31,6 +31,24 @@ FLAT_MWH = 0.5
 
 
 @dataclass(frozen=True)
+class LineAdjustment:
+    """Something that changed a line's quantity, with its source and id (an outage)."""
+
+    kind: str  # "outage"
+    source: str  # "REMIT"
+    ref: str  # the message id
+    label: str  # the asset
+    #: MWh taken off the line for the gas day (0 when the line was already below the cap).
+    mwh: float
+    #: Share of the asset out (unavailable / technical) and of the gas day it covers.
+    share: float
+    day_share: float
+    version: int | None = None
+    source_reference: str | None = None
+    simulated: bool = False
+
+
+@dataclass(frozen=True)
 class GasDayLine:
     """One physical or traded quantity at a hub on one gas day, in MWh for the day."""
 
@@ -41,12 +59,19 @@ class GasDayLine:
     kind: str
     label: str
     mwh: float
-    #: How the quantity is known: nominated, contract_quantity, booked, scheduled, slot.
+    #: How the quantity is known: nominated, contract_quantity, booked, scheduled, slot (the
+    #: slot's rate over its window, an assumption) or cargo_plan (the cargo's send-out plan).
     basis: str
     point: str | None = None
     simulated: bool = False
     #: A WD or DA trade booked during today's gas day (what has been done today).
     prompt_trade: bool = False
+    #: A trade's venue: "exchange" or "bilateral" (an ETRM deal); None for physical lines.
+    venue: str | None = None
+    #: The record the quantity was read from beyond ``ref`` (the cargo of a cargo-plan line).
+    source_ref: str | None = None
+    #: What changed the quantity (an outage at the line's source), each with source and id.
+    adjustments: tuple[LineAdjustment, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -153,10 +178,12 @@ def balance_for(
         mine = sum(mwh for mwh, item in parts if item.trader.lower() == key)
         others = [(line, mwh, item) for mwh, item in parts if item.trader.lower() != key]
         held = mine + (own if owned_books is not None and line.book_id in owned_books else 0.0)
-        if held <= 0 and not (others and line.book_id in (owned_books or ())):
+        # A line of nothing in his own books stays in view (a cargo that misses its slot).
+        empty = line.mwh == 0 and line.book_id in (owned_books or ())
+        if held <= 0 and not empty and not (others and line.book_id in (owned_books or ())):
             continue
         entry = out.setdefault(hub, HubBalance(hub))
-        if held > 0:
+        if held > 0 or empty:
             entry.lines.append(line if abs(held - line.mwh) < 1e-9 else replace(line, mwh=held))
         if line.book_id in (owned_books or ()):
             entry.delegated.extend(others)

@@ -769,82 +769,76 @@ def get_daily_balance(
 ) -> dict:
     """The gas balance at one hub for each coming gas day: supply, trades, what is left.
 
-    每日平衡：逐个燃气日的合同供应、交易所与双边买卖、剩余敞口及不平衡结算成本。
+    每日平衡：逐个燃气日的实物流入流出、交易所与双边买卖、剩余敞口及不平衡结算成本（与“我的燃气日”同一口径）。
 
-    Supply is the hub's active contracts corrected by their measured delivery over the
-    last 30 gas days; trades are every exchange trade and ETRM (bilateral) deal delivering
-    that day at the hub, month and longer products spread over their days. The residual
-    left open is cashed out by the TSO; its cost uses the desk's own short premium and long
-    discount. Nothing is nominated or traded.
+    One definition with Today's "My gas day" (``application/gas_day``): the same lines in the
+    same scope. ``supply`` is the physical lines net (contracts nominated where held, else
+    their quantity, capped by an outage at the source; LNG send-out from the cargo plan or the
+    slot; storage and imports less offtake, injection and exports); trades are every exchange
+    trade and ETRM (bilateral) deal delivering that day at the hub. The residual left open is
+    cashed out by the TSO; its cost uses the approved cash-out premium or discount for the
+    hub's books (``cash_out`` names the set and version), or a premium and discount given
+    here, labelled as entered by hand. ``delivery_ratio`` is the contracts' measured delivery
+    over the last 30 gas days, shown for reference and no longer applied
+    (``delivery_ratio_applied``). Nothing is nominated or traded.
     """
 
-    from eurogas_nexus.domain.portfolio.daily_balance import BalanceLeg, daily_balance
+    from eurogas_nexus.application.caller import caller_of
+    from eurogas_nexus.application.gas_day import gas_day_view, hub_daily_balance
+    from eurogas_nexus.domain.market.gas_day import gas_day_label
 
     if not _db_is_configured():
         return _not_configured(request)
     hub = hub.upper()
-    today = datetime.now(UTC).date()
+    now = datetime.now(UTC)
+    today = date.fromisoformat(gas_day_label(now))
     gas_days = [today + timedelta(days=offset) for offset in range(days)]
     inputs = ladder_inputs(request, today, today, gas_days[-1])
-    etrm = {
-        order.order_observation_id
-        for order in inputs.orders
-        if str(order.provider_id).upper() == "ETRM"
-    }
-    legs = [
-        BalanceLeg(
-            reference=leg.reference,
-            first_gas_day=leg.first_gas_day,
-            last_gas_day=leg.last_gas_day,
-            mwh_per_day=leg.mwh_per_day,
-            source="supply"
-            if leg.kind == "physical"
-            else "bilateral"
-            if leg.reference in etrm
-            else "exchange",
-        )
-        for leg in inputs.legs
-        if leg.hub == hub
-    ]
-    contract_ids = [leg.reference for leg in legs if leg.source == "supply"]
     warnings = list(inputs.warnings)
-    ratio = 1.0
-    if contract_ids:
-        sqlalchemy_error = _sqlalchemy_error_type()
-        try:
-            from eurogas_nexus.db.models import ContractDeliveryRecord
-            from eurogas_nexus.db.session import get_session_factory
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.models import ContractDeliveryRecord
+        from eurogas_nexus.db.session import get_session_factory
 
-            with get_session_factory()() as session:
-                records = (
-                    session.query(ContractDeliveryRecord)
-                    .filter(ContractDeliveryRecord.contract_id.in_(contract_ids))
-                    .filter(ContractDeliveryRecord.gas_day >= today - timedelta(days=30))
-                    .all()
-                )
-        except sqlalchemy_error as exc:
-            raise _db_unavailable(exc) from exc
-        nominated = sum(r.nominated_mwh or 0.0 for r in records if r.allocated_mwh is not None)
-        allocated = sum(r.allocated_mwh or 0.0 for r in records if r.nominated_mwh is not None)
-        if nominated > 0:
-            ratio = allocated / nominated
-        else:
-            warnings.append(
-                "No delivery history for these contracts: supply is their full daily quantity."
+        with get_session_factory()() as session:
+            view = gas_day_view(session, caller_of(request), now=now, inputs=inputs,
+                                days=gas_days)
+            rows = hub_daily_balance(
+                session, view, hub,
+                short_premium=short_premium_per_mwh,
+                long_discount=long_discount_per_mwh,
+                flat_band_mwh=flat_band_mwh,
             )
-    rows = daily_balance(
-        gas_days,
-        legs,
-        delivery_ratio=ratio,
-        flat_band_mwh=flat_band_mwh,
-        short_premium_per_mwh=short_premium_per_mwh,
-        long_discount_per_mwh=long_discount_per_mwh,
-    )
+            contract_ids = list(dict.fromkeys(
+                line["ref"].split(":", 1)[1]
+                for row in rows for line in row["lines"] if line["ref"].startswith("contract:")
+            ))
+            records = (
+                session.query(ContractDeliveryRecord)
+                .filter(ContractDeliveryRecord.contract_id.in_(contract_ids or [""]))
+                .filter(ContractDeliveryRecord.gas_day >= today - timedelta(days=30))
+                .filter(ContractDeliveryRecord.gas_day < today)
+                .all()
+            )
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    nominated = sum(r.nominated_mwh or 0.0 for r in records if r.allocated_mwh is not None)
+    allocated = sum(r.allocated_mwh or 0.0 for r in records if r.nominated_mwh is not None)
+    ratio = allocated / nominated if nominated > 0 else 1.0
+    if any(row["cash_out"].get("basis") == "missing" for row in rows):
+        warnings.append(
+            "No approved cash-out premium or discount for this hub's books: the cost is not "
+            "estimated on the days marked."
+        )
     payload = {
         "hub": hub,
         "currency": quote_currency(hub),
         "delivery_ratio": round(ratio, 4),
+        "delivery_ratio_applied": False,
         "contracts": contract_ids,
+        "definition": "gas_day",
+        "scope": view.scope.payload(),
+        "as_of_utc": now.isoformat(),
         "days": rows,
     }
     return _env(payload, request, "runtime-postgresql", warnings)

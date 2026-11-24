@@ -58,6 +58,11 @@ function LineItem({ line, t, onOpen }: { line: GasDayLineDTO; t: Translate; onOp
         <span className="gasday-line-meta muted">
           {[line.point, t(basisKey(line.basis))].filter(Boolean).join(" · ")}
         </span>
+        {(line.adjustments ?? []).map((item) => (
+          <span key={item.id} className="gasday-line-meta muted" data-outage={item.id}>
+            {t("today.gas_day.outage", { asset: item.asset, share: item.share_out_pct, source: item.source, id: item.id, quantity: formatQuantity(item.quantity) })}
+          </span>
+        ))}
       </span>
       <span className="gasday-line-qty">{formatQuantity(line.quantity)}</span>
     </li>

@@ -163,3 +163,38 @@ def test_today_carries_the_checklist_as_row_seven(desk):
     assert keys[5:] == ["gas_day", "checklist"]
     assert today["rows"][6]["populated"] is True
     assert any(item["kind"] == "nomination" for item in today["rows"][4]["items"])
+
+
+def test_an_unsent_lng_send_out_is_due_at_the_nomination_cut_off_not_the_last_renomination(
+        desk):
+    # QA-T-08. Tomorrow's send-out is still to send; its deadline is the nomination cut-off
+    # (D-1 13:00 UTC, the network-code default), passed or not, as for a contract's
+    # nomination: due soon at 11:00, overdue at 14:00, never "36 h left" on the renomination.
+    _, items = _items(desk, "demo.nl.trader", "tomorrow", now=TODAY_AT(11))
+    send_out = next(item for (ref, step), item in items.items() if step == "lng_send_out")
+    assert send_out["status"]["status"] == "to_send"
+    assert send_out["deadline"]["key"] == "nomination"
+    assert send_out["deadline"]["at_utc"] == "2026-11-19T13:00:00+00:00"
+    assert send_out["urgency"] == "due_soon"
+    _, items = _items(desk, "demo.nl.trader", "tomorrow", now=TODAY_AT(14))
+    send_out = next(item for (ref, step), item in items.items() if step == "lng_send_out")
+    assert send_out["deadline"]["at_utc"] == "2026-11-19T13:00:00+00:00"
+    assert send_out["deadline"]["passed"] is True and send_out["urgency"] == "overdue"
+    # Once recorded as sent, the next deadline is the last renomination still ahead.
+    with Session(desk) as session:
+        record_status(session, _caller("demo.nl.trader"), gas_day=TOMORROW,
+                      line_ref=send_out["ref"], step="lng_send_out", status="sent",
+                      quantity_mwh=4_800, note=None, now=TODAY_AT(14))
+        session.commit()
+    _, items = _items(desk, "demo.nl.trader", "tomorrow", now=TODAY_AT(14))
+    send_out = next(item for (ref, step), item in items.items() if step == "lng_send_out")
+    assert send_out["deadline"]["key"] == "last_renomination"
+    assert send_out["urgency"] == "open"
+
+
+def test_a_nomination_row_names_the_outage_at_its_source(desk):
+    _, items = _items(desk, "demo.trader")
+    haldor = items[("contract:demo-haldor-24", "nomination")]
+    assert [(item["source"], item["id"]) for item in haldor["outages"]] == [
+        ("REMIT", "demo-umm-1")]
+    assert items[("contract:demo-brae-10", "nomination")]["outages"] == []

@@ -2209,12 +2209,31 @@ export interface GasDayLineDTO {
   kind: string;
   label: string;
   point: string | null;
-  /** nominated, contract_quantity, booked, booked_today, scheduled, slot. */
+  /** nominated, contract_quantity, booked, booked_today, scheduled, slot (assumed), cargo_plan. */
   basis: string;
   book_id: string;
   quantity: GasDayQuantityDTO;
   simulated: boolean;
   prompt_trade: boolean;
+  target: GasDayTargetDTO;
+  /** The record behind the quantity beyond the line itself: `cargo:<id>` for a cargo-plan line. */
+  source_ref?: string | null;
+  /** What changed the quantity: an outage at the line's source, with its source and id. */
+  adjustments?: GasDayAdjustmentDTO[];
+}
+
+export interface GasDayAdjustmentDTO {
+  kind: "outage";
+  source: string;
+  id: string;
+  version: number | null;
+  source_reference: string | null;
+  asset: string;
+  share_out_pct: number;
+  day_share_pct: number;
+  /** Taken off the line for the day (0 when the nomination was already under the cap). */
+  quantity: GasDayQuantityDTO;
+  simulated: boolean;
   target: GasDayTargetDTO;
 }
 
@@ -4105,12 +4124,27 @@ export interface DailyBalanceDayDTO {
   residual_mwh: number;
   state: "long" | "short" | "balanced";
   cash_out_cost: number | null;
+  /** The physical lines (contracts, LNG, storage, imports, offtake, exports), MWh. */
+  physical_in_mwh?: number;
+  physical_out_mwh?: number;
+  net?: GasDayQuantityDTO;
+  band?: { pct: number | null; mwh: number; basis: "assumption" | "default" | "entered"; set: string | null };
+  /** The cost and the rate it used, with its source: the approved set and version, or entered by hand. */
+  cash_out?: Omit<GasDayCostDTO, "basis"> & { basis: GasDayCostDTO["basis"] | "entered" };
+  /** The same lines as Today's "My gas day" for this hub and day. */
+  lines?: GasDayLineDTO[];
+  simulated?: boolean;
 }
 
 export interface DailyBalanceDTO {
   hub: string;
   currency: string;
+  /** Measured delivery over the last 30 gas days, for reference: not applied to supply. */
   delivery_ratio: number;
+  delivery_ratio_applied?: boolean;
+  /** "gas_day": built from the same lines as Today's "My gas day". */
+  definition?: string;
+  as_of_utc?: string;
   contracts: string[];
   days: DailyBalanceDayDTO[];
 }
