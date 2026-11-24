@@ -101,13 +101,29 @@ with P-17, so that limits, terminal terms and freight routes share one maker-che
 | DOC-5 | A `postgresql://` URL without a driver uses the runtime's driver; an explicit driver is kept | `tests/integration/test_db_config.py::test_a_url_without_a_driver_uses_the_runtime_driver` |
 | DOC-6 | Every local Markdown link resolves | `scripts/ci/check_markdown_links.py` |
 
-## LNG-2 a delayed cargo reaches each role (to be met)
+## AIR AI by role, personal workspaces and the improvement loop (to be met)
 
+Design: [14](14_AI_ROLES_PERSONALISATION_AND_IMPROVEMENT_LOOP.md). Stage in brackets.
+| # | Criterion | Test |
+| --- | --- | --- |
+| AIR-1 | (1) A signed-in person sends a suggestion through `/api/support/reports` with category `suggestion`; it is stored as P4 whatever urgency was sent and queues a low-severity notification; no OpenAPI path or operation is added | `tests/api/test_support_api.py::test_a_suggestion_is_stored_as_p4_and_never_pages_the_desk` |
+| AIR-2 | (1) "Send feedback" in the account menu opens the report dialog in suggestion mode, without an urgency choice, and the client diagnostics carry the role composition | `clients/web/tests/supportReport.test.ts` |
+| AIR-3 | (2) Every AI use is in a machine-readable register with its level, roles, controls, evaluation set and threshold; a model call from a use not in the register fails a test | to be written |
+| AIR-4 | (2) Each AI use can be switched off in organisation settings; a switched-off use returns the rule text with basis `rule`, and the switch is audited | to be written |
+| AIR-5 | (2) Every AI audit row carries the prompt version, model id, evidence hash and output hash | to be written |
+| AIR-6 | (2) A change to a prompt, a check or the configured model fails CI unless the recorded evaluation set passes and the committed provider-run report for that version meets the use's threshold | to be written |
+| AIR-7 | (2) A model can call only the capabilities its use and the caller's role allow; a call outside the allowlist is refused and audited | to be written |
+| AIR-8 | (3) A feedback item moves received, triaged, clarifying, specified, in build, in review, shipped or declined; a specification cannot be approved without the requester's recorded confirmation | to be written |
+| AIR-9 | (3) The repository map is generated from the code and a test fails when it is out of date | to be written |
+| AIR-10 | (3) One command prints the OpenAPI paths and operations, permission rows and the documents that pin them, before and after a change | to be written |
+| AIR-11 | (4) A saved view holds only catalogue components with parameters inside their schemas; every save is a new version; a pinned panel cannot be removed | to be written |
+| AIR-12 | (4) A view a lead publishes renders each component with the viewer's own authority; a component the viewer may not read shows as not available, never with the author's data | to be written |
+| AIR-13 | (5) "Make me a view": the validator refuses every invalid case in the evaluation set, the model produces a valid view for at least 90 % of in-catalogue intents, nothing is saved before the person accepts, and an out-of-catalogue ask offers a prefilled suggestion | to be written |
+| AIR-14 | (6) The triage classifier's proposals meet the accuracy threshold on its evaluation set, and a triager's correction is kept as a new case | to be written |
+## LNG-2 a delayed cargo reaches each role (to be met)
 The owner's scenario (2026-11-24): a firm cargo due in three days is hedged forward; news
 arrives that it will be late. One acceptance test drives it end to end on PostgreSQL.
-
 | ID | Criterion | Evidence |
-| --- | --- | --- |
 | LNG2-1 | An ETA change from any source (import, vessel feed, manual edit) publishes one `cargo.changed` event and the plan is rebuilt from it within the published latency for cargo data (doc 15, the live pipeline and latency budget) | to be written |
 | LNG2-2 | The rebuilt plan names the hedge months that gained or lost gas, the mismatched forward sales and the roll or buy-back it proposes, with the arithmetic; nothing is executed | to be written |
 | LNG2-3 | The trader who owns the book gets the hedge proposal; the scheduler gets the slot, berth and nomination consequences with the cut-offs they hit; risk gets the exposure and any limit it moves; the desk head gets it only when it is material by the configured threshold | to be written |
