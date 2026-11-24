@@ -3,10 +3,12 @@
 :func:`open_valuation_snapshot` is the one function every evaluator's inputs come through.
 For an evaluation instant it reads, on request and once per key:
 
-- **prices**: an executable quote side (class ``sourced``), else a settlement or assessment
-  (``indicative``: real but not executable), else the firm's own mark (``firm_mark``); on a
-  demo desk only, a demo price (``simulated``). A real input always wins over a simulated
-  one, and on a real desk simulated rows are never read at all;
+- **prices**: the one price for the hub and period at the instant (``price_resolver``, the
+  rule every screen reads, P-08): the freshest in-date market price, an executable quote side
+  (class ``sourced``) or a mid or settlement (``indicative``: real but not executable), else
+  the firm's own mark (``firm_mark``), else the freshest held, stated stale; on a demo desk
+  only, a demo price (``simulated``). A real input always wins over a simulated one, and on a
+  real desk simulated rows are never read at all;
 - **FX** through an adapter: :class:`ForwardFx` (design D.5: licensed forward ``sourced``,
   covered interest parity ``derived`` with its tolerance, spot for a prompt period); the
   spot-only :class:`SpotEcbFx` labels a forward period converted at spot ``indicative``;
@@ -53,6 +55,11 @@ _PLACES = Decimal("1E-10")
 FIRM_FAMILY = "operator-input"
 #: Demo rows on a demo desk.
 DEMO_FAMILY = "DEMO"
+
+#: How far back the snapshot reads prices. Longer than the screens' look-back so a far month
+#: still finds its last (stale) price; it never changes an answer the screens give, because
+#: anything older than their window is staler than what they hold.
+SNAPSHOT_PRICE_LOOKBACK_DAYS = 400
 
 _TARIFF_RANK = {"FINAL": 0, "INDICATIVE": 1, "PROVISIONAL": 2, "DRAFT": 3, "SIMULATOR_ONLY": 4}
 
@@ -308,143 +315,93 @@ class LiveSnapshotReader(RecordingReader):
 
     # ---- prices
     def _load_price(self, key, hub, period, side) -> SnapshotInput:
+        """The one price for ``hub`` and ``period`` at the snapshot's instant (P-08).
+
+        Every screen reads a hub and month through ``price_resolver``: the freshest in-date
+        market price (a tick's side, or its mid; a settlement), else the firm's mark, else the
+        freshest held, stated stale. Demo prices only on a demo desk, and a real price always
+        wins. Classes: an executable tick side ``sourced``; a mid or a settlement
+        ``indicative``; a mark ``firm_mark``; a demo price ``simulated``.
+        """
+
+        from eurogas_nexus.application.price_resolver import open_price_book
+
         label = f"{hub} {period.label}"
-        for loader in (self._quote, self._settlement, self._firm_mark):
-            found = loader(key, hub, period, side, label, simulated=False)
-            if found is not None:
-                return found
-        if self.demo_desk:
-            # The demo market: its two-sided board first (bid and offer, as a screen), then its
-            # closes; class ``simulated`` either way, and never read on a customer desk.
-            for loader in (self._quote, self._settlement):
-                found = loader(key, hub, period, side, label, simulated=True)
-                if found is not None:
-                    return found
-        return missing(key, InputKind.PRICE, f"{label} {side}", reason="no price held")
+        book = open_price_book(
+            self.session,
+            self.caller,
+            now=self.as_of_utc,
+            hubs=[hub],
+            allow_simulated=self.demo_desk,
+            lookback_days=SNAPSHOT_PRICE_LOOKBACK_DAYS,
+            period_starts=[period.start],
+        )
+        found = book.resolve(hub, period.start, period.end, side=side)
+        held = None if found is None else self._resolved_input(key, found, label, side)
+        if held is None:
+            return missing(key, InputKind.PRICE, f"{label} {side}", reason="no price held")
+        return held
 
-    def _period_rows(self, rows, period, start_attr, end_attr):
-        out = []
-        for row in rows:
-            start = _aware(getattr(row, start_attr)).date()
-            end = _aware(getattr(row, end_attr)).date()
-            if start == period.start and end in {period.end, period.end - timedelta(days=1)}:
-                out.append(row)
-        return out
+    def _resolved_input(self, key, found, label, side) -> SnapshotInput | None:
+        from eurogas_nexus.application.projections.daily_closes import in_native_unit
+        from eurogas_nexus.domain.market.price_resolution import FIRM_MARK, LIVE_TICK
 
-    def _quote(self, key, hub, period, side, label, *, simulated) -> SnapshotInput | None:
+        simulated = found.simulated
+        if simulated:
+            klass = InputClass.SIMULATED
+        elif found.kind == FIRM_MARK:
+            klass = InputClass.FIRM_MARK
+        elif found.kind == LIVE_TICK and side in {"bid", "ask"}:
+            klass = InputClass.SOURCED
+        else:
+            klass = InputClass.INDICATIVE  # a mid or a settlement is not executable
+        venue = found.detail if found.kind == LIVE_TICK else None
+        if found.kind == FIRM_MARK:
+            text, basis = f"{label} firm's mark", "firm_mark"
+        elif found.kind == LIVE_TICK:
+            text = f"{label} {side} ({venue}{', demo' if simulated else ''})"
+            basis = "quote"
+        else:
+            text = f"{label} {'demo price' if simulated else 'settlement'}"
+            basis = "demo" if simulated else "settlement"
+        detail = {
+            "basis": basis,
+            "side": side,
+            "price_kind": found.kind,
+            "state": found.state,
+            "resolution": found.basis,
+        }
+        if venue is not None:
+            detail["venue"] = venue
+        if found.kind == LIVE_TICK and side in {"bid", "ask"}:
+            detail["depth_mwh"] = self._quote_depth(found.reference, side)
+        if found.kind == FIRM_MARK:
+            detail["entered_by"] = found.detail
+        source = FIRM_FAMILY if found.kind == FIRM_MARK else found.source_system
+        # The native figure is the hub's own quotation (NBP in p/th); the value is per MWh.
+        native, native_unit = in_native_unit(found.hub, found.value, found.unit)
+        return self._price_input(
+            key,
+            native,
+            native_unit,
+            found.unit.split("/")[0],
+            found.as_of_utc,
+            source,
+            found.reference,
+            text,
+            klass,
+            detail,
+        )
+
+    def _quote_depth(self, quote_id: str, side: str) -> float | None:
+        """The quantity behind a quote's bid or ask (MWh), as the venue stated it."""
+
         from eurogas_nexus.db.models import MarketQuoteRecord
 
-        rows = (
-            self.session.query(MarketQuoteRecord)
-            .filter(MarketQuoteRecord.hub == hub)
-            .filter(MarketQuoteRecord.observed_at_utc <= self._bound(self.as_of_utc))
-            .order_by(MarketQuoteRecord.observed_at_utc.desc())
-            .limit(500)
-            .all()
-        )
-        for row in self._period_rows(rows, period, "delivery_start_utc", "delivery_end_utc"):
-            if (row.simulated or _is_simulated(row.source_system, row.metadata_json)) != simulated:
-                continue
-            if not self._entitled(row.source_system):
-                continue
-            bid, ask = row.bid_price, row.ask_price
-            if side == "bid":
-                price, klass = bid, InputClass.SOURCED
-            elif side == "ask":
-                price, klass = ask, InputClass.SOURCED
-            else:
-                price = None if bid is None or ask is None else (bid + ask) / 2
-                klass = InputClass.INDICATIVE  # a mid is not executable
-            if simulated:
-                klass = InputClass.SIMULATED
-            if price is None:
-                continue
-            return self._price_input(
-                key,
-                price,
-                row.unit,
-                row.currency,
-                row.observed_at_utc,
-                row.source_system,
-                row.quote_id,
-                f"{label} {side} ({row.venue}{', demo' if simulated else ''})",
-                klass,
-                {
-                    "basis": "quote",
-                    "side": side,
-                    "venue": row.venue,
-                    "depth_mwh": row.bid_quantity_mwh if side == "bid" else row.ask_quantity_mwh,
-                },
-            )
-        return None
-
-    def _settlement(self, key, hub, period, side, label, *, simulated) -> SnapshotInput | None:
-        from eurogas_nexus.db.models import MarketObservationRecord
-        from eurogas_nexus.domain.ontology.identity import resolve_hub
-
-        rows = (
-            self.session.query(MarketObservationRecord)
-            .filter(MarketObservationRecord.observed_at_utc <= self._bound(self.as_of_utc))
-            .filter(
-                MarketObservationRecord.period_start_utc
-                >= self._bound(datetime.combine(period.start, datetime.min.time(), tzinfo=UTC))
-            )
-            .filter(
-                MarketObservationRecord.period_start_utc
-                < self._bound(
-                    datetime.combine(period.start + timedelta(days=1), datetime.min.time(), UTC)
-                )
-            )
-            .order_by(MarketObservationRecord.observed_at_utc.desc())
-            .limit(500)
-            .all()
-        )
-        for row in self._period_rows(rows, period, "period_start_utc", "period_end_utc"):
-            metadata = row.metadata_json or {}
-            if resolve_hub(metadata.get("hub") or row.product).hub != hub:
-                continue
-            if _is_simulated(row.source_system, metadata) != simulated:
-                continue
-            if not self._entitled(row.source_system):
-                continue
-            klass = InputClass.SIMULATED if simulated else InputClass.INDICATIVE
-            return self._price_input(
-                key,
-                row.price,
-                row.unit,
-                row.currency,
-                row.observed_at_utc,
-                row.source_system,
-                row.observation_id,
-                f"{label} {'demo price' if simulated else 'settlement'} ({row.market_venue})",
-                klass,
-                {
-                    "basis": "demo" if simulated else "settlement",
-                    "side": side,
-                    "venue": row.market_venue,
-                },
-            )
-        return None
-
-    def _firm_mark(self, key, hub, period, side, label, *, simulated) -> SnapshotInput | None:
-        from eurogas_nexus.db.repositories.commercial_assumptions import current_firm_marks
-
-        for mark in current_firm_marks(self.session, as_of_utc=self.as_of_utc, hub=hub):
-            if mark.period.label != period.label:
-                continue
-            return self._price_input(
-                key,
-                mark.value,
-                mark.unit,
-                mark.currency,
-                mark.entered_at_utc,
-                FIRM_FAMILY,
-                mark.mark_id,
-                f"{label} firm's mark",
-                mark.input_class,
-                {"basis": "firm_mark", "side": side, "entered_by": mark.entered_by},
-            )
-        return None
+        row = self.session.get(MarketQuoteRecord, quote_id)
+        if row is None:
+            return None
+        return row.bid_quantity_mwh if side == "bid" else row.ask_quantity_mwh
 
     def _price_input(
         self, key, price, unit, currency, observed, source, ref, label, klass, detail

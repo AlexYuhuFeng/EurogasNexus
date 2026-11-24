@@ -138,8 +138,13 @@ def _why(code: str, text: str, **params: Any) -> dict[str, Any]:
 # ----------------------------------------------------------------------------- locational
 
 
-def _pair(holdings: Holdings, hub: str, tenor: str) -> dict[str, Any]:
-    """One locational row: ``hub`` − TTF for the tenor (``month-ahead`` or ``day-ahead``)."""
+def _pair(holdings: Holdings, hub: str, tenor: str, prices=None) -> dict[str, Any]:
+    """One locational row: ``hub`` − TTF for the tenor (``month-ahead`` or ``day-ahead``).
+
+    The spread, its range and percentile compare closes with closes. With ``prices`` (a
+    ``price_resolver.PriceBook``), each front-month leg also carries ``resolved_price``: the
+    one price every other screen shows for that hub and month now (P-08).
+    """
 
     code = "MA" if tenor == "month-ahead" else "DA"
     mine, ref = _daily(holdings, hub, tenor), _daily(holdings, REFERENCE_HUB, tenor)
@@ -200,8 +205,10 @@ def _pair(holdings: Holdings, hub: str, tenor: str) -> dict[str, Any]:
             "close_day": last_day.isoformat(),
             "delivery": delivery.label if code == "MA" else "DA",
             "legs": [
-                {"hub": hub, "native_value": native_a, "native_unit": unit_a, "value": a},
-                {"hub": REFERENCE_HUB, "native_value": native_b, "native_unit": unit_b, "value": b},
+                {"hub": hub, "native_value": native_a, "native_unit": unit_a, "value": a,
+                 **_leg_price(prices, hub, code, delivery)},
+                {"hub": REFERENCE_HUB, "native_value": native_b, "native_unit": unit_b, "value": b,
+                 **_leg_price(prices, REFERENCE_HUB, code, delivery)},
             ],
             "gross": gross,
             "direction": f"{start_hub} → {end_hub}",
@@ -231,7 +238,20 @@ def _pair(holdings: Holdings, hub: str, tenor: str) -> dict[str, Any]:
     return out
 
 
-def locational_rows(holdings: Holdings, hubs: Sequence[str]) -> list[dict[str, Any]]:
+def _leg_price(prices, hub: str, code: str, delivery: Delivery) -> dict[str, Any]:
+    """``{"resolved_price": ...}`` for a front-month leg when a price book is given."""
+
+    if prices is None or code != "MA":
+        return {}
+    from eurogas_nexus.application.price_resolver import price_payload
+
+    found = prices.resolve(hub, delivery.first, delivery.last + timedelta(days=1))
+    return {"resolved_price": price_payload(found)}
+
+
+def locational_rows(
+    holdings: Holdings, hubs: Sequence[str], prices=None
+) -> list[dict[str, Any]]:
     rows = []
     for hub in hubs:
         if hub == REFERENCE_HUB:
@@ -241,7 +261,10 @@ def locational_rows(holdings: Holdings, hubs: Sequence[str]) -> list[dict[str, A
                 "pair": f"{hub}–{REFERENCE_HUB}",
                 "hub": hub,
                 "reference": REFERENCE_HUB,
-                "tenors": [_pair(holdings, hub, "month-ahead"), _pair(holdings, hub, "day-ahead")],
+                "tenors": [
+                    _pair(holdings, hub, "month-ahead", prices),
+                    _pair(holdings, hub, "day-ahead"),
+                ],
                 "spec": {
                     "kind": "curve",
                     "legs": [{"hub": hub, "weight": 1}, {"hub": REFERENCE_HUB, "weight": -1}],
@@ -500,13 +523,18 @@ def board(
     *,
     carry: Mapping[str, Any] | None,
     cross: Sequence[dict[str, Any]] = (),
+    prices=None,
 ) -> dict[str, Any]:
-    """The whole board for ``hubs`` (focus hubs first, then the majors)."""
+    """The whole board for ``hubs`` (focus hubs first, then the majors).
+
+    ``prices`` (a ``price_resolver.PriceBook`` for now) adds each front-month leg's
+    ``resolved_price``; a board for a past day is read without it.
+    """
 
     order = list(dict.fromkeys([*hubs, *MAJOR_HUBS]))
     held = set(holdings.hubs())
     shown = [hub for hub in order if hub in held] or [hub for hub in order][:6]
-    locational = locational_rows(holdings, shown)
+    locational = locational_rows(holdings, shown, prices)
     time = [time_rows(holdings, hub, carry) for hub in shown[:4]]
     simulated = (
         any(t.get("simulated") for row in locational for t in row["tenors"])

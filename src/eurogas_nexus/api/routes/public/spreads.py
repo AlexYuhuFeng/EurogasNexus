@@ -83,17 +83,23 @@ def spreads_board(
     wanted = [code.strip().upper() for code in (hubs or "").split(",") if code.strip()][:8]
     carry = None
     cross: list[dict] = []
+    prices = None
     if resolve_database_url() is not None:
         try:
             with get_session_factory()() as session:
                 carry = carry_inputs(session, caller_of(request))
                 cross = cross_rows(session, caller_of(request), holdings.today)
+                if as_of is None:
+                    from eurogas_nexus.application.price_resolver import open_price_book
+
+                    # P-08: each front-month leg names the price every screen shows now.
+                    prices = open_price_book(session, request)
         except SQLAlchemyError as exc:
             raise HTTPException(
                 status_code=503,
                 detail={"code": "runtime_db_unavailable", "error_class": exc.__class__.__name__},
             ) from exc
-    data = board(holdings, wanted, carry=carry, cross=cross)
+    data = board(holdings, wanted, carry=carry, cross=cross, prices=prices)
     warnings = (
         ["Simulated inputs: these spreads are not market prices."] if data["simulated"] else []
     )
