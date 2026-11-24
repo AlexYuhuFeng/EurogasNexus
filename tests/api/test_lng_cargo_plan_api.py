@@ -195,6 +195,71 @@ def test_recorded_hedges_and_a_slipped_eta_show_what_changed(tmp_path, monkeypat
         assert session.query(AuditEventRecord).filter_by(action="lng.cargo_hedges").count() == 1
 
 
+def test_the_board_and_plan_carry_what_the_cargo_screen_shows(tmp_path, monkeypatch):
+    """Additive fields for the cargo board and plan screen (QA-L-05): the slot window, the hub,
+    the next action and expiry, the hub months, what last changed and who, the hedge legs with
+    their author, and the slots a what-if may move the cargo to."""
+
+    engine, who, now = _setup(tmp_path, monkeypatch)
+    client = TestClient(create_app())
+    with Session(engine) as session:
+        session.add(
+            RegasSlotRecord(
+                slot_id="gate-slot-2",
+                terminal_name="Gate Terminal",
+                window_start_utc=now + timedelta(days=20),
+                window_end_utc=now + timedelta(days=22),
+                send_out_gwh_d=100.0,
+                cargo_id="other-cargo",
+                book_id="lng-nwe",
+                source_system="ETRM_CSV",
+                source_reference="etrm:slot-2",
+                updated_at_utc=now,
+            )
+        )
+        session.commit()
+    legs = [{"hub": "TTF", "month": "2030-01", "mwh": -50_000, "reference": "ICE 42"}]
+    assert client.put(
+        "/api/lng/cargoes/own-1/hedges", headers=who["analyst"], json={"legs": legs}
+    ).status_code == 200
+
+    from eurogas_nexus.application.market_event_capture import capture_desk
+
+    with Session(engine) as session:
+        row = session.get(LngCargoRecord, "own-1")
+        row.eta_utc = now + timedelta(days=7)
+        capture_desk(session, cargo_ids=["own-1"], now_utc=now + timedelta(minutes=5))
+        session.commit()
+
+    data = client.get("/api/lng/cargoes/own-1/plan", headers=who["viewer"]).json()["data"]
+    cargo = data["cargo"]
+    assert cargo["hub"] == "TTF"
+    assert cargo["slot"]["slot_id"] == "gate-slot-1"
+    assert cargo["slot"]["send_out_mwh_per_day"] == 100_000.0
+    assert cargo["imported_at_utc"] and cargo["departed_at_utc"]
+    assert cargo["changed"]["kinds"] == ["eta"]
+    assert cargo["changed"]["by"] == "import ETRM_CSV"
+    assert cargo["changed"]["eta_before_utc"] == (now + timedelta(days=6)).isoformat()
+    assert data["hedges"][0]["reference"] == "ICE 42"
+    assert data["hedges"][0]["created_by"]
+    options = {item["slot_id"]: item for item in data["slot_options"]}
+    assert options["gate-slot-1"]["free"] is True  # its own slot
+    assert options["gate-slot-2"]["free"] is False
+    assert options["gate-slot-2"]["held_by"] == "other-cargo"
+    assert data["plan"]["send_out_end_utc"]
+
+    board = client.get("/api/lng/cargoes/plans", headers=who["viewer"]).json()["data"]
+    line = board[0]
+    assert line["hub"] == "TTF" and line["slot"]["slot_id"] == "gate-slot-1"
+    assert line["months"] == data["plan"]["months"]
+    assert line["next_action"]["kind"] != "deadline"
+    actions = [item for item in data["plan"]["suggestions"] if item["kind"] != "deadline"]
+    dues = sorted(item["due_utc"] for item in actions if item["due_utc"])
+    if dues:
+        assert line["next_action"]["due_utc"] == dues[0]
+    assert line["next_expiry"] is None or line["next_expiry"]["kind"] == "deadline"
+
+
 def test_replacing_hedges_retires_the_old_set(tmp_path, monkeypatch):
     engine, who, _now = _setup(tmp_path, monkeypatch)
     client = TestClient(create_app())

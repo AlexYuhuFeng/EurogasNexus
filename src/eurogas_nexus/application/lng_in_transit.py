@@ -291,12 +291,12 @@ def _inputs(
     return cargo, sources
 
 
-def _previous_state(session, cargo_id: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
-    """The last two revisions of the cargo's event: (before, after) payloads."""
+def _revisions(session, cargo_id: str):
+    """The last two revisions of the cargo's ``cargo.changed`` event, newest first."""
 
     from eurogas_nexus.db.models import MarketEventRecord
 
-    rows = (
+    return (
         session.query(MarketEventRecord)
         .filter(
             MarketEventRecord.subject_key == f"cargo:{cargo_id}",
@@ -306,23 +306,162 @@ def _previous_state(session, cargo_id: str) -> tuple[dict[str, Any], dict[str, A
         .limit(2)
         .all()
     )
+
+
+def _previous_state(session, cargo_id: str) -> tuple[dict[str, Any], dict[str, Any]] | None:
+    """The last two revisions of the cargo's event: (before, after) payloads."""
+
+    rows = _revisions(session, cargo_id)
     if len(rows) < 2:
         return None
     return rows[1].payload_json, rows[0].payload_json
 
 
-def _summary(row, plan: CargoPlan) -> dict[str, Any]:
+#: Payload fields of ``cargo.changed`` and the name a reader sees for a change to each.
+_CHANGE_KINDS = (
+    ("eta_utc", "eta"),
+    ("departed_at_utc", "departure"),
+    ("energy_gwh", "energy"),
+    ("slot", "slot"),
+    ("hedges", "hedges"),
+    ("status", "status"),
+    ("destination_terminal", "destination"),
+)
+
+
+def _change_meta(session, row, hedges) -> dict[str, Any] | None:
+    """When the cargo's plan inputs last changed, what changed and who changed it.
+
+    ``by`` is the person who recorded the hedge set for a hedge change, else the import that
+    carried the new values (``import ETRM``): the event itself records no person. ``kinds`` is
+    ``["recorded"]`` for the first recorded state. ``eta_before_utc`` is the ETA the change
+    replaced, when the ETA changed.
+    """
+
+    rows = _revisions(session, row.cargo_id)
+    if not rows:
+        return None
+    latest = rows[0].payload_json or {}
+    before = rows[1].payload_json if len(rows) > 1 else None
+    if before is None:
+        kinds = ["recorded"]
+    else:
+        kinds = [name for field, name in _CHANGE_KINDS if before.get(field) != latest.get(field)]
+    by = f"import {row.source_system}"
+    if "hedges" in kinds and hedges:
+        newest = max(hedges, key=lambda leg: _aware(leg.created_at_utc))
+        by = newest.created_by
+    return {
+        "at_utc": _aware(rows[0].ingested_at_utc).isoformat(),
+        "kinds": kinds,
+        "by": by,
+        "eta_before_utc": (before or {}).get("eta_utc") if "eta" in kinds else None,
+    }
+
+
+def _hedge_legs(hedges) -> list[dict[str, Any]]:
+    """The hedge legs held against the cargo, with who recorded them and when."""
+
+    return [
+        {
+            "hub": leg.hub,
+            "month": leg.delivery_month,
+            "mwh": float(leg.mwh),
+            "reference": leg.reference,
+            "created_by": leg.created_by,
+            "created_at_utc": _aware(leg.created_at_utc).isoformat(),
+        }
+        for leg in hedges
+    ]
+
+
+def _slot_options(session, row, now: datetime) -> list[dict[str, Any]]:
+    """Slots a what-if may move the cargo to: the book's own (or unbooked) slots whose window
+    has not closed. ``free`` is false when another cargo already holds the slot."""
+
+    from eurogas_nexus.db.models import RegasSlotRecord
+
+    slots = (
+        session.query(RegasSlotRecord)
+        .filter(RegasSlotRecord.window_end_utc >= now)
+        .order_by(RegasSlotRecord.window_start_utc)
+        .limit(200)
+        .all()
+    )
+    out = []
+    for slot in slots:
+        if slot.book_id is not None and slot.book_id != row.book_id:
+            continue
+        end = _aware(slot.window_end_utc)
+        if end is None or end < now:
+            continue
+        out.append(
+            {
+                "slot_id": slot.slot_id,
+                "terminal": slot.terminal_name,
+                "window_start_utc": _aware(slot.window_start_utc).isoformat(),
+                "window_end_utc": end.isoformat(),
+                "send_out_gwh_d": _number(slot.send_out_gwh_d),
+                "held_by": slot.cargo_id,
+                "free": slot.cargo_id in (None, row.cargo_id),
+            }
+        )
+        if len(out) >= 24:
+            break
+    return out
+
+
+def _mspa_terms(session, contract) -> dict[str, Any] | None:
+    """Laytime and demurrage from the master agreement the cargo contract is made under."""
+
+    if contract is None:
+        return None
+    from eurogas_nexus.db.models.route_cost import UpstreamResourceContractRecord
+    from eurogas_nexus.domain.contracts import kinds
+
+    cargo_row = session.get(UpstreamResourceContractRecord, contract[0])
+    master_id = getattr(cargo_row, "master_contract_id", None)
+    if not master_id:
+        return None
+    master = session.get(UpstreamResourceContractRecord, master_id)
+    if master is None or master.contract_kind != kinds.LNG_MSPA:
+        return None
+    terms = kinds.terms_of(master.contract_kind, master.kind_terms)
+    if terms is None:
+        return None
+    return {
+        "master_contract_id": master_id,
+        "laytime_hours": terms.laytime_hours,
+        "demurrage_usd_per_day": terms.demurrage_usd_per_day,
+    }
+
+
+def _summary(row, plan: CargoPlan, slot: SlotWindow | None = None) -> dict[str, Any]:
     return {
         "cargo_id": row.cargo_id,
         "vessel_name": row.vessel_name,
+        "vessel_imo": row.vessel_imo,
         "status": row.status,
         "book_id": row.book_id,
         "load_port": row.load_port,
         "destination_terminal": row.destination_terminal,
+        "departed_at_utc": _aware(row.departed_at_utc).isoformat() if row.departed_at_utc else None,
         "eta_utc": _aware(row.eta_utc).isoformat() if row.eta_utc else None,
         "source_system": row.source_system,
+        # When the import last wrote the cargo row (the ETA's age, not the plan's).
+        "imported_at_utc": _aware(row.updated_at_utc).isoformat() if row.updated_at_utc else None,
         "simulated": row.source_system.endswith("_Sim"),
         "slot_status": plan.slot_status,
+        "hub": None if slot is None else slot.hub,
+        "slot": None
+        if slot is None
+        else {
+            "slot_id": slot.slot_id,
+            "terminal": slot.terminal,
+            "window_start_utc": slot.window_start_utc.isoformat(),
+            "window_end_utc": slot.window_end_utc.isoformat(),
+            "send_out_mwh_per_day": round(slot.send_out_mwh_per_day, 1),
+        },
         "delivered_mwh": round(plan.delivered_mwh, 1),
         "suggestions": len([item for item in plan.suggestions if item.kind != "deadline"]),
     }
@@ -366,12 +505,19 @@ def cargo_plan(
                 build_plan(before, now=moment), build_plan(after, now=moment)
             ).as_dict()
             last_change.pop("after", None)  # the plan now is returned in full already
+    summary = _summary(row, plan, cargo.slot)
+    summary["changed"] = _change_meta(session, row, hedges)
+    checked = _contract_check(contract, _aware(row.eta_utc))
+    if checked is not None:
+        checked["mspa"] = _mspa_terms(session, contract)
     return {
-        "cargo": _summary(row, plan),
+        "cargo": summary,
         "inputs": sources,
         "plan": plan.as_dict(),
-        "contract": _contract_check(contract, _aware(row.eta_utc)),
+        "contract": checked,
         "last_change": last_change,
+        "hedges": _hedge_legs(hedges),
+        "slot_options": _slot_options(session, row, moment),
         "as_of_utc": moment.isoformat(),
         "advisory": "Suggestions for the desk; nothing is traded or nominated.",
     }
@@ -475,8 +621,25 @@ def cargo_plans(session, *, now: datetime | None = None) -> list[dict[str, Any]]
             (item["text"] for item in built["plan"]["suggestions"] if item["kind"] != "deadline"),
             None,
         )
+        line["next_action"] = _next_action(built["plan"]["suggestions"])
+        line["next_expiry"] = next(
+            (item for item in built["plan"]["suggestions"] if item["kind"] == "deadline"), None
+        )
+        line["months"] = built["plan"]["months"]
         board.append(line)
     return board
+
+
+def _next_action(suggestions: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """The suggestion due first (one without a due time comes after those with one)."""
+
+    actions = [item for item in suggestions if item["kind"] != "deadline"]
+    if not actions:
+        return None
+    return min(
+        enumerate(actions),
+        key=lambda pair: (pair[1]["due_utc"] is None, pair[1]["due_utc"] or "", pair[0]),
+    )[1]
 
 
 def record_hedges(
