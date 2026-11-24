@@ -25,6 +25,14 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   marks screens, and who set and approved each limit and band. Not built: effective-dated
   changes; screens for terminal terms and freight routes (no web editor exists for either).
 
+## 2026-11-24 — Commercial Intelligence V3, DATA-1: as-of reads, change feed, refreshable reads, import contracts (branch `wip/data1`)
+
+- As-of reads (lesson P1, `application/as_of_reads.py`): `GET /api/market/observations` and
+  `GET /api/market/fx` take `as_of`; settlements, closes and FX fixings read the revision
+  current then from the market event outbox (no new table); ticks count from their receipt.
+  New `GET /api/market/prices`: the monthly price strip from the P-08 resolver, live or as of,
+  one flat row per hub and month with revision, publication and first-held times.
+
 ## 2026-11-24 — Commercial Intelligence V3, LNG-2: a cargo change reaches each role (branch `wip/lng2`)
 
 - `cargo_roles` outbox consumer (`application/lng_cargo_alerts.py`) rebuilds a cargo's plan on

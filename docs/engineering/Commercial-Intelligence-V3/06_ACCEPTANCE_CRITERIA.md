@@ -183,6 +183,12 @@ unless named otherwise.
 | P17-8 | Migration `0081_change_requests` (expand only) adds `change_requests` and a nullable `change_id` on the six governed tables; it upgrades, downgrades and matches the models, on SQLite and PostgreSQL | `tests/unit/test_maker_checker.py::test_migration_0081_chain_up_down_and_model_match`, `tests/integration/test_schema_matches_models_postgres.py::test_every_model_column_fits_the_migrated_schema` |
 | P17-9 | Web: approvers see the changes awaiting approval (who, what before and after, why, since) and approve, reject with a reason, or withdraw their own; the limits and hedge-band screens say "proposed, awaiting approval", mark rows with an open proposal and show who set and approved each figure; the marks grid says the marks wait for the risk function | `clients/web/tests/makerCheckerModel.test.ts`, `clients/web/tests/locales.test.ts` |
 
+## DATA-1 data integration: as-of reads, change feed, refreshable reads, import contracts (in progress)
+Lessons P1, P2 and P7 in [16](16_COMPETITIVE_STUDY.md); ETRM integration from 16A section 2b.
+| # | Criterion | Test |
+| --- | --- | --- |
+| DATA1-1 | (P1) A settlement, close, FX fixing and the monthly price strip can be read "as known at T" (`as_of`, ISO UTC): each figure is the revision current at T with its revision number, publication time and the time this store first held it; a figure first held after T is not returned; a tick counts from its receipt; without `as_of` the reads are unchanged; entitlement applies as on every market read; an unusable or future `as_of` is refused with its code. The history is the outbox's revision chain, so no table was added | `tests/api/test_data1_as_of_reads.py::test_a_settlement_reads_as_known_before_and_after_its_correction`, `::test_an_fx_fixing_reads_as_known_at_an_instant`, `::test_the_price_strip_reads_the_curve_as_known_at_an_instant`, `::test_a_correction_not_yet_captured_is_reported_as_pending`, `::test_a_tick_is_known_from_its_receipt`, `::test_entitlement_still_applies_to_as_of_reads`, `::test_an_unusable_as_of_is_refused` |
+
 ## M7 to M9 (to be met)
 
 - **M8.** For a contract with ACQ and make-up terms, the shortfall and make-up balance

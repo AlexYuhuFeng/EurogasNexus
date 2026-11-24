@@ -128,6 +128,32 @@ record per version, each available from its own receipt;
 the builder takes, per series and period, the latest version available at each origin, so a
 backtest never sees a revision before it was received.
 
+## Prices, FX and settlements as of an instant (DATA-1)
+
+Settlements, daily closes and FX fixings are kept in place (`market_observations`,
+`fx_observations`): an importer that receives a corrected figure overwrites the row. Their
+history lives in the market event outbox instead. Change capture (M5) publishes one
+`price.updated` or `fx.updated` event per figure with the value in its payload; a changed
+figure is the next revision of the same event and `market_events` is append-only, never
+pruned. `application/as_of_reads.py` reads that chain:
+
+| Read | As of `T` |
+|---|---|
+| A settlement or close (`GET /api/market/observations?as_of=`) | the payload of the newest revision ingested at or before `T`; left out when its first revision was ingested after `T` |
+| An FX fixing (`GET /api/market/fx?as_of=`) | the same, over `fx.updated` |
+| A live tick | only ticks received (`received_at_utc`) by `T`; a tick is never revised, revision 1 |
+| A firm mark | the mark in force at `T` (entered before, not superseded by then); its revision is its position among the marks entered for its hub and period |
+| The monthly price (`GET /api/market/prices?as_of=`) | the P-08 price resolved from those candidates, with the book's clock at `T` |
+
+Every row read as of carries `revision`, `revision_basis`, `published_at_utc` (the source's
+publication of that revision), `known_from_utc` (when this store first held it) and
+`as_of_utc`. A figure with no event chain (stored before M5, or with no hub or canonical period,
+so never captured) reads as its stored row, known from its observation instant, with
+`revision` empty and `revision_basis` `stored_row`: an overwrite before M5 left no trace and the
+answer does not invent one. The live strip reports `capture_pending` when a stored row already
+differs from its newest event (a correction stored, capture not yet run). Without `as_of` every
+read is unchanged.
+
 ## GB demand: staged publications (National Gas)
 
 `national_gas_actual_demand` is an append-only log: every publication of a gas day is a

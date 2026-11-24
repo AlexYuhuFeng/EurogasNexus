@@ -30,6 +30,12 @@ class MarketObservation(BaseModel):
         quality_score: Data quality score in [0, 1]; None when not assessed.
         research_only: Whether the observation is restricted to research use.
         metadata_json: Free-form metadata carried from the source payload.
+        revision: Read ``as_of`` only: the revision current at that instant (None when the
+            store holds no revision history for the figure).
+        revision_basis: Read ``as_of`` only: ``market_event`` or ``stored_row``.
+        published_at_utc: Read ``as_of`` only: when the source published that revision.
+        known_from_utc: Read ``as_of`` only: when this store first held that revision.
+        as_of_utc: Read ``as_of`` only: the instant asked.
     """
 
     observation_id: str
@@ -48,6 +54,11 @@ class MarketObservation(BaseModel):
     quality_score: float | None = None
     research_only: bool = True
     metadata_json: dict[str, Any] = Field(default_factory=dict)
+    revision: int | None = None
+    revision_basis: str | None = None
+    published_at_utc: str | None = None
+    known_from_utc: str | None = None
+    as_of_utc: str | None = None
 
 
 class FxRate(BaseModel):
@@ -64,6 +75,11 @@ class FxRate(BaseModel):
         source_system: Originating system name; None when unknown.
         source_reference: External reference for the source record.
         freshness: Source-certified freshness status; None when not assessed.
+        revision: Read ``as_of`` only: the revision current at that instant.
+        revision_basis: Read ``as_of`` only: ``market_event`` or ``stored_row``.
+        published_at_utc: Read ``as_of`` only: when the source published that revision.
+        known_from_utc: Read ``as_of`` only: when this store first held that revision.
+        as_of_utc: Read ``as_of`` only: the instant asked.
     """
 
     pair: str
@@ -76,6 +92,11 @@ class FxRate(BaseModel):
     source_system: str | None = None
     source_reference: str | None = None
     freshness: str | None = None
+    revision: int | None = None
+    revision_basis: str | None = None
+    published_at_utc: str | None = None
+    known_from_utc: str | None = None
+    as_of_utc: str | None = None
 
 
 class MarketQuote(BaseModel):
@@ -360,11 +381,15 @@ def fetch_market_observations(base_url: str) -> list[MarketObservation]:
     return fetch_market_observations_result(base_url).data
 
 
-def fetch_market_observations_result(base_url: str) -> SdkResult[list[MarketObservation]]:
+def fetch_market_observations_result(
+    base_url: str, *, as_of: str | None = None
+) -> SdkResult[list[MarketObservation]]:
     """Fetch market observations together with backend response metadata.
 
     Args:
         base_url: Operator-provided server root URL.
+        as_of: ISO 8601 UTC instant; read each figure as known then, with its revision
+            (DATA-1). None: the current read.
 
     Returns:
         An SdkResult whose data holds the observations and whose meta carries
@@ -374,7 +399,8 @@ def fetch_market_observations_result(base_url: str) -> SdkResult[list[MarketObse
     Raises:
         httpx.HTTPStatusError: If the backend responds with a non-2xx status.
     """
-    data, meta = get_envelope(api_url(base_url, "market/observations"))
+    params = {"as_of": as_of} if as_of else None
+    data, meta = get_envelope(api_url(base_url, "market/observations"), params=params)
     # 同时保留 data 与 meta：meta 携带 source_references/warnings 等审计与
     # 人工复核所需信息；只要结果数据的调用方请使用不带 _result 的变体。
     return SdkResult([MarketObservation.model_validate(row) for row in data], meta)
@@ -395,11 +421,12 @@ def fetch_fx_rates(base_url: str) -> list[FxRate]:
     return fetch_fx_rates_result(base_url).data
 
 
-def fetch_fx_rates_result(base_url: str) -> SdkResult[list[FxRate]]:
+def fetch_fx_rates_result(base_url: str, *, as_of: str | None = None) -> SdkResult[list[FxRate]]:
     """Fetch foreign-exchange rates together with backend response metadata.
 
     Args:
         base_url: Operator-provided server root URL.
+        as_of: ISO 8601 UTC instant; read the fixings as known then (DATA-1).
 
     Returns:
         An SdkResult whose data holds the rates and whose meta carries the
@@ -408,7 +435,8 @@ def fetch_fx_rates_result(base_url: str) -> SdkResult[list[FxRate]]:
     Raises:
         httpx.HTTPStatusError: If the backend responds with a non-2xx status.
     """
-    data, meta = get_envelope(api_url(base_url, "market/fx"))
+    params = {"as_of": as_of} if as_of else None
+    data, meta = get_envelope(api_url(base_url, "market/fx"), params=params)
     return SdkResult([FxRate.model_validate(row) for row in data], meta)
 
 
@@ -708,3 +736,95 @@ def resolve_financing_rate_result(
         params["as_of"] = as_of
     data, meta = get_envelope(api_url(base_url, "market/financing-rate"), params=params)
     return SdkResult(dict(data), meta)
+
+
+class PriceStripRow(BaseModel):
+    """One hub and delivery month of the price strip (``GET /api/market/prices``, DATA-1).
+
+    Attributes:
+        hub: Hub code.
+        month: Delivery month ``YYYY-MM``.
+        period_start: First gas day of the month (ISO date).
+        period_end: First gas day after the month (ISO date).
+        side: ``mid``, ``bid`` or ``ask``.
+        value: Price in the hub's own quotation; None when no price is held.
+        unit: The hub's quotation unit (``EUR/MWh``, ``GBp/th``).
+        value_mwh: The same price per MWh.
+        unit_mwh: Per-MWh unit.
+        kind: ``live_tick``, ``settlement``, ``firm_mark`` or ``derived``.
+        source_system: Where the price came from.
+        price_as_of_utc: When the price was observed.
+        state: ``current``, ``late`` or ``stale``.
+        simulated: Whether the price is a demo price.
+        basis: Why this price was chosen.
+        reference: The stored row the price is.
+        revision: The revision current at the instant read (None: no history held).
+        revision_basis: ``market_event``, ``stored_row``, ``tick``, ``firm_mark_entry`` or
+            ``capture_pending``.
+        published_at_utc: When the source published that revision.
+        known_from_utc: When this store first held that revision.
+        as_of_utc: The instant the strip was read at.
+    """
+
+    hub: str
+    month: str
+    period_start: str
+    period_end: str
+    side: str
+    value: float | None = None
+    unit: str | None = None
+    value_mwh: float | None = None
+    unit_mwh: str | None = None
+    kind: str | None = None
+    source_system: str | None = None
+    price_as_of_utc: str | None = None
+    state: str | None = None
+    simulated: bool | None = None
+    basis: str | None = None
+    reference: str | None = None
+    revision: int | None = None
+    revision_basis: str | None = None
+    published_at_utc: str | None = None
+    known_from_utc: str | None = None
+    as_of_utc: str | None = None
+
+
+def fetch_price_strip_result(
+    base_url: str,
+    *,
+    hubs: list[str],
+    start: str | None = None,
+    months: int = 12,
+    side: str = "mid",
+    include_simulated: bool = False,
+    as_of: str | None = None,
+) -> SdkResult[list[PriceStripRow]]:
+    """Fetch the monthly price strip (curve) of some hubs, live or as known at an instant.
+
+    Args:
+        base_url: Operator-provided server root URL.
+        hubs: Hub codes (``TTF``, ``NBP``...).
+        start: First delivery month ``YYYY-MM``; the current month when None.
+        months: Number of months, 1 to 36.
+        side: ``mid``, ``bid`` or ``ask``.
+        include_simulated: Include demo prices (marked ``simulated``).
+        as_of: ISO 8601 UTC instant; the strip as known then. None: live.
+
+    Returns:
+        An SdkResult with one row per hub and month (empty price fields where none is held).
+
+    Raises:
+        httpx.HTTPStatusError: 422 for an unknown hub, a bad month or an unusable ``as_of``.
+    """
+    params: dict[str, Any] = {
+        "hub": list(hubs),
+        "months": months,
+        "side": side,
+        "include_simulated": str(bool(include_simulated)).lower(),
+    }
+    if start:
+        params["start"] = start
+    if as_of:
+        params["as_of"] = as_of
+    data, meta = get_envelope(api_url(base_url, "market/prices"), params=params)
+    return SdkResult([PriceStripRow.model_validate(row) for row in data], meta)

@@ -246,6 +246,13 @@ head`, all clean; the four columns are nullable.
 | Markdown links | `python scripts/ci/check_markdown_links.py` | All local links resolve |
 | Web (P17-9) | `npx tsc --noEmit -p .`; `npm test`; `node scripts/cssTokenLint.mjs` (in `clients/web`) | clean; 1,373 tests, 1,370 passed, 3 skipped, 0 failed; the new stylesheet has no raw values |
 
+## DATA-1 data integration (2026-11-24, branch `wip/data1`)
+
+| What | Command | Result |
+| --- | --- | --- |
+| DATA1-1 as-of reads (P1) | `pytest tests/api/test_data1_as_of_reads.py` | 12 passed |
+| Market, price and SDK reads unchanged otherwise | `pytest tests/api/test_one_price_across_screens.py tests/api/test_trader_desk_api.py tests/api/test_market_fx_api.py tests/api/test_projections_api.py tests/api/test_context_api.py tests/api/test_market_normalisation_api.py tests/api/test_research_data_api.py tests/api/test_error_envelope.py tests/sdk tests/security/test_public_api_auth.py tests/security/test_identity_row_entitlement.py tests/security/test_platform_admin_commercial_boundary.py tests/unit/test_demo_desk_seed.py tests/unit/test_projections_application.py tests/contract tests/docs` (with the DATA1-1 tests) | 1,018 passed, 12 skipped |
+
 ## Not yet evidenced
 
 - Latency under sustained load: the M7 figures are single changes on an idle desk; the outbox

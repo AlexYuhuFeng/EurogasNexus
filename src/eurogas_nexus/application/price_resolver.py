@@ -150,10 +150,14 @@ def quote_candidates(
     hubs: Iterable[str] | None = None,
     lookback_days: int,
     period_starts: Iterable[date] | None = None,
+    known_at: datetime | None = None,
+    versions: dict[str, Any] | None = None,
 ) -> list[PriceCandidate]:
     """The newest two-sided quote, bid and ask per hub, window and source (live ticks).
 
-    ``period_starts`` narrows the read to deliveries starting on those UTC days.
+    ``period_starts`` narrows the read to deliveries starting on those UTC days. With
+    ``known_at`` (DATA-1) only ticks received by then are read. ``versions``, when given,
+    receives each candidate tick's version (revision 1, known from its receipt).
     """
 
     from sqlalchemy import and_, func, or_
@@ -170,6 +174,8 @@ def quote_candidates(
         q.observed_at_utc <= bound(now),
         q.observed_at_utc >= bound(window_start(now, lookback_days)),
     ]
+    if known_at is not None:
+        window.append(q.received_at_utc <= bound(_aware(known_at)))
     if period_starts is not None:
         starts = list(period_starts)
         if not starts:
@@ -230,6 +236,10 @@ def quote_candidates(
         if row.quote_id in seen:
             continue
         seen.add(row.quote_id)
+        if versions is not None:
+            from eurogas_nexus.application.as_of_reads import tick_version
+
+            versions[str(row.quote_id)] = tick_version(row)
         factor = _per_mwh_factor(row.currency, row.unit)
         if factor is None:
             continue
@@ -269,10 +279,18 @@ def observation_candidates(
     hubs: Iterable[str] | None = None,
     lookback_days: int,
     period_starts: Iterable[date] | None = None,
+    known_at: datetime | None = None,
+    versions: dict[str, Any] | None = None,
 ) -> list[PriceCandidate]:
     """Every energy-price observation in the window (settlements and daily closes).
 
     ``period_starts`` narrows the read to periods starting on those UTC days.
+
+    DATA-1: with ``known_at`` each figure is read as known then (``application/as_of_reads``):
+    the value of the revision current at that instant, and a figure first known later is no
+    candidate. ``versions``, when given, receives each candidate's version; without
+    ``known_at`` that is the newest revision, or ``capture_pending`` when the stored row
+    already differs from it (a correction stored, change capture not yet run).
     """
 
     from sqlalchemy import func, or_
@@ -321,9 +339,20 @@ def observation_candidates(
         .all()
     )
     wanted = {h.upper() for h in hubs} if hubs is not None else None
+    known = None
+    if known_at is not None or versions is not None:
+        from eurogas_nexus.application.as_of_reads import settlement_versions
+
+        known = settlement_versions(session, records, as_of=_aware(known_at))
     resolved: dict[str, Any] = {}
     out: list[PriceCandidate] = []
     for record in records:
+        if known is not None:
+            record, version = _as_known(record, known.get(str(record.observation_id)), known_at)
+            if record is None:
+                continue  # first known after known_at
+            if versions is not None:
+                versions[str(record.observation_id)] = version
         metadata = record.metadata_json or {}
         stated = metadata.get("hub") or record.product
         resolution = resolved.get(stated)
@@ -359,6 +388,41 @@ def observation_candidates(
             )
         )
     return out
+
+
+def _as_known(record, version, known_at: datetime | None):
+    """``(record, version)`` with the record's figure as ``version`` states it.
+
+    As of an instant the figure is the version's; at the newest, the stored row stands and a
+    version whose figure differs from it is reported as ``capture_pending``.
+    """
+
+    from types import SimpleNamespace
+
+    from eurogas_nexus.application.as_of_reads import BASIS_EVENT, BASIS_PENDING, KnownVersion
+
+    if version is None:
+        return (None, None) if known_at is not None else (record, None)
+    if version.basis != BASIS_EVENT:
+        return record, version
+    stated = version.values
+    if known_at is not None:
+        fields = {name: getattr(record, name) for name in record._fields}
+        for name in ("price", "unit", "currency"):
+            if stated.get(name) is not None:
+                fields[name] = stated[name]
+        return SimpleNamespace(**fields), version
+    same = (
+        stated.get("price") is not None
+        and abs(float(stated["price"]) - float(record.price)) <= 1e-9
+        and (stated.get("unit") or record.unit) == record.unit
+        and (stated.get("currency") or record.currency) == record.currency
+    )
+    if same:
+        return record, version
+    return record, KnownVersion(
+        revision=None, published_at_utc=None, known_from_utc=None, basis=BASIS_PENDING
+    )
 
 
 def firm_mark_candidates(
@@ -405,6 +469,11 @@ class PriceBook:
     candidates: list[PriceCandidate]
     principal: Any = None
     allow_simulated: bool = True
+    #: DATA-1: the version of each tick and settlement candidate by reference (only when the
+    #: book was opened ``known_at`` an instant or ``with_versions``).
+    versions: dict[str, Any] = field(default_factory=dict, repr=False)
+    #: DATA-1: the instant the book was read as known at (``None``: the live book).
+    known_at: datetime | None = None
     _cache: dict[tuple, ResolvedPrice | None] = field(default_factory=dict, repr=False)
     _by_hub: dict[str, list[PriceCandidate]] | None = field(default=None, repr=False)
 
@@ -478,6 +547,8 @@ def open_price_book(
     allow_simulated: bool = True,
     lookback_days: int = PRICE_LOOKBACK_DAYS,
     period_starts: Iterable[date] | None = None,
+    known_at: datetime | None = None,
+    with_versions: bool = False,
 ) -> PriceBook:
     """Load a price book for ``who`` (an API request, a ``Caller`` or ``None``: every source).
 
@@ -485,20 +556,28 @@ def open_price_book(
     With no runtime store configured the book is empty. ``hubs`` and ``period_starts`` narrow
     the load for a reader that needs a few prices (the valuation snapshot). A longer
     ``lookback_days`` never changes an answer a shorter one gives: anything older is staler.
+
+    DATA-1: ``known_at`` reads the book as known at that instant (it is also the book's
+    ``now``): ticks received by then, each settlement at its revision current then, the firm
+    marks in force then. ``with_versions`` records each candidate's version in
+    ``book.versions`` without changing any answer. Neither is used by any existing screen.
     """
 
     from eurogas_nexus.application.caller import caller_of
 
-    moment = _aware(now) or datetime.now(UTC)
+    known = _aware(known_at)
+    moment = known or _aware(now) or datetime.now(UTC)
     principal = None if who is None else caller_of(who).principal
     hub_list = None if hubs is None else sorted({h.upper() for h in hubs if h})
     starts = None if period_starts is None else sorted(set(period_starts))
+    versions: dict[str, Any] | None = {} if (known is not None or with_versions) else None
 
     def load(active) -> list[PriceCandidate]:
         window = {"now": moment, "hubs": hub_list, "lookback_days": lookback_days}
+        dated = {"known_at": known, "versions": versions}
         return [
-            *quote_candidates(active, period_starts=starts, **window),
-            *observation_candidates(active, period_starts=starts, **window),
+            *quote_candidates(active, period_starts=starts, **window, **dated),
+            *observation_candidates(active, period_starts=starts, **window, **dated),
             *firm_mark_candidates(active, now=moment, hubs=hub_list),
         ]
 
@@ -513,7 +592,12 @@ def open_price_book(
             with get_session_factory()() as active:
                 candidates = load(active)
     return PriceBook(
-        now=moment, candidates=candidates, principal=principal, allow_simulated=allow_simulated
+        now=moment,
+        candidates=candidates,
+        principal=principal,
+        allow_simulated=allow_simulated,
+        versions=versions or {},
+        known_at=known,
     )
 
 

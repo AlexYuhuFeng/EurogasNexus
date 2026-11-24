@@ -33,6 +33,22 @@ actions `change_request.propose`, `.approve`, `.reject`, `.withdraw` and `lng.fr
 governed writes (503 `audit_unavailable` when their audit row cannot be written). Migration
 `0081_change_requests`. Census: 288 paths / 323 operations (284 / 319 before).
 
+Additive 2026-11-24 (as-of reads, Commercial Intelligence V3 DATA-1, lesson P1): one path, one
+operation. `GET /api/market/observations` and `GET /api/market/fx` accept `as_of` (ISO 8601 UTC):
+each figure is answered at the revision current at that instant, a figure first held later is
+left out, and the rows add `revision`, `revision_basis` (`market_event` or `stored_row`),
+`published_at_utc`, `known_from_utc`, `revision_event_id` and `as_of_utc`. Without `as_of` both
+answer exactly as before. An unusable `as_of` is 422 `as_of_invalid`, one later than the server
+clock 422 `as_of_in_future`. New `GET /api/market/prices` (READ, `/api/market/` floor) answers
+the monthly price strip of one or more hubs (`hub` repeated or comma-separated, `start` YYYY-MM,
+`months` 1 to 36, `side`, `include_simulated` default false, `as_of`): one flat row per hub and
+month with the P-08 price, its kind, source, age and version (`revision`, `revision_basis`,
+`published_at_utc`, `known_from_utc`), and `meta.columns` naming the stable column order; a month
+with no price is a row with empty price fields. Unknown hub 422 `hub_unknown`, none 422
+`hub_required`, bad month 422 `start_invalid`. Entitlement and licensed-use metering are the
+market reads' own. Census: 285 paths / 320 operations (+1 / +1). Design:
+`docs/operations/DATA_REVISIONS.md` ("Prices, FX and settlements as of an instant").
+
 Additive 2026-11-24 (a cargo change reaches each role, Commercial Intelligence V3 LNG-2): no new
 path. `GET /api/lng/cargoes/plans` and `GET /api/lng/cargoes/{cargo_id}/plan` add `cargo.eta`
 (`basis`, `confidence`, `source`, `recorded_at_utc`, `text`); the board lines add `attention[]`

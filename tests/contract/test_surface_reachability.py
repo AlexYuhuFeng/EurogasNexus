@@ -76,6 +76,11 @@ MACHINE_SURFACE: dict[str, str] = {
     "/api/functional-models/{model_id}": "research model inspection and review (SDK/CLI)",
     "/api/functional-models/{model_id}/predict": "frozen-model prediction (SDK/CLI)",
     "/api/functional-models/{model_id}/evaluate": "shadow model evaluation (SDK/CLI)",
+    "/api/market/prices": (
+        "DATA-1 price strip, live or as known at an instant: the SDK (fetch_price_strip_result) "
+        "and spreadsheets refreshing it with Power Query; the screens read prices through the "
+        "same resolver in their own routes"
+    ),
     "/api/weather/degree-days": (
         "caller-weighted degree-day computation (typed weather_degree_days SDK)"
     ),

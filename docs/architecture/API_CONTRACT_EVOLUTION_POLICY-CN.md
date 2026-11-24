@@ -21,6 +21,18 @@
 `change_request.propose`、`.approve`、`.reject`、`.withdraw` 与 `lng.freight_route` 为受治理写入（审计行无法写入时返回
 503 `audit_unavailable`）。迁移 `0081_change_requests`。路径统计：288 条路径 / 323 个操作（此前 284 / 319）。
 
+2026-11-24 新增按时点读取（Commercial Intelligence V3 DATA-1，经验 P1）：一条路径、一个操作。
+`GET /api/market/observations` 与 `GET /api/market/fx` 接受 `as_of`（ISO 8601 UTC）：每个数值按该时刻
+当时有效的修订返回，此后才首次入库的数值不返回；各行新增 `revision`、`revision_basis`（`market_event`
+或 `stored_row`）、`published_at_utc`、`known_from_utc`、`revision_event_id` 与 `as_of_utc`。不带 `as_of`
+时两者与此前完全一致。`as_of` 无法解析返回 422 `as_of_invalid`，晚于服务器时钟返回 422 `as_of_in_future`。
+新增 `GET /api/market/prices`（READ，沿用 `/api/market/` 权限）：返回一个或多个枢纽的逐月价格曲线
+（`hub` 可重复或以逗号分隔，`start` 为 YYYY-MM，`months` 1 至 36，`side`，`include_simulated` 默认 false，
+`as_of`）：每个枢纽每个月一行平面数据，含 P-08 统一价格、类型、来源、时效与版本（`revision`、
+`revision_basis`、`published_at_utc`、`known_from_utc`），`meta.columns` 给出稳定列序；无价格的月份仍有一行，
+价格字段为空。未知枢纽 422 `hub_unknown`，未给枢纽 422 `hub_required`，月份错误 422 `start_invalid`。
+权限过滤与许可数据计量同市场读取。接口统计：285 条路径 / 320 个操作（+1 / +1）。
+
 2026-11-24 新增（货物变更送达各角色，Commercial Intelligence V3 LNG-2）：无新路径。
 `GET /api/lng/cargoes/plans` 与 `GET /api/lng/cargoes/{cargo_id}/plan` 新增 `cargo.eta`
 （`basis`、`confidence`、`source`、`recorded_at_utc`、`text`）；看板行新增 `attention[]`（每条未结角色消息一项：

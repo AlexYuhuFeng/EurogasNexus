@@ -8,7 +8,7 @@ Generated from the source of `eurogas_nexus_sdk`. Each function takes the server
 
 Field-level descriptions are in each model's docstring: `help(eurogas_nexus_sdk.market.MarketQuote)`.
 
-Surface: 34 modules, 154 public functions, 133 public models. 17 functions have no docstring and 4 have no type annotations.
+Surface: 34 modules, 155 public functions, 134 public models. 17 functions have no docstring and 4 have no type annotations.
 
 | Module | Functions | Models | Purpose |
 |---|---|---|---|
@@ -25,7 +25,7 @@ Surface: 34 modules, 154 public functions, 133 public models. 17 functions have 
 | [`lng`](#lng) | 2 | 2 | SDK client for /api/lng. |
 | [`lng_cargo_plan`](#lng_cargo_plan) | 4 | 3 | SDK client for a cargo in transit as one plan (``/api/lng/cargoes``). |
 | [`lng_economics_only`](#lng_economics_only) | 0 | 9 | Typed SDK carriers for ``POST /api/research/lng-economics-only``. |
-| [`market`](#market) | 16 | 7 | SDK client for /api/market. |
+| [`market`](#market) | 17 | 8 | SDK client for /api/market. |
 | [`monitoring`](#monitoring) | 4 | 3 | SDK client for persisted monitoring alerts and DeepSeek interaction. |
 | [`native_physical`](#native_physical) | 4 | 3 | Typed native-unit physical observation reads for RFC 0005. |
 | [`optimization`](#optimization) | 8 | 16 | SDK client for the phase-two optimization and evidence APIs. |
@@ -352,14 +352,15 @@ SDK client for /api/market.
 | `convert_gas_price_result` | `GET /api/market/price-conversion` | `SdkResult[dict[str, Any]]` | Convert a gas price between EUR/MWh, GBp/th, USD/MMBtu and related units. |
 | `fetch_interest_rates_result` | `GET /api/market/interest-rates` | `SdkResult[dict[str, Any]]` | Fetch overnight benchmark fixings (SONIA, €STR, SOFR) and the benchmark catalogue. |
 | `resolve_financing_rate_result` | `GET /api/market/financing-rate` | `SdkResult[dict[str, Any]]` | Resolve a contract financing rate (benchmark fixing on/before ``as_of`` + spread). |
+| `fetch_price_strip_result` | `GET /api/market/prices` | `SdkResult[list[PriceStripRow]]` | Fetch the monthly price strip (curve) of some hubs, live or as known at an instant. |
 
 Signatures:
 
 ```python
 fetch_market_observations(base_url: str) -> list[MarketObservation]
-fetch_market_observations_result(base_url: str) -> SdkResult[list[MarketObservation]]
+fetch_market_observations_result(base_url: str, *, as_of: str | None = None) -> SdkResult[list[MarketObservation]]
 fetch_fx_rates(base_url: str) -> list[FxRate]
-fetch_fx_rates_result(base_url: str) -> SdkResult[list[FxRate]]
+fetch_fx_rates_result(base_url: str, *, as_of: str | None = None) -> SdkResult[list[FxRate]]
 fetch_market_quotes(base_url: str) -> list[MarketQuote]
 fetch_market_quotes_result(base_url: str) -> SdkResult[list[MarketQuote]]
 fetch_intraday_opportunities(base_url: str) -> list[IntradayOpportunity]
@@ -372,17 +373,19 @@ fetch_gas_products_result(base_url: str, *, trade_date: str | None = None, codes
 convert_gas_price_result(base_url: str, *, value: float, from_unit: str, to_unit: str | None = None, fx_source: str = ECB, fx_fixing: str | None = None, fx_date: str | None = None, fx_average_from: str | None = None, fx_average_to: str | None = None, gbp_per_eur: float | None = None, usd_per_eur: float | None = None) -> SdkResult[dict[str, Any]]
 fetch_interest_rates_result(base_url: str, *, benchmark: str | None = None, limit: int = 30) -> SdkResult[dict[str, Any]]
 resolve_financing_rate_result(base_url: str, *, benchmark: str, spread_bps: float = 0.0, as_of: str | None = None) -> SdkResult[dict[str, Any]]
+fetch_price_strip_result(base_url: str, *, hubs: list[str], start: str | None = None, months: int = 12, side: str = mid, include_simulated: bool = False, as_of: str | None = None) -> SdkResult[list[PriceStripRow]]
 ```
 
 Models:
 
-- `MarketObservation` (16 fields). One observed market price point published by a reporting venue.
-- `FxRate` (10 fields). One foreign-exchange rate observation used for price conversion.
+- `MarketObservation` (21 fields). One observed market price point published by a reporting venue.
+- `FxRate` (15 fields). One foreign-exchange rate observation used for price conversion.
 - `MarketQuote` (23 fields). One bid/ask quote captured from a trading venue.
 - `IntradayOpportunity` (37 fields). One detected intraday arbitrage opportunity between two venues.
 - `MarketSpread` (8 fields). One derived price spread between two hubs.
 - `NormalizedMarketObservation` (38 fields). A market observation normalized to a common hub/tenor schema.
 - `GasProduct` (10 fields). One resolved gas product from ``GET /api/market/products``.
+- `PriceStripRow` (21 fields). One hub and delivery month of the price strip (``GET /api/market/prices``, DATA-1).
 
 ## monitoring
 

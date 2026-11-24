@@ -61,7 +61,10 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **288 paths / 323 operations**
+- OpenAPI public surface: **289 paths / 324 operations**
+
+  (2026-11-24: `GET /api/market/prices` (READ), the monthly price strip live or as known at
+  an instant, DATA-1; 288 / 323 before.
 
   (2026-11-24: maker-checker (P-17), `GET /api/portfolio/change-requests` (READ; each person
   sees the proposals they made or may decide) and `POST

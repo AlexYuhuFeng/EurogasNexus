@@ -58,14 +58,39 @@ from eurogas_nexus.domain.market.units import (
 router = APIRouter(tags=["market"])
 
 
+#: DATA-1: the ``as_of`` query parameter of the market reads that can answer "as known at".
+_AS_OF_DESCRIPTION = (
+    "ISO 8601 UTC instant (e.g. 2026-11-20T17:30:00Z). Answer with what was known then: each "
+    "figure at the revision current at that instant, with its revision number, publication "
+    "time and the time this store first held it. Omitted: the current read, unchanged."
+)
+
+
+def _as_of(text: str | None) -> datetime | None:
+    """The parsed ``as_of``; 422 ``as_of_invalid`` / ``as_of_in_future`` when unusable."""
+
+    from eurogas_nexus.application.as_of_reads import AsOfError, parse_as_of
+
+    try:
+        return parse_as_of(text)
+    except AsOfError as exc:
+        raise HTTPException(
+            status_code=422, detail={"code": exc.code, "message": exc.message}
+        ) from exc
+
+
 @router.get("/api/market/observations")
-def list_observations(request: Request) -> dict:
+def list_observations(
+    request: Request,
+    as_of: str | None = Query(default=None, description=_AS_OF_DESCRIPTION),
+) -> dict:
     """List market observations from the runtime DB.
 
     返回市场观测列表；DB 未配置时降级为空并告警（fail-closed）。
 
     Args:
         request: Incoming FastAPI request (used for row entitlement).
+        as_of: DATA-1, read as known at this instant (see ``application/as_of_reads``).
 
     Returns:
         Enveloped observation rows or an empty enveloped response.
@@ -85,8 +110,14 @@ def list_observations(request: Request) -> dict:
     try:
         from eurogas_nexus.db.session import get_session_factory
 
+        moment = _as_of(as_of)
         with get_session_factory()() as session:
-            rows = market_observations(session)
+            if moment is None:
+                rows = market_observations(session)
+            else:
+                from eurogas_nexus.application.as_of_reads import market_observations_as_of
+
+                rows = market_observations_as_of(session, moment)
         return _env(
             _filter_entitled_rows(request, rows, source_key="source_system"),
             source="runtime-postgresql",
@@ -96,13 +127,17 @@ def list_observations(request: Request) -> dict:
 
 
 @router.get("/api/market/fx")
-def list_fx(request: Request) -> dict:
+def list_fx(
+    request: Request,
+    as_of: str | None = Query(default=None, description=_AS_OF_DESCRIPTION),
+) -> dict:
     """List ECB FX observations from the runtime DB.
 
     返回汇率观测列表；DB 未配置时降级为空并告警。
 
     Args:
         request: Incoming FastAPI request (unused except wiring).
+        as_of: DATA-1, read the ``fx_observations`` fixings as known at this instant.
 
     Returns:
         Enveloped FX rows or an empty enveloped response.
@@ -122,8 +157,14 @@ def list_fx(request: Request) -> dict:
     try:
         from eurogas_nexus.db.session import get_session_factory
 
+        moment = _as_of(as_of)
         with get_session_factory()() as session:
-            rows = fx_observations(session)
+            if moment is None:
+                rows = fx_observations(session)
+            else:
+                from eurogas_nexus.application.as_of_reads import fx_observations_as_of
+
+                rows = fx_observations_as_of(session, moment)
         # Licensed fixes (WMR/BFIX) share this table: filter like every other row read.
         return _env(
             _filter_entitled_rows(request, rows, source_key="source_system"),
@@ -177,6 +218,74 @@ def list_quotes(
             attach_resolved(annotate_quotes(rows, quote_close_rows(request, now), now=now), book),
             source="runtime-postgresql",
         )
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+
+
+@router.get("/api/market/prices")
+def list_prices(
+    request: Request,
+    hub: list[str] = Query(default=[], description="Hub codes, repeated or comma-separated"),
+    start: str | None = Query(default=None, description="First delivery month, YYYY-MM"),
+    months: int = Query(default=12, ge=1, le=36),
+    side: str = Query(default="mid", pattern="^(mid|bid|ask)$"),
+    include_simulated: bool = Query(default=False),
+    as_of: str | None = Query(default=None, description=_AS_OF_DESCRIPTION),
+) -> dict:
+    """The monthly price strip (curve) of each hub: the one price per month (DATA-1, P-08).
+
+    One flat row per hub and delivery month with the price every screen reads for it, its
+    kind, source and age, and the version it was: ``revision``, ``published_at_utc``,
+    ``known_from_utc``. With ``as_of`` the strip is the one known at that instant (ticks
+    received by then, each settlement at its revision current then, the marks in force).
+    A month with no price held is a row with empty price fields. Simulated prices are left
+    out unless ``include_simulated`` is true, and are marked when included.
+    """
+
+    from eurogas_nexus.application.price_strip import (
+        PRICE_STRIP_COLUMNS,
+        PriceStripError,
+        price_strip_rows,
+        strip_hubs,
+        strip_months,
+    )
+
+    moment = _as_of(as_of)
+    now = datetime.now(UTC)
+    try:
+        hubs = strip_hubs(hub)
+        first_days = strip_months(start, months, at=moment or now)
+    except PriceStripError as exc:
+        raise HTTPException(
+            status_code=422, detail={"code": exc.code, "message": exc.message}
+        ) from exc
+    if not _db_is_configured():
+        envelope = _env(
+            [],
+            source="runtime-db-not-configured",
+            warnings=["Runtime DB is not configured; prices are unavailable."],
+        )
+        envelope["meta"]["columns"] = list(PRICE_STRIP_COLUMNS)
+        return envelope
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            rows = price_strip_rows(
+                session,
+                request,
+                hubs=hubs,
+                months=first_days,
+                as_of=moment,
+                side=side,
+                include_simulated=include_simulated,
+                now=now,
+            )
+        envelope = _env(rows, source="runtime-postgresql")
+        envelope["meta"]["columns"] = list(PRICE_STRIP_COLUMNS)
+        envelope["meta"]["as_of_utc"] = None if moment is None else moment.isoformat()
+        return envelope
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
