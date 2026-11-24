@@ -496,3 +496,64 @@ def test_demo_account_never_signs_in_outside_the_demo_profile(store, monkeypatch
     )
     assert refused.status_code == 401
     assert refused.json()["detail"]["code"] == "invalid_credentials"
+
+
+def test_trader_plus_risk_is_granted_with_a_segregation_of_duties_warning(store):
+    """QA-R-03: ANALYST with REVIEWER is not refused, but every answer says what it means."""
+
+    _engine, _ids, bearers = store
+    client = _client()
+    headers = _admin(bearers["admin"])
+    created = client.post(
+        "/api/access/users",
+        headers=headers,
+        json={
+            "kind": "local",
+            "username": "dual.role",
+            "display_name": "Dual Role",
+            "roles": ["VIEWER", "REVIEWER", "ANALYST"],
+            "job_functions": ["TRADER"],
+        },
+    )
+    assert created.status_code == 200, created.text  # creation is not blocked
+    user = created.json()["data"]["user"]
+    warning = user["segregation_warning"]
+    assert warning["code"] == "segregation_of_duties"
+    assert warning["roles"] == ["ANALYST", "REVIEWER"]
+    assert "refused" in warning["message"]
+
+    # The list carries it too, and a plain grant carries none.
+    plain_id, _secret = _create_local(client, bearers["admin"], username="plain.trader")
+    listed = {
+        row["principal_id"]: row
+        for row in client.get("/api/access/users", headers=headers).json()["data"]
+    }
+    assert listed[user["principal_id"]]["segregation_warning"]["code"] == "segregation_of_duties"
+    assert listed[plain_id]["segregation_warning"] is None
+
+    # Patching a trader to add REVIEWER answers the warning; taking it away clears it.
+    patched = client.patch(
+        f"/api/access/users/{plain_id}", headers=headers, json={"roles": ["ANALYST", "REVIEWER"]}
+    )
+    assert patched.status_code == 200, patched.text
+    assert patched.json()["data"]["segregation_warning"]["roles"] == ["ANALYST", "REVIEWER"]
+    cleared = client.patch(
+        f"/api/access/users/{plain_id}", headers=headers, json={"roles": ["ANALYST"]}
+    )
+    assert cleared.status_code == 200 and cleared.json()["data"]["segregation_warning"] is None
+
+
+def test_the_grant_conflict_matches_the_risk_write_refusal():
+    """One table: the roles the warning names are the ones risk writes are refused for."""
+
+    from types import SimpleNamespace
+
+    from eurogas_nexus.security.segregation import grant_conflict, risk_function_refusal
+
+    for roles in (["ANALYST", "REVIEWER"], ["reviewer", "analyst", "VIEWER"], ["REVIEWER"],
+                  ["ANALYST"], [], ["ADMIN", "REVIEWER"]):
+        warned = grant_conflict(roles) is not None
+        identity = SimpleNamespace(role="VIEWER", roles=roles)
+        refusal = risk_function_refusal(identity, what="Limits")
+        refused_for_sod = refusal is not None and refusal["code"] == "segregation_of_duties"
+        assert warned == refused_for_sod, roles

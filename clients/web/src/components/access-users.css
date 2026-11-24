@@ -57,6 +57,19 @@
   margin: 0;
 }
 
+/* QA-R-03: a segregation-of-duties grant is allowed and said in words, before and after saving. */
+.access-form-warning {
+  margin: 0;
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border-left: 3px solid var(--ds-status-watch);
+  background: var(--ds-status-watch-soft);
+  font-size: var(--ds-text-sm);
+}
+
+.access-sod-badge {
+  margin-left: var(--ds-space-2);
+}
+
 .access-dialog-copy {
   margin: 0;
   color: var(--ds-text-2);

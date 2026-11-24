@@ -35,3 +35,18 @@ export function accessErrorKey(error: unknown): string {
   return code ? `access.error.${code}` : "access.mutation_failed";
 }
 
+
+/** Roles that trade or originate (the server's `security/segregation.py` FRONT_OFFICE_ROLES). */
+const FRONT_OFFICE_ROLES = ["ANALYST"];
+const RISK_FUNCTION_ROLE = "REVIEWER";
+
+/**
+ * QA-R-03, before saving: the front-office roles a grant would hold together with the risk role,
+ * or null. The server decides (it answers `segregation_warning` and refuses that person's risk
+ * writes); this only lets the form say so before the administrator presses Add or Save.
+ */
+export function segregationConflict(roles: readonly string[]): string[] | null {
+  const held = new Set(roles.map((role) => role.toUpperCase()));
+  const front = FRONT_OFFICE_ROLES.filter((role) => held.has(role));
+  return front.length > 0 && held.has(RISK_FUNCTION_ROLE) ? [...front, RISK_FUNCTION_ROLE] : null;
+}

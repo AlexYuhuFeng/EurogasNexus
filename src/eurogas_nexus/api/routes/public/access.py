@@ -482,9 +482,21 @@ def list_users(request: Request) -> dict:
             outcome="listed",
         )
         session.commit()
-    envelope = _env(rows)
+    envelope = _env([_with_segregation_warning(row) for row in rows])
     envelope["meta"]["account_options"] = _account_options()
     return envelope
+
+
+def _with_segregation_warning(user: dict) -> dict:
+    """The user with ``segregation_warning`` (QA-R-03): the conflict, or ``None``. Additive.
+
+    ANALYST with REVIEWER is granted, never refused, and answered with the warning: the
+    server refuses that person's risk writes (``security/segregation.py``).
+    """
+
+    from eurogas_nexus.security.segregation import grant_conflict
+
+    return {**user, "segregation_warning": grant_conflict(user.get("roles") or [user.get("role")])}
 
 
 def _account_options() -> dict:
@@ -572,7 +584,7 @@ def create_user(body: UserCreateRequest, request: Request) -> dict:
             raise _account_error(exc) from exc
         payload = identity_repository.identity_principal_payload(session, row.principal_id)
         session.commit()
-    data: dict = {"user": payload}
+    data: dict = {"user": _with_segregation_warning(payload)}
     if secret is not None:
         data["one_time_password"] = secret
         data["warning"] = (
@@ -760,7 +772,7 @@ def patch_user(principal_id: str, body: AccessUpdateRequest, request: Request) -
         )
         listed = identity_repository.identity_principal_payload(session, principal_id) or {}
         session.commit()
-        return _env({**after, **listed})
+        return _env(_with_segregation_warning({**after, **listed}))
 
 
 @router.get("/api/access/roles")

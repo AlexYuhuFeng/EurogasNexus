@@ -5959,5 +5959,8 @@
   "settings.api_keys.never": "Never",
   "settings.api_keys.state_active": "Active",
   "settings.api_keys.state_expired": "Expired",
-  "settings.api_keys.state_revoked": "Revoked"
+  "settings.api_keys.state_revoked": "Revoked",
+  "access.users.sod_title": "Segregation of duties.",
+  "access.users.sod_body": "{{roles}} together: the person can be added, but their changes to limits, mandates, hedge bands and thresholds are refused. Give risk work to a separate risk identity.",
+  "access.users.sod_badge": "Trader and risk"
 }

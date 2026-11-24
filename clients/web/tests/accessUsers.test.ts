@@ -10,7 +10,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 
-import { accessErrorKey, userState } from "../src/app/model/accessUsersModel.ts";
+import { accessErrorKey, segregationConflict, userState } from "../src/app/model/accessUsersModel.ts";
 import {
   authStatusSnapshot,
   devLoginErrorKey,
@@ -95,4 +95,21 @@ test("a VIEWER-only identity does not issue the review read its role floor refus
   const reviewer = { roles: ["REVIEWER"], role: "REVIEWER", permissions: ["review.read", "review.record"] } as never;
   assert.equal(workspaceReadNeeded("reviewDecisions", viewer), false);
   assert.equal(workspaceReadNeeded("reviewDecisions", reviewer), true);
+});
+
+test("QA-R-03: trader plus risk is granted with a segregation-of-duties warning, before and after saving", () => {
+  assert.deepEqual(segregationConflict(["VIEWER", "REVIEWER", "ANALYST"]), ["ANALYST", "REVIEWER"]);
+  assert.deepEqual(segregationConflict(["analyst", "reviewer"]), ["ANALYST", "REVIEWER"]);
+  assert.equal(segregationConflict(["VIEWER", "REVIEWER"]), null);
+  assert.equal(segregationConflict(["ANALYST"]), null);
+  for (const key of ["access.users.sod_title", "access.users.sod_body", "access.users.sod_badge"]) {
+    assert.ok(en[key], key);
+    assert.ok(zh[key], key);
+  }
+  const form = source("components/AccessUsers.tsx");
+  // Before saving: from the roles ticked, in both the Add and the Edit dialog.
+  assert.equal(form.match(/<SegregationNotice roles=\{segregationConflict\(chosenRoles\)\}/g)?.length, 2);
+  // After saving: the server's own warning, on the user's row and with the one-time password.
+  assert.match(form, /user\.segregation_warning &&/);
+  assert.match(form, /sod: user\.segregation_warning\?\.roles/);
 });

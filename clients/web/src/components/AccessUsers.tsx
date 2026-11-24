@@ -17,7 +17,7 @@ import {
   type CurrentUserDTO,
 } from "@/api/client";
 import { declaredScopes, type DataScopeCatalogue } from "@/app/model/accessCatalogueModel";
-import { accessErrorKey, userState } from "@/app/model/accessUsersModel";
+import { accessErrorKey, segregationConflict, userState } from "@/app/model/accessUsersModel";
 import { Button, DataGrid, Dialog, Field, Segmented, Select, StatusBadge, type DataGridColumn, type StatusTone } from "@/components/ui";
 import "./access-users.css";
 
@@ -80,7 +80,7 @@ type Pending =
   | { kind: "add" }
   | { kind: "edit"; user: AccessUserDTO }
   | { kind: "confirm"; action: "disable" | "reset" | "delete"; user: AccessUserDTO }
-  | { kind: "secret"; name: string; secret: string; reset: boolean };
+  | { kind: "secret"; name: string; secret: string; reset: boolean; sod?: string[] | null };
 
 export function AccessUsers({ users, accountOptions, roles, scopeCatalogue, currentUser, loaded, t, onUsersChange }: AccessUsersProps) {
   const [pending, setPending] = useState<Pending | null>(null);
@@ -179,7 +179,17 @@ export function AccessUsers({ users, accountOptions, roles, scopeCatalogue, curr
       id: "roles",
       header: t("access.users.permissions"),
       value: (user) => (user.roles ?? []).join(", "),
-      render: (user) => <span className="access-roles">{(user.roles ?? []).map((role) => t(`access.role.${role}`).toLocaleLowerCase()).join(", ")}</span>,
+      render: (user) => (
+        <span className="access-roles">
+          {(user.roles ?? []).map((role) => t(`access.role.${role}`).toLocaleLowerCase()).join(", ")}
+          {/* QA-R-03, after saving: the server's segregation-of-duties warning, in words. */}
+          {user.segregation_warning && (
+            <StatusBadge tone="watch" title={user.segregation_warning.message} className="access-sod-badge">
+              {t("access.users.sod_badge")}
+            </StatusBadge>
+          )}
+        </span>
+      ),
     },
     {
       id: "last",
@@ -261,7 +271,7 @@ export function AccessUsers({ users, accountOptions, roles, scopeCatalogue, curr
           onClose={() => setPending(null)}
           onCreated={(user, secret) => {
             onUsersChange([...users, user]);
-            setPending(secret ? { kind: "secret", name: user.display_name, secret, reset: false } : null);
+            setPending(secret ? { kind: "secret", name: user.display_name, secret, reset: false, sod: user.segregation_warning?.roles ?? null } : null);
           }}
         />
       )}
@@ -310,10 +320,26 @@ export function AccessUsers({ users, accountOptions, roles, scopeCatalogue, curr
           secret={pending.secret}
           hours={accountOptions?.temporary_password_hours ?? 72}
           reset={pending.reset}
+          sod={pending.sod ?? null}
           onClose={() => setPending(null)}
         />
       )}
     </section>
+  );
+}
+
+/**
+ * QA-R-03: a grant of a front-office role with the risk role. Not refused: said before saving
+ * (from the roles ticked) and after (from the server's `segregation_warning`), because the
+ * server refuses that person's limit, mandate, hedge-band and threshold changes.
+ */
+function SegregationNotice({ roles, t }: { roles: string[] | null; t: T }) {
+  if (!roles) return null;
+  return (
+    <p className="access-form-warning" role="status" data-segregation-warning={roles.join(",")}>
+      <strong>{t("access.users.sod_title")}</strong>{" "}
+      {t("access.users.sod_body").replace("{{roles}}", roles.map((role) => t(`access.role.${role}`)).join(" + "))}
+    </p>
   );
 }
 
@@ -528,6 +554,7 @@ function AddUserDialog({ t, options, roles, scopeCatalogue, onClose, onCreated }
             />
           </details>
         )}
+        <SegregationNotice roles={segregationConflict(chosenRoles)} t={t} />
         {tried && problem === "access.user.roles_required" && <p className="access-form-error" role="alert">{t(problem)}</p>}
         {errorKey && <p className="access-form-error" role="alert">{t(errorKey)}</p>}
       </form>
@@ -630,18 +657,21 @@ function EditAccessDialog({ t, user, roles, scopeCatalogue, onClose, onSaved }: 
           label={(value) => (value === "*" ? t("access.grant.wildcard") : value)}
           onChange={setScopes}
         />
+        <SegregationNotice roles={segregationConflict(chosenRoles)} t={t} />
         {errorKey && <p className="access-form-error" role="alert">{t(errorKey)}</p>}
       </form>
     </Dialog>
   );
 }
 
-function OneTimeSecretDialog({ t, name, secret, hours, reset, onClose }: {
+function OneTimeSecretDialog({ t, name, secret, hours, reset, sod = null, onClose }: {
   t: T;
   name: string;
   secret: string;
   hours: number;
   reset: boolean;
+  /** The server's segregation-of-duties warning on the user just added (QA-R-03). */
+  sod?: string[] | null;
   onClose: () => void;
 }) {
   const [copied, setCopied] = useState(false);
@@ -677,6 +707,7 @@ function OneTimeSecretDialog({ t, name, secret, hours, reset, onClose }: {
         <li>{t("access.users.secret_expires").replace("{{hours}}", String(hours))}</li>
         <li>{t("access.users.secret_change")}</li>
       </ul>
+      <SegregationNotice roles={sod} t={t} />
     </Dialog>
   );
 }

@@ -5898,6 +5898,15 @@ export interface AccessUserDTO {
   local_password?: LocalPasswordStateDTO | null;
   /** Whether the server would accept a delete (no sign-in, key, session or audited act). */
   deletable?: boolean;
+  /** QA-R-03: the grant holds a front-office role with the risk role; the server refuses this
+   * person's risk writes. Granted, never refused: the form shows it before and after saving. */
+  segregation_warning?: SegregationWarningDTO | null;
+}
+
+export interface SegregationWarningDTO {
+  code: "segregation_of_duties";
+  roles: string[];
+  message: string;
 }
 
 /** Safe facts about a local password; never the hash. */
