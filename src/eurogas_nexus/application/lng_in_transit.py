@@ -436,6 +436,38 @@ def _mspa_terms(session, contract) -> dict[str, Any] | None:
     }
 
 
+#: How each ETA basis reads in a sentence (lesson P3).
+ETA_BASIS_WORDS = {
+    "master_notice": "the master's notice",
+    "ais_declared": "the ETA declared in AIS",
+    "feed_estimate": "the vessel feed's estimate",
+    "schedule": "the ETRM schedule",
+    "manual": "a manual entry",
+}
+
+
+def eta_provenance(row) -> dict[str, Any]:
+    """What the cargo's ETA rests on: basis, confidence, the source and when it was stored.
+
+    ``basis`` and ``confidence`` are ``None`` when the source did not state them; ``text`` says
+    so in words, so every reader of the ETA reads it as an estimate (lesson P3).
+    """
+
+    basis = getattr(row, "eta_basis", None)
+    confidence = getattr(row, "eta_confidence", None)
+    source = getattr(row, "eta_source", None) or row.source_system
+    recorded = _aware(getattr(row, "eta_recorded_at_utc", None) or row.updated_at_utc)
+    words = ETA_BASIS_WORDS.get(basis or "", "basis not stated")
+    trust = f"{confidence} confidence" if confidence else "confidence not stated"
+    return {
+        "basis": basis,
+        "confidence": confidence,
+        "source": source,
+        "recorded_at_utc": None if recorded is None else recorded.isoformat(),
+        "text": f"ETA from {source} ({words}, {trust})",
+    }
+
+
 def _summary(row, plan: CargoPlan, slot: SlotWindow | None = None) -> dict[str, Any]:
     return {
         "cargo_id": row.cargo_id,
@@ -448,6 +480,8 @@ def _summary(row, plan: CargoPlan, slot: SlotWindow | None = None) -> dict[str, 
         "departed_at_utc": _aware(row.departed_at_utc).isoformat() if row.departed_at_utc else None,
         "eta_utc": _aware(row.eta_utc).isoformat() if row.eta_utc else None,
         "source_system": row.source_system,
+        # What the ETA rests on and how old it is (lesson P3; additive).
+        "eta": eta_provenance(row),
         # When the import last wrote the cargo row (the ETA's age, not the plan's).
         "imported_at_utc": _aware(row.updated_at_utc).isoformat() if row.updated_at_utc else None,
         "simulated": row.source_system.endswith("_Sim"),
@@ -493,6 +527,7 @@ def cargo_plan(
         else contract[1].boil_off_pct_per_day,
     }
     cargo, sources = _inputs(session, _state(row, slot, hedges, moment), now=moment, **options)
+    _name_eta_source(sources, row)
     plan = build_plan(cargo, now=moment)
     last_change = None
     pair = _previous_state(session, cargo_id)
@@ -523,6 +558,14 @@ def cargo_plan(
         "as_of_utc": moment.isoformat(),
         "advisory": "Suggestions for the desk; nothing is traded or nominated.",
     }
+
+
+def _name_eta_source(sources: list[dict[str, str]], row) -> None:
+    """The ETA input line names its source, basis and confidence instead of the column."""
+
+    for item in sources:
+        if item["input"] == "ETA":
+            item["source"] = eta_provenance(row)["text"]
 
 
 def send_out_plan(session, cargo_id: str, *, now: datetime | None = None

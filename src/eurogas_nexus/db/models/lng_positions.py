@@ -44,6 +44,17 @@ class LngCargoRecord(Base):
     source_system: Mapped[str] = mapped_column(String(32), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(160), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: What the ETA rests on, as its source states it (lesson P3; migration 0080):
+    #: ``master_notice``, ``ais_declared``, ``feed_estimate``, ``schedule`` or ``manual``;
+    #: ``None`` is "not stated". Cleared when a file supplies a new ETA without a basis.
+    eta_basis: Mapped[str | None] = mapped_column(String(24), nullable=True)
+    #: ``high``, ``medium`` or ``low`` as the source states it; ``None`` is "not stated".
+    eta_confidence: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    #: The system whose file last supplied the ETA, and when that file was stored.
+    eta_source: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    eta_recorded_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
 
 class RegasSlotRecord(Base):

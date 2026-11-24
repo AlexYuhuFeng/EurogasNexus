@@ -13,6 +13,11 @@ outbox (``market_event_capture.capture_desk``), in the import's transaction: a n
 new book, or a slot that now holds the cargo. An ETA that changes a value another source
 set is listed, so the desk sees the feed and the ETRM disagree.
 
+The ETA carries what it rests on (lesson P3): ``eta_source`` and ``eta_recorded_at_utc`` are
+the file that supplied it, and ``eta_basis`` and ``eta_confidence`` what that file states. A
+file that supplies an ETA without a basis clears the stored basis and confidence, because
+they described the ETA it replaces; a file without an ETA keeps all four.
+
 Commit is the caller's.
 """
 
@@ -54,6 +59,8 @@ def store_lng_rows(
     touched: set[str] = set()  # firm cargoes whose plan inputs this file may change
     for row in rows:
         held = session.get(model, row[key])
+        if kind == "cargo" and row.get("eta_utc") is not None:
+            row = {**row, "eta_source": row.get("source_system"), "eta_recorded_at_utc": moment}
         if held is None:
             session.add(model(**row))
             created += 1
@@ -78,6 +85,10 @@ def store_lng_rows(
                         "hours": round((after - before).total_seconds() / 3600, 1),
                     }
                 )
+        if kind == "cargo" and row.get("eta_utc") is not None:
+            # A new ETA's basis is what this file says, or "not stated": never the old one's.
+            held.eta_basis = row.get("eta_basis")
+            held.eta_confidence = row.get("eta_confidence")
         for name, value in row.items():
             if name == key or value is None:
                 continue  # not supplied: the stored value stands

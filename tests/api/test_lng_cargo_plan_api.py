@@ -128,6 +128,10 @@ def test_plan_follows_energy_from_eta_to_hub_months(tmp_path, monkeypatch):
     assert all(item["hub"] == "TTF" for item in plan["months"])
     assert {row["input"] for row in data["inputs"]} >= {"ETA", "boil-off", "hedges"}
     assert any("desk standard" in row["source"] for row in data["inputs"])
+    # Lesson P3: the ETA says what it rests on, here nothing the source stated.
+    eta_line = next(row for row in data["inputs"] if row["input"] == "ETA")
+    assert eta_line["source"] == "ETA from ETRM_CSV (basis not stated, confidence not stated)"
+    assert data["cargo"]["eta"]["basis"] is None and data["cargo"]["eta"]["source"] == "ETRM_CSV"
     assert data["last_change"] is None
     # Unhedged, so every month's gas is to sell: forward where the month still trades, at
     # short notice where it has stopped (which months depends on today's date).

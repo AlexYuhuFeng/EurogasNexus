@@ -121,3 +121,55 @@ gate-1,Gate Terminal,2026-12-06T00:00:00Z,2026-12-16T00:00:00Z
         assert result["events"]["published"] == {"cargo.changed": 1}
         events = _events(session, "SAB-0420")
         assert events[-1].payload_json["slot"]["window_start_utc"].startswith("2026-12-06")
+
+
+def test_an_eta_carries_its_basis_confidence_and_source_lesson_p3(tmp_path):
+    with _session(tmp_path) as session:
+        _load(session, ETRM, "ETRM", NOW - timedelta(days=1))
+        cargo = session.get(LngCargoRecord, "SAB-0420")
+        # The ETRM file states no basis: not stated, never inferred from the source.
+        assert (cargo.eta_basis, cargo.eta_confidence) == (None, None)
+        assert cargo.eta_source == "ETRM"
+
+        feed = (
+            "cargo_id,vessel_name,status,load_port,eta,eta_basis,eta_confidence\n"
+            "SAB-0420,Aurora,laden,Sabine Pass,2026-12-09T06:00:00Z,AIS,low\n"
+        )
+        _load(session, feed, "KPLER", NOW)
+        session.refresh(cargo)
+        assert (cargo.eta_basis, cargo.eta_confidence) == ("ais_declared", "low")
+        assert cargo.eta_source == "KPLER"
+        assert cargo.eta_recorded_at_utc.replace(tzinfo=UTC) == NOW
+
+        # A position fix without an ETA keeps the ETA's basis and source.
+        fix = (
+            "cargo_id,vessel_name,status,load_port,position_lat,position_lon\n"
+            "SAB-0420,Aurora,laden,Sabine Pass,40.0,-30.0\n"
+        )
+        _load(session, fix, "SPIRE", NOW + timedelta(hours=1))
+        session.refresh(cargo)
+        assert (cargo.eta_basis, cargo.eta_source) == ("ais_declared", "KPLER")
+
+        # A new ETA without a basis clears the old one's: it described another ETA.
+        manual = (
+            "cargo_id,vessel_name,status,load_port,eta\n"
+            "SAB-0420,Aurora,laden,Sabine Pass,2026-12-10T06:00:00Z\n"
+        )
+        _load(session, manual, "MANUAL", NOW + timedelta(hours=2))
+        session.refresh(cargo)
+        assert (cargo.eta_basis, cargo.eta_confidence, cargo.eta_source) == (
+            None, None, "MANUAL"
+        )
+
+
+def test_an_unknown_eta_basis_refuses_the_file():
+    import pytest
+
+    from eurogas_nexus.ingestion.lng_positions import LngImportError
+
+    with pytest.raises(LngImportError, match="eta_basis"):
+        parse_lng_cargoes(
+            "cargo_id,vessel_name,status,load_port,eta,eta_basis\n"
+            "X,Y,laden,Z,2026-12-01T00:00:00Z,guess\n",
+            source_system="KPLER", source_reference="k", now_utc=NOW,
+        )

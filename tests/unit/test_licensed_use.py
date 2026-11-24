@@ -140,7 +140,8 @@ def test_migration_0079_matches_the_model_up_and_down() -> None:
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.down_revision == "0078_lng_cargo_hedges"
-    assert DB_SCHEMA_REVISION == module.revision == "0079_licensed_data_use"
+    assert module.revision == "0079_licensed_data_use"
+    assert DB_SCHEMA_REVISION == "0080_lng_eta_basis"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
         module.op = Operations(MigrationContext.configure(connection=connection))

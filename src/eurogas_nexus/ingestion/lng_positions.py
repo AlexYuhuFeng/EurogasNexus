@@ -10,9 +10,14 @@ Cargo columns (case-insensitive; extra columns ignored)::
     cargo_id, vessel_name, status, load_port
     [, vessel_imo, load_country, load_lat, load_lon, departed_at, destination_terminal,
        destination_country, destination_lat, destination_lon, eta, position_lat,
-       position_lon, position_at, track, volume_m3, energy_gwh, book_id]
+       position_lon, position_at, track, volume_m3, energy_gwh, book_id, eta_basis,
+       eta_confidence]
 
-``status`` is one of loading, laden, discharging, delivered, ballast. ``track`` is
+``status`` is one of loading, laden, discharging, delivered, ballast. ``eta_basis`` says what
+the ETA rests on, as the source states it (:data:`ETA_BASES`: the master's notice, the ETA
+the crew declared in AIS, the feed's own estimate, the ETRM schedule, or a manual entry) and
+``eta_confidence`` is high, medium or low (lesson P3: an estimate says it is one). Neither is
+inferred: a file that gives an ETA without them leaves them "not stated". ``track`` is
 ``lon lat iso-time`` triples separated by ``;``. A cargo with a ``book_id`` is the firm's
 own; without one it is market information. A column the file leaves out, or a blank cell,
 is ``None`` here and keeps a stored cargo's value when the rows are stored
@@ -35,6 +40,21 @@ from typing import Any
 MAX_ROWS = 50_000
 CARGO_STATUSES = frozenset({"loading", "laden", "discharging", "delivered", "ballast"})
 MAX_TRACK_POINTS = 2_000
+#: What an ETA can rest on (lesson P3). Accepted spellings are folded to these.
+ETA_BASES = ("master_notice", "ais_declared", "feed_estimate", "schedule", "manual")
+ETA_CONFIDENCES = ("high", "medium", "low")
+_ETA_BASIS_ALIASES = {
+    "nor": "master_notice",
+    "notice": "master_notice",
+    "master": "master_notice",
+    "ais": "ais_declared",
+    "declared": "ais_declared",
+    "model": "feed_estimate",
+    "predicted": "feed_estimate",
+    "estimate": "feed_estimate",
+    "etrm": "schedule",
+    "desk": "manual",
+}
 
 
 class LngImportError(ValueError):
@@ -116,6 +136,19 @@ def _track(value: str, line: int) -> list[list[Any]] | None:
     return points or None
 
 
+def _choice(row: dict[str, str], name: str, line: int, allowed: tuple[str, ...],
+            aliases: dict[str, str] | None = None) -> str | None:
+    value = row.get(name, "").strip().lower().replace("-", "_").replace(" ", "_")
+    if not value:
+        return None
+    value = (aliases or {}).get(value, value)
+    if value not in allowed:
+        raise LngImportError(
+            f"line {line}: {name} {row[name]!r} is not one of {', '.join(allowed)}"
+        )
+    return value
+
+
 def parse_lng_cargoes(
     text: str, *, source_system: str, source_reference: str, now_utc: datetime
 ) -> list[dict[str, Any]]:
@@ -157,6 +190,8 @@ def parse_lng_cargoes(
                 "volume_m3": _float(row, "volume_m3", line),
                 "energy_gwh": _float(row, "energy_gwh", line),
                 "book_id": _text(row, "book_id", 64),
+                "eta_basis": _choice(row, "eta_basis", line, ETA_BASES, _ETA_BASIS_ALIASES),
+                "eta_confidence": _choice(row, "eta_confidence", line, ETA_CONFIDENCES),
                 "source_system": source_system[:32],
                 "source_reference": source_reference[:160],
                 "updated_at_utc": now_utc,
