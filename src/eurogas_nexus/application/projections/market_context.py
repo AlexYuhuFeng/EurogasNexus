@@ -81,12 +81,14 @@ from eurogas_nexus.application.projections.market_reads import (
     ENTITLEMENT_RULE_LEGACY,
     ENTITLEMENT_RULE_SOURCE_FAMILY,
     MARKET_TABLE_LINEAGE,
+    annotate_quotes,
     derive_intraday_spreads,
     filter_entitled_rows,
     intraday_opportunities,
     market_observation_page,
     market_quotes,
     normalized_market_view,
+    quote_close_rows,
     source_family_filter,
 )
 from eurogas_nexus.security.identity import AuthenticatedPrincipal
@@ -227,7 +229,15 @@ def _populated_market_context(
         product=context.delivery_product,
         limit=quote_limit,
     )
-    quotes = filter_entitled_rows(principal, raw_quotes)
+    # The same additive per-quote fields /api/market/quotes carries: as-of, age against the
+    # source's cadence, and the previous close from the caller's daily closes.
+    from eurogas_nexus.application.caller import Caller
+
+    quotes = annotate_quotes(
+        filter_entitled_rows(principal, raw_quotes),
+        quote_close_rows(Caller(principal), context.as_of_utc),
+        now=context.as_of_utc,
+    )
 
     raw_opportunities = intraday_opportunities(
         session,

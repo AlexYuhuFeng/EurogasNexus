@@ -1424,6 +1424,17 @@ export interface MarketQuoteDTO {
   currency: string; unit: string; observed_at_utc: string; received_at_utc: string;
   source_reference: string; freshness: string; quality_score: number;
   simulated: boolean; metadata_json?: Record<string, unknown>;
+  /** Session fields the feed carries (stored per MWh in the quote currency). */
+  settlement_price?: number | null; prior_settlement_price?: number | null;
+  /** The read instant and the quote's age then, against the source's declared cadence
+   * (`stale_after_seconds`); `freshness_state` FRESH, STALE or UNKNOWN (never read as fresh). */
+  as_of_utc?: string; age_seconds?: number | null;
+  stale_after_seconds?: number | null; freshness_state?: string | null;
+  /** The previous close of the same hub and tenor (the desk's daily closes; else the feed's
+   * prior settlement, with no day), per MWh in the quote currency like the bid and ask. */
+  close_price?: number | null; close_day?: string | null;
+  close_kind?: "settlement" | "close" | "prior_settlement" | null;
+  close_source_system?: string | null; close_simulated?: boolean | null;
 }
 
 export interface IntradayOpportunityDTO {

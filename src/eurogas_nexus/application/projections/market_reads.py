@@ -341,6 +341,160 @@ def market_quotes(
     )
 
 
+#: How far back a quote's previous close is looked for: a weekend and a holiday or two.
+QUOTE_CLOSE_LOOKBACK_DAYS = 10
+
+
+def _utc(value: Any) -> Any:
+    from datetime import UTC, datetime
+
+    if isinstance(value, str):
+        try:
+            value = datetime.fromisoformat(value.replace("Z", "+00:00"))
+        except ValueError:
+            return None
+    if not isinstance(value, datetime):
+        return None
+    return value if value.tzinfo else value.replace(tzinfo=UTC)
+
+
+def quote_close_rows(who: Any, now: Any) -> list[dict[str, Any]]:
+    """The caller's entitled daily closes of the last few days (Today's settlement source).
+
+    ``who`` is an API request or a :class:`~eurogas_nexus.application.caller.Caller`. A read
+    that fails leaves the quotes without a close rather than failing the quote read.
+    """
+
+    from datetime import timedelta
+
+    from sqlalchemy.exc import SQLAlchemyError
+
+    from eurogas_nexus.application.projections.daily_closes import (
+        ObservationWindowTooLarge,
+        daily_rows,
+    )
+
+    try:
+        return daily_rows(
+            who,
+            now.date() - timedelta(days=QUOTE_CLOSE_LOOKBACK_DAYS),
+            now.date(),
+            tenors=("within-day", "day-ahead", "weekend", "month-ahead"),
+        )
+    except (ObservationWindowTooLarge, SQLAlchemyError):
+        return []
+
+
+def _previous_close(
+    quote: Mapping[str, Any], closes: Sequence[Mapping[str, Any]], today: Any
+) -> Mapping[str, Any] | None:
+    """The newest close of the quote's hub and tenor before ``today``, in the quote's basis.
+
+    A provider's close wins over a simulated one; the month-ahead close must be for the same
+    delivery month as the quote (at a month roll the previous M+1 is another contract).
+    """
+
+    from eurogas_nexus.application.projections.daily_closes import _price_unit, per_mwh
+
+    hub = str(quote.get("hub") or "").upper()
+    tenor = str(quote.get("product") or "").lower()
+    quote_basis = per_mwh(
+        1.0, _price_unit(str(quote.get("currency") or ""), str(quote.get("unit") or ""))
+    )
+    if quote_basis is None:
+        return None
+    delivery = _utc(quote.get("delivery_start_utc"))
+    best = None
+    for row in closes:
+        if row.get("hub") != hub or row.get("tenor") != tenor or not row.get("hub_resolved", True):
+            continue
+        if row["day"] >= today or row.get("unit_mwh") != quote_basis[1]:
+            continue
+        if tenor == "month-ahead" and delivery is not None:
+            start = _utc(row.get("period_start_utc"))
+            if start is not None and start != delivery:
+                continue
+        rank = (not row.get("simulated"), row["day"])
+        # Rows arrive oldest first, so on a tie the later row (the day's last print) wins.
+        if best is None or rank >= best[0]:
+            best = (rank, row)
+    return None if best is None else best[1]
+
+
+def annotate_quotes(
+    rows: Sequence[Mapping[str, Any]],
+    closes: Sequence[Mapping[str, Any]],
+    *,
+    now: Any,
+) -> list[dict[str, Any]]:
+    """Add each quote's as-of, age, staleness and previous close (additive fields).
+
+    - ``as_of_utc``: the instant the read was made; ``age_seconds`` the quote's age then.
+    - ``stale_after_seconds``: the source's declared update cadence (the source registry,
+      as ``/api/sources`` reports it); ``freshness_state`` ``FRESH``, ``STALE`` or
+      ``UNKNOWN`` (no cadence declared: never read as fresh).
+    - ``close_price`` / ``close_day`` / ``close_kind`` / ``close_source_system`` /
+      ``close_simulated``: the newest daily close of the same hub and tenor before today,
+      per MWh in the quote's currency like the bid and ask; else the venue's prior settlement
+      the feed carried on the quote (``close_kind`` ``prior_settlement``, no day stated).
+    """
+
+    from eurogas_nexus.application.projections.freshness import (
+        freshness_state,
+        source_freshness_expectations,
+    )
+    from eurogas_nexus.security.identity import source_family_for_entitlement
+
+    # The registry is read once per call, not once per quote.
+    expectations = source_freshness_expectations()
+    as_of = now.isoformat()
+    today = now.date()
+    out: list[dict[str, Any]] = []
+    for row in rows:
+        item = dict(row)
+        observed = _utc(row.get("observed_at_utc"))
+        source = row.get("source_system")
+        minutes = expectations.get(source_family_for_entitlement(str(source))) if source else None
+        item["as_of_utc"] = as_of
+        item["age_seconds"] = (
+            None if observed is None else round(max((now - observed).total_seconds(), 0.0), 1)
+        )
+        item["stale_after_seconds"] = None if minutes is None else minutes * 60
+        item["freshness_state"] = freshness_state(
+            row_count=1,
+            last_observed_at_utc=None if observed is None else observed.isoformat(),
+            expectation_minutes=minutes,
+            now_utc=now,
+        ).value
+        close = _previous_close(row, closes, today)
+        if close is not None:
+            item.update(
+                close_price=round(float(close["price_mwh"]), 6),
+                close_day=close["day"].isoformat(),
+                close_kind="settlement" if close.get("settlement") else "close",
+                close_source_system=close.get("source_system"),
+                close_simulated=bool(close.get("simulated")),
+            )
+        elif row.get("prior_settlement_price") is not None:
+            item.update(
+                close_price=row["prior_settlement_price"],
+                close_day=None,
+                close_kind="prior_settlement",
+                close_source_system=row.get("source_system"),
+                close_simulated=bool(row.get("simulated")),
+            )
+        else:
+            item.update(
+                close_price=None,
+                close_day=None,
+                close_kind=None,
+                close_source_system=None,
+                close_simulated=None,
+            )
+        out.append(item)
+    return out
+
+
 def intraday_opportunities(
     session: Session,
     *,

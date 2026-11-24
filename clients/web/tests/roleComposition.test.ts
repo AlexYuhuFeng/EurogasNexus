@@ -178,16 +178,17 @@ test("a panel the role may not read is hidden whatever the registry says; the re
 
 test("Today's row order keeps only the rows the read returned", () => {
   assert.deepEqual(composedTodayRows(ROLE_COMPOSITIONS.analyst, ["market", "book", "fundamentals"]), ["fundamentals", "market", "book"]);
-  // E.3: the trader and operations lead with the gas day to clear (owner, 2026-11-19), risk
-  // with the book, the analyst with fundamentals, the originator with what needs them; every
-  // other role keeps its order and has no gas-day row.
-  assert.equal(ROLE_COMPOSITIONS.trader.todayRows[0], "gas_day");
-  assert.equal(ROLE_COMPOSITIONS.trader.todayRows[2], "market");
+  // E.3: the trader leads with the market above the fold (QA-T-03), then the gas day to clear
+  // (owner, 2026-11-19); operations with the checklist, risk with the book, the analyst with
+  // fundamentals, the originator with what needs them; every other role keeps its order and
+  // has no gas-day row.
+  assert.equal(ROLE_COMPOSITIONS.trader.todayRows[0], "market");
+  assert.equal(ROLE_COMPOSITIONS.trader.todayRows[1], "gas_day");
   assert.equal(ROLE_COMPOSITIONS.risk.todayRows[0], "book");
   assert.equal(ROLE_COMPOSITIONS.analyst.todayRows[0], "fundamentals");
   assert.equal(ROLE_COMPOSITIONS.operations.todayRows[0], "checklist");
   assert.equal(ROLE_COMPOSITIONS.operations.todayRows[1], "gas_day");
-  assert.equal(ROLE_COMPOSITIONS.trader.todayRows.indexOf("checklist"), 1);
+  assert.equal(ROLE_COMPOSITIONS.trader.todayRows.indexOf("checklist"), 2);
   for (const id of ["analyst", "risk", "finance", "compliance", "originator", "reviewer", "desk_head"] as const) {
     assert.ok(!ROLE_COMPOSITIONS[id].todayRows.includes("gas_day"), id);
     assert.ok(!ROLE_COMPOSITIONS[id].todayRows.includes("checklist"), id);

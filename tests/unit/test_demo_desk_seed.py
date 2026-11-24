@@ -774,3 +774,26 @@ def test_a_friday_board_quotes_monday_as_day_ahead(session):
     }
     assert codes["WD"] == "2026-12-04" and codes["DA"] == "2026-12-07"
     assert codes["WE"] == "2026-12-05"
+
+
+def test_curve_months_a_year_apart_are_not_the_same_price(session):
+    """QA-T-02 (seed part): the demo curve carries a small deterministic month-on-month drift,
+    so the same calendar month a year further out is a different price, and the same day seeds
+    the same curve."""
+
+    seed = _load()
+    seeded_at = datetime(2026, 11, 24, 9, tzinfo=UTC)
+    seed.seed(session, seeded_at, history_days=5)
+    session.commit()
+    curve = {
+        (row.period_start_utc.year, row.period_start_utc.month): row.price
+        for row in session.query(MarketObservationRecord).filter_by(source_reference="demo:curve")
+        if (row.metadata_json or {}).get("hub") == "TTF"
+    }
+    assert curve[(2027, 12)] != curve[(2026, 12)]
+    assert curve[(2027, 2)] != curve[(2026, 12)]  # same season, symmetric around January
+    step = seed._CURVE_SHAPE["TTF"][0] * seed.CURVE_DRIFT_PER_MONTH
+    assert curve[(2027, 12)] - curve[(2026, 12)] == pytest.approx(12 * step, abs=0.002)
+    assert seed._forward_curve_price("TTF", seeded_at.date(), 3) == seed._forward_curve_price(
+        "TTF", seeded_at.date(), 3
+    )

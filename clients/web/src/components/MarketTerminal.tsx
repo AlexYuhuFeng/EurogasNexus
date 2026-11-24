@@ -16,6 +16,17 @@ import {
   type ReportingValue,
 } from "@/app/model/priceBoard";
 import { displayTime } from "@/app/time/displayTime";
+import {
+  changeVsClose,
+  formatChangeVsClose,
+  isQuoteStale,
+  quoteClose,
+  quoteMid,
+  quoteOneSided,
+  quoteStaleAfterSeconds,
+  type ChangeVsClose,
+  type QuoteClose,
+} from "@/app/model/boardQuote";
 import { formatSigned, Sparkline } from "@/components/ui/charts";
 import { SimulatedScope, simulatedScopeOf } from "@/components/ui/SimulatedScope";
 import {
@@ -85,7 +96,18 @@ interface BoardRow {
   pricedSlice: "quotes" | "normalized_quotes" | null;
   recordId: string | null;
   unit: string | null;
+  /** (bid + ask) / 2 of a two-sided quote, or the observation's price with no quote; never the last trade. */
   mid: number | null;
+  /** A one-sided quote's one side (no mid), in the hub's quotation. */
+  oneSided: { side: "bid" | "ask"; value: number } | null;
+  /** The last trade as the feed printed it, in the hub's quotation (its own column). */
+  last: number | null;
+  /** The previous close in the hub's quotation, and the mid's change against it. */
+  close: (QuoteClose & { native: number | null }) | null;
+  change: ChangeVsClose | null;
+  /** The quote's observed time (its as-of) and whether it is older than its source's cadence. */
+  observedAt: string | null;
+  stale: boolean;
   delta: number | null;
   premium: number | null;
   simulated: boolean;
@@ -286,20 +308,6 @@ function MarketSparkline({
     />
   );
 }
-
-const quoteMid = (quote: MarketQuoteDTO | null | undefined): number | null => {
-  if (!quote) return null;
-  if (quote.last_price != null && Number.isFinite(quote.last_price)) return quote.last_price;
-  if (
-    quote.bid_price != null && Number.isFinite(quote.bid_price) &&
-    quote.ask_price != null && Number.isFinite(quote.ask_price)
-  ) {
-    return (quote.bid_price + quote.ask_price) / 2;
-  }
-  if (quote.bid_price != null && Number.isFinite(quote.bid_price)) return quote.bid_price;
-  if (quote.ask_price != null && Number.isFinite(quote.ask_price)) return quote.ask_price;
-  return null;
-};
 
 const quoteIdentityKey = (quote: MarketQuoteDTO): string => [
   quote.source_system,
@@ -669,6 +677,13 @@ export function MarketTerminal({
     const ask = quote ? native(quote.ask_price) : null;
     const last = row.latest ? inNative(row.hub, row.latest.price, row.latest.currency, row.latest.unit) : null;
     const nativeUnit = (bid ?? last)?.unit ?? (priced ? displayPriceUnit(currency, unit) : null);
+    // QA-T-01: the mid of a quote is (bid + ask) / 2 or nothing; the last trade has its own
+    // column and a one-sided quote shows its side, marked, never as a mid.
+    const mid = quote ? native(quoteMid(quote)).value : native(row.latest?.price ?? null).value;
+    const oneSided = quoteOneSided(quote);
+    const closeRead = quoteClose(history);
+    const closeNative = closeRead ? native(closeRead.price).value : null;
+    const ageSeconds = quoteAgeSeconds(quote);
     return {
       hub: row.hub,
       bidAskText: quote
@@ -683,12 +698,18 @@ export function MarketTerminal({
       pricedSlice: quote ? "quotes" : row.latest ? "normalized_quotes" : null,
       recordId: quote?.quote_id ?? row.latest?.observation_id ?? null,
       unit: nativeUnit,
-      mid: native(quoteMid(quote) ?? row.latest?.price ?? null).value,
+      mid,
+      oneSided: oneSided ? { side: oneSided.side, value: native(oneSided.value).value ?? oneSided.value } : null,
+      last: quote ? native(quote.last_price).value : null,
+      close: closeRead ? { ...closeRead, native: closeNative } : null,
+      change: changeVsClose(mid, closeNative),
+      observedAt: quote?.observed_at_utc ?? row.latest?.observed_at_utc ?? null,
+      stale: isQuoteStale(quote, ageSeconds, quoteStaleAfterSeconds(history)),
       delta: quoteDelta(history),
       premium: premiumOverTtf(row.hub, row.tenor, row).value,
       simulated: Boolean(quote?.simulated || row.simulated),
       sourceLabel: quote?.source_system ?? row.sourceLabel,
-      ageSeconds: quoteAgeSeconds(quote),
+      ageSeconds,
       lane: marketTenorOrder.map((tenor, index) => {
         const laneQuote = latestQuoteByHubTenor.get(`${row.hub}:${tenor}`);
         const laneRow = lane?.tenorRows[index]?.latest ?? null;
@@ -745,10 +766,36 @@ export function MarketTerminal({
   const allSimulated = boardScope === "all";
   const anyAge = boardRows.some((row) => row.ageSeconds !== null);
   const anyTick = boardRows.some((row) => row.delta !== null);
+  const anyLast = boardRows.some((row) => row.last !== null);
+  const anyChange = boardRows.some((row) => row.change !== null);
+  // QA-T-04: a stale row says so in words (with its age), not by colour alone.
+  const staleMark = (row: BoardRow) => ({
+    kind: "stale" as const,
+    label: t("market.stale_label", { age: formatAge(row.ageSeconds) }),
+    description: t("market.stale_description", {
+      age: formatAge(row.ageSeconds),
+      at: formatTimestamp(row.observedAt),
+      source: row.sourceLabel,
+    }),
+  });
+  const asOfTitle = (row: BoardRow) => (row.observedAt
+    ? t("market.as_of_title", { at: formatTimestamp(row.observedAt), source: row.sourceLabel })
+    : undefined);
+  const closeTitle = (row: BoardRow): string | undefined => {
+    if (!row.close) return undefined;
+    return t("market.close_basis", {
+      kind: t(`market.close_kind.${row.close.kind}`),
+      day: row.close.day ?? t("market.close_day_unstated"),
+      price: row.close.native === null ? "n/a" : row.close.native.toFixed(3),
+      unit: row.unit ?? "",
+      source: row.close.sourceSystem ?? row.sourceLabel,
+    }) + (row.close.simulated ? ` · ${t("today.simulated_short")}` : "");
+  };
   // Spread to TTF in one basis: TTF's EUR/MWh mid against each hub's EUR/MWh value (its own
   // mid when quoted in EUR/MWh, else the server's conversion at the stated FX).
   const ttfRow = boardRows.find((row) => row.hub === "TTF");
   const ttfEur = ttfRow && ttfRow.unit === "EUR/MWh" ? ttfRow.mid : null;
+  const ttfStale = ttfRow?.stale ?? false;
   const spreadToTtf = (row: BoardRow): number | null => {
     if (ttfEur === null || row.mid === null) return null;
     if (row.hub === "TTF") return 0;
@@ -801,17 +848,57 @@ export function MarketTerminal({
       type: "number",
       sortable: true,
       flash: true,
-      value: (row) => row.mid,
-      format: (value) => (value == null ? "–" : (value as number).toFixed(3)),
+      value: (row) => row.mid ?? row.oneSided?.value ?? null,
+      // A one-sided quote has no mid: its one side is shown, marked as bid or offer only.
+      format: (value, row) => {
+        if (value == null) return "–";
+        if (row.mid === null && row.oneSided) {
+          return (
+            <span data-one-sided={row.oneSided.side} title={t("market.one_sided_title")}>
+              {(value as number).toFixed(3)} <small className="market-one-sided">{t(`market.one_sided.${row.oneSided.side}`)}</small>
+            </span>
+          );
+        }
+        return (value as number).toFixed(3);
+      },
       // The reporting unit on hover (G3): converted on the server, with its rate and method.
       cellAttributes: (row) => {
-        const found = reporting.get(row.hub);
-        return found ? { title: found.text, "data-reporting": found.text } : {};
+        const found = row.mid === null ? undefined : reporting.get(row.hub);
+        const title = [found?.text, asOfTitle(row)].filter(Boolean).join(" · ") || undefined;
+        return found ? { title, "data-reporting": found.text } : { title };
       },
       // A simulated price is marked beside the number itself (AGENTS.md rule 17).
       // Tagged only where it differs from the rest: when every row is simulated the banner says so.
       state: (row) => (row.simulated && row.priced && !allSimulated ? { kind: "simulated", label: t("today.simulated_short"), description: t("today.simulated_long") } : null),
     } satisfies DataGridColumn<BoardRow>]),
+    ...(anyLast ? [{
+      id: "last",
+      header: t("market.last"),
+      headerTitle: t("market.last_title"),
+      type: "number",
+      sortable: true,
+      value: (row) => row.last,
+      format: (value) => (value == null ? "–" : (value as number).toFixed(3)),
+      cellTitle: asOfTitle,
+    } satisfies DataGridColumn<BoardRow>] : []),
+    ...(anyChange ? [{
+      id: "change-vs-close",
+      header: t("market.chg_vs_close"),
+      headerTitle: t("market.chg_vs_close_title"),
+      type: "number",
+      sortable: true,
+      value: (row) => row.change?.absolute ?? null,
+      // Signed in words (+/−) and coloured by direction; the close's kind, day and source on hover.
+      render: (row) => (
+        <span
+          className={`market-price-delta ${row.change === null ? "flat" : row.change.absolute > 0 ? "up" : row.change.absolute < 0 ? "down" : "flat"}`}
+          data-change-vs-close=""
+        >
+          {row.change === null ? "–" : formatChangeVsClose(row.change)}
+        </span>
+      ),
+      cellTitle: closeTitle,
+    } satisfies DataGridColumn<BoardRow>] : []),
     ...(anyTick ? [{
       id: "tick",
       header: t("market.tick_change"),
@@ -831,6 +918,10 @@ export function MarketTerminal({
       sortable: true,
       value: (row: BoardRow) => spreadToTtf(row),
       format: (value: unknown) => (value == null ? "–" : `${(value as number) >= 0 ? "+" : ""}${(value as number).toFixed(2)}`),
+      // A spread with a stale leg is marked in the cell, not shown as if both legs were live.
+      state: (row: BoardRow) => (spreadToTtf(row) !== null && (row.stale || ttfStale)
+        ? { kind: "stale" as const, label: t("prices.board.spread_stale_label"), description: t("prices.board.spread_stale") }
+        : null),
     } satisfies DataGridColumn<BoardRow>] : []),
     // The other tenors beside the active one, only those held and only when there is more than
     // the active tenor (otherwise the column repeats the mid).
@@ -867,7 +958,9 @@ export function MarketTerminal({
       // On a phone the price keeps its unit beside it (the rest folds into the row's Details).
       priority: "primary",
       render: (row) => (row.priced ? (anyAge ? `${row.unit} · ${formatAge(row.ageSeconds)}` : row.unit) : t("market.awaiting_feed")),
-      cellAttributes: () => ({ "data-price-meta": "" }),
+      state: (row) => (row.priced && row.stale ? staleMark(row) : null),
+      cellTitle: asOfTitle,
+      cellAttributes: (row) => ({ "data-price-meta": "", "data-stale": row.stale ? "true" : undefined }),
     },
   ];
 
@@ -990,7 +1083,7 @@ export function MarketTerminal({
             "data-record-id": row.recordId ?? undefined,
             "data-price-tenor": row.tenor,
           })}
-          rowClassName={(row) => (row.priced ? "is-live" : "is-waiting")}
+          rowClassName={(row) => (row.priced ? (row.stale ? "is-live is-stale" : "is-live") : "is-waiting")}
           tableAttributes={{ "data-market-board": "hub-prices", "data-board-tenor": activeTenor }}
         />
         </>

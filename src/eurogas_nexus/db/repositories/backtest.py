@@ -406,11 +406,11 @@ def append_run_to_experiment(
 
 
 def _quote_side_prices(row: MarketQuoteRecord) -> list[tuple[str, float | None]]:
+    # A mid needs both sides. A one-sided quote has no mid, and the last trade is never one: it
+    # can sit outside the book (QA-T-01).
     mid = None
     if row.bid_price is not None and row.ask_price is not None:
         mid = round((row.bid_price + row.ask_price) / 2, 4)
-    elif row.last_price is not None:
-        mid = row.last_price
     return [
         ("BID", row.bid_price),
         ("ASK", row.ask_price),

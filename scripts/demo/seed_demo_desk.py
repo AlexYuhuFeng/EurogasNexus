@@ -199,6 +199,19 @@ def _curve_price(hub: str, month: date) -> float:
     return round(base + swing * season, 3)
 
 
+#: The demo curve's month-on-month slope, as a share of the hub's base price: a gentle
+#: backwardation, so two deliveries in the same season a year apart are not the same price
+#: (QA-T-02). Deterministic: the same day seeds the same curve.
+CURVE_DRIFT_PER_MONTH = -0.0015
+
+
+def _forward_curve_price(hub: str, month: date, offset: int) -> float:
+    """The seasonal curve ``offset`` months forward, with the month-on-month drift; invented."""
+
+    base, _ = _CURVE_SHAPE[hub]
+    return round(_curve_price(hub, month) + base * CURVE_DRIFT_PER_MONTH * offset, 3)
+
+
 def _gas_year_label(kind: str, today: date) -> str:
     current = today.year if today.month >= 10 else today.year - 1
     if kind == "open":
@@ -430,7 +443,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
     for hub, currency in DEMO_PRICE_HUBS:
         for offset in range(HORIZON_MONTHS):
             first = _month_start(today, offset)
-            price = _curve_price(hub, first)
+            price = _forward_curve_price(hub, first, offset)
             marks[(hub, f"{first.year:04d}-{first.month:02d}")] = price
             session.add(
                 MarketObservationRecord(
@@ -1956,7 +1969,7 @@ def _roll_curve(session, now: datetime) -> int:
             continue
         for offset in range(HORIZON_MONTHS):
             first = _month_start(today, offset)
-            price = _curve_price(hub, first)
+            price = _forward_curve_price(hub, first, offset)
             rows.append(
                 MarketObservationRecord(
                     observation_id=f"demo-{hub}-{first:%Y-%m}-c{today:%Y%m%d}",

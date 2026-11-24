@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 
 from eurogas_nexus.api.dependencies.row_entitlement import current_principal
 from eurogas_nexus.application.projections.market_reads import (
+    annotate_quotes,
     derive_intraday_spreads,
     filter_entitled_opportunities,
     filter_entitled_rows,
@@ -25,6 +26,7 @@ from eurogas_nexus.application.projections.market_reads import (
     market_observations,
     market_quotes,
     normalized_market_view,
+    quote_close_rows,
     source_family_filter,
 )
 from eurogas_nexus.domain.market.fx_fixings import (
@@ -159,8 +161,15 @@ def list_quotes(
                 source_system=source_system,
                 limit=limit,
             )
+        # Each quote with its as-of, age against the source's cadence and the previous close
+        # (additive fields; the close is read from the desk's daily closes for this caller).
+        now = datetime.now(UTC)
         return _env(
-            _filter_entitled_rows(request, rows, source_key="source_system"),
+            annotate_quotes(
+                _filter_entitled_rows(request, rows, source_key="source_system"),
+                quote_close_rows(request, now),
+                now=now,
+            ),
             source="runtime-postgresql",
         )
     except sqlalchemy_error as exc:

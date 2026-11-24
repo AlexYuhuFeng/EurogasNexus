@@ -45,3 +45,24 @@
   font-variant-numeric: tabular-nums;
 }
 }
+
+/* Board states sit with the grid's own rules (ds-components), so they win over its cell ink. */
+@layer ds-components {
+  /* QA-T-04: a stale row is muted and says "stale" with its age in the unit cell (the word, not
+     the colour, carries the state); its change loses its direction colour but keeps its sign. */
+  .market-hub-board-table tr.is-stale > td,
+  .market-hub-board-table tr.is-stale > th {
+    color: var(--ds-text-3);
+  }
+
+  .market-hub-board-table tr.is-stale .market-price-delta.up,
+  .market-hub-board-table tr.is-stale .market-price-delta.down {
+    color: var(--ds-text-3);
+  }
+
+  /* A one-sided quote: its side, named beside the price, in place of a mid. */
+  .market-one-sided {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+}
