@@ -17,8 +17,9 @@ ADR Decision 37. Expand-only (``db/models/lng_disruption.py``):
   users' ships due at a terminal's berth, so an option carries the knock-on it causes).
 
 The revision id is shorter than the file name because ``alembic_version.version_num`` holds 32
-characters (as 0008, 0016, 0019 and 0020 do). Every new column is nullable, so a row written before stays valid and an LNG-3 reader is
-unchanged. The downgrade drops only what this revision adds.
+characters (as 0008, 0016, 0019 and 0020 do). Every new column is nullable, so a row written
+before stays valid and an LNG-3 reader is unchanged. The downgrade drops only what this
+revision adds.
 """
 
 import sqlalchemy as sa

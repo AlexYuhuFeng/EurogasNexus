@@ -73,13 +73,13 @@ from eurogas_nexus.db.models.identity import (
 )
 from eurogas_nexus.db.models.jobs import JobRecord
 from eurogas_nexus.db.models.lng_disruption import (
+    LngBerthCallRecord,
     LngCapacityOfferRecord,
     LngDeliveryObligationRecord,
     LngDisruptionDecisionRecord,
     LngDisruptionRunRecord,
     LngSlotTermsRecord,
     LngVoyageTermsRecord,
-    LngBerthCallRecord,
     PipelineOutageLinkRecord,
     PipelineSupplyRecord,
 )
