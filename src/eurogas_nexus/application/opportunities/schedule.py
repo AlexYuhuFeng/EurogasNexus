@@ -23,25 +23,13 @@ from collections.abc import Callable, Iterable
 from datetime import UTC, datetime, timedelta
 from typing import Any, Protocol
 
+from eurogas_nexus.streaming.contracts import IngestionInvalidationV1, OpportunityInputClass
+
 #: At most one scheduled full evaluation per five minutes.
 DEBOUNCE = timedelta(minutes=5)
 
 #: Input classes whose change makes a scheduled evaluation due.
-INPUT_CLASSES = frozenset(
-    {
-        "prices",
-        "tariffs",
-        "outages",
-        "book",
-        "marks",
-        "assumptions",
-        "limits",
-        "fx",
-        "rates",
-        "capacity",
-        "freight",
-    }
-)
+INPUT_CLASSES = frozenset(item.value for item in OpportunityInputClass)
 
 #: Source categories (connector manifests) and the input class an ingestion of them changes.
 #: Weather, power and AI sources feed no evaluator directly: they make nothing due.
@@ -138,10 +126,21 @@ def note_ingestion_changes(session, outcomes: Iterable[dict[str, Any]], *, now_u
         input_class = input_class_for_source(run.source_id, categories.get(run.source_id))
         if input_class is None:
             continue
-        note_input_changed(
-            session, input_class, reason=f"ingestion {run.source_id}", at_utc=now_utc
+        event = IngestionInvalidationV1(
+            event_type="opportunity.input.invalidated",
+            schema_version=1,
+            source_id=run.source_id,
+            run_id=run.run_id,
+            input_class=input_class,
+            noticed_at_utc=_aware(now_utc),
         )
-        noted.add(input_class)
+        note_input_changed(
+            session,
+            event.input_class.value,
+            reason=f"ingestion {event.source_id}",
+            at_utc=event.noticed_at_utc,
+        )
+        noted.add(event.input_class.value)
     return sorted(noted)
 
 

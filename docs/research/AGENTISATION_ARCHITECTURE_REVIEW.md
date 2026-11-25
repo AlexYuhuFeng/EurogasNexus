@@ -57,3 +57,7 @@ Sources consulted on 2026-11-25. Vendor statements establish public feature desc
 - Anthropic distinguishes fixed workflows from dynamic agents and points to the cost and latency trade-off. NIST's GenAI profile covers confabulation, data privacy and measured evaluation. MCP specifies security guidance for transport authorization and token handling. Nexus should use server-selected tool authority, versioned evidence and a held-out comparison before promotion. [Building Effective Agents](https://www.anthropic.com/research/building-effective-agents) · [NIST AI 600-1](https://doi.org/10.6028/NIST.AI.600-1) · [MCP security guidance](https://modelcontextprotocol.io/specification/2025-11-25/basic/security_best_practices)
 
 [Proposed architecture](../architecture/AGENTIC_DECISION_ARCHITECTURE_PROPOSAL.md) · [Evaluation results](AGENTISATION_EVALUATION_RESULTS.md)
+
+## Architectural stability criterion
+
+Judge A, B and C on lifecycle cost as well as initial latency. Stable identities, temporal cutoffs, portable event and export formats and migration compatibility lower the cost of all three paths. Activate infrastructure only where an identified consumer and deployment evidence justify the maintenance burden. The proposal records an 18–36 month technology decision, licensing considerations and rollback posture for each candidate. [Lifecycle architecture](../architecture/AGENTIC_DECISION_ARCHITECTURE_PROPOSAL.md)

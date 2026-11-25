@@ -12,7 +12,7 @@
 | `scripts/research/benchmark_decision_research.py`, `tests/evals/test_decision_research.py` | Reusable synthetic fixture, A/B harness, refusal, parity, authorisation and failure checks. |
 | [Architecture review](../research/AGENTISATION_ARCHITECTURE_REVIEW.md), [Proposal](../architecture/AGENTIC_DECISION_ARCHITECTURE_PROPOSAL.md), [ADR](../architecture/decisions/2026-11-25-governed-agent-research-boundary.md), [Evaluation](../research/AGENTISATION_EVALUATION_RESULTS.md) | Evidence for conclusions, integration proposal and measured limitations. |
 
-**Interface and operations impact:** No existing interface amendments. The research module is unwired. No migration, new dependency, production configuration, permission changes, API registration or MCP export. No provider or execution path. The runtime preserves its own capability permissions and the wrapper kept all results synthetic and indicative.
+**Interface and operations impact:** No public interface amendments. The research module is unwired. No migration, new dependency, production configuration, permission changes, API registration or MCP export. No provider or execution path. The runtime preserves its own capability permissions and the wrapper kept all results synthetic and indicative.
 
 **Validation:** 208 focused tests passed, including 15 new cases. A/B returned the same 1.30 EUR/MWh and scenario feasibility. Direct p50 18.09 µs, governed p50 92.34 µs. Model value and costs are unmeasured. The date/time and conflict checks consume fixture metadata, and do not certify provenance or discover source conflicts. The scenario assessment does not verify current rights, cash or actual portfolio allocation.
 
@@ -21,3 +21,13 @@
 **LNG coordination:** Retain the ongoing LNG programme's portfolio snapshot, shared-resource constraints, rights and capacity models. Integrate through a future read-only adapter around its existing service after that interface stabilises. No observed code overlap beyond relying on the existing agent runtime and route domain services.
 
 **Review and rollback:** Compare the branch to the base SHA and run the evaluation commands. Inspect worktrees with `git worktree list`. If approved, cherry-pick the documentation or extract the evidence policy independently. The code commit can be reverted independently after integration. It carries no stored state.
+
+
+**Foundational follow-up:** The typed v1 invalidation contract and scheduler consumer
+are in `src/eurogas_nexus/streaming/contracts.py` and
+`src/eurogas_nexus/application/opportunities/schedule.py`, with JSON fixtures in
+`tests/contract/test_ingestion_invalidation_contract.py`. Review this separately
+from the research module. It preserves existing debounce and database shape.
+The lifecycle proposal records licensing, upgrade and rollback considerations
+for each infrastructure candidate. No new optional deployment profile is proposed.
+Review `git log --oneline origin/main..HEAD` for the foundational follow-up SHA.

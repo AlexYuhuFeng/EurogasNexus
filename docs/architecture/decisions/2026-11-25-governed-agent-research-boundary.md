@@ -9,3 +9,7 @@
 **Alternatives.** An agent on every tick adds a dependency and a second risk interpretation for tasks already covered by rules. Independent cargo agents cannot resolve shared inventory and rights without a common allocator. A new workflow engine could provide stronger replay primitives, but the current pilot requires neither external durability nor throughput beyond existing infrastructure.
 
 **Consequences.** Provenance and refusal can be reviewed separately from any model. Dynamic exploration will have to beat a fixed workflow in blind review and pass identity, evidence and latency gates. Integrating the prototype itself would require real evidence adapters and maturity work. Reverting the offline experiment has no persisted state impact.
+
+## Foundations and runtime deployment
+
+Treat schema and lifecycle compatibility as upfront architecture work. Adopt stable keys, source ownership, availability semantics and versioned event contracts before choosing transports or extension-specific DDL. The scheduler now constructs the v1 run-level invalidation contract on its normal ingestion path. Keep the unversioned streaming shell available for source compatibility. The typed event does not create a transport, broker, duplicate tracker or durable event journal. [Lifecycle architecture](../AGENTIC_DECISION_ARCHITECTURE_PROPOSAL.md)
