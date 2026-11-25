@@ -83,18 +83,22 @@ def _principal(
     accepted in the request body and then dropped here, which made every
     ``HUMAN_CONFIRMATION`` capability permanently uncallable through this route while the caller
     was told its confirmation was required - a governance control turned into a dead end. It is
-    carried now, and only the runtime decides whether the confirmation is enough.
+    carried now, and only the runtime decides whether the confirmation is enough: since
+    CODEX-1 it counts only from a signed-in person (``principal_type`` ``USER``), never from the
+    deployment token or a service account.
     """
 
     identity = getattr(request.state, "identity", None)
     if identity is None:
-        return AgentInvocationContext(
-            principal_id="service:public-api",
-            role="ANALYST",
-            roles=["ANALYST"],
-            data_scopes=["*"],
-            human_confirmation=human_confirmation,
-            confirmation_note=confirmation_note,
+        # Fail closed (CODEX-1). The app-wide identity dependency attaches a principal or
+        # refuses with 401 before this route runs, so this is reached only when the router is
+        # mounted without it; it used to invent an analyst with every data scope here.
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "error": "authentication_required",
+                "message": "A capability call needs the caller's identity.",
+            },
         )
     return AgentInvocationContext(
         principal_id=identity.principal_id,
@@ -104,6 +108,7 @@ def _principal(
         correlation_request_id=getattr(request.state, "request_id", None),
         human_confirmation=human_confirmation,
         confirmation_note=confirmation_note,
+        principal_type=str(getattr(identity, "principal_type", "") or "SERVICE"),
     )
 
 
