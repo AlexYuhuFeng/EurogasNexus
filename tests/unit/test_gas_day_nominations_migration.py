@@ -61,7 +61,7 @@ def test_chain_up_down_and_model_match():
 
 def test_0085_adds_the_matching_columns_and_drops_only_them():
     matching = _load_0085()
-    assert matching.down_revision == "0082_data1_integration"
+    assert matching.down_revision == "0083_tar1_tariff_book"
     added = {"counterparty", "direction", "point", "shipper_code",
              "counterparty_shipper_code", "counterparty_quantity_mwh"}
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)

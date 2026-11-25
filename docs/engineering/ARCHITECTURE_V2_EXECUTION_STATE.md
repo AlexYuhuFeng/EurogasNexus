@@ -13,12 +13,11 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   deals in `screen_order_observations` and the append-only `gas_day_nomination_events`, scope
   as the gas-day reads, payload, CSV rows, Today items, alerts).
 - One read, `GET /api/desk/gas-day/{gas_day}/reconciliation` (`portfolio.read`; filters;
-  `format=csv` with the GOV-1 export decision). Census 293 paths / 328 operations (from 292 /
-  327; TAR-1 adds routes in parallel, the integrator reconciles the counts).
+  `format=csv` with the GOV-1 export decision). Census 296 paths / 331 operations (from 295 /
+  330 after TAR-1).
 - Migration `0085_sched1_nomination_matching` (nullable columns on `gas_day_nomination_events`:
   counterparty, direction, point, shipper codes, the counterparty's quantity), on
-  `0082_data1_integration`; TAR-1 adds `0083` in parallel, so one of the two is re-pointed when
-  the branches meet. No table, so no ADR. `etrm.nominations.v1` takes the fields as optional
+  TAR-1's `0083_tar1_tariff_book`. No table, so no ADR. `etrm.nominations.v1` takes the fields as optional
   columns, the step `trade_confirmation` and the line prefix `counterparty:`.
 - Alerts: monitoring category `gas_day_break` (book-scoped, notifies itself in `nomination`,
   Operations then Trader; deduplicated, 30-minute cooldown unless worse, withdrawn when fixed),
