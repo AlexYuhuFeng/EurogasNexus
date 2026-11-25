@@ -1518,6 +1518,9 @@ def _needs_me(
     nominations = needs_me_items(checklist or {})
     items += [item for item in nominations if item["urgency"] in {"due_soon", "overdue"}]
     later += [item for item in nominations if item["urgency"] not in {"due_soon", "overdue"}]
+    # SCHED-1: a reconciliation break of today's or tomorrow's gas day near its hub's cut-off
+    # (or past the last renomination) is time-critical too; only for a reader of the book.
+    items += _reconciliation_items(session, caller, now, read)
     # LNG-2: a cargo change's message for the caller's own role (trader, scheduler, risk, desk
     # head); a critical one sits with the time-critical items, the rest with the limits.
     try:
@@ -1587,6 +1590,30 @@ def _needs_me(
         "populated": bool(shown),
         "empty": None,
     }
+
+
+def _reconciliation_items(session, caller: Caller, now: datetime, read: _Read) -> list[dict]:
+    """The caller's gas-day reconciliation breaks near a cut-off (SCHED-1)."""
+
+    from eurogas_nexus.security.authorization import Permission, authorize
+
+    principal = getattr(caller, "principal", None)
+    if principal is None or not authorize(principal, Permission.PORTFOLIO_READ).allowed:
+        return []
+    try:
+        from eurogas_nexus.application.gas_day_reconciliation import (
+            needs_me_items,
+            reconciliation,
+        )
+        from eurogas_nexus.domain.market.gas_day import gas_day_label
+
+        today = date.fromisoformat(gas_day_label(now))
+        return needs_me_items(
+            reconciliation(session, caller, day, now=now, breaks_only=True)
+            for day in (today, today + timedelta(days=1)))
+    except Exception as exc:  # noqa: BLE001 - the other kinds stand
+        read.warnings.append(f"gas-day reconciliation: not available ({exc.__class__.__name__})")
+        return []
 
 
 def _finding_item(

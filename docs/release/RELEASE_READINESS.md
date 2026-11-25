@@ -61,7 +61,11 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **295 paths / 330 operations**
+- OpenAPI public surface: **296 paths / 331 operations**
+
+  (2026-11-25: `GET /api/desk/gas-day/{gas_day}/reconciliation` (READ, `portfolio.read` in the
+  handler), the SCHED-1 reconciliation of trades, confirmations and nominations; read only,
+  `format=csv` under the export decision; 295 / 330 before, after TAR-1.
 
   (2026-11-24: TAR-1 adds `GET /api/tariffs`, `GET /api/tariffs/publishers` and
   `GET /api/capacity/notices` (all READ, entitlement-filtered by publisher family; a terminal

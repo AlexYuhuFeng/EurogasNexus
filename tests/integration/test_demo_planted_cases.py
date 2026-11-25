@@ -14,6 +14,10 @@ subject) must be exactly the expected one:
 - S1 day (the day before a planted S1 gas day): tomorrow left open, the UK book long at NBP
   and the NL book short at TTF (sell-down S in "must act"; the UK book's TTF residual has no
   TTF rate and is a "cannot evaluate", not listed);
+- R1 day (the 11th or 12th of a month): Aldermoor nominated less than the desk's sale at NBP
+  and the TSO confirmed the lesser. That is a scheduling break (SCHED-1's reconciliation,
+  ``tests/integration/test_gas_day_reconciliation.py``), not an opportunity: nothing more is
+  listed, and the reconciliation shows the one lesser-rule cut, which a quiet day does not;
 - a quiet day: nothing more (every other gas day the demo schedule balances each book).
 """
 
@@ -52,6 +56,7 @@ L1_DAY = date(2026, 12, 7)  # Monday, ordinal % 23 == 1
 W1_DAY = date(2026, 12, 14)  # Monday, ordinal % 17 == 5
 QUIET_DAY = date(2026, 12, 2)  # Wednesday, neither
 S1_DAY = date(2026, 12, 17)  # Thursday: tomorrow, the 18th, is an S1 gas day
+R1_DAY = date(2026, 12, 10)  # Thursday: today's gas day quiet, tomorrow's (the 11th) an R1 day
 
 EVERY_DAY = {
     ("must_act", "G", "Haldor supply (Easington)"),
@@ -114,7 +119,12 @@ def test_the_planted_days_are_what_the_tests_say():
     assert not any(
         MARKET.s1_planted(day + timedelta(days=1)) for day in (L1_DAY, W1_DAY, QUIET_DAY)
     )
-    assert all(day.weekday() < 4 for day in (L1_DAY, W1_DAY, QUIET_DAY, S1_DAY))
+    assert all(day.weekday() < 4 for day in (L1_DAY, W1_DAY, QUIET_DAY, S1_DAY, R1_DAY))
+    assert MARKET.r1_planted(R1_DAY + timedelta(days=1)) and not MARKET.r1_planted(R1_DAY)
+    assert not any(MARKET.r1_planted(day + timedelta(days=offset))
+                   for day in (L1_DAY, W1_DAY, QUIET_DAY, S1_DAY) for offset in (0, 1))
+    assert not (MARKET.l1_planted(R1_DAY) or MARKET.w1_planted(R1_DAY)
+                or MARKET.s1_planted(R1_DAY + timedelta(days=1)))
 
 
 def test_the_simulated_route_costs_bound_the_demo_market():
@@ -133,8 +143,32 @@ def test_the_simulated_route_costs_bound_the_demo_market():
         (W1_DAY, {("market", "P", "TTF · within-day · day-ahead")}),
         (QUIET_DAY, set()),
         (S1_DAY, {("must_act", "S", "NBP · long"), ("must_act", "S", "TTF · short")}),
+        (R1_DAY, set()),
     ],
-    ids=["L1", "W1", "quiet", "S1"],
+    ids=["L1", "W1", "quiet", "S1", "R1"],
 )
 def test_each_planted_case_is_found_on_its_day_and_nothing_else(tmp_path, monkeypatch, day, extra):
     assert _listed(tmp_path, monkeypatch, day) == EVERY_DAY | extra
+
+
+@pytest.mark.parametrize(("day", "kinds"), [(R1_DAY, ["lesser_rule_cut"]), (QUIET_DAY, [])],
+                         ids=["R1", "quiet"])
+def test_the_r1_break_is_in_the_reconciliation_on_its_day_only(tmp_path, monkeypatch, day, kinds):
+    from eurogas_nexus.application.gas_day_reconciliation import reconciliation
+
+    url = f"sqlite+pysqlite:///{(tmp_path / f'r1-{day}.sqlite').as_posix()}"
+    engine = create_engine(url, future=True)
+    Base.metadata.create_all(engine)
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", url)
+    # Late evening: tomorrow's nominations are matched (the TSO answered at 14:00 UTC).
+    now = datetime(day.year, day.month, day.day, 21, tzinfo=UTC)
+    with Session(engine) as session:
+        SEED.seed(session, now, history_days=3)
+        session.commit()
+        found = [
+            item["kind"]
+            for gas_day in (day, day + timedelta(days=1))
+            for item in reconciliation(session, Caller(_principal()), gas_day, now=now)["breaks"]
+        ]
+    engine.dispose()
+    assert found == kinds

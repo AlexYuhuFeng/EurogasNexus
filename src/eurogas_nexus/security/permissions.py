@@ -121,6 +121,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # My gas day checklist: a status recorded by hand for a step of the caller's own gas
     # day (portfolio.write held in the handler, audited); nothing is nominated or sent.
     ("/api/desk/gas-day/status", Permission.WRITE),
+    # SCHED-1: the gas day's reconciliation of trades, confirmations and nominations, a read
+    # of the caller's own books (portfolio.read held in the handler); nothing is sent.
+    ("/api/desk/gas-day/{gas_day}/reconciliation", Permission.READ),
     # Market reports (application/reports): the catalogue is a declaration; reading a stored
     # report is a read of figures the reader is re-checked for (sources and books). Proposing
     # a plan may call the model, and generating one stores a record and may call the model,

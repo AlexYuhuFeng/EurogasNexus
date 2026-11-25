@@ -3,11 +3,11 @@
 Read this first when picking the programme up. Updated in the same commit as the work it
 describes.
 
-**Last updated:** 2026-11-24
+**Last updated:** 2026-11-25
 **Branch:** `innovation/continuous-commercial-intelligence` (pushed; no pull request opened,
 nothing merged, no tag, no release package)
 **Baseline:** `main@6d21b898661d6466418b3aaeab505a7bc4fb4013`
-**Schema head on the branch:** `0083_tar1_tariff_book` (TAR-1: tables `tariff_versions`, `capacity_notices`), on `0082_data1_integration` (DATA-1: `market_events.writer_txid`, table `erp_references`), on `0081_change_requests` (P-17), on `0080_lng_eta_basis` (LNG-2), on `0079_licensed_data_use` (GOV-1, P6)
+**Schema head on the branch:** `0085_sched1_nomination_matching` (SCHED-1: matching columns on `gas_day_nomination_events`), on `0083_tar1_tariff_book` (TAR-1: tables `tariff_versions`, `capacity_notices`), on `0082_data1_integration` (DATA-1: `market_events.writer_txid`, table `erp_references`), on `0081_change_requests` (P-17), on `0080_lng_eta_basis` (LNG-2), on `0079_licensed_data_use` (GOV-1, P6)
 
 ## Where the programme stands
 
@@ -35,7 +35,8 @@ nothing merged, no tag, no release package)
 | DATA-1 Data integration | Built and tested; DATA1-1 (as-of reads), DATA1-2 (change feed), DATA1-3 (Power Query reads) and DATA1-4 (ETRM and ERP import contracts) met ([06](06_ACCEPTANCE_CRITERIA.md)) |
 | TAR-1 Public tariffs and capacity windows | Built and tested; TAR1-1 to TAR1-6 met ([06](06_ACCEPTANCE_CRITERIA.md)); ENTSOG is the only machine-readable publisher reachable, every other TSO, LNG and storage publisher is in the [registry](../../data/TARIFF_PUBLISHER_REGISTRY.md) as manual or parsed (terms not reviewed or restrictive); migration `0083_tar1_tariff_book`, ADR Decision 34 |
 | MAP-1 The map | Built and tested; MAP1-1 to MAP1-6 met ([06](06_ACCEPTANCE_CRITERIA.md)): terminals and storage from ENTSOG published capacity with GIE inventory labelled by scope, carriers with reported and labelled estimated positions and ETA basis, flows with a direction only where the operator's side is known and a gas-day scrubber, 2D/3D with reduced motion. Not yet: frame rate measured in a browser, page-to-page transitions |
-| UX-1, SCHED-1, NEWS-1, UX-2, LOOP-1, M8 to M11, M13 | Planned, in the order of [05](05_IMPLEMENTATION_ROADMAP.md) |
+| SCHED-1 Nominations: why trades, confirmations and nominations disagree | Built and tested; SCHED1-1 to SCHED1-8 met ([06](06_ACCEPTANCE_CRITERIA.md)): per gas day, hub and counterparty traded, confirmed, nominated and TSO-matched quantities; eleven break kinds explained with their arithmetic and next step, ordered by cut-off and MWh at risk with an indicative cash-out; alerts in `nomination`, withdrawn when fixed; Today's Reconciliation row and What needs me; demo case R1. Read only, nothing sent. Not yet: shipper-code reference data (codes come from the scheduling file), a TSO confirmation feed (imported, not received) |
+| UX-1, NEWS-1, UX-2, LOOP-1, M8 to M11, M13 | Planned, in the order of [05](05_IMPLEMENTATION_ROADMAP.md) |
 | M12 Hosted pilot | Dropped by the user on 2026-11-24 (deployment later, outside this programme) |
 
 ## Commits on the branch
@@ -92,7 +93,8 @@ deduplicated plan in [05](05_IMPLEMENTATION_ROADMAP.md) ("Consolidated requireme
    escalation when a role does not act (R20, as for M7), routing to a named person on duty.
 3. **GOV-1.** Audit with the change, entitlement reporting, maker-checker, AI controls.
 4. **UX-1.** The twelve design-study fixes, installer and sign-in.
-5. **DATA-1, TAR-1 and MAP-1 (built).** Then **SCHED-1, NEWS-1, UX-2, LOOP-1**, M8 to M11 and M13.
+5. **DATA-1, TAR-1, MAP-1 and SCHED-1 (built).** Then **NEWS-1, UX-2, LOOP-1**, M8 to M11 and M13.
+
 
 A persona review round follows each user-facing slice.
 

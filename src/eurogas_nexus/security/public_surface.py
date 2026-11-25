@@ -50,6 +50,8 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/desk/today",
         # My gas day, stage 2: a nomination or terminal step status recorded by hand.
         "/api/desk/gas-day/status",
+        # SCHED-1: why trades, confirmations and nominations disagree (read only).
+        "/api/desk/gas-day/{gas_day}/reconciliation",
         "/api/reports/catalogue",
         "/api/reports/plan",
         "/api/reports/market",

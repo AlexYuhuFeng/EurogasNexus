@@ -22,6 +22,28 @@
 明细新增 `tariff_versions` 与 `tariff_events`。迁移 `0083_tar1_tariff_book`（表 `tariff_versions`、`capacity_notices`，
 仅扩展）。统计：295 条路径 / 330 个操作（+3 / +3）。登记：`docs/data/TARIFF_PUBLISHER_REGISTRY.md`。
 
+2026-11-25 新增燃气日对账（Commercial Intelligence V3 SCHED-1）：一条路径、一个操作。新增
+`GET /api/desk/gas-day/{gas_day}/reconciliation`（READ，需 `portfolio.read`，否则 403 `permission_denied`）：
+按枢纽（交接点）与交易对手给出该燃气日的交易、对手确认、提名与 TSO 匹配数量；`groups[]`（`hub`、`point`、
+`counterparty`、`shipper_codes`、`traded`、`confirmed`、`nominated`、`tso`，各为 `{value, unit, mwh, kwh_h}` 或 null，
+`held`、`state` break|matched、`urgency`、`cutoff`、`minutes_left`、`mwh_at_risk`、`break_ids`、`book_ids`、
+`trades[]`、`nominations[]`、`simulated`）与 `breaks[]`（`id`；`kind` 为 not_nominated、nomination_without_trade、
+quantity_mismatch、counterparty_mismatch、shipper_code_mismatch、wrong_direction、lesser_rule_cut、late、
+unit_mismatch、gas_day_misaligned、not_confirmed 之一；`explanation`、`explanation_zh`、`next_step`、`next_step_zh`、
+`gap_mwh`、`mwh_at_risk`、`quantity`、`figures`、`urgency` due_soon|open|passed|closed、`severity`、`cutoff`、
+`minutes_left`、`cash_out`（`basis` 为 indicative|missing|not_an_imbalance）、`trade_ids`、`line_refs`、`book_ids`），
+按距该枢纽下一截止时间、再按风险 MWh 排序；另有 `hubs[]`（含截止时间）、`counts`、`kinds`、`mwh_at_risk`、
+`exchange_trades[]`（只计数，不对账）、`empty` 与 `execution`（不提名、不确认、不发送）。筛选 `hub`、
+`counterparty`（子串）、`kind`、`book_id`、`breaks_only`；`format` 为 `json`（默认）或 `csv`（每项差异一行，表头固定，
+适用 GOV-1 导出决定）。404 `book_not_in_scope`；422 `unknown_kind`、`gas_day_out_of_range`（距今超过 31 天）。
+范围同燃气日读取（授权账簿，否则调用方可见的全部账簿）。`GET /api/desk/today` 的"需要我处理"可含 `kind` 为
+`reconciliation` 的条目（`break_kind`、`hub`、`gas_day`、`explanation`、`explanation_zh`、`quantity`、`deadline_utc`、
+`target`）；`GET /api/monitoring/alerts` 可含类别 `gas_day_break`（按账簿范围；通过现有 `nomination` 类别通知）。
+导入契约 `etrm.nominations.v1` 新增可选列（`counterparty`、`direction`、`point`、`shipper_code`、
+`counterparty_shipper_code`、`counterparty_quantity_mwh`）、步骤 `trade_confirmation` 与行前缀 `counterparty:`；
+不含这些列的文件照旧读取（迁移 `0085_sched1_nomination_matching`，仅新增可空列）。路径统计：293 条路径 / 328 个操作
+（在 292 / 327 上 +1 / +1；TAR-1 并行新增路由，由集成者核对）。
+
 2026-11-24 变更与新增（限额与参考数据的双人复核，Commercial Intelligence V3 P-17，ADR 决策 32）。**状态码变更：**
 当该写入启用四眼复核（默认启用）时，`PUT /api/portfolio/credit-lines/{id}`、`PUT /api/portfolio/trader-mandates/{id}`、
 `PUT /api/portfolio/hedge-approvals/{id}`、`PUT /api/portfolio/lng-terminal-terms/{id}`、`PUT /api/market/firm-marks`

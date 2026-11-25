@@ -6,6 +6,31 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-25 — Commercial Intelligence V3, SCHED-1: why trades, confirmations and nominations disagree (branch `wip/sched1`)
+
+- New pure module `domain/portfolio/nomination_reconciliation.py` (eleven break kinds, the
+  urgency of a cut-off, unit slips) and `application/gas_day_reconciliation.py` (facts from ETRM
+  deals in `screen_order_observations` and the append-only `gas_day_nomination_events`, scope
+  as the gas-day reads, payload, CSV rows, Today items, alerts).
+- One read, `GET /api/desk/gas-day/{gas_day}/reconciliation` (`portfolio.read`; filters;
+  `format=csv` with the GOV-1 export decision). Census 293 paths / 328 operations (from 292 /
+  327; TAR-1 adds routes in parallel, the integrator reconciles the counts).
+- Migration `0085_sched1_nomination_matching` (nullable columns on `gas_day_nomination_events`:
+  counterparty, direction, point, shipper codes, the counterparty's quantity), on
+  `0082_data1_integration`; TAR-1 adds `0083` in parallel, so one of the two is re-pointed when
+  the branches meet. No table, so no ADR. `etrm.nominations.v1` takes the fields as optional
+  columns, the step `trade_confirmation` and the line prefix `counterparty:`.
+- Alerts: monitoring category `gas_day_break` (book-scoped, notifies itself in `nomination`,
+  Operations then Trader; deduplicated, 30-minute cooldown unless worse, withdrawn when fixed),
+  queued by `run_monitoring_worker.py` and `dispatch_notifications.py` after the deadline
+  prompts. Today: "What needs me" items of kind `reconciliation`; web Reconciliation row for
+  operations (`components/today/ReconciliationRow.tsx`, `app/model/reconciliationModel.ts`).
+- Demo: planted case R1 (gas days 11 and 12: Aldermoor nominates 4,800 of 6,000 MWh at NBP,
+  the TSO confirms the lesser); the Aldermoor sale and the simulated feed's prompt trades are
+  nominated and matched every other day.
+- Not yet: shipper-code reference data (codes come from the scheduling file); a TSO
+  confirmation feed; confirmations from a trade-confirmation platform (imported as a step).
+
 ## 2026-11-24 — Commercial Intelligence V3, MAP-1: the map (branch `wip/map1`)
 
 - `GET /api/portfolio/map-situation` gained `assets` (LNG terminals and storage sites with

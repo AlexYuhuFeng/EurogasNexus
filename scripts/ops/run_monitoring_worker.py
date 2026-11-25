@@ -81,6 +81,17 @@ def main() -> int:
                 except Exception as exc:  # noqa: BLE001
                     print(json.dumps({"status": "gas_day_deadlines_failed",
                                       "error_type": exc.__class__.__name__}), flush=True)
+                # SCHED-1: reconciliation breaks near a cut-off reach scheduling (dedupe,
+                # cooldown, withdrawal when they clear); a failure never stops the scan.
+                try:
+                    from eurogas_nexus.application.gas_day_reconciliation import (
+                        queue_break_alerts,
+                    )
+
+                    queued += queue_break_alerts(session, now=now)["notified"]
+                except Exception as exc:  # noqa: BLE001
+                    print(json.dumps({"status": "gas_day_breaks_failed",
+                                      "error_type": exc.__class__.__name__}), flush=True)
                 # Scheduled reports due this pass run as the service principal (never an
                 # administrator); their e-mail rows are dispatched below with the rest.
                 reports = run_due_reports(session, now=now, caller=authority.principal,

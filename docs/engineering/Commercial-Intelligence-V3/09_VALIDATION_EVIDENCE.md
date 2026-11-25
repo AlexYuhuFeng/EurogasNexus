@@ -303,6 +303,24 @@ gas day except the planted S1 days (18 to 20 of each month).
 | Bundle (`npm run build`), against `333254d` | `index-*.js` 2,215.21 kB (gzip 616.73) from 2,181.64 (606.88): +33.6 kB, gzip +9.9; `index-*.css` 392.37 kB (gzip 60.38) from 389.52 (59.84): +2.9 kB, gzip +0.5; `vendor-map` 1,037.39 kB and the MapLibre worker 507.72 kB unchanged | No npm package added |
 | Frame behaviour | Not measured: this environment has no browser. The map writes the p95 frame interval of the flow animation to `data-map-scene-frame-p95` on `.gas-map`, summarised by `app/mapSceneFrames.ts` (tested) | To be read in a browser on the desk's reference machine |
 
+## SCHED-1 why trades, confirmations and nominations disagree (2026-11-25, branch `wip/sched1`)
+
+Worked example, the demo's R1 gas day 2026-12-11 read at 23:00 UTC: the UK book sold
+Aldermoor 6,000 MWh at NBP and nominated it out; Aldermoor nominated 4,800 and the TSO
+confirmed the lesser: 6,000 − 4,800 = 1,200 MWh cut (40,946 th, 50,000 kWh/h), the book long
+1,200 MWh, indicative cash-out 1,200 × 1.20 GBP/MWh = 1,440 GBP, three hours to the last
+renomination at 02:00 UTC (due soon). On 2026-12-02 the reconciliation has no break.
+
+| What | Command | Result |
+| --- | --- | --- |
+| SCHED1-2, SCHED1-3 each break kind, hand-worked | `pytest tests/domain/test_nomination_reconciliation.py` | 15 passed |
+| SCHED1-1, 3 to 6, 8 on the demo desk, imports, alerts, Today, API | `pytest tests/integration/test_gas_day_reconciliation.py tests/api/test_gas_day_reconciliation_api.py tests/integration/test_demo_planted_cases.py` | 9 + 1 + 9 passed (the planted cases L1, W1, S1 and quiet unchanged; R1 added) |
+| SCHED1-4 migration 0085 up and down | `pytest tests/unit/test_gas_day_nominations_migration.py`; on PostgreSQL 16 `alembic upgrade head`, `alembic downgrade 0082_data1_integration`, `alembic upgrade head` | passed; head `0085_sched1_nomination_matching` |
+| SCHED1-5 on PostgreSQL, and the schema against the models | `EUROGAS_NEXUS_TEST_POSTGRES_URL=… pytest tests/integration/test_gas_day_reconciliation_postgres.py tests/integration/test_schema_matches_models_postgres.py tests/integration/test_demo_seed_postgres.py tests/db/test_entsog_native_rate_schema.py` | 12 passed; one alert pass 0.026 to 0.036 s (median 0.031 s, 6 runs) |
+| Related suites (gas day, checklist, my gas day, Today, demo, notifications, monitoring, LNG) | `pytest tests/unit/test_{demo_*,desk_today,gas_day*,my_gas_day,nomination_window_occurrence,notifications,monitoring_service,lng_*,strip_alerts,limit_monitoring,storage_nomination_composition}.py` with the SCHED-1 tests | 270 passed |
+| API contract, docs and the related API and integration suites | `pytest tests/contract tests/docs tests/api/test_data1_import_contracts.py tests/api/test_data1_refreshable_reads.py tests/api/test_gas_day_status_api.py tests/api/test_monitoring_api.py tests/api/test_trader_desk_api.py tests/integration/test_lng_cargo_change_roles.py tests/integration/test_feed_and_outbox_alerts.py tests/integration/test_opportunity_alerts.py …` | 705 passed, 13 skipped; census 293 paths / 328 operations |
+| Lint | `ruff check src tests scripts` | All checks passed |
+
 ## Not yet evidenced
 
 - MAP-1 frame rate: the flow animation and 3D columns have not been measured in a browser;

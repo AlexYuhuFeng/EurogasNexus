@@ -29,6 +29,13 @@ def main() -> int:
         except Exception as exc:  # noqa: BLE001 - the alerts still go out
             print(json.dumps({"status": "gas_day_deadlines_failed",
                               "error_type": exc.__class__.__name__}))
+        try:
+            from eurogas_nexus.application.gas_day_reconciliation import queue_break_alerts
+
+            queued += queue_break_alerts(session, now=now)["notified"]
+        except Exception as exc:  # noqa: BLE001 - the alerts still go out
+            print(json.dumps({"status": "gas_day_breaks_failed",
+                              "error_type": exc.__class__.__name__}))
         counts = dispatch(session, now=now)
         session.commit()
     print(json.dumps({"status": "ok", "queued": queued, **counts}))

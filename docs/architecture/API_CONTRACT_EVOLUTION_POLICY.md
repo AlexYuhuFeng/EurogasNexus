@@ -36,6 +36,35 @@ ENTSOG tariff detail adds `tariff_versions` and `tariff_events`. Migration `0083
 (tables `tariff_versions`, `capacity_notices`, expand-only). Census: 295 paths / 330 operations
 (+3 / +3). Registry: `docs/data/TARIFF_PUBLISHER_REGISTRY.md`.
 
+Additive 2026-11-25 (gas-day reconciliation, Commercial Intelligence V3 SCHED-1): one path, one
+operation. New `GET /api/desk/gas-day/{gas_day}/reconciliation` (READ, `portfolio.read`, else 403
+`permission_denied`): per hub (point) and counterparty the traded, confirmed, nominated and
+TSO-matched quantities of the gas day, `groups[]` (`hub`, `point`, `counterparty`,
+`shipper_codes`, `traded`, `confirmed`, `nominated`, `tso` each `{value, unit, mwh, kwh_h}` or
+null, `held`, `state` break|matched, `urgency`, `cutoff`, `minutes_left`, `mwh_at_risk`,
+`break_ids`, `book_ids`, `trades[]`, `nominations[]`, `simulated`) and `breaks[]` (`id`, `kind`
+one of not_nominated, nomination_without_trade, quantity_mismatch, counterparty_mismatch,
+shipper_code_mismatch, wrong_direction, lesser_rule_cut, late, unit_mismatch,
+gas_day_misaligned, not_confirmed; `explanation`, `explanation_zh`, `next_step`,
+`next_step_zh`, `gap_mwh`, `mwh_at_risk`, `quantity`, `figures`, `urgency`
+due_soon|open|passed|closed, `severity`, `cutoff`, `minutes_left`, `cash_out` with `basis`
+indicative|missing|not_an_imbalance, `trade_ids`, `line_refs`, `book_ids`), ordered by the time
+to the hub's next cut-off then the MWh at risk; also `hubs[]` with their cut-offs, `counts`,
+`kinds`, `mwh_at_risk`, `exchange_trades[]` (counted, not reconciled), `empty` and `execution`
+(nothing is nominated, confirmed or sent). Filters `hub`, `counterparty` (substring),
+`kind`, `book_id`, `breaks_only`; `format` `json` (default) or `csv` (one row per break, fixed
+header, the GOV-1 export decision). 404 `book_not_in_scope`; 422 `unknown_kind`,
+`gas_day_out_of_range` (more than 31 days from today). Scope as the gas-day reads (mandated
+books, else every book the caller may see). `GET /api/desk/today` "What needs me" may hold items
+of `kind` `reconciliation` (`break_kind`, `hub`, `gas_day`, `explanation`, `explanation_zh`,
+`quantity`, `deadline_utc`, `target`); `GET /api/monitoring/alerts` may hold the category
+`gas_day_break` (book-scoped; notified in the existing `nomination` category). The import
+contract `etrm.nominations.v1` gains optional columns (`counterparty`, `direction`, `point`,
+`shipper_code`, `counterparty_shipper_code`, `counterparty_quantity_mwh`), the step
+`trade_confirmation` and the line prefix `counterparty:`; a file without them is read as before
+(migration `0085_sched1_nomination_matching`, nullable columns). Census: 293 paths / 328
+operations (+1 / +1 on 292 / 327; TAR-1 adds routes in parallel and the integrator reconciles).
+
 Changed and additive 2026-11-24 (maker-checker on limits and reference data, Commercial
 Intelligence V3 P-17, ADR Decision 32). **Status change:** while four eyes is on for the write
 (the default), `PUT /api/portfolio/credit-lines/{id}`, `PUT /api/portfolio/trader-mandates/{id}`,
@@ -653,6 +682,8 @@ keeps its previous behaviour.
 | `GET /api/desk/today` | `needs_me` items of `kind` `cargo`, with `role` and `cargo_id` (additive, 2026-11-24, LNG-2) | The open cargo messages for the caller's own roles (job functions), critical first; `target` opens Desk → Cargoes at the cargo; `why` names the alert |
 | `GET /api/monitoring/alerts` | `category` values `lng_hedge`, `lng_schedule`, `lng_exposure`, `lng_material`; `entity_type` `lng_cargo` (2026-11-24, LNG-2) | One alert per cargo and role, book-scoped like limits; resolved with `evidence_snapshot.withdrawn` when a later change makes it moot |
 | `GET /api/monitoring/alerts` | `category` value `capacity`; `alert_type` values `tariff_publisher_stale`, `tariff_publication_missed`, `capacity_window_opening`; `entity_type` values `tariff_publisher`, `capacity_notice` (2026-11-25, TAR-1) | A publisher read later than its cadence, an operator without next-period reserve prices 30 days before the July yearly auction, and a capacity auction or slot window opening within three days (monthly auctions are not alerted); nothing is booked or bid |
+| `GET /api/desk/today` | `needs_me` items of `kind` `reconciliation`, with `break_kind`, `explanation`, `explanation_zh`, `quantity` and `deadline_utc` (additive, 2026-11-25, SCHED-1) | A scheduling break due within 3 hours of its cut-off, or with no renomination left, in the caller's gas-day scope; `target` names the Today Reconciliation row and the gas day |
+| `GET /api/monitoring/alerts` | `category` value `gas_day_break`, `entity_type` `gas_day_break` (2026-11-25, SCHED-1) | One alert per break near its cut-off, book-scoped; notified in `nomination`; resolved with `evidence_snapshot.withdrawn` when the break is fixed or the gas day ends |
 | `GET /api/market/quotes` | per row `resolved_price` (`hub`, `period_start`, `period_end`, `side`, `value`, `unit`, `value_mwh`, `unit_mwh`, `kind`, `source_system`, `as_of_utc`, `state`, `freshness_state`, `simulated`, `basis`, `reference`) (additive, 2026-11-24, P-08, QA-T-02, QA-L-22) | The one price every screen shows for the row's hub and delivery window at the read instant, from `domain/market/price_resolution` (freshest in-date tick or settlement, else the firm's mark, else the freshest held, stated stale; entitled sources only). The row's own quote fields are unchanged; `null` where nothing is held for that window |
 | `GET /api/desk/today` | `resolved_price` on the `key_figures` `price.<hub>` items, on `market.hubs[].front_month` and on the `book` row's `mark` (additive, 2026-11-24, P-08) | The same object as on the Prices board for the front month; `null` where no price is held. `close_day` stays the last month-ahead close |
 | `POST /api/analysis/brief` | `resolved_prices` (top-level list, additive, 2026-11-24, P-08) | One `resolved_price` object per hub line in the prices section; the sections' shape is unchanged |
