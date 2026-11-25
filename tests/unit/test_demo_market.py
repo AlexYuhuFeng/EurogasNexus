@@ -206,6 +206,18 @@ def test_s1_leaves_its_gas_days_open_and_the_schedule_balances_every_other_day()
         assert abs(net) > band
 
 
+def test_r1_cuts_the_aldermoor_nomination_on_its_gas_days_only():
+    """R1 (SCHED-1): on gas days 11 and 12 of a month the demo TSO confirms 4,800 of the
+    6,000 MWh nominated out to Aldermoor (the lesser rule): 6,000 - 4,800 = 1,200 MWh cut."""
+
+    days = [date(2026, 12, 1) + timedelta(days=n) for n in range(31)]
+    assert [day.day for day in days if MARKET.r1_planted(day)] == [11, 12]
+    assert MARKET.R1_ALDERMOOR_MWH - MARKET.R1_COUNTERPARTY_MWH == 1_200
+    assert not any(MARKET.r1_planted(day) and MARKET.s1_planted(day) for day in days)
+    (case,) = [case for case in MARKET.PLANTED_CASES if case.case_id.startswith("R1-")]
+    assert "1,200 MWh cut" in case.description
+
+
 def test_t1_only_cegh_winter_over_summer_exceeds_storage_cost(store):
     newest = max(_closes(store, "TTF", "day-ahead"))
     exceeding = set()

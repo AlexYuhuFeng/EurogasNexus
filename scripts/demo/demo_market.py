@@ -68,6 +68,11 @@ W1_PLANTED_GAP = 1.50
 #: schedule lines' volumes then (MWh; every other gas day the seed's balanced volumes apply).
 S1_DAYS_OF_MONTH = frozenset({18, 19, 20})
 S1_OPEN_MWH = {"uk-offtake": 9_000.0, "nl-storage": 7_000.0}
+#: R1 (SCHED-1): on these gas days of each month the demo TSO confirms only part of the UK
+#: book's bilateral sale to Aldermoor: Aldermoor nominated less, and the lesser rule applies.
+R1_DAYS_OF_MONTH = frozenset({11, 12})
+R1_ALDERMOOR_MWH = 6_000.0
+R1_COUNTERPARTY_MWH = 4_800.0
 #: The arbitrage band (``DemoMarket.arbitrage_free``): TTF is the reference; the graph hubs are
 #: held in this order; every route nets at least ARBITRAGE_MARGIN below its cost, and a hub's
 #: price below TTF at least REFERENCE_MARGIN below the cost of reaching TTF (so L1's 1.20 at
@@ -154,7 +159,23 @@ PLANTED_CASES: tuple[PlantedCase, ...] = (
         "(short at TTF), so the day before shows both as sell-down items. On every other gas "
         "day the schedule balances each book within its band, with the demo outages in force.",
     ),
+    PlantedCase(
+        "R1-lesser-rule-at-nbp", "gas-day reconciliation (SCHED-1), lesser rule", ("NBP",),
+        ("WD",),
+        "On gas days 11 and 12 of each month the UK book's bilateral sale to Aldermoor "
+        f"({R1_ALDERMOOR_MWH:,.0f} MWh for the day) is nominated in full, but Aldermoor "
+        f"nominated {R1_COUNTERPARTY_MWH:,.0f} MWh and the demo TSO confirmed the lesser: "
+        f"{R1_ALDERMOOR_MWH - R1_COUNTERPARTY_MWH:,.0f} MWh cut, the UK book long by that at "
+        "NBP. On every other gas day the trade is nominated and matched in full, and each "
+        "simulated prompt trade is nominated and matched as it is booked.",
+    ),
 )
+
+
+def r1_planted(gas_day: date) -> bool:
+    """R1 is planted on the gas day itself (the reconciliation of that day shows it)."""
+
+    return gas_day.day in R1_DAYS_OF_MONTH
 
 
 def l1_planted(day: date) -> bool:

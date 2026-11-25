@@ -330,6 +330,19 @@ class TradeBooker:
                 source_reference="demo:prompt-trades", linked_strategy_id=None,
                 linked_resource_id=None, research_only=True, human_review_required=True,
                 book_id=self.BOOKS[hub]))
+            # SCHED-1: the demo scheduling system nominates each booked prompt trade at once
+            # and the TSO matches it, so the reconciliation shows no break for it.
+            from eurogas_nexus.db.models import GasDayNominationEventRecord
+
+            day = date.fromisoformat(gas_day_label(period.delivery_start_utc))
+            for status in ("sent", "confirmed"):
+                session.merge(GasDayNominationEventRecord(
+                    event_id=f"sim-nom-{trade_id}-{status}"[:64], gas_day=day,
+                    line_ref=f"trade:etrm-sim-{trade_id}", hub=hub, book_id=self.BOOKS[hub],
+                    step="nomination", status=status, quantity_mwh=round(mwh, 3), agent=None,
+                    origin="import", recorded_by="Demo scheduling import", recorded_at_utc=at,
+                    note=None, source_system="ETRM_Sim", counterparty="Demo counterparty",
+                    direction="in" if buy else "out"))
             session.commit()
 
 
@@ -390,6 +403,7 @@ def _status(session, at: datetime, since: datetime, counts: dict, note: str) -> 
 
 def _prune(session, now: datetime) -> dict:
     from eurogas_nexus.db.models import (
+        GasDayNominationEventRecord,
         IngestionRunRecord,
         MarketQuoteRecord,
         MarketTradeRecord,
@@ -411,6 +425,10 @@ def _prune(session, now: datetime) -> dict:
         "booked": session.query(ScreenOrderObservationRecord).filter(
             ScreenOrderObservationRecord.source_system == "ETRM_Sim",
             ScreenOrderObservationRecord.observed_at_utc < cutoff,
+        ).delete(synchronize_session=False),
+        "nominated": session.query(GasDayNominationEventRecord).filter(
+            GasDayNominationEventRecord.source_system == "ETRM_Sim",
+            GasDayNominationEventRecord.recorded_at_utc < cutoff,
         ).delete(synchronize_session=False),
     }
 

@@ -1312,6 +1312,7 @@ def seed_demo_gas_day(session, now: datetime) -> dict[str, int]:
             recorded_at_utc=now - timedelta(hours=2), note=None, source_system=SOURCE,
         ))
         counts["gas_day_statuses"] = counts.get("gas_day_statuses", 0) + 1
+    counts["gas_day_trade_nominations"] = seed_demo_trade_nominations(session, now)
     # One LNG send-out day: tomorrow at the demo Rotterdam terminal, for the NL book.
     slot_id = f"demo-slot-gate-{tomorrow:%Y%m%d}"
     if session.get(RegasSlotRecord, slot_id) is None:
@@ -1370,6 +1371,67 @@ def seed_demo_gas_day(session, now: datetime) -> dict[str, int]:
         counts["cash_out_sets"] += 1
     session.flush()
     return counts
+
+
+#: The demo's bilateral deal that delivers every gas day (sold to Aldermoor at NBP), and the
+#: fictional shipper codes the demo scheduling system nominates it under (SCHED-1).
+DEMO_TRADE_NOMINATED = "demo-etrm-ald-1"
+DEMO_SHIPPER_CODES = {"own": "DEMO-EGN-01", "Aldermoor Energy plc": "DEMO-ALD-01"}
+
+
+def seed_demo_trade_nominations(session, now: datetime) -> int:
+    """Today's and tomorrow's nomination of the Aldermoor sale, as the demo scheduling
+    import would record it (SCHED-1); idempotent by fixed id.
+
+    Each gas day is nominated in full an hour before its nomination deadline; once the
+    deadline has passed the demo TSO's response follows an hour after it. On an R1 gas day
+    (``demo_market.r1_planted``) Aldermoor nominated less and the TSO confirmed the lesser
+    quantity; on every other gas day it matches in full, so the reconciliation is quiet.
+    Nothing here nominates: these are the statuses a scheduling system would have recorded.
+    """
+
+    from eurogas_nexus.db.models import GasDayNominationEventRecord
+    from eurogas_nexus.domain.market.gas_day import gas_day_label, gas_day_start_for_date
+    from eurogas_nexus.domain.market.hub_cutoffs import nomination_deadline
+
+    order = session.get(ScreenOrderObservationRecord, DEMO_TRADE_NOMINATED)
+    if order is None:
+        return 0
+    market = _load_demo_market()
+    today = date.fromisoformat(gas_day_label(now))
+    start = order.delivery_start_utc
+    end = order.delivery_end_utc
+    if start.tzinfo is None:
+        start, end = start.replace(tzinfo=UTC), end.replace(tzinfo=UTC)
+    added = 0
+    for day in (today, today + timedelta(days=1)):
+        day_start = gas_day_start_for_date(day)
+        if not start <= day_start < end:
+            continue
+        deadline = nomination_deadline(day)
+        sent_at = min(deadline - timedelta(hours=1), now - timedelta(minutes=30))
+        quantity = market.R1_ALDERMOOR_MWH
+        matched = market.R1_COUNTERPARTY_MWH if market.r1_planted(day) else quantity
+        rows = [("sent", sent_at, quantity, None)]
+        if deadline + timedelta(hours=1) <= now:
+            rows.append(("confirmed", deadline + timedelta(hours=1), matched, matched))
+        for status, at, mwh, other in rows:
+            event_id = f"demo-nom-{day:%Y%m%d}-ald-{status}"
+            if session.get(GasDayNominationEventRecord, event_id) is not None:
+                continue
+            session.add(GasDayNominationEventRecord(
+                event_id=event_id, gas_day=day, line_ref=f"trade:{DEMO_TRADE_NOMINATED}",
+                hub="NBP", book_id=order.book_id, step="nomination", status=status,
+                quantity_mwh=mwh, agent=None, origin="import",
+                recorded_by="Demo scheduling import" if status == "sent" else "Demo TSO",
+                recorded_at_utc=at, note=None, source_system=SOURCE,
+                counterparty=order.account_label, direction="out", point=None,
+                shipper_code=DEMO_SHIPPER_CODES["own"],
+                counterparty_shipper_code=DEMO_SHIPPER_CODES.get(order.account_label),
+                counterparty_quantity_mwh=other,
+            ))
+            added += 1
+    return added
 
 
 def retire_simulated_tariffs(session) -> int:
