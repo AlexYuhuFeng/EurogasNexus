@@ -90,7 +90,7 @@ export type PanelDefault = "open" | "folded" | "hidden";
  * Today's rows (design basis 2, E.2): my market, my book, what needs me, fundamentals, and
  * "My gas day" (what to clear today and tomorrow per hub; first for the trader and operations).
  */
-export const TODAY_ROW_KEYS = ["market", "book", "needs_me", "fundamentals", "gas_day", "checklist"] as const;
+export const TODAY_ROW_KEYS = ["market", "book", "needs_me", "fundamentals", "gas_day", "checklist", "reconciliation"] as const;
 export type TodayRowKey = (typeof TODAY_ROW_KEYS)[number];
 
 /** A place: a mode task, or a utility page (administration, settings). */
@@ -183,9 +183,10 @@ export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>>
     landing: task("book", "delivery"),
     shortlist: [task("book", "delivery"), task("book", "planning"), task("desk", "network"), task("deals", "contracts")],
     panels: {},
-    // Operations schedules what the desk clears: the nomination checklist first, then the gas
-    // day it clears, for every book it may see.
-    todayRows: ["checklist", "gas_day", "needs_me", "book", "market"],
+    // Operations schedules what the desk clears: the nomination checklist first, then why the
+    // trades, confirmations and nominations disagree (SCHED-1), then the gas day it clears, for
+    // every book it may see. A trader meets a break near its cut-off in What needs me.
+    todayRows: ["checklist", "reconciliation", "gas_day", "needs_me", "book", "market"],
     stripAudience: "operations",
   },
   finance: {

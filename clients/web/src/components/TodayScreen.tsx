@@ -57,6 +57,7 @@ import { StorageByCountryPanel } from "@/components/StorageByCountryPanel";
 import { WhyButton } from "@/components/WhyButton";
 import { ChecklistRow } from "@/components/today/ChecklistRow";
 import { GasDayRow } from "@/components/today/GasDayRow";
+import { ReconciliationRow } from "@/components/today/ReconciliationRow";
 import { GasDayStrip } from "@/components/today/GasDayStrip";
 import { useConvertedAmount, useConvertedPrice, useConvertedQuantity } from "@/app/time/useConversion";
 import type { ConvertedText } from "@/app/time/valueFormat";
@@ -344,7 +345,7 @@ function NeedsMeRow({ row, t, language, onOpen }: { row: TodayNeedsMeRowDTO; t: 
     <RowSection id="needs_me" title={t("today.row.needs_me")} meta={row.more > 0 ? t("today.needs.more", { count: row.more }) : undefined}>
       <ol className="today-needs">
         {row.items.map((item) => {
-          const tone = item.kind === "limit" ? (item.status === "breach" ? "breach" : "watch") : item.kind === "opportunity" && item.lane === "must_act" ? "breach" : item.kind === "nomination" ? (item.urgency === "overdue" ? "breach" : "watch") : item.kind === "cargo" ? (item.status === "breach" ? "breach" : "watch") : "neutral";
+          const tone = item.kind === "limit" ? (item.status === "breach" ? "breach" : "watch") : item.kind === "opportunity" && item.lane === "must_act" ? "breach" : item.kind === "nomination" ? (item.urgency === "overdue" ? "breach" : "watch") : item.kind === "cargo" || item.kind === "reconciliation" ? (item.status === "breach" || item.urgency === "overdue" ? "breach" : "watch") : "neutral";
           return (
             <li key={`${item.kind}:${item.id}`} data-need={item.kind}>
               <StatusBadge tone={tone}>{t(`today.needs.kind.${item.kind}${item.kind === "opportunity" && item.lane ? `.${item.lane}` : ""}`)}</StatusBadge>
@@ -358,7 +359,12 @@ function NeedsMeRow({ row, t, language, onOpen }: { row: TodayNeedsMeRowDTO; t: 
                 {item.kind === "limit" && item.utilisation_pct != null ? t("today.used", { pct: Math.round(item.utilisation_pct) }) : null}
                 {item.kind === "nomination" ? [item.hub, item.step ? t(`today.checklist.step.${item.step}`) : null, item.status ? t(`today.checklist.status.${item.status}`) : null].filter(Boolean).join(" · ") : null}
                 {item.kind === "cargo" && item.role ? t("today.needs.cargo_for", { role: t(`lng.cargo.role.${item.role}`) }) : null}
+                {item.kind === "reconciliation" && item.break_kind ? [t(`recon.kind.${item.break_kind}`), item.quantity ? t("recon.at_risk", { mwh: Math.round(Math.abs(item.quantity.mwh)).toLocaleString("en-GB"), kwh: Math.round(Math.abs(item.quantity.kwh_h)).toLocaleString("en-GB") }) : null].filter(Boolean).join(" · ") : null}
               </span>
+              {/* A scheduling break says why in the server's words (SCHED-1). */}
+              {item.kind === "reconciliation" && (zh ? item.explanation_zh : item.explanation) && (
+                <span className="today-need-detail today-need-why">{zh ? item.explanation_zh : item.explanation}</span>
+              )}
               {item.simulated && <SimulatedMark t={t} />}
               {/* An outage says since when it is out; a standing limit state has no news age. */}
               {item.kind === "outage" && item.since_utc && (() => {
@@ -366,7 +372,7 @@ function NeedsMeRow({ row, t, language, onOpen }: { row: TodayNeedsMeRowDTO; t: 
                 return since ? <time className="today-list-time" dateTime={since.iso} title={since.title}>{t("today.needs.since", { when: since.text })}</time> : null;
               })()}
               {/* A cargo message says by when its first step is due (LNG-2). */}
-              {item.kind === "cargo" && item.deadline_utc && (() => {
+              {(item.kind === "cargo" || item.kind === "reconciliation") && item.deadline_utc && (() => {
                 const due = formatInstant(item.deadline_utc);
                 return due ? <time className="today-list-time" dateTime={due.iso} title={due.title}>{t("today.needs.due", { when: due.text })}</time> : null;
               })()}
@@ -790,6 +796,7 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
     book: () => (canSeeBook && book ? <BookRow key="book" row={book} frontMonth={today.front_month} t={t} nowMs={nowMs} keyFigures={keyFigures} language={language} onOpenLimits={onOpenLimits} /> : null),
     needs_me: () => (needsMe && needsMe.items.length > 0 ? <NeedsMeRow key="needs_me" row={needsMe} t={t} nowMs={nowMs} language={language} onOpen={onOpenNeed} /> : null),
     checklist: () => (canSeeBook && checklist ? <ChecklistRow key="checklist" row={checklist} t={t} language={language} nowMs={nowMs} canRecord={canRecordGasDay} onOpen={onOpenGasDay} onRecorded={onRefresh} /> : null),
+    reconciliation: () => (canSeeBook ? <ReconciliationRow key="reconciliation" gasDay={today.gas_day} t={t} language={language} nowMs={nowMs} /> : null),
     gas_day: () => (canSeeBook && gasDay ? <GasDayRow key="gas_day" row={gasDay} t={t} language={language} nowMs={nowMs} onOpen={onOpenGasDay} /> : null),
     fundamentals: () => (fundamentals ? <FundamentalsRow key="fundamentals" row={fundamentals} t={t} nowMs={nowMs} language={language} quiet={quiet} onOpenFundamentals={onOpenFundamentals} /> : null),
   };

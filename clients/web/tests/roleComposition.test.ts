@@ -189,11 +189,13 @@ test("Today's row order keeps only the rows the read returned", () => {
   assert.equal(ROLE_COMPOSITIONS.risk.todayRows[0], "book");
   assert.equal(ROLE_COMPOSITIONS.analyst.todayRows[0], "fundamentals");
   assert.equal(ROLE_COMPOSITIONS.operations.todayRows[0], "checklist");
-  assert.equal(ROLE_COMPOSITIONS.operations.todayRows[1], "gas_day");
+  assert.equal(ROLE_COMPOSITIONS.operations.todayRows[1], "reconciliation");
+  assert.equal(ROLE_COMPOSITIONS.operations.todayRows[2], "gas_day");
   assert.equal(ROLE_COMPOSITIONS.trader.todayRows.indexOf("checklist"), 2);
   for (const id of ["analyst", "risk", "finance", "compliance", "originator", "reviewer", "desk_head"] as const) {
     assert.ok(!ROLE_COMPOSITIONS[id].todayRows.includes("gas_day"), id);
     assert.ok(!ROLE_COMPOSITIONS[id].todayRows.includes("checklist"), id);
+    assert.ok(!ROLE_COMPOSITIONS[id].todayRows.includes("reconciliation"), id);
   }
   assert.equal(ROLE_COMPOSITIONS.originator.todayRows[0], "needs_me");
 });

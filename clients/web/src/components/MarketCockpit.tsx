@@ -215,6 +215,18 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
                 // The checklist step: where it is evidenced (Book → Delivery or Planning).
                 const entry = PRODUCT_MODES.find((mode) => mode.id === item.target?.mode)?.tasks.find((task) => task.id === item.target?.task);
                 if (entry?.page) navigation.openWorkspace(entry.page, entry.pageTask);
+              } else if (item.kind === "reconciliation") {
+                // The scheduler's Reconciliation row on this page, where the break is explained
+                // (SCHED-1); a role without that row opens Book → Delivery, where nominations are.
+                const row = document.getElementById("today-row-reconciliation");
+                if (row) {
+                  row.scrollIntoView({ block: "start" });
+                  row.setAttribute("tabindex", "-1");
+                  row.focus();
+                } else {
+                  const entry = PRODUCT_MODES.find((mode) => mode.id === "book")?.tasks.find((task) => task.id === "delivery");
+                  if (entry?.page) navigation.openWorkspace(entry.page, entry.pageTask);
+                }
               } else if (item.kind === "cargo") {
                 // Desk → Cargoes with the cargo's plan open (`cargo=`), where each role's message is.
                 // As the command palette does: open the task, then set the parameter the board follows.

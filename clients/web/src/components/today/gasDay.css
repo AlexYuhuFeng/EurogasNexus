@@ -354,3 +354,147 @@
     font-weight: var(--ds-weight-semibold);
   }
 }
+
+/* Today → Reconciliation (SCHED-1): one row per hub (point) and counterparty, the breaks under
+   it on demand; scrolls sideways on a phone rather than squeezing the figures. */
+@layer ds-components {
+  .recon-filters {
+    flex-wrap: wrap;
+    gap: var(--ds-space-2);
+  }
+
+  .recon-search {
+    min-height: var(--ds-control-sm);
+    max-width: 14rem;
+    padding: 0 var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+  }
+
+  .recon-scroll {
+    min-width: 0;
+    overflow-x: auto;
+  }
+
+  .recon-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  .recon-table th,
+  .recon-table td {
+    padding: var(--ds-space-1) var(--ds-space-2);
+    border-bottom: 1px solid var(--ds-border-subtle);
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .recon-table thead th {
+    background: var(--ds-surface-2);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-semibold);
+    white-space: nowrap;
+  }
+
+  .recon-table .recon-num {
+    text-align: right;
+    font-variant-numeric: var(--ds-numeric);
+    white-space: nowrap;
+  }
+
+  .recon-group[data-state="break"] > .recon-cell-name {
+    border-left: 3px solid var(--ds-status-watch);
+  }
+
+  .recon-group[data-state="break"][data-urgency="passed"] > .recon-cell-name {
+    border-left-color: var(--ds-status-breach);
+  }
+
+  .recon-cell-name {
+    min-width: 10rem;
+    font-weight: var(--ds-weight-regular);
+    overflow-wrap: anywhere;
+  }
+
+  .recon-cell-name > .recon-meta {
+    display: block;
+  }
+
+  .recon-meta,
+  .recon-countdown,
+  .recon-figure,
+  .recon-cash,
+  .recon-note {
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+    font-variant-numeric: var(--ds-numeric);
+  }
+
+  .recon-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-1);
+  }
+
+  .recon-countdown {
+    white-space: nowrap;
+  }
+
+  .recon-countdown[data-urgency="soon"] {
+    color: var(--ds-status-watch);
+  }
+
+  .recon-countdown[data-urgency="imminent"] {
+    color: var(--ds-status-breach);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .recon-detail > td {
+    background: var(--ds-surface-2);
+  }
+
+  .recon-breaks {
+    display: grid;
+    gap: var(--ds-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .recon-break {
+    display: grid;
+    gap: var(--ds-space-05);
+    max-width: 72ch;
+  }
+
+  .recon-break-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-1) var(--ds-space-2);
+  }
+
+  .recon-text,
+  .recon-cash,
+  .recon-note {
+    margin: 0;
+  }
+
+  .recon-error {
+    margin: 0;
+    color: var(--ds-status-breach);
+    font-size: var(--ds-text-sm);
+  }
+
+  @media (pointer: coarse) {
+    .recon-search {
+      min-height: var(--ds-control-touch);
+    }
+  }
+}

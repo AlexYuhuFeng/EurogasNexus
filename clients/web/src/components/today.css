@@ -325,6 +325,13 @@
     font-variant-numeric: tabular-nums;
   }
 
+  /* A scheduling break's explanation on its own line under the item (SCHED-1). */
+  .today-need-why {
+    flex-basis: 100%;
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
   .today-quiet {
     margin: 0;
     color: var(--ds-text-2);

@@ -33,6 +33,7 @@ covers it.
 | Every day | See each gas day's balance: supply, exchange and bilateral trades, the residual still to sell or buy, and the cash-out cost if left | Book → Delivery → Daily gas balance | [Steps](TRADER.md#5-balance-each-gas-day) |
 | Day-ahead | Decide how much of tomorrow's supply to sell DA and how much to keep for WD | Book → Delivery → Tomorrow's sell-down | [Steps](TRADER.md#5-balance-each-gas-day) |
 | Daily | Watch delivered against nominated volume per contract | Book → Delivery → Delivery against nominations | [Steps](TRADER.md#5-balance-each-gas-day) |
+| Before each cut-off | See why trades, confirmations and nominations disagree, each break explained with the next step (operations) | Desk → Today → Reconciliation; What needs me | [Steps](TRADER.md#scheduler-why-trades-confirmations-and-nominations-disagree) |
 | New deal | Find what is worth doing: evaluators and the market lane, net of tariffs | Deals → Opportunities | [Steps](TRADER.md#6-study-a-cargo-and-its-netback) |
 | New deal | Enter a contract by hand: choose its kind, then its terms | Deals → Contracts → New contract | [Steps](TRADER.md#1-enter-a-new-contract) |
 | New deal | Read a signed contract PDF into a new contract and check each term | Deals → Contracts → Import PDF | [Steps](TRADER.md#2-read-a-contract-pdf-into-a-new-contract) |

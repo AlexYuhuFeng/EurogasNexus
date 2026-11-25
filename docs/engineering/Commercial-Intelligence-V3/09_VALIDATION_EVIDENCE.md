@@ -320,6 +320,7 @@ renomination at 02:00 UTC (due soon). On 2026-12-02 the reconciliation has no br
 | Related suites (gas day, checklist, my gas day, Today, demo, notifications, monitoring, LNG) | `pytest tests/unit/test_{demo_*,desk_today,gas_day*,my_gas_day,nomination_window_occurrence,notifications,monitoring_service,lng_*,strip_alerts,limit_monitoring,storage_nomination_composition}.py` with the SCHED-1 tests | 270 passed |
 | API contract, docs and the related API and integration suites | `pytest tests/contract tests/docs tests/api/test_data1_import_contracts.py tests/api/test_data1_refreshable_reads.py tests/api/test_gas_day_status_api.py tests/api/test_monitoring_api.py tests/api/test_trader_desk_api.py tests/integration/test_lng_cargo_change_roles.py tests/integration/test_feed_and_outbox_alerts.py tests/integration/test_opportunity_alerts.py …` | 705 passed, 13 skipped; census 293 paths / 328 operations |
 | Lint | `ruff check src tests scripts` | All checks passed |
+| SCHED1-7 web: Reconciliation row, What needs me, role composition | `npx tsc --noEmit -p .`; `npm test`; `node scripts/cssTokenLint.mjs` (in `clients/web`) | clean; 1,394 tests, 1,391 passed, 3 skipped (5 new in `tests/reconciliationModel.test.ts`); token lint unchanged (the new rules are clean) |
 
 ## Not yet evidenced
 

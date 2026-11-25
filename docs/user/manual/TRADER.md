@@ -160,6 +160,29 @@ nominated, shortfalls beyond tolerance and the last 7 days.
 
 ![Delivery against nominations](img/tr-14-delivery.png)
 
+### Scheduler: why trades, confirmations and nominations disagree
+
+If you schedule (operations), Today shows a **Reconciliation** row under the gas day
+checklist. For today or tomorrow, each line is one hub (and point, where the scheduling file
+names it) and counterparty: what was **Traded** (bilateral deals from the ETRM, signed + into
+the firm), **Confirmed** by the counterparty, **Nominated** and **TSO matched**, in the hub's
+desk unit. A dash means nothing was imported for that column, not zero. Exchange trades are
+counted under the table and not reconciled: the exchange's clearing house nominates them.
+
+A line with a break shows a chip per break and the time left to the hub's next cut-off
+(amber within 3 hours, red within the hour, "No renomination left" once the last
+renomination has passed). Select the counterparty's name (or Tab to it and press Enter) to
+read each break in words: the arithmetic (for example "6,000 − 4,800 = 1,200 MWh cut"), the
+MWh and kWh/h at risk, the next step and an indicative cash-out at your book's approved rate.
+Filter by hub, break or counterparty, or show breaks only; **Export CSV** saves one row per
+break. A break within 3 hours of its cut-off also appears in **What needs me** for traders and
+operations, and as a nomination notification; it is withdrawn when the break is fixed.
+
+Nothing here nominates, confirms or sends anything: fix the nomination in your scheduling
+system, and the next import shows whether the break is gone. The matching columns the
+scheduling import accepts are in
+[the import contracts](../../integration/ETRM_ERP_IMPORT_CONTRACTS.md).
+
 ## 6. Study a cargo and its netback
 
 Research → **Cargo & netback** prices a cargo from load to the hubs it can reach: freight,

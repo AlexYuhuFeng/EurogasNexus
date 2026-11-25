@@ -544,6 +544,16 @@ export async function intakeContractPdf(file: File): Promise<ContractIntakeDTO> 
   return parsed.data;
 }
 
+/** The reconciliation's filters as query parameters, leaving out what is not set. */
+export function reconciliationParams(filters: GasDayReconciliationFilters): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (filters.hub) params.hub = filters.hub;
+  if (filters.counterparty) params.counterparty = filters.counterparty;
+  if (filters.kind) params.kind = filters.kind;
+  if (filters.breaks_only) params.breaks_only = "true";
+  return params;
+}
+
 /** CSV download, kept for callers that offer only CSV. */
 export function downloadReportCsv(path: string, params: Record<string, string> = {}): Promise<void> {
   return downloadReport(path, params, "csv");
@@ -2205,7 +2215,8 @@ export interface TodayMarketDTO {
 export interface TodayNeedsMeItemDTO {
   /** "strategy": a tracked strategy's changed, still actionable paper signal. */
   /** "cargo": a cargo change's message for one of the reader's roles (LNG-2; additive). */
-  kind: "opportunity" | "outage" | "limit" | "strategy" | "nomination" | "cargo";
+  /** "reconciliation": a scheduling break near its cut-off (SCHED-1; additive). */
+  kind: "opportunity" | "outage" | "limit" | "strategy" | "nomination" | "cargo" | "reconciliation";
   id: string;
   title: string;
   title_zh?: string | null;
@@ -2231,6 +2242,11 @@ export interface TodayNeedsMeItemDTO {
   /** For kind "cargo": the role the message is for and the cargo it is about. */
   role?: CargoRole;
   cargo_id?: string;
+  /** For kind "reconciliation": the break, its words and the quantity at risk (SCHED-1). */
+  break_kind?: ReconciliationBreakKind;
+  explanation?: string;
+  explanation_zh?: string;
+  quantity?: ReconciliationQuantityDTO | null;
 }
 
 /** A day's quantity in the hub's desk unit (NBP th/d; continental MWh/d with its MW). */
@@ -2369,6 +2385,122 @@ export interface TodayChecklistRowDTO {
   statuses?: string[];
   populated: boolean;
   empty: TodayEmptyDTO | null;
+}
+
+/** SCHED-1: a quantity in the hub's desk unit, with its MWh and kWh/h. */
+export interface ReconciliationQuantityDTO {
+  value: number;
+  unit: "th/d" | "MWh/d";
+  mwh: number;
+  kwh_h: number;
+}
+
+export type ReconciliationBreakKind =
+  | "not_nominated"
+  | "nomination_without_trade"
+  | "quantity_mismatch"
+  | "counterparty_mismatch"
+  | "shipper_code_mismatch"
+  | "wrong_direction"
+  | "lesser_rule_cut"
+  | "late"
+  | "unit_mismatch"
+  | "gas_day_misaligned"
+  | "not_confirmed";
+
+/** How close the break's cut-off is: due within 3 h, open, no renomination left, day over. */
+export type ReconciliationUrgency = "due_soon" | "open" | "passed" | "closed";
+
+export interface ReconciliationCutoffDTO {
+  key: string;
+  name: string | null;
+  at_utc: string;
+  basis: string;
+  source: string;
+  passed?: boolean;
+}
+
+export interface ReconciliationBreakDTO {
+  id: string;
+  gas_day: string;
+  kind: ReconciliationBreakKind;
+  hub: string;
+  point: string | null;
+  counterparty: string;
+  mwh_at_risk: number;
+  /** Signed MWh the firm ends long (+) or short (−) unless fixed; none for an open confirmation. */
+  gap_mwh: number | null;
+  explanation: string;
+  explanation_zh: string;
+  next_step: string;
+  next_step_zh: string;
+  trade_ids: string[];
+  line_refs: string[];
+  figures: Record<string, unknown>;
+  quantity: ReconciliationQuantityDTO | null;
+  urgency: ReconciliationUrgency;
+  severity: "info" | "warning" | "critical";
+  cutoff: ReconciliationCutoffDTO | null;
+  minutes_left: number | null;
+  cash_out: {
+    basis: "indicative" | "missing" | "not_an_imbalance";
+    value?: number;
+    currency?: string;
+    rate?: number;
+    rate_unit?: string;
+    note?: string;
+    reason?: string;
+  };
+  book_ids: string[];
+  simulated: boolean;
+}
+
+export interface ReconciliationGroupDTO {
+  hub: string;
+  point: string | null;
+  counterparty: string;
+  shipper_codes: string[];
+  traded: ReconciliationQuantityDTO | null;
+  confirmed: ReconciliationQuantityDTO | null;
+  nominated: ReconciliationQuantityDTO | null;
+  tso: ReconciliationQuantityDTO | null;
+  held: { confirmation: boolean; nomination: boolean; tso: boolean };
+  state: "break" | "matched";
+  urgency: ReconciliationUrgency;
+  cutoff: ReconciliationCutoffDTO | null;
+  minutes_left: number | null;
+  mwh_at_risk: number;
+  break_ids: string[];
+  book_ids: string[];
+  trades: Record<string, unknown>[];
+  nominations: Record<string, unknown>[];
+  simulated: boolean;
+}
+
+/** `GET /desk/gas-day/{gas_day}/reconciliation` (SCHED-1): read only, nothing is sent. */
+export interface GasDayReconciliationDTO {
+  gas_day: string;
+  hours: number;
+  as_of_utc: string;
+  filters: { hub: string | null; counterparty: string | null; kind: string | null; book_id: string | null; breaks_only: boolean };
+  hubs: { hub: string; bucket: ReconciliationUrgency; cutoff: ReconciliationCutoffDTO | null; minutes_left: number | null; severity: string; cutoffs: ReconciliationCutoffDTO[] }[];
+  groups: ReconciliationGroupDTO[];
+  breaks: ReconciliationBreakDTO[];
+  counts: Partial<Record<ReconciliationBreakKind, number>>;
+  kinds: ReconciliationBreakKind[];
+  mwh_at_risk: number;
+  exchange_trades: { hub: string; trades: number; mwh: number; note: string }[];
+  populated: boolean;
+  empty: TodayEmptyDTO | null;
+  simulated: boolean;
+  execution: string;
+}
+
+export interface GasDayReconciliationFilters {
+  hub?: string;
+  counterparty?: string;
+  kind?: ReconciliationBreakKind;
+  breaks_only?: boolean;
 }
 
 export interface TodayNeedsMeRowDTO {
@@ -5549,6 +5681,14 @@ export const api = {
   /** Record a gas-day step's status by hand (labelled and audited; nothing is nominated). */
   recordGasDayStatus: (body: { gas_day: string; line_ref: string; step: string; status: string; quantity_mwh?: number | null; note?: string | null }) =>
     post<{ event_id: string; status: string; origin: string; recorded_by: string; recorded_at_utc: string }>("/desk/gas-day/status", body),
+
+  /** Why the gas day's trades, confirmations and nominations disagree (SCHED-1; read only). */
+  gasDayReconciliation: (gasDay: string, filters: GasDayReconciliationFilters = {}, options?: ApiRequestOptions) =>
+    get<GasDayReconciliationDTO>(`/desk/gas-day/${encodeURIComponent(gasDay)}/reconciliation`, reconciliationParams(filters), options),
+
+  /** The same reconciliation as CSV, one row per break (the export decision applies). */
+  downloadGasDayReconciliation: (gasDay: string, filters: GasDayReconciliationFilters = {}) =>
+    downloadReport(`/desk/gas-day/${encodeURIComponent(gasDay)}/reconciliation`, reconciliationParams(filters), "csv"),
 
   opportunities: (options?: ApiRequestOptions) => get<OpportunityListDTO>("/opportunities", undefined, options),
 
