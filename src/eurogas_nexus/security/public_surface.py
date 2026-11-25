@@ -135,6 +135,10 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         # DATA-1: ETRM and ERP import contracts (the catalogue; a file check that stores nothing).
         "/api/imports/contracts",
         "/api/imports/{contract_id}/validate",
+        # NEWS-1: news, policy and geopolitical events, cited; the AI note under GOV-1.
+        "/api/news",
+        "/api/news/{item_id}",
+        "/api/news/{item_id}/note",
         "/api/market/price-conversion",
         "/api/market/financing-rate",
         "/api/market/interest-rates",

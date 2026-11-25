@@ -62,8 +62,29 @@ of `kind` `reconciliation` (`break_kind`, `hub`, `gas_day`, `explanation`, `expl
 contract `etrm.nominations.v1` gains optional columns (`counterparty`, `direction`, `point`,
 `shipper_code`, `counterparty_shipper_code`, `counterparty_quantity_mwh`), the step
 `trade_confirmation` and the line prefix `counterparty:`; a file without them is read as before
-(migration `0085_sched1_nomination_matching`, nullable columns). Census: 293 paths / 328
-operations (+1 / +1 on 292 / 327; TAR-1 adds routes in parallel and the integrator reconciles).
+(migration `0085_sched1_nomination_matching`, nullable columns). Census: 296 paths / 331
+operations (+1 / +1 on 295 / 330, after TAR-1).
+
+Additive 2026-11-25 (news and events, Commercial Intelligence V3 NEWS-1, ADR Decision 35): three
+paths, three operations. New `GET /api/news` (READ; `/api/news/` is inside the commercial-data
+boundary): items from the registered public sources (REMIT messages the platform holds, official
+feeds whose terms permit reuse), filters `hub`, `country`, `type` (`outage`, `sanction`,
+`policy`, `weather`, `strike`, `geopolitical`), `source`, `since`, `mine`, `order` (`relevance`,
+the default, puts the items that touch the caller's book first; `time`) and `limit` (1 to 200);
+each item has its source, URL, publisher, published and retrieved times, content hash, language,
+licence note, tags and `relevance`; `meta.sources` lists the registry with each source's terms
+and last poll. New `GET /api/news/{item_id}` (READ): the item with its source registry row,
+`linked_exposures` (contracts, cargoes and nominations it touches, only in books the caller may
+see and only for a caller who may read the portfolio), `related` items and the rule `note`
+(sentences each citing evidence ids, and `citations`). New `POST /api/news/{item_id}/note`
+(GOVERNED; body `language` `en` or `zh-CN`): the AI note ("what this means for my book") under
+the AI use `news_note` when the organisation, deployment and caller allow it and every sentence
+passes the grounding check, labelled `AI-generated` with its prompt version; otherwise the rule
+note, with `ai.status` `off`, `refused` (and the failing check) or `unavailable`; each AI request
+is audited (`ai.news_note`). 422 `type_unknown`, `source_unknown`, `since_invalid`,
+`order_unknown`; 404 `not_found`; 503 `runtime_db_not_configured`. Market event type
+`news.published` (source `src-news`). Migration `0084_news_items`. Census: 299 paths / 334
+operations (+3 / +3 on 296 / 331). Sources and terms: `docs/integration/NEWS_SOURCE_REGISTRY.md`.
 
 Changed and additive 2026-11-24 (maker-checker on limits and reference data, Commercial
 Intelligence V3 P-17, ADR Decision 32). **Status change:** while four eyes is on for the write

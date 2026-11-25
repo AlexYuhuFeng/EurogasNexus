@@ -849,8 +849,8 @@ a `news.published` market event through the existing outbox (Decision 28); an it
 outage carries that outage's dependency key, so opportunities re-evaluate through the existing
 consumer, and the consumer `news_roles` routes items that touch the book to each role through
 M7 routing. The poll runs as an operator script (`scripts/ops/poll_news_sources.py`), not a
-service. The migration is numbered 0084 on `0082_data1_integration`; TAR-1 adds 0083 and the
-integrator re-points 0084's `down_revision` onto it. Rejected: a search engine or vector store
+service. Migration 0084 follows SCHED-1's `0085_sched1_nomination_matching`, which merged
+first. Rejected: a search engine or vector store
 for news (a new datastore; the volumes are small and the tags are deterministic), storing
 items as market events only (the event carries digests, not text, by Decision 28's design),
 and a news-fetching service (a new process to operate for a few items a day).

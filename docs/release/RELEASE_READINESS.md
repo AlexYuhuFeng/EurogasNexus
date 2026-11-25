@@ -61,7 +61,11 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **296 paths / 331 operations**
+- OpenAPI public surface: **299 paths / 334 operations**
+
+  (2026-11-25: `GET /api/news` and `GET /api/news/{item_id}` (READ) and
+  `POST /api/news/{item_id}/note` (GOVERNED, the AI use `news_note`; the rule note without a
+  model), the NEWS-1 news and events reads; 296 / 331 before, after TAR-1 and SCHED-1.
 
   (2026-11-25: `GET /api/desk/gas-day/{gas_day}/reconciliation` (READ, `portfolio.read` in the
   handler), the SCHED-1 reconciliation of trades, confirmations and nominations; read only,

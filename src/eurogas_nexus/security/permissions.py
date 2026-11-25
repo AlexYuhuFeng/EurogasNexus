@@ -169,6 +169,11 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # file looks up books and ERP counterparties and stores nothing (ANALYST floor).
     ("/api/imports/contracts", Permission.READ),
     ("/api/imports/{contract_id}/validate", Permission.GOVERNED),
+    # NEWS-1: items from registered public sources and what they touch in the caller's book
+    # (reads); the AI note is an LLM call under the news_note AI use (GOVERNED).
+    ("/api/news", Permission.READ),
+    ("/api/news/{item_id}", Permission.READ),
+    ("/api/news/{item_id}/note", Permission.GOVERNED),
     # Comparable prices: forward FX and normalisation (a computation, nothing stored) are
     # market reads like the rest of the family.
     ("/api/market/fx-forward", Permission.READ),
@@ -484,6 +489,7 @@ COMMERCIAL_DATA_PREFIXES: tuple[str, ...] = (
     "/api/functional-models/",
     "/api/market/",
     "/api/imports/",
+    "/api/news/",
     "/api/monitoring/",
     "/api/projections/",
     "/api/stream/",

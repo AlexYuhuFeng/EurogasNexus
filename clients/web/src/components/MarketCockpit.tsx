@@ -12,6 +12,7 @@ import { FirstUseHints } from "@/components/ui/FirstUseHints";
 import { FIRST_USE_HINTS } from "@/app/experience/firstUseHints";
 import { SourceApprovalNotice } from "@/components/PublicSourceApprovals";
 import { CargoBoard } from "@/components/CargoBoard";
+import { NewsPanel } from "@/components/NewsPanel";
 import { TodayFreshness, TodayHeadActions, TodayHeadline, TodayScreen } from "@/components/TodayScreen";
 import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useDeskToday } from "@/app/hooks/useDeskToday";
@@ -261,6 +262,8 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             }}
           />
         )}
+        {/* NEWS-1: news and events beside Today, the items that touch my book first. */}
+        {task === "overview" && <NewsPanel t={t} language={controller.i18n.language} />}
         {task === "curves" && (
           <>
           <MarketTerminal

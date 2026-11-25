@@ -6,6 +6,34 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-25 — Commercial Intelligence V3, NEWS-1: news, policy and geopolitical events (branch `wip/news1`)
+
+- Source registry `domain/news/sources.py` with quoted, dated terms
+  ([NEWS_SOURCE_REGISTRY.md](../integration/NEWS_SOURCE_REGISTRY.md)): REMIT messages already held
+  (no fetch) and the GOV.UK DESNZ Atom feed are read; the Commission (CC BY 4.0), EUR-Lex and ACER
+  (titles only) are permitted but wait for a feed address on their own host; wire services, EEX's
+  website and LNG operators' sites are recorded as excluded. Feed reader `domain/news/feeds.py`
+  (stdlib XML, DOCTYPE and entities refused), deterministic tagging `domain/news/tagging.py`.
+- Ingest `application/news_ingest.py` (robots.txt, interval, ETag, dedupe by source reference,
+  revisions by content hash; operator script `scripts/ops/poll_news_sources.py`, dry run unless
+  `--commit`). Each new or changed item publishes `news.published`; one naming the asset of a held,
+  open REMIT outage carries `outage:<message>` as dependency key, so opportunities re-evaluate.
+- Relevance `application/news_relevance.py` (contracts by delivery hub, open cargoes by vessel or
+  terminal, recent nominations by hub; only books the caller may see) and routing
+  `application/news_routing.py` (consumer `news_roles`; categories `news_trader`, `news_lng`,
+  `news_scheduler`, book-scoped and self-notifying; dedupe, 30-minute cooldown, one message per
+  held outage).
+- AI use `news_note` in the GOV-1 register (`application/news_note.py`, check
+  `application/news_grounding.py`: every sentence cites evidence ids and is checked against only
+  those lines; any failure keeps the rule note); evaluation set `tests/evals/news_note_cases.json`
+  (36 cases) in the gate record.
+- Reads `GET /api/news`, `GET /api/news/{item_id}`, `POST /api/news/{item_id}/note`; census 295
+  paths / 330 operations. Web: `components/NewsPanel.tsx` on Desk → Today (`news-panel.css` in
+  `@layer ds-components`, EN and ZH). Migration `0084_news_items` on SCHED-1's `0085_sched1_nomination_matching`, ADR Decision 35.
+- Not yet: feed addresses for the Commission, EUR-Lex and ACER (not readable from the build
+  environment); the poll on the scheduler (SCHED-1); end-to-end latency measured; national
+  regulators' terms.
+
 ## 2026-11-25 — Commercial Intelligence V3, SCHED-1: why trades, confirmations and nominations disagree (branch `wip/sched1`)
 
 - New pure module `domain/portfolio/nomination_reconciliation.py` (eleven break kinds, the

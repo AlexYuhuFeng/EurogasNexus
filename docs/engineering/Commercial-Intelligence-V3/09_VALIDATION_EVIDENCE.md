@@ -322,7 +322,23 @@ renomination at 02:00 UTC (due soon). On 2026-12-02 the reconciliation has no br
 | Lint | `ruff check src tests scripts` | All checks passed |
 | SCHED1-7 web: Reconciliation row, What needs me, role composition | `npx tsc --noEmit -p .`; `npm test`; `node scripts/cssTokenLint.mjs` (in `clients/web`) | clean; 1,394 tests, 1,391 passed, 3 skipped (5 new in `tests/reconciliationModel.test.ts`); token lint unchanged (the new rules are clean) |
 
+## NEWS-1 news and events (2026-11-25, branch `wip/news1`)
+
+| What | Command | Result |
+| --- | --- | --- |
+| NEWS1-1 to NEWS1-7 registry, feeds, tagging, ingest, outage link, relevance, routing, note | `pytest tests/unit/test_news_sources_feeds_tagging.py tests/unit/test_news_ingest.py tests/unit/test_news_relevance_routing_note.py tests/unit/test_news_items_migration.py tests/api/test_news_api.py` | 53 new tests pass (fixtures constructed, no network) |
+| NEWS1-8 grounding evaluation set and the AI gate | `pytest tests/evals/test_news_note_evals.py tests/evals/test_ai_gate.py tests/unit/test_ai_register.py`; `python scripts/ai/ai_gate.py --record` | 36 cases, 36 correct (pass rate 1.0 at threshold 1.0), recorded for `news_note`; gate and register tests pass |
+| NEWS1-9 API census and reachability | `pytest tests/contract tests/docs` | pass; census 295 paths / 330 operations (292 / 327 before) |
+| NEWS1-11 migration on PostgreSQL 16 | `alembic upgrade head`, `downgrade -1`, `upgrade head` on a fresh database; `pytest tests/integration/test_news_postgres.py` and the outbox, change-feed, alert and LNG change integration tests | upgrade and downgrade clean; 55 passed, 3 skipped |
+| Wider suites | `pytest tests/unit tests/api tests/evals tests/contract tests/docs tests/db`; `ruff check src tests scripts` | 4,684 passed, 60 skipped, 0 failed; ruff clean |
+| NEWS1-10 web | `npx tsc --noEmit -p .`; `npm test`; `node scripts/cssTokenLint.mjs` (in `clients/web`) | clean; 1,394 tests, 1,391 passed, 3 skipped (5 new); token lint: the new stylesheet is clean |
+| Bundle (`npm run build`) | `index-*.js` 2,226.70 kB (gzip 619.97), `index-*.css` 394.47 kB (gzip 60.66) | +11.5 kB JS and +2.1 kB CSS against MAP-1's figures; no npm package added |
+| Live feeds | Not run: the build environment had no outbound network, so no feed was read live and no feed address was confirmed | The first operator poll confirms GOV.UK's address; the others are to be recorded |
+
 ## Not yet evidenced
+
+- NEWS-1 live feeds: no feed was read live (no outbound network in the build environment);
+  end-to-end latency from publication to a role's alert not measured.
 
 - MAP-1 frame rate: the flow animation and 3D columns have not been measured in a browser;
   read `data-map-scene-frame-p95` on the reference machine with every layer on.

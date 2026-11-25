@@ -20,7 +20,7 @@
 `capacity_window_opening`（新类别 `capacity`，路由至通知类别 `nomination`）；估值快照的费率输入新增
 `detail.tariff_version`、`detail.tariff_status_basis`、`detail.tariff_source_url`；公开数据源导入报告的 ENTSOG 费率
 明细新增 `tariff_versions` 与 `tariff_events`。迁移 `0083_tar1_tariff_book`（表 `tariff_versions`、`capacity_notices`，
-仅扩展）。统计：295 条路径 / 330 个操作（+3 / +3）。登记：`docs/data/TARIFF_PUBLISHER_REGISTRY.md`。
+仅扩展）。统计：299 条路径 / 334 个操作（在 296 / 331 上 +3 / +3）。登记：`docs/data/TARIFF_PUBLISHER_REGISTRY.md`。
 
 2026-11-25 新增燃气日对账（Commercial Intelligence V3 SCHED-1）：一条路径、一个操作。新增
 `GET /api/desk/gas-day/{gas_day}/reconciliation`（READ，需 `portfolio.read`，否则 403 `permission_denied`）：
@@ -41,8 +41,23 @@ unit_mismatch、gas_day_misaligned、not_confirmed 之一；`explanation`、`exp
 `target`）；`GET /api/monitoring/alerts` 可含类别 `gas_day_break`（按账簿范围；通过现有 `nomination` 类别通知）。
 导入契约 `etrm.nominations.v1` 新增可选列（`counterparty`、`direction`、`point`、`shipper_code`、
 `counterparty_shipper_code`、`counterparty_quantity_mwh`）、步骤 `trade_confirmation` 与行前缀 `counterparty:`；
-不含这些列的文件照旧读取（迁移 `0085_sched1_nomination_matching`，仅新增可空列）。路径统计：293 条路径 / 328 个操作
-（在 292 / 327 上 +1 / +1；TAR-1 并行新增路由，由集成者核对）。
+不含这些列的文件照旧读取（迁移 `0085_sched1_nomination_matching`，仅新增可空列）。路径统计：296 条路径 / 331 个操作
+（在 TAR-1 之后的 295 / 330 上 +1 / +1）。
+
+2026-11-25 新增新闻与事件（Commercial Intelligence V3 NEWS-1，ADR 决策 35）：三条路径、三个操作。新增
+`GET /api/news`（READ；`/api/news/` 属于商业数据边界）：来自登记公开来源的条目（平台已持有的 REMIT 消息、
+条款允许再利用的官方订阅源），筛选参数 `hub`、`country`、`type`（`outage`、`sanction`、`policy`、`weather`、
+`strike`、`geopolitical`）、`source`、`since`、`mine`、`order`（默认 `relevance`，触及调用方账簿的条目优先；
+或 `time`）与 `limit`（1 至 200）；每条含来源、URL、发布方、发布与获取时间、内容哈希、语言、许可说明、标签与
+`relevance`；`meta.sources` 列出来源登记及各来源条款与最近一次轮询。新增 `GET /api/news/{item_id}`（READ）：
+条目及其来源登记行、`linked_exposures`（触及的合同、船货与提名，仅限调用方可见账簿且仅对可读取组合的调用方）、
+`related` 相关条目与规则 `note`（逐句引用证据编号，并附 `citations`）。新增 `POST /api/news/{item_id}/note`
+（GOVERNED；请求体 `language` 为 `en` 或 `zh-CN`）：在组织、部署与调用方均允许且每句话通过依据校验时，返回
+AI 用途 `news_note` 的 AI 说明（"对我的账簿意味着什么"），标注 `AI-generated` 与提示词版本；否则返回规则说明，
+`ai.status` 为 `off`、`refused`（附未通过的检查）或 `unavailable`；每次 AI 请求记入审计（`ai.news_note`）。
+422 `type_unknown`、`source_unknown`、`since_invalid`、`order_unknown`；404 `not_found`；503
+`runtime_db_not_configured`。市场事件类型 `news.published`（来源 `src-news`）。迁移 `0084_news_items`。
+统计：299 条路径 / 334 个操作（在 296 / 331 上 +3 / +3）。来源与条款：`docs/integration/NEWS_SOURCE_REGISTRY.md`。
 
 2026-11-24 变更与新增（限额与参考数据的双人复核，Commercial Intelligence V3 P-17，ADR 决策 32）。**状态码变更：**
 当该写入启用四眼复核（默认启用）时，`PUT /api/portfolio/credit-lines/{id}`、`PUT /api/portfolio/trader-mandates/{id}`、

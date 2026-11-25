@@ -482,6 +482,19 @@ export async function testApiBaseUrl(value: string): Promise<HealthDTO> {
   );
 }
 
+/** Query parameters of `GET /api/news`: only the filters set. */
+function newsParams(filters: NewsFilterInput): Record<string, string> {
+  const params: Record<string, string> = {};
+  if (filters.hub) params.hub = filters.hub;
+  if (filters.country) params.country = filters.country;
+  if (filters.type) params.type = filters.type;
+  if (filters.source) params.source = filters.source;
+  if (filters.mine) params.mine = "true";
+  if (filters.order) params.order = filters.order;
+  if (filters.limit) params.limit = String(filters.limit);
+  return params;
+}
+
 async function get<T, M = ApiMeta>(
   path: string,
   params?: Record<string, string> | URLSearchParams,
@@ -2884,6 +2897,113 @@ export interface GovernedSaveDTO {
   changed?: string[];
   pending_approval?: boolean;
   change?: ChangeRequestDTO;
+}
+
+/** NEWS-1: one sentence of a news note with the ids of the evidence lines it rests on. */
+export interface NewsNoteSentenceDTO {
+  text: string;
+  cites: string[];
+}
+
+/** One evidence line a note cites: a news item (`N1`...) or one of the platform's figures (`F1`...). */
+export interface NewsCitationDTO {
+  id: string;
+  kind: string;
+  text: string;
+  item_id?: string;
+  url?: string | null;
+  publisher?: string;
+  source_id?: string;
+  published_at_utc?: string | null;
+  book_id?: string | null;
+  message_id?: string;
+}
+
+/** "What this means for my book": the rule note always, the model's only when grounded and labelled. */
+export interface NewsNoteDTO {
+  item_id?: string;
+  basis: "rule" | "model";
+  label: string | null;
+  sentences: NewsNoteSentenceDTO[];
+  rule_sentences: NewsNoteSentenceDTO[];
+  citations: NewsCitationDTO[];
+  ai: { status: "off" | "used" | "refused" | "unavailable"; check: string | null; flags: unknown[]; prompt_version: string | null };
+  advisory: string;
+}
+
+/** One exposure of the caller's book a news item touches, with why. */
+export interface NewsMatchDTO {
+  kind: "contract" | "cargo" | "nomination";
+  ref: string;
+  book_id: string | null;
+  label: string;
+  role: "trader" | "lng" | "scheduler";
+  reason: string;
+  basis: string;
+  weight: number;
+  figure: string;
+  source: string;
+}
+
+/** One item from a registered public source (`GET /api/news`). */
+export interface NewsItemDTO {
+  item_id: string;
+  source_id: string;
+  source_title: string;
+  publisher: string;
+  url: string | null;
+  title: string;
+  summary: string;
+  language: string;
+  published_at_utc: string | null;
+  retrieved_at_utc: string | null;
+  licence_note: string;
+  event_types: string[];
+  entities: { entity_id: string; kind: string; name: string; country: string; hubs: string[] }[];
+  hubs: string[];
+  countries: string[];
+  capacity_change: boolean;
+  linked_event_key: string | null;
+  revision: number;
+  first_seen_at_utc: string | null;
+  relevance: { score: number; matches: number; roles: string[]; reasons: string[] };
+  book_hidden: boolean;
+}
+
+/** A source in the registry: what it is, its terms and whether it is polled. */
+export interface NewsSourceDTO {
+  source_id: string;
+  publisher: string;
+  title: string;
+  reuse: string;
+  store: string;
+  licence: string;
+  attribution: string;
+  home_url: string;
+  terms_url: string;
+  terms_read_on: string | null;
+  polled: boolean;
+  included: boolean;
+  not_polled_because: string | null;
+  last_poll?: { at_utc: string | null; status: string; detail: string } | null;
+}
+
+/** `GET /api/news/{item_id}`: the item, its source, what it touches and the cited rule note. */
+export interface NewsItemDetailDTO extends NewsItemDTO {
+  source: NewsSourceDTO | null;
+  linked_exposures: NewsMatchDTO[];
+  related: { item_id: string; title: string; publisher: string; published_at_utc: string | null; url: string | null }[];
+  note: NewsNoteDTO;
+}
+
+export interface NewsFilterInput {
+  hub?: string;
+  country?: string;
+  type?: string;
+  source?: string;
+  mine?: boolean;
+  order?: "relevance" | "time";
+  limit?: number;
 }
 
 /** One of the firm's own marks (`/api/market/firm-marks`): always "firm's mark", never a market price. */
@@ -6065,6 +6185,18 @@ export const api = {
     post<ChangeRequestDTO>(`/portfolio/change-requests/${encodeURIComponent(changeId)}/reject`, { note }),
   withdrawChangeRequest: (changeId: string, note = "") =>
     post<ChangeRequestDTO>(`/portfolio/change-requests/${encodeURIComponent(changeId)}/withdraw`, { note }),
+  /** NEWS-1: news and events from registered public sources, my book's first. */
+  news: (filters: NewsFilterInput = {}, options?: ApiRequestOptions) =>
+    get<NewsItemDTO[], ApiMeta & { sources?: NewsSourceDTO[]; order?: string; advisory?: string }>(
+      "/news",
+      newsParams(filters),
+      options,
+    ),
+  newsItem: (itemId: string, options?: ApiRequestOptions) =>
+    get<NewsItemDetailDTO>(`/news/${encodeURIComponent(itemId)}`, undefined, options),
+  /** The AI note when allowed and grounded, else the rule note (it records an audit row). */
+  newsNote: (itemId: string, language: "en" | "zh-CN") =>
+    postRead<NewsNoteDTO>(`/news/${encodeURIComponent(itemId)}/note`, { language }),
   saveHedgeApproval: (contractId: string, body: HedgeApprovalInput) =>
     put<GovernedSaveDTO>(`/portfolio/hedge-approvals/${encodeURIComponent(contractId)}`, body),
   sellDownPlan: (body: SellDownInput, options?: ApiRequestOptions) =>
