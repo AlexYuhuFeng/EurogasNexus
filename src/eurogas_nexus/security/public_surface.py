@@ -186,6 +186,10 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/route-cost/tariff-entries",
         "/api/route-cost/tariff-entries/{entry_id}/review",
         "/api/route-cost/tariff-entries/{entry_id}/withdraw",
+        # TAR-1: the tariff book (versions, publishers) and upcoming capacity windows.
+        "/api/tariffs",
+        "/api/tariffs/publishers",
+        "/api/capacity/notices",
         "/api/market/gas-for-power",
         "/api/market/nwe-balance",
         "/api/access/market-data-licences",

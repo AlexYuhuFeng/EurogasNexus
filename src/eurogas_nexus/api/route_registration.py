@@ -57,6 +57,7 @@ from eurogas_nexus.api.routes.public.strategy_registry import router as strategy
 from eurogas_nexus.api.routes.public.strategy_tracks import router as strategy_tracks_router
 from eurogas_nexus.api.routes.public.streaming import router as streaming_router
 from eurogas_nexus.api.routes.public.support import router as support_router
+from eurogas_nexus.api.routes.public.tariffs import router as tariffs_router
 from eurogas_nexus.api.routes.public.weather import router as weather_router
 
 #: Design basis 2, I.3 and decision L4: capabilities kept in the backend, dormant, until a desk
@@ -134,6 +135,7 @@ def register_routes(
             app.include_router(research_data_router)
         app.include_router(review_router)
         app.include_router(route_cost_router)
+        app.include_router(tariffs_router)
         app.include_router(optimization_router)
         app.include_router(strategy_lab_router)
         app.include_router(strategy_registry_router)

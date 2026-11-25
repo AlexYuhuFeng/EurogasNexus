@@ -1,5 +1,27 @@
 # API 契约演化策略
 
+2026-11-25 新增公开费率与容量窗口（Commercial Intelligence V3 TAR-1，ADR 决策 34）：三条路径、三个操作，均为 READ
+且只读。新增 `GET /api/tariffs`（筛选 `publisher`、`facility`、`operator`、`direction` ENTRY|EXIT、`product`、
+`status` INDICATIVE|FINAL、`on` 某燃气日、`key`；`as_of` 为 ISO 8601 UTC；`history` 为 true 且带 `key` 或
+`facility` 时返回全部版本；`limit` 1 至 2000、`offset`）：`rows[]` 为费率版本（`tariff_key`、`version`、
+`version_id`、`change_kind` first|revised|status_change|withdrawn、`status`、`status_basis`、`status_change`、
+发布方、设施、运营商、方向、产品、期限、可中断性、`value` 或 `by_class`、单位、币种、费率期、`published_at_utc`、
+`retrieved_at_utc`、`recorded_at_utc`、`superseded_at_utc`、`source_url`、`content_hash`、`event_id`、`withdrawn`），
+以及 `total`、`as_of`、`history`。新增 `GET /api/tariffs/publishers`：发布方登记（页面、频率、格式、`manual` 或
+`parsed`、条款状态），附已持有的内容、最近读取时间、下次轮询、`missed_publications`，以及条款要求许可的接收站的
+`firm_permission`。新增 `GET /api/capacity/notices`（`kind` auction|lng_slot|secondary_capacity、`product`、
+`facility`、`publisher`、`days` 1 至 400、`past_days` 0 至 31）：按 CAM 网络规则推导的容量拍卖（`basis`
+`rule_derived`）与运营商发布的窗口期和开放季（`basis` `published`），各附开放与截止时间、提供内容与来源。行仅限调用方
+可读的发布方来源族；条款需公司许可的接收站在记录许可前不返回。422 `history_needs_scope`、`as_of_invalid`、
+`as_of_in_future`；无运行时数据库时三者返回空结果并附警告；已配置但不可读时返回 503 `runtime_db_unavailable`。其他新增：
+市场事件类型 `tariff.changed`（每个新版本一条，`source_id` 为发布方来源族，载荷含版本标识、状态、`previous_status`、
+`status_change`、数值、单位、费率期、`source_url`、`content_hash`），按市场规则经 `GET /api/market/changes` 提供；
+监控告警类型 `tariff_publisher_stale` 与 `tariff_publication_missed`（类别 `data_source`）及
+`capacity_window_opening`（新类别 `capacity`，路由至通知类别 `nomination`）；估值快照的费率输入新增
+`detail.tariff_version`、`detail.tariff_status_basis`、`detail.tariff_source_url`；公开数据源导入报告的 ENTSOG 费率
+明细新增 `tariff_versions` 与 `tariff_events`。迁移 `0083_tar1_tariff_book`（表 `tariff_versions`、`capacity_notices`，
+仅扩展）。统计：295 条路径 / 330 个操作（+3 / +3）。登记：`docs/data/TARIFF_PUBLISHER_REGISTRY.md`。
+
 2026-11-24 变更与新增（限额与参考数据的双人复核，Commercial Intelligence V3 P-17，ADR 决策 32）。**状态码变更：**
 当该写入启用四眼复核（默认启用）时，`PUT /api/portfolio/credit-lines/{id}`、`PUT /api/portfolio/trader-mandates/{id}`、
 `PUT /api/portfolio/hedge-approvals/{id}`、`PUT /api/portfolio/lng-terminal-terms/{id}`、`PUT /api/market/firm-marks`
@@ -193,6 +215,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `GET /api/lng/cargoes/{cargo_id}/plan` | `roles`（附加字段，2026-11-24，LNG-2） | 各角色关于该货物最近一次变更的消息，含一天内撤回者；其中任何内容均不执行 |
 | `GET /api/desk/today` | `needs_me` 中 `kind` 为 `cargo` 的条目，附 `role` 与 `cargo_id`（附加字段，2026-11-24，LNG-2） | 调用者本人角色（工作职能）的未结货物消息，严重者在前；`target` 打开交易台 → 货物并定位该货物；`why` 指向该告警 |
 | `GET /api/monitoring/alerts` | `category` 新取值 `lng_hedge`、`lng_schedule`、`lng_exposure`、`lng_material`；`entity_type` `lng_cargo`（2026-11-24，LNG-2） | 每个货物每个角色一条告警，与限额一样按账簿可见；后续变更使其失去意义时以 `evidence_snapshot.withdrawn` 关闭 |
+| `GET /api/monitoring/alerts` | `category` 新取值 `capacity`；`alert_type` 新取值 `tariff_publisher_stale`、`tariff_publication_missed`、`capacity_window_opening`；`entity_type` 新取值 `tariff_publisher`、`capacity_notice`（2026-11-25，TAR-1） | 发布方读取晚于其频率、运营商在 7 月年度拍卖前 30 天仍未发布下一费率期保留价格、容量拍卖或窗口期在三天内开放（月度拍卖不告警）；不进行任何订舱或投标 |
 | `GET /api/market/quotes` | 每行 `resolved_price` (`hub`, `period_start`, `period_end`, `side`, `value`, `unit`, `value_mwh`, `unit_mwh`, `kind`, `source_system`, `as_of_utc`, `state`, `freshness_state`, `simulated`, `basis`, `reference`)（附加字段，2026-11-24，P-08、QA-T-02、QA-L-22） | 读取时刻该行枢纽与交割窗口在所有页面上显示的同一价格，来自 `domain/market/price_resolution`（最新的在期行情点或结算价，否则公司估值价，否则持有的最新价格并标为 stale；仅限有权使用的数据源）。行自身的报价字段不变；该窗口无任何价格时为 `null` |
 | `GET /api/desk/today` | `key_figures` 中 `price.<hub>` 项、`market.hubs[].front_month` 及 `book` 行的 `mark` 上的 `resolved_price`（附加字段，2026-11-24，P-08） | 与价格看板上近月的对象相同；无价格时为 `null`。`close_day` 仍为最后一个月前收盘日 |
 | `POST /api/analysis/brief` | `resolved_prices`（顶层列表，附加字段，2026-11-24，P-08） | 价格段每个枢纽行一个 `resolved_price` 对象；各段结构不变 |

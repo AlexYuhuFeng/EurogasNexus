@@ -61,9 +61,12 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **292 paths / 327 operations**
+- OpenAPI public surface: **295 paths / 330 operations**
 
-  (2026-11-24: `GET /api/imports/contracts` (READ) and `POST /api/imports/{contract_id}/validate`
+  (2026-11-24: TAR-1 adds `GET /api/tariffs`, `GET /api/tariffs/publishers` and
+  `GET /api/capacity/notices` (all READ, entitlement-filtered by publisher family; a terminal
+  operator whose terms need the firm's permission is left out until it is recorded); 292 / 327
+  before. Earlier the same day: `GET /api/imports/contracts` (READ) and `POST /api/imports/{contract_id}/validate`
   (GOVERNED, stores nothing), the DATA-1 ETRM and ERP import contracts; 290 / 325 before.
 
   (2026-11-24: `GET /api/market/changes` (READ), the DATA-1 change feed: digests of market

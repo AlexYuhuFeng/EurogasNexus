@@ -4568,6 +4568,111 @@ export interface NotificationChannelInput {
   enabled: boolean;
 }
 
+/** TAR-1: one version of one public tariff (GET /api/tariffs). */
+export interface TariffVersionDTO {
+  tariff_key: string;
+  version: number;
+  version_id: string;
+  change_kind: "first" | "revised" | "status_change" | "withdrawn";
+  status: "INDICATIVE" | "FINAL";
+  /** Why it has that status: operator_stated, period_started, period_not_started, figures_disagree, reviewed, awaiting_review. */
+  status_basis: string;
+  status_change: string | null;
+  data_class: "sourced" | "indicative";
+  publisher_id: string;
+  publisher_name: string;
+  facility_kind: "point" | "terminal" | "storage";
+  facility_id: string;
+  facility_name: string;
+  operator: string;
+  country: string | null;
+  market_area: string | null;
+  direction: string | null;
+  product: string;
+  duration: string | null;
+  firmness: string | null;
+  value: number | null;
+  by_class: Record<string, number> | null;
+  unit: string;
+  currency: string;
+  period_from: string;
+  period_to: string | null;
+  published_at_utc: string | null;
+  retrieved_at_utc: string;
+  recorded_at_utc: string;
+  superseded_at_utc: string | null;
+  source_url: string;
+  source_ref: string;
+  content_hash: string;
+  event_id: string | null;
+  withdrawn: boolean;
+}
+
+export interface TariffBookDTO {
+  rows: TariffVersionDTO[];
+  total: number;
+  as_of: string | null;
+  history: boolean;
+  limit: number;
+  offset: number;
+}
+
+/** TAR-1: one publisher in the tariff publisher registry, with its read state. */
+export interface TariffPublisherDTO {
+  publisher_id: string;
+  name: string;
+  kind: string;
+  countries: string[];
+  page_url: string;
+  api_url: string | null;
+  access: "api" | "rule" | "parsed" | "manual";
+  automated: boolean;
+  reuse: "permitted" | "needs_firm_terms" | "not_reviewed";
+  publishes: string[];
+  terms: string;
+  poll_minutes: number | null;
+  season_poll_minutes: number | null;
+  stale_after_minutes: number | null;
+  notes: string;
+  checked_on: string;
+  state: "current" | "stale" | "never_read" | "manual" | "excluded" | "unknown";
+  last_read_at_utc?: string | null;
+  last_changed_at_utc?: string | null;
+  next_poll_minutes?: number | null;
+  tariffs_final?: number | null;
+  tariffs_indicative?: number | null;
+  notices?: number | null;
+  missed_publications?: { operator: string; next_period_from: string; deadline: string }[];
+  readable?: boolean;
+}
+
+/** TAR-1: one upcoming capacity window (GET /api/capacity/notices). */
+export interface CapacityNoticeDTO {
+  notice_key: string;
+  publisher_id: string;
+  publisher_name: string;
+  kind: "auction" | "lng_slot" | "secondary_capacity";
+  basis: "rule_derived" | "published";
+  product: string;
+  title: string;
+  facility_kind: string | null;
+  facility_id: string | null;
+  facility_name: string | null;
+  opens_at_utc: string;
+  closes_at_utc: string | null;
+  offers_from: string | null;
+  offers_to: string | null;
+  quantity: number | null;
+  quantity_unit: string | null;
+  state: string;
+  source_url: string;
+  published_at_utc: string | null;
+  retrieved_at_utc: string;
+  changed_at_utc: string;
+  revision: number;
+  opens_in_days: number;
+}
+
 export interface TariffPublicationDTO {
   publication_id: string;
   tso: string;
@@ -5741,6 +5846,32 @@ export const api = {
   /** Replace the hedge legs that cover a cargo (a short hedge is negative MWh). */
   saveCargoHedges: (cargoId: string, legs: CargoHedgeLegDTO[]) =>
     put<{ cargo_id: string; legs: number; events?: unknown }>(`/lng/cargoes/${encodeURIComponent(cargoId)}/hedges`, { legs }),
+  /** TAR-1: public tariffs in force (or as known at as_of), or one tariff's versions (history). */
+  tariffBook: (
+    query?: { facility?: string; key?: string; publisher?: string; status?: string; history?: boolean; as_of?: string },
+    options?: ApiRequestOptions,
+  ) =>
+    get<TariffBookDTO>(
+      "/tariffs",
+      query
+        ? Object.fromEntries(
+            Object.entries(query)
+              .filter(([, value]) => value !== undefined && value !== "")
+              .map(([key, value]) => [key, String(value)]),
+          )
+        : undefined,
+      options,
+    ),
+  /** TAR-1: the tariff publisher registry with each publisher's read state. */
+  tariffPublishers: (options?: ApiRequestOptions) =>
+    get<{ rows: TariffPublisherDTO[] }>("/tariffs/publishers", undefined, options),
+  /** TAR-1: upcoming capacity auctions, LNG slot and secondary-capacity windows. */
+  capacityNotices: (query?: { days?: number; kind?: string }, options?: ApiRequestOptions) =>
+    get<{ rows: CapacityNoticeDTO[] }>(
+      "/capacity/notices",
+      query ? Object.fromEntries(Object.entries(query).map(([key, value]) => [key, String(value)])) : undefined,
+      options,
+    ),
   tariffPublications: (options?: ApiRequestOptions) =>
     get<{ rows: TariffPublicationDTO[] }>("/route-cost/tariff-publications", undefined, options),
   saveTariffPublication: (

@@ -4,6 +4,38 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-25 (public tariffs and capacity windows, Commercial Intelligence V3 TAR-1, ADR
+Decision 34): three paths, three operations, all READ and read-only. New `GET /api/tariffs`
+(filters `publisher`, `facility`, `operator`, `direction` ENTRY|EXIT, `product`, `status`
+INDICATIVE|FINAL, `on` a gas day, `key`; `as_of` ISO 8601 UTC; `history` true with `key` or
+`facility` for every version; `limit` 1 to 2000, `offset`): `rows[]` of tariff versions
+(`tariff_key`, `version`, `version_id`, `change_kind` first|revised|status_change|withdrawn,
+`status`, `status_basis`, `status_change`, publisher, facility, operator, direction, product,
+duration, firmness, `value` or `by_class`, unit, currency, period, `published_at_utc`,
+`retrieved_at_utc`, `recorded_at_utc`, `superseded_at_utc`, `source_url`, `content_hash`,
+`event_id`, `withdrawn`), `total`, `as_of`, `history`. New `GET /api/tariffs/publishers`: the
+publisher registry (page, cadence, format, `manual` or `parsed`, terms) with what is held, when
+each was last read, the next poll, `missed_publications` and, for a terminal whose terms need
+it, `firm_permission`. New `GET /api/capacity/notices` (`kind`
+auction|lng_slot|secondary_capacity, `product`, `facility`, `publisher`, `days` 1 to 400,
+`past_days` 0 to 31): capacity auctions derived by rule from the CAM network code (`basis`
+`rule_derived`), operators' slot windows and open seasons (`basis` `published`), each with its
+opening and closing times, what it offers and its source. Rows are limited to the publisher
+families the caller may read; a terminal whose terms need the firm's permission is left out
+until it is recorded. 422 `history_needs_scope`, `as_of_invalid`, `as_of_in_future`; without a
+runtime store the three answer empty with a warning; 503 `runtime_db_unavailable` when the store
+is configured but cannot be read. Additive elsewhere: market event type `tariff.changed` (one
+per new version, `source_id` the publisher's family, payload the version's identity, status,
+`previous_status`, `status_change`, value, unit, period, `source_url`, `content_hash`), served by
+`GET /api/market/changes` under the market rule; monitoring alert types
+`tariff_publisher_stale` and `tariff_publication_missed` (category `data_source`) and
+`capacity_window_opening` (new category `capacity`, routed to the `nomination` notification
+category); valuation snapshot tariff inputs add `detail.tariff_version`,
+`detail.tariff_status_basis`, `detail.tariff_source_url`; the public-source ingest report's
+ENTSOG tariff detail adds `tariff_versions` and `tariff_events`. Migration `0083_tar1_tariff_book`
+(tables `tariff_versions`, `capacity_notices`, expand-only). Census: 295 paths / 330 operations
+(+3 / +3). Registry: `docs/data/TARIFF_PUBLISHER_REGISTRY.md`.
+
 Changed and additive 2026-11-24 (maker-checker on limits and reference data, Commercial
 Intelligence V3 P-17, ADR Decision 32). **Status change:** while four eyes is on for the write
 (the default), `PUT /api/portfolio/credit-lines/{id}`, `PUT /api/portfolio/trader-mandates/{id}`,
@@ -620,6 +652,7 @@ keeps its previous behaviour.
 | `GET /api/lng/cargoes/{cargo_id}/plan` | `roles` (additive, 2026-11-24, LNG-2) | Each role's message about the cargo's last change, open or withdrawn within the last day; nothing in it is executed |
 | `GET /api/desk/today` | `needs_me` items of `kind` `cargo`, with `role` and `cargo_id` (additive, 2026-11-24, LNG-2) | The open cargo messages for the caller's own roles (job functions), critical first; `target` opens Desk → Cargoes at the cargo; `why` names the alert |
 | `GET /api/monitoring/alerts` | `category` values `lng_hedge`, `lng_schedule`, `lng_exposure`, `lng_material`; `entity_type` `lng_cargo` (2026-11-24, LNG-2) | One alert per cargo and role, book-scoped like limits; resolved with `evidence_snapshot.withdrawn` when a later change makes it moot |
+| `GET /api/monitoring/alerts` | `category` value `capacity`; `alert_type` values `tariff_publisher_stale`, `tariff_publication_missed`, `capacity_window_opening`; `entity_type` values `tariff_publisher`, `capacity_notice` (2026-11-25, TAR-1) | A publisher read later than its cadence, an operator without next-period reserve prices 30 days before the July yearly auction, and a capacity auction or slot window opening within three days (monthly auctions are not alerted); nothing is booked or bid |
 | `GET /api/market/quotes` | per row `resolved_price` (`hub`, `period_start`, `period_end`, `side`, `value`, `unit`, `value_mwh`, `unit_mwh`, `kind`, `source_system`, `as_of_utc`, `state`, `freshness_state`, `simulated`, `basis`, `reference`) (additive, 2026-11-24, P-08, QA-T-02, QA-L-22) | The one price every screen shows for the row's hub and delivery window at the read instant, from `domain/market/price_resolution` (freshest in-date tick or settlement, else the firm's mark, else the freshest held, stated stale; entitled sources only). The row's own quote fields are unchanged; `null` where nothing is held for that window |
 | `GET /api/desk/today` | `resolved_price` on the `key_figures` `price.<hub>` items, on `market.hubs[].front_month` and on the `book` row's `mark` (additive, 2026-11-24, P-08) | The same object as on the Prices board for the front month; `null` where no price is held. `close_day` stays the last month-ahead close |
 | `POST /api/analysis/brief` | `resolved_prices` (top-level list, additive, 2026-11-24, P-08) | One `resolved_price` object per hub line in the prices section; the sections' shape is unchanged |

@@ -236,6 +236,10 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # keeps the READ floor - a trader must be able to see the deadline being traded against.
     ("/api/optimization/nomination-windows", Permission.READ),
     ("/api/route-cost/tso-tariffs", Permission.READ),
+    # TAR-1: public tariff versions, their publishers and capacity windows (reference data).
+    ("/api/tariffs", Permission.READ),
+    ("/api/tariffs/publishers", Permission.READ),
+    ("/api/capacity/notices", Permission.READ),
     # Reviewed public transmission tariffs: an operator records, a second one reviews.
     ("/api/route-cost/tariff-entries", Permission.OPERATOR),
     ("/api/route-cost/tariff-entries/{entry_id}/review", Permission.OPERATOR),
