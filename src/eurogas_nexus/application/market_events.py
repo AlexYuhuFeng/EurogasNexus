@@ -818,6 +818,13 @@ def _ensure_builtin() -> None:
 
     if CONSUMER_NAME not in _CONSUMERS:
         _CONSUMERS[CONSUMER_NAME] = CargoChangeConsumer()
+    # NEWS-1: a news item that touches the book reaches each role
+    # (``application/news_routing.py``).
+    from eurogas_nexus.application.news_routing import CONSUMER_NAME as NEWS_CONSUMER
+    from eurogas_nexus.application.news_routing import NewsRoutingConsumer
+
+    if NEWS_CONSUMER not in _CONSUMERS:
+        _CONSUMERS[NEWS_CONSUMER] = NewsRoutingConsumer()
 
 
 __all__ = [

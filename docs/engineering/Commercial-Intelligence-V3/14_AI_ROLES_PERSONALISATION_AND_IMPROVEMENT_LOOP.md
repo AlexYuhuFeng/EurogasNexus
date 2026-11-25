@@ -74,6 +74,7 @@ effect; **U** audit record.
 | Ad hoc question ("what is my exposure to Norwegian outages?") | retrieve | One entry point, answers from Today facts | Answering beyond the evidence | T, C, G, E, K, U | Answer bar (`POST /api/analysis/ask`, `application/desk_ask.py`) |
 | Decide and trade | **none** (H7) | Definitive; done on Trayport or exchange screens | n/a | Decision support only | No execution |
 | Record a hedge or decision | none | A form with pickers from existing records (AGENTS.md rule 19) | n/a | Validation, audit | Hedge editor, decision cases |
+| News, policy and geopolitics: what it means for my book | summarise | Many sources, little time; the match to the book is computed | An invented figure, hub or cause; a sentence citing the wrong source; advice to trade | T (rule note always), C (each sentence cites item or figure ids), G (each sentence checked against only its cited lines), E (`tests/evals/news_note_cases.json`, threshold 1.0), K (switch `news_note`), U ("AI-generated" label) | Built (NEWS-1): Desk → Today news panel, `POST /api/news/{item_id}/note` |
 | End-of-day note | draft | Every desk writes one | Tone or emphasis wrong; a figure dropped | T, G, A (the trader edits and sends) | `POST /api/analysis/brief` (kind `eod`) |
 
 ### Scheduler (role SCHEDULER, composition `operations`)
@@ -82,7 +83,7 @@ effect; **U** audit record.
 | --- | --- | --- | --- | --- | --- |
 | Gas-day clock, cut-offs, re-nomination cycles | none | Calendar arithmetic; a model gets cut-off times wrong | n/a | Deterministic calendar (QA-T-08 fixed) | Gas-day strip and checklist |
 | Imbalance and cash-out | none for figures; explain on request | One gas-day definition, approved rates | Model restating a rate wrongly | T, G | Daily balance (QA-T-07) |
-| TSO and REMIT notices that touch my points | classify, then summarise | Free-text notices arrive faster than they can be read | Mis-classifying a relevant notice as irrelevant | Deterministic match on point and asset ids first; the model only ranks the rest and never hides one; E with recall threshold; K | Not built |
+| TSO and REMIT notices that touch my points | classify, then summarise | Free-text notices arrive faster than they can be read | Mis-classifying a relevant notice as irrelevant | Deterministic match on point and asset ids first; the model only ranks the rest and never hides one; E with recall threshold; K | Built for REMIT messages and official notices (NEWS-1): matched to the hubs the firm nominates at by deterministic tags, never by a model, and routed to the scheduler (`news_scheduler`); the summary is the AI use `news_note` on request. Model ranking not built |
 | Record nomination status | **none** (H7) | `gas_day.record` is the scheduler's own act | n/a | Permission, audit | Built (F1-8) |
 | Shift hand-over | draft | Open items, positions against nomination, acknowledged alerts | Dropping an open item | T (the open-item list is deterministic and always printed in full beside the draft), A | Not built (practice 17 in [13](13_PERSONA_AND_PRACTICE_REVIEW.md)) |
 
@@ -94,7 +95,7 @@ effect; **U** audit record.
 | ETA changed: what moved in the hedge months | summarise | The plan diff is computed; a sentence helps | Wrong month or sign | T (plan before and after), G, E | Plan diff built; no model text yet |
 | Roll and short-notice suggestions | none for the suggestion; explain on request | Due dates come from expiry calendars (QA-L-02) | Model moving a due date | T | Built with arithmetic shown |
 | Read an MSPA or confirmation | propose | Extracting terms saves hours | A misread clause becomes a wrong plan input | Each extracted term cites page and clause; field-level confidence (K); nothing reaches a plan until each field is approved (A); E with field accuracy threshold; U | OCR intake only (`application/contract_intake.py`) |
-| Market news on terminals and vessels | retrieve, summarise | Context, not figures | Mixing sources | C, K | Not built |
+| Market news on terminals and vessels | retrieve, summarise | Context, not figures | Mixing sources | C, K | Built (NEWS-1): items naming a cargo's vessel or destination terminal reach the LNG desk (`news_lng`); the note is the AI use `news_note`, every sentence citing its item or figure |
 | Record hedges against a cargo | **none** | Recorded, never placed (ADR Decision 29) | n/a | Permission, audit | Built |
 
 ### Risk controller (composition `risk`)
@@ -139,6 +140,10 @@ effect; **U** audit record.
 | Shape a team view | propose | Section 4 | A view showing what a member may not read | Validator, entitlement at render, A (the lead publishes) | Not built |
 | Read the team's feedback | summarise | Clusters by theme | Merging distinct asks | T (items linked), A | Not built |
 | Weekly desk report | draft | Writing | Emphasis | T, G, A | Report drafts |
+
+### Register entry `news_note` (NEWS-1)
+
+`domain/ai/register.py`: level summarise; surface `POST /api/news/{item_id}/note`; no tools; controls T, C, G, E, K, U; prompt references `application.news_note` (`NEWS_NOTE_RULES`, the output shape, `note_messages`), `ai_style.NOTE_CALL` and `language_rule`, and the check `application.news_grounding.check_note`; prompt version `news-note-2026.11.25`; evaluation set `tests/evals/news_note_cases.json` (36 cases) scored by `tests/evals/test_news_note_evals.py` at threshold 1.0 and recorded in `domain/ai/evaluation_record.py`. The audit row of each request (`ai.news_note`) carries the prompt version, model id and hashes. With the use off, no provider or no analysis capability, the reader gets the rule note, which needs no model.
 
 ## 4. Personal workspaces
 

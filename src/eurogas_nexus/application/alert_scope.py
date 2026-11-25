@@ -5,8 +5,8 @@ kinds are narrower:
 
 - A limits alert (credit, mandate) names a counterparty's or a trader's position, a
   delivery-shortfall alert a contract's book, and a cargo change's alerts (LNG-2) the cargo's
-  book, and a gas-day reconciliation break (SCHED-1) the books of its deals and nominations,
-  so with portfolio isolation on each is shown
+  book, a gas-day reconciliation break (SCHED-1) the books of its deals and nominations, and a
+  news item's alerts (NEWS-1) the books it touches, so with portfolio isolation on each is shown
   only to callers who can see every book behind it. With isolation off, or for head office
   (``BOOKS:*``), every such alert is visible.
 - A market alert built from a price (the price-move alert, gap G3 of the role-first redesign)
@@ -27,7 +27,7 @@ from typing import Any
 #: Alert categories that carry book-level figures.
 BOOK_SCOPED_CATEGORIES = frozenset(
     {"limits", "delivery", "lng_hedge", "lng_schedule", "lng_exposure", "lng_material",
-     "gas_day_break"}
+     "gas_day_break", "news_trader", "news_lng", "news_scheduler"}
 )
 #: Alert categories that carry a price and name its source system in the evidence.
 SOURCE_SCOPED_CATEGORIES = frozenset({"market", "fundamentals"})

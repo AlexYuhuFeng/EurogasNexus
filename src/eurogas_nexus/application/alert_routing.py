@@ -22,6 +22,11 @@ cooldown and withdrawal (:data:`SELF_NOTIFYING`), not by the alert mirror. So ar
 reconciliation breaks near a cut-off (SCHED-1, ``application/gas_day_reconciliation``,
 category ``gas_day_break``), which go to scheduling in ``nomination``.
 
+A news item that touches the firm's book (NEWS-1, ``application/news_routing``) raises one
+alert per role it concerns: a contract's hub to the trader (``alert``), an open cargo's vessel
+or terminal to the LNG desk (``cargo``) and a nominated hub to scheduling (``nomination``),
+notified by its consumer with the same dedupe and cooldown.
+
 The full table, with the routes still missing, is in
 ``docs/engineering/Commercial-Intelligence-V3/15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md``.
 """
@@ -61,6 +66,10 @@ ROUTES: dict[str, Route] = {
     "lng_material": Route("desk_head", "MANAGEMENT", "MANAGEMENT"),
     # SCHED-1: a reconciliation break near a cut-off, to scheduling.
     "gas_day_break": Route("nomination", "OPERATIONS", "TRADER"),
+    # NEWS-1: a news item that touches the book, one alert per role whose work it changes.
+    "news_trader": Route("alert", "TRADER", "MANAGEMENT"),
+    "news_lng": Route("cargo", "TRADER", "MANAGEMENT"),
+    "news_scheduler": Route("nomination", "OPERATIONS", "TRADER"),
 }
 
 #: The cargo roles (``domain.lng.consequences.ROLES``) and the alert category of each.
@@ -73,7 +82,18 @@ CARGO_ROLE_CATEGORIES: dict[str, str] = {
 
 #: Alert categories whose consumer queues their notifications (dedupe, cooldown, withdrawal):
 #: the alert mirror leaves them alone and the monitoring scan does not resolve them.
-SELF_NOTIFYING = frozenset({*CARGO_ROLE_CATEGORIES.values(), "gas_day_break"})
+#: NEWS-1: the news role (``application/news_relevance``) and the alert category of each.
+NEWS_ROLE_CATEGORIES: dict[str, str] = {
+    "trader": "news_trader",
+    "lng": "news_lng",
+    "scheduler": "news_scheduler",
+}
+
+SELF_NOTIFYING = (
+    frozenset(CARGO_ROLE_CATEGORIES.values())
+    | frozenset(NEWS_ROLE_CATEGORIES.values())
+    | {"gas_day_break"}
+)
 
 #: Gas-day steps due or overdue (``gas_day_checklist.queue_deadline_notifications``).
 NOMINATION_DEADLINE = Route("nomination", "OPERATIONS", "TRADER")

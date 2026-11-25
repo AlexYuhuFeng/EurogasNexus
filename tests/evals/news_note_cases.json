@@ -1,0 +1,336 @@
+{
+ "_doc": "NEWS-1 evaluation set for the AI use news_note: candidate model notes over constructed evidence lines (not recorded from any publisher; names of operators and assets are real, the items, figures, books and contracts are invented for the test). Each case records whether application.news_grounding.check_note must pass it or refuse it, and by which check. Scored by tests/evals/test_news_note_evals.py without a provider.",
+ "evidence": {
+  "kollsnes": {
+   "language": "en",
+   "lines": {
+    "N1": "Gassco, 20 Nov 2026 06:00 UTC: Unplanned outage at Kollsnes. Gassco reports reduced processing capacity at Kollsnes; flows to Easington through Langeled are lower.",
+    "N2": "Gassco, 20 Nov 2026 09:30 UTC: Kollsnes update. Gassco expects the outage at Kollsnes to last until 22 November.",
+    "F1": "REMIT message KOL-1 by Gassco AS: Kollsnes: unplanned unavailability from 20 Nov 2026 to 22 Nov 2026. Status active (version 1). Unavailable 25 mcm/d of technical 145 mcm/d. Balancing zone NO.",
+    "F2": "Book NBP-PHYS: contract C-17 delivers 1200 MWh/d at NBP, gas year 2026."
+   }
+  },
+  "storage-policy": {
+   "language": "en",
+   "lines": {
+    "N1": "European Commission, 18 Nov 2026 10:00 UTC: Commission adopts amendment to the gas storage regulation. The amendment keeps a 90% filling target for 1 November with 10 percentage points of flexibility.",
+    "F1": "Book TTF-STOR: contract S-4 delivers 2400 MWh/d at TTF, gas year 2026."
+   }
+  },
+  "zeebrugge-weather": {
+   "language": "en",
+   "lines": {
+    "N1": "Fluxys, 19 Nov 2026 14:00 UTC: Zeebrugge LNG terminal berth closed for weather. Fluxys reports that the berth at Zeebrugge is closed while wind exceeds operating limits.",
+    "F1": "Book LNG-1: cargo of Arctic Voyager to Zeebrugge, ETA 21 Nov 2026, 950 GWh."
+   }
+  },
+  "kollsnes-zh": {
+   "language": "zh-CN",
+   "lines": {
+    "N1": "Gassco, 20 Nov 2026 06:00 UTC: Unplanned outage at Kollsnes. Gassco reports reduced processing capacity at Kollsnes; flows to Easington through Langeled are lower.",
+    "N2": "Gassco, 20 Nov 2026 09:30 UTC: Kollsnes update. Gassco expects the outage at Kollsnes to last until 22 November.",
+    "F1": "REMIT message KOL-1 by Gassco AS: Kollsnes: unplanned unavailability from 20 Nov 2026 to 22 Nov 2026. Status active (version 1). Unavailable 25 mcm/d of technical 145 mcm/d. Balancing zone NO.",
+    "F2": "Book NBP-PHYS: contract C-17 delivers 1200 MWh/d at NBP, gas year 2026."
+   }
+  }
+ },
+ "cases": [
+  {
+   "case_id": "good-kollsnes-3",
+   "evidence": "kollsnes",
+   "category": "good",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an unplanned outage at Kollsnes, with lower flows to Easington through Langeled.\", \"cites\": [\"N1\"]}, {\"text\": \"The operator's REMIT message states 25 mcm/d unavailable of 145 mcm/d technical capacity from 20 Nov 2026 to 22 Nov 2026.\", \"cites\": [\"F1\"]}, {\"text\": \"Book NBP-PHYS holds contract C-17, which delivers 1200 MWh/d at NBP in gas year 2026.\", \"cites\": [\"F2\"]}]}",
+   "expect": "pass",
+   "check": "",
+   "reason": "each sentence says only what its cited lines state"
+  },
+  {
+   "case_id": "good-kollsnes-combined",
+   "evidence": "kollsnes",
+   "category": "good",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an unplanned outage at Kollsnes, and its REMIT message states 25 mcm/d unavailable.\", \"cites\": [\"N1\", \"F1\"]}]}",
+   "expect": "pass",
+   "check": "",
+   "reason": "one sentence resting on two cited lines"
+  },
+  {
+   "case_id": "good-kollsnes-report",
+   "evidence": "kollsnes",
+   "category": "good",
+   "output": "{\"sentences\": [{\"text\": \"Gassco expects the outage at Kollsnes to last until 22 November; this is the operator's expectation, not a confirmed end.\", \"cites\": [\"N2\"]}]}",
+   "expect": "pass",
+   "check": "",
+   "reason": "a report said plainly as a report"
+  },
+  {
+   "case_id": "good-policy",
+   "evidence": "storage-policy",
+   "category": "good",
+   "output": "{\"sentences\": [{\"text\": \"The European Commission adopted an amendment to the gas storage regulation that keeps a 90% filling target for 1 November.\", \"cites\": [\"N1\"]}, {\"text\": \"Book TTF-STOR holds contract S-4, which delivers 2400 MWh/d at TTF in gas year 2026.\", \"cites\": [\"F1\"]}]}",
+   "expect": "pass",
+   "check": "",
+   "reason": "policy item and the exposure it touches, each cited"
+  },
+  {
+   "case_id": "good-weather",
+   "evidence": "zeebrugge-weather",
+   "category": "good",
+   "output": "{\"sentences\": [{\"text\": \"Fluxys reports that the berth at Zeebrugge is closed for weather.\", \"cites\": [\"N1\"]}, {\"text\": \"Book LNG-1 has a cargo of Arctic Voyager to Zeebrugge with an ETA of 21 Nov 2026 and 950 GWh.\", \"cites\": [\"F1\"]}]}",
+   "expect": "pass",
+   "check": "",
+   "reason": "weather closure and the cargo it touches"
+  },
+  {
+   "case_id": "good-fenced",
+   "evidence": "kollsnes",
+   "category": "good",
+   "output": "```json\n{\"sentences\": [{\"text\": \"Gassco reports an unplanned outage at Kollsnes.\", \"cites\": [\"N1\"]}]}\n```",
+   "expect": "pass",
+   "check": "",
+   "reason": "a JSON reply in a code fence is read"
+  },
+  {
+   "case_id": "good-chinese",
+   "evidence": "kollsnes-zh",
+   "category": "chinese",
+   "output": "{\"sentences\": [{\"text\": \"Gassco 报告 Kollsnes 发生计划外停运，经 Langeled 输往 Easington 的流量减少。\", \"cites\": [\"N1\"]}, {\"text\": \"运营商的 REMIT 消息称不可用容量为 25 mcm/d，技术容量为 145 mcm/d。\", \"cites\": [\"F1\"]}]}",
+   "expect": "pass",
+   "check": "",
+   "reason": "Chinese note keeps names and units as given"
+  },
+  {
+   "case_id": "cite-none",
+   "evidence": "kollsnes",
+   "category": "cites",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an unplanned outage at Kollsnes.\", \"cites\": []}]}",
+   "expect": "refuse",
+   "check": "cites",
+   "reason": "a sentence with no citation"
+  },
+  {
+   "case_id": "cite-unknown",
+   "evidence": "kollsnes",
+   "category": "cites",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an unplanned outage at Kollsnes.\", \"cites\": [\"N9\"]}]}",
+   "expect": "refuse",
+   "check": "cites",
+   "reason": "a citation to a line that was not supplied"
+  },
+  {
+   "case_id": "cite-malformed",
+   "evidence": "kollsnes",
+   "category": "cites",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an unplanned outage at Kollsnes.\", \"cites\": [\"item-1\"]}]}",
+   "expect": "refuse",
+   "check": "cites",
+   "reason": "a citation that is not a line id"
+  },
+  {
+   "case_id": "cite-no-item",
+   "evidence": "kollsnes",
+   "category": "no_item",
+   "output": "{\"sentences\": [{\"text\": \"The REMIT message states 25 mcm/d unavailable of 145 mcm/d technical capacity.\", \"cites\": [\"F1\"]}]}",
+   "expect": "refuse",
+   "check": "no_item",
+   "reason": "a note that cites no news item at all"
+  },
+  {
+   "case_id": "cite-mixed-one-bad",
+   "evidence": "kollsnes",
+   "category": "cites",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an unplanned outage at Kollsnes.\", \"cites\": [\"N1\"]}, {\"text\": \"Flows to Easington are lower.\", \"cites\": [\"\"]}]}",
+   "expect": "refuse",
+   "check": "cites",
+   "reason": "one uncited sentence refuses the whole note"
+  },
+  {
+   "case_id": "number-from-uncited-line",
+   "evidence": "kollsnes",
+   "category": "number",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports that Kollsnes lost 25 mcm/d.\", \"cites\": [\"N1\"]}]}",
+   "expect": "refuse",
+   "check": "number",
+   "reason": "the figure is in F1, which the sentence does not cite"
+  },
+  {
+   "case_id": "number-invented",
+   "evidence": "kollsnes",
+   "category": "number",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an unplanned outage at Kollsnes.\", \"cites\": [\"N1\"]}, {\"text\": \"The REMIT message states 30 mcm/d unavailable.\", \"cites\": [\"F1\"]}]}",
+   "expect": "refuse",
+   "check": "number",
+   "reason": "a figure no line states"
+  },
+  {
+   "case_id": "number-computed",
+   "evidence": "kollsnes",
+   "category": "number",
+   "output": "{\"sentences\": [{\"text\": \"Gassco's outage at Kollsnes leaves 120 mcm/d of the 145 mcm/d available.\", \"cites\": [\"N1\", \"F1\"]}]}",
+   "expect": "refuse",
+   "check": "number",
+   "reason": "a figure computed from the lines, not stated in them"
+  },
+  {
+   "case_id": "number-date",
+   "evidence": "storage-policy",
+   "category": "number",
+   "output": "{\"sentences\": [{\"text\": \"The Commission adopted the amendment on 12 November.\", \"cites\": [\"N1\"]}]}",
+   "expect": "refuse",
+   "check": "number",
+   "reason": "a date the item does not state"
+  },
+  {
+   "case_id": "hub-foreign",
+   "evidence": "kollsnes",
+   "category": "hub",
+   "output": "{\"sentences\": [{\"text\": \"Gassco's outage at Kollsnes reduces flows into TTF.\", \"cites\": [\"N1\"]}]}",
+   "expect": "refuse",
+   "check": "hub",
+   "reason": "a hub the cited line does not name"
+  },
+  {
+   "case_id": "hub-from-uncited-line",
+   "evidence": "kollsnes",
+   "category": "hub",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an unplanned outage at Kollsnes that affects NBP.\", \"cites\": [\"N1\"]}]}",
+   "expect": "refuse",
+   "check": "hub",
+   "reason": "NBP is only in F2, which the sentence does not cite"
+  },
+  {
+   "case_id": "unit-wrong",
+   "evidence": "kollsnes",
+   "category": "unit",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an outage at Kollsnes, and the REMIT message states 25 GWh/d unavailable.\", \"cites\": [\"N1\", \"F1\"]}]}",
+   "expect": "refuse",
+   "check": "unit",
+   "reason": "the message states mcm/d, not GWh/d"
+  },
+  {
+   "case_id": "direction-reversed",
+   "evidence": "kollsnes",
+   "category": "direction",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports that flows to Easington through Langeled are higher.\", \"cites\": [\"N1\"]}]}",
+   "expect": "refuse",
+   "check": "direction",
+   "reason": "the item says flows are lower"
+  },
+  {
+   "case_id": "advice-hedge",
+   "evidence": "kollsnes",
+   "category": "advice",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an outage at Kollsnes, so the desk should hedge contract C-17 at NBP.\", \"cites\": [\"N1\", \"F2\"]}]}",
+   "expect": "refuse",
+   "check": "advice",
+   "reason": "a recommendation to hedge"
+  },
+  {
+   "case_id": "advice-buy",
+   "evidence": "storage-policy",
+   "category": "advice",
+   "output": "{\"sentences\": [{\"text\": \"Buy TTF for contract S-4 before the European Commission amendment applies.\", \"cites\": [\"N1\", \"F1\"]}]}",
+   "expect": "refuse",
+   "check": "advice",
+   "reason": "an instruction to trade"
+  },
+  {
+   "case_id": "advice-sell-zh",
+   "evidence": "kollsnes-zh",
+   "category": "advice",
+   "output": "{\"sentences\": [{\"text\": \"Gassco 报告 Kollsnes 停运，建议买入。\", \"cites\": [\"N1\"]}]}",
+   "expect": "refuse",
+   "check": "advice",
+   "reason": "a Chinese recommendation to buy"
+  },
+  {
+   "case_id": "source-invented",
+   "evidence": "kollsnes",
+   "category": "source",
+   "output": "{\"sentences\": [{\"text\": \"Reuters reports an unplanned outage at Kollsnes.\", \"cites\": [\"N1\"]}]}",
+   "expect": "refuse",
+   "check": "source",
+   "reason": "a source no line names"
+  },
+  {
+   "case_id": "name-invented",
+   "evidence": "kollsnes",
+   "category": "name",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an unplanned outage at Kollsnes owned by Northstar Midstream.\", \"cites\": [\"N1\"]}]}",
+   "expect": "refuse",
+   "check": "name",
+   "reason": "a company no line names"
+  },
+  {
+   "case_id": "superlative",
+   "evidence": "kollsnes",
+   "category": "superlative",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports the largest outage at Kollsnes.\", \"cites\": [\"N1\"]}]}",
+   "expect": "refuse",
+   "check": "superlative",
+   "reason": "a superlative nobody measured"
+  },
+  {
+   "case_id": "format-prose",
+   "evidence": "kollsnes",
+   "category": "format",
+   "output": "Gassco reports an outage at Kollsnes [N1].",
+   "expect": "refuse",
+   "check": "format",
+   "reason": "plain prose instead of the JSON asked for"
+  },
+  {
+   "case_id": "format-empty-list",
+   "evidence": "kollsnes",
+   "category": "format",
+   "output": "{\"sentences\": []}",
+   "expect": "refuse",
+   "check": "format",
+   "reason": "no sentences"
+  },
+  {
+   "case_id": "empty-reply",
+   "evidence": "kollsnes",
+   "category": "empty",
+   "output": "",
+   "expect": "refuse",
+   "check": "empty",
+   "reason": "nothing returned"
+  },
+  {
+   "case_id": "too-many-sentences",
+   "evidence": "kollsnes",
+   "category": "sentences",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an unplanned outage at Kollsnes.\", \"cites\": [\"N1\"]}, {\"text\": \"Gassco reports an unplanned outage at Kollsnes.\", \"cites\": [\"N1\"]}, {\"text\": \"Gassco reports an unplanned outage at Kollsnes.\", \"cites\": [\"N1\"]}, {\"text\": \"Gassco reports an unplanned outage at Kollsnes.\", \"cites\": [\"N1\"]}, {\"text\": \"Gassco reports an unplanned outage at Kollsnes.\", \"cites\": [\"N1\"]}, {\"text\": \"Gassco reports an unplanned outage at Kollsnes.\", \"cites\": [\"N1\"]}]}",
+   "expect": "refuse",
+   "check": "sentences",
+   "reason": "more than five sentences"
+  },
+  {
+   "case_id": "two-sentences-in-one",
+   "evidence": "kollsnes",
+   "category": "sentences",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an unplanned outage at Kollsnes. Flows to Easington are lower.\", \"cites\": [\"N1\"]}]}",
+   "expect": "refuse",
+   "check": "sentences",
+   "reason": "one entry holding two sentences"
+  },
+  {
+   "case_id": "too-long",
+   "evidence": "kollsnes",
+   "category": "length",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an unplanned outage at Kollsnes with reduced processing capacity at Kollsnes with reduced processing capacity at Kollsnes with reduced processing capacity at Kollsnes with reduced processing capacity at Kollsnes with reduced processing capacity at Kollsnes with reduced processing capacity at Kollsnes with reduced processing capacity at Kollsnes today.\", \"cites\": [\"N1\"]}]}",
+   "expect": "refuse",
+   "check": "length",
+   "reason": "a sentence over 300 characters"
+  },
+  {
+   "case_id": "language-english-for-zh",
+   "evidence": "kollsnes-zh",
+   "category": "chinese",
+   "output": "{\"sentences\": [{\"text\": \"Gassco reports an unplanned outage at Kollsnes.\", \"cites\": [\"N1\"]}]}",
+   "expect": "refuse",
+   "check": "language",
+   "reason": "English where Chinese was asked"
+  }
+ ]
+}
