@@ -71,6 +71,28 @@ _SOURCE_BOUNDS: dict[str, tuple[tuple[str, str], ...]] = {
     ),
 }
 
+
+
+def _tariff_max_age_hours(scheduled_for: object) -> str:
+    """How old a point's ENTSOG tariffs may be before this run reads them again (TAR-1).
+
+    The tariff book's poll for ENTSOG (``domain/tariffs/publishers``): hourly in the weeks
+    operators publish reserve prices (NC TAR: before the July yearly auction, and the October,
+    mid-December and early-January updates), daily otherwise. ``_SOURCE_BOUNDS`` keeps the
+    daily figure as the default a run without an anchor uses.
+    """
+
+    from eurogas_nexus.domain.tariffs.publishers import publisher
+
+    try:
+        anchor = datetime.fromisoformat(str(scheduled_for).replace("Z", "+00:00"))
+    except ValueError:
+        anchor = datetime.now(UTC)
+    poll = publisher("entsog-tp").poll
+    minutes = poll.interval_minutes(anchor) if poll else 1440
+    return str(max(1, minutes // 60))
+
+
 # Sources with their own ingest script; each prints the same JSON report with --json.
 _SCRIPT_COMMANDS = {
     # Seven days: ENTSO-E actual generation arrives late (DE-LU A75 for 10-11 Nov 2026 was
@@ -179,6 +201,8 @@ def run_ingestor_attempt(
             for source in source_args:
                 command.extend(["--source", source])
             for flag, value in _SOURCE_BOUNDS.get(source_id, ()):
+                if flag == "--entsog-tariffs-max-age-hours":
+                    value = _tariff_max_age_hours(payload.get("scheduled_for_utc"))
                 command.extend([flag, value])
         window = None
         if source_id == "src-entsog":

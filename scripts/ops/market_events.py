@@ -27,6 +27,7 @@ import json
 import time
 from datetime import UTC, datetime
 
+from eurogas_nexus.application.market_event_capture import KINDS
 from eurogas_nexus.db.session import get_session_factory, resolve_database_url
 
 
@@ -117,7 +118,7 @@ def main(argv: list[str] | None = None) -> int:
     capture.add_argument(
         "--kind",
         action="append",
-        choices=("prices", "fx", "outages", "contracts", "assumptions"),
+        choices=KINDS,
     )
     capture.add_argument("--commit", action="store_true")
     drain = sub.add_parser("drain")

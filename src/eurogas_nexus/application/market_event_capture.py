@@ -24,7 +24,10 @@ Dependency keys are the keys an opportunity stores for the input (see
   in their own tables: these payloads carry a digest, never a term or a value (as firm
   marks do). The store's current state is the truth here, so the capture instant is the
   publication time: any state that differs from the latest revision is news, including a
-  return to an earlier one.
+  return to an earlier one;
+- a public tariff (TAR-1): ``tariff:<point>:<DIR>:<PRODUCT>:<gas year>[:<operator>]``, through
+  the tariff book (``application/tariff_book``), which versions the registers and publishes one
+  ``tariff.changed`` event per new version.
 
 Nothing here reads a network source; capture works on what the store already holds.
 """
@@ -50,7 +53,7 @@ DEFAULT_LOOKBACK = timedelta(days=4)
 SIMULATED_SUFFIX = "_Sim"
 
 #: What a capture can read.
-KINDS = ("prices", "fx", "outages", "contracts", "assumptions", "cargoes")
+KINDS = ("prices", "fx", "outages", "contracts", "assumptions", "cargoes", "tariffs")
 
 
 def _aware(value: datetime | None) -> datetime | None:
@@ -688,7 +691,18 @@ def capture(
         events.extend(cargo_events(session, now_utc=now))
     result = publish_events(session, events)
     result.skipped += skipped
-    return result.to_json() | {"since_utc": since.isoformat()}
+    out = result.to_json() | {"since_utc": since.isoformat()}
+    if "tariffs" in kinds:
+        # TAR-1: register rows become tariff versions; each version publishes its own
+        # ``tariff.changed`` event (``application/tariff_book.record_versions``).
+        from eurogas_nexus.application.tariff_book import capture_tariffs
+
+        try:
+            with session.begin_nested():
+                out["tariff_book"] = capture_tariffs(session, now_utc=now, only_if_changed=True)
+        except Exception as exc:  # noqa: BLE001 - the tariff book never undoes the other kinds
+            out["tariff_book"] = {"status": "failed", "error_type": exc.__class__.__name__}
+    return out
 
 
 __all__ = [

@@ -70,6 +70,7 @@ def scan_monitoring_conditions(
         *_opportunity_evaluator_candidates(session),
         *_stale_source_candidates(session, now),
         *_market_event_candidates(session, now),
+        *_tariff_book_candidates(session, now),
     ]
     candidates += _price_move_candidates(session, now)
     candidates += _shortfall_candidates(session, now)
@@ -603,6 +604,15 @@ def _stale_source_candidates(session: Session, now: datetime) -> list[Monitoring
             )
         )
     return out
+
+
+def _tariff_book_candidates(session: Session, now: datetime) -> list[MonitoringCandidate]:
+    """Tariff publishers read late or missing a publication, and capacity windows opening
+    within three days (TAR-1, ``application/tariff_book.monitoring_candidates``)."""
+
+    from eurogas_nexus.application.tariff_book import monitoring_candidates
+
+    return monitoring_candidates(session, now)
 
 
 def _market_event_candidates(session: Session, now: datetime) -> list[MonitoringCandidate]:

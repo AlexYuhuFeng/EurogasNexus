@@ -1434,6 +1434,9 @@ def _ingest_entsog_tariffs(client, session, *, args, started: datetime, report) 
         "pace_seconds": pace,
         "skipped_by_reason": {},
         "complete": False,
+        # TAR-1: new tariff versions recorded and ``tariff.changed`` events published.
+        "tariff_versions": 0,
+        "tariff_events": 0,
     }
     report["sources"][source_name] = detail
     try:
@@ -1484,6 +1487,8 @@ def _ingest_entsog_tariffs(client, session, *, args, started: datetime, report) 
             continue
         detail["points_read"] += 1
         detail["records"] += counts["records"]
+        detail["tariff_versions"] += sum(counts.get("tariff_versions", {}).values())
+        detail["tariff_events"] += counts.get("tariff_events", 0)
         if not result.complete:
             detail["points_incomplete"].append(point)
         for key, value in counts["skipped_by_reason"].items():

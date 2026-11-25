@@ -576,8 +576,30 @@ class LiveSnapshotReader(RecordingReader):
                 ),
                 # The figure the register holds, as the operator published it.
                 "published": f"{row.tariff_value:g} {row.unit}",
-            },
+            }
+            | self._tariff_version(row),
         )
+
+    def _tariff_version(self, row) -> dict:
+        """The tariff book version this figure is (TAR-1): which version, and why it is
+        indicative or final, so a valuation names what it used. Empty when none is held."""
+
+        if row.tariff_status == "SIMULATOR_ONLY":
+            return {}
+        from eurogas_nexus.application.tariff_book import register_publisher, version_at
+
+        held = version_at(
+            self.session,
+            f"{register_publisher(row.tariff_id)}:{row.tariff_id}",
+            self._bound(self.as_of_utc) if self.as_of_utc is not None else None,
+        )
+        if held is None:
+            return {}
+        return {
+            "tariff_version": held.version,
+            "tariff_status_basis": held.status_basis,
+            "tariff_source_url": held.source_url,
+        }
 
     def _load_capacity(self, key, point_id, direction, period) -> SnapshotInput:
         from sqlalchemy import func

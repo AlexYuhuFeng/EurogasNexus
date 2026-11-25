@@ -49,6 +49,9 @@ ROUTES: dict[str, Route] = {
     "fundamentals": Route("alert", "HQ_BUSINESS_ANALYST", "TRADER"),
     "strategy": Route("alert", "QUANT_RESEARCHER", "TRADER"),
     "data_source": Route("source", "DATA_OPERATOR", "PLATFORM_ADMINISTRATOR"),
+    # TAR-1: a capacity auction or LNG slot window opening within three days goes to
+    # scheduling, as nominations do; the desk is told when scheduling does not act.
+    "capacity": Route("nomination", "OPERATIONS", "TRADER"),
     # LNG-2: one cargo change, one alert per role.
     "lng_hedge": Route("cargo", "TRADER", "MANAGEMENT"),
     "lng_schedule": Route("nomination", "OPERATIONS", "TRADER"),

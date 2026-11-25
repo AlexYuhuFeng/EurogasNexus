@@ -62,7 +62,7 @@ is outside our control; it is stated so the total is honest.
 | FX | Daily reference fixing (ECB around 16:00 CET; WMR and BFIX files) | 5 minutes | ECB on the daily schedule; `fx.updated` events, widened to the cross pairs | None that matters for decision support | The fixing's value date in the evidence of each converted figure |
 | Outages and REMIT UMMs | Event-driven; REMIT requires publication within an hour of the event | 1 minute from receipt to the event-exposure alert; poll every 15 minutes or faster | ENTSOG UMM every 60 minutes, REMIT platform daily, GIE IIP; `outage.published` events re-run event exposure; outage alerts every 10 s | The poll interval, not the pipeline, sets the delay (up to an hour); no push subscription from any platform | Published and received times on the outage; the alert's time |
 | TSO flows and nominations | ENTSOG hourly with a lag; National Gas within-day; the firm's nominations at D-1 and hourly renominations with a lead time | Flows 15 minutes after publication; deadline prompts at least 30 minutes before each cut-off | ENTSOG hourly, National Gas daily; nomination status recorded by the scheduler; deadline notifications from the gas-day checklist | No TSO nomination or confirmation feed (status is recorded by hand) | Gas day and publication time on flows; countdown to the cut-off on the checklist |
-| Tariffs and auctions | Tariffs yearly or quarterly; PRISMA auctions on a published calendar, within-day hourly | Tariffs same day; auction results 1 hour (day-ahead) | Operator-kept tariff register; an entry notes `tariffs` pending and the sweep runs within a minute | No auction calendar or results ingestion | Tariff version and valid-from; register state `manual` |
+| Tariffs and auctions (TAR-1) | NC TAR: yearly reserve prices final 30 days before the July yearly auction, indicative earlier; ENTSOG republishes operators' data; CAM NC auctions on a published calendar (yearly, quarterly, monthly), day-ahead and within-day rolling; LNG and storage tariffs per operator, mostly PDF | A change on ENTSOG in the tariff book and on the event bus within 1 hour of its publication in the NC TAR publication weeks (1 May to 15 July, 1 to 10 October, 15 December to 10 January) and within 24 hours otherwise; an operator's register edit within the next capture (a minute); a capacity window alerted 3 days before it opens | ENTSOG polled hourly or daily by the scheduler; the read writes each changed tariff as a new version (`tariff_versions`) with its `tariff.changed` event in the same transaction (median 12.5 ms, section 8); the scheduler's capture records operator edits; `tariff_publisher_stale` when a publisher is read later than its cadence; CAM NC standard auctions derived by rule; operators' slot windows imported from a file | Only ENTSOG is machine-readable; every other TSO, LNG terminal and storage operator is manual from its PDF or page (registry); no PRISMA auction offers or results (they need a platform account, none is used); the hourly poll, not the pipeline, sets the delay | Version, `INDICATIVE` or `FINAL`, publication and retrieval times and source on each row (Sources, Tariff book); valuations name the version they priced |
 | Storage and LNG send-out | Daily (GIE AGSI and ALSI publish gas day D on D+1, with revisions) | 1 hour after publication | GIE on its daily schedule | None that matters | Gas day of the figure and receipt state |
 | AIS positions and ETAs | Positions every few minutes at sea; ETAs change on the scale of hours | ETA or slot change to an LNG prompt within 15 minutes | Kpler declared with a 60-minute policy; cargo positions by file import; the cargo plan reads the latest ETA; since LNG-2 each role is told within about a second of the import's commit (median 0.66 s on the worker's first change, 0.11 s after, section 8) | No AIS feed connected; the budget is met from the commit of an import, not from the vessel's report | The ETA's source, basis and confidence, and the source of each other plan input, on the plan and in each role's message |
 | Weather runs and forecasts | ECMWF open data at 00, 06, 12 and 18 UTC, released some hours after the run | 30 minutes after release | `ingest_ecmwf_forecasts.py` on a 12-hour freshness policy | None that matters | Model run time ("ECMWF 00z") on the forecast |
@@ -146,6 +146,8 @@ receiving opportunities, nominations and source alerts as before.
 | Fundamentals (storage, demand) | `alert` | Analyst | Trader | |
 | Strategy | `alert` | Quant researcher | Trader | |
 | Data source failed or stale | `source` | Data operator | Platform administrator | |
+| Tariff publisher not read on schedule; operator without next-period prices after the NC TAR deadline (TAR-1) | `source` | Data operator | Platform administrator | "ENTSOG transparency platform: tariffs not read on schedule" |
+| Capacity auction or LNG slot window opening within 3 days (TAR-1) | `nomination` | Operations (scheduler) | Trader | "Opens Mon 01 Mar 15:00 UTC: Quarterly capacity auction (CAM NC)"; monthly auctions are not alerted |
 | LNG cargo change: hedges (LNG-2) | `cargo` | Trader | Management | "Hedges no longer match Aurora (SAB-0420): buy 383,333 MWh TTF 2026-11 at short notice; sell 379,373 MWh TTF 2026-12" |
 | LNG cargo change: berth, send-out, nominations | `nomination` | Operations (scheduler) | Trader | "Renominate 10 gas day(s) for Aurora (SAB-0420)", each day with the cut-off it hits |
 | LNG cargo change: exposure and mandates | `limits` | Risk manager | Management | "Mandate breach from Aurora (SAB-0420)": net by month, the mandate before and after |
@@ -244,6 +246,29 @@ The consumer's own work is the plan rebuilt twice and each mandate on the book r
 over the ladder; the ladder read is most of it (about 0.1 to 0.15 s on the test desk). The
 budget for an ETA or slot change is 15 minutes; the import, which runs when the file arrives,
 is now the whole of the delay.
+
+### A tariff change (TAR-1)
+
+A register row written to its new version and `tariff.changed` event committed together, and
+from that commit to the `opportunities` consumer having processed the delivery, PostgreSQL 16,
+one host, 8 runs of `tests/integration/test_tariff_book_postgres.py` (the consumer drained in
+process; no opportunity depended on the test point, so no evaluator ran):
+
+| Step | Median | Min | Max |
+| --- | --- | --- | --- |
+| Read written to version and event committed (an `INDICATIVE->FINAL` change) | 12.5 ms | 11 ms | 14 ms |
+| The first write in a fresh process (imports and connection) | 166 ms | 160 ms | 205 ms |
+| Commit to the opportunities consumer having processed it | 5.5 ms | 5 ms | 7 ms |
+
+An earlier set of 8 runs on the same host, before a restart, gave 18 ms, 244 ms and 10.5 ms.
+The designed figure is the poll: hourly in the NC TAR publication weeks and daily otherwise,
+plus ENTSOG's read time (about 2 s per point). A full capture over ENTSOG's 12,670 register
+rows took 77 s the first time (every row becomes version 1 with its event, a one-off backfill
+best run once after deploy with `scripts/ops/tariff_book.py sync --commit`) and 2.3 s when
+nothing had changed; the scheduler's capture therefore reads the register's signature each
+minute and makes a full pass only when it moved or once an hour. An opportunity that read the
+tariff is re-evaluated by its stored dependency keys; that evaluation's cost is the one in the
+table above, not the tariff path.
 
 ## 9. Retiring the legacy intraday engine (M7 d): blocked
 

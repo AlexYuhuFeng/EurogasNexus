@@ -514,17 +514,22 @@ def persist_entsog_tariffs(
     rows, counts = entsog_tariff_rows(
         records, bundle=bundle, downloaded=day, received_at=received, points=points
     )
+    from eurogas_nexus.application.tariff_book import record_register_rows
     from eurogas_nexus.application.tso_tariff_entries import retire_superseded_entries
 
     with session.begin_nested():
-        for row in rows:
-            session.merge(TsoTariffRecord(**row))
+        stored = [session.merge(TsoTariffRecord(**row)) for row in rows]
         session.flush()
         # An administrator's entry for a leg ENTSOG now publishes steps aside.
         retired = retire_superseded_entries(session) if rows else 0
+        # TAR-1: a changed figure becomes a new tariff version and one ``tariff.changed``
+        # event, committed with the figure itself.
+        versions = record_register_rows(session, stored)
     return {
         "records": len(rows),
         "entries_retired": retired,
+        "tariff_versions": versions.written,
+        "tariff_events": versions.events,
         "received_records": len(records),
         # Not stored by design (other products, archived rows) is not a data problem.
         "skipped_records": sum(
