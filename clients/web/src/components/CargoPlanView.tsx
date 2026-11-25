@@ -2,7 +2,8 @@
  * One cargo's plan (QA-L-05), in a sheet beside the cargo board: header, what changed, a
  * who has been told (LNG-2: each role's message, open or withdrawn), a timeline, the energy waterfall, send-out by gas day, the hub × month grid with hedge cover,
  * suggestions by due time with their arithmetic, the inputs and their sources; then the what-if
- * (ETA, slot, berth delay: nothing is stored) and the hedge editor (`PUT .../hedges`, audited).
+ * (ETA, slot, berth delay: nothing is stored), the LNG-3 disruption options with a "Choose" that only
+ * records (`CargoOptionsPanel`), and the hedge editor (`PUT .../hedges`, audited).
  *
  * Every figure is the plan the server built (`GET /api/lng/cargoes/{id}/plan`). Advice only:
  * nothing here executes, books or nominates.
@@ -49,6 +50,7 @@ import { formatAmount, plainDecimal } from "@/app/time/valueFormat";
 import { useInstantFormatter } from "@/app/time/useInstant";
 import { Button, DataGrid, Field, Instant, Segmented, Select, Sheet, StatusBadge, type DataGridColumn } from "@/components/ui";
 import { Chart, Waterfall } from "@/components/ui/charts";
+import { CargoOptionsPanel } from "@/components/CargoOptionsPanel";
 import { PeriodPicker } from "@/components/ui/PeriodPicker";
 import { withTime } from "@/components/ui/periodModel";
 import "./cargo-board.css";
@@ -56,8 +58,8 @@ import type { ChartData } from "@/components/ui/charts";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
-export type PlanSection = "plan" | "what_if" | "hedge";
-const SECTIONS: readonly PlanSection[] = ["plan", "what_if", "hedge"];
+export type PlanSection = "plan" | "options" | "what_if" | "hedge";
+const SECTIONS: readonly PlanSection[] = ["plan", "options", "what_if", "hedge"];
 
 function planKey(cargoId: string): string {
   return readKey(`/lng/cargoes/${cargoId}/plan`);
@@ -118,6 +120,7 @@ export function CargoPlanSheet({
         </div>
       )}
       {plan && section === "plan" && <PlanBody plan={plan} t={t} language={language} unit={unit} onSection={onSection} />}
+      {cargoId && section === "options" && <CargoOptionsPanel cargoId={cargoId} t={t} language={language} canChooseOptions={canRecordHedges} />}
       {plan && section === "what_if" && <WhatIf plan={plan} t={t} language={language} />}
       {plan && section === "hedge" && (
         <HedgeEditor

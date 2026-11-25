@@ -40,6 +40,8 @@
 @import url("../components/opportunities/opportunities.css");
 /* Desk → Cargoes (LNG-2): who a cargo change is for, and what its ETA rests on. */
 @import url("../components/cargo-roles.css");
+/* Desk → Cargoes (LNG-3): a disrupted cargo's options, the frontier and the recorded choice. */
+@import url("../components/cargo-options.css");
 /* Book → Exposure (P-17): changes awaiting a second person, and who set and approved a figure. */
 @import url("../components/pending-changes.css");
 @import url("../components/news-panel.css");

@@ -1,0 +1,116 @@
+/* LNG-3: a cargo's disruption options in the plan sheet. Advice only: choosing records. */
+@layer ds-components {
+  .cargo-options {
+    display: grid;
+    gap: var(--ds-space-3);
+    min-width: 0;
+  }
+
+  .cargo-options-disrupted,
+  .cargo-options-timeline,
+  .cargo-option-reasons,
+  .cargo-option-notes {
+    margin: 0;
+    padding-inline-start: var(--ds-space-4);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .cargo-options-decision {
+    margin: 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .cargo-options-list {
+    display: grid;
+    gap: var(--ds-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    min-width: 0;
+  }
+
+  .cargo-option {
+    display: grid;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-2);
+    min-width: 0;
+  }
+
+  .cargo-option[data-standing="recommended"] {
+    border-color: var(--ds-status-ok);
+  }
+
+  .cargo-option[data-standing="frontier"] {
+    border-color: var(--ds-border-strong);
+  }
+
+  .cargo-option[data-standing="dominated"],
+  .cargo-option[data-standing="infeasible"] {
+    background: var(--ds-surface);
+  }
+
+  .cargo-option-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+    min-width: 0;
+  }
+
+  .cargo-option-kind {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .cargo-option-title {
+    flex: 1 1 16rem;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .cargo-option-figures {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(9rem, 1fr));
+    gap: var(--ds-space-1) var(--ds-space-3);
+    margin: 0;
+  }
+
+  .cargo-option-figures div {
+    display: grid;
+    gap: 0;
+    min-width: 0;
+  }
+
+  .cargo-option-figures dt {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  .cargo-option-figures dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .cargo-option-note {
+    margin: 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .cargo-option[data-standing="infeasible"] .cargo-option-reasons {
+    color: var(--ds-status-breach);
+  }
+
+  .cargo-option-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+}
