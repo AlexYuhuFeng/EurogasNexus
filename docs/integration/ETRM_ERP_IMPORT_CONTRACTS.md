@@ -99,12 +99,20 @@ a TSO.
 | Column | Required | Content |
 |---|---|---|
 | `gas_day` | yes | `YYYY-MM-DD` |
-| `line_ref` | yes | `contract:<id>`, `schedule:<line_id>`, `lng:<slot_id>` or `trade:<id>` (`line_ref_invalid`) |
+| `line_ref` | yes | `contract:<id>`, `schedule:<line_id>`, `lng:<slot_id>`, `trade:<id>` (the ETRM deal number) or `counterparty:<name>` (a nomination netted per counterparty) (`line_ref_invalid`) |
 | `hub` | yes | The line's hub |
-| `step` | yes | `nomination`, `renomination`, `lng_unloading`, `lng_send_out`, `lng_inventory` (`step_unknown`) |
+| `step` | yes | `nomination`, `renomination`, `lng_unloading`, `lng_send_out`, `lng_inventory`, or `trade_confirmation` (the counterparty's confirmation of a deal, on its `trade:` line) (`step_unknown`) |
 | `status` | yes | `to_send`, `sent`, `confirmed`, `renominated`, `mismatch_queried`, `done` (`status_unknown`) |
 | `recorded_at` | yes | When it was recorded, ISO 8601, not later than now (`time_in_future`) |
 | `quantity_mwh`, `book_id`, `agent`, `note` | no | The note holds at most 500 characters |
+| `counterparty`, `direction`, `point`, `shipper_code`, `counterparty_shipper_code`, `counterparty_quantity_mwh` | no | SCHED-1's matching fields: whom the line is nominated against, `in` or `out` (`direction_invalid`), the interconnection point (blank for the hub's virtual trading point), the firm's and the counterparty's shipper codes, and the counterparty's own nominated MWh as the TSO's matching reports it (zero or more, `quantity_negative`) |
+
+The SCHED-1 columns are optional within v1 (added 2026-11-25): a file without them is read as
+before and keeps its event ids, because they enter the key only when given. With them, the
+gas day's reconciliation (`GET /api/desk/gas-day/{gas_day}/reconciliation`) can tell a
+counterparty, direction or shipper-code break from a quantity gap, and a lesser-rule cut from
+a TSO's mismatch. The TSO's answer is a `confirmed` (matched; `quantity_mwh` is the matched
+quantity) or `mismatch_queried` row for the same line and gas day.
 
 ### `etrm.cargo_schedule.v1`: the firm's LNG cargoes
 

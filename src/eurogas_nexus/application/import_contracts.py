@@ -258,17 +258,32 @@ _NOMINATIONS = ImportContract(
     key="digest of (system, gas_day, line_ref, step, status, recorded_at, quantity_mwh)",
     columns=(
         _c("gas_day", True, "Gas day, YYYY-MM-DD"),
-        _c("line_ref", True, "contract:<id>, schedule:<line_id>, lng:<slot_id> or trade:<id>"),
+        _c("line_ref", True, "contract:<id>, schedule:<line_id>, lng:<slot_id>, trade:<id> (the "
+           "ETRM deal number or this platform's trade id) or counterparty:<name> (a nomination "
+           "netted per counterparty)"),
         _c("hub", True, "Hub of the line"),
-        _c("step", True, "nomination, renomination, lng_unloading, lng_send_out, lng_inventory"),
-        _c("status", True, "to_send, sent, confirmed, renominated, mismatch_queried, done"),
+        _c("step", True, "nomination, renomination, lng_unloading, lng_send_out, lng_inventory, "
+           "or trade_confirmation (the counterparty's confirmation of a deal)"),
+        _c("status", True, "to_send, sent, confirmed, renominated, mismatch_queried, done; for "
+           "the TSO's response: confirmed (matched, quantity_mwh is the matched quantity) or "
+           "mismatch_queried"),
         _c("recorded_at", True, "When the scheduler or TSO recorded it, ISO 8601"),
         _c("quantity_mwh", False, "Nominated or confirmed MWh for the gas day"),
         _c("book_id", False, "Book of the line"),
         _c("agent", False, "Nominations agent"),
         _c("note", False, "Free text, at most 500 characters"),
+        _c("counterparty", False, "Counterparty the line is nominated against (SCHED-1)"),
+        _c("direction", False, "in (the firm receives) or out (it delivers)"),
+        _c("point", False, "Interconnection or trading point; blank for the hub's virtual "
+           "trading point"),
+        _c("shipper_code", False, "The firm's own shipper code used"),
+        _c("counterparty_shipper_code", False, "The counterparty's shipper code nominated "
+           "against"),
+        _c("counterparty_quantity_mwh", False, "The counterparty's own nominated MWh, as the "
+           "TSO's matching reports it"),
     ),
-    notes="A status the platform records; nothing is nominated from here.",
+    notes="A status the platform records; nothing is nominated from here. The SCHED-1 columns "
+    "are optional within v1: a file without them is read as before.",
 )
 
 _CARGOES = ImportContract(
@@ -582,7 +597,10 @@ def _parse_position(context: _Context, header, raw, cells) -> _Row:
     return _Row(0, line_id, values)
 
 
-_LINE_REF = re.compile(r"^(contract|schedule|lng|trade):\S{1,150}$")
+_LINE_REF = re.compile(r"^(contract|schedule|lng|trade|counterparty):\S.{0,149}$")
+#: Steps beyond the checklist's own that a nominations file may carry (SCHED-1).
+_RECONCILIATION_STEPS = ("trade_confirmation",)
+_SCHED1_TEXT = ("counterparty", "point", "shipper_code", "counterparty_shipper_code")
 
 
 def _parse_nomination(context: _Context, header, raw, cells) -> _Row:
@@ -592,10 +610,10 @@ def _parse_nomination(context: _Context, header, raw, cells) -> _Row:
     line_ref = cells["line_ref"]
     if not _LINE_REF.match(line_ref):
         raise RowError(
-            "line_ref_invalid", "line_ref must be contract:<id>, schedule:<id>, lng:<id> or "
-            "trade:<id>"
+            "line_ref_invalid", "line_ref must be contract:<id>, schedule:<id>, lng:<id>, "
+            "trade:<id> or counterparty:<name>"
         )
-    step = _choice(cells["step"], "step", STEPS, "step_unknown")
+    step = _choice(cells["step"], "step", (*STEPS, *_RECONCILIATION_STEPS), "step_unknown")
     status = _choice(cells["status"], "status", STATUSES, "status_unknown")
     recorded = _instant(cells["recorded_at"], "recorded_at")
     if recorded > context.now + _FUTURE_SKEW:
@@ -609,6 +627,22 @@ def _parse_nomination(context: _Context, header, raw, cells) -> _Row:
     book_id = cells.get("book_id") or None
     _check_book(context, book_id)
     hub = _hub(cells["hub"])
+    matching: dict[str, Any] = {}
+    for name in _SCHED1_TEXT:
+        value = (cells.get(name) or "").strip()
+        limit = 160 if name in ("counterparty", "point") else 64
+        if len(value) > limit:
+            raise RowError("value_too_long", f"{name} is longer than {limit} characters")
+        if value:
+            matching[name] = value
+    if cells.get("direction"):
+        matching["direction"] = _choice(cells["direction"], "direction", ("in", "out"),
+                                        "direction_invalid")
+    if cells.get("counterparty_quantity_mwh"):
+        other = _number(cells["counterparty_quantity_mwh"], "counterparty_quantity_mwh")
+        if other < 0:
+            raise RowError("quantity_negative", "counterparty_quantity_mwh must be zero or more")
+        matching["counterparty_quantity_mwh"] = other
     identity = {
         "system": context.system_key,
         "gas_day": gas_day.isoformat(),
@@ -617,6 +651,8 @@ def _parse_nomination(context: _Context, header, raw, cells) -> _Row:
         "status": status,
         "recorded_at": recorded.isoformat(),
         "quantity_mwh": quantity,
+        # Only when given, so a file without the SCHED-1 columns keeps its event ids.
+        **matching,
     }
     event_id = f"imp-{_digest(identity)[:60]}"
     values = {
@@ -634,6 +670,8 @@ def _parse_nomination(context: _Context, header, raw, cells) -> _Row:
         "recorded_at_utc": recorded,
         "note": note,
         "source_system": context.system[:64],
+        **{name: matching.get(name) for name in (*_SCHED1_TEXT, "direction",
+                                                 "counterparty_quantity_mwh")},
     }
     return _Row(0, event_id, values)
 

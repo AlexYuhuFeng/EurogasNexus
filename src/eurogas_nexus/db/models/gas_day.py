@@ -88,11 +88,13 @@ class GasDayNominationEventRecord(Base):
 
     event_id: Mapped[str] = mapped_column(String(64), primary_key=True)
     gas_day: Mapped[date] = mapped_column(Date, nullable=False)
-    #: The line the step belongs to: ``contract:<id>``, ``schedule:<id>``, ``lng:<slot>``.
+    #: The line the step belongs to: ``contract:<id>``, ``schedule:<id>``, ``lng:<slot>``,
+    #: ``trade:<id>`` or ``counterparty:<name>`` (a nomination netted per counterparty).
     line_ref: Mapped[str] = mapped_column(String(160), nullable=False)
     hub: Mapped[str] = mapped_column(String(16), nullable=False)
     book_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
-    #: nomination, renomination, lng_unloading, lng_send_out, lng_inventory.
+    #: nomination, renomination, lng_unloading, lng_send_out, lng_inventory; and
+    #: trade_confirmation (the counterparty's confirmation of a deal, SCHED-1).
     step: Mapped[str] = mapped_column(String(32), nullable=False)
     #: to_send, sent, confirmed, renominated, mismatch_queried, done.
     status: Mapped[str] = mapped_column(String(24), nullable=False)
@@ -104,3 +106,13 @@ class GasDayNominationEventRecord(Base):
     recorded_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     note: Mapped[str | None] = mapped_column(String(500), nullable=True)
     source_system: Mapped[str] = mapped_column(String(64), nullable=False)
+    # SCHED-1 (migration 0085): whom the line is against, which way and under which codes,
+    # where the scheduling system or the TSO's matching response gives them; NULL: not held.
+    counterparty: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    #: ``in``: the firm receives at the point; ``out``: it delivers.
+    direction: Mapped[str | None] = mapped_column(String(8), nullable=True)
+    point: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    shipper_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    counterparty_shipper_code: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    #: The counterparty's own nominated quantity as the TSO's matching reports it.
+    counterparty_quantity_mwh: Mapped[float | None] = mapped_column(Float, nullable=True)
