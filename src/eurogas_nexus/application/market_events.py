@@ -826,6 +826,13 @@ def _ensure_builtin() -> None:
     if NEWS_CONSUMER not in _CONSUMERS:
         _CONSUMERS[NEWS_CONSUMER] = NewsRoutingConsumer()
 
+    # LNG-3: an input change re-optimises the book's disrupted supplies
+    # (``application/lng_disruption.py``).
+    from eurogas_nexus.application import lng_disruption
+
+    if lng_disruption.CONSUMER_NAME not in _CONSUMERS:
+        _CONSUMERS[lng_disruption.CONSUMER_NAME] = lng_disruption.DisruptionConsumer()
+
 
 __all__ = [
     "BACKOFF_BASE",

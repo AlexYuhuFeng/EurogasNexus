@@ -138,6 +138,24 @@ AI 用途 `news_note` 的 AI 说明（"对我的账簿意味着什么"），标�
 `0080_lng_eta_basis`）。接口统计不变：282 条路径 / 315 个操作。设计见
 `docs/engineering/Commercial-Intelligence-V3/12_LNG_CARGO_IN_TRANSIT.md`。
 
+2026-11-25 新增组合扰动再优化（Commercial Intelligence V3 LNG-3）：四条路径、四个操作。
+`GET /api/lng/cargoes/{cargo_id}/disruption-options`（READ，PORTFOLIO_READ，按账簿范围）围绕
+账簿内所有受扰动的供应（晚于其时段开始到港的船货、有削减日的管道供应）重新优化，返回
+`cargo`（含时段逐日 `entitlement`）、`status`（disrupted|affected|as_planned）、`scenarios[]`
+（基准、按置信度前后移动 ETA、价格上下浮动）、`objectives[]`、涉及该船货的 `options[]`（每项含
+可行性与原因、是否在帕累托前沿、被谁支配及原因、目标值、各情景损益、套保调整腿、各供应腿、
+交付义务是否满足）、`frontier`、`recommended`、`preference`（权重、规则及来源）、`inputs`、
+`warnings`、`timeline`（消费者的运行记录）与 `decision`（最近一次记录的选择）。
+`GET /api/lng/cargoes/{cargo_id}/disruption-options/{option_id}`（READ）返回单个方案的分项、
+算式、各情景明细与授权使用变化；当前运行已无此方案时为 404 `option_not_found`。
+`GET /api/lng/disruption/frontier?book_id=`（READ）返回整个账簿的方案与前沿；
+`curtail_supply`、`curtail_from`、`curtail_to`、`curtail_mwh_per_day` 四者同时给出时，按削减
+做一次只读假设（缺一为 422 `curtailment_incomplete`，最多 93 个燃气日）。
+`POST /api/lng/cargoes/{cargo_id}/disruption-options/{option_id}/choose`（GOVERNED，
+PORTFOLIO_WRITE，审计 `lng.disruption_choice`）仅记录所选方案及可选 `note`，返回
+`booked: false`；不可行方案为 409 `option_infeasible`。不预订、不借气、不购买容量、不交易、
+不提名。接口统计：296 条路径 / 331 个操作（在 292 / 327 基础上 +4 / +4）。
+
 2026-11-24 新增 LNG 在途货物计划（Commercial Intelligence V3 LNG-1）：四条路径、四个操作。
 `GET /api/lng/cargoes/plans`、`GET /api/lng/cargoes/{cargo_id}/plan` 与
 `POST /api/lng/cargoes/{cargo_id}/plan/what-if`（READ）把一船货从 ETA、靠泊窗口、蒸发、

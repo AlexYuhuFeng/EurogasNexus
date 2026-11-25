@@ -1240,7 +1240,7 @@ def _value(
 
     # Soft obligations cost their penalty; firm ones are checked as hard constraints.
     for item in portfolio.obligations:
-        short = _obligation_short(item, after)
+        short = _obligation_short(item, after, before)
         if item.firm or not short:
             continue
         missed = sum(mwh for _, mwh in short)
@@ -1300,19 +1300,30 @@ def _delivered_at(item: Obligation, landings: Mapping[str, Landing]) -> dict[dat
 
 
 def _obligation_short(
-    item: Obligation, landings: Mapping[str, Landing]
+    item: Obligation,
+    landings: Mapping[str, Landing],
+    plan: Mapping[str, Landing] | None = None,
 ) -> list[tuple[date, float]]:
+    """The days the obligation is short, and by how much. With ``plan``, only what the
+    option adds to the shortfall the plan already had (an option is not blamed for a short
+    day it did not cause; that one is reported as ``short_in_plan``)."""
+
     delivered = _delivered_at(item, landings)
+    planned = _delivered_at(item, plan) if plan is not None else None
     short = []
     for day in _days(item.start, item.end):
         gap = item.mwh_per_day - delivered.get(day, 0.0)
+        if planned is not None:
+            gap -= max(0.0, item.mwh_per_day - planned.get(day, 0.0))
         if gap > item.tolerance_mwh:
             short.append((day, gap))
     return short
 
 
-def _check(portfolio: Portfolio, option: Option, base: Valuation) -> None:
-    """Hard constraints, in the base scenario."""
+def _check(
+    portfolio: Portfolio, option: Option, base: Valuation, before: Mapping[str, Landing]
+) -> None:
+    """Hard constraints, in the base scenario, against the plan before the disruption."""
 
     for supply_id, placement in option.placements.items():
         supply = portfolio.supply(supply_id)
@@ -1344,7 +1355,8 @@ def _check(portfolio: Portfolio, option: Option, base: Valuation) -> None:
                 "send-out right before the tail ends"
             )
     for item in portfolio.obligations:
-        short = _obligation_short(item, base.landings)
+        short = _obligation_short(item, base.landings, before)
+        in_plan = _obligation_short(item, before)
         status = {
             "obligation_id": item.obligation_id,
             "counterparty": item.counterparty,
@@ -1352,6 +1364,7 @@ def _check(portfolio: Portfolio, option: Option, base: Valuation) -> None:
             "firm": item.firm,
             "met": not short,
             "short": [{"gas_day": d.isoformat(), "mwh": round(m, 1)} for d, m in short],
+            "short_in_plan": [{"gas_day": d.isoformat(), "mwh": round(m, 1)} for d, m in in_plan],
         }
         option.obligations.append(status)
         if item.firm and short:
@@ -1417,6 +1430,12 @@ def _flexibility(
     return spare - interrupt, interrupt
 
 
+def planned_landings(portfolio: Portfolio, market: Market) -> dict[str, Landing]:
+    """Every supply as the plan before the disruption lands it (the baseline)."""
+
+    return _landings(portfolio, market, {}, planned=True, shift=0, strand=False)
+
+
 def evaluate(
     portfolio: Portfolio, market: Market, terms: DeskTerms, options: list[Option]
 ) -> list[Scenario]:
@@ -1429,7 +1448,7 @@ def evaluate(
             _value(portfolio, market, terms, option, scenario, before) for scenario in scenarios
         ]
         option.base = option.scenarios[0]
-        _check(portfolio, option, option.base)
+        _check(portfolio, option, option.base, before)
         moved, who = _disruption(portfolio, option, before, option.base.landings)
         flexibility, interrupt = _flexibility(portfolio, option, option.base, market)
         option.disrupted_supplies = who
@@ -1748,6 +1767,7 @@ __all__ = [
     "generate",
     "optimise",
     "option_dict",
+    "planned_landings",
     "pareto",
     "recommend",
     "result_dict",

@@ -1,6 +1,6 @@
 """/api/lng routes: terminal reads, the tariff register and cargo economics."""
 
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
@@ -634,4 +634,131 @@ def record_cargo_hedges(cargo_id: str, body: CargoHedgesBody, request: Request) 
             session.rollback()
             raise _plan_error(exc) from exc
         session.commit()
+        return _runtime_env(result)
+
+
+
+class DisruptionChoiceBody(BaseModel):
+    """Why the desk chose this option (optional); the choice is recorded, nothing booked."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    note: str | None = Field(default=None, max_length=2000)
+
+
+@router.get("/api/lng/cargoes/{cargo_id}/disruption-options")
+def cargo_disruption_options(cargo_id: str, request: Request) -> dict:
+    """LNG-3: the book re-optimised around a disrupted cargo or pipeline supply: the options
+    that move this cargo, each valued against the plan before the disruption over the ETA and
+    price scenarios, the Pareto frontier, the recommended default and why the rest are
+    dominated or infeasible, the run timeline and the last recorded choice (READ)."""
+
+    from eurogas_nexus.application import lng_disruption as disruption
+    from eurogas_nexus.application.lng_in_transit import CargoPlanError
+    from eurogas_nexus.security.authorization import Permission
+
+    _actor(request, Permission.PORTFOLIO_READ)
+    with _register_session() as session:
+        try:
+            result = disruption.disruption_options(session, cargo_id)
+        except CargoPlanError as exc:
+            raise _plan_error(exc) from exc
+        return _runtime_env(result)
+
+
+@router.get("/api/lng/cargoes/{cargo_id}/disruption-options/{option_id}")
+def cargo_disruption_option(cargo_id: str, option_id: str, request: Request) -> dict:
+    """LNG-3: one option in full: each supply's leg day by day, the arithmetic per scenario,
+    the hedge re-alignment, the obligations it meets or breaks and the mandates it moves
+    (READ)."""
+
+    from eurogas_nexus.application import lng_disruption as disruption
+    from eurogas_nexus.application.lng_in_transit import CargoPlanError
+    from eurogas_nexus.security.authorization import Permission
+
+    _actor(request, Permission.PORTFOLIO_READ)
+    with _register_session() as session:
+        try:
+            result = disruption.option_detail(session, cargo_id, option_id)
+        except CargoPlanError as exc:
+            raise _plan_error(exc) from exc
+        return _runtime_env(result)
+
+
+@router.post("/api/lng/cargoes/{cargo_id}/disruption-options/{option_id}/choose")
+def choose_cargo_disruption_option(
+    cargo_id: str, option_id: str, body: DisruptionChoiceBody, request: Request
+) -> dict:
+    """LNG-3: record the option the desk chose (PORTFOLIO_WRITE, audited
+    ``lng.disruption_choice``). A record only: nothing is booked, borrowed, bought, traded or
+    nominated. An infeasible option is refused (409)."""
+
+    from eurogas_nexus.application import lng_disruption as disruption
+    from eurogas_nexus.application.lng_in_transit import CargoPlanError
+    from eurogas_nexus.security.authorization import Permission
+
+    actor = _actor(request, Permission.PORTFOLIO_WRITE)
+    with _register_session() as session:
+        try:
+            result = disruption.choose_option(
+                session, cargo_id, option_id, actor=actor, note=body.note
+            )
+        except CargoPlanError as exc:
+            session.rollback()
+            raise _plan_error(exc) from exc
+        session.commit()
+        return _runtime_env(result)
+
+
+@router.get("/api/lng/disruption/frontier")
+def disruption_frontier(
+    request: Request,
+    book_id: str = Query(..., min_length=1, max_length=64),
+    curtail_supply: str | None = Query(default=None, max_length=96),
+    curtail_from: date | None = Query(default=None),
+    curtail_to: date | None = Query(default=None),
+    curtail_mwh_per_day: float | None = Query(default=None, gt=0, le=10_000_000),
+) -> dict:
+    """LNG-3: the whole book's disruption options and Pareto frontier. With ``curtail_*`` a
+    pipeline supply of the book is taken as curtailed on those gas days (a what-if; nothing is
+    stored) (READ)."""
+
+    from eurogas_nexus.application import lng_disruption as disruption
+    from eurogas_nexus.application.lng_in_transit import CargoPlanError
+    from eurogas_nexus.security.authorization import Permission
+
+    _actor(request, Permission.PORTFOLIO_READ)
+    curtail = None
+    asked = (curtail_supply, curtail_from, curtail_to, curtail_mwh_per_day)
+    if any(value is not None for value in asked):
+        if any(value is None for value in asked) or curtail_from > curtail_to:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "curtailment_incomplete",
+                    "code": "curtailment_incomplete",
+                    "message": "A curtailment needs curtail_supply, curtail_from <= curtail_to "
+                    "and curtail_mwh_per_day.",
+                },
+            )
+        if (curtail_to - curtail_from).days > 92:
+            raise HTTPException(
+                status_code=422,
+                detail={
+                    "error": "curtailment_too_long",
+                    "code": "curtailment_too_long",
+                    "message": "A what-if curtailment covers at most 93 gas days.",
+                },
+            )
+        curtail = {
+            "supply_id": curtail_supply,
+            "first": curtail_from,
+            "last": curtail_to,
+            "mwh_per_day": curtail_mwh_per_day,
+        }
+    with _register_session() as session:
+        try:
+            result = disruption.frontier(session, book_id, curtail=curtail)
+        except CargoPlanError as exc:
+            raise _plan_error(exc) from exc
         return _runtime_env(result)

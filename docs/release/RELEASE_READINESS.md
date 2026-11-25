@@ -61,7 +61,14 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **299 paths / 334 operations**
+- OpenAPI public surface: **303 paths / 338 operations**
+
+  (2026-11-25: LNG-3 disruption re-optimisation, `GET /api/lng/cargoes/{cargo_id}/disruption-options`,
+  `GET /api/lng/cargoes/{cargo_id}/disruption-options/{option_id}` and
+  `GET /api/lng/disruption/frontier` (READ, store nothing) and
+  `POST /api/lng/cargoes/{cargo_id}/disruption-options/{option_id}/choose` (GOVERNED,
+  PORTFOLIO_WRITE, audited `lng.disruption_choice`; records the choice, books nothing);
+  299 / 334 before, after TAR-1, SCHED-1 and NEWS-1.
 
   (2026-11-25: `GET /api/news` and `GET /api/news/{item_id}` (READ) and
   `POST /api/news/{item_id}/note` (GOVERNED, the AI use `news_note`; the rule note without a

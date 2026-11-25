@@ -136,6 +136,12 @@ GOVERNED_WRITES: tuple[GovernedWrite, ...] = (
         "application/lng_cargo_economics.py (PUT /api/lng/freight-routes/{route_id})",
     ),
     GovernedWrite(
+        "disruption options chosen (a record; nothing is booked)",
+        ("lng.disruption_choice",),
+        "application/lng_disruption.py "
+        "(POST /api/lng/cargoes/{cargo_id}/disruption-options/{option_id}/choose)",
+    ),
+    GovernedWrite(
         "maker-checker: proposals and their approval, rejection and withdrawal (P-17)",
         (
             "change_request.propose",

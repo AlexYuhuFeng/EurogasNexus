@@ -164,6 +164,12 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/lng/cargoes/{cargo_id}/plan", Permission.READ),
     ("/api/lng/cargoes/{cargo_id}/plan/what-if", Permission.READ),
     ("/api/lng/cargoes/{cargo_id}/hedges", Permission.GOVERNED),
+    # LNG-3: the book re-optimised around a disruption: reads value it and store nothing;
+    # choosing an option records the choice (PORTFOLIO_WRITE in the handler, audited).
+    ("/api/lng/cargoes/{cargo_id}/disruption-options", Permission.READ),
+    ("/api/lng/cargoes/{cargo_id}/disruption-options/{option_id}", Permission.READ),
+    ("/api/lng/cargoes/{cargo_id}/disruption-options/{option_id}/choose", Permission.GOVERNED),
+    ("/api/lng/disruption/frontier", Permission.READ),
     ("/api/market/", Permission.READ),
     # DATA-1 import contracts: the catalogue is a declaration everyone may read; checking a
     # file looks up books and ERP counterparties and stores nothing (ANALYST floor).

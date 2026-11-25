@@ -202,6 +202,32 @@ accepts the categories `opportunity` and `nomination`; a channel subscribed to `
 receiving both. Census unchanged: 282 paths / 315 operations. Design and budgets:
 `docs/engineering/Commercial-Intelligence-V3/15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md`.
 
+Additive 2026-11-25 (portfolio disruption re-optimisation, Commercial Intelligence V3 LNG-3):
+four paths, four operations. `GET /api/lng/cargoes/{cargo_id}/disruption-options` (READ,
+PORTFOLIO_READ, book scope) re-optimises the cargo's book around every disrupted supply (a cargo
+due after its slot starts, a pipeline supply with curtailed days) and answers `cargo` (with the
+slot's day-by-day `entitlement`), `status` disrupted|affected|as_planned, `disrupted[]`,
+`scenarios[]` (base, ETA earlier and later by the confidence's spread, prices up and down),
+`objectives[]` (`pnl_expected` max, `pnl_worst` max, `cost` min, `flexibility_mwh` max,
+`disrupted_mwh` min), `options[]` that move this cargo (each with `option_id`, `key`, `kind`
+wait|borrow|buy|borrow_buy|divert|swap|absorb|cover|combined, `title`, `feasible` and `reasons`,
+`on_frontier`, `dominated_by` and `dominated_why`, `objectives`, `score`, `scenarios[]`,
+`hedge_legs[]`, `legs[]`, `obligations[]`, `affects_other_supplies`), `frontier` (option ids),
+`recommended`, `digest`, `preference` (weights, rule and their sources), `costs`, `inputs`,
+`warnings`, `timeline` (the consumer's runs) and `decision` (the last recorded choice, or
+null). `GET /api/lng/cargoes/{cargo_id}/disruption-options/{option_id}` (READ) answers one
+option with `components`, `arithmetic` lines, `scenario_detail` and `mandates` (usage before
+and with the option); an id the current run no longer holds is 404 `option_not_found`. `GET
+/api/lng/disruption/frontier?book_id=` (READ) answers the whole book's options, `supplies` and
+`obligations`; `curtail_supply`, `curtail_from`, `curtail_to` and `curtail_mwh_per_day` take a
+pipeline supply as curtailed for the read (all four or none, else 422
+`curtailment_incomplete`; at most 93 gas days). `POST
+/api/lng/cargoes/{cargo_id}/disruption-options/{option_id}/choose` (GOVERNED, PORTFOLIO_WRITE,
+audited `lng.disruption_choice`) records the chosen option with an optional `note` and answers
+the decision with `booked: false`; an infeasible option is 409 `option_infeasible`. Nothing is
+booked, borrowed, bought, traded or nominated. Census: 296 paths / 331 operations (+4 / +4 on
+292 / 327).
+
 Additive 2026-11-24 (LNG cargo in transit, Commercial Intelligence V3 LNG-1): four paths, four
 operations. `GET /api/lng/cargoes/plans` (READ, PORTFOLIO_READ, book scope) lists the firm's
 cargoes in transit with `slot_status`, `headline` of the last change, `contract_warning` and the

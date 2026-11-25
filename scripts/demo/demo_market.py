@@ -67,6 +67,8 @@ W1_PLANTED_GAP = 1.50
 #: S1: the gas days of each month on which the demo schedule leaves the book open, and the
 #: schedule lines' volumes then (MWh; every other gas day the seed's balanced volumes apply).
 S1_DAYS_OF_MONTH = frozenset({18, 19, 20})
+#: LNG-3: the day of each month on which the demo LNG book holds a late cargo (D1).
+D1_DAY_OF_MONTH = 24
 S1_OPEN_MWH = {"uk-offtake": 9_000.0, "nl-storage": 7_000.0}
 #: R1 (SCHED-1): on these gas days of each month the demo TSO confirms only part of the UK
 #: book's bilateral sale to Aldermoor: Aldermoor nominated less, and the lesser rule applies.
@@ -169,6 +171,17 @@ PLANTED_CASES: tuple[PlantedCase, ...] = (
         "NBP. On every other gas day the trade is nominated and matched in full, and each "
         "simulated prompt trade is nominated and matched as it is booked.",
     ),
+    PlantedCase(
+        "D1-lng-cargo-late", "LNG-3 disruption re-optimisation (cargo options)",
+        ("ZTP", "TTF", "PEG", "PVB"), ("cargo",),
+        f"On day {D1_DAY_OF_MONTH} of each month the demo LNG book (demo-lng-nwe) holds Demo "
+        "Meridian, due two days after its Zeebrugge slot starts, beside two cargoes running "
+        "normally (Rotterdam, Huelva with a firm daily delivery), a spare Dunkerque slot, "
+        "illustrative Zeebrugge borrow, send-out, storage and interruptible offers and a "
+        "pipeline supply at ZTP. The re-optimisation finds Meridian disrupted, values wait, "
+        "borrow, buy, divert and both swaps, and marks the Huelva swap infeasible. On every "
+        "other day the book is not seeded and no supply is disrupted.",
+    ),
 )
 
 
@@ -176,6 +189,12 @@ def r1_planted(gas_day: date) -> bool:
     """R1 is planted on the gas day itself (the reconciliation of that day shows it)."""
 
     return gas_day.day in R1_DAYS_OF_MONTH
+
+
+def d1_planted(day: date) -> bool:
+    """D1 is seeded on that calendar day only (re-seeding any other day removes it)."""
+
+    return day.day == D1_DAY_OF_MONTH
 
 
 def l1_planted(day: date) -> bool:

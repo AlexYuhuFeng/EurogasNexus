@@ -6103,6 +6103,32 @@ export const api = {
   /** The plan against the plan under another ETA, slot or berth delay; nothing is stored. */
   cargoPlanWhatIf: (cargoId: string, body: { eta_utc?: string; slot_id?: string; berth_delay_hours?: number; laytime_hours?: number; demurrage_per_day?: number }, options?: ApiRequestOptions) =>
     post<{ change: CargoPlanChangeDTO }>(`/lng/cargoes/${encodeURIComponent(cargoId)}/plan/what-if`, body, options),
+  /** LNG-3: the book's re-optimisation as it bears on one cargo (options, frontier, default). */
+  disruptionOptions: (cargoId: string, options?: ApiRequestOptions) =>
+    get<DisruptionOptionsDTO>(`/lng/cargoes/${encodeURIComponent(cargoId)}/disruption-options`, undefined, options),
+  /** One option in full: legs, arithmetic per scenario and the mandates it moves. */
+  disruptionOption: (cargoId: string, optionId: string, options?: ApiRequestOptions) =>
+    get<DisruptionOptionDetailDTO>(
+      `/lng/cargoes/${encodeURIComponent(cargoId)}/disruption-options/${encodeURIComponent(optionId)}`,
+      undefined,
+      options,
+    ),
+  /** Record the option a person chose (audited). A record only: nothing is booked or sent. */
+  chooseDisruptionOption: (cargoId: string, optionId: string, note?: string) =>
+    post<DisruptionDecisionDTO>(
+      `/lng/cargoes/${encodeURIComponent(cargoId)}/disruption-options/${encodeURIComponent(optionId)}/choose`,
+      { note: note ?? null },
+    ),
+  /** The whole book's options and frontier, optionally with a pipeline supply curtailed. */
+  disruptionFrontier: (
+    query: { book_id: string; curtail_supply?: string; curtail_from?: string; curtail_to?: string; curtail_mwh_per_day?: number },
+    options?: ApiRequestOptions,
+  ) =>
+    get<DisruptionFrontierDTO>(
+      "/lng/disruption/frontier",
+      Object.fromEntries(Object.entries(query).filter(([, value]) => value !== undefined).map(([key, value]) => [key, String(value)])),
+      options,
+    ),
   /** Replace the hedge legs that cover a cargo (a short hedge is negative MWh). */
   saveCargoHedges: (cargoId: string, legs: CargoHedgeLegDTO[]) =>
     put<{ cargo_id: string; legs: number; events?: unknown }>(`/lng/cargoes/${encodeURIComponent(cargoId)}/hedges`, { legs }),
@@ -6990,6 +7016,136 @@ export interface CargoPlanChangeDTO {
   /** Present on a what-if; the stored plan's own `last_change` leaves it out (it is `plan`). */
   after?: CargoPlanBodyDTO;
   [key: string]: unknown;
+}
+
+/** LNG-3 objectives of one option, all in EUR or MWh. */
+export interface DisruptionObjectivesDTO {
+  pnl_expected: number;
+  pnl_worst: number;
+  cost: number;
+  flexibility_mwh: number;
+  disrupted_mwh: number;
+  [key: string]: number;
+}
+
+export interface DisruptionLegDTO {
+  supply_id: string;
+  label: string;
+  kind: "lng" | "pipeline";
+  terminal: string | null;
+  hub: string | null;
+  slot_id: string | null;
+  moved: boolean;
+  arrival: string | null;
+  berth: string | null;
+  wait_hours: number;
+  send_out_first: string | null;
+  send_out_last: string | null;
+  send_out_mwh: number;
+  borrowed: { gas_day: string; mwh: number }[];
+  returned: { gas_day: string; mwh: number } | null;
+  covered: { gas_day: string; mwh: number }[];
+  usage: Record<string, number>;
+  fees_eur: Record<string, number>;
+  demurrage_eur: number;
+  boil_off_mwh: number;
+}
+
+export interface DisruptionOptionDTO {
+  option_id: string;
+  key: string;
+  kind: string;
+  title: string;
+  feasible: boolean;
+  reasons: string[];
+  notes: string[];
+  on_frontier: boolean;
+  dominated_by: string | null;
+  dominated_why: string[];
+  objectives: DisruptionObjectivesDTO;
+  score: number;
+  affects_other_supplies: string[];
+  interruptible_mwh: number;
+  releases: string[];
+  swaps: string[][];
+  obligations: unknown[];
+  scenarios: { scenario_id: string; label: string; pnl: number }[];
+  hedge_legs: unknown[];
+  legs: DisruptionLegDTO[];
+}
+
+export interface DisruptionOptionDetailDTO extends DisruptionOptionDTO {
+  cargo_id: string;
+  book_id: string;
+  recommended: boolean;
+  recommended_option_id: string | null;
+  dominated_by_title: string | null;
+  components?: Record<string, number>;
+  arithmetic?: string[];
+  scenario_detail?: { scenario_id: string; label: string; pnl: number; components: Record<string, number>; arithmetic: string[] }[];
+  mandates: { checked: number; moves: unknown[]; error?: string };
+  advisory: string;
+}
+
+export interface DisruptionRunDTO {
+  run_id: string;
+  computed_at_utc: string;
+  trigger: string;
+  change: "recommendation" | "frontier" | "pnl" | null;
+  notified: boolean;
+  recommended_option_id: string | null;
+  recommended_title: string | null;
+  recommended_pnl_eur: number | null;
+  frontier: string[];
+  disrupted: unknown[];
+}
+
+export interface DisruptionDecisionDTO {
+  decision_id: string;
+  cargo_id: string;
+  book_id: string;
+  run_id: string | null;
+  option_id: string;
+  option_key: string;
+  title: string;
+  recommended_option_id: string | null;
+  was_recommended: boolean;
+  objectives: DisruptionObjectivesDTO;
+  note: string | null;
+  decided_by: string;
+  decided_at_utc: string;
+  /** Always false: a choice is a record; nothing is booked, traded, nominated or sent. */
+  booked: false;
+}
+
+interface DisruptionResultDTO {
+  disrupted: { supply_id: string; label: string; kind: string; arrival: string | null; slot_id: string | null; terminal: string | null; eta_confidence?: string | null; curtailed: { gas_day: string; mwh: number }[] }[];
+  scenarios: { scenario_id: string; label: string; eta_shift_days: number; price_factor: number }[];
+  objectives: { name: string; sense: "max" | "min" }[];
+  options: DisruptionOptionDTO[];
+  frontier: string[];
+  recommended: string | null;
+  digest: string;
+  preference: { risk_weight: number; disruption_eur_per_mwh: number; disruption_eur_per_supply: number; flexibility_eur_per_mwh: number; rule: string; sources: Record<string, string> };
+  costs: Record<string, number>;
+  inputs: { input: string; source: string }[];
+  warnings: string[];
+  timeline: DisruptionRunDTO[];
+  advisory: string;
+}
+
+export interface DisruptionOptionsDTO extends DisruptionResultDTO {
+  cargo: { cargo_id: string; vessel_name: string | null; book_id: string; eta_utc: string | null; arrival_gas_day: string | null; energy_mwh: number | null; simulated: boolean; [key: string]: unknown };
+  status: "disrupted" | "affected" | "as_planned";
+  book_options: number;
+  decision: DisruptionDecisionDTO | null;
+}
+
+export interface DisruptionFrontierDTO extends DisruptionResultDTO {
+  book_id: string;
+  supplies: { supply_id: string; label: string; kind: string; terminal: string | null; slot_id: string | null; arrival: string | null }[];
+  obligations: { obligation_id: string; counterparty: string; point: string; first_gas_day: string; last_gas_day: string; mwh_per_day: number; firm: boolean }[];
+  what_if: boolean;
 }
 
 /** The slot a cargo is aimed at, as the plan used it. */
