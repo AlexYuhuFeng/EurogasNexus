@@ -19,7 +19,7 @@ Migration ``0086_lng_disruption`` (ADR Decision 36). The engine is
 * ``lng_disruption_runs``: every re-optimisation run, the timeline of the recommendation.
 * ``lng_disruption_decisions``: the option a person chose (a record only: nothing is booked).
 
-LNG-4 (migration ``0087_lng4_options_demurrage_outages``, ADR Decision 37) adds optional
+LNG-4 (migration ``0087_lng4_options_demurrage``, ADR Decision 37) adds optional
 columns (demurrage in its contract currency and terms, an obligation's breach terms, a pipeline
 supply's asset dependencies and outage mode, the recommended set on a run and a decision, the
 hub a spot slot offer reaches, the berth days a call holds under a slot's terms) and two

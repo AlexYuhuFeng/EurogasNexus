@@ -62,8 +62,9 @@ def test_up_down_and_model_match():
     lng4 = _load("0087_lng4_options_demurrage_outages.py")
     assert lng3.revision == "0086_lng_disruption"
     assert lng3.down_revision == "0084_news_items"
-    assert lng4.revision == DB_SCHEMA_REVISION == "0087_lng4_options_demurrage_outages"
+    assert lng4.revision == DB_SCHEMA_REVISION == "0087_lng4_options_demurrage"
     assert lng4.down_revision == "0088_tar2_capacity_bookings"
+    assert len(lng4.revision) <= 32  # alembic_version.version_num is VARCHAR(32)
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
         operations = Operations(MigrationContext.configure(connection=connection))

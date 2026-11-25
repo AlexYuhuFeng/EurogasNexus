@@ -931,7 +931,8 @@ Every arithmetic line names the price, rate and tariff sources it applied. Every
 conversion goes through one function, `application/lng_demurrage._fx_rate`, and every
 transport cost through one, `application/lng_substitutes._transport_cost`, so a later
 source-precedence resolver can replace their bodies without any caller changing. Migration
-`0087_lng4_options_demurrage_outages` is expand-only: nullable columns on `lng_voyage_terms`
+`0087_lng4_options_demurrage_outages.py` (revision id `0087_lng4_options_demurrage`, which
+fits alembic's 32-character version column) is expand-only: nullable columns on `lng_voyage_terms`
 (`demurrage_rate_per_day`, `demurrage_currency`, `demurrage_terms`), `lng_delivery_obligations`
 (`penalty_terms`), `pipeline_supplies` (`depends_on`, `outage_mode`), `lng_disruption_runs`
 (`recommended_set`), `lng_disruption_decisions` (`recommended_set`, `consequences`, `fx`),

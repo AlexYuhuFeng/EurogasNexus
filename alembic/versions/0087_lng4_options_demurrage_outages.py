@@ -16,7 +16,8 @@ ADR Decision 37. Expand-only (``db/models/lng_disruption.py``):
   supply, what matched and why, and the gas days it curtails) and ``lng_berth_calls`` (other
   users' ships due at a terminal's berth, so an option carries the knock-on it causes).
 
-Every new column is nullable, so a row written before stays valid and an LNG-3 reader is
+The revision id is shorter than the file name because ``alembic_version.version_num`` holds 32
+characters (as 0008, 0016, 0019 and 0020 do). Every new column is nullable, so a row written before stays valid and an LNG-3 reader is
 unchanged. The downgrade drops only what this revision adds.
 """
 
@@ -24,7 +25,7 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0087_lng4_options_demurrage_outages"
+revision = "0087_lng4_options_demurrage"
 down_revision = "0088_tar2_capacity_bookings"
 branch_labels = None
 depends_on = None

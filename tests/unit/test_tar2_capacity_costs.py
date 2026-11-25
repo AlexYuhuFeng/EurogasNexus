@@ -459,7 +459,7 @@ def test_0088_adds_bookings_and_the_tariff_year_and_downgrades():
     assert (module.revision, module.down_revision) == (
         "0088_tar2_capacity_bookings", "0086_lng_disruption"
     )
-    assert DB_SCHEMA_REVISION == "0087_lng4_options_demurrage_outages"  # LNG-4 follows
+    assert DB_SCHEMA_REVISION == "0087_lng4_options_demurrage"  # LNG-4 follows
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
         TariffVersionRecord.__table__.create(connection)
