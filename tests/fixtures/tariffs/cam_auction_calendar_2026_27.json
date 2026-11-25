@@ -1,0 +1,28 @@
+{
+  "source": {
+    "publisher": "FGSZ Ltd. (Hungarian gas TSO)",
+    "document": "Auction calendar 2026/2027 (firm capacity rows only)",
+    "url": "https://fgsz.hu/file/documents/3/3175/auction_calendar_2026_2027.pdf",
+    "retrieved_on": "2026-11-24",
+    "note": "Opening instants of the firm yearly, quarterly and rolling monthly auctions, copied from the published PDF as UTC. Interruptible rounds, day-ahead and within-day rows are left out. Used offline to check the CAM network code's default calendar (domain/tariffs/auction_calendar.py)."
+  },
+  "auctions": [
+    {"product": "MONTHLY", "opens_at_utc": "2026-03-16T08:00:00+00:00"},
+    {"product": "MONTHLY", "opens_at_utc": "2026-04-20T07:00:00+00:00"},
+    {"product": "MONTHLY", "opens_at_utc": "2026-05-18T07:00:00+00:00"},
+    {"product": "MONTHLY", "opens_at_utc": "2026-06-15T07:00:00+00:00"},
+    {"product": "ANNUAL", "opens_at_utc": "2026-07-06T07:00:00+00:00"},
+    {"product": "MONTHLY", "opens_at_utc": "2026-07-20T07:00:00+00:00"},
+    {"product": "QUARTERLY", "opens_at_utc": "2026-08-03T07:00:00+00:00"},
+    {"product": "MONTHLY", "opens_at_utc": "2026-08-17T07:00:00+00:00"},
+    {"product": "MONTHLY", "opens_at_utc": "2026-09-21T07:00:00+00:00"},
+    {"product": "MONTHLY", "opens_at_utc": "2026-10-19T07:00:00+00:00"},
+    {"product": "QUARTERLY", "opens_at_utc": "2026-11-02T08:00:00+00:00"},
+    {"product": "MONTHLY", "opens_at_utc": "2026-11-16T08:00:00+00:00"},
+    {"product": "MONTHLY", "opens_at_utc": "2026-12-21T08:00:00+00:00"},
+    {"product": "MONTHLY", "opens_at_utc": "2027-01-18T08:00:00+00:00"},
+    {"product": "QUARTERLY", "opens_at_utc": "2027-02-01T08:00:00+00:00"},
+    {"product": "MONTHLY", "opens_at_utc": "2027-02-15T08:00:00+00:00"},
+    {"product": "QUARTERLY", "opens_at_utc": "2027-05-03T07:00:00+00:00"}
+  ]
+}

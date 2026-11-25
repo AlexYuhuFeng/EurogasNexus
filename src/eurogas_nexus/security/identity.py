@@ -40,6 +40,9 @@ PUBLIC_BASELINE_SOURCE_FAMILIES = frozenset(
         "REMIT",
         # US Energy Information Administration: public-domain government data.
         "EIA",
+        # EU legal acts (EUR-Lex, reusable with acknowledgement): the CAM network code's
+        # standard auction calendar, derived from the regulation's own rule (TAR-1).
+        "EU_REGULATION",
     }
 )
 

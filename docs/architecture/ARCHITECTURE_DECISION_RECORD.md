@@ -792,3 +792,41 @@ migration), columns on `credit_lines` (an invoice is not a credit line, and an E
 counterparty need not have one), and a connector per ERP product (vendor-specific code against
 the contract-first rule).
 Tests: `tests/api/test_data1_import_contracts.py`, `tests/unit/test_market_event_outbox_migration.py`.
+
+## Decision 34: Public tariffs are versioned in a tariff book beside the registers
+
+Accepted 2026-11-24 (branch `wip/tar1`, programme
+[Commercial Intelligence V3](../engineering/Commercial-Intelligence-V3/05_IMPLEMENTATION_ROADMAP.md),
+slice TAR-1). Route pricing and valuations keep reading the registers they read
+(`tso_tariffs`: ENTSOG reserve prices, administrators' reviewed entries, documents an
+administrator loaded; `lng_terminal_tariff`: terminal documents, read only once the firm has
+recorded the operator's permission). Those registers hold the figure in force and are
+overwritten when a publisher republishes, so the platform could not say what it knew before or
+when a tariff went from indicative to final. Migration `0083_tar1_tariff_book` adds two tables
+in the existing PostgreSQL database. `tariff_versions` keeps one row per version of one public
+tariff: publisher (a registry in code, `domain/tariffs/publishers.py`), point or terminal,
+operator, direction, capacity product and duration, firmness, value (or per cargo class), unit,
+currency, period, status `INDICATIVE` or `FINAL` with its basis (operator stated, period
+started or not, figures disagree, reviewed or awaiting review), publication and retrieval
+times, source URL and a content hash. It is append-only except `superseded_at_utc`, stamped on
+the version a newer one replaces, so a read as of an instant takes the version current then.
+A new version is written only when the content hash differs; an older read never supersedes a
+newer one; a change of status is its own named kind (`INDICATIVE->FINAL`), never silent; a row
+that leaves a register is recorded as withdrawn. Each version publishes one `tariff.changed`
+market event (Decision 28) in the same transaction, carrying the valuation snapshot keys
+(`tariff:<point>:<DIR>:<PRODUCT>:<gas year>[:<operator>]`) and any stored opportunity
+dependency key with the same prefix, so only the evaluators that read the tariff re-run.
+`capacity_notices` keeps upcoming capacity windows: the CAM standard auctions derived from
+Regulation (EU) 2017/459 and labelled rule-derived, and LNG slot or secondary-capacity notices
+imported from a publisher's own list (one row per notice, a content hash and a revision count;
+notices publish no market event, since they change no price an evaluator reads). Both are
+tables, not a service or datastore; no source behind a login is read and no value is invented:
+a publisher with only a PDF or HTML page is recorded in the registry with its page, cadence and
+access `manual` or `parsed`. Rejected: deriving history from the `tariff.changed` revision chain
+alone (DATA-1's as-of reads work on revision chains, but listing and filtering thousands of
+tariffs by facility, status and period over JSON payloads is the wrong shape); versioning
+inside `tso_tariffs` (its primary key and every reader would change); a scraper per TSO site
+(terms not reviewed, most sites unreachable from the build environment on 2026-11-24).
+Tests: `tests/unit/test_tariff_book.py`, `tests/unit/test_tariff_book_migration.py`,
+`tests/domain/test_tariff_book_domain.py`, `tests/api/test_tariffs_api.py`,
+`tests/integration/test_tariff_book_postgres.py`.

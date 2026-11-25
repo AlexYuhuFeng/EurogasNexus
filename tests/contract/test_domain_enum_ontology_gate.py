@@ -33,6 +33,9 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     # event-processing lifecycle state like FreshnessStatus, not gas semantics
     # (ADR Decision 28).
     "eurogas_nexus.domain.market_events.model:PublishKind",
+    # Tariff version change kind (first, revised, status change, withdrawn): a record
+    # versioning state like PublishKind, not gas semantics (TAR-1, ADR Decision 34).
+    "eurogas_nexus.domain.tariffs.model:ChangeKind",
     "eurogas_nexus.domain.observations.market:ObservationFreshness",
     "eurogas_nexus.domain.research.backtest:BacktestResultStatus",
     "eurogas_nexus.domain.research.feasibility:FeasibilityStatus",
