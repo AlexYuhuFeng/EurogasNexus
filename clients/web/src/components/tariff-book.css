@@ -1,0 +1,79 @@
+/* TAR-1 tariff book on Sources → Infrastructure: tariffs, their versions, capacity windows. */
+@layer ds-components {
+  .tariff-book-filter {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+    margin: 0 0 var(--ds-space-2);
+    font-size: var(--ds-text-sm);
+    color: var(--ds-text-2);
+    min-width: 0;
+  }
+
+  .tariff-book-filter .ds-select {
+    max-width: 100%;
+  }
+
+  .tariff-book-subhead {
+    margin: var(--ds-space-3) 0 var(--ds-space-1);
+    font-size: var(--ds-text-sm);
+    color: var(--ds-text-2);
+  }
+
+  .tariff-book-muted {
+    margin: 0 0 var(--ds-space-2);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+  }
+
+  .tariff-book-source {
+    color: var(--ds-accent);
+    font-size: var(--ds-text-sm);
+  }
+
+  .tariff-book-trail {
+    margin-top: var(--ds-space-2);
+    padding: var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-2);
+    min-width: 0;
+  }
+
+  .tariff-book-trail h3 {
+    margin: 0 0 var(--ds-space-1);
+    font-size: var(--ds-text-sm);
+  }
+
+  .tariff-book-trail ol {
+    display: grid;
+    gap: var(--ds-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .tariff-book-trail li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+    font-size: var(--ds-text-sm);
+    color: var(--ds-text-2);
+  }
+
+  .tariff-book-trail li[data-current="true"] {
+    color: var(--ds-text-1);
+  }
+
+  .tariff-book-publishers {
+    margin-top: var(--ds-space-3);
+  }
+
+  .tariff-book-publishers summary {
+    cursor: pointer;
+    font-size: var(--ds-text-sm);
+    color: var(--ds-text-2);
+  }
+}

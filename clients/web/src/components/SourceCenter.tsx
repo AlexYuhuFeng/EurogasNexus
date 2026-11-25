@@ -7,6 +7,7 @@ import type { SourceRegistryReadSurface } from "@/app/model/sourceRegistryRead";
 import { useInspectorStore } from "@/stores/inspector";
 import { WeatherForecastEvidence } from "@/components/WeatherForecastEvidence";
 import { DemoCatchUpLine, PublicSourceApprovals } from "@/components/PublicSourceApprovals";
+import { TariffBookPanel } from "@/components/TariffBookPanel";
 import { TariffPublicationsPanel } from "@/components/TariffPublicationsPanel";
 import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
 import { NativeCapacityContextPanel } from "@/components/NativeCapacityContextPanel";
@@ -953,6 +954,10 @@ export function SourceCenter({
         {/* Registers and plumbing that left the commercial pages with CP-00 (design basis 2,
             I.2): the tariff publications, the reference network the map is drawn against, the
             ENTSOG point query and the declared capacity profiles. Each is one line until opened. */}
+        <details className="source-infrastructure-fold">
+          <summary>{t("tariffBook.title")}</summary>
+          <TariffBookPanel t={t} />
+        </details>
         <details className="source-infrastructure-fold">
           <summary>{t("tariffs.title")}</summary>
           <TariffPublicationsPanel t={t} />
