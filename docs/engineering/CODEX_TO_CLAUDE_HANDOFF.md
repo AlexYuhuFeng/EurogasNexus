@@ -52,3 +52,13 @@ model path on the identical synthetic scenario. The harness prompts for an
 approved key. Tests cover controlled responses, timeout, malformed/overreaching
 replies and permission denial. Live provider usefulness and commercial
 validation remain unmeasured. Keep the component offline during review.
+
+## Live model evidence
+
+The follow-up planner has now run against two local Qwen models through the
+actual HTTP adapter. Both matched fixed-order selection at 3 of 9 feasible
+cases. The fixture-specific deterministic purpose rule found 9 of 9. The
+models added seconds of latency, and the larger one also hit timeouts.
+Retain the evidence gates and optional research harness. Leave model-based
+routing disabled unless a held-out evaluation establishes incremental value.
+[Protocol, results and raw case data](../research/ROUTE_FOLLOW_UP_LIVE_MODEL_EVALUATION.md)

@@ -229,3 +229,13 @@ def test_provider_adapter_budgets_and_preserves_profile_refusal(monkeypatch):
     monkeypatch.setattr(route_follow_up, "invoke_deepseek", adapter)
     plan = route_follow_up.provider_planner("fixture-key")
     assert plan('{"source_class":"SYNTHETIC"}').status == "provider_disabled"
+
+
+def test_follow_up_benchmark_counterbalances_the_viable_choice():
+    from scripts.research.evaluate_route_follow_up import evaluate
+
+    report = evaluate(key=None)
+    fixed, rules = (report["summary"][name] for name in ("fixed_order", "purpose_rule"))
+    assert fixed["feasible_found"] == 3
+    assert rules["feasible_found"] == rules["feasible_cases"] == 9
+    assert fixed["no_feasible_correct"] == rules["no_feasible_correct"] == 3
