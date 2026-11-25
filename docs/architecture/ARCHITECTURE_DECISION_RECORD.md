@@ -856,3 +856,34 @@ items as market events only (the event carries digests, not text, by Decision 28
 and a news-fetching service (a new process to operate for a few items a day).
 Tests: `tests/unit/test_news_items_migration.py`, `tests/unit/test_news_ingest.py`,
 `tests/integration/test_news_postgres.py`.
+
+## Decision 36: A disruption re-optimisation is a deterministic pure engine with seven expand-only tables
+
+Accepted 2026-11-25 (branch `wip/lng3`, programme
+[Commercial Intelligence V3](../engineering/Commercial-Intelligence-V3/05_IMPLEMENTATION_ROADMAP.md),
+slice LNG-3). When an LNG cargo is
+late or a pipeline supply is curtailed, the desk's options (wait and absorb, borrow in tank and
+return, buy extra send-out and storage, divert to a spare slot, swap terminals with another
+cargo, cover a pipeline shortfall from a cargo, and the hedge re-alignment and demurrage each
+implies) are generated, valued against the plan before the disruption, checked against hard
+constraints (firm delivery obligations, storage rights, diversion rights) and placed on a
+Pareto frontier by `domain/lng/disruption.py`: plain Python, no solver, no randomness, no
+model call. The option space is small and enumerable (positions x capacity strategies,
+combinations across disrupted supplies capped at 256), so enumeration with a day-level
+simulation is exact for the options it lists, explainable line by line, and needs no new
+dependency; a MILP solver would add a dependency and make each answer harder to explain to
+a trader for no gain at this size. Migration `0086_lng_disruption` adds `lng_slot_terms`,
+`lng_capacity_offers`, `lng_delivery_obligations`, `lng_voyage_terms`, `pipeline_supplies`,
+`lng_disruption_runs` (the recommendation's timeline) and `lng_disruption_decisions` (the
+option a person chose) to the existing PostgreSQL database: no new service or datastore. The
+engine re-runs from the existing market-event outbox (consumer `lng_disruption`) and notifies
+through the LNG-2 role routing. Choosing an option records the choice in an audited governed
+write (`lng.disruption_choice`); nothing is booked, borrowed, bought, nominated or traded
+(AGENTS.md rule 8). No AI is used, so no GOV-1 register entry is needed. Rejected: a MILP
+(PuLP/CBC or OR-Tools; a new dependency, opaque to the desk), columns on `regas_slots`
+(slot product terms are the desk's own entry, not the ETRM's import, and would be overwritten
+by it), a cache of the frontier instead of a run table (the timeline is part of the
+requirement) and storing terminal tariff figures as product data (Fluxys, Elengy and DET terms
+forbid reuse; offers are the desk's own quotes or entries and are labelled).
+Tests: `tests/domain/test_lng_disruption.py`, `tests/unit/test_lng_disruption_migration.py`,
+`tests/api/test_lng_disruption_api.py`, `tests/integration/test_lng_disruption_postgres.py`.

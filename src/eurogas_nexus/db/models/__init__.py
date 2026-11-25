@@ -71,6 +71,15 @@ from eurogas_nexus.db.models.identity import (
     UserSessionRecord,
 )
 from eurogas_nexus.db.models.jobs import JobRecord
+from eurogas_nexus.db.models.lng_disruption import (
+    LngCapacityOfferRecord,
+    LngDeliveryObligationRecord,
+    LngDisruptionDecisionRecord,
+    LngDisruptionRunRecord,
+    LngSlotTermsRecord,
+    LngVoyageTermsRecord,
+    PipelineSupplyRecord,
+)
 from eurogas_nexus.db.models.lng_positions import (
     LngCargoHedgeRecord,
     LngCargoRecord,
@@ -363,6 +372,7 @@ __all__ = [
     "FxObservationRecord",
     "InterestRateObservationRecord",
     "OrganisationSettingRecord",
+    "PipelineSupplyRecord",
     "PowerObservationRecord",
     "ErpReferenceRecord",
     "NewsItemRecord",
@@ -372,8 +382,14 @@ __all__ = [
     "MarketReportRecord",
     "TradingBookRecord",
     "RemitUmmRecord",
+    "LngCapacityOfferRecord",
     "LngCargoHedgeRecord",
     "LngCargoRecord",
+    "LngDeliveryObligationRecord",
+    "LngDisruptionDecisionRecord",
+    "LngDisruptionRunRecord",
+    "LngSlotTermsRecord",
+    "LngVoyageTermsRecord",
     "NotificationChannelRecord",
     "NotificationDeliveryRecord",
     "NotificationOutboxRecord",

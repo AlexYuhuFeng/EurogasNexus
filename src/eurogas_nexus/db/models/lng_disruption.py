@@ -1,0 +1,174 @@
+"""LNG-3: what a disruption re-optimisation needs beyond the cargo and its slot, and its record.
+
+Migration ``0086_lng_disruption`` (ADR Decision 36). The engine is
+``domain/lng/disruption.py``; the reads and the one write are
+``application/lng_disruption.py``.
+
+* ``lng_slot_terms``: a held regas slot's product terms (slot length in gas days, storage
+  right and its profile, what releasing it would fetch). Without a row the slot is read from
+  ``regas_slots`` with a declining storage right equal to the slot's energy, named as such.
+* ``lng_capacity_offers``: terminal capacity the desk could borrow in tank or buy (extra
+  send-out, extra storage, interruptible), as quoted by a counterparty or the terminal, or
+  as an indicative figure the desk entered.
+* ``lng_delivery_obligations``: gas the book must deliver at a terminal or point each gas day
+  of a window; a firm one is a hard constraint.
+* ``lng_voyage_terms``: per cargo or charter, laytime, demurrage, boil-off and whether the
+  cargo may be diverted (otherwise the cargo contract's master agreement and the firm's
+  boil-off assumption are used, and named).
+* ``pipeline_supplies``: pipeline supply contracts of the book and the days curtailed.
+* ``lng_disruption_runs``: every re-optimisation run, the timeline of the recommendation.
+* ``lng_disruption_decisions``: the option a person chose (a record only: nothing is booked).
+
+Every figure here is the firm's own entry or import; nothing is a terminal's tariff copied
+into the product.
+"""
+
+from __future__ import annotations
+
+from datetime import date, datetime
+
+from sqlalchemy import JSON, Boolean, Date, DateTime, Float, Index, Integer, String, Text
+from sqlalchemy.orm import Mapped, mapped_column
+
+from eurogas_nexus.db.base import Base
+
+
+class LngSlotTermsRecord(Base):
+    __tablename__ = "lng_slot_terms"
+
+    slot_id: Mapped[str] = mapped_column(String(96), primary_key=True)
+    #: Gas days of send-out the slot gives from its first gas day.
+    slot_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    storage_mwh: Mapped[float] = mapped_column(Float, nullable=False)
+    #: ``linear_decline`` (the storage right falls to zero over the slot) or ``flat``.
+    storage_profile: Mapped[str] = mapped_column(String(24), nullable=False)
+    #: What the secondary market would pay per MWh of send-out right if released (indicative).
+    release_value_eur_mwh: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source_reference: Mapped[str] = mapped_column(String(160), nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LngCapacityOfferRecord(Base):
+    __tablename__ = "lng_capacity_offers"
+    __table_args__ = (Index("ix_lng_capacity_offers_terminal", "terminal_name", "kind"),)
+
+    offer_id: Mapped[str] = mapped_column(String(96), primary_key=True)
+    #: ``None``: open to every book.
+    book_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    terminal_name: Mapped[str] = mapped_column(String(128), nullable=False)
+    #: ``borrow``, ``send_out``, ``storage`` or ``interruptible``.
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    first_gas_day: Mapped[date] = mapped_column(Date, nullable=False)
+    last_gas_day: Mapped[date] = mapped_column(Date, nullable=False)
+    price_eur_mwh: Mapped[float] = mapped_column(Float, nullable=False)
+    max_mwh_per_day: Mapped[float | None] = mapped_column(Float, nullable=True)
+    max_mwh: Mapped[float | None] = mapped_column(Float, nullable=True)
+    storage_price_eur_mwh_day: Mapped[float | None] = mapped_column(Float, nullable=True)
+    #: ``quoted`` (a counterparty or the terminal named a price), ``tariff`` or ``indicative``.
+    basis: Mapped[str] = mapped_column(String(16), nullable=False)
+    counterparty: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    source_reference: Mapped[str] = mapped_column(String(160), nullable=False)
+    valid_until_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LngDeliveryObligationRecord(Base):
+    __tablename__ = "lng_delivery_obligations"
+    __table_args__ = (Index("ix_lng_delivery_obligations_book", "book_id"),)
+
+    obligation_id: Mapped[str] = mapped_column(String(96), primary_key=True)
+    book_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    counterparty: Mapped[str] = mapped_column(String(128), nullable=False)
+    contract_id: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    #: A terminal name (LNG send-out there counts) or a hub code (any supply at it counts).
+    point: Mapped[str] = mapped_column(String(128), nullable=False)
+    hub: Mapped[str] = mapped_column(String(16), nullable=False)
+    first_gas_day: Mapped[date] = mapped_column(Date, nullable=False)
+    last_gas_day: Mapped[date] = mapped_column(Date, nullable=False)
+    mwh_per_day: Mapped[float] = mapped_column(Float, nullable=False)
+    firm: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    penalty_eur_mwh: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source_reference: Mapped[str] = mapped_column(String(160), nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LngVoyageTermsRecord(Base):
+    __tablename__ = "lng_voyage_terms"
+
+    cargo_id: Mapped[str] = mapped_column(String(96), primary_key=True)
+    charter_reference: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    laytime_hours: Mapped[float | None] = mapped_column(Float, nullable=True)
+    demurrage_eur_per_day: Mapped[float | None] = mapped_column(Float, nullable=True)
+    boil_off_pct_per_day: Mapped[float | None] = mapped_column(Float, nullable=True)
+    #: ``None``: the contract says nothing the desk recorded; a DES cargo is then not diverted.
+    diversion_allowed: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    diversion_note: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    source_reference: Mapped[str] = mapped_column(String(160), nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class PipelineSupplyRecord(Base):
+    __tablename__ = "pipeline_supplies"
+    __table_args__ = (Index("ix_pipeline_supplies_book", "book_id"),)
+
+    supply_id: Mapped[str] = mapped_column(String(96), primary_key=True)
+    book_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    label: Mapped[str] = mapped_column(String(128), nullable=False)
+    contract_id: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    hub: Mapped[str] = mapped_column(String(16), nullable=False)
+    point: Mapped[str] = mapped_column(String(128), nullable=False)
+    first_gas_day: Mapped[date] = mapped_column(Date, nullable=False)
+    last_gas_day: Mapped[date] = mapped_column(Date, nullable=False)
+    mwh_per_day: Mapped[float] = mapped_column(Float, nullable=False)
+    cost_eur_mwh: Mapped[float | None] = mapped_column(Float, nullable=True)
+    #: Days the supplier curtailed: [[gas day ISO, MWh not delivered], ...].
+    curtailed: Mapped[list] = mapped_column(JSON, nullable=False)
+    source_system: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_reference: Mapped[str] = mapped_column(String(160), nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class LngDisruptionRunRecord(Base):
+    """One re-optimisation of a book: the timeline of the recommendation."""
+
+    __tablename__ = "lng_disruption_runs"
+    __table_args__ = (Index("ix_lng_disruption_runs_book", "book_id", "computed_at_utc"),)
+
+    run_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    book_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    computed_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: What started it: ``event:<event_id>`` or ``read``.
+    trigger: Mapped[str] = mapped_column(String(160), nullable=False)
+    #: The disrupted supplies, the recommended option and the frontier (option ids and keys).
+    digest: Mapped[str] = mapped_column(String(40), nullable=False)
+    disrupted: Mapped[list] = mapped_column(JSON, nullable=False)
+    recommended_option_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    recommended_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recommended_title: Mapped[str | None] = mapped_column(Text, nullable=True)
+    recommended_pnl_eur: Mapped[float | None] = mapped_column(Float, nullable=True)
+    frontier: Mapped[list] = mapped_column(JSON, nullable=False)
+    #: Each option's key, feasibility and objectives, so the timeline is readable later.
+    options: Mapped[list] = mapped_column(JSON, nullable=False)
+    #: ``recommendation``, ``frontier``, ``pnl`` or ``None`` (no material change).
+    change: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    notified: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class LngDisruptionDecisionRecord(Base):
+    """The option a person chose for a disruption. A record: nothing is booked or sent."""
+
+    __tablename__ = "lng_disruption_decisions"
+    __table_args__ = (Index("ix_lng_disruption_decisions_cargo", "cargo_id", "decided_at_utc"),)
+
+    decision_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    book_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    cargo_id: Mapped[str] = mapped_column(String(96), nullable=False)
+    run_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    option_id: Mapped[str] = mapped_column(String(32), nullable=False)
+    option_key: Mapped[str] = mapped_column(Text, nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    recommended_option_id: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    objectives: Mapped[dict] = mapped_column(JSON, nullable=False)
+    note: Mapped[str | None] = mapped_column(Text, nullable=True)
+    decided_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    decided_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
