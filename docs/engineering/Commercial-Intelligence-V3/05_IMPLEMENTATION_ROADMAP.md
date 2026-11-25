@@ -22,6 +22,7 @@ Phase 0 work (baseline, audit, these documents). Status is kept in
 | P-11 | Opportunities value each book with its own assumption set and its gas-day balance | 7 | No | **Built, tested** |
 | M7 | Live pipeline ([15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md)): the listen worker is the default trigger (no drain cap, one-minute debounce, sweep lock); new-engine opportunities to alerts routed to an owner with escalation, notified once under a row lock; `/api/stream/opportunities` pushes open, withdrawn and evaluated, and the Opportunities page follows it with its age shown; latency measured before and after. Retiring the legacy intraday engine is blocked by its dependents (R19) | 7, 10 | No | **Built, tested** (M7-1 to M7-9; M7-10 blocked) |
 | LNG-2 | A cargo change reaches each role: rebuilt plan, hedge roll proposal, slot and nomination consequences, exposure, material escalation; ETA basis and confidence | 5, 7 | No | **Built, tested** (LNG2-1 to LNG2-5 met; migration `0080_lng_eta_basis`) |
+| LNG-3 | A disrupted cargo or pipeline supply re-optimised across the book: wait, borrow in tank, buy send-out or storage, divert, swap, cover; valued against the plan under ETA and price scenarios; hard constraints (firm obligations, storage, diversion rights); Pareto frontier and a configurable default; re-run on events with a timeline; a person chooses, nothing is booked ([17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md)) | 5, 6, 7 | No | **Built, tested** on `wip/lng3` (LNG3-1 to LNG3-8 met; migration `0086_lng_disruption`, ADR Decision 36) |
 | GOV-1 | Governance: audit written with the change, entitlement usage and export decisions, maker-checker on limits and reference data (P-17) with figure provenance; AI controls stage 2 (AI-use register, switch per feature, prompt and model versions on audit rows, tool allowlists per role, evaluation gate) | 8, 10 | No | **Built, tested** (GOV1-1 to GOV1-6; maker-checker P-17: P17-1 to P17-9 met, migration `0081_change_requests`) |
 | UX-1 | Client polish from the design study (R1 to R12): focus in high contrast, colour-blind palette, directional change, one number formatter, icons, dark surfaces, motion tokens, density, settings split, desktop plugins and menu; installer and sign-in; freshness shown on every figure | 9 | No | Next |
 | DATA-1 | Price revisions readable as known at a time; a change feed over market events; Power Query refreshable reads; ETRM and ERP import contracts | 1, 2 | No | **Built, tested** (DATA1-1 to DATA1-4 met; migration `0082_data1_integration`, ADR Decision 33) |
@@ -50,6 +51,7 @@ they overlap. Each one is mapped to a single slice above so nothing is built twi
 | AI-assisted strategy automation one step away | M7 signals plus M9 ledger; execution stays out of scope |
 | Persona role-play and rigorous human-like testing to a commercial standard | Q1, then a review round after each user-facing slice |
 | LNG cargo lifecycle in transit; the delayed-cargo example | LNG-1, QA-1 (done), LNG-2 |
+| Re-optimise the portfolio when a cargo or pipeline supply is disrupted (2026-11-25) | LNG-3 |
 | Where AI belongs per role; safe, controlled, predictable AI following industry practice | AIR-1 (design done), GOV-1, NEWS-1 |
 | Personal tabs, views made with AI help; feedback turned into reviewed changes | UX-2, LOOP-1 (design in 14) |
 | Learn from Kpler, Bloomberg, Platts, ETRMs, Kraken | 16 maps each lesson to DATA-1, GOV-1, SCHED-1, M7, M13 |
@@ -66,17 +68,20 @@ they overlap. Each one is mapped to a single slice above so nothing is built twi
 
 ## Order and reasoning
 
-Built so far: M4 to M6, LNG-1, F1, DOC, the first persona round (QA-1, P-11), P-08, M7 and
-LNG-2. Next:
+Built so far: M4 to M6, LNG-1, F1, DOC, the first persona round (QA-1, P-11), P-08, M7,
+LNG-2 and LNG-3. Next:
 
 1. **P-08 and M7 together.** Every later screen and alert depends on one price and on
    changes reaching people in seconds. M7 builds role routing, which LNG-2 needs.
 2. **LNG-2 (built).** The owner's delayed-cargo example, end to end, on M7's routing.
+   **LNG-3 (built)** follows it: once each role knows the cargo is late, the
+   book's options are valued and a default proposed, on the same outbox and routes. It sits
+   here because it needs LNG-1's plan, LNG-2's routing and P-08's prices, and nothing later.
 3. **GOV-1.** Audit with the change and AI controls come before any feature that leans
    harder on AI (NEWS-1, "make me a view").
 4. **UX-1.** Polish on a stable model; two items are bugs (high-contrast focus, desktop
    capabilities claimed without their plugins).
-5. **DATA-1 and TAR-1 (built), then MAP-1, SCHED-1, NEWS-1**, each on the foundations above.
+5. **DATA-1, TAR-1, MAP-1, SCHED-1 and NEWS-1 (built)**, each on the foundations above.
 6. **UX-2 and LOOP-1**, once the component catalogue and AI controls exist.
 7. **M8 to M11, M13** for commercial depth and consolidation.
 

@@ -68,6 +68,10 @@ how feedback becomes a reviewed change: [14](14_AI_ROLES_PERSONALISATION_AND_IMP
 [16](16_COMPETITIVE_STUDY.md) compares the platform with market data vendors, ETRMs, LNG
 shipping tools and Kraken, and with best practice in client design, and records what we
 take from each and when.
+On 2026-11-25 the user asked for the portfolio to be re-optimised when a cargo or a
+pipeline supply is disrupted: [17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md) is the design
+(LNG-3), with its sources, the worked example and its limits. The engine proposes and values;
+a person chooses; nothing is booked.
 
 1. Review every surface against the standard in a real browser, per role (Q1).
 2. Fix the control and data blockers the review found (F1).

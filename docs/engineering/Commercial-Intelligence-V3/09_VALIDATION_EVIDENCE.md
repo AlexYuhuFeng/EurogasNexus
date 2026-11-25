@@ -335,6 +335,47 @@ renomination at 02:00 UTC (due soon). On 2026-12-02 the reconciliation has no br
 | Bundle (`npm run build`) | `index-*.js` 2,226.70 kB (gzip 619.97), `index-*.css` 394.47 kB (gzip 60.66) | +11.5 kB JS and +2.1 kB CSS against MAP-1's figures; no npm package added |
 | Live feeds | Not run: the build environment had no outbound network, so no feed was read live and no feed address was confirmed | The first operator poll confirms GOV.UK's address; the others are to be recorded |
 
+## LNG-3 a disruption re-optimises the portfolio (2026-11-25, branch `wip/lng3`)
+
+The owner's scenario (06, "LNG-3 a disruption re-optimises the portfolio"), judged 20 January
+2027 09:00 UTC; every figure illustrative. Two days late (ETA 28 Jan), EUR against the plan:
+
+| Option | Expected | Worst | Cost | Spare MWh | Moved MWh | Result |
+| --- | --- | --- | --- | --- | --- | --- |
+| Borrow in tank | -20,000 | -158,000 | 20,000 | 1,000,000 | 0 | Default, score -89,000 |
+| Swap with GATE-1 | +95,800 | -330,200 | -35,000 | 1,000,000 | 1,000,000 | Frontier (score -617,200) |
+| Buy send-out | -36,000 | -249,000 | 36,000 | 1,000,000 | 0 | Dominated by borrow |
+| Divert to Dunkerque | -247,400 | -347,600 | 247,000 | 0 | 0 | Dominated by borrow |
+| Wait and absorb | -279,000 | -417,000 | 79,000 | 800,000 | 0 | Dominated by borrow |
+| Swap with HUE-1 | | | | | | Infeasible: Cepsa 50,000 MWh short on 24 Jan |
+
+Four days late (30 Jan): the default flips to borrow and buy (-182,000 / -395,000, score
+-288,500); frontier {borrow and buy, divert (-152,000 / -508,000)}; the swap with GATE-1 is
+infeasible (storage at Gate). Through the store with no boil-off (1,000,000 MWh lands), the
+same scenario gives the same borrow and borrow-and-buy figures; the swap is +35,000 (no
+boil-off saved) and divert -187,000. The flip is told once to the trader, scheduler and desk
+head (3 notices per run, 6 in all); re-running the same inputs tells no one.
+
+Latency (in process, the development container; 12 ETA changes; [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) section 8):
+
+| Store | Commit to run row and notices (median, max) | Options read | Engine alone |
+| --- | --- | --- | --- |
+| PostgreSQL 16 | 0.052 s, 0.260 s | 0.050 s | 12 ms |
+| SQLite | 0.028 s, 0.153 s | 0.025 s | 12 ms |
+
+The engine is about 2 ms per option (112 options in 0.22 s; the 256 cap about 0.5 s).
+
+| Run | Command | Result |
+| --- | --- | --- |
+| LNG-3 tests | `pytest tests/domain/test_lng_disruption.py tests/api/test_lng_disruption_api.py tests/unit/test_lng_disruption_migration.py tests/integration/test_lng_disruption_postgres.py tests/integration/test_demo_planted_cases.py` | 33 passed, 2 skipped (the PostgreSQL cases, run below) |
+| PostgreSQL 16 (`egn_lng3`, `alembic upgrade head`, `downgrade -1`, `upgrade head`, all clean; dropped afterwards) | `EUROGAS_NEXUS_TEST_POSTGRES_URL=... pytest tests/integration tests/unit -k "postgres or listen"` | 75 passed, 106 skipped (other suites' own preconditions), including both LNG-3 PostgreSQL cases, the schema-matches-models check and the demo seed on PostgreSQL |
+| Contract and docs (census 296 paths / 331 operations, surface reachability, policy EN and CN) | `pytest tests/contract tests/docs` | 605 passed, 12 skipped |
+| API, security and DB | `pytest tests/api tests/security tests/db` | 1,478 passed, 2 skipped |
+| Integration, unit and domain (SQLite) | `pytest tests/integration tests/unit tests/domain` | 3,644 passed, 212 skipped (PostgreSQL and other preconditions), 0 failed |
+| Lint | `ruff check src tests scripts` | All checks passed |
+| Markdown links | `python scripts/ci/check_markdown_links.py` | All local links resolve |
+| Web | `npx tsc --noEmit -p .`; `npm test` (in `clients/web`) | clean; 1,394 tests, 1,391 passed, 3 skipped, 0 failed (5 new in `disruptionOptionsModel.test.ts`); token lint 43 of 44 stylesheets clean, baseline unchanged |
+
 ## Not yet evidenced
 
 - NEWS-1 live feeds: no feed was read live (no outbound network in the build environment);

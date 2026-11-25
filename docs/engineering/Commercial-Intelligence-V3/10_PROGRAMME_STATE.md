@@ -7,7 +7,7 @@ describes.
 **Branch:** `innovation/continuous-commercial-intelligence` (pushed; no pull request opened,
 nothing merged, no tag, no release package)
 **Baseline:** `main@6d21b898661d6466418b3aaeab505a7bc4fb4013`
-**Schema head on the branch:** `0084_news_items` (NEWS-1: tables `news_items`, `news_source_polls`), on `0085_sched1_nomination_matching` (SCHED-1: matching columns on `gas_day_nomination_events`), on `0083_tar1_tariff_book` (TAR-1: tables `tariff_versions`, `capacity_notices`), on `0082_data1_integration` (DATA-1: `market_events.writer_txid`, table `erp_references`), on `0081_change_requests` (P-17), on `0080_lng_eta_basis` (LNG-2), on `0079_licensed_data_use` (GOV-1, P6)
+**Schema head on the branch:** `0086_lng_disruption` (LNG-3: seven expand-only tables, ADR Decision 36), on `0084_news_items` (NEWS-1: tables `news_items`, `news_source_polls`), on `0085_sched1_nomination_matching` (SCHED-1: matching columns on `gas_day_nomination_events`), on `0083_tar1_tariff_book` (TAR-1: tables `tariff_versions`, `capacity_notices`), on `0082_data1_integration` (DATA-1: `market_events.writer_txid`, table `erp_references`), on `0081_change_requests` (P-17), on `0080_lng_eta_basis` (LNG-2), on `0079_licensed_data_use` (GOV-1, P6)
 
 ## Where the programme stands
 
@@ -37,6 +37,7 @@ nothing merged, no tag, no release package)
 | MAP-1 The map | Built and tested; MAP1-1 to MAP1-6 met ([06](06_ACCEPTANCE_CRITERIA.md)): terminals and storage from ENTSOG published capacity with GIE inventory labelled by scope, carriers with reported and labelled estimated positions and ETA basis, flows with a direction only where the operator's side is known and a gas-day scrubber, 2D/3D with reduced motion. Not yet: frame rate measured in a browser, page-to-page transitions |
 | SCHED-1 Nominations: why trades, confirmations and nominations disagree | Built and tested; SCHED1-1 to SCHED1-8 met ([06](06_ACCEPTANCE_CRITERIA.md)): per gas day, hub and counterparty traded, confirmed, nominated and TSO-matched quantities; eleven break kinds explained with their arithmetic and next step, ordered by cut-off and MWh at risk with an indicative cash-out; alerts in `nomination`, withdrawn when fixed; Today's Reconciliation row and What needs me; demo case R1. Read only, nothing sent. Not yet: shipper-code reference data (codes come from the scheduling file), a TSO confirmation feed (imported, not received) |
 | NEWS-1 News and events in the analysis | Built and tested; NEWS1-1 to NEWS1-11 met ([06](06_ACCEPTANCE_CRITERIA.md)): a source registry with quoted terms (REMIT messages held, GOV.UK DESNZ feed polled; the Commission, EUR-Lex and ACER terms read, feed addresses not yet recorded; licensed and forbidden sources excluded), deterministic tags, a link from an item to a held outage that re-evaluates opportunities, role routing with dedupe and cooldown, the AI use `news_note` with a sentence-by-sentence grounding check and its evaluation set, three additive reads and the Desk → Today panel |
+| LNG-3 A disruption re-optimises the portfolio | Built and tested; LNG3-1 to LNG3-8 met ([06](06_ACCEPTANCE_CRITERIA.md)); design, sources and limits in [17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md); migration `0086_lng_disruption`, ADR Decision 36; latency in [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) sections 2 and 8 |
 | UX-1, UX-2, LOOP-1, M8 to M11, M13 | Planned, in the order of [05](05_IMPLEMENTATION_ROADMAP.md) |
 | M12 Hosted pilot | Dropped by the user on 2026-11-24 (deployment later, outside this programme) |
 
@@ -69,6 +70,12 @@ nothing merged, no tag, no release package)
 | `4ad0103` | LNG-2 a cargo change reaches the trader, scheduler, risk and desk head |
 | `dec1e4a` | LNG-2 web: who must act on a cargo change, and what its ETA rests on |
 | (this commit) | LNG-2 documents and evidence |
+| `6a5b5c4` | LNG-3 deterministic disruption optimiser for LNG cargoes and pipeline supply (`wip/lng3`) |
+| `41e30da` | LNG-3 migration 0086 and ADR Decision 36 |
+| `a9483e2` | LNG-3 re-optimise on events, three reads and a choose action, demo planted case D1 |
+| `c88ab8f` | LNG-3 owner scenario through the store on SQLite and PostgreSQL; demo D1 planted test |
+| `b1ecc82` | LNG-3 web Options section with a Choose that only records |
+| (this commit) | LNG-3 documents and evidence |
 
 ## What M5 built
 
@@ -92,9 +99,13 @@ deduplicated plan in [05](05_IMPLEMENTATION_ROADMAP.md) ("Consolidated requireme
 2. **LNG-2 (built).** A delayed cargo reaches the trader, scheduler, risk and, when material,
    the desk head (criteria LNG2-1 to LNG2-5 in [06](06_ACCEPTANCE_CRITERIA.md)). Left: timed
    escalation when a role does not act (R20, as for M7), routing to a named person on duty.
+   **LNG-3 (built)** values what the desk could do about it across the book
+   and proposes a default ([17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md)). Left for the
+   owner: an FX rule for USD demurrage, linking REMIT outages to the pipeline supply they
+   curtail, and the default preference weights.
 3. **GOV-1.** Audit with the change, entitlement reporting, maker-checker, AI controls.
 4. **UX-1.** The twelve design-study fixes, installer and sign-in.
-5. **DATA-1, TAR-1, MAP-1, SCHED-1 and NEWS-1 (built).** Then **UX-2, LOOP-1**, M8 to M11 and M13.
+5. **DATA-1, TAR-1, MAP-1, SCHED-1, NEWS-1 and LNG-3 (built).** Then **UX-2, LOOP-1**, M8 to M11 and M13.
 
 
 A persona review round follows each user-facing slice.

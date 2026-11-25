@@ -6,6 +6,33 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-25 — Commercial Intelligence V3, LNG-3: a disruption re-optimises the portfolio (branch `wip/lng3`)
+
+- `domain/lng/disruption.py` (pure, deterministic, no solver): a late cargo or a curtailed
+  pipeline supply's options (wait, borrow in tank, buy send-out or storage, borrow and buy,
+  divert to a spare slot, swap with another cargo; absorb or cover from a cargo), each
+  simulated by gas day and valued against the plan across the whole book under ETA and
+  price scenarios; hard constraints (firm obligations judged against the plan, storage,
+  stranded energy, diversion rights); a Pareto frontier over five objectives with each
+  dominated option's reason; a default by a configurable score (`lng.disruption.*`
+  assumptions, desk standards otherwise). Capped at 24 options per supply, 256 combinations.
+- Migration `0086_lng_disruption` (`down_revision` `0082_data1_integration`), ADR Decision 36:
+  seven expand-only tables (slot terms, capacity offers, delivery obligations, voyage terms,
+  pipeline supplies, runs, decisions). `DB_SCHEMA_REVISION` and the 10 pinned head literals
+  moved.
+- `application/lng_disruption.py`: loads the book from the store; outbox consumer
+  `lng_disruption` (cargo, capacity, tariff, contract, assumption and outage events; not
+  price ticks) keeps a run timeline and tells the trader, scheduler and desk head through the
+  LNG-2 routes on a material change, deduplicated, with a 30-minute cooldown.
+- Routes: `GET /api/lng/cargoes/{id}/disruption-options`, `.../{option_id}`, `POST
+  .../{option_id}/choose` (governed, audited `lng.disruption_choice`; nothing booked) and `GET
+  /api/lng/disruption/frontier` (pipeline what-if). Census 296 paths / 331 operations.
+- Web: an Options section in the cargo plan sheet (`CargoOptionsPanel.tsx`,
+  `app/model/disruptionOptionsModel.ts`, `cargo-options.css` in `@layer ds-components`), EN
+  and ZH. Demo planted case D1 on the 24th of each month.
+- Design, sources and limits: [17](Commercial-Intelligence-V3/17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md).
+  Not yet: USD demurrage conversion, REMIT outage to pipeline-supply linking.
+
 ## 2026-11-25 — Commercial Intelligence V3, NEWS-1: news, policy and geopolitical events (branch `wip/news1`)
 
 - Source registry `domain/news/sources.py` with quoted, dated terms

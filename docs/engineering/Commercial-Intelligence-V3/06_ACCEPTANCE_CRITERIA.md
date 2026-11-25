@@ -253,6 +253,105 @@ Decision support only: nothing is traded, nominated or sent.
 | NEWS1-10 | Web: a news and events panel on Desk → Today with hub, country and type filters and "my book" first; an item opens with its source link and terms, the exposures it touches and the note with inline citations, the AI note labelled; shared `components/ui`, styles in `@layer ds-components` with `--ds-*` tokens, every string in EN and ZH | `clients/web/tests/newsModel.test.ts` |
 | NEWS1-11 | Storage: one expand-only migration `0084_news_items` (tables `news_items`, `news_source_polls`), up and down on SQLite and PostgreSQL; ADR Decision 35 | `tests/unit/test_news_items_migration.py`; `tests/integration/test_news_postgres.py` |
 
+## LNG-3 a disruption re-optimises the portfolio (met)
+
+The owner's scenario (2026-11-25), judged on Wednesday 20 January 2027 at 09:00 UTC. Every
+price, offer and term in it is illustrative. Design: [17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md).
+
+**Market.** The January contract stopped trading on 30 December, February trades until
+28 January, and gas days up to 21 January are already nominated. Month prices (EUR/MWh):
+
+| Hub | Jan | Feb |
+| --- | --- | --- |
+| ZTP | 30.00 | 29.00 |
+| TTF | 30.40 | 29.40 |
+| PEG | 30.20 | 29.40 |
+| PVB | 31.00 | 30.00 |
+
+**The book.** Three cargoes of 1,000,000 MWh each (laytime 36 h, demurrage 70,000 EUR/day,
+boil-off 1,000 MWh/day), a spare slot, a pipeline and a delivery obligation:
+
+| Cargo | Slot | Where it stands |
+| --- | --- | --- |
+| ZEE-1 | Zeebrugge (ZTP) from 26 Jan: 10 days, 100,000 MWh/d send-out, 1,000,000 MWh storage declining linearly, release value 0.10 EUR/MWh | Now due **28 Jan**, medium confidence |
+| GATE-1 | Gate (TTF) from 28 Jan | Arrives 26 Jan |
+| HUE-1 | Huelva (PVB) from 24 Jan: 20 days at 50,000 MWh/d | On time. Huelva is three sailing days closer than the others |
+
+- **Spare slot:** Dunkerque (PEG) from 30 Jan.
+- **Pipeline:** 30,000 MWh/d at ZTP, at 28 EUR/MWh.
+- **Obligation:** Cepsa takes a firm 50,000 MWh/d at Huelva from 24 Jan to 12 Feb.
+
+**Offers at Zeebrugge (indicative):**
+
+| Offer | Price | Limit | Days |
+| --- | --- | --- | --- |
+| Borrow in tank | 0.10 EUR/MWh | up to 100,000 MWh/d | 26 to 27 Jan |
+| Extra send-out | 0.15 EUR/MWh | 50,000 MWh/d | |
+| Extra storage | 0.02 EUR/MWh | 300,000 MWh | |
+| Interruptible send-out | 0.05 EUR/MWh | 100,000 MWh/d | |
+| Interruptible storage | 0.01 EUR/MWh per day | | |
+
+**Two days late (28 Jan).** EUR against the plan:
+
+| Option | Expected | Worst | Cost | Spare send-out MWh | Other supplies moved MWh | Standing |
+| --- | --- | --- | --- | --- | --- | --- |
+| Borrow in tank | -20,000 | -158,000 | 20,000 | 1,000,000 | 0 | **Default** (score -89,000) |
+| Swap with GATE-1 | +95,800 | -330,200 | -35,000 | 1,000,000 | 1,000,000 | Frontier, but moves a cargo that was running to plan |
+| Buy send-out | -36,000 | -249,000 | 36,000 | 1,000,000 | 0 | Dominated by borrow |
+| Divert to Dunkerque | -247,400 | -347,600 | 247,000 | 0 | 0 | Dominated by borrow |
+| Wait and absorb | -279,000 | -417,000 | 79,000 | 800,000 | 0 | Dominated by borrow |
+| Swap with HUE-1 | | | | | | **Infeasible**: "breaks the firm delivery to Cepsa at Huelva: 50,000 MWh short on 24 Jan" |
+
+How the figures are made up:
+
+- **Borrow.** 200,000 MWh borrowed for 26 and 27 Jan at 0.10 = 20,000. The planned send-out
+  is kept, so there is nothing to re-hedge.
+- **Wait and absorb.** 200,000 MWh moves from ZTP January (30.00) to February (29.00), which
+  is -200,000. The re-hedge costs 200,000 x 0.25 (January has stopped trading) plus
+  200,000 x 0.01 (February), which is -52,000. Capacity costs -27,000.
+- **Divert to Dunkerque:**
+
+  | Component | EUR |
+  | --- | --- |
+  | Physical moved | -40,000 |
+  | Re-hedge | -212,000 |
+  | Demurrage | -35,000 |
+  | Boil-off | -60,400 |
+  | Release of the Zeebrugge slot | +100,000 |
+  | **Total** | **-247,400** |
+
+- **Swap with GATE-1.** Saves GATE-1's half day of demurrage (+35,000) and its waiting
+  boil-off (+60,800). It is penalised 0.5 EUR per MWh of a supply that was running to plan,
+  and its downside is weighted 0.5.
+
+**Four days late (30 Jan).** The default flips to **borrow in tank and buy extra send-out**:
+
+| Component | EUR |
+| --- | --- |
+| Physical moved | -100,000 |
+| Re-hedge | -26,000 |
+| Capacity fees | -56,000 |
+| **Expected** | **-182,000** |
+
+Its worst case is -395,000 and its score -288,500. The frontier is {borrow and buy, divert}.
+Divert is -152,000 expected and -508,000 worst, with a score of -330,000. Borrow alone falls
+to -295,000. The swap with GATE-1 becomes infeasible, because the tank would hold 200,000 MWh
+over the storage right at Gate.
+
+Through the outbox, the trader, the scheduler and the desk head are told once when the default
+flips. Running again on the same inputs tells no one.
+
+| ID | Criterion | Evidence |
+| --- | --- | --- |
+| LNG3-1 | The model holds the slot product (days, send-out, storage and its profile, release value), capacity offers, delivery obligations, voyage terms and pipeline supplies. It is one expand-only migration (`0086_lng_disruption`, ADR Decision 36), and the schema head pins moved with it | `tests/unit/test_lng_disruption_migration.py::test_up_down_and_model_match`; `tests/integration/test_schema_matches_models_postgres.py`; `DB_SCHEMA_REVISION` and the 10 pinned head literals |
+| LNG3-2 | Each option (wait, borrow, buy, borrow and buy, divert, swap; for a pipeline, absorb or cover from a cargo) is valued against the plan across the whole book, under ETA and price scenarios, and the frontier matches the hand-worked numbers | `tests/domain/test_lng_disruption.py::test_two_day_delay_values_each_option_against_the_plan`, `::test_wait_and_absorb_breaks_down_as_worked_by_hand`, `::test_borrow_keeps_the_planned_send_out_and_returns_the_gas_after_berthing`, `::test_divert_arithmetic_releases_the_slot_and_re_hedges`, `::test_frontier_and_recommendation_for_a_two_day_delay`, `::test_pipeline_curtailment_absorbed_or_covered_from_a_cargo`, `::test_nominated_days_settle_at_cash_out`; through the store on SQLite and PostgreSQL: `tests/integration/test_lng_disruption_postgres.py::test_the_owner_scenario_is_valued_from_the_store_and_chosen` |
+| LNG3-3 | Hard constraints are never traded off: the Spanish firm obligation makes the Huelva swap infeasible, with its reason. A diversion the contract forbids is infeasible. Energy that cannot be stored is stranded and infeasible. A soft obligation costs its penalty instead | `tests/domain/test_lng_disruption.py::test_swap_that_breaks_the_spanish_obligation_is_infeasible`, `::test_divert_is_infeasible_when_the_contract_forbids_it`, `::test_late_divert_strands_what_the_slot_cannot_hold`, `::test_a_soft_obligation_costs_its_penalty_instead`; `tests/api/test_lng_disruption_api.py::test_a_late_cargo_gets_valued_options_a_frontier_and_a_default` |
+| LNG3-4 | Moving a cargo that was running to plan is counted (`disrupted_mwh`) and penalised in the default. Dominated options name what beats them and where. The default is configurable, deterministic and documented, with complexity limits | `tests/domain/test_lng_disruption.py::test_swap_with_the_normal_cargo_is_penalised_for_disturbing_it`, `::test_preference_weights_change_the_default_not_the_frontier`, `::test_same_inputs_same_answer`; [17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md) sections 3 and 4 |
+| LNG3-5 | A later ETA flips the recommendation. The consumer re-optimises on input events and keeps a timeline. The trader, scheduler and desk head are told only on a material change, once, with dedupe and cooldown. Latency is within the cargo budget | `tests/domain/test_lng_disruption.py::test_a_later_eta_flips_the_recommendation`; `tests/integration/test_lng_disruption_postgres.py::test_a_later_eta_flips_the_default_and_the_roles_are_told_once` (SQLite and PostgreSQL); `tests/api/test_lng_disruption_api.py::test_the_consumer_keeps_a_timeline_and_notifies_once_per_change`; [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) sections 2 and 8 |
+| LNG3-6 | Three reads and a choose action. The choice is governed and audited, an infeasible option is refused, and nothing is booked. The census, reachability and contract policy are updated | `tests/api/test_lng_disruption_api.py::test_choosing_records_the_decision_audited_and_books_nothing`, `::test_frontier_reads_the_book_and_a_pipeline_what_if`, `::test_a_cargo_running_normally_is_as_planned`; `tests/contract` (census 296 paths and 331 operations, surface reachability) |
+| LNG3-7 | The web Options panel on the cargo plan has a Choose action, built from `components/ui` with tokens in `@layer ds-components`, in EN and ZH | `clients/web/tests/disruptionOptionsModel.test.ts`; `clients/web/tests/designTokens.test.ts`, `cssTokenLint.test.ts`, `locales.test.ts`; `npx tsc --noEmit -p .` |
+| LNG3-8 | The demo plants the case: on the 24th of each month the demo LNG book holds a late cargo with options, and on other days it does not. The other planted cases are unchanged | `tests/integration/test_demo_planted_cases.py::test_d1_plants_a_late_cargo_whose_options_the_desk_can_read`, `::test_the_d1_day_lists_nothing_more_than_every_day`, `::test_each_planted_case_is_found_on_its_day_and_nothing_else` |
+
 ## M7 to M9 (to be met)
 
 - **M8.** For a contract with ACQ and make-up terms, the shortfall and make-up balance

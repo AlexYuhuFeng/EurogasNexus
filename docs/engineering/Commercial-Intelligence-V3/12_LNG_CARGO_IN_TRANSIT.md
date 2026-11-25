@@ -51,6 +51,16 @@ out of its book, and a cargo moves book only when a file names another book. The
 publishes the cargo events in its own transaction and lists an ETA that overrides an ETA
 another source set (QA-L-04).
 
+## What to do about it (LNG-3, built)
+
+When a cargo is late or a pipeline supply is curtailed, the plan sheet's **Options** section
+lists what the desk could do across the whole book (wait, borrow in tank, buy send-out or
+storage, divert, swap with another cargo; cover a pipeline shortfall from a cargo), each
+valued against the plan under ETA and price scenarios, with the Pareto frontier, the options
+a firm obligation or a storage or diversion right rules out, and a default by the desk's
+stated preference. A person chooses; the choice is recorded and nothing is booked. Design,
+sources and the worked example: [17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md).
+
 ## Who hears about a change (LNG-2, built)
 
 A cargo change matters to several people for different reasons. The `cargo_roles` outbox
