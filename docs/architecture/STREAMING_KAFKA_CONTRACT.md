@@ -37,3 +37,30 @@ The bootstrap rules above still hold. The outbox already meets the "future rules
 contract is documented, consumers are idempotent per delivery row, and replay and
 dead-letter behaviour are specified and tested. A broker would be an optional relay fed
 from the outbox, never the source of truth.
+
+## Market change v1 (CODEX-1, 2026-11-25)
+
+`MarketChangeV1` in `src/eurogas_nexus/streaming/contracts.py` is the versioned,
+transport-neutral form of one market change. It adds no broker, consumer, producer or
+dependency. The source of truth stays the PostgreSQL outbox (ADR Decision 28); clients outside
+the monolith read it through the DATA-1 change feed (`GET /api/market/changes`).
+
+- **Fields.** Exactly the change feed's digest columns without the feed cursor: event id and
+  key, type, operation, revision, superseded event, subject, source, input class, dependency
+  keys, content hash and the market, published and ingested times (UTC). Never a value:
+  extra fields are refused, so a price or a contract term cannot ride along.
+- **Dispatch metadata.** `kind` (`market.change`) and `schema_version` (1) travel in the value.
+  A consumer decodes a named version and refuses any other.
+- **Key.** `event_key`, the event's identity across revisions, so every revision of one fact
+  lands in one partition in order; `(event_key, revision)` deduplicates a redelivery.
+- **Tests.** `tests/streaming/test_market_change_contract.py` builds envelopes from the real
+  outbox and feed and holds the envelope's fields equal to the feed's columns.
+
+The research branch proposed a run-level `opportunity.input.invalidated` notice
+(`IngestionInvalidationV1`) wired into the scheduler. It is not built: the outbox already
+records each ingestion run that changed rows as a `source.ingested` event (identity
+`run:<run_id>`, source, input class) with revisions, replay and dead letters, and the
+scheduler's pending input classes stay as they are. A broker remains subject to the revisit
+conditions of
+[15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md](../engineering/Commercial-Intelligence-V3/15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md)
+section 4 and an ADR.
