@@ -147,3 +147,85 @@ def test_tool_failure_does_not_publish_partial_result(principal, malformed):
     assert result.blockers == [
         f"{capability}: {'unusable result' if malformed else 'INTERNAL_ERROR'}"
     ]
+
+
+def _investigation():
+    from eurogas_nexus.application.agents.route_follow_up import Alternative, Investigation
+
+    baseline = RouteStudy.model_validate(scenario())
+    delayed = baseline.model_copy(update={"delivery_at": baseline.delivery_at + timedelta(days=2)})
+    return Investigation(
+        baseline=baseline,
+        alternatives=(
+            Alternative(purpose="revised_delivery", study=delayed),
+            Alternative(purpose="alternative_route", study=baseline),
+        ),
+    )
+
+
+@pytest.mark.parametrize(
+    ("response", "expected_status", "candidate"),
+    [
+        ('{"candidate": 2}', "selected", 2),
+        ('{"candidate": 3}', "invalid_selection", 1),
+        ('{"candidate": true}', "invalid_selection", 1),
+        ('{"candidate": 2, "capacity": 999}', "invalid_selection", 1),
+        (None, "provider_unavailable", 1),
+    ],
+)
+def test_bounded_follow_up(workflow, principal, response, expected_status, candidate):
+    import json
+
+    from eurogas_nexus.application.agents.route_follow_up import investigate
+    from eurogas_nexus.llm.deepseek import DeepSeekCallResult
+
+    calls = []
+
+    def plan(payload):
+        calls.append(json.loads(payload))
+        if response is None:
+            raise TimeoutError
+        return DeepSeekCallResult(status="success", content=response)
+
+    result = investigate(workflow, _investigation(), principal, planner=plan)
+    assert result.planner_status == expected_status and result.candidate == candidate
+    assert len(calls) == 1
+    assert set(calls[0]) == {
+        "source_class", "baseline_feasibility", "evidence_issues", "alternatives"
+    }
+    assert result.follow_up.commercial_status == "NOT_ASSESSED"
+    if candidate == 1:
+        assert result.follow_up.total_cost_eur_mwh is None and result.follow_up.issues
+    else:
+        assert result.follow_up.total_cost_eur_mwh == 1.3
+
+
+def test_follow_up_without_provider_and_on_permission_denial(workflow, principal):
+    from eurogas_nexus.application.agents.route_follow_up import investigate
+
+    report = investigate(workflow, _investigation(), principal)
+    assert report.planner_status == "disabled" and report.candidate == 1
+    viewer = AgentInvocationContext(
+        principal_id="fixture:viewer", role="VIEWER", roles=["VIEWER"]
+    )
+
+    def forbidden(_summary):
+        pytest.fail("denied baseline should not call a planner")
+
+    denied = investigate(workflow, _investigation(), viewer, planner=forbidden)
+    assert denied.planner_status == "baseline_blocked" and denied.follow_up is None
+
+
+def test_provider_adapter_budgets_and_preserves_profile_refusal(monkeypatch):
+    from eurogas_nexus.application.agents import route_follow_up
+    from eurogas_nexus.llm.deepseek import DeepSeekCallResult
+
+    def adapter(**kwargs):
+        assert kwargs["max_tokens"] == 64
+        assert kwargs["timeout_seconds"] == 3
+        assert kwargs["messages"][1] == {"role": "user", "content": '{"source_class":"SYNTHETIC"}'}
+        return DeepSeekCallResult(status="provider_disabled")
+
+    monkeypatch.setattr(route_follow_up, "invoke_deepseek", adapter)
+    plan = route_follow_up.provider_planner("fixture-key")
+    assert plan('{"source_class":"SYNTHETIC"}').status == "provider_disabled"

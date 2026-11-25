@@ -114,10 +114,48 @@ def benchmark(iterations: int) -> dict:
     }
 
 
+def follow_up_demo(*, use_provider: bool) -> dict:
+    from getpass import getpass
+
+    from eurogas_nexus.application.agents.route_follow_up import (
+        Alternative,
+        Investigation,
+        investigate,
+        provider_planner,
+    )
+
+    baseline = RouteStudy.model_validate(scenario())
+    delayed = baseline.model_copy(update={"delivery_at": baseline.delivery_at + timedelta(days=2)})
+    diversion = {**scenario(), "route_name": "Synthetic diversion A to C", "to_node_id": "C"}
+    investigation = Investigation(
+        baseline=delayed,
+        alternatives=(
+            Alternative(purpose="revised_delivery", study=delayed),
+            Alternative(purpose="alternative_route", study=RouteStudy.model_validate(diversion)),
+        ),
+    )
+    workflow = RouteDecisionResearch(CapabilityRuntime(register_builtin_capabilities()))
+    context = AgentInvocationContext(principal_id="benchmark:synthetic")
+    fixed = investigate(workflow, investigation, context)
+    results = {"fixed": fixed.model_dump(mode="json")}
+    if use_provider:
+        planner = provider_planner(getpass("Approved research provider key: "))
+        assisted = investigate(workflow, investigation, context, planner=planner)
+        results["assisted"] = assisted.model_dump(mode="json")
+    return results
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--iterations", type=int, default=3000)
+    parser.add_argument("--follow-up", action="store_true", help="Run the synthetic investigation")
+    parser.add_argument("--provider", action="store_true", help="Opt in to approved provider use")
     args = parser.parse_args()
+    if args.provider and not args.follow_up:
+        parser.error("--provider requires --follow-up")
+    if args.follow_up:
+        print(json.dumps(follow_up_demo(use_provider=args.provider), indent=2))
+        raise SystemExit(0)
     if args.iterations < 20:
         parser.error("iterations must be at least 20")
     print(json.dumps(benchmark(args.iterations), indent=2))

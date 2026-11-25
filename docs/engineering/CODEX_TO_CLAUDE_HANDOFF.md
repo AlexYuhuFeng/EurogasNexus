@@ -31,3 +31,24 @@ from the research module. It preserves existing debounce and database shape.
 The lifecycle proposal records licensing, upgrade and rollback considerations
 for each infrastructure candidate. No new optional deployment profile is proposed.
 Review `git log --oneline origin/main..HEAD` for the foundational follow-up SHA.
+
+## Follow-up planner component
+
+`application/agents/route_follow_up.py` implements one optional plan choice after
+a baseline route investigation. The caller supplies one to three complete
+synthetic scenarios using a shared cutoff. The provider receives generated IDs,
+purpose enums and baseline status codes. Its reply can select one ID. The chosen
+scenario runs through the same runtime, authority checks and evidence gates.
+A disabled or unavailable provider, out-of-range ID or malformed reply takes
+the first alternative in the caller's fixed order. A blocked baseline ends
+the investigation. The existing approved adapter enforces the installation
+profile and is called with a 64-token output cap and a three-second HTTP
+timeout. Planner latency and branch status appear in the result.
+
+Run the fixed workflow locally with
+`python -m scripts.research.benchmark_decision_research --follow-up`.
+On a permitted installation, append `--provider` to compare the single-choice
+model path on the identical synthetic scenario. The harness prompts for an
+approved key. Tests cover controlled responses, timeout, malformed/overreaching
+replies and permission denial. Live provider usefulness and commercial
+validation remain unmeasured. Keep the component offline during review.
