@@ -262,6 +262,19 @@ head`, all clean; the four columns are nullable.
 | Related suites with DATA1-1 and DATA1-2 | `pytest` the DATA-1 tests, the pinned migration tests, `tests/sdk`, `tests/contract`, `tests/docs`; `ruff check src tests scripts` | 897 passed, 13 skipped; ruff clean |
 | Market, price and SDK reads unchanged otherwise | `pytest tests/api/test_one_price_across_screens.py tests/api/test_trader_desk_api.py tests/api/test_market_fx_api.py tests/api/test_projections_api.py tests/api/test_context_api.py tests/api/test_market_normalisation_api.py tests/api/test_research_data_api.py tests/api/test_error_envelope.py tests/sdk tests/security/test_public_api_auth.py tests/security/test_identity_row_entitlement.py tests/security/test_platform_admin_commercial_boundary.py tests/unit/test_demo_desk_seed.py tests/unit/test_projections_application.py tests/contract tests/docs` (with the DATA1-1 tests) | 1,018 passed, 12 skipped |
 
+## TAR-1 public tariffs and capacity windows (2026-11-25, branch `wip/tar1`)
+
+| What | Command | Result |
+| --- | --- | --- |
+| TAR1-1 to TAR1-6 (model, versions, status, registry, freshness, notices, reads) | `pytest tests/domain/test_tariff_book_domain.py tests/unit/test_tariff_book.py tests/unit/test_tariff_book_migration.py tests/api/test_tariffs_api.py tests/integration/test_tariff_book_postgres.py` | 38 passed, 2 skipped (the PostgreSQL tests, run below) |
+| TAR-1 on PostgreSQL 16 (migration 0083) | fresh store: `alembic upgrade head`, `downgrade 0082_data1_integration` (both tables gone), `upgrade head`; `pytest tests/integration/*postgres*.py tests/unit/test_postgres_native_schema_pipeline.py tests/db` with `RUNTIME_STORE_DATABASE_URL` and `EUROGAS_NEXUS_TEST_POSTGRES_URL` set | migration up, down, up clean; 250 passed, 16 skipped |
+| TAR1-4 latency (PostgreSQL 16, one host) | `pytest -s tests/integration/test_tariff_book_postgres.py`, 8 runs | read to version and event committed median 12.5 ms (11 to 14 ms); first write in a fresh process median 166 ms (160 to 205 ms); commit to the opportunities consumer having processed it median 5.5 ms (5 to 7 ms). An earlier set of 8 runs on the same host: 18 ms, 244 ms, 10.5 ms. Row in [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) section 8 |
+| Full capture at the size of the ENTSOG register (PostgreSQL 16, 12,670 rows, the count measured on 2026-11-19) | `capture_tariffs` once on an empty book, then again | first pass 77 s (12,670 versions and events: a one-off backfill), unchanged pass 2.3 s; hence the per-minute signature check with a full pass hourly |
+| Operator script | `scripts/ops/tariff_book.py sync --commit` twice on the fresh store | the CAM NC standard auctions: 18 created, then 18 unchanged; no register rows, so no versions |
+| Contract, census, permissions, reachability, docs and security gates | `pytest tests/contract tests/docs tests/security` | 1,136 passed, 12 skipped |
+| Related suites (tariff registers, ENTSOG ingestion, route cost, valuation, opportunities, outbox and capture, monitoring and routing, scheduler, migrations and schema pins) | `pytest` every test file that imports a tariff register, the ENTSOG tariff ingestion, the valuation snapshot, the capture, alert routing, the scheduler or the monitoring service, `tests/unit/*migration*.py`, `tests/db`; `ruff check src tests scripts` | 1,348 passed, 38 skipped (130 files); ruff clean |
+| Web: tariff book view, client, EN and ZH text | `npx tsc --noEmit -p .`; `npm test` (clients/web) | clean; 1,379 tests, 1,376 passed, 0 failed |
+
 ## Demo planted cases after P-11 (2026-11-24, branch `wip/fix-planted`)
 
 `test_demo_planted_cases` failed on every day after P-11 (first bad commit `07abf30`): two

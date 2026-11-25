@@ -23,6 +23,35 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   package added; basemap unchanged (bundled outline by default, D4).
 - Not yet: frame rate measured in a browser; page-to-page transitions.
 
+## 2026-11-24 — Commercial Intelligence V3, TAR-1: public tariffs versioned, capacity windows (branch `wip/tar1`)
+
+- Tariff book (`application/tariff_book.py`, `domain/tariffs/`): every row of the tariff
+  registers (`tso_tariffs`, `lng_terminal_tariff`) becomes a version in `tariff_versions`
+  (publisher, facility, product, unit, currency, period, INDICATIVE or FINAL with its basis,
+  publication and retrieval times, source URL, content hash); a newer version supersedes, the
+  history stays readable as of any instant; indicative to final is a named status change.
+  Registers and route pricing are unchanged. Migration `0083_tar1_tariff_book` (expand-only,
+  down_revision `0082_data1_integration`; `0084` is MAP-1's), ADR Decision 34.
+- Freshness: the ENTSOG read versions its rows and publishes `tariff.changed` in its own
+  transaction; the scheduler's capture (kind `tariffs`) versions the rest when the registers
+  change and hourly; ENTSOG is polled hourly in the NC TAR publication weeks, daily otherwise.
+  Monitoring adds `tariff_publisher_stale`, `tariff_publication_missed` (`data_source`) and
+  `capacity_window_opening` (new category `capacity`, routed to OPERATIONS, escalation TRADER).
+- Publishers: registry in code and `docs/data/TARIFF_PUBLISHER_REGISTRY.md`. ENTSOG (API) and
+  the CAM network code's standard auction calendar (rule-derived, checked against FGSZ's
+  published 2026/27 calendar) are automated; every TSO, LNG and storage site tried was
+  unreachable from the build environment, so each is recorded `manual` (or `parsed` behind the
+  firm's permission for Fluxys LNG, Elengy, DET) with nothing fetched.
+- Routes `GET /api/tariffs` (filters, `as_of`, `history`), `GET /api/tariffs/publishers`,
+  `GET /api/capacity/notices` (295 paths / 330 operations). Ops: `scripts/ops/tariff_book.py`
+  (status, sync, import-notices). Web: Sources → Infrastructure → Tariff book (indicative and
+  final labelled, version trail, source link, upcoming windows, publishers). Valuation snapshot
+  tariff inputs name the version and basis they priced.
+- Measured on PostgreSQL 16: read to version and event committed median 12.5 ms, commit to the
+  opportunities consumer 5.5 ms (8 runs); a first full capture of a 12,670-row ENTSOG register
+  takes 77 s once (run `scripts/ops/tariff_book.py sync --commit` after deploy), 2.3 s after.
+  The designed figure is the poll (1 h in publication weeks, 24 h otherwise). Evidence in 09.
+
 ## 2026-11-24 — Commercial Intelligence V3, P-17: maker-checker on limits and reference data (branch `wip/p17`)
 
 - A change to a credit line, trader mandate, deal hedge band, firm marks, LNG terminal terms or

@@ -25,7 +25,7 @@ Phase 0 work (baseline, audit, these documents). Status is kept in
 | GOV-1 | Governance: audit written with the change, entitlement usage and export decisions, maker-checker on limits and reference data (P-17) with figure provenance; AI controls stage 2 (AI-use register, switch per feature, prompt and model versions on audit rows, tool allowlists per role, evaluation gate) | 8, 10 | No | **Built, tested** (GOV1-1 to GOV1-6; maker-checker P-17: P17-1 to P17-9 met, migration `0081_change_requests`) |
 | UX-1 | Client polish from the design study (R1 to R12): focus in high contrast, colour-blind palette, directional change, one number formatter, icons, dark surfaces, motion tokens, density, settings split, desktop plugins and menu; installer and sign-in; freshness shown on every figure | 9 | No | Next |
 | DATA-1 | Price revisions readable as known at a time; a change feed over market events; Power Query refreshable reads; ETRM and ERP import contracts | 1, 2 | No | **Built, tested** (DATA1-1 to DATA1-4 met; migration `0082_data1_integration`, ADR Decision 33) |
-| TAR-1 | Public tariffs from TSOs, LNG terminals and storage operators, versioned indicative and final, slot windows, auction notices | 1, 5 | No (public sources) | After UX-1 |
+| TAR-1 | Public tariffs from TSOs, LNG terminals and storage operators, versioned indicative and final, slot windows, auction notices | 1, 5 | No (public sources) | **Built, tested** (TAR1-1 to TAR1-6 met; migration `0083_tar1_tariff_book`, ADR Decision 34; only ENTSOG is machine-readable, the rest are recorded in the [publisher registry](../../data/TARIFF_PUBLISHER_REGISTRY.md) as manual or parsed) |
 | MAP-1 | The map: terminals and storage from published capacity, LNG carriers with tracks and ETAs, animated flows, page transitions; real or labelled data only | 5, 9 | No | **Built, tested** (MAP1-1 to MAP1-6 met; additive fields on the map read, no route or migration; frame rate in a browser and page-to-page transitions not yet done) |
 | NEWS-1 | News, policy and geopolitical events into analysis, cited and grounded under GOV-1's AI controls | 8 | No (public sources) | After GOV-1 |
 | SCHED-1 | Nominations: explain mismatches between trades, confirmations and nominations (read only; nothing sent) | 5 | No | After LNG-2 |
@@ -76,7 +76,7 @@ LNG-2. Next:
    harder on AI (NEWS-1, "make me a view").
 4. **UX-1.** Polish on a stable model; two items are bugs (high-contrast focus, desktop
    capabilities claimed without their plugins).
-5. **DATA-1, then TAR-1, MAP-1, SCHED-1, NEWS-1**, each on the foundations above.
+5. **DATA-1 and TAR-1 (built), then MAP-1, SCHED-1, NEWS-1**, each on the foundations above.
 6. **UX-2 and LOOP-1**, once the component catalogue and AI controls exist.
 7. **M8 to M11, M13** for commercial depth and consolidation.
 
