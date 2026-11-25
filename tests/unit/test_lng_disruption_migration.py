@@ -1,4 +1,5 @@
-"""Migration 0086 on SQLite: the LNG-3 disruption tables match the models, up and down."""
+"""Migrations 0086 and 0087 on SQLite: the LNG-3 disruption tables and the LNG-4 columns and
+outage links match the models, up and down, and 0087 only expands."""
 
 from __future__ import annotations
 
@@ -13,6 +14,17 @@ from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 
 VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 
+#: The columns 0087 adds to the LNG-3 tables (LNG-4).
+LNG4_COLUMNS = {
+    "lng_voyage_terms": {"demurrage_rate_per_day", "demurrage_currency", "demurrage_terms"},
+    "lng_delivery_obligations": {"penalty_terms"},
+    "pipeline_supplies": {"depends_on", "outage_mode"},
+    "lng_disruption_runs": {"recommended_set"},
+    "lng_disruption_decisions": {"recommended_set", "consequences", "fx"},
+    "lng_capacity_offers": {"hub"},
+    "lng_slot_terms": {"berth_days"},
+}
+
 
 def _load(name: str):
     spec = importlib.util.spec_from_file_location(f"tests.migration_{name[:4]}", VERSIONS / name)
@@ -21,7 +33,7 @@ def _load(name: str):
     return module
 
 
-def test_up_down_and_model_match():
+def _models():
     from eurogas_nexus.db.models import (
         LngCapacityOfferRecord,
         LngDeliveryObligationRecord,
@@ -32,11 +44,7 @@ def test_up_down_and_model_match():
         PipelineSupplyRecord,
     )
 
-    module = _load("0086_lng_disruption.py")
-    assert module.revision == "0086_lng_disruption"
-    assert DB_SCHEMA_REVISION == "0088_tar2_capacity_bookings"
-    assert module.down_revision == "0084_news_items"
-    models = (
+    return (
         LngSlotTermsRecord,
         LngCapacityOfferRecord,
         LngDeliveryObligationRecord,
@@ -45,15 +53,52 @@ def test_up_down_and_model_match():
         LngDisruptionRunRecord,
         LngDisruptionDecisionRecord,
     )
+
+
+def test_up_down_and_model_match():
+    from eurogas_nexus.db.models import LngBerthCallRecord, PipelineOutageLinkRecord
+
+    lng3 = _load("0086_lng_disruption.py")
+    lng4 = _load("0087_lng4_options_demurrage_outages.py")
+    assert lng3.revision == "0086_lng_disruption"
+    assert lng3.down_revision == "0084_news_items"
+    assert lng4.revision == DB_SCHEMA_REVISION == "0087_lng4_options_demurrage_outages"
+    assert lng4.down_revision == "0088_tar2_capacity_bookings"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
-        module.op = Operations(MigrationContext.configure(connection=connection))
-        module.upgrade()
+        operations = Operations(MigrationContext.configure(connection=connection))
+        lng3.op = lng4.op = operations
+        lng3.upgrade()
         inspector = inspect(connection)
-        for model in models:
+        for model in _models():
+            columns = {c["name"] for c in inspector.get_columns(model.__tablename__)}
+            added = LNG4_COLUMNS.get(model.__tablename__, set())
+            assert columns == set(model.__table__.columns.keys()) - added, model.__tablename__
+        lng4.upgrade()
+        inspector = inspect(connection)
+        for model in (*_models(), PipelineOutageLinkRecord, LngBerthCallRecord):
             columns = {c["name"] for c in inspector.get_columns(model.__tablename__)}
             assert columns == set(model.__table__.columns.keys()), model.__tablename__
             indexes = {i["name"] for i in inspector.get_indexes(model.__tablename__)}
             assert {i.name for i in model.__table__.indexes} <= indexes
-        module.downgrade()
+        lng4.downgrade()
+        inspector = inspect(connection)
+        assert "pipeline_outage_links" not in inspector.get_table_names()
+        assert "lng_berth_calls" not in inspector.get_table_names()
+        for table, added in LNG4_COLUMNS.items():
+            assert not added & {c["name"] for c in inspector.get_columns(table)}, table
+        lng3.downgrade()
         assert inspect(connection).get_table_names() == []
+
+
+def test_0087_only_expands():
+    """Every column 0087 adds is nullable, and it drops or alters nothing on the way up."""
+
+    source = (VERSIONS / "0087_lng4_options_demurrage_outages.py").read_text(encoding="utf-8")
+    upgrade = source[source.index("def upgrade"): source.index("def downgrade")]
+    assert "drop_" not in upgrade and "alter_column" not in upgrade
+    assert "nullable=True" in upgrade
+    lng4 = _load("0087_lng4_options_demurrage_outages.py")
+    assert {(table, name) for table, name, _kind in lng4._COLUMNS} == {
+        (table, name) for table, names in LNG4_COLUMNS.items() for name in names
+    }

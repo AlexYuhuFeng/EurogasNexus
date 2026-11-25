@@ -79,6 +79,8 @@ from eurogas_nexus.db.models.lng_disruption import (
     LngDisruptionRunRecord,
     LngSlotTermsRecord,
     LngVoyageTermsRecord,
+    LngBerthCallRecord,
+    PipelineOutageLinkRecord,
     PipelineSupplyRecord,
 )
 from eurogas_nexus.db.models.lng_positions import (
@@ -373,6 +375,8 @@ __all__ = [
     "FxObservationRecord",
     "InterestRateObservationRecord",
     "OrganisationSettingRecord",
+    "LngBerthCallRecord",
+    "PipelineOutageLinkRecord",
     "PipelineSupplyRecord",
     "PowerObservationRecord",
     "ErpReferenceRecord",

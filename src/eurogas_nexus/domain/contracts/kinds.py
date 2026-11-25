@@ -242,6 +242,13 @@ class LngCargoTerms(_Terms):
     price_unit: PriceUnit
     pricing_month: Annotated[str, Field(pattern=_MONTH.pattern)]
     boil_off_pct_per_day: float | None = Field(default=None, ge=0, le=1)
+    #: LNG-4: laytime and demurrage as this notice states them (they override the master
+    #: agreement's). The rate is per day in ``demurrage_currency``; ``demurrage_terms`` keeps
+    #: the wording (pro rata, half rate for weather) for the reader.
+    laytime_hours: float | None = Field(default=None, ge=0, le=480)
+    demurrage_rate_per_day: float | None = Field(default=None, ge=0, le=2_000_000)
+    demurrage_currency: Literal["USD", "EUR", "GBP"] | None = None
+    demurrage_terms: Annotated[str, Field(min_length=1, max_length=256)] | None = None
     vessel_name: ShortText | None = None
     #: The own cargo in the vessel feed / ETRM (``lng_cargoes``), once a vessel is named.
     lng_cargo_id: Annotated[str, Field(min_length=1, max_length=96)] | None = None
@@ -270,6 +277,8 @@ class LngCargoTerms(_Terms):
             raise ValueError("a hub-indexed cargo names its index")
         if self.price_formula == "fixed" and self.fixed_price is None:
             raise ValueError("a fixed-price cargo states its price")
+        if (self.demurrage_rate_per_day is None) != (self.demurrage_currency is None):
+            raise ValueError("a demurrage rate needs its currency, and the reverse")
         return self
 
     def delivery_days(self) -> tuple[date, date]:

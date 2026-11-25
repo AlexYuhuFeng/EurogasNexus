@@ -7,7 +7,7 @@ The scenario is the one in docs/engineering/Commercial-Intelligence-V3/
 boil-off (voyage terms 0 %/day), so the cargo lands exactly 1,000,000 MWh as in the worked
 example; the domain test (tests/domain/test_lng_disruption.py) carries the boil-off lines.
 
-Runs on SQLite always, and on PostgreSQL migrated to head (``0086_lng_disruption``) when
+Runs on SQLite always, and on PostgreSQL migrated to head (``0087_lng4_options_demurrage_outages``) when
 ``EUROGAS_NEXUS_TEST_POSTGRES_URL`` is set. Every id carries a suffix and the rows are
 removed afterwards, so a shared database is left as found.
 """
