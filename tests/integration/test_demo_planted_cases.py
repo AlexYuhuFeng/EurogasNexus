@@ -172,3 +172,37 @@ def test_the_r1_break_is_in_the_reconciliation_on_its_day_only(tmp_path, monkeyp
         ]
     engine.dispose()
     assert found == kinds
+
+
+D1_DAY = date(2026, 12, 24)  # Thursday, the D1 day of the month
+
+
+def test_d1_plants_a_late_cargo_whose_options_the_desk_can_read(tmp_path, monkeypatch):
+    from eurogas_nexus.application import lng_disruption
+
+    assert MARKET.d1_planted(D1_DAY)
+    assert not any(MARKET.d1_planted(day) for day in (L1_DAY, W1_DAY, QUIET_DAY, S1_DAY, R1_DAY))
+    for day, planted in ((D1_DAY, True), (QUIET_DAY, False)):
+        url = f"sqlite+pysqlite:///{(tmp_path / f'd1-{day}.sqlite').as_posix()}"
+        engine = create_engine(url, future=True)
+        Base.metadata.create_all(engine)
+        monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", url)
+        now = datetime(day.year, day.month, day.day, 9, tzinfo=UTC)
+        with Session(engine) as session:
+            SEED.seed(session, now, history_days=3)
+            session.commit()
+            frontier = lng_disruption.frontier(session, SEED.D1_BOOK, now=now) if planted else None
+            if planted:
+                assert [s["supply_id"] for s in frontier["disrupted"]] == ["demo-lng-a"]
+                assert frontier["recommended"] in frontier["frontier"]
+                assert any(not o["feasible"] for o in frontier["options"])
+                options = lng_disruption.disruption_options(session, "demo-lng-a", now=now)
+                assert options["status"] == "disrupted" and options["options"]
+            else:
+                quiet = lng_disruption.reoptimise(session, SEED.D1_BOOK, trigger="test", now=now)
+                assert quiet["status"] in {"as_planned", "skipped"}
+        engine.dispose()
+
+
+def test_the_d1_day_lists_nothing_more_than_every_day(tmp_path, monkeypatch):
+    assert _listed(tmp_path, monkeypatch, D1_DAY) == EVERY_DAY
