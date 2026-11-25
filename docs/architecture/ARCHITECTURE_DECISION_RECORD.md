@@ -830,3 +830,29 @@ inside `tso_tariffs` (its primary key and every reader would change); a scraper 
 Tests: `tests/unit/test_tariff_book.py`, `tests/unit/test_tariff_book_migration.py`,
 `tests/domain/test_tariff_book_domain.py`, `tests/api/test_tariffs_api.py`,
 `tests/integration/test_tariff_book_postgres.py`.
+
+## Decision 35: News items and source polls are two tables in the runtime store; no news service
+
+Accepted 2026-11-25 (branch `wip/news1`, programme
+[Commercial Intelligence V3](../engineering/Commercial-Intelligence-V3/05_IMPLEMENTATION_ROADMAP.md),
+slice NEWS-1). News, policy and geopolitical
+events from public sources whose terms permit reuse
+([NEWS_SOURCE_REGISTRY.md](../integration/NEWS_SOURCE_REGISTRY.md)) are stored by migration
+`0084_news_items` in two tables of the existing PostgreSQL database: `news_items`, one row per
+item (source, the source's own reference, URL, publisher, title, what the source's terms let us
+keep of its text, language, published, retrieved and first-seen times, content hash, licence
+note, deterministic tags as JSON, the held outage it is linked to, revision), keyed by a digest
+of source and reference so a re-poll of the same entry changes nothing and an edit is a new
+revision; and `news_source_polls`, one row per source with its last poll, status, counts and
+the feed's ETag and Last-Modified for conditional requests. Each new or changed item publishes
+a `news.published` market event through the existing outbox (Decision 28); an item on a held
+outage carries that outage's dependency key, so opportunities re-evaluate through the existing
+consumer, and the consumer `news_roles` routes items that touch the book to each role through
+M7 routing. The poll runs as an operator script (`scripts/ops/poll_news_sources.py`), not a
+service. The migration is numbered 0084 on `0082_data1_integration`; TAR-1 adds 0083 and the
+integrator re-points 0084's `down_revision` onto it. Rejected: a search engine or vector store
+for news (a new datastore; the volumes are small and the tags are deterministic), storing
+items as market events only (the event carries digests, not text, by Decision 28's design),
+and a news-fetching service (a new process to operate for a few items a day).
+Tests: `tests/unit/test_news_items_migration.py`, `tests/unit/test_news_ingest.py`,
+`tests/integration/test_news_postgres.py`.

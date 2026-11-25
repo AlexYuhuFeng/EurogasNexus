@@ -90,7 +90,7 @@ def test_migration_0081_chain_up_down_and_model_match():
     spec.loader.exec_module(module)
     assert module.down_revision == "0080_lng_eta_basis"
     assert module.revision == "0081_change_requests"
-    assert DB_SCHEMA_REVISION == "0085_sched1_nomination_matching"
+    assert DB_SCHEMA_REVISION == "0084_news_items"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     before = sa.MetaData()
     for table_name, record in PROVENANCE_TABLES.items():

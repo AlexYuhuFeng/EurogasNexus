@@ -33,7 +33,7 @@ def test_chain_up_down_and_model_match():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.down_revision == "0075_tso_tariff_entry"
-    assert DB_SCHEMA_REVISION == "0085_sched1_nomination_matching"
+    assert DB_SCHEMA_REVISION == "0084_news_items"
     contracts = UpstreamResourceContractRecord.__table__
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:

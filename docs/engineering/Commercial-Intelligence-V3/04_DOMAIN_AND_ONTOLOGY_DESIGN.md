@@ -5,7 +5,7 @@
 | Field | Meaning |
 | --- | --- |
 | `source_id` | The registered source or desk origin (`firm-marks`, a dataops source id) |
-| `event_type` | One of `price.updated`, `fx.updated`, `rate.updated`, `tariff.changed`, `outage.published`, `capacity.changed`, `contract.changed`, `mark.changed`, `assumption.changed`, `limit.changed`, `freight.changed`, `source.ingested`, `fundamental.updated`, `weather.updated` |
+| `event_type` | One of `price.updated`, `fx.updated`, `rate.updated`, `tariff.changed`, `outage.published`, `capacity.changed`, `contract.changed`, `mark.changed`, `assumption.changed`, `limit.changed`, `freight.changed`, `source.ingested`, `fundamental.updated`, `weather.updated`, `news.published` (NEWS-1) |
 | `subject_key` | What the event is about, in dependency-key form where one exists (`hub:TTF:2026-12`, `outage:<id>`, `ingestion:<source>`) |
 | `market_time_utc` | 1. When the thing happened in the market (trade date, gas day, outage start) |
 | `published_at_utc` | 2. When the source published it |

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  NEWS-1 test fixture: constructed in the published Atom format of the GOV.UK organisation feed
+  https://www.gov.uk/government/organisations/department-for-energy-security-and-net-zero.atom
+  on 2026-11-25. NOT recorded: the build environment had no outbound network. Entry titles,
+  texts, times and identifiers are invented for the test; reuse terms of the real feed: Open
+  Government Licence v3.0 (see docs/integration/NEWS_SOURCE_REGISTRY.md).
+-->
+<feed xmlns="http://www.w3.org/2005/Atom" xml:lang="en-GB">
+  <id>https://www.gov.uk/government/organisations/department-for-energy-security-and-net-zero</id>
+  <title>Department for Energy Security and Net Zero - Activity on GOV.UK</title>
+  <updated>2026-11-20T10:15:00+00:00</updated>
+  <entry>
+    <id>https://www.gov.uk/government/news/fixture-langeled-maintenance</id>
+    <updated>2026-11-20T10:15:00+00:00</updated>
+    <link rel="alternate" type="text/html" href="https://www.gov.uk/government/news/fixture-langeled-maintenance"/>
+    <title>Update on Langeled flows to Easington</title>
+    <summary type="html">&lt;p&gt;Flows through &lt;b&gt;Langeled&lt;/b&gt; to Easington are reduced after an unplanned outage at Nyhamna. Capacity is expected to return this week.&lt;/p&gt;</summary>
+  </entry>
+  <entry>
+    <id>https://www.gov.uk/government/news/fixture-sanctions-lng</id>
+    <updated>2026-11-19T08:00:00+00:00</updated>
+    <link rel="alternate" type="text/html" href="https://www.gov.uk/government/news/fixture-sanctions-lng"/>
+    <title>New sanctions designations on LNG shipping</title>
+    <summary type="html">The government announces sanctions on vessels carrying Russian LNG.</summary>
+  </entry>
+  <entry>
+    <id>https://www.gov.uk/government/consultations/fixture-storage-regulation</id>
+    <updated>2026-11-18T12:30:00+00:00</updated>
+    <link rel="alternate" type="text/html" href="https://www.gov.uk/government/consultations/fixture-storage-regulation"/>
+    <title>Consultation on gas storage regulation</title>
+    <summary type="html">A consultation on regulation of gas storage sites in Great Britain.</summary>
+  </entry>
+</feed>

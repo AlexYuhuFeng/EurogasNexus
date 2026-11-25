@@ -84,6 +84,9 @@ INPUT_CLASS_OF_EVENT_TYPE: dict[str, str | None] = {
     "source.ingested": None,
     "fundamental.updated": None,
     "weather.updated": None,
+    # NEWS-1: an item from a registered news source. No evaluator input of its own; an item
+    # that maps to a held outage carries that outage's key and the ``outages`` class.
+    "news.published": None,
 }
 EVENT_TYPES = frozenset(INPUT_CLASS_OF_EVENT_TYPE)
 
@@ -103,6 +106,7 @@ _PRIORITY = {
     "rate.updated": 3,
     "assumption.changed": 3,
     "freight.changed": 3,
+    "news.published": 3,
 }
 LOWEST_PRIORITY = 4
 

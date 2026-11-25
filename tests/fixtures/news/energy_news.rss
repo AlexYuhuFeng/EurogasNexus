@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  NEWS-1 test fixture: constructed in the RSS 2.0 format official energy publishers use, on
+  2026-11-25. NOT recorded from any publisher (the build environment had no outbound network);
+  the address below is the example host of RFC 2606, not a real feed. Used to test the parser.
+-->
+<rss version="2.0" xmlns:dc="http://purl.org/dc/elements/1.1/">
+  <channel>
+    <title>Energy news (fixture)</title>
+    <link>https://news.example.org/energy</link>
+    <language>en</language>
+    <item>
+      <title>Strike at Zeebrugge LNG terminal &amp; port</title>
+      <link>https://news.example.org/energy/zeebrugge-strike</link>
+      <guid isPermaLink="false">fixture-zeebrugge-strike</guid>
+      <pubDate>Thu, 19 Nov 2026 14:00:00 GMT</pubDate>
+      <description><![CDATA[<p>Unions announce a <em>strike</em> at the Zeebrugge terminal; send-out may be affected.</p><script>alert(1)</script>]]></description>
+    </item>
+    <item>
+      <title>Cold snap forecast for north-west Europe</title>
+      <link>https://news.example.org/energy/cold-snap</link>
+      <guid>https://news.example.org/energy/cold-snap</guid>
+      <pubDate>Wed, 18 Nov 2026 09:00:00 +0100</pubDate>
+      <description>Forecasters expect a cold snap from next week.</description>
+    </item>
+    <item>
+      <title>Item with an unsafe link</title>
+      <link>javascript:alert(1)</link>
+      <guid>fixture-unsafe</guid>
+      <description>The link is dropped.</description>
+    </item>
+  </channel>
+</rss>
