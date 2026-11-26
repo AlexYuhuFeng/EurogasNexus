@@ -1,21 +1,29 @@
-"""Regenerate the shipped NWE reference network bundle from the live reference tables.
+"""Regenerate the shipped European reference network bundle from ENTSOG reference data.
 
-Reads ``reference_nodes`` and ``reference_tso_access_points`` (both from the ENTSOG
-Transparency Platform reference read, ``ingest_public_sources.py --source
-entsog-reference``) and writes ``src/eurogas_nexus/reference_data/nwe_reference_network.json``.
-Read-only against the store. Run it after a complete reference read, review the diff, and
-commit the file with a new ``--version``.
+Reads ENTSOG Transparency Platform reference metadata and writes
+``src/eurogas_nexus/reference_data/nwe_reference_network.json`` (the file name predates the
+all-Europe scope). Two inputs, one normalisation (the live read's own functions):
 
-Scope (``SCOPE_COUNTRIES``): points with an operator in BE, DE, DK, FR, GB, IE, LU, NL or NO
-(the balance's NWE countries plus Ireland and the Norwegian supply side). Distribution and
-final-consumer points are left out: neither the map nor the balance uses them. The
-balance's landing points are always included.
+- saved ENTSOG responses (``--from-entsog-dir --entsog-dir DIR``, no database): DIR holds
+  ``connectionpoints.json``, ``operatorpointdirections.json``, ``balancingzones.json`` and
+  ``interconnections.json`` as ENTSOG answers ``/api/v1/<dataset>?limit=-1``;
+- the live reference tables ``reference_nodes`` and ``reference_tso_access_points`` (from
+  ``ingest_public_sources.py --source entsog-reference``), read-only.
+
+Review the diff and commit the file with a new ``--version``.
+
+Scope (``SCOPE_COUNTRIES``): points with an operator in a country of an ENTSOG market area
+(``network_adjacency.MARKET_AREAS``: every active ENTSOG balancing zone, EU and its
+neighbours), plus Norway's supply side. Distribution and final-consumer points are left out:
+neither the map nor the balance uses them. The balance's landing points are always included.
+A market area ENTSOG publishes no trading point for (Switzerland, Slovakia, Romania ...) gets a
+zone node at ENTSOG's map position for the balancing zone (``BZ-<code>``).
 
 Edges, two kinds:
 
-- zone membership (``type: virtual``): each located point to the trading point of every
-  entry-exit zone one of its operators belongs to (``ZONE_HUB_BY_OPERATOR``). Membership of a
-  market area, never drawn as a line;
+- zone membership (``type: virtual``): each located point to the market area of every
+  entry-exit zone one of its TSOs belongs to there (ENTSOG ``operatorpointdirections``
+  ``tSOBalancingZone``). Membership of a market area, never drawn as a line;
 - adjacency (``type: market_area_link`` and ``interconnector``): which market areas each
   interconnection point joins, derived from ENTSOG's ``interconnections`` and
   ``connectionpoints`` datasets by the rule in ``reference_data/network_adjacency.py``. Route
@@ -34,6 +42,12 @@ whose ends are unchanged. Only the geometry, on the shipped bundle:
     python scripts/ops/build_reference_network_bundle.py --presentation-only \
         --scigrid-dir IGGIELGN/data --version 2026-11-17
 
+The whole bundle from saved ENTSOG responses, with the presentation geometry:
+
+    python scripts/ops/build_reference_network_bundle.py --from-entsog-dir \
+        --entsog-dir entsog/ --scigrid-dir IGGIELGN/data --version 2026-11-26 \
+        --downloaded 2026-11-26
+
     RUNTIME_STORE_DATABASE_URL=... python scripts/ops/build_reference_network_bundle.py \
         --version 2026-11-14 --downloaded 2026-11-14
 
@@ -51,7 +65,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
-from collections import defaultdict
+from collections import Counter, defaultdict
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
@@ -59,7 +73,14 @@ from eurogas_nexus.application.pipeline_supply import LANDING_POINTS, SAME_PHYSI
 from eurogas_nexus.db.models import ReferenceNode, ReferenceTsoAccessPoint
 from eurogas_nexus.db.models.reference_network import REFERENCE_RETIRED_QUALITY
 from eurogas_nexus.db.session import get_session_factory, resolve_database_url
-from eurogas_nexus.reference_data.network_adjacency import apply_to_bundle
+from eurogas_nexus.reference_data.network_adjacency import (
+    BZ_HUB,
+    EXTERNAL_OPERATOR_ZONES,
+    MARKET_AREAS,
+    apply_to_bundle,
+    canonical_zone,
+    two_point_systems,
+)
 from eurogas_nexus.reference_data.network_bundle import (
     BUNDLE_SCHEMA,
     bundle_path,
@@ -81,7 +102,11 @@ ENTSOG_API = "https://transparency.entsog.eu/api/v1"
 
 #: ENTSOG writes the United Kingdom as ``UK``; the bundle uses ISO 3166 ``GB`` throughout.
 COUNTRY_ALIASES = {"UK": "GB", "EL": "GR"}
-SCOPE_COUNTRIES = ("BE", "DE", "DK", "FR", "GB", "IE", "LU", "NL", "NO")
+#: Every country with an ENTSOG market area (``MARKET_AREAS``), the countries whose zones
+#: merged into one (LU into BeLux, SE into DK/SE, EE into EE/LV) and the Norwegian supply side.
+SCOPE_COUNTRIES = tuple(
+    sorted({area.country for area in MARKET_AREAS} | {"LU", "SE", "EE", "NO"})
+)
 #: Point families the map and the balance use (ENTSOG point key prefix -> node type).
 KEPT_PREFIXES = {
     "ITP": "interconnection",
@@ -90,9 +115,9 @@ KEPT_PREFIXES = {
     "PRD": "entry_point",
     "VTP": "hub",
 }
-#: Virtual trading point of each operator's entry-exit zone (ENTSOG point keys). Operators
-#: not listed (Gassco, the Interconnector and BBL pipelines, Premier Transmission, GNI (UK))
-#: run no NWE trading zone of their own here: their points link through the other side.
+#: Fallback zone of an operator when ENTSOG's operator point directions name none at a point
+#: (a store read before ``tso_balancing_zone`` was kept). The all-Europe build reads each
+#: point's zone from ENTSOG (``operatorpointdirections.tSOBalancingZone``) instead.
 ZONE_HUB_BY_OPERATOR = {
     "NL-TSO-0001": "VTP-00002",  # GTS: TTF
     "BE-TSO-0001": "VTP-00016",  # Fluxys Belgium: ZTP
@@ -104,18 +129,11 @@ ZONE_HUB_BY_OPERATOR = {
     "IE-TSO-0002": "VTP-00005",  # GNI: IBP
 }
 DE_ZONE_HUB = "VTP-00045"  # every German TSO: THE
-#: Trading points kept besides the zone hubs. Others in scope are left out: PEG SUD and the
-#: TRS point were merged into PEG in 2018, and ENTSOG's map places PEG SUD in Poland.
+#: Trading points kept besides the market areas' own. Others are left out: PEG SUD and the
+#: TRS point were merged into PEG in 2018 (ENTSOG publishes PEG SUD at map position 0/0).
 EXTRA_TRADING_POINTS = {"VTP-00029"}  # Zeebrugge Beach
-HUB_COUNTRY = {
-    "VTP-00002": "NL",
-    "VTP-00016": "BE",
-    "VTP-00039": "FR",
-    "VTP-00006": "GB",
-    "VTP-00001": "DK",
-    "VTP-00005": "IE",
-    "VTP-00045": "DE",
-}
+AREA_BY_POINT = {area.point_key: area for area in MARKET_AREAS}
+HUB_COUNTRY = {area.hub_point_key: area.country for area in MARKET_AREAS if area.hub_point_key}
 
 
 def _country(value: str | None) -> str | None:
@@ -129,7 +147,65 @@ def _hub_for(operator_key: str) -> str | None:
     return ZONE_HUB_BY_OPERATOR.get(operator_key)
 
 
-def build(session, *, version: str, downloaded: date) -> dict:
+def _published_position(meta: dict) -> bool:
+    """ENTSOG writes 0/0 for a point it has not placed; the transform would put it in Poland."""
+
+    return not (
+        float(meta.get("entsog_map_x") or 0.0) == 0.0
+        and float(meta.get("entsog_map_y") or 0.0) == 0.0
+    )
+
+
+def zone_nodes(balancing_zones: list[dict]) -> list[dict]:
+    """A node per market area ENTSOG publishes no trading point for, at ENTSOG's zone position.
+
+    The position is ENTSOG's map position for the balancing zone (``balancingzones``
+    ``tpMapX``/``tpMapY``, the label of the zone on ENTSOG's map), transformed as every other
+    point; a zone ENTSOG has not placed is not located.
+    """
+
+    from eurogas_nexus.ingestion.public_sources import _entsog_map_to_lon_lat
+
+    by_key = {str(row.get("bzKey")): row for row in balancing_zones}
+    out = []
+    for area in MARKET_AREAS:
+        if area.hub_point_key:
+            continue
+        row = by_key.get(area.bz_key) or {}
+        x, y = row.get("tpMapX"), row.get("tpMapY")
+        lon, lat = _entsog_map_to_lon_lat(x, y)
+        located = lon is not None and _published_position({"entsog_map_x": x, "entsog_map_y": y})
+        out.append(
+            {
+                "id": f"entsog-{area.zone_point_key.lower()}",
+                "point_key": area.zone_point_key,
+                "balancing_zone_key": area.bz_key,
+                "hub_code": area.code,
+                "zone_only": True,
+                "eic": (row.get("bzEicCode") or "").strip() or None,
+                "name": str(row.get("bzLabelLong") or row.get("bzLabel") or area.code).strip(),
+                "country": area.country,
+                "country_basis": "zone_of_trading_point",
+                "type": "hub",
+                "point_type": "Balancing zone (no published trading point)",
+                "infrastructure": None,
+                "operators": [],
+                "located": located,
+                "lat": round(lat, 4) if located else None,
+                "lon": round(lon, 4) if located else None,
+                "coordinate_quality": "display_approximation" if located else None,
+                "verified": False,
+                "entsog_map_x": x,
+                "entsog_map_y": y,
+                "source_dataset": "balancingzones",
+            }
+        )
+    return out
+
+
+def build(session, *, version: str, downloaded: date, entsog_dir: Path | None = None) -> dict:
+    """The bundle from a store holding a complete ENTSOG reference read."""
+
     nodes_by_key = {}
     for node in session.query(ReferenceNode).filter(ReferenceNode.source_system == "ENTSOG"):
         if node.data_quality == REFERENCE_RETIRED_QUALITY:
@@ -143,17 +219,82 @@ def build(session, *, version: str, downloaded: date) -> dict:
     ):
         if row.data_quality != REFERENCE_RETIRED_QUALITY:
             access_by_key[row.point_key].append(row)
+    return build_rows(
+        nodes_by_key,
+        access_by_key,
+        read_entsog("balancingzones", entsog_dir),
+        read_entsog("interconnections", entsog_dir),
+        version=version,
+        downloaded=downloaded,
+    )
 
+
+def build_from_entsog(entsog_dir: Path, *, version: str, downloaded: date) -> dict:
+    """The bundle from saved ENTSOG responses, normalised exactly as the live read stores them.
+
+    ``entsog_dir`` holds ``connectionpoints.json``, ``operatorpointdirections.json`` and
+    ``balancingzones.json`` (``?limit=-1``, as ENTSOG answers).
+    """
+
+    from types import SimpleNamespace
+
+    from eurogas_nexus.ingestion.public_sources import (
+        entsog_reference_nodes_from_connectionpoints,
+        entsog_tso_access_points_from_json,
+    )
+
+    def payload(name: str) -> dict:
+        return json.loads((entsog_dir / f"{name}.json").read_text(encoding="utf-8"))
+
+    nodes_by_key = {
+        str(row["source_record_id"]): SimpleNamespace(**row)
+        for row in entsog_reference_nodes_from_connectionpoints(payload("connectionpoints"))
+    }
+    access_by_key: dict[str, list] = defaultdict(list)
+    for row in entsog_tso_access_points_from_json(payload("operatorpointdirections")):
+        access_by_key[row["point_key"]].append(SimpleNamespace(**row))
+    return build_rows(
+        nodes_by_key,
+        access_by_key,
+        read_entsog("balancingzones", entsog_dir),
+        read_entsog("interconnections", entsog_dir),
+        version=version,
+        downloaded=downloaded,
+    )
+
+
+def _zone_label_keys(balancing_zones: list[dict]) -> dict[str, str]:
+    """ENTSOG balancing zone label (as operator point directions name it) to its key."""
+
+    out: dict[str, str] = {}
+    for row in balancing_zones:
+        key = str(row.get("bzKey") or "")
+        for label in (row.get("bzLabel"), row.get("bzLabelLong")):
+            if label and key:
+                out.setdefault(str(label).strip(), key)
+    return out
+
+
+def build_rows(
+    nodes_by_key: dict,
+    access_by_key: dict[str, list],
+    balancing_zones: list[dict],
+    interconnections: list[dict],
+    *,
+    version: str,
+    downloaded: date,
+) -> dict:
     landing = {point.point_id for point in LANDING_POINTS}
+    area_hubs = {area.hub_point_key for area in MARKET_AREAS if area.hub_point_key}
     wanted = set()
     for key, rows in access_by_key.items():
         if key.split("-")[0] not in KEPT_PREFIXES:
             continue
-        if key.startswith("VTP-") and key not in HUB_COUNTRY and key not in EXTRA_TRADING_POINTS:
+        if key.startswith("VTP-") and key not in area_hubs and key not in EXTRA_TRADING_POINTS:
             continue
         if key in landing or any(_country(row.country) in SCOPE_COUNTRIES for row in rows):
             wanted.add(key)
-    wanted |= set(HUB_COUNTRY)
+    wanted |= area_hubs
 
     nodes, access, edges = [], [], []
     operators_seen: dict[str, dict] = {}
@@ -176,28 +317,30 @@ def build(session, *, version: str, downloaded: date) -> dict:
             country, basis = operator_countries[0], "operator_country"
         else:
             country, basis = _country(rows[0].country) if rows else "EU", "operator_country"
-        located = node is not None
-        nodes.append(
-            {
-                "id": f"entsog-{key.lower()}",
-                "point_key": key,
-                "eic": meta.get("point_eic_code"),
-                "name": node.name if node is not None else rows[0].point_name,
-                "country": (country or "EU")[:2],
-                "country_basis": basis,
-                "type": KEPT_PREFIXES[key.split("-")[0]],
-                "point_type": meta.get("point_type"),
-                "infrastructure": meta.get("infrastructure_label"),
-                "operators": operators,
-                "located": located,
-                "lat": round(node.lat, 4) if located else None,
-                "lon": round(node.lon, 4) if located else None,
-                "coordinate_quality": "display_approximation" if located else None,
-                "verified": False,
-                "entsog_map_x": meta.get("entsog_map_x"),
-                "entsog_map_y": meta.get("entsog_map_y"),
-            }
-        )
+        located = node is not None and _published_position(meta)
+        item = {
+            "id": f"entsog-{key.lower()}",
+            "point_key": key,
+            "eic": meta.get("point_eic_code"),
+            "name": node.name if node is not None else rows[0].point_name,
+            "country": (country or "EU")[:2],
+            "country_basis": basis,
+            "type": KEPT_PREFIXES[key.split("-")[0]],
+            "point_type": meta.get("point_type"),
+            "infrastructure": meta.get("infrastructure_label"),
+            "operators": operators,
+            "located": located,
+            "lat": round(node.lat, 4) if located else None,
+            "lon": round(node.lon, 4) if located else None,
+            "coordinate_quality": "display_approximation" if located else None,
+            "verified": False,
+            "entsog_map_x": meta.get("entsog_map_x"),
+            "entsog_map_y": meta.get("entsog_map_y"),
+        }
+        if key in AREA_BY_POINT:
+            item["hub_code"] = AREA_BY_POINT[key].code
+            item["balancing_zone_key"] = AREA_BY_POINT[key].bz_key
+        nodes.append(item)
         for row in rows:
             operators_seen[row.operator_key] = {
                 "name": row.operator_name.strip(),
@@ -228,16 +371,76 @@ def build(session, *, version: str, downloaded: date) -> dict:
                 ),
             }
             access.append({k: v for k, v in item.items() if v is not None})
+    nodes += zone_nodes(balancing_zones)
+    nodes.sort(key=lambda node: node["point_key"])
+
+    # Zone membership: the zone ENTSOG names for the operator at the point
+    # (operatorpointdirections.tSOBalancingZone), else the operator's usual zone there. A
+    # two-point pipeline's operator (IUK, BBL, GNI (UK)) belongs to no market area of its own.
+    # A pipeline that crosses a border (its two ends in different countries: IUK, BBL, TAP) is
+    # its operator's whole system; LBTG, both ends in Germany, sits inside THE.
+    label_keys = _zone_label_keys(balancing_zones)
+    pipelines = two_point_systems(interconnections)
+    country_of = {node["point_key"]: node["country"] for node in nodes}
+    pipeline_operators = {
+        operator
+        for (_label, operator), ends in pipelines.items()
+        if all(end in country_of for end in ends) and len({country_of[end] for end in ends}) > 1
+    }
+    usual: dict[str, Counter] = defaultdict(Counter)
+    zone_at: dict[tuple[str, str], set[str]] = defaultdict(set)
+    for key, rows in access_by_key.items():
+        for row in rows:
+            label = str((getattr(row, "metadata_json", None) or {}).get("tso_balancing_zone") or "")
+            zone = canonical_zone(label_keys.get(label.strip()))
+            if zone in BZ_HUB:
+                zone_at[(key, row.operator_key)].add(BZ_HUB[zone])
+                usual[row.operator_key][BZ_HUB[zone]] += 1
+
+    def member_hubs(key: str, operator: str) -> list[str]:
+        if operator in pipeline_operators or "-TSO-" not in operator:
+            return []
+        if zone_at.get((key, operator)):
+            return sorted(zone_at[(key, operator)])
+        if usual.get(operator):
+            return [usual[operator].most_common(1)[0][0]]
+        if operator in EXTERNAL_OPERATOR_ZONES:
+            return [BZ_HUB[EXTERNAL_OPERATOR_ZONES[operator]]]
+        hub = _hub_for(operator)
+        return [hub] if hub else []
+
+    # A storage site, terminal or field ENTSOG lists with its own operator only (the Austrian
+    # storage pools: no TSO row in operator point directions) belongs to the zone of the
+    # transmission side ENTSOG's interconnections give it there.
+    transmission_side: dict[str, set[tuple[str, str]]] = defaultdict(set)
+    for row in interconnections:
+        if row.get("isInvalid") or not row.get("pointKey"):
+            continue
+        for side in ("from", "to"):
+            if row.get(f"{side}InfrastructureTypeLabel") != "Transmission":
+                continue
+            zone = canonical_zone(row.get(f"{side}BzKey"))
+            operator = str(row.get(f"{side}OperatorKey") or "")
+            if not zone and operator in EXTERNAL_OPERATOR_ZONES:
+                zone = EXTERNAL_OPERATOR_ZONES[operator]
+            if zone in BZ_HUB:
+                transmission_side[str(row["pointKey"])].add((BZ_HUB[zone], operator))
 
     located_ids = {node["id"] for node in nodes if node["located"]}
     seen = set()
     for node in nodes:
         if not node["located"] or node["type"] == "hub":
             continue
-        for operator in node["operators"]:
-            hub = _hub_for(operator)
-            hub_id = f"entsog-{hub.lower()}" if hub else None
-            if hub_id is None or hub_id not in located_ids or hub_id == node["id"]:
+        memberships = [
+            (hub, operator)
+            for operator in node["operators"]
+            for hub in member_hubs(node["point_key"], operator)
+        ]
+        if not memberships and node["type"] != "interconnection":
+            memberships = sorted(transmission_side.get(node["point_key"], set()))
+        for hub, operator in memberships:
+            hub_id = f"entsog-{hub.lower()}"
+            if hub_id not in located_ids or hub_id == node["id"]:
                 continue
             pair = (node["id"], hub_id)
             if pair in seen:
@@ -251,7 +454,7 @@ def build(session, *, version: str, downloaded: date) -> dict:
                     "type": "virtual",
                     "schematic": True,
                     "basis": "entry_exit_zone",
-                    "operator_key": operator,
+                    "operator_key": operator or None,
                 }
             )
 
@@ -261,17 +464,19 @@ def build(session, *, version: str, downloaded: date) -> dict:
         "version": version,
         "built_at_utc": datetime.now(UTC).replace(microsecond=0).isoformat(),
         "scope": {
-            "region": "north-west Europe",
+            "region": "Europe (every active ENTSOG balancing zone)",
             "countries": list(SCOPE_COUNTRIES),
             "rule": (
                 "ENTSOG interconnection, storage, LNG, production and trading points with an "
-                "operator in a scope country, plus the balance's landing points; distribution "
-                "and final-consumer points are left out."
+                "operator in a scope country, plus the balance's landing points, plus one node "
+                "per market area ENTSOG publishes no trading point for (at ENTSOG's position "
+                "for the balancing zone); distribution and final-consumer points are left out. "
+                "A point ENTSOG places at map position 0/0 is not located."
             ),
         },
         "source": {
             "name": "ENTSOG Transparency Platform",
-            "datasets": ["connectionpoints", "operatorpointdirections"],
+            "datasets": ["connectionpoints", "operatorpointdirections", "balancingzones"],
             "downloaded": downloaded.isoformat(),
             "attribution": f"ENTSOG TP [{stamp}] https://transparency.entsog.eu/",
             "terms": (
@@ -331,14 +536,25 @@ def fetch_entsog(dataset: str, *, attempts: int = 5) -> list[dict]:
     return []
 
 
-def entsog_rows(entsog_dir: Path | None) -> tuple[list[dict], list[dict]]:
-    if entsog_dir:
-        def read(name: str) -> list[dict]:
-            payload = json.loads((entsog_dir / f"{name}.json").read_text(encoding="utf-8"))
-            return next(value for key, value in payload.items() if key.lower() == name.lower())
+_READ_CACHE: dict[tuple[str, str], list[dict]] = {}
 
-        return read("interconnections"), read("connectionpoints")
-    return fetch_entsog("interconnections"), fetch_entsog("connectionpoints")
+
+def read_entsog(name: str, entsog_dir: Path | None) -> list[dict]:
+    """One ENTSOG dataset: the saved response in ``entsog_dir``, else read live (once)."""
+
+    cache_key = (name, str(entsog_dir))
+    if cache_key not in _READ_CACHE:
+        if entsog_dir:
+            payload = json.loads((entsog_dir / f"{name}.json").read_text(encoding="utf-8"))
+            rows = next(value for key, value in payload.items() if key.lower() == name.lower())
+        else:
+            rows = fetch_entsog(name)
+        _READ_CACHE[cache_key] = rows
+    return _READ_CACHE[cache_key]
+
+
+def entsog_rows(entsog_dir: Path | None) -> tuple[list[dict], list[dict]]:
+    return read_entsog("interconnections", entsog_dir), read_entsog("connectionpoints", entsog_dir)
 
 
 def firm_technical_capacities(
@@ -374,6 +590,9 @@ def firm_technical_capacities(
         values = [float(row["value"]) for row in rows if row.get("value") not in (None, "")]
         if values:
             out[point] = max(values)
+    if saved is not None:
+        # Recorded beside the other saved responses, so a rebuild from them is the same build.
+        saved.write_text(json.dumps(dict(sorted(out.items())), indent=0) + "\n", encoding="utf-8")
     return out
 
 
@@ -478,7 +697,15 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--entsog-dir",
         type=Path,
-        help="saved interconnections.json and connectionpoints.json",
+        help=(
+            "saved ENTSOG responses (?limit=-1): interconnections, connectionpoints, "
+            "balancingzones and, for --from-entsog-dir, operatorpointdirections"
+        ),
+    )
+    parser.add_argument(
+        "--from-entsog-dir",
+        action="store_true",
+        help="build the whole bundle from --entsog-dir, normalised as the live read (no database)",
     )
     parser.add_argument(
         "--scigrid-dir",
@@ -493,6 +720,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--context-out", type=Path, default=CONTEXT_PIPELINES_PATH)
     args = parser.parse_args(argv)
     previous = load_bundle()
+    if args.from_entsog_dir and args.entsog_dir is None:
+        print("--from-entsog-dir needs --entsog-dir", file=sys.stderr)
+        return 2
     if args.presentation_only:
         if args.scigrid_dir is None:
             print("--presentation-only needs --scigrid-dir", file=sys.stderr)
@@ -513,12 +743,21 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if args.adjacency_only:
         bundle = {**load_bundle(), "version": args.version}
+    elif args.from_entsog_dir:
+        bundle = build_from_entsog(
+            args.entsog_dir, version=args.version, downloaded=args.downloaded
+        )
     else:
         if not resolve_database_url():
             print("RUNTIME_STORE_DATABASE_URL is required", file=sys.stderr)
             return 2
         with get_session_factory()() as session:
-            bundle = build(session, version=args.version, downloaded=args.downloaded)
+            bundle = build(
+                session,
+                version=args.version,
+                downloaded=args.downloaded,
+                entsog_dir=args.entsog_dir,
+            )
             session.rollback()  # read-only
     bundle = with_adjacency(bundle, args.entsog_dir, args.downloaded)
     bundle = with_presentation(bundle, args.scigrid_dir, previous, args.context_out)
