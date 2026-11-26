@@ -4694,6 +4694,8 @@
   "setup.item.src-wmr.purpose": "合同引用时使用的伦敦下午 4 点定盘价。",
   "setup.item.src-bfix.name": "彭博 BFIX",
   "setup.item.src-bfix.purpose": "合同引用时使用的 BFIX 定盘价。",
+  "setup.item.src-bank-rates.name": "本企业银行汇率",
+  "setup.item.src-bank-rates.purpose": "来自企业自身结算或开户银行的汇率与利率，经文件导入；优先于参考汇率使用。",
   "setup.item.etrm-trades.name": "ETRM 交易",
   "setup.item.etrm-trades.purpose": "来自公司自身交易的头寸、损益与限额。",
   "setup.item.contracts.name": "合同",
