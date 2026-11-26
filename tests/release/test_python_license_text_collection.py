@@ -272,6 +272,63 @@ def test_missing_distribution_is_unresolved(tmp_path) -> None:
     assert "no installed distribution found" in package["reason"]
 
 
+def test_entry_whose_marker_excludes_this_interpreter_is_disclosed_not_unresolved(
+    tmp_path,
+) -> None:
+    # A universal lock pins async-timeout only for python_full_version < '3.11.3'
+    # (via valkey). pip never installs it on 3.11.12, so it cannot have installed
+    # evidence; the collector must disclose it as marker-excluded, not fail on it.
+    site = tmp_path / "site"
+    site.mkdir()
+    add_dist_info(
+        site,
+        "demo",
+        "1.0.0",
+        license_files=("LICENSE",),
+        record_paths=("demo-1.0.0.dist-info/LICENSE",),
+    )
+    write_site_file(site, "demo-1.0.0.dist-info/LICENSE", b"MIT License\n")
+    lock = tmp_path / "requirements-runtime.lock"
+    lock.write_text(
+        f"async-timeout==5.0.1 ; python_full_version < '3.0' \\\n    --hash=sha256:{DIGEST}\n"
+        f"demo==1.0.0 \\\n    --hash=sha256:{DIGEST}\n",
+        encoding="utf-8",
+    )
+
+    code, output = run_collect(tmp_path, site=site, lock=lock)
+
+    assert code == 0
+    manifest = read_manifest(output)
+    assert manifest["status"] == "complete"
+    assert [package["name"] for package in manifest["packages"]] == ["demo"]
+    assert manifest["runtime_lock"]["locked_packages"] == 1
+    assert manifest["runtime_lock"]["excluded_entries"] == [
+        {
+            "spec": "async-timeout==5.0.1",
+            "reason": "environment-marker",
+            "name": "async-timeout",
+            "marker": "python_full_version < '3.0'",
+        }
+    ]
+
+
+def test_entry_whose_marker_matches_this_interpreter_must_still_be_installed(tmp_path) -> None:
+    site = tmp_path / "site"
+    site.mkdir()
+    add_dist_info(site, "other", "1.0.0")
+    lock = tmp_path / "requirements-runtime.lock"
+    lock.write_text(
+        f"demo==1.0.0 ; python_full_version >= '3.0' \\\n    --hash=sha256:{DIGEST}\n",
+        encoding="utf-8",
+    )
+
+    code, output = run_collect(tmp_path, site=site, lock=lock)
+
+    assert code == 1
+    package = read_manifest(output)["packages"][0]
+    assert package["status"] == "unresolved"
+
+
 def test_distribution_without_license_text_is_unresolved(tmp_path) -> None:
     site = tmp_path / "site"
     site.mkdir()

@@ -325,17 +325,210 @@ def python_packages(lock_path: Path) -> LockInventory:
                 {"spec": f"{name}=={version}", "reason": "project-package", "name": name}
             )
             continue
-        packages.append(
-            {
-                "name": name,
-                "version": version,
-                "license": None,
-                "purl": build_purl("pypi", name, version),
-                "origin": "registry",
-            }
-        )
+        package = {
+            "name": name,
+            "version": version,
+            "license": None,
+            "purl": build_purl("pypi", name, version),
+            "origin": "registry",
+        }
+        if marker is not None:
+            package["environment_marker"] = marker.strip()
+        packages.append(package)
     if not packages:
         raise SbomInputError(f"{lock_path}: no third-party packages resolved from lock input")
+    return LockInventory(packages, excluded)
+
+
+#: Marker variables compared as versions (PEP 508); every other variable is a string.
+_PY_MARKER_VERSION_VARIABLES = frozenset(
+    {"python_version", "python_full_version", "implementation_version"}
+)
+_PY_MARKER_TOKEN_RE = re.compile(
+    r"\s*(?:(?P<paren>[()])|(?P<string>'[^']*'|\"[^\"]*\")"
+    r"|(?P<op>===|==|!=|<=|>=|~=|<|>|not\s+in\b|in\b)|(?P<word>and\b|or\b)"
+    r"|(?P<variable>[a-z_]+))"
+)
+_PY_RELEASE_RE = re.compile(r"(\d+(?:\.\d+)*)")
+
+
+def python_marker_environment() -> dict[str, str]:
+    """PEP 508 marker values of the running interpreter (stdlib only, like ``packaging``)."""
+
+    import os
+    import platform
+
+    def _format_version(info: Any) -> str:
+        version = f"{info.major}.{info.minor}.{info.micro}"
+        if info.releaselevel != "final":
+            version += info.releaselevel[0] + str(info.serial)
+        return version
+
+    return {
+        "extra": "",
+        "implementation_name": sys.implementation.name,
+        "implementation_version": _format_version(sys.implementation.version),
+        "os_name": os.name,
+        "platform_machine": platform.machine(),
+        "platform_python_implementation": platform.python_implementation(),
+        "platform_release": platform.release(),
+        "platform_system": platform.system(),
+        "platform_version": platform.version(),
+        "python_full_version": platform.python_version(),
+        "python_version": ".".join(platform.python_version_tuple()[:2]),
+        "sys_platform": sys.platform,
+    }
+
+
+def _release_tuple(value: str, marker: str) -> tuple[int, ...]:
+    match = _PY_RELEASE_RE.match(value.strip())
+    if match is None:
+        raise SbomInputError(f"environment marker compares a non-version value: {marker!r}")
+    return tuple(int(part) for part in match.group(1).split("."))
+
+
+def _compare_versions(left: str, operator: str, right: str, marker: str) -> bool:
+    lhs, rhs = _release_tuple(left, marker), _release_tuple(right, marker)
+    width = max(len(lhs), len(rhs))
+    lhs, rhs = lhs + (0,) * (width - len(lhs)), rhs + (0,) * (width - len(rhs))
+    if operator == "~=":
+        prefix = _release_tuple(right, marker)
+        if len(prefix) < 2:
+            raise SbomInputError(f"'~=' needs at least two release parts: {marker!r}")
+        return lhs >= rhs and lhs[: len(prefix) - 1] == prefix[:-1]
+    return {
+        "==": lhs == rhs,
+        "!=": lhs != rhs,
+        "<": lhs < rhs,
+        "<=": lhs <= rhs,
+        ">": lhs > rhs,
+        ">=": lhs >= rhs,
+    }[operator]
+
+
+def evaluate_python_marker(marker: str, environment: dict[str, str] | None = None) -> bool:
+    """Evaluate one lock environment marker against an interpreter's marker values.
+
+    Only the subset the lock reader accepts is understood (atoms of a marker
+    variable, an operator and a quoted value, joined by ``and``/``or`` with
+    parentheses). Version variables compare by their numeric release parts;
+    anything else that cannot be decided exactly raises ``SbomInputError``
+    instead of guessing, so a marker never silently drops a package.
+    """
+
+    env = python_marker_environment() if environment is None else environment
+    tokens: list[tuple[str, str]] = []
+    position = 0
+    text = marker.strip()
+    while position < len(text):
+        match = _PY_MARKER_TOKEN_RE.match(text, position)
+        if match is None or match.end() == position:
+            raise SbomInputError(f"unsupported environment marker: {marker!r}")
+        kind = match.lastgroup or ""
+        tokens.append((kind, " ".join(match.group(kind).split())))
+        position = match.end()
+        while position < len(text) and text[position].isspace():
+            position += 1
+
+    index = 0
+
+    def _peek() -> tuple[str, str] | None:
+        return tokens[index] if index < len(tokens) else None
+
+    def _take(kind: str) -> str:
+        nonlocal index
+        token = _peek()
+        if token is None or token[0] != kind:
+            raise SbomInputError(f"unsupported environment marker: {marker!r}")
+        index += 1
+        return token[1]
+
+    def _value() -> tuple[str, bool]:
+        token = _peek()
+        if token is not None and token[0] == "string":
+            return _take("string")[1:-1], False
+        name = _take("variable")
+        if name not in env:
+            raise SbomInputError(f"unsupported marker variable {name!r} in {marker!r}")
+        return env[name], name in _PY_MARKER_VERSION_VARIABLES
+
+    def _atom() -> bool:
+        token = _peek()
+        if token is not None and token[0] == "paren" and token[1] == "(":
+            _take("paren")
+            result = _or()
+            if _take("paren") != ")":
+                raise SbomInputError(f"unbalanced environment marker: {marker!r}")
+            return result
+        left, left_version = _value()
+        operator = _take("op")
+        right, right_version = _value()
+        if operator in ("in", "not in"):
+            contained = left in right
+            return contained if operator == "in" else not contained
+        if operator == "===":
+            return left == right
+        if left_version or right_version:
+            return _compare_versions(left, operator, right, marker)
+        if operator in ("==", "!="):
+            return (left == right) if operator == "==" else (left != right)
+        raise SbomInputError(f"ordering comparison on a non-version marker value: {marker!r}")
+
+    def _and() -> bool:
+        nonlocal index
+        result = _atom()
+        while _peek() == ("word", "and"):
+            index += 1
+            right = _atom()
+            result = result and right
+        return result
+
+    def _or() -> bool:
+        nonlocal index
+        result = _and()
+        while _peek() == ("word", "or"):
+            index += 1
+            right = _and()
+            result = result or right
+        return result
+
+    result = _or()
+    if index != len(tokens):
+        raise SbomInputError(f"unsupported environment marker: {marker!r}")
+    return result
+
+
+def python_packages_for_environment(
+    lock_path: Path, environment: dict[str, str] | None = None
+) -> LockInventory:
+    """The runtime-lock inventory that applies to one interpreter.
+
+    A universal lock carries entries whose environment marker excludes the
+    interpreter (``async-timeout ; python_full_version < '3.11.3'`` is never
+    installed on 3.11.12). pip skips them, so they cannot have installed
+    evidence; they move to ``excluded`` with reason ``environment-marker`` and
+    the marker that excluded them, disclosed instead of silently dropped.
+    """
+
+    inventory = python_packages(lock_path)
+    env = python_marker_environment() if environment is None else environment
+    packages: list[dict] = []
+    excluded = list(inventory.excluded)
+    for item in inventory.packages:
+        marker = item.get("environment_marker")
+        if marker is not None and not evaluate_python_marker(marker, env):
+            excluded.append(
+                {
+                    "spec": f"{item['name']}=={item['version']}",
+                    "reason": "environment-marker",
+                    "name": item["name"],
+                    "marker": marker,
+                }
+            )
+            continue
+        packages.append(item)
+    if not packages:
+        raise SbomInputError(f"{lock_path}: no runtime-lock package applies to this interpreter")
     return LockInventory(packages, excluded)
 
 

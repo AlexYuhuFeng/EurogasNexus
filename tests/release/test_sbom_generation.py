@@ -527,6 +527,81 @@ def test_python_lock_accepts_multiline_hashes_comments_and_markers(tmp_path: Pat
     assert inventory.excluded == []
 
 
+PY_3_11_12 = {
+    "extra": "",
+    "implementation_name": "cpython",
+    "implementation_version": "3.11.12",
+    "os_name": "posix",
+    "platform_machine": "x86_64",
+    "platform_python_implementation": "CPython",
+    "platform_release": "6.8.0",
+    "platform_system": "Linux",
+    "platform_version": "#1 SMP",
+    "python_full_version": "3.11.12",
+    "python_version": "3.11",
+    "sys_platform": "linux",
+}
+
+
+@pytest.mark.parametrize(
+    ("marker", "expected"),
+    [
+        ("python_full_version < '3.11.3'", False),
+        ("python_full_version <= '3.11'", False),
+        ("python_full_version < '3.13'", True),
+        ("python_version >= '3.11'", True),
+        ("python_version ~= '3.10'", True),
+        ("platform_python_implementation != 'PyPy'", True),
+        ("implementation_name != 'PyPy' and platform_python_implementation != 'PyPy'", True),
+        ("platform_machine == 'AMD64' or platform_machine == 'x86_64'", True),
+        ("sys_platform == 'win32' or (python_version < '3.12' and os_name == 'posix')", True),
+        ("sys_platform == 'win32' and python_version < '3.12' or os_name == 'nt'", False),
+        ("'linux' in sys_platform", True),
+        ("sys_platform not in 'win32 cygwin'", True),
+    ],
+)
+def test_python_markers_evaluate_like_pep_508(marker: str, expected: bool) -> None:
+    assert generate_sboms.evaluate_python_marker(marker, PY_3_11_12) is expected
+
+
+@pytest.mark.parametrize(
+    "marker",
+    ["sys_platform < 'linux'", "python_version < 'abc'", "python_version <", "(os_name == 'nt'"],
+)
+def test_python_markers_it_cannot_decide_fail_closed(marker: str) -> None:
+    with pytest.raises(generate_sboms.SbomInputError):
+        generate_sboms.evaluate_python_marker(marker, PY_3_11_12)
+
+
+def test_runtime_inventory_for_an_interpreter_discloses_marker_excluded_entries(
+    tmp_path: Path,
+) -> None:
+    lock = tmp_path / "requirements-runtime.lock"
+    lock.write_text(
+        "async-timeout==5.0.1 ; python_full_version < '3.11.3' \\\n    --hash=sha256:"
+        + "0" * 64
+        + "\nvalkey==6.2.0 \\\n    --hash=sha256:"
+        + "1" * 64
+        + "\n",
+        encoding="utf-8",
+    )
+
+    inventory = generate_sboms.python_packages_for_environment(lock, PY_3_11_12)
+    assert [item["name"] for item in inventory.packages] == ["valkey"]
+    assert inventory.excluded == [
+        {
+            "spec": "async-timeout==5.0.1",
+            "reason": "environment-marker",
+            "name": "async-timeout",
+            "marker": "python_full_version < '3.11.3'",
+        }
+    ]
+    older = dict(PY_3_11_12, python_full_version="3.11.2")
+    assert len(generate_sboms.python_packages_for_environment(lock, older).packages) == 2
+    # The SBOM inventory still lists every locked package.
+    assert len(generate_sboms.python_packages(lock).packages) == 2
+
+
 @pytest.mark.parametrize(
     "declaration",
     [

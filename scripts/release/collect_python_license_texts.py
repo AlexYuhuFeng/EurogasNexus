@@ -632,7 +632,7 @@ def collect(
         return 2
 
     try:
-        inventory = generate_sboms.python_packages(lock)
+        inventory = generate_sboms.python_packages_for_environment(lock)
     except generate_sboms.SbomInputError as error:
         print("Python runtime lock could not be inventoried (fail-closed; nothing was collected):")
         print("  " + "\n  ".join(sorted(error.errors)))

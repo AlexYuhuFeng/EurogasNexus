@@ -404,7 +404,7 @@ def verify(*, evidence_dir: Path, runtime_lock: Path) -> int:
 
     lock_digest = sha256_file(lock)
     try:
-        inventory = generate_sboms.python_packages(lock)
+        inventory = generate_sboms.python_packages_for_environment(lock)
     except generate_sboms.SbomInputError as error:
         print("shipped runtime lock could not be inventoried (fail-closed); nothing accepted:")
         for item in sorted(error.errors):
