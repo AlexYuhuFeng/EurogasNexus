@@ -73,7 +73,7 @@ COPY scripts/ops/approve_public_source.py \
      scripts/ops/migration_preflight.py \
      scripts/ops/prune_audit_events.py \
      scripts/ops/prune_job_records.py \
-     scripts/ops/prune_runtime_data.py \
+     scripts/ops/retention.py \
      scripts/ops/recover_stale_jobs.py \
      scripts/ops/refresh_cost_observations.py \
      scripts/ops/run_dataops_scheduler.py \
