@@ -509,11 +509,12 @@ def test_web_client_matches_design_reference_cockpit() -> None:
         ROOT / "clients" / "web" / "src" / "app" / "mapTileProviders.ts"
     ).read_text(encoding="utf-8")
     assert "basemap-raster" in map_component
-    assert "tile.openstreetmap.org" in map_tile_providers
     assert "tianditu.gov.cn" in map_tile_providers
-    assert "basemaps.cartocdn.com" in map_tile_providers
-    assert "is.autonavi.com" in map_tile_providers
-    assert "wgs84ToGcj02" in map_tile_providers
+    # Public endpoints whose terms exclude a commercial product are not offered (owner review
+    # 2026-11-26): OpenStreetMap's tile servers, CARTO's free tiles, AMap's public raster.
+    assert "tile.openstreetmap.org/{z}" not in map_tile_providers
+    assert "basemaps.cartocdn.com" not in map_tile_providers
+    assert "is.autonavi.com" not in map_tile_providers
 
     assert "--eg-ink: #171717" in css
 
