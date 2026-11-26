@@ -18,7 +18,7 @@ from eurogas_nexus.domain.market.units import (
     UnitConversionError,
     canonical_price_unit,
 )
-from eurogas_nexus.domain.ontology.markets import european_gas_hubs
+from eurogas_nexus.domain.ontology.markets import canonical_hub, european_gas_hubs
 from eurogas_nexus.domain.valuation.periods import DeliveryPeriod, PeriodError
 from eurogas_nexus.domain.valuation.quality import InputClass
 
@@ -110,7 +110,8 @@ def validate_firm_mark(
         FirmMarkError: unknown hub, period, unit, a non-number or an implausible value.
     """
 
-    code = (hub or "").strip().upper()
+    # A hub's other name (GTF, VTP) is the hub: the mark is stored under the registry code.
+    code = canonical_hub(hub) or (hub or "").strip().upper()
     if code not in european_gas_hubs(include_superseded=True):
         raise FirmMarkError("unknown_hub", f"{hub!r} is not a European gas hub")
     try:

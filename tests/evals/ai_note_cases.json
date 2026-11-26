@@ -93,7 +93,7 @@
      "lines": [
       "NBP: long 28,000 MWh/d today, short 5,000 MWh/d front month.",
       "TTF: short 12,000 MWh/d today.",
-      "GTF: long 3,000 MWh/d today, unvalued: GTF has no published price."
+      "ETF: long 3,000 MWh/d today."
      ],
      "sources": [
       "position-ladder"
@@ -662,9 +662,9 @@
    "id": "why_flow_public-30",
    "evidence": "why_flow_public",
    "category": "etf_gtf",
-   "expect": "refuse",
-   "check": "hub",
-   "reason": "GTF is a different Danish hub from ETF.",
+   "expect": "pass",
+   "check": "",
+   "reason": "GTF is the OTC name of the Danish hub ETF: the same hub, so the line is faithful.",
    "text": "Ellund exit to GTF fell to 42 GWh/d on 14 Nov."
   },
   {
@@ -829,16 +829,16 @@
    "category": "etf_gtf",
    "expect": "refuse",
    "check": "hub",
-   "reason": "The 3,000 MWh/d long is at GTF, not ETF.",
-   "text": "ETF: long 3,000 MWh/d today."
+   "reason": "The 3,000 MWh/d long is at ETF, the Danish hub, not TTF.",
+   "text": "TTF: long 3,000 MWh/d today."
   },
   {
    "id": "brief_morning_demo-49",
    "evidence": "brief_morning_demo",
    "category": "etf_gtf",
-   "expect": "refuse",
-   "check": "hub",
-   "reason": "32.10 is the ETF price; GTF has no published price.",
+   "expect": "pass",
+   "check": "",
+   "reason": "GTF is ETF under its OTC name; 32.10 is that hub's price.",
    "text": "Demo prices: GTF front month 32.10 EUR/MWh."
   },
   {
@@ -847,8 +847,8 @@
    "category": "etf_gtf",
    "expect": "pass",
    "check": "",
-   "reason": "Faithful to the GTF line.",
-   "text": "GTF: long 3,000 MWh/d today, unvalued because GTF has no published price."
+   "reason": "Faithful to the ETF line, written with the hub's OTC name.",
+   "text": "GTF: long 3,000 MWh/d today."
   },
   {
    "id": "brief_morning_demo-51",
@@ -964,8 +964,8 @@
    "category": "etf_gtf",
    "expect": "refuse",
    "check": "hub",
-   "reason": "GTF is not ETF.",
-   "text": "Ellund exit to GTF fell to 42 GWh/d on 14 Nov."
+   "reason": "Ellund feeds the Danish hub ETF, not TTF.",
+   "text": "Ellund exit to TTF fell to 42 GWh/d on 14 Nov."
   },
   {
    "id": "answer_flow_public-64",
@@ -1036,8 +1036,8 @@
    "category": "chinese",
    "expect": "refuse",
    "check": "hub",
-   "reason": "GTF is not ETF.",
-   "text": "Ellund 流向 GTF 的流量下降至 42 GWh/d。"
+   "reason": "Ellund feeds ETF, not TTF.",
+   "text": "Ellund 流向 TTF 的流量下降至 42 GWh/d。"
   },
   {
    "id": "answer_flow_public_zh-72",

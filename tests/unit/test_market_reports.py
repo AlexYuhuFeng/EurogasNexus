@@ -682,7 +682,7 @@ def test_a_chinese_report_is_written_in_chinese_throughout(env):
                "North", "supply", "Easington", "Fergus", "NETRA", "Dornum", "Emden",
                "Norwegian", "shelf",
                # Every hub of the demo market is a name, not English prose.
-               "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF", "GTF"}
+               "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF"}
     english = [s for s in _sentences(report.snapshot)
                if [w for w in re.findall(r"[A-Za-z]{3,}", s) if w not in allowed]]
     assert not english, english[:5]

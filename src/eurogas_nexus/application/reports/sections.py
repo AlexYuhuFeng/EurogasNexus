@@ -1511,8 +1511,7 @@ ZONE_EIC_HUBS = {
     "21YGB-UKGASGRIDW": "NBP", "21Y0000000001278": "PEG", "21Z000000000248J": "ZTP",
     "21Y---A001A003-5": "ETF",
 }
-HUB_COUNTRY = {"TTF": "NL", "THE": "DE", "NBP": "GB", "PEG": "FR", "ZTP": "BE", "ETF": "DK",
-               "GTF": "DK"}
+HUB_COUNTRY = {"TTF": "NL", "THE": "DE", "NBP": "GB", "PEG": "FR", "ZTP": "BE", "ETF": "DK"}
 
 
 def _zone_tokens(zone: str | None) -> list[str]:
