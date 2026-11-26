@@ -1,4 +1,5 @@
 import { useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
 import type { EdgeDTO, MapCargoDTO, MapSituationDTO, NodeDTO, NormalizedMarketObsDTO } from "@/api/client";
 import {
@@ -14,6 +15,9 @@ import {
   type Site,
 } from "@/app/mapSelection";
 import { Icon } from "@/components/ui/Icon";
+import { glossaryAnswer } from "@/app/answer/glossary";
+import { openGlossaryTerm, resolveGlossaryTerm } from "@/app/model/glossaryEntry";
+import { useApiStore } from "@/stores/api";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -273,6 +277,27 @@ function CargoDetail({
 }
 
 /**
+ * What the selected object is, in the glossary's words, when the glossary has an entry for it
+ * (a hub, a terminal the firm added): one sentence and the way to the whole entry, which shows
+ * the same prices as this card.
+ */
+function GlossaryLine({ name, t }: { name: string; t: Translate }) {
+  const terms = useApiStore((state) => state.glossaryTerms);
+  const { i18n } = useTranslation();
+  const entry = resolveGlossaryTerm(name, terms);
+  if (!entry) return null;
+  const answer = glossaryAnswer(entry, i18n.language.startsWith("zh"));
+  return (
+    <section className="map-detail-section map-detail-glossary">
+      {answer.definition && <p className="muted">{answer.definition}</p>}
+      <button type="button" className="link-button map-detail-link" onClick={() => openGlossaryTerm(entry.term)}>
+        {t("glossary.open_entry")}
+      </button>
+    </section>
+  );
+}
+
+/**
  * The selected object's card, docked on the map's right edge. One selection at a time;
  * Escape or the close button clears it, as does clicking empty map.
  */
@@ -334,6 +359,7 @@ export function MapDetailPanel({
     <aside className="map-detail-panel" aria-label={t("map.detail.title")}>
       <button type="button" className="map-detail-close link-button" onClick={onClose} aria-label={t("map.detail.close")} title={t("map.detail.close")}><Icon name="close" /></button>
       {body}
+      {selection.kind !== "cargo" && <GlossaryLine name={selection.kind === "hub" ? selection.id : site?.name ?? ""} t={t} />}
       {bookReasons && bookReasons.length > 0 && (
         <Section title={t("map.book.why")}>
           <ul className="map-detail-book-reasons">
