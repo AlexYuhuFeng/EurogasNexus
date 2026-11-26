@@ -35,6 +35,7 @@ import { inspectorDetailFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
 import { WorkspaceRenderer } from "@/app/workspaces/WorkspaceRenderer";
 import { usePageEnter } from "@/app/shell/usePageEnter";
+import { PanelErrorBoundary } from "@/components/PanelErrorBoundary";
 import { isBlockingCompatibility } from "@/app/releaseCompatibility";
 import { changeAppLanguage } from "@/i18n";
 import { loadRemotePreferences, saveRemotePreference } from "@/app/preferences/remotePreferences";
@@ -455,7 +456,14 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
             here, which meant its surface was mounted outside the registry that declares it;
             it is now composed by the market primary like every other page of that primary
             (conflicting register C9). */}
-        {controlPlaneRestricted || commercialRestricted ? <RestrictedSurface t={t} /> : <WorkspaceRenderer controller={controller} />}
+        {controlPlaneRestricted || commercialRestricted ? (
+          <RestrictedSurface t={t} />
+        ) : (
+          // A page that fails to draw shows a notice in its place; the top bar stays usable.
+          <PanelErrorBoundary t={t} resetKey={navigationPlace}>
+            <WorkspaceRenderer controller={controller} />
+          </PanelErrorBoundary>
+        )}
       </main>
 
       {inspector.subject && (

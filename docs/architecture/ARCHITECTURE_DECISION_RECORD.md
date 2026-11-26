@@ -524,7 +524,8 @@ source/time indexes next to the existing entity/period ones. Reads that scan his
 bounded (for example the spread lab's 150k-row ceiling).
 
 Rejected for now: TimescaleDB or a separate time-series store (a new datastore and its
-licence; AGENTS.md rule 5). Native declarative partitioning by month is the next step
+licence; AGENTS.md rule 5). Amended 2026-11-26 by Decision 39: the TimescaleDB extension may be
+used, optional and off by default, on the same PostgreSQL server. Native declarative partitioning by month is the next step
 when any observation table passes about 50 million rows or a time-range read exceeds its
 latency budget after indexing. At that point a BRIN index on the time column replaces
 the B-tree on the largest partitions. Retention (raw archive and audit pruning) and the
@@ -957,6 +958,33 @@ cost (the slot it uses and the berth it takes have a value elsewhere). Tests:
 `tests/api/test_data1_import_contracts.py`, `tests/integration/test_lng_disruption_postgres.py`,
 `tests/integration/test_demo_planted_cases.py`, `clients/web/tests/disruptionOptionsModel.test.ts`.
 
+Addendum of 2026-11-26 (the owner's decisions on berth priority and on another company's
+demurrage). A terminal's berth access rule is a hard constraint of the engine
+(`domain/lng/disruption.BerthRule`): a ship within its arrival window berths in turn; a late
+ship takes the next free gap without displacing an on-time holder, and its laytime starts at
+berthing (or at arrival where the rule says so). A swap of berth turn is an option: with a cargo
+of the book (`berth_swap`, its knock-on costed) or with another company's call
+(`counterparty_swap`, costed at that company's negotiated quote, `pending` until entered and then
+ranked as costed); either needs the terminal's approval where the rule says so, listed on the
+option as `approvals` (sentences) and `approval_requests` (the same as data, for the client's
+own language). Another company's demurrage and boil-off leave the book's opportunity cost; the
+delay is stated in `counterparty_effects` with no value. The previous text above ("the demurrage
+and boil-off of another user's ship ... where the line-up is held") is superseded by this.
+Migration `0092_lng_berth_rules` (on `0091_hub_one_identity`, expand-only) adds the table
+`lng_terminal_berth_rules` (terminal, arrival window in gas days, where a late ship's laytime
+starts, whether a swap needs approval, basis `terminal_code`, `example` or `assumption`, citation,
+the rule as worded, source) and nullable columns on `lng_berth_calls` (`counterparty`,
+`quote_amount`, `quote_currency`, `quote_reference`); the call's own demurrage columns stay but
+are no longer read. The reads add `berth_rules` (each terminal's rule as applied) and, per
+option, `quotes`, `approvals`, `approval_requests` and `counterparty_effects`, all additive.
+Not built: a way to record a terminal's rule, a line-up call or a quote (no route and no import
+contract writes `lng_terminal_berth_rules` or `lng_berth_calls`; today only the demo seed and the
+tests do, so on a customer store every terminal shows the default rule and no counterparty swap
+is offered until one is added); a quote in a currency without an FX fix stays pending. Tests:
+`tests/domain/test_lng_disruption.py`, `tests/unit/test_lng_berth_rules_migration.py`,
+`tests/api/test_lng_disruption_api.py`, `tests/integration/test_lng_disruption_postgres.py`,
+`clients/web/tests/disruptionOptionsModel.test.ts`.
+
 ## Decision 38: Capacity the firm holds is one table, priced before public tariffs through one source-precedence resolver
 
 Accepted 2026-11-25 (programme
@@ -1010,3 +1038,40 @@ are a configuration file the firm sets from its agreement with the bank. Without
 makes no network call and reports not connected. The scheduled source is off by default. The
 earlier rejection of a live bank connector now applies to every bank but this one. Tests:
 `tests/unit/test_socgen_bank_connector.py`.
+
+## Decision 39: TimescaleDB Community Edition is an optional extension, off by default
+
+Accepted 2026-11-26 on the owner's instruction to bring in the TimescaleDB work
+(`wip/timescale-on-innovation`) as an optional extension. It amends Decision 24, which rejected
+TimescaleDB "for now". PostgreSQL stays the runtime store and no new datastore or service is
+added (AGENTS.md rule 5): TimescaleDB is an extension inside the same server. The setting
+`EUROGAS_NEXUS_TIMESCALE` is `off` by default; `auto` converts where the server has TimescaleDB
+2.13 or later preloaded with the Community Edition licence loaded; `require` stops a migration
+that cannot. Migration `0093_timescale_optional` (on `0092_lng_berth_rules`) calls the
+idempotent `eurogas_nexus.db.timescale.apply`, also run by `scripts/ops/timescale.py apply`. It
+converts `raw_payload_archives`, `market_quotes` and `market_trades` to hypertables with
+compression policies, widening each primary key from `(id)` to `(id, time)`; no writer uses
+those keys as an `ON CONFLICT` target. The observation tables, the outbox and the audit log stay
+plain (their unique keys have no time column). No continuous aggregate (the daily readers are
+point-in-time and revision-aware). On SQLite, on PostgreSQL without the extension and with the
+setting `off`, the migration changes nothing; the downgrade is a no-op (turning a hypertable
+back into a table is a copy, `docs/deployment/TIMESCALEDB.md`). Readiness reports the
+extension's state (`extensions.timescaledb`), never failing on it; the restore drill fails when
+a converted source restores without its hypertables.
+
+Measured need: none yet. Doc 19 (CAP-1) found the benefit, compression of old raw archives and
+of ticks, not needed in its scenarios A and B and matched by partitions and Parquet, and
+recommended DEFER; the extension is therefore built so that an operator who reaches scenario C
+(licensed ticks kept beyond days) can turn it on, not turned on anywhere. The decision to turn
+it on in a deployment is the operator's, against that deployment's measured size.
+
+Licence: compression is under the Timescale License; the review (internal use and value-added
+grants, the database-as-a-service prohibition, the no-schema-access condition for a hosted
+offering) is in `docs/legal/DEPENDENCY_LICENSE_REVIEW.md`. The product does not bundle or host
+it. Rejected: on by default (`auto`) (a managed service listing `timescaledb` would be converted
+without anyone choosing it, and the key change is not reversed by a downgrade); converting the
+observation tables (their upserts are keyed on the id alone); continuous aggregates (they leak
+a later revision into an earlier read). Tests: `tests/unit/test_timescale_optional.py`,
+`tests/integration/test_timescale_optional_postgres.py` (plain PostgreSQL),
+`tests/integration/test_timescale_present_postgres.py` (TimescaleDB), `tests/unit/test_reliability_ops.py`.
+

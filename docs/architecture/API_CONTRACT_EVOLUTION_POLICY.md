@@ -4,6 +4,17 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-26 (planning inputs): one path, one operation, READ: `GET /api/optimization/planning-inputs`.
+Census on the innovation branch: 316 paths / 352 operations (+1 / +1 on 315 / 351).
+
+Additive 2026-11-26 (topology): one path, one operation, READ: `GET /api/reference-network/supply-corridors`
+(the reference network's supply corridors; reference data, no book data). Census on the innovation branch:
+315 paths / 351 operations (+1 / +1 on 314 / 350).
+
+Additive 2026-11-26 (gas option settlements, ported from the main-based demo review): two paths,
+two operations, both READ: `GET /api/market/options/surface` and `GET /api/market/options/metrics`.
+Census on the innovation branch: 314 paths / 350 operations (+2 / +2 on 312 / 348).
+
 Additive 2026-11-26 (live data): one path, one operation. `GET /api/stream/live?topics=...`
 (server-sent events, the caller's own entitlement) sends `change` notices (`topic`, `changed_at`;
 no row, no value) for the subscribed topics: from the market event outbox (`market_events`, read

@@ -915,3 +915,30 @@ def test_a_cancelled_background_build_publishes_no_snapshot(client, monkeypatch)
     assert cancelled["output_refs"] == []
     with Session(client.engine) as session:
         assert session.query(DatasetSnapshotRecord).count() == 0
+
+
+def test_blocked_strict_snapshot_is_stored_blocked_and_never_exported(client, monkeypatch) -> None:
+    """A STRICT build whose inputs go missing is blocked; it must not export as COMPLETE."""
+
+    from eurogas_nexus.api.routes.public import research_data
+
+    spec = _spec_payload()
+    # Past the last observation (hour 3) the bounded policy masks the value, so STRICT
+    # reports TEMPORAL_INSUFFICIENT blockers for the later origins.
+    spec["end"] = _dt(6).isoformat()
+    spec["resampling_policy_id"] = "resampling/bounded"
+    body = _build_materialized(client, spec)
+    assert body["quality_report"]["build_blocked"] is True
+    snapshot_id = body["dataset_snapshot_id"]
+
+    detail = client.get(f"/api/research/datasets/{snapshot_id}")
+    assert detail.json()["data"]["status"] == "BLOCKED"
+
+    monkeypatch.setattr(
+        research_data,
+        "effective_entitlement_envelope",
+        lambda _definitions: {"export_policy": "EXPORT_ALLOWED", "policy_source": "test"},
+    )
+    refused = client.post(f"/api/research/datasets/{snapshot_id}/export", json={"format": "csv"})
+    assert refused.status_code == 409
+    assert refused.json()["detail"]["code"] == "snapshot_blocked"

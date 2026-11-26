@@ -175,25 +175,53 @@ def _day_of_year_distance(a: date, b: date) -> int:
     return min(gap, 365 - gap)
 
 
-def _seasonal_normal(history: list[BalanceHistoryDay], day: date, window: int = 3) -> float | None:
+class _SeasonalIndex:
+    """The history by day of the year, so a seasonal normal reads ~7 days, not every day.
+
+    ``forecast_balance`` asks for the normal of every forecast day and of the last 14 days, and
+    the forward balance's backtest runs it some 50 times: scanning the whole history each time
+    cost ~2 s of a 3 s read. Same days, same rule (``_day_of_year_distance``), same answer.
+    """
+
+    def __init__(self, history: Iterable[BalanceHistoryDay]) -> None:
+        self._by_doy: dict[int, list[BalanceHistoryDay]] = {}
+        for h in history:
+            self._by_doy.setdefault(h.day.timetuple().tm_yday, []).append(h)
+
+    def same_days(self, day: date, window: int) -> list[BalanceHistoryDay]:
+        target = day.timetuple().tm_yday
+        cutoff = day - timedelta(days=300)
+        out: list[BalanceHistoryDay] = []
+        for doy, rows in self._by_doy.items():
+            gap = abs(doy - target)
+            if min(gap, 365 - gap) <= window:
+                out.extend(h for h in rows if h.day <= cutoff)
+        return out
+
+
+def _seasonal_normal(
+    history: list[BalanceHistoryDay],
+    day: date,
+    window: int = 3,
+    *,
+    index: _SeasonalIndex | None = None,
+) -> float | None:
     """Mean call on the same days of the year (±``window``) in earlier years."""
 
-    values = [
-        h.call_gwh
-        for h in history
-        if h.day <= day - timedelta(days=300) and _day_of_year_distance(h.day, day) <= window
-    ]
+    values = [h.call_gwh for h in (index or _SeasonalIndex(history)).same_days(day, window)]
     return mean(values) if len(values) >= 5 else None
 
 
-def _normal_years(history: list[BalanceHistoryDay], day: date, window: int = 3) -> set[int]:
+def _normal_years(
+    history: list[BalanceHistoryDay],
+    day: date,
+    window: int = 3,
+    *,
+    index: _SeasonalIndex | None = None,
+) -> set[int]:
     """The earlier years whose same days of the year make :func:`_seasonal_normal` for ``day``."""
 
-    return {
-        h.day.year
-        for h in history
-        if h.day <= day - timedelta(days=300) and _day_of_year_distance(h.day, day) <= window
-    }
+    return {h.day.year for h in (index or _SeasonalIndex(history)).same_days(day, window)}
 
 
 def forecast_balance(
@@ -221,9 +249,12 @@ def forecast_balance(
     last28 = past[-28:]
     norway_base = mean(h.norway_gwh for h in last7)
     lng_base = mean(h.lng_gwh for h in last14)
+    seasonal = _SeasonalIndex(past)
     # How far recent days ran from their own seasonal normal, carried into the forecast.
     anomalies = [
-        h.call_gwh - normal for h in last14 if (normal := _seasonal_normal(past, h.day)) is not None
+        h.call_gwh - normal
+        for h in last14
+        if (normal := _seasonal_normal(past, h.day, index=seasonal)) is not None
     ]
     anomaly = mean(anomalies) if len(anomalies) >= 7 else None
     max_recent_withdrawal = max(h.storage_net_withdrawal_gwh for h in last28)
@@ -244,7 +275,10 @@ def forecast_balance(
         day = start + timedelta(days=offset)
         if model is not None and day in hdd:
             call, call_method = model.call(hdd[day], day), "weather_regression"
-        elif anomaly is not None and (normal := _seasonal_normal(past, day)) is not None:
+        elif (
+            anomaly is not None
+            and (normal := _seasonal_normal(past, day, index=seasonal)) is not None
+        ):
             call, call_method = normal + anomaly, "seasonal_normal_plus_recent_anomaly"
         else:
             call, call_method = mean(h.call_gwh for h in last28), "28_day_average"
@@ -294,7 +328,7 @@ def forecast_balance(
         d.day for d in result.days if d.methods.get("call") == "seasonal_normal_plus_recent_anomaly"
     ]
     if seasonal_days:
-        years = set().union(*(_normal_years(past, day) for day in seasonal_days))
+        years = set().union(*(_normal_years(past, day, index=seasonal) for day in seasonal_days))
         if len(years) < 2:
             # One year is one weather realisation: its cold spell or mild week becomes the
             # "normal" (live, Nov 2026: the 17-21 Nov 2025 cold spell lifted the forecast call

@@ -253,7 +253,9 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
           <Button
             variant="primary"
             data-page-action="nomination-assess"
-            disabled={!readiness.canRun || busy}
+            disabled={!readiness.canRun}
+            loading={busy}
+            aria-label={busy ? t("decision.nomination.assessing") : undefined}
             title={t(readiness.firstBlockerKey ?? "decision.nomination.ready")}
             onClick={() => void assessment.run()}
           >
@@ -263,7 +265,6 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
         {touched && readiness.firstBlockerKey && (
           <p className="strategy-error">{t(readiness.firstBlockerKey)}</p>
         )}
-        {busy && <p className="muted">{t("status.loading")}</p>}
         {failure && (
           <div className="alert">
             <strong>{failure.title}</strong>

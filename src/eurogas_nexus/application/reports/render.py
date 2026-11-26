@@ -49,6 +49,7 @@ from eurogas_nexus.application.reports.lang import T, writing, zh
 from eurogas_nexus.application.reports.tokens import FONT, LIGHT
 
 PUBLICATION = "Eurogas Nexus · Gas Markets"
+PUBLICATION_ZH = "Eurogas Nexus · 天然气市场"
 SERIF = ('Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, "Noto Serif", '
          '"DejaVu Serif", "Liberation Serif", "Times New Roman", "Songti SC", "SimSun", serif')
 DAGGER = "†"
@@ -352,6 +353,8 @@ TITLES_ZH = {
     "outages": "停运", "balance": "西北欧平衡与展望", "situation_event": "事件",
     "book_position": "我方头寸", "book_pnl": "损益", "book_limits": "限额",
     "book_contracts": "合同",
+    "pf_supply": "供应组合", "pf_trades": "交易与销售", "pf_pnl": "已实现与未实现",
+    "pf_outlook": "远期展望", "pf_lng": "LNG 船货与气化", "pf_strategies": "账簿运作方式",
     "Prices": "价格", "Supply": "供应", "Storage": "储气", "Demand": "需求",
     "Infrastructure and outages": "基础设施与停运", "Balance": "平衡",
     "Balance and outlook": "平衡与展望", "What happened": "要闻", "Our book": "我方账簿",
@@ -377,11 +380,16 @@ def _css_string(text: str) -> str:
     return text.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def _publication() -> str:
+    """The publication line in the report's language (a Chinese report reads Chinese throughout)."""
+    return PUBLICATION_ZH if zh() else PUBLICATION
+
+
 def _css(snapshot: dict) -> str:
     lang = _lang(snapshot)
     classification = (CLASSIFICATION_ZH if zh() else CLASSIFICATION).get(
         snapshot["audience"], T("INTERNAL", "内部"))
-    header = f"{PUBLICATION} · {snapshot['title']}"
+    header = f"{_publication()} · {snapshot['title']}"
     foot = ""
     if lang == "en":
         page_of = '"Page " counter(page) " of " counter(pages)'
@@ -610,7 +618,7 @@ def _masthead(snapshot: dict) -> str:
     brand = mark_svg("colour", size=20, title=None)
     return (
         '<header class="r-masthead"><div><p class="r-brand">'
-        f'{brand}<span class="r-pub">{_e(PUBLICATION)}</span></p><div>{line}</div></div>'
+        f'{brand}<span class="r-pub">{_e(_publication())}</span></p><div>{line}</div></div>'
         f'<div class="r-mast-right"><div class="r-class">{_e(classification)}</div>'
         f"<div>{_e(issue_text)} · {_e(fmt_date(snapshot['as_of']))}{_e(span)}</div>"
         f"<div>{_w(lang, 'data_as_of')} {_e(fmt_datetime(snapshot['as_of']))} UTC{simulated}</div>"

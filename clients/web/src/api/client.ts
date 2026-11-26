@@ -7582,6 +7582,74 @@ export interface DisruptionLegDTO {
   fees_eur: Record<string, number>;
   demurrage_eur: number;
   boil_off_mwh: number;
+  /** The terminal's berth rule as applied (2026-11-26): whether the ship came within its arrival window. */
+  on_time?: boolean | null;
+  /** `in_turn`, `next_free_gap` (late: no priority) or `swap` (a berth-turn swap). */
+  berth_priority?: string | null;
+  held_by?: string | null;
+  /** `berthing` (a late ship) or `arrival`: when laytime starts. */
+  laytime_from?: string | null;
+  laytime_wait_hours?: number;
+  /** The own cargo whose berth turn the leg takes, when it swaps turns. */
+  berth_swap?: string | null;
+  berth_rule?: DisruptionBerthRuleDTO | null;
+}
+
+/** A terminal's berth access rule (2026-11-26): recorded with its citation, or the default. */
+export interface DisruptionBerthRuleDTO {
+  terminal: string;
+  arrival_window_days: number;
+  late_laytime_from: "berthing" | "arrival" | string;
+  swap_needs_terminal_approval: boolean;
+  /** `default` (none recorded), `terminal_code`, `example` or `assumption`. */
+  basis: "default" | "terminal_code" | "example" | "assumption" | string;
+  citation: string | null;
+  text: string | null;
+  rule: string;
+}
+
+/** The negotiated quote an option taking another company's berth turn needs (never its demurrage). */
+export interface DisruptionQuoteDTO {
+  call_id: string;
+  label: string;
+  counterparty: string;
+  terminal: string;
+  berth: string;
+  status: "pending" | "entered";
+  /** EUR; null while the quote is still to obtain (the option is then not ranked as costed). */
+  amount_eur: number | null;
+  text: string;
+  source: string | null;
+  note: string | null;
+}
+
+/** An approval the option needs from a terminal operator, as data and in an English sentence. */
+export interface DisruptionApprovalRequestDTO {
+  /** `berth_order` (a change of berth turn) or `ship_substitution` (another ship of the book in the slot). */
+  kind: "berth_order" | "ship_substitution" | string;
+  terminal: string;
+  /** The other cargo's or call's label. */
+  with: string;
+  /** The other company, null for a cargo of the book. */
+  party: string | null;
+  text: string;
+}
+
+/** What an option does to another company's call: stated, never valued in the book's P&L. */
+export interface DisruptionCounterpartyEffectDTO {
+  kind: "berth_delay" | string;
+  owner: "third_party";
+  call_id: string;
+  label: string;
+  counterparty: string;
+  terminal: string;
+  delay_days: number;
+  held_by: string | null;
+  swapped: boolean;
+  in_pnl: false;
+  value_eur: null;
+  text: string;
+  sources: string[];
 }
 
 /** LNG-4: how a figure in another currency is converted (ECB by default; omitted keys keep the default). */
@@ -7749,7 +7817,15 @@ export interface DisruptionOptionDTO {
   possible?: boolean;
   /** LNG-4: position in the list (1 first), by the ordering weights. */
   rank?: number | null;
-  flags?: { physically_possible: boolean; contract_breach: boolean; disrupts_normal_cargo: boolean };
+  flags?: {
+    physically_possible: boolean;
+    contract_breach: boolean;
+    disrupts_normal_cargo: boolean;
+    /** A berth-turn swap: the terminal has to accept the change of berth order. */
+    needs_terminal_approval?: boolean;
+    /** A swap with another company's slot whose quote is still to obtain. */
+    counterparty_quote_pending?: boolean;
+  };
   breaches?: DisruptionBreachDTO[];
   disrupts?: DisruptionDisruptsDTO[];
   recommended_as?: string[];
@@ -7758,6 +7834,14 @@ export interface DisruptionOptionDTO {
   direct_pnl_expected?: number;
   opportunity_cost_expected?: number;
   opportunity?: DisruptionOpportunityDTO[];
+  /** 2026-11-26: the other company's quote a swap with its berth turn needs. */
+  quotes?: DisruptionQuoteDTO[];
+  /** 2026-11-26: the approvals the option needs (the terminal, for a change of berth order). */
+  approvals?: string[];
+  /** The same approvals as data (one per sentence), for the client to word in the reader's language. */
+  approval_requests?: DisruptionApprovalRequestDTO[];
+  /** 2026-11-26: other companies' calls the option delays; stated, not in the P&L. */
+  counterparty_effects?: DisruptionCounterpartyEffectDTO[];
   reporting?: { currency: string; fx: FxResolutionDTO | null; figures: Record<string, number> | null; warning?: string };
   reasons: string[];
   notes: string[];
@@ -7843,6 +7927,8 @@ interface DisruptionResultDTO {
   preference: { risk_weight: number; disruption_eur_per_mwh: number; disruption_eur_per_supply: number; flexibility_eur_per_mwh: number; rule: string; sources: Record<string, string> };
   costs: Record<string, number>;
   inputs: { input: string; source: string }[];
+  /** 2026-11-26: each terminal's berth rule as applied (recorded and cited, or the default). */
+  berth_rules?: DisruptionBerthRuleDTO[];
   warnings: string[];
   /** The warnings as declared notes (`domain/ontology/notes.py`), when the server sends them. */
   notes?: ServerNote[];

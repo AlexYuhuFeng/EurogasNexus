@@ -22,9 +22,10 @@ import {
   type ReportSummaryDTO,
 } from "@/api/client";
 import { WorkProgress } from "@/components/ui/WorkProgress";
+import { useApiStore } from "@/stores/api";
 import { layOutForPrint } from "@/app/model/reportPrintLayout";
 import { ReportSchedules } from "@/components/ReportSchedules";
-import { Button, DataGrid, Dialog, EmptyState, ExampleFrame, Field, Fold, Panel, PeriodPicker, Segmented, Select, StatusBadge, useExampleView, type DataGridColumn } from "@/components/ui";
+import { Button, DataGrid, Dialog, EmptyState, ExampleFrame, Field, Fold, Panel, PeriodPicker, Segmented, Select, Skeleton, StatusBadge, useExampleView, type DataGridColumn } from "@/components/ui";
 import { GAS_HUBS } from "@/app/contractChoices";
 import { exampleReports as exampleReportList } from "@/app/experience/examples";
 import {
@@ -32,6 +33,11 @@ import {
   editedByLabel,
   elapsedLabel,
   explainFailure,
+  boundedSignal,
+  landedReport,
+  LANDING_POLL_MS,
+  LANDING_WAIT_MS,
+  mayStillLand,
   formIssues,
   REPORT_STAGES,
   reportCsv,
@@ -70,6 +76,7 @@ function initialForm(): ReportForm {
 
 export function ReportsWorkspace({ t, language }: { t: Translate; language: string }) {
   const zh = language.toLowerCase().startsWith("zh");
+  const me = useApiStore((state) => state.currentUser);
   const [mode, setMode] = useState<Mode>("standard");
   const [catalogue, setCatalogue] = useState<ReportCatalogueDTO | null>(null);
   const [form, setForm] = useState<ReportForm>(initialForm);
@@ -86,6 +93,14 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
   const [stage, setStage] = useState<ReportStage | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [failure, setFailure] = useState<ReturnType<typeof explainFailure> | null>(null);
+  // The connection gave out while the server was still writing: wait for the report to land.
+  const [waitingForLanding, setWaitingForLanding] = useState(false);
+  const [landedNotice, setLandedNotice] = useState(false);
+  useEffect(() => {
+    if (!waitingForLanding) return;
+    const tick = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(tick);
+  }, [waitingForLanding]);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const abort = useRef<AbortController | null>(null);
@@ -199,6 +214,8 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
     setBusy("generate");
     setError(null);
     setFailure(null);
+    setLandedNotice(false);
+    const before = new Set((reports ?? []).map((report) => report.report_id));
     const language = form.language ?? (zh ? "zh-CN" : "en");
     let request: ReportRequestDTO = { ...reportRequestFromForm(form, mode, sendable, language), use_model: useModel };
     try {
@@ -236,6 +253,25 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
       const status = caught instanceof ApiError ? caught.status : null;
       const detail = caught instanceof ApiError && caught.detail && typeof caught.detail === "object"
         ? (caught.detail as { code?: string; error?: string }) : null;
+      if (mayStillLand(status, controller.signal.aborted)) {
+        // A proxy gave up before the server did; the server goes on and stores the report.
+        // Look for it in the archive instead of telling the user it failed.
+        setStage(null);
+        setWaitingForLanding(true);
+        const landed = await waitForLanding(before, request, controller.signal);
+        setWaitingForLanding(false);
+        if (landed) {
+          setSelected(landed);
+          setLandedNotice(true);
+          loadReports();
+          return;
+        }
+        // Not in the archive yet: say so, and that it may still appear there.
+        setFailure(controller.signal.aborted
+          ? { key: "reports.fail.stopped_waiting", retry: false, withoutAi: false }
+          : { key: "reports.fail.not_landed", retry: true, withoutAi: true });
+        return;
+      }
       setFailure(explainFailure(status, detail?.code ?? detail?.error ?? null, controller.signal.aborted));
     } finally {
       if (abort.current === controller) abort.current = null;
@@ -246,6 +282,39 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
 
   function cancel() {
     abort.current?.abort();
+  }
+
+  /** What a section holds, in the reader's language (the catalogue's data_source is an
+   * internal note, in English, and named API paths). */
+  function sectionHint(key: string): string {
+    const hintKey = `reports.section_desc.${key}`;
+    const hint = t(hintKey);
+    return hint === hintKey ? "" : hint;
+  }
+
+  /** Polls the archive until the timed-out request's report appears, the wait runs out or the
+   * user stops waiting. */
+  async function waitForLanding(before: ReadonlySet<string>, request: ReportRequestDTO, signal: AbortSignal): Promise<string | null> {
+    const deadline = Date.now() + LANDING_WAIT_MS;
+    while (!signal.aborted && Date.now() < deadline) {
+      await new Promise((resolve) => window.setTimeout(resolve, LANDING_POLL_MS));
+      setNow(Date.now());
+      if (signal.aborted) return null;
+      // Each read is bounded by the time left and stops with "Stop waiting", so a stalled read
+      // cannot hold the page busy past the deadline.
+      const bounded = boundedSignal(signal, Math.min(LANDING_POLL_MS * 2, deadline - Date.now()));
+      try {
+        const response = await api.marketReports({ signal: bounded.signal });
+        setReports(response.data);
+        const landed = landedReport(before, response.data, request, me?.principal_id ?? null);
+        if (landed) return landed;
+      } catch {
+        // The archive did not answer this time; look again on the next round.
+      } finally {
+        bounded.done();
+      }
+    }
+    return null;
   }
 
   const kindOptions = KINDS.filter((kind) => kind !== "situation" || form.subject).map((kind) => ({
@@ -262,7 +331,9 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
     { id: "kind", header: t("reports.col.kind"), value: (row) => t(`reports.kind.${row.kind}`) },
     { id: "title", header: t("reports.col.title"), rowHeader: true, value: (row) => row.question || row.title, render: (row) => <span title={row.headline}>{row.question || row.title}</span> },
     { id: "period", header: t("reports.col.period"), value: (row) => row.period_end ?? row.period_start ?? "", format: (_value, row) => reportPeriodLabel(row.period_start, row.period_end) || "–" },
-    { id: "by", header: t("reports.col.by"), value: (row) => row.generated_by ?? "" },
+    // A principal id ("principal-4c67…") means nothing to a reader: one's own reports read
+    // as one's name; a schedule or another user keeps what the server sends.
+    { id: "by", header: t("reports.col.by"), value: (row) => (me && row.generated_by === me.principal_id ? me.display_name || me.name : row.generated_by ?? "") },
     { id: "edited", header: t("reports.col.edited"), value: (row) => editedByLabel(row), format: (value) => (value === "model" ? t("reports.by_model") : t("reports.by_rule")) },
     {
       id: "audience",
@@ -430,7 +501,7 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
                   const state = offer?.sections[section.key];
                   const notHeld = state && state.state !== "ok";
                   return (
-                    <label key={section.key} title={notHeld ? state.reason ?? section.data_source : section.data_source} data-section-state={state?.state ?? "unknown"}>
+                    <label key={section.key} title={notHeld ? state.reason ?? sectionHint(section.key) : sectionHint(section.key)} data-section-state={state?.state ?? "unknown"}>
                       <input type="checkbox" checked={chosen.includes(section.key)} onChange={() => toggleSection(section.key)} />
                       <span>
                         {t(`reports.section.${section.key}`)}
@@ -468,6 +539,17 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
                   </div>
                 </div>
               )}
+              {waitingForLanding && (
+                <div className="reports-waiting" role="status" data-report-waiting="">
+                  <p>{t("reports.waiting_for_landing", { elapsed: elapsedLabel(startedAt ? now - startedAt : 0) })}</p>
+                  <div className="reports-actions">
+                    <Button size="sm" variant="quiet" onClick={cancel}>{t("reports.stop_waiting")}</Button>
+                  </div>
+                </div>
+              )}
+              {landedNotice && !failure && (
+                <p className="reports-note" role="status" data-report-landed="">{t("reports.landed_after_timeout")}</p>
+              )}
               {stage && <ReportProgress stage={stage} elapsed={startedAt ? now - startedAt : 0} onCancel={cancel} t={t} />}
               <div className="reports-actions">
                 <Button type="submit" variant="primary" size="md" loading={busy === "generate"} disabled={!canGenerate}>
@@ -498,7 +580,7 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
               rows={reports ?? []}
               rowKey={(row) => row.report_id}
               loading={reports === null}
-              loadingLabel={t("status.loading")}
+              loadingLabel={t("reports.stored_loading")}
               selectedKey={selected}
               onRowAction={(row) => setSelected(row.report_id)}
               rowAttributes={(row) => ({ "data-record": "market-report", "data-record-id": row.report_id })}
@@ -709,7 +791,7 @@ function ReportViewer({ reportId, t, onRemoved, onRenamed }: {
     >
       {!reportId && <EmptyState compact reason={t("reports.pick")} />}
       {reportId && failed && <EmptyState compact reason={t("reports.open_failed")} />}
-      {reportId && !failed && !html && <p className="reports-note">{t("status.loading")}</p>}
+      {reportId && !failed && !html && <Skeleton label={t("reports.viewer_loading")} rows={6} variant="text" />}
       {html && (
         <iframe
           className="reports-frame"
@@ -739,7 +821,8 @@ function ReportViewer({ reportId, t, onRemoved, onRenamed }: {
           )}
         </details>
       )}
-      {meta && <p className="reports-note">{meta.pdf}</p>}
+      {/* The server's note is English; the reader's language comes from the client. */}
+      {meta && <p className="reports-note">{t("reports.pdf_note", { defaultValue: meta.pdf })}</p>}
       <Dialog
         open={dialog !== null}
         onClose={() => setDialog(null)}

@@ -56,15 +56,17 @@ NOW = datetime(2026, 7, 1, 12, 0, tzinfo=UTC)
 def test_registry_is_canonical_and_classified() -> None:
     definitions = source_definitions()
 
-    # 44 with the financial-institution connector type and the Societe Generale connector
-    # (TAR-2, src-bank-rates and src-bank-socgen).
-    assert len(definitions) == 44
+    # 45 with the financial-institution connector type and the Societe Generale connector
+    # (TAR-2, src-bank-rates and src-bank-socgen), and the simulated ICE Endex option settlements
+    # (src-ice-endex-sim).
+    assert len(definitions) == 45
     assert definition_for_source("src-entsoe").source_class == SourceClass.PUBLIC
     assert definition_for_source("src-eex") is not None
     assert definition_for_provider("ENTSOG") is not None
     assert definition_for_source("src-ice-ocm").source_class == SourceClass.EXCHANGE
     assert definition_for_source("src-trayport").source_class == SourceClass.BROKER
     assert definition_for_source("src-eex-sim").source_class == SourceClass.SIMULATED
+    assert definition_for_source("src-ice-endex-sim").source_class == SourceClass.SIMULATED
     assert definition_for_source("src-ecb").source_class == SourceClass.PUBLIC
     assert {d.source_id for d in schedulable_definitions()} == {
         "src-ecb",

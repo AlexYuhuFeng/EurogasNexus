@@ -136,7 +136,7 @@ test("price conversions name the ECB rate and its date, and refuse without one",
   close(toPence?.value, 40 * 0.8356 * 100 * UNITS.energy_in_mwh.th, 6);
   assert.equal(toPence?.unit, "p/th");
   assert.deepEqual(toPence?.notes, [
-    { key: "answer.convert.fx", values: { source: "ECB", date: "13 Nov", pair: "EURGBP", rate: "0.8356" } },
+    { key: "answer.convert.fx", values: { source: "ECB", date: "2026-11-13", pair: "EURGBP", rate: "0.8356" } },
     { key: "answer.convert.factor", values: { from: "EUR/MWh", factor: "2.4489", to: "p/th" } },
   ]);
   const usd = convertQuery("12 $/MMBtu in €/MWh", UNITS, FX);

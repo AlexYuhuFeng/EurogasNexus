@@ -49,6 +49,7 @@ NOT_HELD = (
     (("vessel", "ship", "cargo", "tanker", "船"), "LNG cargo tracking (no vessel source is "
                                                   "connected)"),
     (("electricity price", "power price", "电价"), "power prices in a report section"),
+    (("budget", "预算"), "variance against a budget (no budget or plan figures are held)"),
     (("border", "interconnector", "跨境", "边境"),
      "flows at a border point (reports hold Norwegian landings by terminal; the Network view "
      "shows cross-border flows)"),
@@ -117,9 +118,28 @@ def _period_days(text: str) -> int | None:
     return None
 
 
+#: Words that make a question about the firm's own portfolio (a desk head's "our book").
+PORTFOLIO_WORDS = re.compile(
+    r"portfolio|our book|our position|our trades|we traded|we sold|we bought|counterpart|"
+    r"hedge|p&l|pnl|realis|realiz|组合|我们的|我方|交易对手|对冲|损益", re.I)
+#: Book sections a portfolio report covers in its own sections (position in the forward
+#: view, contracts in the supply portfolio, P&L in realised and unrealised).
+COVERED_BY_PORTFOLIO = ("book_position", "book_contracts", "book_pnl")
+
+
+def is_portfolio_question(text: str, sections: list[str] | None = None) -> bool:
+    if PORTFOLIO_WORDS.search(text or ""):
+        return True
+    return sum(1 for key in sections or [] if key.startswith("pf_")) >= 2
+
+
 def _not_held(text: str) -> list[str]:
     lower = text.lower()
-    return [what for words, what in NOT_HELD if any(w in lower for w in words)]
+    portfolio = is_portfolio_question(text)
+    # The firm's own cargoes are held (LNG cargoes and regas); only market vessel tracking
+    # is not, which a portfolio question does not ask for.
+    return [what for words, what in NOT_HELD if any(w in lower for w in words)
+            and not (portfolio and what.startswith("LNG cargo tracking"))]
 
 
 def rule_plan(question: str, audience: str) -> dict[str, Any]:
@@ -135,6 +155,14 @@ def rule_plan(question: str, audience: str) -> dict[str, Any]:
         sections = ["prices", "pipeline_supply", "lng", "storage"]
     if len(hubs) >= 2 and joins.SPREAD_WORDS.search(question) and "prices" not in sections:
         sections.insert(0, "prices")
+    if is_portfolio_question(question, sections):
+        # "What's our portfolio like, what do we expect next year": the whole portfolio and
+        # outlook report, then any market section the question also names.
+        from eurogas_nexus.application.reports.catalogue import PORTFOLIO_SECTIONS
+
+        sections = [*PORTFOLIO_SECTIONS, *[key for key in sections if key not in
+                                           PORTFOLIO_SECTIONS and key not in
+                                           COVERED_BY_PORTFOLIO]]
     return {
         "sections": sections,
         "hubs": hubs,

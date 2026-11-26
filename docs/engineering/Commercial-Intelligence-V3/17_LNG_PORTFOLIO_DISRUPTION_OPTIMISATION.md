@@ -344,14 +344,15 @@ Each option's P&L is its direct P&L less its opportunity cost, shown apart:
   exposure where held, and substitute gas.
 - **Opportunity**: the knock-on on the book's other cargoes (a cargo the option moves takes the
   berth on the day it can, so a cargo due there waits, and it draws the terminals' shared
-  per-day send-out first, so a later cargo finds less left), the demurrage and boil-off of
-  another user's ship due at a berth the option takes (`lng_berth_calls`, where the line-up is
-  held: the hours waited beyond the laytime it has left at its own rate), the release value or
+  per-day send-out first, so a later cargo finds less left), the release value or
   best other use of a spare slot it uses (the slot's indicative release value, else the
   approved `lng.disruption.spare_slot_value`, else "not known" and left out), and the value of
   storage gas in the month it was to be used.
 
 Each consequence lists which cargoes it hits and whose they are (`owner` own or third_party).
+Another company's ship that an option makes wait is stated in `counterparty_effects` and is not
+in the P&L (section 9.8; until 2026-11-26 its demurrage and boil-off were in the opportunity
+cost).
 A spot slot at another terminal (a `slot` capacity offer) is valued like a held slot, so a
 long-term contracted terminal is never assumed to be the better choice: which wins comes out
 of the full valuation. Every arithmetic line carries `sources[]` (the price, rate and tariff it
@@ -364,14 +365,14 @@ illustrative figures, no boil-off on the book's own cargoes):
 |---|---|---|---|---|---|
 | ZEE-1 stays, borrows | -20,000 | -158,000 | 20,000 | -20,000 | 0 |
 | ZEE-1 stays, absorbs | -279,000 | -417,000 | 79,000 | -279,000 | 0 |
-| ZEE-1 diverts to Dunkerque | -362,400 | -432,400 | 247,000 | -187,000 | 175,400 |
+| ZEE-1 diverts to Dunkerque | -237,000 | -307,000 | 247,000 | -187,000 | 50,000 |
 
 The diversion's direct P&L is -40,000 physical, -212,000 re-hedge, -35,000 demurrage and
-+100,000 release. Its opportunity cost: ZEE-1 holds the Dunkerque berth on 30 and 31 Jan, so the
-carrier due on 30 Jan waits 48 h against 24 h of laytime (65,000 EUR) and boils off 2,000 MWh at
-PEG 30.20 (60,400 EUR); and the spare Dunkerque slot's 1,000,000 MWh could have been released
-at 0.05 (50,000 EUR). So the contracted Dunkerque slot ranks below staying and absorbing, which
-a direct-cost view would not show. The swap with C (-215,000 expected, -289,500 worst) is
++100,000 release. Its opportunity cost: the spare Dunkerque slot's 1,000,000 MWh could have been
+released at 0.05 (50,000 EUR). ZEE-1 is on time at Dunkerque and berths first in turn on 30 Jan,
+so the other company's carrier due that day berths two gas days later: stated, not valued
+(section 9.8). Until 2026-11-26 its 65,000 EUR demurrage and 60,400 EUR boil-off were counted,
+and the diversion ranked below staying and absorbing; it now ranks above. The swap with C (-215,000 expected, -289,500 worst) is
 possible at Huelva's interruptible capacity but breaks the firm delivery to Cepsa at Huelva,
 50,000 MWh short on 24 Jan, penalty not held; it is listed, flagged and can be chosen. The
 recommended set is borrowing (`clean`) and the swap with B (`best_expected`).
@@ -461,16 +462,49 @@ their sources; "Breakdown" fetches the option and lists each cost line with its 
 first. An FX picker (source, rate date, rate and its currency when entered by hand, reporting
 currency) feeds every read and the choice. The cargo's demurrage shows in the contract's currency
 with the rate, its source and date. The REMIT links on the book's pipeline supplies are listed
-with their status and why. EN and ZH.
+with their status and why. "Berth rules" (folded) states each terminal's rule as applied,
+terminals on the same rule on one line, recorded ones with their basis and citation. A berth
+swap's approvals, another company's quote (pending or entered, in EUR) and its delay ("Other
+company (not in P&L)") are worded on the client from their data, the server's sentence kept as
+the fallback. EN and ZH.
 
 ### 9.7 Open owner decisions
 
-- **Berth priority.** A cargo an option moves takes the berth first on the day it can; the cargo
-  already due there waits. The owner may prefer first-come order.
-- **Third-party demurrage.** Another user's ship is costed at its own rate and laytime from the
-  line-up where held. That is a cost to the terminal's relationship, not to the book's cash, and
-  the owner may decide to show it without counting it.
+- **Berth priority** and **third-party demurrage**: decided 2026-11-26, section 9.8.
 - **Spare-slot value.** With no slot release value, the approved `lng.disruption.spare_slot_value`
   is used; none is set by default, so the value forgone is "not known" and left out.
 - **REMIT across links.** On a day two messages curtail one supply, the largest counts, not the
   sum.
+
+### 9.8 Berth priority and another company's quote (owner, 2026-11-26)
+
+The terminal's berth access rule is a hard constraint (`BerthRule`). A ship that arrives within
+its arrival window (`arrival_window_days` gas days from its slot's first gas day, one by default)
+berths in turn: on-time ships berth in the order they are ready, then by arrival, then by the
+slot's first day. A ship that arrives after its window loses priority: it takes the next free
+berth gap without displacing any on-time holder, and its laytime starts at berthing
+(`late_laytime_from`, `berthing` by default, `arrival` where the code says so). Changing the order
+needs the terminal's approval (`swap_needs_terminal_approval`, true by default).
+
+The rule is recorded per terminal in `lng_terminal_berth_rules` with its basis
+(`terminal_code` with a citation, `example` marked illustrative and never shown as a code, or
+`assumption`); without a row the default applies and says so. The read lists `berth_rules`.
+
+Options added for a late cargo: take the turn of an own cargo (`berth_swap`; the other cargo then
+takes the next free gap and its cost is in the knock-on), or of another company's call
+(`counterparty_swap`; costed at that company's negotiated quote for the turn, one total in its
+currency converted at the reader's FX choice; without a quote the option is "quote pending",
+listed after every option whose cost is known, off the frontier and not recommended). The next
+free slot and the diversions stay. Another company's demurrage is never in the book's P&L; its
+delay is a `counterparty_effects` line with `in_pnl: false` and no value. Each approval is in
+`approvals` (a sentence) and `approval_requests` (`kind` `berth_order` or `ship_substitution`,
+`terminal`, `with`, `party`), so the web client words it in the reader's language.
+
+Migration `0092_lng_berth_rules` (ADR Decision 37, addendum). Tests:
+`tests/domain/test_lng_disruption.py` (the berth tests), `tests/api/test_lng_disruption_api.py`,
+`tests/integration/test_lng_disruption_postgres.py::test_a_late_cargo_waits_its_turn_and_a_swap_with_another_company_is_its_quote`,
+`clients/web/tests/disruptionOptionsModel.test.ts`.
+
+Not built: recording a terminal's rule, a line-up call or a quote (no route or import writes them
+yet, so a customer store shows the default rule and no counterparty swap); the access codes of the
+terminals the desk uses are not yet transcribed (each needs its citation).

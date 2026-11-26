@@ -163,7 +163,12 @@ def test_a_late_cargo_gets_valued_options_a_frontier_and_a_default(tmp_path, mon
         "physically_possible": True,
         "contract_breach": True,
         "disrupts_normal_cargo": True,
+        # 2026-11-26: a swap among the book's own cargoes needs the terminals' approval.
+        "needs_terminal_approval": True,
+        "counterparty_quote_pending": False,
     }
+    assert iberia["approvals"] and iberia["quotes"] == []
+    assert [r["text"] for r in iberia["approval_requests"]] == iberia["approvals"]
     (breach,) = iberia["breaches"]
     assert breach["counterparty"] == "Iberia offtaker" and not breach["penalty_held"]
     assert "breaks the firm delivery to Iberia offtaker" in breach["text"]
@@ -171,12 +176,17 @@ def test_a_late_cargo_gets_valued_options_a_frontier_and_a_default(tmp_path, mon
     covered = options["swap:demo-lng-c+absorb + cover:hub:PVB:demo-d1-iberia"]
     assert covered["kind"] == "substitute" and not covered["flags"]["contract_breach"]
     assert covered["rank"] < iberia["rank"]  # same score, fewer contracts broken
-    # The contracted Dunkerque slot carries what it costs another user's carrier and the
-    # slot's release value; the Montoir spot slot is valued beside it.
+    # The contracted Dunkerque slot carries the slot's release value; the carrier of another
+    # company due there is stated as berthing later, never valued at its demurrage (the owner,
+    # 2026-11-26). The Montoir spot slot is valued beside it.
     dunk = options["divert:demo-d1-dunk+absorb"]
     kinds = {item["kind"] for item in dunk["opportunity"]}
-    assert kinds == {"berth_delay", "capacity_forgone"}
+    assert kinds == {"capacity_forgone"}
+    (call,) = dunk["counterparty_effects"]
+    assert (call["call_id"], call["in_pnl"], call["value_eur"]) == ("demo-d1-dk-call", False, None)
     assert dunk["opportunity_cost_expected"] > 0
+    rules = {r["terminal"]: r for r in data["berth_rules"]}
+    assert rules["Dunkerque terminal"]["basis"] == "default"
     assert dunk["objectives"]["pnl_expected"] == round(
         dunk["direct_pnl_expected"] - dunk["opportunity_cost_expected"], 2
     )

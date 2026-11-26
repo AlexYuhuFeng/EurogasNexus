@@ -129,3 +129,39 @@ def test_a_seasonal_normal_from_one_year_says_it_replays_that_year():
     assert any("rests on one earlier year (2025)" in w for w in one_year.warnings)
     two_years = forecast_balance(_history(800), start=START, days=3)
     assert not any("rests on one earlier year" in w for w in two_years.warnings)
+
+
+def test_the_indexed_seasonal_normal_reads_the_same_days_as_a_full_scan():
+    # The day-of-year index must pick exactly the days the rule names: within ±window days of
+    # the year (365-day wrap, leap days included) and at least 300 days earlier.
+    import random
+
+    from eurogas_nexus.domain.fundamentals.balance import (
+        _day_of_year_distance,
+        _normal_years,
+        _seasonal_normal,
+    )
+
+    rng = random.Random(7)
+    history = [
+        BalanceHistoryDay(
+            date(2023, 1, 1) + timedelta(days=n), 1000.0, 400.0, rng.uniform(800, 2400)
+        )
+        for n in range(1460)
+    ]
+    for day in (date(2026, 1, 1), date(2026, 2, 28), date(2026, 3, 1), date(2025, 12, 30),
+                date(2024, 12, 31), date(2026, 7, 15)):
+        for window in (0, 3, 7):
+            cutoff = day - timedelta(days=300)
+            chosen = [
+                h
+                for h in history
+                if h.day <= cutoff and _day_of_year_distance(h.day, day) <= window
+            ]
+            calls = [h.call_gwh for h in chosen]
+            expected = sum(calls) / len(calls) if len(calls) >= 5 else None
+            got = _seasonal_normal(history, day, window)
+            assert (got is None) == (expected is None)
+            if expected is not None:
+                assert abs(got - expected) < 1e-9
+            assert _normal_years(history, day, window) == {h.day.year for h in chosen}

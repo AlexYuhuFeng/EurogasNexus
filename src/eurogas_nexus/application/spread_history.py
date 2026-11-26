@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from eurogas_nexus.domain.research.spread_analysis import (
     SpreadAnalysisError,
@@ -86,11 +86,25 @@ class SpreadAnalysisInput(BaseModel):
     #: ``spot`` converts every day at that day's spot; ``forward`` (default) per delivery.
     fx: str | None = Field(default=None, max_length=8)
 
+    @model_validator(mode="after")
+    def _dates_in_order(self) -> SpreadAnalysisInput:
+        # A reversed window read no rows and was answered "no entitled daily series", which
+        # sent the user to check their data entitlements instead of their dates.
+        if self.date_from and self.date_to and self.date_from > self.date_to:
+            raise ValueError(
+                f"date_from {self.date_from} is after date_to {self.date_to}"
+            )
+        return self
+
 
 def daily_rows_for(
-    request: Any, date_from: date | None = None, date_to: date | None = None
+    request: Any, date_from: date | None = None, date_to: date | None = None, *,
+    tenors: tuple[str, ...] | None = None,
 ) -> list[dict[str, Any]]:
-    """Daily closes for the caller, with HTTP errors for an oversize window or a down store."""
+    """Daily closes for the caller, with HTTP errors for an oversize window or a down store.
+
+    ``tenors`` narrows the read in SQL (see ``daily_rows``); the catalogue reads them all.
+    """
 
     from sqlalchemy.exc import SQLAlchemyError
 
@@ -100,7 +114,7 @@ def daily_rows_for(
     )
 
     try:
-        return daily_rows(request, date_from, date_to)
+        return daily_rows(request, date_from, date_to, tenors=tenors)
     except ObservationWindowTooLarge as exc:
         raise SpreadHistoryError(
             status_code=422,
@@ -133,7 +147,12 @@ def spread_history(body: SpreadAnalysisInput, request: Any) -> dict:
             converted, too little overlap, bad rule).
     """
 
-    rows = daily_rows_for(request, body.date_from, body.date_to)
+    # Read only the legs' tenors: the demo market alone holds ~35 000 closes of other tenors,
+    # and reading them all made every analysis (and every daily track) take ~2 s.
+    rows = daily_rows_for(
+        request, body.date_from, body.date_to,
+        tenors=tuple(sorted({leg.tenor.strip().lower() for leg in body.legs})),
+    )
     collected: list[tuple[str, str, float, dict[date, dict[str, Any]]]] = []
     units: set[str] = set()
     simulated = False

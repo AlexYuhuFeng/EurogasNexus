@@ -34,6 +34,7 @@ BUILTIN_MODULES: tuple[str, ...] = (
     "trayport",
     "trayport_sim",
     "ice_endex",
+    "ice_endex_sim",
     "cme",
     "ngx",
     "eia",

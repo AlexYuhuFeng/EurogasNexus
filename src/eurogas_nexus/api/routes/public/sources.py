@@ -67,6 +67,8 @@ SOURCE_ID_BY_NAME = {
     "ICE OCM SIM": "src-ice-ocm-sim",
     "ICIS": "src-icis",
     "ICIS_SIM": "src-icis-sim",
+    "ICE_ENDEX_SIM": "src-ice-endex-sim",
+    "ICE ENDEX SIM": "src-ice-endex-sim",
     "ICIS SIM": "src-icis-sim",
     "KPLER": "src-kpler",
     "NATIONALGASNTS": "src-national-gas-nts",
@@ -822,6 +824,7 @@ def _observation_counts_by_source_system(session: Any) -> dict[str, int]:
         InterestRateObservationRecord,
         LngObservationRecord,
         MarketObservationRecord,
+        OptionSettlementRecord,
         PowerObservationRecord,
         RemitUmmRecord,
         StorageObservationRecord,
@@ -840,6 +843,7 @@ def _observation_counts_by_source_system(session: Any) -> dict[str, int]:
             LngObservationRecord,
             PowerObservationRecord,
             RemitUmmRecord,
+            OptionSettlementRecord,
         )
     ]
     counts: dict[str, int] = {}

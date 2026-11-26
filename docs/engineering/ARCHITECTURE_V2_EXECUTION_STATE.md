@@ -6,6 +6,52 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — Half-built branches integrated (branch `halfbuilt`)
+
+- LNG berth priority (`wip/berth-rule-on-innovation`): migration renumbered
+  `0092_lng_berth_rules` on `0091_hub_one_identity` (it was 0090 on 0089; the background-jobs and
+  hub-identity branches took 0090 and 0091 from the same base); engine and API as the branch left them, plus `approval_requests` on each option (the
+  approvals as data). Web finished: the Options section lists the berth rules (folded, terminals
+  on one rule on one line), words approvals, quotes and another company's delay from their data
+  in EN and ZH, and tones "needs terminal approval" and "quote pending" as watch, not breach. Docs:
+  design 17 section 9.8, ADR Decision 37 addendum, decision log, LNG4-11. The demo's Dunkerque
+  call names its company. Not built: recording a terminal's rule, a call or a quote (no route or
+  import writes them); the rest of the Options panel still shows the engine's English sentences
+  (titles, reasons, notes, warnings) in ZH.
+- TimescaleDB (`wip/timescale-on-innovation`): migration renumbered `0093_timescale_optional`
+  on `0092`; off by default, a no-op on plain PostgreSQL and SQLite. The branch referenced an
+  ADR 39 and a deployment guide that did not exist: added ADR Decision 39 (amends Decision 24),
+  `docs/deployment/TIMESCALEDB.md` (enable, leave, proof), the TimescaleDB sections of
+  `BACKUP_RESTORE.md` and `DISASTER_RECOVERY.md`, the TSL review in
+  `docs/legal/DEPENDENCY_LICENSE_REVIEW.md` (self-hosted internal use permitted; not bundled or
+  hosted). New `tests/integration/test_timescale_present_postgres.py`
+  (`EUROGAS_NEXUS_TEST_TIMESCALE_URL`): conversion, writers on compressed chunks, idempotence,
+  no-op downgrade. The restore drill fails when hypertables do not come back. Proven on
+  `timescale/timescaledb:latest-pg16` (2.32.1): upgrade, downgrade, re-upgrade, a downgrade
+  past 0072, dump and restore. Not turned on anywhere: doc 19 found no measured need yet.
+- Portfolio and outlook report (`fix/portfolio-report-on-innovation`): finished. Its P&L and
+  forward view never marked simulated marks (rule 17: it matched the ladder warning's old
+  wording); tests for book isolation, a caller with no book, simulated marks and the
+  counterparty fall-backs; section names and descriptions in EN and ZH (the descriptions were
+  only in the main-based copy, `fix/portfolio-report-main`, which otherwise holds the same
+  work); the report's PDF note in the reader's language.
+- `fix/demo-review` (55 commits) was not superseded: about 30 of its commits had no
+  counterpart on the innovation branch. Ported: page error boundary, report waits after a
+  timeout, Chinese report masthead, "Data incomplete" reasons, section hints, palette days in the
+  reader's language (also in the conversion and forward answers), the dataset, backtest, shadow,
+  strategy-track and spread-lab fixes, decision cases out of platform administration, the i18n
+  plural gate, the catalogue probe, the seasonal-normal index, pg8000 date decoding, gas option
+  settlements (migration `0094_option_settlements`, census 315 / 351 with the topology read), the
+  options follow-ups, loading rings, the copilot ring, the glossary test and policy test. Not
+  ported, for the owner: `95cdcf5` (demo live public sources without a key and
+  `docs/engineering/demo-data-audit.md`, a demo behaviour change), the seed's remaining "Demo"
+  display names (`03b9c84`'s renames; the tests on this branch pin them), the parts of
+  `f2cc17c`, `34cc0f7`, `e3e9618` and `eba65e6` that the innovation ports redid differently;
+  `7cc1816` is superseded by the glossary and map ports.
+- `research/agentic-decision-architecture`: its documents were already here except the Codex
+  handoff, now added with a status note; the experiment stays on its branch (doc 18).
+- Migration tests no longer pin the schema head (merged from `inno-merge-test`); the head is
+  checked once against the alembic chain in `tests/api/test_release_metadata_api.py`.
 ## 2026-11-26 — Backend audit (branch `backend-audit`)
 
 - Findings, causes, other occurrences and the structural plan:

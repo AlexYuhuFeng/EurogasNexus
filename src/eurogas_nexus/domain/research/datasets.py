@@ -9,13 +9,14 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from eurogas_nexus.domain.research.feature_transforms import (
     apply_transform,
@@ -133,6 +134,10 @@ def walk_forward_folds(
 class DatasetSpec(BaseModel):
     """Declarative, versioned dataset definition."""
 
+    # An unknown key used to be dropped in silence: a spec with ``"frequency": "1d"``
+    # instead of ``forecast_origin_frequency`` built an hourly dataset with no warning.
+    model_config = ConfigDict(extra="forbid")
+
     dataset_spec_id: str
     name: str
     description: str
@@ -154,6 +159,25 @@ class DatasetSpec(BaseModel):
     split_specs: list[DatasetSplit] = Field(default_factory=list)
     output_format: str = "long"
     ontology_version: str = "energy-ontology/v1"
+
+    @field_validator("timezone")
+    @classmethod
+    def _timezone_is_honoured(cls, value: str) -> str:
+        # Origins are generated and aligned in UTC (see ``_origins``); any other value was
+        # accepted and ignored, so ``Europe/Amsterdam`` still produced UTC-midnight origins.
+        if str(value).strip().upper() != "UTC":
+            raise ValueError(
+                "timezone: only 'UTC' is supported; express gas-day or CET origins "
+                "through start (e.g. 2026-01-01T05:00:00Z)"
+            )
+        return "UTC"
+
+    @field_validator("output_format")
+    @classmethod
+    def _output_format_is_honoured(cls, value: str) -> str:
+        if value != "long":
+            raise ValueError("output_format: only 'long' is supported")
+        return value
 
     @model_validator(mode="after")
     def validate_service_bounds(self) -> DatasetSpec:
@@ -298,7 +322,9 @@ class DatasetBuildResult:
             "content_hash": self.content_hash,
             "quality_report": self.quality_report,
             "lineage": self.lineage,
-            "warnings": self.warnings,
+            # Leakage warnings carry the offending row, whose timestamps are datetimes;
+            # stored as JSON they must be made serializable like ``leakage_issues``.
+            "warnings": _json_safe(self.warnings),
             "temporal_integrity": self.quality_report.get("temporal_integrity"),
             "source_cutoff_utc": _json_safe(self.spec.end),
             "entitlement_envelope": _json_safe(entitlement_envelope),
@@ -692,13 +718,29 @@ def _compute_target_value(
     )
 
 
+_HORIZON_PATTERN = re.compile(r"^(?:(?P<n1>[0-9]+)(?P<u1>[hd])|(?P<u2>[hd])(?P<n2>[0-9]+))$")
+
+
 def _target_delta(target: TargetDefinition) -> timedelta:
-    horizon = target.horizon
-    if horizon.endswith("h"):
-        return timedelta(hours=int(horizon[:-1]))
-    if horizon.endswith("d"):
-        return timedelta(days=int(horizon[:-1]))
-    return timedelta(hours=1)
+    """Parse a target horizon: ``"6h"``/``"1d"`` or the catalog's ``"H1"``/``"D1"`` form.
+
+    Anything else is refused. The previous parser read only a lower-case ``h``/``d``
+    suffix and fell back to one hour for every other string, so the seeded ``"D1"``
+    targets were silently labelled one *hour* after the origin rather than one day.
+    """
+
+    text = str(target.horizon).strip().lower()
+    match = _HORIZON_PATTERN.match(text)
+    if match is None:
+        raise ValueError(
+            f"target {target.target_id}: horizon {str(target.horizon)[:32]!r} must look like "
+            "'6h', '1d', 'H6' or 'D1'"
+        )
+    amount = int(match.group("n1") or match.group("n2"))
+    unit = match.group("u1") or match.group("u2")
+    if amount <= 0:
+        raise ValueError(f"target {target.target_id}: horizon must be positive")
+    return timedelta(hours=amount) if unit == "h" else timedelta(days=amount)
 
 
 def build_dataset(
@@ -722,6 +764,11 @@ def build_dataset(
     for target_id in spec.target_ids:
         if target_id not in targets:
             issues.append(f"unknown target_id: {target_id}")
+            continue
+        try:
+            _target_delta(targets[target_id])
+        except ValueError as exc:
+            issues.append(str(exc))
     overlap = set(spec.feature_ids) & set(spec.target_ids)
     if overlap:
         issues.append(f"target ids used as features: {sorted(overlap)}")
@@ -858,9 +905,12 @@ def build_dataset(
             "supported": True,
         },
         warnings=[
-            f"EXPLORATORY_DATASET:{spec.point_in_time_policy.mode.value}"
-            if spec.point_in_time_policy.mode is DatasetMode.EXPLORATORY
-            else None,
+            # A STRICT build has no mode warning; it must not leave a ``None`` entry.
+            *(
+                [f"EXPLORATORY_DATASET:{spec.point_in_time_policy.mode.value}"]
+                if spec.point_in_time_policy.mode is DatasetMode.EXPLORATORY
+                else []
+            ),
             *warnings,
         ],
     )

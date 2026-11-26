@@ -1,7 +1,7 @@
 import { serverWarningText } from "@/app/warningLabel";
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { fetchWeatherForecasts, type ForecastPointReadingDTO, type ForecastReadEnvelopeDTO } from "@/api/client";
-import { PanelHeader } from "@/components/ui";
+import { Button, PanelHeader, Skeleton } from "@/components/ui";
 import { formatMeasure } from "@/app/time/valueFormat";
 
 interface WeatherForecastEvidenceProps {
@@ -150,12 +150,12 @@ export function WeatherForecastEvidence({ t }: WeatherForecastEvidenceProps) {
           <input type="number" min={1} max={256} step={1} value={limitInput} onChange={edit(setLimitInput)} />
         </label>
         <p className="muted" style={{ gridColumn: "1 / -1" }}>{t("sources.weather.utc_hint")}</p>
-        <button type="submit" className="source-open-access" disabled={busy}>
-          {busy ? t("sources.weather.busy") : t("sources.weather.submit")}
-        </button>
+        <Button type="submit" variant="primary" size="md" loading={busy}>
+          {t("sources.weather.submit")}
+        </Button>
       </form>
 
-      {busy && <p role="status" aria-live="polite">{t("sources.weather.busy")}</p>}
+      {busy && <Skeleton label={t("sources.weather.busy")} rows={4} />}
       {error && (
         <div className="source-registry-state is-failed" role="alert">
           <strong>{t("sources.weather.error")}</strong>

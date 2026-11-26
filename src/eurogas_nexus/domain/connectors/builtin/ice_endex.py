@@ -9,10 +9,11 @@ MANIFEST = ConnectorManifest(
     source_id="src-ice-endex",
     system="ICE_ENDEX",
     category="price",
-    datasets=("ttf-nbp-futures", "eua-uka-futures", "api2-coal-futures", "settlements"),
+    datasets=("ttf-nbp-futures", "eua-uka-futures", "api2-coal-futures", "settlements",
+              "gas-option-settlements"),
     description="ICE Endex futures settlements: TTF and NBP gas, EUA and UKA carbon, API2 "
-    "Rotterdam coal and power. Licensed; imported from the customer's ICE "
-    "Report Center export until a connector is licensed.",
+    "Rotterdam coal and power, and TTF option settlements. Licensed; imported from the "
+    "customer's ICE Report Center export until a connector is licensed.",
     entitled=True,
     freshness_minutes=1440,
     # Declared, not defaulted (FRESH-01); the values the registry default gave.

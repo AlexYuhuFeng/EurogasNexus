@@ -210,6 +210,9 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/pricing/fx-rate",
         "/api/pricing/source-precedence",
         "/api/market/gas-for-power",
+        # Gas option settlements: smile per contract and front-month volatility series.
+        "/api/market/options/surface",
+        "/api/market/options/metrics",
         "/api/market/nwe-balance",
         "/api/access/market-data-licences",
         "/api/access/market-data-licences/{licence_id}",

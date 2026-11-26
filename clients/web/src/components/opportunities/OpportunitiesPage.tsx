@@ -44,7 +44,7 @@ import {
   subjectWords,
 } from "@/app/model/opportunitiesModel";
 import i18n from "@/i18n";
-import { Button, EmptyState, ExampleFrame, StatusBadge, useExampleView } from "@/components/ui";
+import { Button, EmptyState, ExampleFrame, Skeleton, StatusBadge, useExampleView } from "@/components/ui";
 import { exampleOpportunityList } from "@/app/experience/examples";
 import { Instant } from "@/components/ui/Instant";
 import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/ui/SimulatedScope";
@@ -158,8 +158,8 @@ export function OpportunitiesPage({
               {t("opportunities.live.live")}
             </span>
           )}
-          <Button variant="secondary" onClick={evaluate} disabled={evaluating}>
-            {evaluating ? t("opportunities.evaluating") : t("opportunities.evaluate_now")}
+          <Button variant="secondary" onClick={evaluate} loading={evaluating} aria-label={evaluating ? t("opportunities.evaluating") : undefined}>
+            {t("opportunities.evaluate_now")}
           </Button>
         </div>
       </header>
@@ -177,6 +177,7 @@ export function OpportunitiesPage({
           </Button>
         </p>
       )}
+      {!list && !failed && <Skeleton label={t("opportunities.empty.loading")} rows={5} />}
 
       {failed && !list && (
         <EmptyState id="opportunities-unavailable" reason={t("opportunities.unavailable")} next={t("opportunities.unavailable_next")} />

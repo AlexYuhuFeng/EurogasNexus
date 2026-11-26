@@ -23,6 +23,7 @@ import {
   buildNativeCapacityContext,
   type NativeCapacityContext,
 } from "@/app/model/nativeCapacityContext";
+import { Button, Skeleton } from "@/components/ui";
 import { serverWarningText } from "@/app/warningLabel";
 
 export type NativeCapacityTranslate = (key: string) => string;
@@ -676,9 +677,9 @@ export function NativeCapacityContextPanel({ t }: { t: NativeCapacityTranslate }
           spellCheck={false}
           data-native-window-to="true"
         />
-        <button type="submit" aria-busy={state === "loading"}>
-          {state === "loading" ? t("nativeCapacity.query_busy") : t("nativeCapacity.query")}
-        </button>
+        <Button type="submit" variant="primary" size="md" loading={state === "loading"}>
+          {t("nativeCapacity.query")}
+        </Button>
       </form>
       <p id="native-capacity-query-hint" className="capacity-readiness-note">
         {t("nativeCapacity.query_hint")}
@@ -704,8 +705,8 @@ export function NativeCapacityContextPanel({ t }: { t: NativeCapacityTranslate }
       )}
 
       {state === "loading" && (
-        <div className="capacity-empty-state" role="status" aria-live="polite" data-native-state="loading">
-          {t("nativeCapacity.loading")}
+        <div data-native-state="loading">
+          <Skeleton label={t("nativeCapacity.loading")} rows={4} />
         </div>
       )}
 

@@ -183,6 +183,10 @@ EEX_NGP_CALENDAR_EVIDENCE = (
 )
 
 ECB_DAILY_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-daily.xml"
+#: The ECB's last 90 business days in the same XML shape. Prices close on the previous gas
+#: day, so a store holding only today's file has no rate on or before a close and every
+#: GBP or USD conversion refuses; a first run or a catch-up loads the window instead.
+ECB_HISTORY_90D_URL = "https://www.ecb.europa.eu/stats/eurofxref/eurofxref-hist-90d.xml"
 ENTSOG_OPERATIONAL_URL = "https://transparency.entsog.eu/api/v1/operationaldatas"
 ENTSOG_CONNECTION_POINTS_URL = "https://transparency.entsog.eu/api/v1/connectionpoints"
 ENTSOG_OPERATOR_POINT_DIRECTIONS_URL = (
@@ -221,6 +225,14 @@ def main() -> int:
         help=(
             "Source to ingest. May be repeated. Default: the six existing public-source "
             "routes; EEX NGP is never implicit and must be named explicitly."
+        ),
+    )
+    parser.add_argument(
+        "--ecb-history",
+        action="store_true",
+        help=(
+            "Load the ECB's last 90 business days of reference rates instead of only the "
+            "latest day (a first run or a catch-up after a pause)."
         ),
     )
     parser.add_argument(
@@ -448,12 +460,15 @@ def main() -> int:
         ) as client:
             with session_factory() as session:
                 if "ecb" in selected:
-                    xml_text = _fetch_text(client, ECB_DAILY_URL)
+                    ecb_url = ECB_HISTORY_90D_URL if args.ecb_history else ECB_DAILY_URL
+                    xml_text = _fetch_text(client, ecb_url)
                     _archive_raw_payload(
                         session,
                         source_system="ECB",
                         dataset="fx-reference-rates",
-                        source_reference="ecb-eurofxref-daily",
+                        source_reference=(
+                            "ecb-eurofxref-hist-90d" if args.ecb_history else "ecb-eurofxref-daily"
+                        ),
                         payload_text=xml_text,
                         record_count=0,
                         received_at=started,
@@ -647,7 +662,7 @@ def _fetch_text(client: httpx.Client, url: str) -> str:
         response.raise_for_status()
         return response.text
     except httpx.HTTPError:
-        if url != ECB_DAILY_URL or os.name != "nt":
+        if url not in (ECB_DAILY_URL, ECB_HISTORY_90D_URL) or os.name != "nt":
             raise
         return _fetch_text_with_powershell(url)
 

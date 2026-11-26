@@ -20,7 +20,11 @@ LNG-4 adds: demurrage as the cargo's contract states it, converted with the read
 choice (``application/lng_demurrage.py``); other users' ships due at the terminals' berths
 (``lng_berth_calls``) and the berth days a call holds (``lng_slot_terms.berth_days``), so an
 option carries the knock-on it causes; spot slot offers; and substitute supply from the rest
-of the portfolio for a delivery left short (``application/lng_substitutes.py``). Every option
+of the portfolio for a delivery left short (``application/lng_substitutes.py``). Since
+2026-11-26 (the owner's berth priority decision) each terminal's berth access rule is read
+from ``lng_terminal_berth_rules`` where recorded, with its citation (the engine's default
+otherwise), and a call carries its company's negotiated quote for its berth turn instead of
+its own demurrage, which the book's P&L never counts. Every option
 is listed with its consequences (not possible, contract breach, cargo running to plan moved)
 and a recommended set; a breach option can be chosen, an impossible one cannot.
 
@@ -38,7 +42,7 @@ bought, traded or nominated (AGENTS.md rule 8).
 from __future__ import annotations
 
 import math
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
@@ -63,6 +67,7 @@ from eurogas_nexus.domain.lng.disruption import (
     LNG,
     PIPELINE,
     BerthCall,
+    BerthRule,
     CapacityOffer,
     DeskTerms,
     DisruptionError,
@@ -341,8 +346,12 @@ def _voyage(session, row, plan_inputs, fx: FxBook) -> dict[str, Any]:
 
 
 def _berth_calls(session, terminals: Mapping[str, str], fx: FxBook, today: date):
-    """Other users' ships due at the book's terminals (``terminals`` maps each to its hub,
-    which prices the boil-off of a wait), their demurrage in EUR (LNG-4)."""
+    """Other companies' ships due at the book's terminals (``terminals`` maps each to its hub),
+    with the quote each has given to swap its berth turn, in EUR at the reader's FX choice.
+
+    The call's own laytime, demurrage and boil-off are not read (the owner, 2026-11-26):
+    another company's demurrage is never in the book's P&L; a swap with its berth turn is costed
+    at its negotiated quote, one total, or is pending (a quote to obtain) without one."""
 
     from eurogas_nexus.db.models import LngBerthCallRecord
 
@@ -355,19 +364,19 @@ def _berth_calls(session, terminals: Mapping[str, str], fx: FxBook, today: date)
     ):
         if row.terminal_name not in terminals:
             continue
-        eur, note = 0.0, ""
-        if row.demurrage_rate_per_day is not None:
-            currency = (row.demurrage_currency or "EUR").upper()
+        quote, note = None, ""
+        if row.quote_amount is not None:
+            currency = (row.quote_currency or "EUR").upper()
             used = _fx_rate(session, currency, "EUR", fx.on, fx)
             if used.rate is None:
                 warnings.append(
-                    f"{row.label} at {row.terminal_name}: demurrage in {currency} not converted "
-                    f"({used.missing}); its wait is costed at boil-off only"
+                    f"{row.label} at {row.terminal_name}: quote in {currency} not converted "
+                    f"({used.missing}); a swap with its berth turn is shown as quote pending"
                 )
             else:
-                eur = float(row.demurrage_rate_per_day) * used.rate
+                quote = float(row.quote_amount) * used.rate
                 if currency != "EUR":
-                    note = f"{row.demurrage_rate_per_day:,.0f} {currency}/day at {used.text()}"
+                    note = f"{row.quote_amount:,.0f} {currency} at {used.text()}"
         calls.append(
             BerthCall(
                 row.call_id,
@@ -376,17 +385,65 @@ def _berth_calls(session, terminals: Mapping[str, str], fx: FxBook, today: date)
                 row.berth_gas_day,
                 hub=terminals[row.terminal_name],
                 berth_days=int(row.berth_days or 1),
-                laytime_hours=float(row.laytime_left_hours or 0.0),
-                demurrage_eur_per_day=eur,
-                boil_off_mwh_per_day=float(row.boil_off_mwh_per_day or 0.0),
+                counterparty=row.counterparty or "",
+                quote_eur=quote,
+                quote_note=note,
+                quote_source=(
+                    f"quote {row.quote_reference}"
+                    if row.quote_reference and quote is not None
+                    else ""
+                ),
                 source=f"line-up {row.source_reference}",
-                demurrage_note=note,
             )
         )
         inputs.append(
             {"input": f"berth call {row.call_id}", "source": f"line-up {row.source_reference}"}
         )
     return calls, inputs, warnings
+
+
+def _berth_rules(session, terminals: Iterable[str]):
+    """Each terminal's berth access rule where the firm records one
+    (``lng_terminal_berth_rules``); a terminal without a row keeps the engine's default rule,
+    named as the default in every read."""
+
+    from eurogas_nexus.db.models import LngTerminalBerthRuleRecord
+
+    wanted = set(terminals)
+    rules: dict[str, BerthRule] = {}
+    inputs, warnings = [], []
+    for row in session.query(LngTerminalBerthRuleRecord).order_by(
+        LngTerminalBerthRuleRecord.terminal_name
+    ):
+        if row.terminal_name not in wanted:
+            continue
+        try:
+            rules[row.terminal_name] = BerthRule(
+                row.terminal_name,
+                arrival_window_days=int(row.arrival_window_days),
+                late_laytime_from=row.late_laytime_from,
+                swap_needs_terminal_approval=bool(row.swap_needs_terminal_approval),
+                basis=row.basis,
+                citation=row.citation or "",
+                text=row.rule_text or "",
+            )
+        except DisruptionError as exc:
+            warnings.append(f"berth rule for {row.terminal_name} not used ({exc}); default applies")
+            continue
+        inputs.append(
+            {
+                "input": f"berth rule {row.terminal_name}",
+                "source": f"{row.basis} {row.citation or row.source_reference}",
+            }
+        )
+    for terminal in sorted(wanted - set(rules)):
+        inputs.append(
+            {
+                "input": f"berth rule {terminal}",
+                "source": "default berth rule (no access code recorded)",
+            }
+        )
+    return rules, inputs, warnings
 
 
 def load_book(
@@ -648,6 +705,9 @@ def load_book(
     )
     inputs.extend(call_inputs)
     warnings.extend(call_warnings)
+    rules, rule_inputs, rule_warnings = _berth_rules(session, sailing)
+    inputs.extend(rule_inputs)
+    warnings.extend(rule_warnings)
     substitutes = load_substitutes(
         session,
         book_id,
@@ -670,6 +730,7 @@ def load_book(
             berth_calls=tuple(calls),
             berth_days=berth_days,
             substitutes=tuple(substitutes.sources),
+            berth_rules=rules,
         )
     except DisruptionError as exc:
         raise CargoPlanError("portfolio_invalid", str(exc)) from exc
@@ -1104,9 +1165,17 @@ def frontier(
                     "label": c.label,
                     "berth": c.berth.isoformat(),
                     "berth_days": c.berth_days,
+                    "counterparty": c.party,
+                    "quote": "pending" if c.quote_eur is None else "entered",
+                    "quote_eur": None if c.quote_eur is None else round(c.quote_eur, 2),
+                    "quote_note": c.quote_note or None,
                     "source": c.source,
                 }
                 for c in book.portfolio.berth_calls
+            ],
+            "berth_rules": [
+                book.portfolio.berth_rule(terminal).as_dict()
+                for terminal in sorted({s.terminal for s in book.portfolio.slots})
             ],
             "pipeline_outages": book.pipeline_outages,
             "inputs": book.inputs,

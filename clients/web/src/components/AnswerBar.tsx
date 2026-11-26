@@ -7,7 +7,10 @@
  * fix, calorific value) on one quiet line under it.
  */
 
+import i18next from "i18next";
 import { useTranslation } from "react-i18next";
+
+import { formatGasDay } from "@/app/time/timeFormat";
 
 import type { AskAnswerDTO } from "@/api/client";
 import type { AnswerFact, AnswerTarget, AnswerText, AnswerView } from "@/app/answer/answerModel";
@@ -20,9 +23,16 @@ export const ASK_ROW_ID = "palette-ask";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/;
+
 export function answerText(text: string | AnswerText | null | undefined, t: Translate): string {
   if (!text) return "";
-  return typeof text === "string" ? text : t(text.key, text.values);
+  if (typeof text === "string") return text;
+  if (!text.values) return t(text.key);
+  // A day carried as an ISO date is written as the app writes days in the reader's language.
+  const values = Object.fromEntries(Object.entries(text.values).map(([name, value]) =>
+    [name, typeof value === "string" && ISO_DAY.test(value) ? formatGasDay(value, i18next.language ?? "en") : value]));
+  return t(text.key, values);
 }
 
 /** What a screen reader hears when the answer appears: label, value, unit, simulated. */

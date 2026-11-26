@@ -9,8 +9,9 @@ MANIFEST = ConnectorManifest(
     source_id="src-cme",
     system="CME",
     category="price",
-    datasets=("henry-hub-futures", "settlements"),
-    description="CME NYMEX Henry Hub futures settlements. Licensed (CME DataMine).",
+    datasets=("henry-hub-futures", "settlements", "gas-option-settlements"),
+    description="CME NYMEX Henry Hub futures settlements and gas option settlements. "
+    "Licensed (CME DataMine).",
     entitled=True,
     freshness_minutes=1440,
     # Declared, not defaulted (FRESH-01); the values the registry default gave.

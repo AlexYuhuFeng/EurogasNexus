@@ -105,7 +105,7 @@ test("the answer row shows the server's value, rate, method, dates and tolerance
     key: "answer.convert.fx_forward_derived",
     values: { pair: "EUR/GBP", period: "Jan-27", rate: "0.8726", benchmarks: "SONIA, €STR" },
   });
-  assert.deepEqual(answer.lines[1], { key: "answer.convert.fx_spot_reference", values: { rate: "0.8700", date: "16 Nov" } });
+  assert.deepEqual(answer.lines[1], { key: "answer.convert.fx_spot_reference", values: { rate: "0.8700", date: "2026-11-16" } });
   assert.equal(answer.lines[2].key, "answer.convert.fx_tolerance");
   assert.equal(answer.copy?.withUnit, "30.5005 EUR/MWh");
 });

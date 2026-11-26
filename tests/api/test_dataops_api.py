@@ -181,8 +181,8 @@ def test_runtime_source_operations_and_metrics(client: TestClient) -> None:
     operations = client.get("/api/runtime/source-operations")
     assert operations.status_code == 200
     data = operations.json()["data"]
-    # src-bank-rates and src-bank-socgen (TAR-2)
-    assert data["totals"]["registered_sources"] == 44
+    # src-bank-rates and src-bank-socgen (TAR-2), the simulated ICE Endex options
+    assert data["totals"]["registered_sources"] == 45
     assert "heartbeat" in data
 
     metrics = client.get("/api/runtime/metrics")

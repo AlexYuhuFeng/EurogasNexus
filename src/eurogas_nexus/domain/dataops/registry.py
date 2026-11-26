@@ -39,6 +39,7 @@ _SIMULATED_SOURCES = {
     "src-ice-ocm-sim": ("ICE_OCM", SourceClass.SIMULATED),
     "src-trayport-sim": ("Trayport", SourceClass.SIMULATED),
     "src-icis-sim": ("ICIS", SourceClass.SIMULATED),
+    "src-ice-endex-sim": ("ICE_ENDEX", SourceClass.SIMULATED),
 }
 
 

@@ -61,7 +61,16 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **312 paths / 348 operations**
+- OpenAPI public surface: **316 paths / 352 operations**
+
+  (2026-11-26: `GET /api/optimization/planning-inputs` (READ, from the merged desk review);
+  315 / 351 before.)
+
+  (2026-11-26: the topology read `GET /api/reference-network/supply-corridors` (READ, reference
+  data, no book data); 314 / 350 before.)
+
+  (2026-11-26: gas option settlement reads `GET /api/market/options/surface` and
+  `GET /api/market/options/metrics` (READ); 312 / 348 before.)
 
   (2026-11-26: live data, `GET /api/stream/live` (server-sent change notices per topic from
   the market event outbox and the screens' own tables, no row or value, the caller's own

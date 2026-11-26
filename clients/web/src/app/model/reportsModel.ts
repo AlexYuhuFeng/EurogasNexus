@@ -224,6 +224,57 @@ export function explainFailure(status: number | null, code: string | null, abort
   return { key: "reports.fail.server", retry: true, withoutAi: true };
 }
 
+/** A failure that may still finish on the server: the connection gave out (a proxy's 504 or
+ * 502, or no answer at all) while the report was being written. The server keeps going and
+ * stores the report, so the page waits for it in the archive rather than saying it failed. */
+export function mayStillLand(status: number | null, aborted: boolean): boolean {
+  return !aborted && (status === 504 || status === 502 || status === null);
+}
+
+/** How long the page keeps looking for a report whose connection gave out (the server allows
+ * the AI editor four minutes), and how often it looks. */
+export const LANDING_WAIT_MS = 6 * 60_000;
+export const LANDING_POLL_MS = 8_000;
+
+/** The report a timed-out request produced: one that was not in the archive when the request
+ * started, written by the same reader, of the same kind, audience and period and, for an asked
+ * report, the same question. The archive is shared with every entitled reader and with
+ * schedules, so a report someone else wrote meanwhile must not end the wait. */
+export function landedReport(
+  before: ReadonlySet<string>,
+  reports: readonly Pick<ReportSummaryDTO, "report_id" | "kind" | "question" | "generated_by" | "audience" | "period_start" | "period_end">[],
+  request: Pick<ReportRequestDTO, "kind" | "question" | "audience" | "period_start" | "period_end">,
+  generatedBy: string | null,
+): string | null {
+  const question = (request.question ?? "").trim();
+  const match = reports.find((report) =>
+    !before.has(report.report_id)
+    && report.kind === request.kind
+    && (!generatedBy || report.generated_by === generatedBy)
+    && (!request.audience || !report.audience || report.audience === request.audience)
+    && (!request.period_start || !report.period_start || report.period_start.slice(0, 10) === request.period_start.slice(0, 10))
+    && (!request.period_end || !report.period_end || report.period_end.slice(0, 10) === request.period_end.slice(0, 10))
+    && (!question || (report.question ?? "").trim() === question));
+  return match ? match.report_id : null;
+}
+
+/** A signal that aborts when `parent` does or after `ms`, so one archive read can neither
+ * outlive "Stop waiting" nor the landing deadline. */
+export function boundedSignal(parent: AbortSignal, ms: number): { signal: AbortSignal; done: () => void } {
+  const controller = new AbortController();
+  const stop = () => controller.abort();
+  if (parent.aborted) controller.abort();
+  else parent.addEventListener("abort", stop, { once: true });
+  const timer = setTimeout(stop, Math.max(0, ms));
+  return {
+    signal: controller.signal,
+    done: () => {
+      clearTimeout(timer);
+      parent.removeEventListener("abort", stop);
+    },
+  };
+}
+
 /** "0:42": the time a generation has run. */
 export function elapsedLabel(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));

@@ -180,7 +180,8 @@ test("a panel's own pending read is named as that read, not as the workspace", (
     ["components/CapacityContractBook.tsx", "capacity.contracts.loading"],
   ] as const) {
     const source = readWebSource(file);
-    assert.match(source, new RegExp(`\\{loading && <p className="muted">\\{t\\("${key.replace(".", "\\.")}"\\)\\}</p>\\}`), file);
+    // Skeleton rows where the table will be, announced as this panel's read (not the workspace's).
+    assert.match(source, new RegExp(`loading \\? \\(\\s*<Skeleton label=\\{t\\("${key.replace(".", "\\.")}"\\)\\}`), file);
     assert.equal(source.includes('t("status.loading")'), false, `${file} claims the workspace loads`);
     // An unread panel header states that it is unread rather than "unavailable".
     assert.match(source, /meta=\{[\w.]+ \?\? t\("status\.unknown"\)\}/, file);

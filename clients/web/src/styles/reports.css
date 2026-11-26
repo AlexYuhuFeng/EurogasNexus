@@ -198,13 +198,28 @@
   padding-left: var(--ds-space-2);
 }
 
-.reports-failure {
+/* A failure is drawn as a notice the eye finds, not a line of grey text: a tinted panel with a
+   status edge, the message first and what to do next under it. Waiting is the calm info tone. */
+.reports-failure,
+.reports-waiting {
   display: grid;
   gap: var(--ds-space-2);
+  padding: var(--ds-space-3);
+  border: 1px solid var(--ds-border);
+  border-left: 3px solid var(--ds-status-breach);
+  border-radius: var(--ds-radius-sm);
+  background: var(--ds-status-breach-soft);
+  color: var(--ds-text-1);
   font-size: var(--ds-text-sm);
 }
 
-.reports-failure p {
+.reports-waiting {
+  border-left-color: var(--ds-status-info);
+  background: var(--ds-status-info-soft);
+}
+
+.reports-failure p,
+.reports-waiting p {
   margin: 0;
 }
 

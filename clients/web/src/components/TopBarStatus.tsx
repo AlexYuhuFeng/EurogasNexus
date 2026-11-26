@@ -184,8 +184,14 @@ export function TopBarStatus({
               {endpointFailures.truncatedSummary ? <p className="topbar-status-more">{endpointFailures.truncatedSummary}</p> : null}
               <div className="topbar-status-actions">
                 {onRetry ? (
-                  <Button size="sm" variant="secondary" loading={endpointRetry?.busy} onClick={onRetry}>
-                    {endpointRetry?.busy ? t("workspace.retry_in_progress") : t("workspace.retry_failed")}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={endpointRetry?.busy}
+                    aria-label={endpointRetry?.busy ? t("workspace.retry_in_progress") : undefined}
+                    onClick={onRetry}
+                  >
+                    {t("workspace.retry_failed")}
                   </Button>
                 ) : null}
                 {onOpenDataSources ? (
@@ -235,6 +241,18 @@ export function TopBarStatus({
           ) : null}
 
           {count === 0 && shown === "ok" ? <p className="topbar-status-calm">{t("status.all_clear")}</p> : null}
+
+          {/* "Data incomplete" with nothing listed under it left the reader guessing: say what is
+              incomplete when no problem above names it (sources behind, or a store not ready). */}
+          {count === 0 && shown === "attention" ? (
+            <p className="topbar-status-calm" data-status-section="why-incomplete">
+              {sourceSummary.viewState === "partial" && sourceSummary.total > 0
+                ? t("status.partial_sources", { active: sourceSummary.active, total: sourceSummary.total })
+                : storeState !== "ready"
+                  ? t("status.store_not_ready", { detail: storeDetail || storeLabel })
+                  : t("status.partial_unknown")}
+            </p>
+          ) : null}
 
           <dl className="topbar-status-facts">
             <div>

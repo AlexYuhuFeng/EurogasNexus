@@ -90,6 +90,7 @@ SOURCE_STEPS: dict[str, str | None] = {
     "src-ice-ocm-sim": None,
     "src-trayport-sim": None,
     "src-icis-sim": None,
+    "src-ice-endex-sim": None,
 }
 
 #: Why a source is left out of the flow.
@@ -150,12 +151,15 @@ def _import_tools(system: str) -> list[str]:
 
     from eurogas_nexus.ingestion.commodity_settlements import SETTLEMENT_SOURCES
     from eurogas_nexus.ingestion.licensed_quote_import import LICENSED_QUOTE_SOURCES
+    from eurogas_nexus.ingestion.option_settlements import OPTION_SETTLEMENT_SOURCES
 
     tools: list[str] = []
     if system in LICENSED_QUOTE_SOURCES:
         tools.append(f"scripts/ops/import_market_quotes.py --source {system}")
     if system in SETTLEMENT_SOURCES:
         tools.append(f"scripts/ops/import_settlements.py --source {system}")
+    if system in OPTION_SETTLEMENT_SOURCES:
+        tools.append(f"scripts/ops/import_option_settlements.py --source {system}")
     if system == "Kpler":
         tools.append("scripts/ops/import_lng_positions.py")
     if system in {"WMR", "BFIX"}:

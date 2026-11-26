@@ -310,6 +310,25 @@ def main(argv: list[str] | None = None) -> int:
             report["error"] = "restored_schema_invalid"
             return _emit(report)
 
+        # Optional TimescaleDB (ADR Decision 39): a source whose tables are hypertables must
+        # restore as hypertables, else the target is not the same store (a plain server, or
+        # another extension version, restores the rows into the internal chunk tables only).
+        from eurogas_nexus.db.timescale import engine_state
+
+        source_engine = get_engine(source_url)
+        try:
+            report["timescaledb_source"] = engine_state(source_engine)
+        finally:
+            source_engine.dispose()
+        target_engine = get_engine(args.target_database_url)
+        try:
+            report["timescaledb_target"] = engine_state(target_engine)
+        finally:
+            target_engine.dispose()
+        if report["timescaledb_source"] == "active" and report["timescaledb_target"] != "active":
+            report["error"] = "timescale_not_restored"
+            return _emit(report)
+
         report["api_smoke_status"] = restored_api_readiness(args.target_database_url)
         report["api_smoke_path"] = "/api/health/ready"
         report["ok"] = report["api_smoke_status"] == 200

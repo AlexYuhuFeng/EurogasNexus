@@ -76,3 +76,42 @@ Data-provider terms, which carry more commercial risk here than code licences, a
 [DATA_SOURCE_TERMS.md](DATA_SOURCE_TERMS.md).
 
 This is an engineering review, not legal advice.
+
+## TimescaleDB Community Edition (optional, 2026-11-26)
+
+What: the PostgreSQL extension TimescaleDB, used only where an operator installs it and sets
+`EUROGAS_NEXUS_TIMESCALE` to `auto` or `require` (default `off`; ADR Decision 39,
+`docs/deployment/TIMESCALEDB.md`). The product does not bundle, ship, download or host it: it is
+not a Python, npm or Rust dependency, so `scripts/ci/audit_dependencies.py` does not see it,
+and the release images, the desktop app and the demo do not contain it.
+
+Licences: hypertables are Apache-2.0; compression, which is what the platform uses it for, is in
+the Community Edition under the Timescale License (TSL), "Timescale License Agreement", posted
+2020-09-24 (`tsl/LICENSE-TIMESCALE` in the timescaledb repository; summary at
+https://www.tigerdata.com/legal/licenses). Read on 2026-11-26:
+
+- Section 2.1(a) grants use "solely for Your own internal business purposes" that does not give
+  third parties access to the software. A firm that installs TimescaleDB on its own server for
+  its own traders, analysts and risk staff is in this grant: that is the self-hosted deployment
+  this product is sold for.
+- Section 2.1(b) grants use in "Value Added Products or Services" (the software used "as a
+  back-end function or part of a software stack"), on condition (section 3.10) that their users
+  are "prohibited, either contractually or technically," from using the Timescale Data
+  Definition Interfaces (section 3.5: the SQL commands that "define or modify the database
+  schema"). This would apply if the vendor hosted Eurogas Nexus with TimescaleDB for customers:
+  the product gives users no SQL or schema access (the migrations are run by the operator), so
+  the condition holds technically; a hosting contract should also say so.
+- Section 2.2 forbids offering it as "time-sharing services or database-as-a-service", modifying
+  it (derivative works) other than as section 2.1(d) allows, and sublicensing it. The product
+  does none of these.
+- Section 2.1(c) allows copying and distributing the binaries only in "unmodified standalone
+  form"; the vendor does not distribute them.
+
+Result: the TSL is not a non-commercial licence and does not block commercial self-hosted use of
+this product (AGENTS.md rule 18). It is not on the dependency policy's fail list because the
+product does not depend on it. Conditions kept: TimescaleDB stays optional and off by default; it
+is installed by the customer, under the customer's own acceptance of the TSL; the vendor does not
+bundle it in an image or installer; a vendor-hosted offering with it needs the "no schema access"
+term in its contract. This is an engineering reading of the licence text, not legal advice: the
+owner's counsel should confirm it before any vendor-hosted offering uses TimescaleDB.
+

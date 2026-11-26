@@ -64,12 +64,12 @@ export interface AnswerReads {
 
 const SIM_SOURCE = /_sim$/i;
 
+/** The UTC calendar day of a date or instant, as an ISO date: answerText writes it in the
+ * reader's language ("24 Nov", "11月24日"). */
 function shortDay(iso: string | null | undefined): string {
   if (!iso) return "";
   const parsed = new Date(iso.length === 10 ? `${iso}T00:00:00Z` : iso);
-  return Number.isNaN(parsed.getTime())
-    ? iso
-    : parsed.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+  return Number.isNaN(parsed.getTime()) ? iso : parsed.toISOString().slice(0, 10);
 }
 
 function asOfLine(asOf: string | null | undefined, source?: string | null): AnswerText {
@@ -112,8 +112,12 @@ function fromToday(price: TodayPriceDTO, label: string): AnswerView {
     delta: price.day_change === null ? null : { text: formatChange(price.day_change, price.unit), value: price.day_change },
     simulated: price.simulated,
     lines: [
-      { key: "answer.price.close", values: { day: shortDay(price.close_day), source: price.source ?? "" } },
-      ...(price.day_change_vs ? [{ key: "answer.price.change_vs", values: { day: shortDay(price.day_change_vs) } }] : []),
+      // Days go as ISO dates and are written in the reader's language where the line is drawn
+      // (answerText); a simulated close says so in words, not in the server's English label.
+      price.simulated
+        ? { key: "answer.price.close_simulated", values: { day: price.close_day ?? "" } }
+        : { key: "answer.price.close", values: { day: price.close_day ?? "", source: price.source ?? "" } },
+      ...(price.day_change_vs ? [{ key: "answer.price.change_vs", values: { day: price.day_change_vs } }] : []),
     ],
     asOf: price.as_of,
     copy: copyOf(value, unit, priceDecimals(unit)),

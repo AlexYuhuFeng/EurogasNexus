@@ -16,6 +16,10 @@ TRANSLATION_BACKLOG = {
     "docs/engineering/CODING_STANDARDS.md",
     "docs/ontology/europe-natural-gas.md",
 }
+#: Terminology tables whose English/Chinese pairs are the content (policy exception 4).
+TERMINOLOGY_TABLES = {
+    "docs/engineering/zh-glossary.md",
+}
 #: Above this share of CJK characters a canonical file is "mainly Chinese".
 THRESHOLD = 0.02
 
@@ -51,6 +55,7 @@ def test_canonical_documents_are_in_english():
         and not path.endswith("README-CN.md")
         and not RECORDS.match(path)
         and path not in TRANSLATION_BACKLOG
+        and path not in TERMINOLOGY_TABLES
         and _cjk_share(path) > THRESHOLD
     )
     assert offenders == [], f"write these in English with a -CN companion: {offenders}"

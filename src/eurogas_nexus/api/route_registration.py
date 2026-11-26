@@ -30,6 +30,7 @@ from eurogas_nexus.api.routes.public.market import router as market_router
 from eurogas_nexus.api.routes.public.market_normalisation import (
     router as market_normalisation_router,
 )
+from eurogas_nexus.api.routes.public.market_options import router as market_options_router
 from eurogas_nexus.api.routes.public.monitoring import router as monitoring_router
 from eurogas_nexus.api.routes.public.news import router as news_router
 from eurogas_nexus.api.routes.public.opportunities import router as opportunities_router
@@ -107,6 +108,7 @@ def register_routes(
         app.include_router(source_operations_router)
         app.include_router(market_router)
         app.include_router(imports_router)
+        app.include_router(market_options_router)
         app.include_router(assumptions_router)
         app.include_router(market_normalisation_router)
         app.include_router(opportunities_router)

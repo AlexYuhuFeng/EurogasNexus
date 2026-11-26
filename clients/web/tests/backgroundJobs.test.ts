@@ -256,6 +256,24 @@ test("another user's jobs are not carried over when the identity changes", async
   store.getState().stop();
 });
 
+test("a store outage keeps the followed jobs and keeps asking until the store answers", async () => {
+  const harness = await loadApiStore();
+  const { useBackgroundJobsStore: store } = await harness.load<{ useBackgroundJobsStore: StoreLike }>(
+    "/src/stores/backgroundJobs.ts?test=outage",
+  );
+  harness.answer("jobs", () => ({ data: [job("running", { started_at_utc: new Date().toISOString() })], meta: {} }));
+  store.getState().bindIdentity("principal-e");
+  await settle();
+  assert.equal(store.getState().jobs.length, 1);
+  harness.answer("jobs", () => ({ data: [], meta: { warnings: ["RUNTIME_POSTGRESQL_UNAVAILABLE"] } }));
+  await store.getState().refresh();
+  assert.deepEqual(store.getState().jobs.map((row) => row.job_id), ["running"], "an unreadable store is not an empty list");
+  harness.answer("jobs", () => ({ data: [finished("running")], meta: {} }));
+  await new Promise((resolve) => setTimeout(resolve, JOB_POLL_FAST_MS + 200));
+  assert.equal(store.getState().jobs[0].status, "SUCCEEDED", "polling carried on through the outage");
+  store.getState().stop();
+});
+
 /* ------------------------------------------------------------------ the views */
 
 async function views() {

@@ -19,6 +19,7 @@ import pytest
 
 from eurogas_nexus.domain.lng.disruption import (
     BerthCall,
+    BerthRule,
     CapacityOffer,
     DeskTerms,
     DisruptionError,
@@ -269,11 +270,27 @@ def test_swap_that_breaks_the_spanish_obligation_is_an_option_flagged_as_a_breac
     result = optimise(portfolio(), MARKET)
     option = by_key(result)["A:swap:C+absorb"]
     assert option.feasible and option.reasons == []
+    # 2026-11-26: a swap among the book's own cargoes is flagged as needing the terminals'
+    # approval (the berth rule's default); it needs no counterparty quote.
     assert option.flags == {
         "physically_possible": True,
         "contract_breach": True,
         "disrupts_normal_cargo": True,
+        "needs_terminal_approval": True,
+        "counterparty_quote_pending": False,
     }
+    assert option.approvals == [
+        "Huelva to accept ZEE-1 in place of the ship nominated for the slot",
+        "Zeebrugge to accept HUE-1 in place of the ship nominated for the slot",
+    ]
+    # The same requests as data, for a client to word in its own language.
+    assert [
+        (r["kind"], r["terminal"], r["with"], r["party"], r["text"])
+        for r in option.approval_requests
+    ] == [
+        ("ship_substitution", "Huelva", "ZEE-1", None, option.approvals[0]),
+        ("ship_substitution", "Zeebrugge", "HUE-1", None, option.approvals[1]),
+    ]
     (breach,) = option.breaches
     assert breach["kind"] == "short_delivery"
     assert breach["text"].startswith(
@@ -367,8 +384,8 @@ def test_divert_arithmetic_releases_the_slot_and_re_hedges():
         "obligation_penalty": 0,
         "contract_exposure": 0,
         "substitute_cost": 0,
+        "counterparty_quote": 0,
         "knock_on": 0,
-        "displaced_calls": 0,
         "capacity_forgone": 0,
         "storage_forgone": 0,
     }
@@ -495,10 +512,11 @@ def test_bad_inputs_are_refused():
 # ------------------------------------------------------------- LNG-4: opportunity cost
 
 #: The owner's scenario as LNG-4 extends it (2026-11-25): the book's long-term Dunkerque slot
-#: is worth 0.05 EUR/MWh released, another user's ship is due at the Dunkerque berth on 30 Jan
-#: (laytime left 24 h, demurrage 65,000 EUR/day, boil-off 1,000 MWh/d), a Dunkerque call holds
-#: the berth two gas days, Montoir offers a spot slot from 29 Jan at 0.15 EUR/MWh of send-out
-#: right, and PEG gas can reach PVB over VIP Pirineos at 1.20 EUR/MWh. Illustrative figures.
+#: is worth 0.05 EUR/MWh released, another company's ship is due at the Dunkerque berth on
+#: 30 Jan, a Dunkerque call holds the berth two gas days, Montoir offers a spot slot from 29 Jan
+#: at 0.15 EUR/MWh of send-out right, and PEG gas can reach PVB over VIP Pirineos at
+#: 1.20 EUR/MWh. Illustrative figures. Since 2026-11-26 the call's own laytime, demurrage and
+#: boil-off are not engine inputs: another company's demurrage is never in the book's P&L.
 DUNKERQUE_CALL = BerthCall(
     "dk-1",
     "Dunkerque",
@@ -506,9 +524,7 @@ DUNKERQUE_CALL = BerthCall(
     jan(30),
     hub="PEG",
     berth_days=2,
-    laytime_hours=24,
-    demurrage_eur_per_day=65_000,
-    boil_off_mwh_per_day=1_000,
+    counterparty="Other Shipper (illustrative)",
     source="Dunkerque line-up (illustrative)",
 )
 MONTOIR_SPOT = CapacityOffer(
@@ -554,50 +570,54 @@ def extended(base: Portfolio | None = None, *, call: bool = True, **changes) -> 
     )
 
 
-def test_the_contracted_terminal_carries_the_demurrage_it_causes_to_the_cargo_it_displaces():
+def test_another_companys_wait_is_stated_and_its_demurrage_is_not_in_the_books_pnl():
+    """The owner, 2026-11-26: another company's demurrage is never counted in the book's P&L.
+    (Until then the carrier's 48 h against 24 h laytime at 65,000 EUR/day and its boil-off,
+    125,400 EUR, were an opportunity cost of the diversion.)"""
+
     result = optimise(extended(), MARKET)
     options = by_key(result)
     divert = options["A:divert:D+absorb"]
-    # ZEE-1 takes the Dunkerque berth on 30 and 31 Jan; the carrier due on 30 Jan waits two
-    # gas days: 48 h against 24 h laytime left at 65,000 EUR/day, and 2,000 MWh boils off at
-    # PEG Jan 30.20. Using the spare slot forgoes 1,000,000 MWh x 0.05 of release value.
+    # ZEE-1 reaches Dunkerque on 28 Jan, inside its arrival window (the spare slot from 30 Jan),
+    # so it is berthed in turn; the carrier due on 30 Jan is ready the same day and arrived
+    # later, so it berths after ZEE-1. Using the spare slot forgoes 1,000,000 MWh x 0.05.
     parts = divert.base.components()
-    assert (parts["displaced_calls"], parts["capacity_forgone"]) == (-125_400, -50_000)
+    assert (parts["counterparty_quote"], parts["capacity_forgone"]) == (0, -50_000)
+    assert "displaced_calls" not in parts
     assert divert.base.split() == {
         "direct_pnl": -247_400,
-        "opportunity_cost": 175_400,
-        "pnl": -422_800,
+        "opportunity_cost": 50_000,
+        "pnl": -297_400,
     }
-    (call, forgone) = divert.base.opportunity
+    (forgone,) = divert.base.opportunity
+    assert forgone["kind"] == "capacity_forgone" and forgone["value_eur"] == -50_000
+    (call,) = divert.base.counterparty
     assert (call["kind"], call["owner"], call["label"], call["delay_days"]) == (
         "berth_delay",
         "third_party",
         "another user's carrier",
         2,
     )
-    assert (call["demurrage_eur"], call["boil_off_eur"], call["held_by"]) == (
-        -65_000,
-        -60_400,
-        "ZEE-1",
-    )
-    assert forgone["kind"] == "capacity_forgone" and forgone["value_eur"] == -50_000
-    line = next(x for x in divert.base.lines if x["label"] == "displaced dk-1")
-    assert line["basis"] == "opportunity"
-    assert line["sources"] == [
-        "Dunkerque line-up (illustrative)",
-        "PEG 2027-01 price: month mark",
-    ]
+    assert (call["in_pnl"], call["value_eur"], call["held_by"]) == (False, None, "ZEE-1")
+    assert "not in the P&L" in call["text"]
+    assert not any(line["label"].startswith("displaced") for line in divert.base.lines)
+    assert not divert.quotes and not divert.flags["counterparty_quote_pending"]
     o = divert.objectives
     assert (o["direct_pnl_expected"], o["opportunity_cost"], o["pnl_expected"]) == (
         -247_400,
-        175_400,
-        -422_800,
+        50_000,
+        -297_400,
     )
+    leg = option_dict(extended(), divert)["legs"][0]
+    assert (leg["on_time"], leg["berth_priority"], leg["berth"]) == (True, "in_turn", "2027-01-30")
+    assert option_dict(extended(), divert)["counterparty_effects"][0]["call_id"] == "dk-1"
 
 
 def test_contracted_or_spot_terminal_comes_out_of_the_full_valuation():
-    """Without the knock-on the long-term Dunkerque slot ranks above the Montoir spot slot;
-    with the demurrage it causes and the value it forgoes, the spot slot ranks above it."""
+    """Without the value it forgoes the long-term Dunkerque slot ranks above the Montoir spot
+    slot; with the slot's release value forgone, the spot slot ranks above it. (2026-11-26:
+    the carrier's demurrage at Dunkerque is no longer counted, so the diversion now ranks above
+    staying and absorbing.)"""
 
     def ranks(result):
         return {o.key: o.rank for o in result.options}
@@ -614,8 +634,8 @@ def test_contracted_or_spot_terminal_comes_out_of_the_full_valuation():
         "A:stay+borrow",
         "A:stay+buy",
         "A:spot:m-spot+absorb",
-        "A:stay+absorb",
         "A:divert:D+absorb",
+        "A:stay+absorb",
     ]
     # Without the call and with no release value held, the contracted slot is the better one.
     no_release = optimise(replace(extended(call=False), slots=portfolio().slots), MARKET)
@@ -691,6 +711,247 @@ def test_shared_send_out_taken_by_the_late_cargo_is_a_knock_on_on_the_next():
     assert squeezed["kind"] == "capacity_squeezed" and squeezed["mwh_moved"] > 0
     assert absorb.base.knock_on > 0
     assert absorb.base.pnl == absorb.base.direct_pnl - absorb.base.opportunity_cost
+
+
+# ----------------------------------------------- berth priority (the owner, 2026-11-26)
+
+#: A Zeebrugge line-up for the berth rule: ZEE-2, a cargo of the book, holds a Zeebrugge slot
+#: from 28 Jan and arrives on time that day; and/or another company's carrier is due at the
+#: Zeebrugge berth on 28 Jan. A call holds the Zeebrugge berth two gas days. ZEE-1 (slot from
+#: 26 Jan) arrives on 28 Jan, after its one-day arrival window. Illustrative figures.
+OTHER_SHIPPER = "Other Shipper (illustrative)"
+
+
+def zeebrugge_line_up(
+    *, own: bool = True, call: bool = False, quote: float | None = None, rule=None
+) -> Portfolio:
+    p = portfolio()
+    supplies, slots, calls = list(p.supplies), list(p.slots), []
+    if own:
+        supplies.append(
+            Supply(
+                "E",
+                "ZEE-2",
+                arrival=jan(28),
+                slot_id="Z2",
+                terminal="Zeebrugge",
+                eta_confidence="high",
+                energy_mwh=1_000_000,
+                laytime_hours=36,
+                demurrage_eur_per_day=70_000,
+                boil_off_mwh_per_day=1_000,
+            )
+        )
+        slots.append(
+            SlotTerms("Z2", "Zeebrugge", "ZTP", jan(28), 10, 100_000, 1_000_000, holder="E")
+        )
+    if call:
+        calls.append(
+            BerthCall(
+                "zb-1",
+                "Zeebrugge",
+                "Other Shipper's carrier",
+                jan(28),
+                hub="ZTP",
+                berth_days=2,
+                counterparty=OTHER_SHIPPER,
+                quote_eur=quote,
+                quote_source="" if quote is None else "Other Shipper quote (illustrative)",
+                source="Zeebrugge line-up (illustrative)",
+            )
+        )
+    return replace(
+        p,
+        supplies=tuple(supplies),
+        slots=tuple(slots),
+        berth_calls=tuple(calls),
+        berth_days={"Zeebrugge": 2},
+        berth_rules={} if rule is None else {"Zeebrugge": rule},
+    )
+
+
+def test_an_on_time_ship_keeps_its_slot_and_the_late_one_takes_the_next_free_gap():
+    p = zeebrugge_line_up()
+    stay = by_key(optimise(p, MARKET))["A:stay+absorb"]
+    landed = stay.base.landings
+    # ZEE-2 arrives within its window and is berthed in turn, as planned.
+    assert (landed["E"].berth, landed["E"].hold_days, landed["E"].priority) == (
+        jan(28),
+        0,
+        "in_turn",
+    )
+    assert not landed["E"].late
+    # ZEE-1 is late: it loses priority and berths in the first free gap after ZEE-2's two days.
+    a = landed["A"]
+    assert (a.berth, a.hold_days, a.priority, a.late, a.held_by) == (
+        jan(30),
+        2,
+        "next_free_gap",
+        True,
+        "ZEE-2",
+    )
+    assert not [x for x in stay.base.opportunity if x["kind"] == "berth_delay"]
+    assert not any(d["supply_id"] == "E" and "waits" in d["cause"] for d in stay.disrupts)
+    assert any("after its arrival window at Zeebrugge" in note for note in stay.notes)
+    leg = option_dict(p, stay)["legs"][0]
+    assert (leg["on_time"], leg["berth_priority"], leg["berth"]) == (
+        False,
+        "next_free_gap",
+        "2027-01-30",
+    )
+    assert leg["berth_rule"]["basis"] == "default" and leg["berth_rule"]["citation"] is None
+
+
+def test_a_late_ships_laytime_starts_at_berthing():
+    stay = by_key(optimise(zeebrugge_line_up(), MARKET))["A:stay+absorb"]
+    a = stay.base.landings["A"]
+    # 48 h at anchor against 36 h laytime, but laytime starts at berthing: no demurrage; the
+    # 2,000 MWh boiled off while waiting is still a cost.
+    assert (a.wait_days, a.laytime_wait_days, a.laytime_from) == (2, 0, "berthing")
+    assert a.demurrage_eur == 0 and a.boil_off_mwh == 2_000
+    assert stay.base.components()["demurrage"] == 0
+    # A rule that starts a late ship's laytime at its arrival counts the wait: 12 h over
+    # laytime at 70,000 EUR/day.
+    at_arrival = BerthRule("Zeebrugge", late_laytime_from="arrival", basis="assumption")
+    stay = by_key(optimise(zeebrugge_line_up(rule=at_arrival), MARKET))["A:stay+absorb"]
+    assert stay.base.landings["A"].demurrage_eur == 35_000
+    assert stay.base.components()["demurrage"] == -35_000
+
+
+def test_a_swap_with_an_own_cargo_carries_its_cost_and_needs_terminal_approval():
+    p = zeebrugge_line_up()
+    result = optimise(p, MARKET)
+    swap = by_key(result)["A:stay/berth_swap:E+absorb"]
+    assert swap.kind == "berth_swap" and swap.feasible
+    assert swap.flags["needs_terminal_approval"] and not swap.flags["counterparty_quote_pending"]
+    assert swap.approvals == [
+        "Zeebrugge to accept the change of berth order between ZEE-1 and ZEE-2"
+    ]
+    assert swap.approval_requests == [
+        {
+            "kind": "berth_order",
+            "terminal": "Zeebrugge",
+            "with": "ZEE-2",
+            "party": None,
+            "text": swap.approvals[0],
+        }
+    ]
+    assert swap.quotes == []
+    landed = swap.base.landings
+    assert (landed["A"].berth, landed["A"].priority) == (jan(28), "swap")
+    assert (landed["E"].berth, landed["E"].priority, landed["E"].hold_days) == (
+        jan(30),
+        "next_free_gap",
+        2,
+    )
+    # ZEE-2 was on time, so its wait counts from its arrival: 48 h against 36 h at 70,000
+    # EUR/day, and 2,000 MWh boils off at ZTP Jan 30.00. The book pays it: a knock-on.
+    (hit,) = [x for x in swap.base.opportunity if x["kind"] == "berth_delay"]
+    assert (hit["owner"], hit["label"], hit["delay_days"], hit["held_by"]) == (
+        "own",
+        "ZEE-2",
+        2,
+        "ZEE-1",
+    )
+    assert (hit["demurrage_eur"], hit["boil_off_eur"]) == (-35_000, -60_000)
+    assert swap.base.knock_on > 95_000
+    assert [d["supply_id"] for d in swap.disrupts] == ["E"]
+    # A change of slot among the book's own cargoes says so in the recommended reason too.
+    best = next(r for r in result.recommended_set if r.basis == "best_expected")
+    assert best.option.key == "A:swap:B+absorb"
+    assert best.reason.endswith("needs the terminal's approval.")
+
+
+def test_a_swap_with_another_companys_slot_carries_a_quote_and_no_demurrage_line():
+    p = zeebrugge_line_up(own=False, call=True)
+    result = optimise(p, MARKET)
+    options = by_key(result)
+    # Staying: ZEE-1 is late and waits for the carrier's two gas days, without displacing it.
+    a = options["A:stay+absorb"].base.landings["A"]
+    assert (a.berth, a.held_by, a.demurrage_eur) == (jan(30), "Other Shipper's carrier", 0)
+    swap = options["A:stay/counterparty_swap:zb-1+absorb"]
+    assert swap.kind == "counterparty_swap" and swap.feasible
+    assert swap.flags["counterparty_quote_pending"] and swap.flags["needs_terminal_approval"]
+    ((request_kind, terminal, with_label, party),) = [
+        (r["kind"], r["terminal"], r["with"], r["party"]) for r in swap.approval_requests
+    ]
+    assert (request_kind, terminal, with_label, party) == (
+        "berth_order",
+        "Zeebrugge",
+        "Other Shipper's carrier",
+        OTHER_SHIPPER,
+    )
+    (quote,) = swap.quotes
+    assert (quote["status"], quote["amount_eur"], quote["counterparty"]) == (
+        "pending",
+        None,
+        OTHER_SHIPPER,
+    )
+    assert swap.base.landings["A"].berth == jan(28)
+    # No demurrage line for the other company's ship: one quote line, pending, not in the P&L.
+    labels = [line["label"] for line in swap.base.lines]
+    assert "quote zb-1" in labels and not any("zb-1" in x and x != "quote zb-1" for x in labels)
+    assert swap.base.components()["counterparty_quote"] == 0
+    assert swap.base.components()["demurrage"] == 0
+    (effect,) = swap.base.counterparty
+    assert (effect["call_id"], effect["delay_days"], effect["swapped"], effect["in_pnl"]) == (
+        "zb-1",
+        2,
+        True,
+        False,
+    )
+    assert "its cost is their quote, not their demurrage" in effect["text"]
+    # Its cost is not known yet: not compared on the frontier, ranked after every option whose
+    # cost is known, and not recommended.
+    assert not swap.on_frontier and swap.dominated_why == [
+        f"its cost waits on a quote from {OTHER_SHIPPER}"
+    ]
+    assert swap.rank > max(o.rank for o in result.options if o.rank and not o.quote_pending)
+    assert swap.option_id not in {r.option.option_id for r in result.recommended_set}
+
+    pending, pending_cost = swap.base.pnl, swap.objectives["cost"]
+    entered = by_key(optimise(zeebrugge_line_up(own=False, call=True, quote=40_000), MARKET))
+    swap = entered["A:stay/counterparty_swap:zb-1+absorb"]
+    (quote,) = swap.quotes
+    assert (quote["status"], quote["amount_eur"]) == ("entered", 40_000)
+    assert swap.base.components()["counterparty_quote"] == -40_000
+    assert swap.base.pnl == pending - 40_000
+    assert swap.objectives["cost"] == pending_cost + 40_000
+    assert not swap.flags["counterparty_quote_pending"]
+    line = next(x for x in swap.base.lines if x["label"] == "quote zb-1")
+    assert line["value"] == -40_000 and line["sources"] == ["Other Shipper quote (illustrative)"]
+
+
+def test_a_terminal_specific_rule_is_used_and_cited():
+    rule = BerthRule(
+        "Zeebrugge",
+        arrival_window_days=3,
+        basis="example",
+        citation="example access code, berthing clause (illustrative, not a published code)",
+    )
+    p = zeebrugge_line_up(rule=rule)
+    result = optimise(p, MARKET)
+    options = by_key(result)
+    stay = options["A:stay+absorb"]
+    # Under this rule ZEE-1's window runs to 28 Jan: it is on time and berthed in turn (its slot
+    # starts first), so ZEE-2 waits; no swap of berth turn is offered, none being needed.
+    a, e = stay.base.landings["A"], stay.base.landings["E"]
+    assert (a.berth, a.late, a.priority) == (jan(28), False, "in_turn")
+    assert (e.berth, e.hold_days) == (jan(30), 2)
+    assert not [key for key in options if "berth_swap" in key]
+    leg = option_dict(p, stay)["legs"][0]
+    assert leg["berth_rule"]["basis"] == "example"
+    assert leg["berth_rule"]["citation"] == rule.citation
+    assert rule.citation in leg["berth_rule"]["rule"]
+    assert "not a published code" in leg["berth_rule"]["rule"]
+    zeebrugge = next(
+        r for r in result_dict(p, result)["berth_rules"] if r["terminal"] == "Zeebrugge"
+    )
+    assert zeebrugge["arrival_window_days"] == 3
+    gate = next(r for r in result_dict(p, result)["berth_rules"] if r["terminal"] == "Gate")
+    assert gate["basis"] == "default" and gate["rule"].startswith("default berth rule")
+    with pytest.raises(DisruptionError):
+        BerthRule("Zeebrugge", basis="terminal_code")  # a code's rule must be cited
 
 
 # ------------------------------------------------------- LNG-4: substitute supply

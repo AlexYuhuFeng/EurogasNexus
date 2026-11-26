@@ -195,11 +195,11 @@ export function PublicSourceApprovals({ sources, t }: { sources: readonly Source
             <Button
               type="submit"
               variant={mode === "revoke" ? "danger" : "primary"}
-              disabled={busy || !reason.trim() || !accepted}
+              disabled={!reason.trim() || !accepted}
+              loading={busy}
+              aria-label={busy ? t(mode === "revoke" ? "source_approval.revoking" : "source_approval.approving") : undefined}
             >
-              {busy
-                ? t(mode === "revoke" ? "source_approval.revoking" : "source_approval.approving")
-                : t(mode === "revoke" ? "source_approval.revoke_confirm" : "source_approval.confirm", { count: chosen.length })}
+              {t(mode === "revoke" ? "source_approval.revoke_confirm" : "source_approval.confirm", { count: chosen.length })}
             </Button>
             <Button variant="quiet" onClick={() => setPending(null)} disabled={busy}>
               {t("source_approval.cancel")}

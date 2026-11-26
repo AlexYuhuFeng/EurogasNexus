@@ -79,6 +79,7 @@ from eurogas_nexus.db.models.lng_disruption import (
     LngDisruptionDecisionRecord,
     LngDisruptionRunRecord,
     LngSlotTermsRecord,
+    LngTerminalBerthRuleRecord,
     LngVoyageTermsRecord,
     PipelineOutageLinkRecord,
     PipelineSupplyRecord,
@@ -138,6 +139,7 @@ from eurogas_nexus.db.models.opportunities import (
     OpportunityVersionRecord,
 )
 from eurogas_nexus.db.models.optimization import OptimizationRunRecord
+from eurogas_nexus.db.models.option_settlement import OptionSettlementRecord
 from eurogas_nexus.db.models.power import PowerObservationRecord
 from eurogas_nexus.db.models.raw_archive import RawPayloadArchiveRecord
 from eurogas_nexus.db.models.reference_network import (
@@ -379,6 +381,7 @@ __all__ = [
     "InterestRateObservationRecord",
     "OrganisationSettingRecord",
     "LngBerthCallRecord",
+    "LngTerminalBerthRuleRecord",
     "PipelineOutageLinkRecord",
     "PipelineSupplyRecord",
     "PowerObservationRecord",
@@ -410,6 +413,7 @@ __all__ = [
     "TariffVersionRecord",
     "CapacityBookingRecord",
     "CapacityNoticeRecord",
+    "OptionSettlementRecord",
     "LngTerminalTermsRecord",
     "HedgeApprovalRecord",
     "TraderMandateRecord",
