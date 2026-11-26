@@ -54,6 +54,9 @@ class IipRead:
     pages: int = 0
     total: int | None = None
     stop: str = ""
+    #: Set when the read stopped early on a refusal after some pages were read: the records
+    #: are the newest part of the window and are kept, but the read is not complete.
+    error: str = ""
 
 
 def _submitted(record: Mapping[str, Any]) -> datetime | None:
@@ -76,14 +79,24 @@ def fetch_iip_messages(
     The API orders by submission only roughly (live: not strictly), so a page counts as
     past the window only when its newest submission is older than ``since``. Raises
     ``IipError('iip_read_bound_reached')`` when ``max_pages`` pages were read and the
-    window was not exhausted: a partial read is not passed off as complete.
+    window was not exhausted: a partial read is not passed off as complete. A refusal
+    after the first page (the platform rate-limits long reads) ends the read with the pages
+    already read and ``error`` set to the refusal's code, so the caller can keep the newest
+    messages and report the read as incomplete; a refusal on the first page raises.
     """
 
     read = IipRead()
     for page in range(1, max_pages + 1):
         if page > 1:
             sleep(pause_seconds)
-        payload = get_page(page)
+        try:
+            payload = get_page(page)
+        except IipError as exc:
+            if not read.records:
+                raise
+            read.stop = "interrupted"
+            read.error = exc.code
+            return read
         data = payload.get("data")
         meta = payload.get("meta") or {}
         if not isinstance(data, list):
@@ -187,9 +200,26 @@ def acer_messages(records: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
     return list(found.values())
 
 
+#: Waits after a rate-limit refusal: 60 s, then 120 s ... capped at 300 s. The platform's
+#: limit is per key and clears within minutes (live 2026-11-25: refused on page 1, the
+#: next request two seconds later answered), so a long read waits rather than gives up.
+REFUSAL_BACKOFF_SECONDS = 60.0
+REFUSAL_BACKOFF_CAP_SECONDS = 300.0
+
+
+def _refusal_wait(attempt: int) -> float:
+    return min(REFUSAL_BACKOFF_SECONDS * attempt, REFUSAL_BACKOFF_CAP_SECONDS)
+
+
 def http_page_getter(api_key: str, *, timeout: float = 30.0, max_attempts: int = 3,
+                     refusal_attempts: int = 6,
                      sleep: Callable[[float], None] = time.sleep):
-    """A bounded page reader for the fixed official URL; the key goes only in ``x-key``."""
+    """A bounded page reader for the fixed official URL; the key goes only in ``x-key``.
+
+    Timeouts and server errors get ``max_attempts`` tries; rate-limit refusals (HTTP 429, or
+    the 200 envelope the platform relays an upstream 429 in) get ``refusal_attempts`` tries
+    with the capped back-off above.
+    """
 
     import httpx
 
@@ -200,7 +230,10 @@ def http_page_getter(api_key: str, *, timeout: float = 30.0, max_attempts: int =
     )
 
     def get_page(page: int) -> Mapping[str, Any]:
-        for attempt in range(1, max_attempts + 1):
+        attempt = 0
+        refusals = 0
+        while True:
+            attempt += 1
             try:
                 response = client.get(
                     IIP_API_URL,
@@ -212,6 +245,14 @@ def http_page_getter(api_key: str, *, timeout: float = 30.0, max_attempts: int =
                     raise IipError("iip_timeout", "the platform did not answer in time") from None
                 sleep(10.0 * attempt)
                 continue
+            if response.status_code == 429:
+                refusals += 1
+                if refusals < refusal_attempts:
+                    retry_after = response.headers.get("retry-after", "")
+                    sleep(float(retry_after) if retry_after.isdigit() else _refusal_wait(refusals))
+                    attempt -= 1
+                    continue
+                raise IipError("iip_rate_limited", "HTTP 429 after retries")
             if response.status_code in RETRYABLE_STATUSES and attempt < max_attempts:
                 retry_after = response.headers.get("retry-after", "")
                 sleep(float(retry_after) if retry_after.isdigit() else 30.0 * attempt)
@@ -229,12 +270,13 @@ def http_page_getter(api_key: str, *, timeout: float = 30.0, max_attempts: int =
             if "data" not in payload and payload.get("statusCode"):
                 # The platform relays an upstream refusal (live: a 429 rate limit) as a 200
                 # with an error envelope; wait and retry like a 429.
-                if attempt < max_attempts:
-                    sleep(60.0 * attempt)
+                refusals += 1
+                if refusals < refusal_attempts:
+                    sleep(_refusal_wait(refusals))
+                    attempt -= 1
                     continue
                 raise IipError("iip_upstream_refused", f"upstream {payload.get('statusCode')}")
             return payload
-        raise IipError("iip_unreachable", "no answer after retries")
 
     get_page.close = client.close  # type: ignore[attr-defined]
     return get_page

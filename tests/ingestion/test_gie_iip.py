@@ -147,3 +147,95 @@ def test_script_dry_run_and_commit_report(tmp_path, monkeypatch, capsys):
     with Session(engine) as session:
         assert len(session.execute(select(RemitUmmRecord)).scalars().all()) == 7
     engine.dispose()
+
+
+def _mock_getter(monkeypatch, responses, **kwargs):
+    """``http_page_getter`` against canned responses; returns the getter and the waits."""
+
+    import httpx
+
+    from eurogas_nexus.ingestion import gie_iip
+
+    queue = list(responses)
+    real_client = httpx.Client
+
+    def handler(_request):
+        status, body = queue.pop(0)
+        return httpx.Response(status, json=body)
+
+    monkeypatch.setattr(
+        httpx, "Client",
+        lambda **kw: real_client(transport=httpx.MockTransport(handler), timeout=kw["timeout"]),
+    )
+    waits: list[float] = []
+    return gie_iip.http_page_getter("test-key", sleep=waits.append, **kwargs), waits, queue
+
+
+RELAYED_429 = {"statusCode": 503, "content": "HTTP/2 429 returned for upstream"}
+
+
+def test_a_relayed_rate_limit_is_waited_out_with_a_capped_backoff(monkeypatch):
+    page = _page()
+    get_page, waits, queue = _mock_getter(
+        monkeypatch, [(200, RELAYED_429)] * 5 + [(200, page)]
+    )
+    assert get_page(1)["data"] == page["data"]
+    assert waits == [60.0, 120.0, 180.0, 240.0, 300.0] and not queue
+
+
+def test_a_rate_limit_that_does_not_clear_is_refused_with_a_stable_code(monkeypatch):
+    get_page, waits, _queue = _mock_getter(
+        monkeypatch, [(200, RELAYED_429)] * 2 + [(429, {})] * 2, refusal_attempts=4
+    )
+    with pytest.raises(IipError) as refused:
+        get_page(1)
+    assert refused.value.code == "iip_rate_limited" and len(waits) == 3
+
+
+def test_a_refusal_after_the_first_page_keeps_the_newest_pages():
+    page = _page()
+    newest = max(datetime.fromisoformat(r["submitted"]) for r in page["data"]).replace(tzinfo=UTC)
+
+    def get_page(number):
+        if number == 3:
+            raise IipError("iip_upstream_refused", "upstream 503")
+        return page
+
+    read = fetch_iip_messages(
+        get_page, since=newest - timedelta(days=30), max_pages=10, sleep=lambda _s: None
+    )
+    assert read.stop == "interrupted" and read.error == "iip_upstream_refused"
+    assert read.pages == 2 and len(read.records) == 2 * len(page["data"])
+
+    def refuse_first(_number):
+        raise IipError("iip_upstream_refused", "upstream 503")
+
+    with pytest.raises(IipError):
+        fetch_iip_messages(refuse_first, since=newest, max_pages=10, sleep=lambda _s: None)
+
+
+def test_script_stores_a_partial_read_and_reports_it_incomplete(tmp_path, monkeypatch, capsys):
+    url = f"sqlite+pysqlite:///{(tmp_path / 'remit.sqlite').as_posix()}"
+    engine = create_engine(url)
+    Base.metadata.create_all(engine, tables=[RemitUmmRecord.__table__])
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", url)
+    spec = importlib.util.spec_from_file_location("ingest_remit_iip_partial", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    page = _page()
+    for record in page["data"]:
+        record["submitted"] = datetime.now(UTC).replace(tzinfo=None).isoformat()
+
+    def get_page(number):
+        if number == 2:
+            raise IipError("iip_upstream_refused", "upstream 503")
+        return page
+
+    assert module.main(["--days", "2", "--commit", "--json"], get_page=get_page) == 1
+    report = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert report["ok"] is False
+    assert report["failures"] == [{"code": "iip_upstream_refused", "partial": True}]
+    assert report["sources"]["gie_iip"]["inserted"] == 7
+    with Session(engine) as session:
+        assert len(session.execute(select(RemitUmmRecord)).scalars().all()) == 7
+    engine.dispose()

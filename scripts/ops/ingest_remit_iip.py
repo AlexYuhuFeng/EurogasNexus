@@ -113,15 +113,22 @@ def main(argv: list[str] | None = None, *, get_page=None) -> int:
         say(f"stored: {counts}")
     elif not args.commit:
         say("dry run (add --commit to store)")
+    if read.error:
+        say(f"incomplete: stopped after {read.pages} pages ({read.error}); the newest "
+            "messages read were kept and the next round reads the window again")
+    failures = (
+        [{"code": read.error, "partial": True}] if read.error
+        else [] if read.records else [{"code": "iip_no_messages"}]
+    )
     if args.json:
         print(json.dumps({
-            "ok": bool(read.records),
-            "failures": [] if read.records else [{"code": "iip_no_messages"}],
+            "ok": not failures,
+            "failures": failures,
             "sources": {"gie_iip": {"records": len(messages), **counts, "revised": 0}},
             # ONT-03: provider records refused at the boundary, with their reason codes.
             "quarantined": quarantined,
         }, sort_keys=True))
-    return 0 if read.records else 1
+    return 0 if not failures else 1
 
 
 if __name__ == "__main__":

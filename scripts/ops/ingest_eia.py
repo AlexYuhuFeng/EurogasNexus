@@ -12,6 +12,8 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
+import urllib.error
 import urllib.request
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -24,8 +26,28 @@ from eurogas_nexus.ingestion.eia import (
     resolve_eia_key,
 )
 
+#: EIA's API gateway answers 502/504 during its own outages (seen 2026-11-25 for hours from
+#: one network while eia.gov itself answered), so gateway errors and timeouts are retried.
+RETRY_WAITS_SECONDS = (30.0, 90.0)
+RETRYABLE_STATUSES = frozenset({429, 500, 502, 503, 504})
 
-def main(argv: list[str] | None = None) -> int:
+
+def _read_with_retry(url: str, *, sleep=time.sleep, opener=urllib.request.urlopen) -> bytes:
+    for wait in (*RETRY_WAITS_SECONDS, None):
+        try:
+            with opener(url, timeout=30) as response:
+                return response.read(MAX_PAYLOAD_BYTES + 1)
+        except urllib.error.HTTPError as exc:
+            if wait is None or exc.code not in RETRYABLE_STATUSES:
+                raise
+        except (TimeoutError, urllib.error.URLError):
+            if wait is None:
+                raise
+        sleep(wait)
+    raise AssertionError("unreachable")
+
+
+def main(argv: list[str] | None = None, *, sleep=time.sleep) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--days", type=int, default=14, help="look-back window")
     parser.add_argument("--file", type=Path, help="parse a saved response")
@@ -43,11 +65,11 @@ def main(argv: list[str] | None = None) -> int:
         start = date.today() - timedelta(days=args.days)
         reference = f"eia:RNGWHHD:{start.isoformat()}"
         try:
-            with urllib.request.urlopen(request_url(key, start), timeout=30) as response:
-                payload = response.read(MAX_PAYLOAD_BYTES + 1)
+            payload = _read_with_retry(request_url(key, start), sleep=sleep)
         except OSError as exc:
             # The URL carries the key, so only the reference is reported.
-            say(f"{reference}: {type(exc).__name__}")
+            code = getattr(exc, "code", None)
+            say(f"{reference}: {type(exc).__name__}{f' HTTP {code}' if code else ''}")
             return 1
     try:
         prices = parse_prices(payload)
