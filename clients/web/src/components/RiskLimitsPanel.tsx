@@ -25,6 +25,9 @@ import { deskMonthsIn, formatDeliveryMonth } from "@/app/time/timeFormat";
 import { useConvertedAmount } from "@/app/time/useConversion";
 import { ConvertedValue } from "@/components/ui/ConvertedValue";
 import { useApiStore } from "@/stores/api";
+import { serverWarningText } from "@/app/warningLabel";
+import { useLineageLookup } from "./CommercialWarningList";
+import { breachSummary } from "@/app/model/limitBreaches";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -324,6 +327,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
     },
   ], [pendingLines, t]);
 
+  const names = useLineageLookup();
   const mandateColumns = useMemo<DataGridColumn<MandateUsageRowDTO>[]>(() => [
     // Names in words; the principal and the book ids are on hover (owner: no internal ids on screen).
     { id: "trader", header: t("limits.trader"), rowHeader: true, sortable: true, value: (row) => row.name, render: (row) => <strong title={row.trader}>{row.name || row.trader}</strong> },
@@ -362,7 +366,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
         <span className="limit-status-cell">
           <LimitBadge status={row.status} t={t} />
           {row.status !== "ok" && <WhyButton subject="mandate" id={row.mandate_id} label={row.name} t={t} />}
-          {row.breaches && <small className="limit-breaches">{row.breaches}</small>}
+          {row.breaches && <small className="limit-breaches" title={row.breaches}>{breachSummary(row.breaches, t, names.resources).join("; ")}</small>}
           {/* A mandate is measured in MWh, not priced: shown only if the server ever dates it. */}
           <MarksAsOf row={row} t={t} quietWhenCurrent />
           {pendingMandates.has(row.mandate_id) && (
@@ -372,7 +376,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
         </span>
       ),
     },
-  ], [bookNames, pendingMandates, t]);
+  ], [bookNames, names, pendingMandates, t]);
 
   const breaches = [...(credit ?? []), ...(mandates ?? [])].filter((row) => row.status === "breach" || row.status === "expired").length;
 
@@ -424,7 +428,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
       {warnings.length > 0 && (
         <details className="limit-warnings">
           <summary>{t("limits.notes", { count: warnings.length })}</summary>
-          <ul>{warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+          <ul>{warnings.map((warning) => <li key={warning}>{serverWarningText(warning, t)}</li>)}</ul>
         </details>
       )}
 
