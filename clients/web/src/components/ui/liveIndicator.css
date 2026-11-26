@@ -1,0 +1,61 @@
+/* The live connection's state on the top bar (LiveIndicator.tsx). */
+@layer ds-components {
+  .ds-live-indicator {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    padding: 0 var(--ds-space-2);
+    border-radius: var(--ds-radius-pill);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .ds-live-dot {
+    width: var(--ds-space-2);
+    height: var(--ds-space-2);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-status-stale);
+  }
+
+  .ds-live-indicator[data-live-state="live"] .ds-live-dot {
+    background: var(--ds-status-ok);
+  }
+
+  .ds-live-indicator[data-live-state="stale"] {
+    background: var(--ds-status-watch-soft);
+    color: var(--ds-status-watch);
+  }
+
+  .ds-live-indicator[data-live-state="stale"] .ds-live-dot {
+    background: var(--ds-status-watch);
+  }
+
+  .ds-live-indicator[data-live-state="offline"] {
+    background: var(--ds-status-breach-soft);
+    color: var(--ds-status-breach);
+  }
+
+  .ds-live-indicator[data-live-state="offline"] .ds-live-dot {
+    background: var(--ds-status-breach);
+  }
+
+  .ds-live-label {
+    font-weight: var(--ds-weight-medium);
+  }
+}
+
+@layer ds-motion {
+  @media (prefers-reduced-motion: no-preference) {
+    /* One beat while reconnecting; still, the words and the colour say it without motion. */
+    @keyframes ds-live-pulse {
+      50% { opacity: 0.35; }
+    }
+
+    .ds-live-indicator[data-live-state="offline"] .ds-live-dot,
+    .ds-live-indicator[data-live-state="connecting"] .ds-live-dot {
+      animation: ds-live-pulse var(--ds-duration-pulse) var(--ds-ease-in-out) infinite;
+    }
+  }
+}

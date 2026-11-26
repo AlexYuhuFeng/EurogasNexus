@@ -12,7 +12,7 @@ import {
   compositionFromProfile,
   compositionSeesAdministration,
 } from "@/app/experience/experienceProfile";
-import { BrandMark, WorkspaceTabs } from "@/components/ui";
+import { BrandMark, LiveIndicator, WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 import { useApiStore, type ApiState } from "@/stores/api";
 import type { ThemeMode } from "@/stores/theme";
@@ -333,6 +333,8 @@ export function WorkspaceTopBar({
             onAcknowledge={monitoring.acknowledgeMonitoringAlert}
             onAnalyze={monitoring.analyzeMonitoringAlert}
           />
+          {/* Live updates: a quiet "Live" while they arrive, the age of the last one when not. */}
+          <LiveIndicator t={t} />
           {/* One data-status chip; the store, the push connection and the source counts
               are in the panel it opens, not on the bar a trader reads all day. */}
           <TopBarStatus

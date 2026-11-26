@@ -6561,5 +6561,14 @@
   "news.note.status.refused": "The AI note did not pass the grounding check, so the rule note is shown.",
   "news.note.status.unavailable": "The AI note is not available now, so the rule note is shown.",
   "news.note.status.rule": "Rule note, built from the cited lines without a model.",
-  "news.advisory": "Decision support: a person decides. Nothing is traded, nominated or sent."
+  "news.advisory": "Decision support: a person decides. Nothing is traded, nominated or sent.",
+  "live.state.live": "Live",
+  "live.state.connecting": "Connecting",
+  "live.state.stale": "Delayed",
+  "live.state.offline": "Reconnecting",
+  "live.last_update": "last update",
+  "live.title.live": "Prices and figures on screen update as they change.",
+  "live.title.connecting": "Opening the live connection.",
+  "live.title.stale": "No update has arrived for a while: figures show their last value while the connection is renewed.",
+  "live.title.offline": "The live connection dropped: figures show their last value. Reconnecting automatically."
 }

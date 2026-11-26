@@ -6561,5 +6561,14 @@
   "news.note.status.refused": "AI 说明未通过依据校验，因此显示规则说明。",
   "news.note.status.unavailable": "AI 说明暂不可用，因此显示规则说明。",
   "news.note.status.rule": "规则说明：由所引条目生成，未使用模型。",
-  "news.advisory": "决策支持：由人决定。不进行任何交易、提名或发送。"
+  "news.advisory": "决策支持：由人决定。不进行任何交易、提名或发送。",
+  "live.state.live": "实时",
+  "live.state.connecting": "连接中",
+  "live.state.stale": "延迟",
+  "live.state.offline": "正在重连",
+  "live.last_update": "最近更新",
+  "live.title.live": "屏幕上的价格与数据随变化实时更新。",
+  "live.title.connecting": "正在建立实时连接。",
+  "live.title.stale": "一段时间未收到更新：数据显示最后一次的值，连接正在重建。",
+  "live.title.offline": "实时连接已中断：数据显示最后一次的值，正在自动重连。"
 }
