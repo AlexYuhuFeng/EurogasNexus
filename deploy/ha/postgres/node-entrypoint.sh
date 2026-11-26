@@ -14,19 +14,25 @@ PGDATA="${PGDATA:-/var/lib/postgresql/data}"
 ROLE="${NEXUS_NODE_ROLE:-primary}"
 STANZA="${PGBACKREST_STANZA:-nexus}"
 PEER="${NEXUS_PEER_HOST:-}"
+# The node's private tmpfs (deploy/ha/compose.yaml): the root filesystem is read-only, and the
+# data directory and the socket directory are shared with the backup sidecar, which must not
+# read the replication password.
+SECRETS_DIR="${NEXUS_SECRETS_DIR:-/run/nexus}"
+PASSFILE="${SECRETS_DIR}/replication.pgpass"
 
 if [ "$(id -u)" = "0" ]; then
     install -d -o postgres -g postgres -m 0700 "$PGDATA"
     install -d -o postgres -g postgres -m 0775 /var/run/postgresql
+    install -d -o postgres -g postgres -m 0700 "$SECRETS_DIR"
     exec gosu postgres "$0" "$@"
 fi
 
 # The replication password for primary_conninfo is kept in a passfile, not in the config.
 if [ -n "${NEXUS_REPLICATION_PASSWORD:-}" ]; then
     umask 077
-    printf '*:*:*:replicator:%s\n' "$NEXUS_REPLICATION_PASSWORD" > /var/lib/postgresql/.pgpass
+    printf '*:*:*:replicator:%s\n' "$NEXUS_REPLICATION_PASSWORD" > "$PASSFILE"
 fi
-CONNINFO="host=${PEER} port=5432 user=replicator passfile=/var/lib/postgresql/.pgpass application_name=${HOSTNAME}"
+CONNINFO="host=${PEER} port=5432 user=replicator passfile=${PASSFILE} application_name=${HOSTNAME}"
 
 if [ "$ROLE" = "standby" ] && [ ! -s "$PGDATA/PG_VERSION" ]; then
     echo "node-entrypoint: empty standby; waiting for a backup of stanza ${STANZA}"

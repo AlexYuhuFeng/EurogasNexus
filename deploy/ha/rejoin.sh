@@ -18,12 +18,14 @@ say() { printf '{"event":"%s","at":"%s","detail":"%s"}\n' "$1" "$(date -u +%FT%T
 
 say rejoin.start "$NODE"
 dc stop -t 10 "$NODE" "${NODE}-backup" >/dev/null 2>&1 || true
+# The restore only writes the standby's settings; it never connects to the peer, so no password
+# is written here. The passfile named is the one the node's entrypoint writes on its private
+# tmpfs at every start (the root filesystem is read-only), and the entrypoint passes the same
+# primary_conninfo on the command line, which takes precedence.
 dc run --rm --no-deps -T -u postgres --entrypoint sh "$NODE" -c '
     set -e
-    printf "*:*:*:replicator:%s\n" "$NEXUS_REPLICATION_PASSWORD" > /var/lib/postgresql/.pgpass
-    chmod 600 /var/lib/postgresql/.pgpass
     pgbackrest --stanza="${PGBACKREST_STANZA:-nexus}" --type=standby --delta \
-        --recovery-option="primary_conninfo=host=$NEXUS_PEER_HOST port=5432 user=replicator passfile=/var/lib/postgresql/.pgpass application_name=$HOSTNAME" \
+        --recovery-option="primary_conninfo=host=$NEXUS_PEER_HOST port=5432 user=replicator passfile=/run/nexus/replication.pgpass application_name=$HOSTNAME" \
         --recovery-option=recovery_target_timeline=latest restore'
 say rejoin.restored "$NODE"
 dc up -d "$NODE" "${NODE}-backup" >/dev/null

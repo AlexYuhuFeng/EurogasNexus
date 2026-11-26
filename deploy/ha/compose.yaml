@@ -44,10 +44,32 @@ x-pgbackrest: &pgbackrest
   PGBACKREST_LOG_LEVEL_CONSOLE: info
   PGBACKREST_LOG_LEVEL_FILE: "off"
 
+# Container hardening (security review M8, as in deploy/runtime/compose.yaml), adapted to a
+# database server:
+# - Read-only root filesystem everywhere. Writable: the data directory and the socket directory
+#   (volumes), a private /tmp (pgBackRest's lock files), and on a node a private /run/nexus for
+#   the replication passfile (never the shared volumes: the backup sidecar must not read it).
+# - The backup sidecars run as postgres with no Linux capability at all.
+# - A node starts as root only to own its directories and then drops to postgres (gosu), so it
+#   keeps exactly the capabilities that needs (CHOWN, DAC_OVERRIDE, FOWNER, SETUID, SETGID)
+#   and no other; no-new-privileges everywhere.
+# - Per-service secrets: the nodes hold the superuser and replication passwords and the backup
+#   keys (archive_command runs pgBackRest inside the node); a sidecar holds the backup keys and
+#   no database password (it uses the shared local socket). The application never connects as
+#   POSTGRES_USER: run deploy/runtime/database_roles.sql on the primary once (it replicates to
+#   the standby) and give the application tier the eurogas_app login and the gated upgrade the
+#   eurogas_owner login (docs/security/DATABASE_ROLES.md).
 x-node: &node
   image: ${NEXUS_POSTGRES_IMAGE:-eurogas-nexus-postgres-ha:16}
   restart: unless-stopped
   shm_size: 256mb
+  read_only: true
+  cap_drop: ["ALL"]
+  cap_add: ["CHOWN", "DAC_OVERRIDE", "FOWNER", "SETUID", "SETGID"]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs:
+    - /tmp:size=256m,mode=1777
+    - /run/nexus:size=1m,mode=0700
   healthcheck:
     test: ["CMD-SHELL", "pg_isready -h /var/run/postgresql -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
     interval: 5s
@@ -59,6 +81,11 @@ x-backup: &backup
   image: ${NEXUS_POSTGRES_IMAGE:-eurogas-nexus-postgres-ha:16}
   restart: unless-stopped
   user: postgres
+  read_only: true
+  cap_drop: ["ALL"]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs:
+    - /tmp:size=256m,mode=1777
   entrypoint: ["/usr/local/bin/backup-scheduler.sh"]
 
 services:

@@ -97,3 +97,36 @@ def test_the_runtime_stack_can_follow_a_failover() -> None:
     for name in ("api", "config-check", "migrate", "market-events-worker"):
         assert "EUROGAS_NEXUS_OBJECT_STORE_SECRET_ACCESS_KEY" not in services[name]["environment"]
 
+
+def test_the_database_tier_carries_the_container_hardening() -> None:
+    """Security review M8 on the database tier: read-only root filesystems, no capability a
+    container does not use, no-new-privileges, and the replication password only where the
+    node itself reads it (never on the volumes the backup sidecar shares)."""
+
+    compose = yaml.safe_load((HA / "compose.yaml").read_text(encoding="utf-8"))
+    services = compose["services"]
+    for name in ("pg-node1", "pg-node2", "pg-node1-backup", "pg-node2-backup"):
+        service = services[name]
+        assert service["read_only"] is True, name
+        assert service["cap_drop"] == ["ALL"], name
+        assert "no-new-privileges:true" in service["security_opt"], name
+        assert any(mount.startswith("/tmp:") for mount in service["tmpfs"]), name
+    for name in ("pg-node1", "pg-node2"):
+        # Exactly what the start as root and the drop to postgres need.
+        assert sorted(services[name]["cap_add"]) == [
+            "CHOWN", "DAC_OVERRIDE", "FOWNER", "SETGID", "SETUID"
+        ]
+        assert any(mount.startswith("/run/nexus:") for mount in services[name]["tmpfs"])
+        assert "NEXUS_REPLICATION_PASSWORD" in services[name]["environment"]
+    for name in ("pg-node1-backup", "pg-node2-backup"):
+        assert "cap_add" not in services[name]
+        assert services[name]["user"] == "postgres"
+        environment = services[name]["environment"]
+        assert "POSTGRES_PASSWORD" not in environment
+        assert "NEXUS_REPLICATION_PASSWORD" not in environment
+    entrypoint = (HA / "postgres" / "node-entrypoint.sh").read_text(encoding="utf-8")
+    assert "/var/lib/postgresql/.pgpass" not in entrypoint
+    assert 'PASSFILE="${SECRETS_DIR}/replication.pgpass"' in entrypoint
+    assert "/var/lib/postgresql/.pgpass" not in (HA / "rejoin.sh").read_text(encoding="utf-8")
+    # The application never connects as the cluster's superuser (DATABASE_ROLES.md).
+    assert "eurogas_app" in (HA / "env.ha.example").read_text(encoding="utf-8")
