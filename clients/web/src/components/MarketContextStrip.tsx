@@ -45,12 +45,26 @@ export function MarketContextStrip({
   children,
   variant = "strip",
 }: MarketContextStripProps) {
-  if (!projection) return null;
+  const className = variant === "line" ? "market-context-strip is-line" : "market-context-strip";
+  if (!projection || sliceReadings(projection).length === 0) {
+    // The context read has not arrived (or failed): the page's gas day, hub and product controls
+    // and its actions stay, so a trader is never left without the filters while it loads.
+    if (!controls && !freshness && !children) return null;
+    return (
+      <section className={`projection-context ${className}`} aria-label={t("market_context.title")}>
+        {controls}
+        <div className="projection-context-status">
+          {freshness}
+          {children}
+        </div>
+      </section>
+    );
+  }
 
   return (
     <ProjectionContextStrip
       namespace="market_context"
-      className={variant === "line" ? "market-context-strip is-line" : "market-context-strip"}
+      className={className}
       readings={sliceReadings(projection)}
       degraded={degradedSlices(projection)}
       labelKeys={MARK_CONTEXT_SLICE_LABEL_KEYS}
