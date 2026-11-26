@@ -20,7 +20,9 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { api, type AskAnswerDTO, type MarketQuoteDTO, type UnitsReferenceDTO } from "@/api/client";
+import { api, type AskAnswerDTO, type CargoPlanBoardLineDTO, type MapCargoDTO, type MarketQuoteDTO, type UnitsReferenceDTO } from "@/api/client";
+import { loadRead, peekRead } from "@/app/data/readCache";
+import { CARGO_BOARD_KEY, readCargoBoard } from "@/app/hooks/useCargoBoard";
 import type { AnswerView, LookupState } from "@/app/answer/answerModel";
 import type { GlossaryEntry } from "@/app/answer/glossary";
 import { instantAnswer } from "@/app/answer/instant";
@@ -137,8 +139,20 @@ const reads = (
   normalise: (body) => shared(`normalise:${JSON.stringify(body)}`, () => api.normaliseMarket(body).then((r) => r.data)),
   units,
   fx,
-  // The book's cargoes, as the map's "Our book" view reads them (own cargoes only are shown).
-  cargoes: () => shared("cargoes", () => api.mapSituation(14).then((r) => r.data.cargoes ?? [])),
+  // The firm's cargoes from the cargo board's own kept read (Desk · Cargoes, QA-L-05): the
+  // board, the palette's cargo results and this summary share one read of the plans.
+  cargoes: () => shared("cargoes", async () => {
+    await loadRead(CARGO_BOARD_KEY, readCargoBoard);
+    const board = peekRead<CargoPlanBoardLineDTO[]>(CARGO_BOARD_KEY);
+    if (!board.data) throw board.error ?? new Error("cargo board not read");
+    return board.data.map((line) => ({
+      cargo_id: line.cargo_id,
+      vessel_name: line.vessel_name ?? line.cargo_id,
+      status: (line.status ?? "") as MapCargoDTO["status"],
+      destination_terminal: line.destination_terminal ?? null,
+      own: true,
+    }) as MapCargoDTO);
+  }),
 });
 
 export type AskState =
