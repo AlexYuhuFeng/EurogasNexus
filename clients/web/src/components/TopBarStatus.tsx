@@ -236,6 +236,18 @@ export function TopBarStatus({
 
           {count === 0 && shown === "ok" ? <p className="topbar-status-calm">{t("status.all_clear")}</p> : null}
 
+          {/* "Data incomplete" with nothing listed under it left the reader guessing: say what is
+              incomplete when no problem above names it (sources behind, or a store not ready). */}
+          {count === 0 && shown === "attention" ? (
+            <p className="topbar-status-calm" data-status-section="why-incomplete">
+              {sourceSummary.viewState === "partial" && sourceSummary.total > 0
+                ? t("status.partial_sources", { active: sourceSummary.active, total: sourceSummary.total })
+                : storeState !== "ready"
+                  ? t("status.store_not_ready", { detail: storeDetail || storeLabel })
+                  : t("status.partial_unknown")}
+            </p>
+          ) : null}
+
           {demoPrices ? <p className="topbar-status-demo">{t("topbar.demo_mode")}</p> : null}
 
           <dl className="topbar-status-facts">

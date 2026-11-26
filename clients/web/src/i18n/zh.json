@@ -5921,5 +5921,8 @@
   "reports.stop_waiting": "停止等待",
   "reports.landed_after_timeout": "报告在连接超时后完成，已存入存档，并已在下方打开。",
   "reports.fail.stopped_waiting": "已停止等待。报告仍可能完成：请在一两分钟后点击存档的“刷新”。",
-  "reports.fail.not_landed": "六分钟后报告仍未存入存档。可点击存档的“刷新”再次查看、重试，或改为不使用 AI 生成（只需数秒）。"
+  "reports.fail.not_landed": "六分钟后报告仍未存入存档。可点击存档的“刷新”再次查看、重试，或改为不使用 AI 生成（只需数秒）。",
+  "status.partial_sources": "{{total}} 个数据源中有 {{active}} 个在线；其余未连接或有延迟，来自它们的数据可能缺失或较旧。",
+  "status.store_not_ready": "交易台数据存储尚未完全就绪：{{detail}}。",
+  "status.partial_unknown": "部分数据尚未到达。受影响的数字会在出现处标出。"
 }
