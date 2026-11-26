@@ -24,6 +24,11 @@ LNG4_COLUMNS = {
     "lng_capacity_offers": {"hub"},
     "lng_slot_terms": {"berth_days"},
 }
+#: The columns 0090 adds to a table 0087 creates (the berth rule's counterparty quote); this
+#: test runs 0086 and 0087 only, so the model has them and the table does not.
+LATER_COLUMNS = {
+    "lng_berth_calls": {"counterparty", "quote_amount", "quote_currency", "quote_reference"},
+}
 
 
 def _load(name: str):
@@ -80,7 +85,8 @@ def test_up_down_and_model_match():
         inspector = inspect(connection)
         for model in (*_models(), PipelineOutageLinkRecord, LngBerthCallRecord):
             columns = {c["name"] for c in inspector.get_columns(model.__tablename__)}
-            assert columns == set(model.__table__.columns.keys()), model.__tablename__
+            later = LATER_COLUMNS.get(model.__tablename__, set())
+            assert columns == set(model.__table__.columns.keys()) - later, model.__tablename__
             indexes = {i["name"] for i in inspector.get_indexes(model.__tablename__)}
             assert {i.name for i in model.__table__.indexes} <= indexes
         lng4.downgrade()
@@ -97,7 +103,7 @@ def test_0087_only_expands():
     """Every column 0087 adds is nullable, and it drops or alters nothing on the way up."""
 
     source = (VERSIONS / "0087_lng4_options_demurrage_outages.py").read_text(encoding="utf-8")
-    upgrade = source[source.index("def upgrade"): source.index("def downgrade")]
+    upgrade = source[source.index("def upgrade") : source.index("def downgrade")]
     assert "drop_" not in upgrade and "alter_column" not in upgrade
     assert "nullable=True" in upgrade
     lng4 = _load("0087_lng4_options_demurrage_outages.py")
