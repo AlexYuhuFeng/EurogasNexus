@@ -54,6 +54,12 @@
       "purpose": "HTTPS gateway configuration; the preflight reports the HTTPS gateway configuration as missing without it and the installer copies it to <InstallRoot>/Caddyfile."
     },
     {
+      "source": "deploy/runtime/database_roles.sql",
+      "destination": "deploy/runtime/database_roles.sql",
+      "required": true,
+      "purpose": "Separate PostgreSQL roles (owner, append-only application, reporting, auditor); docs/security/DATABASE_ROLES.md."
+    },
+    {
       "source": "deploy/runtime/env.server.example",
       "destination": "deploy/runtime/env.server.example",
       "required": true,

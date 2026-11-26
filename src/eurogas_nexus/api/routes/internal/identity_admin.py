@@ -36,7 +36,7 @@ class ApiKeyCreateRequest(BaseModel):
 class AuditPruneRequest(BaseModel):
     """Operator-controlled audit retention prune (dry-run by default)."""
 
-    retention_days: int = Field(default=365, ge=30, le=3650)
+    retention_days: int = Field(default=1827, ge=365, le=3650)
     dry_run: bool = True
 
 
@@ -346,23 +346,34 @@ def post_audit_prune(
     operator = _operator_principal(x_eurogas_principal, x_eurogas_internal_token)
     _require_db()
     try:
-        from eurogas_nexus.application.audit_retention import prune_expired_audit_events
+        from eurogas_nexus.application.audit_retention import (
+            AuditPruneRefused,
+            prune_expired_audit_events,
+        )
         from eurogas_nexus.db.session import get_session_factory
 
+        if not body.dry_run:
+            # Security review H5/H7: the internal token cannot delete audit rows; a deletion is
+            # requested and approved by two administrators (POST /api/audit/prune).
+            raise HTTPException(
+                status_code=403,
+                detail={
+                    "code": "audit_prune_needs_dual_control",
+                    "message": "Delete through POST /api/audit/prune with a second approver.",
+                },
+            )
         with get_session_factory()() as session:
-            summary = prune_expired_audit_events(
-                session,
-                retention_days=body.retention_days,
-                dry_run=body.dry_run,
-            )
-            _audit(
-                session,
-                principal=operator,
-                action="audit.retention.prune",
-                resource="audit_events",
-                outcome="dry_run" if body.dry_run else "pruned",
-                detail=f"retention_days={body.retention_days}",
-            )
+            try:
+                summary = prune_expired_audit_events(
+                    session,
+                    retention_days=body.retention_days,
+                    dry_run=True,
+                    by=operator,
+                )
+            except AuditPruneRefused as exc:
+                raise HTTPException(
+                    status_code=422, detail={"code": "audit_prune_refused", "message": str(exc)}
+                ) from exc
             session.commit()
             return {"data": summary, "meta": {"human_review_required": True}}
     except _sqlalchemy_error_type() as exc:

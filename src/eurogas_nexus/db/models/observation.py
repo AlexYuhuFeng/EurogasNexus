@@ -9,6 +9,7 @@ from datetime import UTC, date, datetime
 
 from sqlalchemy import (
     JSON,
+    BigInteger,
     Boolean,
     CheckConstraint,
     Date,
@@ -393,6 +394,44 @@ class AuditEventRecord(Base):
     client_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
     before_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     after_summary: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+
+
+class AuditChainRecord(Base):
+    """One link of the audit hash chain (security review H5, migration 0095).
+
+    Kept beside ``audit_events`` rather than as columns of it, so the application role needs
+    only INSERT on both tables: an audit row is never updated, not even to seal it. A link
+    names its event, its place in the chain, the previous link's hash and its own hash over
+    the event's content and that previous hash (``db/audit_chain.py``).
+    """
+
+    __tablename__ = "audit_chain"
+
+    chain_seq: Mapped[int] = mapped_column(BigInteger, primary_key=True, autoincrement=False)
+    event_id: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    prev_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    row_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    sealed_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class AuditChainAnchorRecord(Base):
+    """A point the audit chain is verified from: a prune's last removed row, or a checkpoint.
+
+    Pruning removes the oldest rows; the anchor keeps the sequence number and hash of the last
+    removed row, so the first remaining row still proves its place. A checkpoint anchor is a
+    signed digest of the chain head, for export to the firm's SIEM or a WORM store.
+    """
+
+    __tablename__ = "audit_chain_anchors"
+
+    anchor_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)
+    chain_seq: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    row_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    signature: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_by: Mapped[str] = mapped_column(String(64), nullable=False)
+    detail: Mapped[str] = mapped_column(String(500), nullable=False, default="")
 
 
 class EntitlementDecisionRecord(Base):
