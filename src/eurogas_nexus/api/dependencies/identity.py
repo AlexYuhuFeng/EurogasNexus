@@ -148,7 +148,12 @@ async def _resolve_identity(request: Request) -> None:
         request.state.identity_authenticated = True
         return
 
-    gateway = await run_in_threadpool(_authenticate_gateway, request)
+    # Only a deployment with an authenticating gateway reads it (and may write the directory);
+    # a request without a credential otherwise answers on the loop, so a load balancer's
+    # health check never queues behind busy request threads.
+    gateway = (
+        await run_in_threadpool(_authenticate_gateway, request) if _gateway_enabled() else None
+    )
     if gateway is not None:
         request.state.identity = gateway
         request.state.identity_authenticated = True
@@ -317,6 +322,12 @@ def _authenticate_oidc(token: str) -> AuthenticatedPrincipal:
         identity_source="OIDC",
         auth_method="oidc_access_token",
     )
+
+
+def _gateway_enabled() -> bool:
+    from eurogas_nexus.security.gateway_auth import GatewayConfig
+
+    return GatewayConfig.from_env().enabled
 
 
 def _authenticate_gateway(request: Request) -> AuthenticatedPrincipal | None:
