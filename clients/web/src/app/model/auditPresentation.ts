@@ -37,7 +37,7 @@ export function auditActionLabel(code: string, t: Translate, language: string): 
 /** The outcome in words ("listed" -> "Viewed"; unknown outcomes keep their words). */
 export function auditOutcomeLabel(code: string, t: Translate, language: string): string {
   if (!code) return "–";
-  if (has(t, `audit.outcome.${code}`)) return t(`audit.outcome.${code}`);
+  if (has(t, `audit.outcome.${code}`)) return joinWords([t(`audit.outcome.${code}`)], language);
   return joinWords(wordsOf(code, t), language);
 }
 

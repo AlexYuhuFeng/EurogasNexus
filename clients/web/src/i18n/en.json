@@ -7132,7 +7132,7 @@
   "audit.outcome.failed": "failed",
   "audit.outcome.generated": "generated",
   "audit.outcome.issued": "issued",
-  "audit.outcome.listed": "listed",
+  "audit.outcome.listed": "viewed",
   "audit.outcome.locked": "locked",
   "audit.outcome.model": "model",
   "audit.outcome.not_approved": "not approved",
