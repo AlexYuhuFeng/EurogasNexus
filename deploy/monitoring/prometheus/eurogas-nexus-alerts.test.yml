@@ -96,6 +96,56 @@ tests:
               description: "95% of the API's database connections are checked out. When none is left, requests wait and then fail with 503."
               runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasdbpoolnearlyexhausted"
 
+  # Pool exhaustion from the counters: timeouts on api-1, 20 % waits on api-2 (two worker
+  # processes' series summed), and api-3 busy without waiting raises nothing.
+  - interval: 1m
+    input_series:
+      - series: 'eurogas_db_pool_timeouts_total{instance="api-1",job="eurogas-nexus-api"}'
+        values: '0 0 0 1+1x10'
+      - series: 'eurogas_db_pool_checkouts_total{instance="api-1",job="eurogas-nexus-api"}'
+        values: '0+100x12'
+      - series: 'eurogas_db_pool_waits_total{instance="api-1",job="eurogas-nexus-api"}'
+        values: '0x12'
+      - series: 'eurogas_db_pool_timeouts_total{instance="api-2",job="eurogas-nexus-api"}'
+        values: '0x12'
+      - series: 'eurogas_db_pool_checkouts_total{instance="api-2",job="eurogas-nexus-api",pid="11"}'
+        values: '0+50x12'
+      - series: 'eurogas_db_pool_checkouts_total{instance="api-2",job="eurogas-nexus-api",pid="12"}'
+        values: '0+50x12'
+      - series: 'eurogas_db_pool_waits_total{instance="api-2",job="eurogas-nexus-api",pid="11"}'
+        values: '0+20x12'
+      - series: 'eurogas_db_pool_waits_total{instance="api-2",job="eurogas-nexus-api",pid="12"}'
+        values: '0x12'
+      - series: 'eurogas_db_pool_timeouts_total{instance="api-3",job="eurogas-nexus-api"}'
+        values: '0x12'
+      - series: 'eurogas_db_pool_checkouts_total{instance="api-3",job="eurogas-nexus-api"}'
+        values: '0+500x12'
+      - series: 'eurogas_db_pool_waits_total{instance="api-3",job="eurogas-nexus-api"}'
+        values: '0+1x12'
+    alert_rule_test:
+      - eval_time: 2m
+        alertname: EurogasDbPoolExhausted
+        exp_alerts: []
+      - eval_time: 8m
+        alertname: EurogasDbPoolExhausted
+        exp_alerts:
+          - exp_labels:
+              severity: critical
+              team: platform
+              instance: api-1
+            exp_annotations:
+              summary: "API requests on api-1 wait for or fail to get a database connection"
+              description: "The database pool ran out: requests either waited for a connection or gave up after the pool timeout and failed with 503."
+              runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasdbpoolexhausted"
+          - exp_labels:
+              severity: critical
+              team: platform
+              instance: api-2
+            exp_annotations:
+              summary: "API requests on api-2 wait for or fail to get a database connection"
+              description: "The database pool ran out: requests either waited for a connection or gave up after the pool timeout and failed with 503."
+              runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasdbpoolexhausted"
+
   # Error rate: 10 % server errors; and a quiet API raises nothing.
   - interval: 1m
     input_series:

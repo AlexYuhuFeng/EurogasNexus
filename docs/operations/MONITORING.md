@@ -86,6 +86,7 @@ labels for Alertmanager routing, and a `runbook_url` that points at its section 
 | EurogasMarketEventsBacklog | warning | an event consumer is more than 10 minutes behind |
 | EurogasApiDown | critical | an API server cannot be scraped for 2 minutes |
 | EurogasMetricsDatabaseUnavailable | critical | the API cannot read the database for 5 minutes |
+| EurogasDbPoolExhausted | critical | a pool checkout timed out, or over 10 % of checkouts waited, for 2 minutes |
 | EurogasDbPoolNearlyExhausted | warning | over 90 % of the pool in use for 5 minutes |
 | EurogasApiErrorRate | critical | over 5 % server errors for 10 minutes |
 | EurogasApiSlowP95 | warning | p95 latency of a route group over 1 s for 15 minutes |
