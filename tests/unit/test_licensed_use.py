@@ -25,6 +25,7 @@ from eurogas_nexus.security.identity import (
     legacy_public_token_principal,
     principal_allows_source_family,
 )
+from scripts.release.release_metadata import latest_alembic_revision
 
 VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 NOW = datetime(2026, 11, 24, 9, tzinfo=UTC)
@@ -141,7 +142,7 @@ def test_migration_0079_matches_the_model_up_and_down() -> None:
     spec.loader.exec_module(module)
     assert module.down_revision == "0078_lng_cargo_hedges"
     assert module.revision == "0079_licensed_data_use"
-    assert DB_SCHEMA_REVISION == "0090_job_progress_steps"
+    assert DB_SCHEMA_REVISION == latest_alembic_revision()  # later revisions follow
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
         module.op = Operations(MigrationContext.configure(connection=connection))

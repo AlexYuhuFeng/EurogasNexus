@@ -11,6 +11,7 @@ from alembic.operations import Operations
 from sqlalchemy import create_engine, inspect
 
 from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
+from scripts.release.release_metadata import latest_alembic_revision
 
 VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 ADDED = {"eta_basis", "eta_confidence", "eta_source", "eta_recorded_at_utc"}
@@ -25,7 +26,7 @@ def test_chain_up_down_and_model_match():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.down_revision == "0079_licensed_data_use"
-    assert DB_SCHEMA_REVISION == "0090_job_progress_steps"
+    assert DB_SCHEMA_REVISION == latest_alembic_revision()  # later revisions follow
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     before = sa.MetaData()
     sa.Table(

@@ -10,6 +10,7 @@ from alembic.operations import Operations
 from sqlalchemy import create_engine, inspect
 
 from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
+from scripts.release.release_metadata import latest_alembic_revision
 
 VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 NEW_COLUMNS = {
@@ -31,7 +32,7 @@ def test_chain_up_down_and_model_match():
     spec.loader.exec_module(module)
     assert module.revision == "0090_job_progress_steps"
     assert module.down_revision == "0089_alert_reader_state"
-    assert DB_SCHEMA_REVISION == "0090_job_progress_steps"
+    assert DB_SCHEMA_REVISION == latest_alembic_revision()  # later revisions follow
     table = JobRecord.__table__
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:

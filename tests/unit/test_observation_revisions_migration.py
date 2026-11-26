@@ -37,11 +37,12 @@ def _schema(connection) -> None:
 
 def test_chain_and_head() -> None:
     from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
+    from scripts.release.release_metadata import latest_alembic_revision
 
     source = MIGRATION_PATH.read_text()
     assert 'down_revision = "0061_audit_keyset_index"' in source
     # 0063 widened its checks for power and re-split capacity ranges; 0062 stays in the chain.
-    assert DB_SCHEMA_REVISION == "0090_job_progress_steps"
+    assert DB_SCHEMA_REVISION == latest_alembic_revision()  # later revisions follow
 
 
 def test_upgrade_adds_history_table_and_column_and_downgrade_reverses_it() -> None:

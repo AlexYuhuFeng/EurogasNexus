@@ -24,6 +24,7 @@ from eurogas_nexus.governance.four_eyes import (
     validate_four_eyes,
 )
 from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
+from scripts.release.release_metadata import latest_alembic_revision
 
 VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 PROVENANCE_TABLES = {
@@ -90,7 +91,7 @@ def test_migration_0081_chain_up_down_and_model_match():
     spec.loader.exec_module(module)
     assert module.down_revision == "0080_lng_eta_basis"
     assert module.revision == "0081_change_requests"
-    assert DB_SCHEMA_REVISION == "0090_job_progress_steps"
+    assert DB_SCHEMA_REVISION == latest_alembic_revision()  # later revisions follow
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     before = sa.MetaData()
     for table_name, record in PROVENANCE_TABLES.items():
