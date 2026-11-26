@@ -102,7 +102,15 @@ def get_engine(
             else _env_int("EUROGAS_NEXUS_DB_POOL_RECYCLE", 1800),
         )
 
-    return create_engine(parsed_url, **engine_options)
+    engine = create_engine(parsed_url, **engine_options)
+    if parsed_url.drivername.endswith("+pg8000"):
+        from sqlalchemy import event
+
+        from eurogas_nexus.db.pg8000_decoding import register
+
+        # Dates and timestamps decoded with fromisoformat, not strptime (pg8000_decoding.py).
+        event.listen(engine, "connect", lambda connection, _record: register(connection))
+    return engine
 
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:
