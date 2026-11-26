@@ -20,9 +20,10 @@ Status
 ``INDICATIVE`` or ``FINAL``. A publisher that issues provisional figures first (consultation,
 regulator approval pending) and final ones later changes the status of the same tariff, and
 that change is a version of its own, ``status_change``, which names the status before and the
-basis of the new one (the publisher stated it, the tariff period started, a reviewer accepted
-it). Indicative never silently becomes final: the change is recorded, published as a market
-event and shown in the version history, and a reader always sees which status a figure has.
+basis of the new one (the publisher stated it, a reviewer accepted it, or, for a row that
+carries no marker, NC TAR Art. 29's rule: ``tariff_year.nc_tar_status``). Indicative never
+silently becomes final: the change is recorded, published as a market event and shown in the
+version history, and a reader always sees which status a figure has.
 
 A tariff that leaves the register (an administrator's entry withdrawn) is recorded as a
 ``withdrawn`` version, so as-of reads before the withdrawal still find it.
@@ -39,29 +40,64 @@ from datetime import UTC, date, datetime
 from enum import StrEnum
 from typing import Any
 
+from eurogas_nexus.domain.tariffs.tariff_year import (
+    BASIS_AUCTION_HELD,
+    BASIS_BEFORE_AUCTION,
+    BASIS_IN_FORCE,
+    RULE_BASES,
+    nc_tar_status,
+    tariff_year_for,
+)
+
 INDICATIVE = "INDICATIVE"
 FINAL = "FINAL"
 STATUSES = (INDICATIVE, FINAL)
 
 #: Why a version has the status it has.
 BASIS_OPERATOR_STATED = "operator_stated"
-BASIS_PERIOD_STARTED = "period_started"
-BASIS_PERIOD_NOT_STARTED = "period_not_started"
 BASIS_FIGURES_DISAGREE = "figures_disagree"
 BASIS_REVIEWED = "reviewed"
 BASIS_AWAITING_REVIEW = "awaiting_review"
 BASIS_RULE = "regulation_rule"
+#: TAR-2: a row with no marker takes NC TAR Art. 29's rule, evaluated at the instant asked
+#: for (``tariff_year.nc_tar_status``).
+BASIS_NC_TAR_AUCTION_HELD = BASIS_AUCTION_HELD
+BASIS_NC_TAR_BEFORE_AUCTION = BASIS_BEFORE_AUCTION
+BASIS_NC_TAR_IN_FORCE = BASIS_IN_FORCE
+#: TAR-1 recorded these for ENTSOG rows without a marker (the period's start decided). No new
+#: version takes them; versions already recorded keep them and are read under the NC TAR rule.
+BASIS_PERIOD_STARTED = "period_started"
+BASIS_PERIOD_NOT_STARTED = "period_not_started"
+LEGACY_BASES = frozenset({BASIS_PERIOD_STARTED, BASIS_PERIOD_NOT_STARTED})
 STATUS_BASES = frozenset(
     {
         BASIS_OPERATOR_STATED,
-        BASIS_PERIOD_STARTED,
-        BASIS_PERIOD_NOT_STARTED,
         BASIS_FIGURES_DISAGREE,
         BASIS_REVIEWED,
         BASIS_AWAITING_REVIEW,
         BASIS_RULE,
+        BASIS_NC_TAR_AUCTION_HELD,
+        BASIS_NC_TAR_BEFORE_AUCTION,
+        BASIS_NC_TAR_IN_FORCE,
     }
 )
+#: Bases whose status is a rule evaluated at the instant read, not a statement.
+RULE_DERIVED_BASES = frozenset(RULE_BASES | LEGACY_BASES)
+
+
+def status_as_of(status: str, basis: str, tariff_year_from: date, as_of: date) -> tuple[str, str]:
+    """The status a version has as of ``as_of``.
+
+    A stated status (operator, reviewer, ENTSOG's unit check) is what it says. A rule-derived
+    one (no marker on the row) is the NC TAR rule evaluated at ``as_of`` for the tariff year's
+    first day (all of a tariff year's prices are published together), so a row read in June
+    is indicative as of June and final as of the August after the yearly auction without being
+    read again; a TAR-1 ``period_started`` version is read the same way.
+    """
+
+    if basis in RULE_DERIVED_BASES:
+        return nc_tar_status(tariff_year_from, as_of)
+    return status, basis
 
 #: Facility kinds a tariff can be charged at.
 FACILITY_KINDS = frozenset({"point", "terminal", "storage"})
@@ -148,6 +184,9 @@ class TariffSpec:
     published_at_utc: datetime | None = None
     source_ref: str = ""
     by_class: dict[str, float] = field(default_factory=dict)
+    #: TAR-2: the tariff year the publication belongs to (``tariff_year.TariffYear.label``);
+    #: derived from the period, so not content. Empty: worked out from the period.
+    tariff_year: str = ""
 
     def __post_init__(self) -> None:
         if not self.tariff_key or len(self.tariff_key) > MAX_KEY:
@@ -168,6 +207,9 @@ class TariffSpec:
             raise TariffError("source_url must be an https address")
         object.__setattr__(self, "retrieved_at_utc", _aware(self.retrieved_at_utc))
         object.__setattr__(self, "published_at_utc", _aware(self.published_at_utc))
+        if not self.tariff_year:
+            label = tariff_year_for(self.period_from, self.period_to).label
+            object.__setattr__(self, "tariff_year", label[:40])
 
     @property
     def duration(self) -> str | None:
@@ -260,8 +302,13 @@ __all__ = [
     "BASIS_AWAITING_REVIEW",
     "BASIS_FIGURES_DISAGREE",
     "BASIS_OPERATOR_STATED",
+    "BASIS_NC_TAR_AUCTION_HELD",
+    "BASIS_NC_TAR_BEFORE_AUCTION",
+    "BASIS_NC_TAR_IN_FORCE",
     "BASIS_PERIOD_NOT_STARTED",
     "BASIS_PERIOD_STARTED",
+    "LEGACY_BASES",
+    "RULE_DERIVED_BASES",
     "BASIS_REVIEWED",
     "BASIS_RULE",
     "DURATIONS",
@@ -276,5 +323,6 @@ __all__ = [
     "TariffSpec",
     "VersionDecision",
     "decide_version",
+    "status_as_of",
     "status_change_label",
 ]

@@ -76,10 +76,12 @@ _SOURCE_BOUNDS: dict[str, tuple[tuple[str, str], ...]] = {
 def _tariff_max_age_hours(scheduled_for: object) -> str:
     """How old a point's ENTSOG tariffs may be before this run reads them again (TAR-1).
 
-    The tariff book's poll for ENTSOG (``domain/tariffs/publishers``): hourly in the weeks
-    operators publish reserve prices (NC TAR: before the July yearly auction, and the October,
-    mid-December and early-January updates), daily otherwise. ``_SOURCE_BOUNDS`` keeps the
-    daily figure as the default a run without an anchor uses.
+    The tariff book's poll for ENTSOG (``domain/tariffs/publishers``): hourly in the windows
+    operators publish reserve prices (TAR-2: before the April years, the NC TAR window before
+    the July yearly auction, before the gas year and before the calendar year), every 6 hours
+    otherwise. The age is nine tenths of the interval, so a point read by the previous run of
+    an hourly job is read again by the next one rather than skipped for a few seconds' jitter.
+    ``_SOURCE_BOUNDS`` keeps the daily figure as the default a run without an anchor uses.
     """
 
     from eurogas_nexus.domain.tariffs.publishers import publisher
@@ -90,7 +92,7 @@ def _tariff_max_age_hours(scheduled_for: object) -> str:
         anchor = datetime.now(UTC)
     poll = publisher("entsog-tp").poll
     minutes = poll.interval_minutes(anchor) if poll else 1440
-    return str(max(1, minutes // 60))
+    return f"{max(minutes, 1) * 0.9 / 60:g}"
 
 
 # Sources with their own ingest script; each prints the same JSON report with --json.

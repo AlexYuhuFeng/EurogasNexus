@@ -58,8 +58,6 @@ from eurogas_nexus.domain.tariffs.model import (
     BASIS_AWAITING_REVIEW,
     BASIS_FIGURES_DISAGREE,
     BASIS_OPERATOR_STATED,
-    BASIS_PERIOD_NOT_STARTED,
-    BASIS_PERIOD_STARTED,
     BASIS_REVIEWED,
     FINAL,
     INDICATIVE,
@@ -68,12 +66,21 @@ from eurogas_nexus.domain.tariffs.model import (
     TariffError,
     TariffSpec,
     decide_version,
+    status_as_of,
     status_change_label,
 )
 from eurogas_nexus.domain.tariffs.publishers import (
     PUBLISHERS,
     lng_publisher_for,
     publisher,
+)
+from eurogas_nexus.domain.tariffs.tariff_year import (
+    BASIS_AUCTION_HELD,
+    BASIS_BEFORE_AUCTION,
+    PER_ROW,
+    RULE_TEXT,
+    parse_tariff_year,
+    tariff_year_for,
 )
 
 ENTSOG_API = "https://transparency.entsog.eu/api/v1/tariffsfulls"
@@ -135,7 +142,23 @@ def _entsog_basis(row: Any) -> str:
     remarks = " ".join(ref for ref in refs if ref.startswith("remarks:")).lower()
     if any(word in remarks for word in ("indicative", "provisional", "preliminary", "final")):
         return BASIS_OPERATOR_STATED
-    return BASIS_PERIOD_NOT_STARTED if row.tariff_status == INDICATIVE else BASIS_PERIOD_STARTED
+    # No marker on the row: the ingestion applied NC TAR Art. 29's rule as of the read
+    # (``tariff_year.nc_tar_status``); the basis names it, and reads re-evaluate it as of T.
+    return BASIS_AUCTION_HELD if row.tariff_status == FINAL else BASIS_BEFORE_AUCTION
+
+
+def register_tariff_year(row: Any, publisher_id: str) -> str:
+    """The tariff year of a ``tso_tariffs`` row: ENTSOG's own tariff period (the gas-year
+    column), else the publisher's convention for the row's first day."""
+
+    if publisher_id == "entsog-tp":
+        parsed = parse_tariff_year(str(row.gas_year or ""))
+        if parsed is not None:
+            return parsed.label
+    start = _day(row.effective_from)
+    item = publisher(publisher_id)
+    convention = item.tariff_year if item is not None else PER_ROW
+    return tariff_year_for(start, _day(row.effective_to), convention).label if start else ""
 
 
 def register_publisher(tariff_id: str) -> str:
@@ -209,6 +232,7 @@ def spec_from_register_row(row: Any) -> TariffSpec | str:
             retrieved_at_utc=_aware(row.created_at_utc),
             source_url=url[:500],
             source_ref=f"{row.document_id}:{tariff_id}"[:256],
+            tariff_year=register_tariff_year(row, publisher_id),
         )
     except (TariffError, TypeError, ValueError):
         return "not_a_tariff"
@@ -232,6 +256,9 @@ def spec_from_lng_row(row: Any) -> TariffSpec | str:
     if publisher_id is None:
         return "terminal_not_in_registry"
     reviewed = row.review_status == "REVIEWED"
+    start = row.valid_from or _day(row.retrieved_at_utc)
+    item = publisher(publisher_id)
+    convention = item.tariff_year if item is not None else PER_ROW
     try:
         return TariffSpec(
             tariff_key=lng_identity(row, publisher_id),
@@ -247,8 +274,9 @@ def spec_from_lng_row(row: Any) -> TariffSpec | str:
             by_class={str(k): float(v) for k, v in (row.by_cargo_class or {}).items()},
             unit=str(row.unit),
             currency=str(row.currency),
-            period_from=row.valid_from or _day(row.retrieved_at_utc),
+            period_from=start,
             period_to=row.valid_to,
+            tariff_year=tariff_year_for(start, row.valid_to, convention).label,
             status=FINAL if reviewed else INDICATIVE,
             status_basis=BASIS_REVIEWED if reviewed else BASIS_AWAITING_REVIEW,
             retrieved_at_utc=_aware(row.retrieved_at_utc),
@@ -383,6 +411,12 @@ def _payload(record: Any, previous_status: str | None) -> dict[str, Any]:
         "period_to": _iso(record.period_to),
         "source_url": record.source_url,
         "content_hash": record.content_hash,
+        "tariff_year": year_of_record(record).label,
+        "published_at_utc": _iso(record.published_at_utc),
+        "recorded_at_utc": _iso(record.recorded_at_utc),
+        # TAR-2: a newly final tariff year is what a desk waits for; it is flagged so.
+        "new_final": record.status == FINAL
+        and record.change_kind in {ChangeKind.FIRST.value, ChangeKind.STATUS_CHANGE.value},
     }
 
 
@@ -410,8 +444,11 @@ def tariff_event(record: Any, previous_status: str | None, keys: Sequence[str]):
         published_at_utc=_aware(record.published_at_utc),
         payload=_payload(record, previous_status),
         dependency_keys=tuple(keys) or (f"tariff-version:{record.tariff_key}"[:160],),
-        # A status change to final is what a desk waits for: ahead of other tariff revisions.
-        priority=1 if record.status_change == "INDICATIVE->FINAL" else None,
+        # A newly final tariff year is what a desk waits for: ahead of other tariff revisions.
+        priority=1
+        if record.status_change == "INDICATIVE->FINAL"
+        or (record.status == FINAL and record.change_kind == ChangeKind.FIRST.value)
+        else None,
         correlation_id=record.version_id,
     )
 
@@ -477,6 +514,7 @@ def _new_record(spec: TariffSpec, *, version: int, kind: ChangeKind, previous: s
         content_hash=spec.content_hash,
         recorded_at_utc=now,
         superseded_at_utc=None,
+        tariff_year=spec.tariff_year or None,
     )
 
 
@@ -724,7 +762,23 @@ def version_row(record: Any) -> dict[str, Any]:
         "content_hash": record.content_hash,
         "event_id": record.event_id,
         "withdrawn": record.change_kind == ChangeKind.WITHDRAWN.value,
+        "tariff_year": year_of_record(record).label,
+        "status_rule": RULE_TEXT.get(record.status_basis),
+        "new": _is_new(record),
+        "published_at_stated": record.published_at_utc is not None,
     }
+
+
+def _is_new(record: Any, now: datetime | None = None) -> bool:
+    """Recorded within :data:`NEW_FOR` and a first, revised or newly final figure."""
+
+    recorded = _aware(record.recorded_at_utc)
+    moment = _aware(now) or datetime.now(UTC)
+    return (
+        recorded is not None
+        and moment - recorded <= NEW_FOR
+        and record.change_kind != ChangeKind.WITHDRAWN.value
+    )
 
 
 def version_at(session, tariff_key: str, at: datetime | None = None):
@@ -746,6 +800,181 @@ def version_at(session, tariff_key: str, at: datetime | None = None):
     if row is None or row.change_kind == ChangeKind.WITHDRAWN.value:
         return None
     return row
+
+
+# ------------------------------------------------------------- point in time (TAR-2)
+
+#: A version recorded within this long is flagged ``new`` in reads (the desk's "just published").
+NEW_FOR = timedelta(days=7)
+
+
+def year_of_record(record: Any) -> Any:
+    """The tariff year of a version: its stored label, else worked out from its period with
+    its publisher's convention (versions recorded before TAR-2)."""
+
+    parsed = parse_tariff_year(getattr(record, "tariff_year", None) or "")
+    if parsed is not None:
+        return parsed
+    item = publisher(record.publisher_id)
+    convention = item.tariff_year if item is not None else PER_ROW
+    return tariff_year_for(_day(record.period_from), _day(record.period_to), convention)
+
+
+def effective_status(record: Any, as_of: datetime | None = None) -> tuple[str, str]:
+    """A version's ``(status, basis)`` as of ``as_of`` (now when ``None``): NC TAR's rule
+    re-evaluated for a row that carries no marker, else what was stated."""
+
+    moment = _aware(as_of) or datetime.now(UTC)
+    year = year_of_record(record)
+    return status_as_of(record.status, record.status_basis, year.first, moment.date())
+
+
+def _version_fields(record: Any, as_of: datetime | None) -> dict[str, Any]:
+    status, basis = effective_status(record, as_of)
+    return {
+        "version_id": record.version_id,
+        "version": record.version,
+        "tariff_year": year_of_record(record).label,
+        "status_basis": basis,
+        "published_at_utc": _aware(record.published_at_utc),
+        "recorded_at_utc": _aware(record.recorded_at_utc),
+        "tariff_status": status,
+    }
+
+
+def annotate_register_rows(session, rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Register rows (route pricing's input) with their current version and, for a status a
+    rule decides, the status as of now. Simulated rows are not versioned and stay as they are.
+    """
+
+    keys = {
+        f"{register_publisher(str(row['tariff_id']))}:{row['tariff_id']}": row
+        for row in rows
+        if str(row.get("tariff_status") or "").upper() != "SIMULATOR_ONLY"
+    }
+    if not keys:
+        return rows
+    for key, record in _current(session, keys).items():
+        if record.change_kind == ChangeKind.WITHDRAWN.value:
+            continue
+        keys[key].update(_version_fields(record, None))
+    return rows
+
+
+def tariff_versions_as_rows(
+    session, *, product: str, firmness: str, as_of: datetime
+) -> list[dict[str, Any]]:
+    """The point tariffs the book held at ``as_of``, shaped as register rows, so route pricing
+    prices a past instant with what was known then (never a version recorded later)."""
+
+    from sqlalchemy import or_
+
+    from eurogas_nexus.db.models import TariffVersionRecord as V
+
+    moment = _aware(as_of)
+    query = (
+        session.query(V)
+        .filter(V.publisher_id.in_(REGISTER_PUBLISHERS))
+        .filter(V.facility_kind == "point")
+        .filter(V.product == product.upper())
+        .filter(or_(V.firmness.is_(None), V.firmness == firmness.upper()))
+        .filter(V.recorded_at_utc <= moment)
+        .filter(or_(V.superseded_at_utc.is_(None), V.superseded_at_utc > moment))
+        .filter(V.change_kind != ChangeKind.WITHDRAWN.value)
+    )
+    out = []
+    for record in query.all():
+        fields_ = _version_fields(record, moment)
+        out.append(
+            {
+                "tariff_id": record.tariff_key.split(":", 1)[1],
+                "tso": record.operator,
+                "point_id": record.facility_id,
+                "direction": record.direction,
+                "gas_year": fields_["tariff_year"],
+                "tariff_value": record.value,
+                "currency": record.currency,
+                "unit": record.unit,
+                "effective_from": datetime.combine(record.period_from, datetime.min.time(),
+                                                   tzinfo=UTC),
+                "effective_to": None
+                if record.period_to is None
+                else datetime.combine(record.period_to, datetime.min.time(), tzinfo=UTC),
+                "source_table": f"tariff book v{record.version} ({record.publisher_id})",
+                "capacity_product": record.product,
+                "firmness": record.firmness,
+                **fields_,
+            }
+        )
+    return out
+
+
+def tariff_years(
+    session,
+    *,
+    facility_id: str,
+    direction: str | None = None,
+    product: str | None = None,
+    operator: str | None = None,
+    as_of: datetime | None = None,
+    allowed_publishers: Iterable[str] | None = None,
+) -> dict[str, Any]:
+    """The tariff book of one facility by tariff year: per year and product, the indicative
+    and the final version side by side (each with its value, publication date, record time
+    and source), and which one a decision as of ``as_of`` uses (final once one is held, else
+    indicative). Versions recorded after ``as_of`` are left out."""
+
+    from eurogas_nexus.db.models import TariffVersionRecord as V
+
+    moment = _aware(as_of)
+    query = session.query(V).filter(V.facility_id == facility_id)
+    if direction:
+        query = query.filter(V.direction == direction.upper())
+    if product:
+        query = query.filter(V.product == product.upper())
+    if operator:
+        query = query.filter(V.operator == operator)
+    if allowed_publishers is not None:
+        query = query.filter(V.publisher_id.in_(sorted(set(allowed_publishers))))
+    if moment is not None:
+        query = query.filter(V.recorded_at_utc <= moment)
+    groups: dict[tuple, dict[str, Any]] = {}
+    for record in query.order_by(V.recorded_at_utc, V.version).all():
+        if record.change_kind == ChangeKind.WITHDRAWN.value:
+            continue
+        year = year_of_record(record)
+        status, basis = effective_status(record, moment)
+        group_key = (
+            year.label, record.direction or "", record.product, record.firmness or "",
+            record.operator, record.period_from.isoformat(),
+        )
+        group = groups.setdefault(
+            group_key,
+            {
+                "tariff_year": year.as_dict(),
+                "direction": record.direction,
+                "product": record.product,
+                "firmness": record.firmness,
+                "operator": record.operator,
+                "period_from": _iso(record.period_from),
+                "period_to": _iso(record.period_to),
+                INDICATIVE: None,
+                FINAL: None,
+                "versions": 0,
+            },
+        )
+        group["versions"] += 1
+        row = version_row(record) | {"status": status, "status_basis": basis}
+        # The newest version of each status held by the instant asked for.
+        group[status] = row
+    rows = []
+    for key in sorted(groups):
+        group = groups[key]
+        used = group[FINAL] or group[INDICATIVE]
+        group["used"] = None if used is None else used["status"]
+        group["used_version_id"] = None if used is None else used["version_id"]
+        rows.append(group)
+    return {"facility_id": facility_id, "as_of": _iso(moment), "years": rows}
 
 
 @dataclass(frozen=True)
@@ -1322,6 +1551,78 @@ def list_notices(
 # ------------------------------------------------------------------------- monitoring
 
 
+#: A final recorded within this long raises the "new final tariff" alert (TAR-2).
+NEW_FINAL_ALERT_FOR = timedelta(days=3)
+
+
+def new_final_candidates(session, now: datetime) -> list:
+    """TAR-2: one prominent alert per facility and tariff year whose FINAL version was
+    recorded lately (a first final, or indicative turned final); its valuations are marked
+    for re-evaluation through the ``tariff.changed`` event's dependency keys."""
+
+    from sqlalchemy import or_
+
+    from eurogas_nexus.db.models import TariffVersionRecord as V
+    from eurogas_nexus.domain.monitoring import MonitoringCandidate
+
+    now = _aware(now)
+    rows = (
+        session.query(V)
+        .filter(V.recorded_at_utc >= now - NEW_FINAL_ALERT_FOR)
+        .filter(V.recorded_at_utc <= now)
+        .filter(V.status == FINAL)
+        .filter(
+            or_(
+                V.status_change == "INDICATIVE->FINAL",
+                V.change_kind == ChangeKind.FIRST.value,
+            )
+        )
+        .order_by(V.recorded_at_utc)
+        .all()
+    )
+    groups: dict[tuple[str, str, str], list[Any]] = {}
+    for record in rows:
+        year = year_of_record(record).label
+        groups.setdefault((record.publisher_id, record.facility_id, year), []).append(record)
+    out = []
+    for (publisher_id, facility_id, year), records in sorted(groups.items()):
+        first = records[0]
+        published = _iso(first.published_at_utc) or "not stated"
+        out.append(
+            MonitoringCandidate(
+                fingerprint=f"tariff_final_published:{publisher_id}:{facility_id}:{year}"[:200],
+                category="data_source",
+                alert_type="tariff_final_published",
+                severity="warning",
+                title_en=f"Final tariff published: {first.facility_name} {year}",
+                title_zh_cn=f"最终费率已发布：{first.facility_name} {year}",
+                message_en=(
+                    f"{len(records)} FINAL tariff(s) for {first.facility_name} ({first.operator}), "
+                    f"tariff year {year}, recorded {_iso(first.recorded_at_utc)} (published "
+                    f"{published}). Valuations that used the indicative version are marked for "
+                    "re-evaluation."
+                ),
+                message_zh_cn=(
+                    f"{first.facility_name}（{first.operator}）费率年度 {year} 的 {len(records)} 项"
+                    f"最终费率已于 {_iso(first.recorded_at_utc)} 记录（发布于 {published}）。"
+                    "使用指示性版本的估值已标记为需重新评估。"
+                ),
+                entity_type="tariff_facility",
+                entity_id=facility_id[:128],
+                event_time_utc=_aware(first.recorded_at_utc),
+                evidence_snapshot={
+                    "publisher_id": publisher_id,
+                    "facility_id": facility_id,
+                    "tariff_year": year,
+                    "version_ids": [item.version_id for item in records][:20],
+                    "published_at_utc": published,
+                },
+                source_refs=[f"tariff_version:{item.version_id}" for item in records][:20],
+            )
+        )
+    return out
+
+
 def monitoring_candidates(session, now: datetime) -> list:
     """Stale publishers, missed NC TAR publications and windows opening soon (M6, M7)."""
 
@@ -1389,6 +1690,7 @@ def monitoring_candidates(session, now: datetime) -> list:
                     source_refs=[f"tariff_publisher:{row['publisher_id']}"],
                 )
             )
+    out.extend(new_final_candidates(session, now))
     from eurogas_nexus.db.models import CapacityNoticeRecord as N
 
     soon = (
@@ -1472,4 +1774,9 @@ __all__ = [
     "tariff_event",
     "version_at",
     "version_row",
+    "annotate_register_rows",
+    "effective_status",
+    "tariff_versions_as_rows",
+    "tariff_years",
+    "year_of_record",
 ]

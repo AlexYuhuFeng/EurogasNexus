@@ -55,7 +55,7 @@ def spec(**changes) -> TariffSpec:
         "period_from": date(2026, 10, 1),
         "period_to": date(2027, 9, 30),
         "status": INDICATIVE,
-        "status_basis": "period_not_started",
+        "status_basis": "nc_tar_before_yearly_auction",
         "retrieved_at_utc": READ,
         "source_url": "https://transparency.entsog.eu/api/v1/tariffsfulls?pointKey=ITP-1",
     }
@@ -72,7 +72,8 @@ def test_the_content_hash_ignores_when_it_was_read_and_follows_what_it_says():
         first.content_hash == spec(retrieved_at_utc=datetime(2026, 12, 1, tzinfo=UTC)).content_hash
     )
     assert first.content_hash != spec(value=4.1).content_hash
-    assert first.content_hash != spec(status=FINAL, status_basis="period_started").content_hash
+    final = spec(status=FINAL, status_basis="nc_tar_yearly_auction_held")
+    assert first.content_hash != final.content_hash
     assert first.duration == "yearly"
 
 
@@ -105,7 +106,7 @@ def test_version_decisions_first_unchanged_revised_status_change_out_of_order():
     held = HeldVersion(1, item.content_hash, INDICATIVE, READ)
     assert decide_version(item, held).writes is False
     assert decide_version(spec(value=4.2), held).kind is ChangeKind.REVISED
-    final = decide_version(spec(status=FINAL, status_basis="period_started"), held)
+    final = decide_version(spec(status=FINAL, status_basis="nc_tar_yearly_auction_held"), held)
     assert (final.kind, final.version, final.previous_status) == (
         ChangeKind.STATUS_CHANGE,
         2,
@@ -194,11 +195,13 @@ def test_the_registry_is_consistent_and_fabricates_nothing():
     assert lng_publisher_for("unknown-terminal") is None
 
 
-def test_entsog_is_polled_hourly_in_publication_weeks_and_daily_otherwise():
+def test_entsog_is_polled_hourly_in_publication_windows_and_six_hourly_otherwise():
+    # TAR-2: tighter around the windows a new indicative or final appears in.
     poll = publisher("entsog-tp").poll
     assert poll.interval_minutes(date(2026, 6, 2)) == 60  # before the July yearly auction
     assert poll.interval_minutes(date(2026, 12, 20)) == 60
-    assert poll.interval_minutes(date(2026, 8, 20)) == 1440
+    assert poll.interval_minutes(date(2026, 3, 20)) == 60  # before the April tariff years
+    assert poll.interval_minutes(date(2026, 8, 20)) == 360
     assert all(start <= end for start, end in PUBLICATION_SEASONS)
 
 
