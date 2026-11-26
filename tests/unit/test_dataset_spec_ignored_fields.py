@@ -8,9 +8,10 @@
 from __future__ import annotations
 
 import pytest
+from pydantic import ValidationError
+
 from eurogas_nexus.api.routes.public.research_data import _dataset_spec_error
 from eurogas_nexus.domain.research.datasets import DatasetSpec
-from pydantic import ValidationError
 
 
 def _payload(**overrides) -> dict:

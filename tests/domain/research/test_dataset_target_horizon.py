@@ -10,6 +10,7 @@ from __future__ import annotations
 from datetime import UTC, datetime, timedelta
 
 import pytest
+
 from eurogas_nexus.domain.research.datasets import (
     DatasetEvidenceRecord,
     DatasetPointInTimePolicy,
