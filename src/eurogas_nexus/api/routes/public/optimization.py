@@ -291,8 +291,11 @@ class StorageDispatchOptimizationRequest(BaseModel):
     """
 
     facility: StorageFacilityRequest | None = None
-    periods: list[StoragePeriodRequest] = Field(default_factory=list)
-    inventory_step_mwh: float = Field(default=1.0, gt=0)
+    #: At most ``optimization.storage.MAX_STORAGE_PERIODS`` (the dispatch refuses more).
+    periods: list[StoragePeriodRequest] = Field(default_factory=list, max_length=400)
+    #: ``None``: the facility's working range over 200 levels (a 1 MWh default made a real
+    #: facility's grid millions of levels); a finer grid than 1,000 levels is refused.
+    inventory_step_mwh: float | None = Field(default=None, gt=0)
     facility_id: str | None = Field(default=None, max_length=128)
     gas_day: date | None = None
     max_periods: int = Field(default=5, ge=1, le=24)
