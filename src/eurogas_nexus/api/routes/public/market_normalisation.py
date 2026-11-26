@@ -27,6 +27,7 @@ from eurogas_nexus.application.market_normalisation import (
     normalise_value,
     points_from_closes,
 )
+from eurogas_nexus.application.warm_views import ViewSpec, warm_view
 from eurogas_nexus.domain.market.fx_forward import (
     Delivery,
     FxForwardError,
@@ -267,6 +268,7 @@ def normalise(body: NormaliseInput, request: Request) -> dict:
 
 
 @router.get("/api/market/instruments")
+@warm_view(ViewSpec("market.instruments", max_age_seconds=300))
 def list_instruments(request: Request) -> dict:
     """The caller's entitled daily price series as hub → product kind → tenor.
 

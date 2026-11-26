@@ -40,6 +40,7 @@ from eurogas_nexus.api.routes.public.portfolio_common import (
 from eurogas_nexus.api.routes.public.portfolio_common import (
     sqlalchemy_error_type as _sqlalchemy_error_type,
 )
+from eurogas_nexus.application.warm_views import ViewSpec, not_json, warm_view
 from eurogas_nexus.domain.market_positioning import (
     summarize_portfolio,
 )
@@ -160,6 +161,7 @@ def get_live_summary(
 
 
 @router.get("/api/portfolio/position-ladder")
+@warm_view(ViewSpec("portfolio.position_ladder", max_age_seconds=60), skip=not_json)
 def get_position_ladder(
     request: Request,
     months: int = Query(12, ge=1, le=36),
@@ -567,6 +569,7 @@ def put_book(book_id: str, body: BookRequest, request: Request) -> dict:
 
 
 @router.get("/api/portfolio/map-situation")
+@warm_view(ViewSpec("portfolio.map_situation", max_age_seconds=60))
 def map_situation(
     request: Request,
     outage_horizon_days: int = Query(14, ge=1, le=90),

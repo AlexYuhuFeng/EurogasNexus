@@ -22,6 +22,7 @@ from eurogas_nexus.api.routes.public.portfolio_common import identity_id as _ide
 from eurogas_nexus.api.routes.public.portfolio_common import (
     sqlalchemy_error_type as _sqlalchemy_error_type,
 )
+from eurogas_nexus.application.warm_views import ViewSpec, not_json, warm_view
 from eurogas_nexus.domain.ontology.markets import quote_currency
 
 router = APIRouter(tags=["portfolio"])
@@ -65,6 +66,7 @@ def _download(rows: list[dict], *, report: str, title: str, format: str, warning
 
 
 @router.get("/api/portfolio/credit-exposure")
+@warm_view(ViewSpec("portfolio.credit_exposure", max_age_seconds=60), skip=not_json)
 def get_credit_exposure(request: Request, format: str = Query("json", pattern=_FORMAT)):
     """Exposure to each counterparty with an approved credit line, against its limit.
 
@@ -83,6 +85,7 @@ def get_credit_exposure(request: Request, format: str = Query("json", pattern=_F
 
 
 @router.get("/api/portfolio/mandate-usage")
+@warm_view(ViewSpec("portfolio.mandate_usage", max_age_seconds=60), skip=not_json)
 def get_mandate_usage(request: Request, format: str = Query("json", pattern=_FORMAT)):
     """Each trader's open positions against their mandate: size, hubs, tenor and products.
 
@@ -477,6 +480,7 @@ class HedgeApprovalRequest(BaseModel):
 
 
 @router.get("/api/portfolio/hedge-approvals")
+@warm_view(ViewSpec("portfolio.hedge_approvals", max_age_seconds=60))
 def get_hedge_approvals(request: Request) -> dict:
     """Each approved deal's hedge band against the cover its linked trades give, by month.
 
@@ -847,6 +851,7 @@ def post_lng_cargo_bid(body: CargoBidBody, request: Request) -> dict:
 
 
 @router.get("/api/portfolio/daily-balance")
+@warm_view(ViewSpec("portfolio.daily_balance", max_age_seconds=60), skip=not_json)
 def get_daily_balance(
     request: Request,
     hub: str = Query("NBP", min_length=2, max_length=16),
