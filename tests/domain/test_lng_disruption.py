@@ -283,6 +283,14 @@ def test_swap_that_breaks_the_spanish_obligation_is_an_option_flagged_as_a_breac
         "Huelva to accept ZEE-1 in place of the ship nominated for the slot",
         "Zeebrugge to accept HUE-1 in place of the ship nominated for the slot",
     ]
+    # The same requests as data, for a client to word in its own language.
+    assert [
+        (r["kind"], r["terminal"], r["with"], r["party"], r["text"])
+        for r in option.approval_requests
+    ] == [
+        ("ship_substitution", "Huelva", "ZEE-1", None, option.approvals[0]),
+        ("ship_substitution", "Zeebrugge", "HUE-1", None, option.approvals[1]),
+    ]
     (breach,) = option.breaches
     assert breach["kind"] == "short_delivery"
     assert breach["text"].startswith(
@@ -819,6 +827,15 @@ def test_a_swap_with_an_own_cargo_carries_its_cost_and_needs_terminal_approval()
     assert swap.approvals == [
         "Zeebrugge to accept the change of berth order between ZEE-1 and ZEE-2"
     ]
+    assert swap.approval_requests == [
+        {
+            "kind": "berth_order",
+            "terminal": "Zeebrugge",
+            "with": "ZEE-2",
+            "party": None,
+            "text": swap.approvals[0],
+        }
+    ]
     assert swap.quotes == []
     landed = swap.base.landings
     assert (landed["A"].berth, landed["A"].priority) == (jan(28), "swap")
@@ -855,6 +872,15 @@ def test_a_swap_with_another_companys_slot_carries_a_quote_and_no_demurrage_line
     swap = options["A:stay/counterparty_swap:zb-1+absorb"]
     assert swap.kind == "counterparty_swap" and swap.feasible
     assert swap.flags["counterparty_quote_pending"] and swap.flags["needs_terminal_approval"]
+    ((request_kind, terminal, with_label, party),) = [
+        (r["kind"], r["terminal"], r["with"], r["party"]) for r in swap.approval_requests
+    ]
+    assert (request_kind, terminal, with_label, party) == (
+        "berth_order",
+        "Zeebrugge",
+        "Other Shipper's carrier",
+        OTHER_SHIPPER,
+    )
     (quote,) = swap.quotes
     assert (quote["status"], quote["amount_eur"], quote["counterparty"]) == (
         "pending",

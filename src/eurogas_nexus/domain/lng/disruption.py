@@ -1193,6 +1193,11 @@ class Option:
     #: What the option needs the terminal operator to approve (a change of berth order or of
     #: the ship in a slot), each in a sentence.
     approvals: list[str] = field(default_factory=list)
+    #: The same approvals as data, one per sentence of ``approvals``, so a client words them in
+    #: its own language: ``kind`` (``berth_order``: a change of berth turn; ``ship_substitution``:
+    #: another ship of the book in the slot), ``terminal``, ``with`` (the other cargo's or
+    #: call's label) and ``party`` (the other company, ``None`` for a cargo of the book).
+    approval_requests: list[dict[str, Any]] = field(default_factory=list)
     feasible: bool = True
     reasons: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
@@ -1347,6 +1352,7 @@ def generate(portfolio: Portfolio, market: Market, terms: DeskTerms) -> list[Opt
         notes: list[str] = []
         quotes: list[dict[str, Any]] = []
         approvals: list[str] = []
+        requests: dict[str, dict[str, Any]] = {}
         keys, titles, kinds = [], [], []
         clash = False
         for key, kind, title, placed, released, swapped, note, extra in combo:
@@ -1359,6 +1365,8 @@ def generate(portfolio: Portfolio, market: Market, terms: DeskTerms) -> list[Opt
             notes.extend(note)
             quotes.extend(extra.get("quotes", ()))
             approvals.extend(extra.get("approvals", ()))
+            for request in extra.get("approval_requests", ()):
+                requests.setdefault(request["text"], dict(request))
             keys.append(key)
             titles.append(title)
             kinds.append(kind)
@@ -1385,6 +1393,7 @@ def generate(portfolio: Portfolio, market: Market, terms: DeskTerms) -> list[Opt
                 notes=notes,
                 quotes=[dict(q) for q in quotes],
                 approvals=list(dict.fromkeys(approvals)),
+                approval_requests=list(requests.values()),
             )
         )
     return options
@@ -1449,6 +1458,8 @@ def _supply_options(portfolio: Portfolio, supply: Supply, market: Market):
     positions: list[dict[str, Any]] = []
 
     def position(key, words, slot, released=(), swaps=(), note=(), approvals=()):
+        """``approvals``: the requests to the terminals, each a dict with its ``text``."""
+
         positions.append(
             {
                 "key": key,
@@ -1457,7 +1468,8 @@ def _supply_options(portfolio: Portfolio, supply: Supply, market: Market):
                 "released": tuple(released),
                 "swaps": tuple(swaps),
                 "note": list(note),
-                "approvals": list(approvals),
+                "approvals": [request["text"] for request in approvals],
+                "approval_requests": [dict(request) for request in approvals],
             }
         )
 
@@ -1510,7 +1522,14 @@ def _supply_options(portfolio: Portfolio, supply: Supply, market: Market):
         if (theirs_here - own.start).days >= own.days:
             continue
         needs = [
-            f"{rule.terminal} to accept {name} in place of the ship nominated for the slot"
+            {
+                "kind": "ship_substitution",
+                "terminal": rule.terminal,
+                "with": name,
+                "party": None,
+                "text": f"{rule.terminal} to accept {name} in place of the ship nominated for "
+                "the slot",
+            }
             for rule, name in (
                 (portfolio.berth_rule(theirs.terminal), supply.label),
                 (portfolio.berth_rule(own.terminal), other.label),
@@ -1547,14 +1566,20 @@ def _supply_options(portfolio: Portfolio, supply: Supply, market: Market):
                 call = portfolio.call(holder[len(CALL_PREFIX) :])
                 assert call is not None
                 quote = _quote(call)
-                needs = (
+                requests = (
                     [
-                        f"{slot.terminal} to accept the change of berth order with "
-                        f"{call.label} ({call.party})"
+                        _berth_order_request(
+                            slot.terminal,
+                            call.label,
+                            call.party,
+                            f"{slot.terminal} to accept the change of berth order with "
+                            f"{call.label} ({call.party})",
+                        )
                     ]
                     if rule.swap_needs_terminal_approval
                     else []
                 )
+                needs = [request["text"] for request in requests]
                 positions.append(
                     {
                         "key": f"{item['key']}/counterparty_swap:{call.call_id}",
@@ -1567,20 +1592,27 @@ def _supply_options(portfolio: Portfolio, supply: Supply, market: Market):
                         "swaps": (),
                         "note": [*item["note"][:-1], quote["text"]],
                         "approvals": needs,
+                        "approval_requests": requests,
                         "berth_swap": holder,
                         "quotes": [quote],
                     }
                 )
             else:
                 other = portfolio.supply(holder)
-                needs = (
+                requests = (
                     [
-                        f"{slot.terminal} to accept the change of berth order between "
-                        f"{supply.label} and {other.label}"
+                        _berth_order_request(
+                            slot.terminal,
+                            other.label,
+                            None,
+                            f"{slot.terminal} to accept the change of berth order between "
+                            f"{supply.label} and {other.label}",
+                        )
                     ]
                     if rule.swap_needs_terminal_approval
                     else []
                 )
+                needs = [request["text"] for request in requests]
                 positions.append(
                     {
                         "key": f"{item['key']}/berth_swap:{other.supply_id}",
@@ -1592,6 +1624,7 @@ def _supply_options(portfolio: Portfolio, supply: Supply, market: Market):
                         "swaps": (),
                         "note": list(item["note"][:-1]),
                         "approvals": needs,
+                        "approval_requests": requests,
                         "berth_swap": holder,
                         "quotes": [],
                     }
@@ -1626,10 +1659,28 @@ def _supply_options(portfolio: Portfolio, supply: Supply, market: Market):
                     item["released"],
                     swaps,
                     list(item["note"]),
-                    {"quotes": item.get("quotes", []), "approvals": item["approvals"]},
+                    {
+                        "quotes": item.get("quotes", []),
+                        "approvals": item["approvals"],
+                        "approval_requests": item.get("approval_requests", []),
+                    },
                 )
             )
     return out
+
+
+def _berth_order_request(
+    terminal: str, with_label: str, party: str | None, text: str
+) -> dict[str, Any]:
+    """A change of berth order the terminal has to accept, as data and in a sentence."""
+
+    return {
+        "kind": "berth_order",
+        "terminal": terminal,
+        "with": with_label,
+        "party": party,
+        "text": text,
+    }
 
 
 def _quote(call: BerthCall) -> dict[str, Any]:
@@ -3256,6 +3307,7 @@ def cover_options(portfolio: Portfolio, market: Market, options: list[Option]) -
                     notes=list(option.notes),
                     quotes=[dict(q) for q in option.quotes],
                     approvals=list(option.approvals),
+                    approval_requests=[dict(r) for r in option.approval_requests],
                 )
             )
     return out[:MAX_COMBINATIONS]
@@ -3393,6 +3445,7 @@ def option_dict(portfolio: Portfolio, option: Option, *, detail: bool = False) -
         # their berth turn, and their ships it berths later, stated and never in the P&L.
         "quotes": [dict(q) for q in option.quotes],
         "approvals": list(option.approvals),
+        "approval_requests": [dict(r) for r in option.approval_requests],
         "counterparty_effects": [] if base is None else [dict(item) for item in base.counterparty],
         "obligations": list(option.obligations),
         "scenarios": [

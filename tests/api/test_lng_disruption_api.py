@@ -168,6 +168,7 @@ def test_a_late_cargo_gets_valued_options_a_frontier_and_a_default(tmp_path, mon
         "counterparty_quote_pending": False,
     }
     assert iberia["approvals"] and iberia["quotes"] == []
+    assert [r["text"] for r in iberia["approval_requests"]] == iberia["approvals"]
     (breach,) = iberia["breaches"]
     assert breach["counterparty"] == "Iberia offtaker" and not breach["penalty_held"]
     assert "breaks the firm delivery to Iberia offtaker" in breach["text"]
