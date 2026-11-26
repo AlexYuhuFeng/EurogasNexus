@@ -484,7 +484,8 @@ def test_simulated_demo_tariffs_step_aside_for_published_ones():
             TsoTariffRecord.document_id == seed.SIMULATED_TARIFF_DOCUMENT
         )
         assert {row.tariff_status for row in simulated} == {"SIMULATOR_ONLY"}
-        # The three BBL legs plus one crossing of every main hub pair (the demo market's routes).
+        # The three BBL legs plus one crossing of every main hub pair (the demo market's
+        # routes), each in yearly, monthly and daily form.
         before = simulated.count()
         assert before >= 3
         rows, _ = entsog_tariff_rows(
@@ -496,10 +497,44 @@ def test_simulated_demo_tariffs_step_aside_for_published_ones():
         session.add_all(TsoTariffRecord(**row) for row in rows)
         session.flush()
         assert seed.retire_simulated_tariffs(session) == 1
-        # Only the leg the published row replaces steps aside; the other BBL legs stay.
+        # A published yearly tariff retires only the simulated yearly row at that point.
         assert simulated.count() == before - 1
-        left = {(row.tso, row.direction) for row in simulated}
-        assert {("GTS", "EXIT"), ("National Gas TSO", "ENTRY")} <= left
+        left = {(row.tso, row.direction, row.capacity_product) for row in simulated}
+        assert ("BBL company", "EXIT", "ANNUAL") not in left
+        # The same leg's monthly and daily rows stay, still labelled simulated (a prompt
+        # spread keeps a labelled marginal price; they are never presented as published).
+        assert {
+            ("BBL company", "EXIT", "MONTHLY"),
+            ("BBL company", "EXIT", "DAILY"),
+        } <= left
+        assert {row.tariff_status for row in simulated} == {"SIMULATOR_ONLY"}
+        # The other BBL legs are untouched.
+        assert {
+            ("GTS", "EXIT", "ANNUAL"),
+            ("National Gas TSO", "ENTRY", "ANNUAL"),
+        } <= left
+        # Publishing the monthly and daily products retires each simulated row in turn.
+        short_term, _ = entsog_tariff_rows(
+            [
+                record(
+                    "ITP-00207", "UK-TSO-0004", "exit", 8.0, "2026-10-01", "2027-10-01",
+                    product="Monthly", days=30,
+                ),
+                record(
+                    "ITP-00207", "UK-TSO-0004", "exit", 8.0, "2026-10-01", "2027-10-01",
+                    product="Daily", days=1,
+                ),
+            ],
+            bundle=load_bundle(),
+            downloaded=DOWNLOADED,
+            received_at=RECEIVED,
+        )
+        session.add_all(TsoTariffRecord(**row) for row in short_term)
+        session.flush()
+        assert seed.retire_simulated_tariffs(session) == 2
+        left = {(row.tso, row.point_id, row.direction) for row in simulated}
+        assert ("BBL company", "ITP-00207", "EXIT") not in left
+        assert simulated.count() == before - 3
 
 
 def test_the_operator_status_where_entsog_carries_it_overrides_the_date_rule(bundle):

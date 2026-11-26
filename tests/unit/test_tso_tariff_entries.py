@@ -243,18 +243,27 @@ def test_a_reviewed_entry_retires_a_simulated_leg_and_a_candidate_does_not(sessi
     made = entries.record_entry(session, national_gas_exit(), actor="a", now_utc=NOW)
     assert simulated_tariffs.retire_simulated_tariffs(session) == 0
     entries.review_entry(session, made["entry_id"], reviewer="b", now_utc=NOW)
-    # The leg's yearly, monthly and daily simulated rows all go.
-    assert simulated_tariffs.retire_simulated_tariffs(session) == len(
-        simulated_tariffs.SIMULATED_PRODUCT_MULTIPLIERS
-    )
+    # The entry is the yearly product, so only the leg's simulated yearly row goes; the
+    # monthly and daily simulated rows stay labelled simulated until their own product is
+    # published (a prompt spread then still prices on them at the margin, marked simulated).
+    assert simulated_tariffs.retire_simulated_tariffs(session) == 1
     left = {
-        (row.tso, row.point_id, row.direction)
+        (row.tso, row.point_id, row.direction, row.capacity_product)
         for row in session.query(TsoTariffRecord).filter(
             TsoTariffRecord.document_id == simulated_tariffs.SIMULATED_TARIFF_DOCUMENT
         )
     }
-    assert ("National Gas TSO", "ITP-00005", "EXIT") not in left
-    assert len(left) == len(simulated_tariffs.SIMULATED_TARIFF_LEGS) - 1
+    assert ("National Gas TSO", "ITP-00005", "EXIT", "ANNUAL") not in left
+    # Its monthly and daily rows stay labelled simulated until those products are published.
+    assert {
+        ("National Gas TSO", "ITP-00005", "EXIT", "MONTHLY"),
+        ("National Gas TSO", "ITP-00005", "EXIT", "DAILY"),
+    } <= left
+    assert len(left) == (
+        len(simulated_tariffs.SIMULATED_TARIFF_LEGS)
+        * len(simulated_tariffs.SIMULATED_PRODUCT_MULTIPLIERS)
+        - 1
+    )
 
 
 def test_the_view_lists_the_legs_that_block_drawn_routes_first(session):

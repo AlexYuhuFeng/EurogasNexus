@@ -11,8 +11,12 @@ invented, not market data.
   wins a selection; the leg's class reads "simulated"), document ``demo-simulated-tariffs``,
   source "Simulated tariff: not a published tariff".
 - **Retired** (``retire_simulated_tariffs``) once a published ENTSOG row or a *reviewed*
-  public tariff (``application/tso_tariff_entries``) names the same operator, point and
-  direction. A candidate entry awaiting review does not retire one.
+  public tariff (``application/tso_tariff_entries``) names the same operator, point,
+  direction and capacity product. A published yearly tariff therefore retires only the
+  simulated yearly row: the simulated monthly and daily rows stay (still ``SIMULATOR_ONLY``,
+  never presented as published) so a prompt spread keeps a labelled marginal price until a
+  published short-term product replaces it. A candidate entry awaiting review does not
+  retire one.
 
 ``SIMULATED_TARIFF_LEGS`` is the single list: the demo seed writes it
 (``simulated_tariff_records``) and the demo market prices its hubs against the routes it gives
@@ -157,12 +161,25 @@ def _replaces(document_id: str) -> bool:
 
 
 def retire_simulated_tariffs(session) -> int:
-    """Delete simulated tariffs whose leg a published or reviewed row now names; idempotent."""
+    """Delete each simulated tariff whose leg *and product* a published or reviewed row names.
+
+    A published yearly tariff retires the simulated yearly row only; that leg's simulated
+    monthly and daily rows stay, labelled simulated, until their own product is published.
+    Idempotent.
+    """
 
     from eurogas_nexus.db.models import TsoTariffRecord
 
+    def key(row) -> tuple[str, str | None, str, str]:
+        return (
+            row.tso.strip().lower(),
+            row.point_id,
+            row.direction.upper(),
+            row.capacity_product.upper(),
+        )
+
     held = {
-        (row.tso.strip().lower(), row.point_id, row.direction.upper())
+        key(row)
         for row in session.query(TsoTariffRecord).filter(
             TsoTariffRecord.document_id != SIMULATED_TARIFF_DOCUMENT
         )
@@ -172,7 +189,7 @@ def retire_simulated_tariffs(session) -> int:
     for row in session.query(TsoTariffRecord).filter(
         TsoTariffRecord.document_id == SIMULATED_TARIFF_DOCUMENT
     ):
-        if (row.tso.strip().lower(), row.point_id, row.direction.upper()) in held:
+        if key(row) in held:
             session.delete(row)
             retired += 1
     return retired
