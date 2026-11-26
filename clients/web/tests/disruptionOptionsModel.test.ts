@@ -215,6 +215,60 @@ test("LNG-4: the consequences name the contract, the cargo moved and the opportu
   assert.equal(cover[0].text, "hub:PEG:cepsa: 50,000 MWh for cepsa");
 });
 
+test("berth priority (2026-11-26): a swap of berth turns needs the terminal's approval; another company's turn costs its quote, never its demurrage", () => {
+  const approval = "Zeebrugge to accept the change of berth order between ZEE-1 and ZEE-2";
+  const own = option({ kind: "berth_swap", approvals: [approval], flags: { physically_possible: true, contract_breach: false, disrupts_normal_cargo: true, needs_terminal_approval: true, counterparty_quote_pending: false } });
+  assert.equal(kindOf(own), "berth_swap");
+  assert.deepEqual(flagsOf(own), ["disrupts_normal_cargo", "needs_terminal_approval"]);
+  assert.deepEqual(consequences(own).map((line) => [line.kind, line.text, line.value]), [["approval", approval, null]]);
+
+  const quote = {
+    call_id: "zb-1",
+    label: "Other Shipper's carrier",
+    counterparty: "Other Shipper (illustrative)",
+    terminal: "Zeebrugge",
+    berth: "2027-01-28",
+    status: "pending" as const,
+    amount_eur: null,
+    text: "quote to obtain from Other Shipper (illustrative)",
+    source: null,
+    note: null,
+  };
+  const effect = {
+    kind: "berth_delay",
+    owner: "third_party" as const,
+    call_id: "zb-1",
+    label: "Other Shipper's carrier",
+    counterparty: "Other Shipper (illustrative)",
+    terminal: "Zeebrugge",
+    delay_days: 1,
+    held_by: "ZEE-1",
+    swapped: true,
+    in_pnl: false as const,
+    value_eur: null,
+    text: "Other Shipper's carrier berths 1 gas day later: its cost is their quote, not their demurrage",
+    sources: ["line-up"],
+  };
+  // Pending: flagged, and with no value until the quote is entered (the flags block absent too).
+  const pending = option({ kind: "counterparty_swap", quotes: [quote], counterparty_effects: [effect] });
+  assert.equal(kindOf(pending), "counterparty_swap");
+  assert.deepEqual(flagsOf(pending), ["counterparty_quote_pending"]);
+  assert.deepEqual(consequences(pending).map((line) => [line.kind, line.value]), [
+    ["quote", null],
+    ["counterparty", null],
+  ]);
+  // Entered: the quote is the one cost line; the other company's delay stays unvalued.
+  const entered = option({ kind: "counterparty_swap", quotes: [{ ...quote, status: "entered", amount_eur: 40_000, source: "quote ref-7" }], counterparty_effects: [effect] });
+  assert.deepEqual(flagsOf(entered), []);
+  const lines = consequences(entered);
+  assert.deepEqual(lines.map((line) => [line.kind, line.value]), [
+    ["quote", -40_000],
+    ["counterparty", null],
+  ]);
+  assert.deepEqual(lines[0].sources, ["quote ref-7"]);
+  assert.ok(!lines.some((line) => line.kind === "opportunity"));
+});
+
 test("LNG-4: each cost line lists its sources, and lines group by basis", () => {
   const lines = [
     { label: "gas", value: -100, text: "gas", sources: ["PEG 30.20 EUR/MWh (settlement 2027-01-19)", " "], basis: "direct" as const },

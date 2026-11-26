@@ -20,11 +20,14 @@ import type {
 export type OptionStanding = "recommended" | "frontier" | "dominated" | "infeasible";
 
 /** The option kinds the engine names, each with an i18n key under `lng.cargo.options.kind.`. */
-export const OPTION_KINDS = ["wait", "borrow", "buy", "borrow_buy", "swap", "divert", "absorb", "cover", "combined", "substitute", "spot"] as const;
+export const OPTION_KINDS = ["wait", "borrow", "buy", "borrow_buy", "swap", "divert", "absorb", "cover", "combined", "substitute", "spot", "berth_swap", "counterparty_swap"] as const;
 export type OptionKind = (typeof OPTION_KINDS)[number];
 
-/** LNG-4 flags, each with an i18n key under `lng.cargo.options.flag.`. */
-export type OptionFlag = "contract_breach" | "disrupts_normal_cargo" | "not_possible";
+/**
+ * LNG-4 flags, each with an i18n key under `lng.cargo.options.flag.`. 2026-11-26: a berth-turn
+ * swap needs the terminal's approval; a swap with another company's slot waits on its quote.
+ */
+export type OptionFlag = "contract_breach" | "disrupts_normal_cargo" | "not_possible" | "needs_terminal_approval" | "counterparty_quote_pending";
 
 export interface OptionRow {
   option: DisruptionOptionDTO;
@@ -59,11 +62,13 @@ export function kindOf(option: Pick<DisruptionOptionDTO, "kind">): OptionKind | 
   return (OPTION_KINDS as readonly string[]).includes(option.kind) ? (option.kind as OptionKind) : "other";
 }
 
-export function flagsOf(option: Pick<DisruptionOptionDTO, "feasible" | "possible" | "flags" | "breaches" | "disrupts">): OptionFlag[] {
+export function flagsOf(option: Pick<DisruptionOptionDTO, "feasible" | "possible" | "flags" | "breaches" | "disrupts" | "approvals" | "quotes">): OptionFlag[] {
   const out: OptionFlag[] = [];
   if (!isPossible(option)) out.push("not_possible");
   if (option.flags?.contract_breach || (option.breaches?.length ?? 0) > 0) out.push("contract_breach");
   if (option.flags?.disrupts_normal_cargo || (option.disrupts?.length ?? 0) > 0) out.push("disrupts_normal_cargo");
+  if (option.flags?.needs_terminal_approval || (option.approvals?.length ?? 0) > 0) out.push("needs_terminal_approval");
+  if (option.flags?.counterparty_quote_pending || (option.quotes ?? []).some((quote) => quote.status === "pending")) out.push("counterparty_quote_pending");
   return out;
 }
 
@@ -129,7 +134,8 @@ export function costSplit(option: Pick<DisruptionOptionDTO, "objectives" | "dire
 }
 
 export interface Consequence {
-  kind: "breach" | "moves" | "opportunity" | "cover";
+  /** 2026-11-26: `quote` (another company's quote), `approval` (the terminal's), `counterparty` (their delay, not valued). */
+  kind: "breach" | "moves" | "opportunity" | "cover" | "quote" | "approval" | "counterparty";
   text: string;
   /** EUR when the consequence is valued, null when the data does not hold its value. */
   value: number | null;
@@ -152,6 +158,17 @@ export function consequences(option: DisruptionOptionDTO): Consequence[] {
   }
   for (const cover of option.covers ?? []) {
     out.push({ kind: "cover", text: `${cover.source_id}: ${Math.round(cover.mwh).toLocaleString("en-GB")} MWh for ${cover.obligation_id}`, value: null, sources: [] });
+  }
+  // A quote is a cost the book pays (negative); pending, it has no value yet.
+  for (const quote of option.quotes ?? []) {
+    out.push({ kind: "quote", text: quote.text, value: quote.amount_eur === null ? null : -quote.amount_eur, sources: quote.source ? [quote.source] : [] });
+  }
+  for (const approval of option.approvals ?? []) {
+    out.push({ kind: "approval", text: approval, value: null, sources: [] });
+  }
+  // Another company's delay is stated, never valued: its cost is theirs, not the book's.
+  for (const effect of option.counterparty_effects ?? []) {
+    out.push({ kind: "counterparty", text: effect.text, value: null, sources: [...(effect.sources ?? [])] });
   }
   return out;
 }
