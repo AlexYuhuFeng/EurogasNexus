@@ -39,6 +39,7 @@ nothing merged, no tag, no release package)
 | NEWS-1 News and events in the analysis | Built and tested; NEWS1-1 to NEWS1-11 met ([06](06_ACCEPTANCE_CRITERIA.md)): a source registry with quoted terms (REMIT messages held, GOV.UK DESNZ feed polled; the Commission, EUR-Lex and ACER terms read, feed addresses not yet recorded; licensed and forbidden sources excluded), deterministic tags, a link from an item to a held outage that re-evaluates opportunities, role routing with dedupe and cooldown, the AI use `news_note` with a sentence-by-sentence grounding check and its evaluation set, three additive reads and the Desk → Today panel |
 | LNG-3 A disruption re-optimises the portfolio | Built and tested; LNG3-1 to LNG3-8 met ([06](06_ACCEPTANCE_CRITERIA.md)); design, sources and limits in [17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md); migration `0086_lng_disruption`, ADR Decision 36; latency in [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) sections 2 and 8 |
 | CODEX-1 The Codex assessments on agents and big data | Reviewed and the valid, contained proposals built; CODEX1-1 to CODEX1-6 met ([06](06_ACCEPTANCE_CRITERIA.md)); verdicts and the list for the owner in [18](18_CODEX_ASSESSMENT_REVIEW.md); no route, migration or ADR; data sizing in doc 19 |
+| CAP-1 Data capacity and infrastructure | Report done ([19](19_DATA_CAPACITY_AND_INFRASTRUCTURE.md)): sizes, rates and a staged recommendation for 15 years; recommendation only, nothing adopted; proposed ADRs ADR-P1 to ADR-P7 await the owner. Read-only measurement script `scripts/capacity/measure_db.py` (not shipped) |
 | UX-1, UX-2, LOOP-1, M8 to M11, M13 | Planned, in the order of [05](05_IMPLEMENTATION_ROADMAP.md) |
 | M12 Hosted pilot | Dropped by the user on 2026-11-24 (deployment later, outside this programme) |
 
@@ -79,7 +80,9 @@ nothing merged, no tag, no release package)
 | (this commit) | LNG-3 documents and evidence |
 | `93acaab` | CODEX-1 capability runtime controls from the Codex agentisation review |
 | `892ca1d` | CODEX-1 versioned market change wire contract for a later transport |
-| (this commit) | CODEX-1 documents (18) and evidence |
+| `1a3095e` | CODEX-1 documents (18) and evidence |
+| `93fb109` | CAP-1 read-only measurement of table sizes and row counts |
+| (this commit) | CAP-1 data capacity and infrastructure report (19), decision log and state |
 
 ## What M5 built
 

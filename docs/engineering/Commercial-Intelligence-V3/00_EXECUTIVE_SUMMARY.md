@@ -76,6 +76,10 @@ The same day the user asked for a review of Codex's assessments on agents and on
 and processing: [18](18_CODEX_ASSESSMENT_REVIEW.md) gives each proposal a verdict, records what
 was built (CODEX-1: capability runtime controls, a versioned change envelope) and lists what
 waits for the owner (a broker, new datastores, live model routing).
+The owner then asked how large the data will grow over 5 years of history and 10 years of
+operation, how fast it arrives and what infrastructure that needs:
+[19](19_DATA_CAPACITY_AND_INFRASTRUCTURE.md) (CAP-1) sizes it, compares it with published
+benchmarks and recommends a staged path. It is a recommendation only; nothing is adopted.
 
 1. Review every surface against the standard in a real browser, per role (Q1).
 2. Fix the control and data blockers the review found (F1).
