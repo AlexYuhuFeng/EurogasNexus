@@ -182,6 +182,65 @@ python scripts/ops/build_reference_network_bundle.py --adjacency-only --version 
     [--entsog-dir <dir with interconnections.json and connectionpoints.json>]
 ```
 
+## Supply corridors: where import gas enters
+
+`src/eurogas_nexus/reference_data/supply_corridors.json` (built 2026-11-26 by
+`scripts/ops/build_supply_corridors.py`; the curated list is `CORRIDORS` in
+`reference_data/supply_corridors.py`) holds Europe's main import pipelines seen from the
+European side: source country, the upstream operator ENTSOG lists at the landing, the ENTSOG
+landing point(s), the market area the gas enters, the ENTSOG flow series to read there
+(`flow_series`: point key, operator key, `entry`, Physical Flow — what the ENTSOG flow
+ingestion stores as `flow_observations.point_id` and `metadata_json.operatorKey`), the firm
+technical capacity ENTSOG publishes, and the status.
+
+- **Status** comes from ENTSOG physical flow only (`STATUS_RULE`): `in_service` with flow on
+  one of the last 30 closed gas days; `out_of_service` since the day after the last gas day
+  with flow in the probed window; `not_published` when ENTSOG publishes no figure at all for
+  the series (unknown, never zero). Event dates the owner named (Nord Stream damaged
+  26-09-2022, Ukraine transit ended 01-01-2025) are not recorded as facts: no operator page
+  that states them could be read; ENTSOG's flow data shows the stops (last flow 31-08-2022 and
+  31-12-2024).
+- **Pipeline facts** (route, length, diameter, first gas) come from Gassco's pipeline pages for
+  the Norwegian pipelines (URL and read date per corridor); no other operator page could be
+  read (TAP, TurkStream, Nord Stream, Medgaz pages gave no facts or were unavailable).
+- **Geometry**: SciGRID_gas IGGIELGN (CC BY 4.0) where its segments join the source and the
+  landing within 1.6 times the straight distance plus 80 km; otherwise a straight line marked
+  `schematic` ("not where the pipe runs"). The source position is the SciGRID node within
+  60 km of the named place, or the approximate place itself (`approximate_place`: Beni Saf,
+  Mellitah, outside SciGRID's coverage).
+- **Read**: `GET /api/reference-network/supply-corridors` serves the file and adds each entry
+  series' newest stored closed gas day of flow (`latest_flow`, GWh/d; `null` when the store
+  holds none). Route pricing never reads the corridors.
+
+| Corridor | Source | Landing (ENTSOG) | Into | Firm technical (GWh/d, 25-11-2026) | Status (ENTSOG flow) | Line |
+|---|---|---|---|---|---|---|
+| Langeled | NO | Easington (ITP-00091) | NBP | 1060.9 | in service | SciGRID |
+| Vesterled | NO | St. Fergus (ITP-00022) | NBP | 1498.5 | in service | SciGRID |
+| Europipe I | NO | Emden (EPT1) (ITP-00209) | THE, TTF | 1349.3 | in service | SciGRID |
+| Europipe II | NO | Dornum (EPT1 & EPT2) (ITP-00208) | THE | 569.8 | in service | SciGRID |
+| Norpipe | NO | Emden (NPT) (ITP-00210) | THE, TTF | 0 (published) | not published | schematic |
+| Zeepipe | NO | Zeebrugge ZPT (ITP-00106) | ZTP | 485.4 | in service | SciGRID |
+| Franpipe | NO | Dunkerque (ITP-00045) | PEG | 568.5 | in service | SciGRID |
+| Baltic Pipe (North Sea entry) | NO | North Sea Entry (ITP-00630) | GTF | 321.9 | in service | schematic |
+| Medgaz | DZ | Almería (ITP-00048) | PVB | 362.1 | in service | schematic |
+| TransMed | DZ | Mazara del Vallo (ITP-00093) | PSV | 1178.0 | in service | SciGRID |
+| Greenstream | LY | Gela (ITP-00074) | PSV | 466.8 | in service | schematic |
+| Maghreb-Europe (GME) | DZ | Tarifa (ITP-00082) | PVB | 442.8 | out of service since 2021-11-01 | SciGRID |
+| TANAP - TAP | AZ | Kipoi (ITP-00274), Melendugno - IT / TAP (ITP-00008) | HTP, PSV | 922.4 | in service | schematic |
+| TurkStream (European string) | RU | Strandzha 2 (BG) / Malkoclar (TR) (ITP-00549) | BG | 587.7 | in service | schematic |
+| Nord Stream 1 | RU | Greifswald (ITP-00120) | THE | 0 (published) | out of service since 2022-09-01 | SciGRID |
+| Nord Stream 2 | RU | Lubmin II (ITP-00501) | THE | 0 (published) | out of service (no flow since at least 2021-09-01) | schematic |
+| Ukraine transit (Brotherhood) | RU | Sudzha (RU) / Ukraine (UA) (ITP-00184), Uzhhorod (UA) - Velké Kapušany (SK) (ITP-00117) | SK | 1580.8 | out of service since 2025-01-01 | SciGRID |
+| Yamal-Europe | RU | Mallnow (ITP-00096) | THE | 0 (published) | out of service since 2022-05-03 | SciGRID |
+
+Not covered: Kondratki (Belarus - Poland, Yamal) is no longer published by ENTSOG; Yamal's
+status reads the German entry at Mallnow. Norpipe's landing (Emden NPT) has no ENTSOG flow figure in the
+last 30 days, and only GTS publishes a firm technical capacity there (0, valid since 2015). TANAP upstream of Kipoi and the Russian onshore sections are not drawn.
+
+Refresh: re-download the ENTSOG reference responses, then
+`python scripts/ops/build_supply_corridors.py --entsog-dir entsog/ --scigrid-dir IGGIELGN/data --gas-day <yesterday>`
+(ENTSOG answers are saved under `entsog/corridors/`; a rebuild from them is the same file).
+
 ## Loading it
 
 ```bash
