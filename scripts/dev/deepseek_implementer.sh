@@ -28,9 +28,21 @@ key="$(set -a; . "$env_file" >/dev/null 2>&1; printf '%s' "${DEEPSEEK_API_KEY:-}
 model="${DEEPSEEK_MODEL:-deepseek-flash}"
 
 cd "$workdir"
-exec env -u ANTHROPIC_API_KEY -u CLAUDE_CODE_OAUTH_TOKEN \
+# The DeepSeek agent is a separate tool run, not this session: it gets its own configuration
+# directory and none of the calling session's provider settings (a cloud session's host-managed
+# provider would otherwise override the endpoint and the key). DeepSeek's Anthropic-compatible
+# endpoint takes the key as x-api-key.
+config_dir="${DEEPSEEK_CONFIG_DIR:-${TMPDIR:-/tmp}/deepseek-implementer-config}"
+mkdir -p "$config_dir"
+exec env -i \
+  HOME="$HOME" PATH="$PATH" LANG="${LANG:-C.UTF-8}" TERM="${TERM:-dumb}" \
+  HTTPS_PROXY="${HTTPS_PROXY:-}" https_proxy="${https_proxy:-${HTTPS_PROXY:-}}" \
+  NO_PROXY="${NO_PROXY:-}" no_proxy="${no_proxy:-${NO_PROXY:-}}" \
+  NODE_EXTRA_CA_CERTS="${NODE_EXTRA_CA_CERTS:-}" SSL_CERT_FILE="${SSL_CERT_FILE:-}" \
+  CLAUDE_CONFIG_DIR="$config_dir" \
+  IS_SANDBOX=1 \
   ANTHROPIC_BASE_URL="https://api.deepseek.com/anthropic" \
-  ANTHROPIC_AUTH_TOKEN="$key" \
+  ANTHROPIC_API_KEY="$key" \
   ANTHROPIC_MODEL="$model" \
   ANTHROPIC_SMALL_FAST_MODEL="$model" \
   claude -p "$(cat "$task_file")" \
