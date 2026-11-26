@@ -28,7 +28,24 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-ROOT = Path(__file__).resolve().parents[3]
+
+def _migration_root() -> Path:
+    """The directory that holds ``alembic.ini`` and ``alembic/``.
+
+    In a source checkout that is three levels above this file. In an image the package is
+    installed into site-packages while the migrations are copied to the working directory
+    (``/app``), so the package-relative path does not exist there and the working directory
+    is used.
+    """
+
+    source_root = Path(__file__).resolve().parents[3]
+    for candidate in (source_root, Path.cwd()):
+        if (candidate / "alembic.ini").is_file() and (candidate / "alembic").is_dir():
+            return candidate
+    return source_root
+
+
+ROOT = _migration_root()
 
 BACKUP_ACTION = "database.backup.recorded"
 UPGRADE_ACTION = "database.upgrade"
