@@ -30,7 +30,7 @@ test("lineage shows the records a trader knows by name; evidence lines and bare 
     [
       "upstream_resource_contract:demo-brae-10",
       "upstream_resource_contract:demo-unknown",
-      "ENTSOG TP [25-11-2026] https://transparency.entsog.eu/",
+      "ENTSOG TP [25-11-2026] (a source line with its address)",
       "DEMO_Sim:simulated-tariff",
       "published: 10.512 EUR/(kWh/h)/y",
     ],
