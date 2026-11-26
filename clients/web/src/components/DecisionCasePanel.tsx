@@ -48,7 +48,7 @@ import {
 import { decisionPackPresentation } from "@/app/model/decisionPackModel";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import { DecisionPackPanel } from "@/components/decision/DecisionPackPanel";
-import { MetricStrip, PanelHeader, WorkspaceTabs, PeriodPicker, RecordPicker } from "@/components/ui";
+import { MetricStrip, PanelHeader, buttonClass, WorkspaceTabs, PeriodPicker, RecordPicker } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -87,6 +87,8 @@ export function DecisionCasePanel({
   t,
 }: DecisionCasePanelProps) {
   const [cases, setCases] = useState<DecisionCaseSummaryDTO[]>([]);
+  // Until the first answer the list is loading, not empty (no "no cases" before the read ends).
+  const [casesRead, setCasesRead] = useState(false);
   const [loadedCase, setSelected] = useState<DecisionCaseDTO | null>(null);
   const currentCaseId = useRef(selectedCaseId);
   const selectionEpoch = useRef(0);
@@ -97,6 +99,8 @@ export function DecisionCasePanel({
   const selected = loadedCase?.case_id === selectedCaseId ? loadedCase : null;
   const [view, setView] = useState<PanelView>("open");
   const [objective, setObjective] = useState("");
+  // The new-case form is folded behind one button: the list of cases is what the page is for.
+  const [creating, setCreating] = useState(false);
   // Optional deadline, typed in local time and confirmed in UTC before saving (#58).
   const [dueLocal, setDueLocal] = useState("");
   const dueUtc = localDeadlineToUtc(dueLocal);
@@ -141,6 +145,8 @@ export function DecisionCasePanel({
       if (isCurrent()) setCases(response.data);
     } catch (error) {
       if (isCurrent()) setErrorText(explainError(error, t));
+    } finally {
+      if (isCurrent()) setCasesRead(true);
     }
   }, [t]);
 
@@ -262,6 +268,7 @@ export function DecisionCasePanel({
       setSelected(updated);
       setObjective("");
       setDueLocal("");
+      setCreating(false);
       setBusy(false);
       onSelectCaseId(response.data.case_id);
     } catch (error) {
@@ -313,9 +320,16 @@ export function DecisionCasePanel({
 
   return (
     <section className="decision-case-panel" aria-label={t("decision_case.title")}>
-      <PanelHeader title={t("decision_case.title")} />
+      <PanelHeader
+        title={t("decision_case.title")}
+        actions={canPrepare && !creating ? (
+          <button type="button" className={buttonClass("secondary", "sm")} data-decision-case-new="" onClick={() => setCreating(true)}>
+            {t("decision_case.new")}
+          </button>
+        ) : undefined}
+      />
 
-      {canPrepare && <div className="decision-case-create">
+      {canPrepare && creating && <div className="decision-case-create">
         <label>
           <span>{t("decision_case.objective")}</span>
           <input
@@ -333,6 +347,9 @@ export function DecisionCasePanel({
         </label>
         <button type="button" disabled={busy || !objective.trim()} onClick={() => void openCase()}>
           {t("decision_case.create")}
+        </button>
+        <button type="button" className={buttonClass("quiet", "md")} disabled={busy} onClick={() => setCreating(false)}>
+          {t("decision_case.cancel_new")}
         </button>
       </div>}
 
@@ -375,7 +392,7 @@ export function DecisionCasePanel({
           </button>
         ))}
         {(view === "open" ? grouped.open : grouped.decided).length === 0 && (
-          <p className="decision-case-empty">{t("decision_case.empty")}</p>
+          <p className="decision-case-empty">{t(casesRead ? "decision_case.empty" : "decision_case.loading")}</p>
         )}
       </div>
 

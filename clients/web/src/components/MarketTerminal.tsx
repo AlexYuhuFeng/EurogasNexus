@@ -1063,6 +1063,12 @@ export function MarketTerminal({
                 {t("prices.board.reset_hubs")}
               </Button>
             )}
+            {/* The hub focus lives with the hubs (a click on a row sets it): said here, cleared here. */}
+            {focusedHub && (
+              <Button variant="quiet" size="sm" data-board-focus={focusedHub} aria-label={t("prices.board.focus_clear_label", { hub: focusedHub })} onClick={() => onHubChange(null)}>
+                {t("prices.board.focus", { hub: focusedHub })} ×
+              </Button>
+            )}
           </div>
         )}
         <DataGrid

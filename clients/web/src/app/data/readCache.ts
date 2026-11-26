@@ -39,6 +39,12 @@ interface Entry {
 }
 
 const EMPTY: ReadSnapshot<unknown> = { data: undefined, error: null, loading: false, updating: false, at: 0 };
+/**
+ * A key that has no entry yet is about to be read (the effect starts it after the first render):
+ * it is loading, not empty. Returning EMPTY there let a page draw its empty state ("0 contracts",
+ * "nothing yet") for the frames before the read began.
+ */
+const PENDING: ReadSnapshot<unknown> = { data: undefined, error: null, loading: true, updating: false, at: 0 };
 const entries = new Map<string, Entry>();
 const listeners = new Map<string, Set<() => void>>();
 let scope = "anonymous";
@@ -191,7 +197,7 @@ export function useCachedRead<T>(
   );
   const snapshot = useSyncExternalStore(
     subscribe,
-    () => (fullKey ? entries.get(fullKey)?.snapshot ?? EMPTY : EMPTY),
+    () => (fullKey ? entries.get(fullKey)?.snapshot ?? PENDING : EMPTY),
     () => EMPTY,
   ) as ReadSnapshot<T>;
   useEffect(() => {

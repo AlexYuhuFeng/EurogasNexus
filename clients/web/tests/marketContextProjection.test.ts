@@ -260,8 +260,9 @@ test("the market surface renders the coherent context and its vocabulary is bili
   assert.match(cockpit, /import \{ MarketContextStrip \} from "@\/components\/MarketContextStrip"/);
   // No filter strip on Today (design basis 2, E.1). On Today the strip is the page's one quiet
   // header line (the gas-day headline and the page actions); the other tasks keep the controls,
-  // and on Prices the board's tenor selector is the product choice, so no second one here.
-  assert.match(cockpit, /<MarketContextStrip\s+projection=\{api\.marketContext\}\s+t=\{t\}[\s\S]*?task === "overview"\s*\?\s*<TodayHeadline[\s\S]*?tradingContextControlsFor\(traderContext, t, \{ product: task !== "curves" \}\)/);
+  // and on Prices the board's tenor selector is the product choice and its hub picker the hub
+  // choice, so no second ones here.
+  assert.match(cockpit, /<MarketContextStrip\s+projection=\{api\.marketContext\}\s+t=\{t\}[\s\S]*?task === "overview"\s*\?\s*<TodayHeadline[\s\S]*?tradingContextControlsFor\(traderContext, t, \{ product: task !== "curves", hub: task !== "curves" \}\)/);
   assert.match(cockpit, /variant=\{task === "overview" \? "line" : "strip"\}/);
   assert.match(cockpit, /<TodayHeadActions/);
 
