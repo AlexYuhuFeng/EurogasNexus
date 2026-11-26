@@ -347,7 +347,9 @@ def persist_dataset_snapshot(
         artifact_ref=artifacts[0]["artifact_path"] if artifacts else None,
         created_at_utc=_now(),
         created_by="research",
-        status="COMPLETE",
+        # A STRICT build whose leakage validator raised a blocker is kept as evidence of
+        # the attempt, but it is not a usable training snapshot and must not read as one.
+        status="BLOCKED" if metadata["quality_report"].get("build_blocked") else "COMPLETE",
     )
     session.add(row)
     session.flush()

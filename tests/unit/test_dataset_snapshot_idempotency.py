@@ -181,3 +181,24 @@ def test_integrity_detail_extracts_the_constraint_sentence() -> None:
     detail = _integrity_detail(_Wrapped())
     assert detail == 'duplicate key value violates unique constraint "dataset_snapshots_pkey"'
     assert "parameters" not in detail.lower()
+
+
+def test_a_blocked_build_is_stored_as_blocked_not_complete(session: Session) -> None:
+    """A STRICT build with leakage blockers used to be stored with status COMPLETE."""
+
+    metadata = _metadata()
+    metadata["quality_report"] = {**metadata["quality_report"], "build_blocked": True}
+    row, created = persist_dataset_snapshot(
+        session, metadata=metadata, dependencies=[], issues=[], artifacts=_artifacts()
+    )
+    assert created is True
+    assert row.status == "BLOCKED"
+
+    unblocked, _ = persist_dataset_snapshot(
+        session,
+        metadata={**_metadata("hash-c"), "dataset_snapshot_id": "dataset-snapshot-other"},
+        dependencies=[],
+        issues=[],
+        artifacts=[],
+    )
+    assert unblocked.status == "COMPLETE"
