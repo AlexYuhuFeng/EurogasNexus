@@ -356,7 +356,13 @@ async def post_contract_intake(
     declared = int(request.headers.get("content-length") or 0)
     if declared > MAX_PDF_BYTES:
         raise HTTPException(status_code=413, detail={"code": "pdf_too_large"})
-    content = await request.body()
+    # A chunked body has no Content-Length: the limit is applied while reading (M7).
+    from eurogas_nexus.security.rate_limit import read_body_limited
+
+    try:
+        content = await read_body_limited(request, MAX_PDF_BYTES)
+    except HTTPException as exc:
+        raise HTTPException(status_code=413, detail={"code": "pdf_too_large"}) from exc
     actor = getattr(getattr(request.state, "identity", None), "principal_id", None)
     # Parsing (and OCR) and the audit write block: the thread pool, not the event loop.
     result, payload = await run_in_threadpool(_read_contract_pdf, content, file_name, actor)

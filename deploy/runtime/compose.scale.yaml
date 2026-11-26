@@ -18,6 +18,15 @@ services:
   valkey:
     image: valkey/valkey:8-alpine
     restart: unless-stopped
+    # The same container hardening as the application (security review M8): read-only root,
+    # no capabilities, no privilege escalation, the image's own non-root user (so the
+    # entrypoint needs no capability to drop root), and nothing written to disk.
+    read_only: true
+    cap_drop: ["ALL"]
+    security_opt: ["no-new-privileges:true"]
+    user: "999:1000"
+    tmpfs:
+      - /data:size=16m
     command:
       - valkey-server
       - --requirepass
@@ -40,8 +49,9 @@ services:
     environment:
       VALKEY_PASSWORD: ${VALKEY_PASSWORD}
 
-  # The same settings reach the preflight (config-check) and the migration as the API, so
-  # the preflight checks the topology that will actually run.
+  # The same settings reach the preflight (config-check) as the API, so the preflight checks
+  # the topology that will actually run. The migration does not get them: it neither serves
+  # nor needs the Valkey password (per-service settings, security review M8).
   config-check:
     environment: &scale-environment
       UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
@@ -49,9 +59,6 @@ services:
       # Per process: 4 x (8 + 4) = 48 connections for the API; see the formula.
       EUROGAS_NEXUS_DB_POOL_SIZE: ${EUROGAS_NEXUS_DB_POOL_SIZE:-8}
       EUROGAS_NEXUS_DB_MAX_OVERFLOW: ${EUROGAS_NEXUS_DB_MAX_OVERFLOW:-4}
-
-  migrate:
-    environment: *scale-environment
 
   api:
     environment: *scale-environment

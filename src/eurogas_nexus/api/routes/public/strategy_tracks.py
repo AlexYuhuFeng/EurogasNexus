@@ -151,6 +151,10 @@ class TickBatch(BaseModel):
     replay: bool = False
 
 
+def _tick_actor(principal) -> str:
+    return str(getattr(principal, "principal_id", None) or "unknown")[:64]
+
+
 @router.post("/api/market/ticks")
 def ingest_market_ticks(body: TickBatch, request: Request) -> dict:
     """Store a batch of quotes and trade prints and evaluate the tracks listening to them.
@@ -164,10 +168,28 @@ def ingest_market_ticks(body: TickBatch, request: Request) -> dict:
     principal = _require(request, Permission.SOURCE_RUN)
     from eurogas_nexus.application.market_ticks import ingest_ticks, publisher_refusal
     from eurogas_nexus.core.config import simulated_sources_allowed
+    from eurogas_nexus.db.repositories.audit import record_audit_event, record_governed_audit
     from eurogas_nexus.domain.market.feed import FeedError
 
     refusal = publisher_refusal(principal, body.source_system)
     if refusal is not None:
+        # A refused attempt to write a venue's price is itself evidence (H4).
+        with _session() as session:
+            record_audit_event(
+                session,
+                event_type="governance.market_data",
+                principal=_tick_actor(principal),
+                action="market.ticks.refused",
+                resource=f"market_ticks:{body.source_system}"[:128],
+                outcome="denied",
+                severity="warning",
+                detail=(
+                    f"quotes={len(body.quotes)}; trades={len(body.trades)}; "
+                    f"auth={getattr(principal, 'auth_method', '')}"
+                ),
+                source_system="market-ticks",
+            )
+            session.commit()
         raise HTTPException(
             status_code=403, detail={"code": "source_not_granted", "message": refusal}
         )
@@ -182,6 +204,21 @@ def ingest_market_ticks(body: TickBatch, request: Request) -> dict:
             session.rollback()
             raise HTTPException(status_code=422, detail={
                 "code": "ticks_invalid", "message": str(exc)}) from exc
+        # Every tick batch is audited with the identity that wrote it (H4).
+        record_governed_audit(
+            session,
+            event_type="governance.market_data",
+            principal=_tick_actor(principal),
+            action="market.ticks.ingested",
+            resource=f"market_ticks:{body.source_system}"[:128],
+            outcome="stored",
+            severity="info",
+            detail=(
+                f"quotes={len(body.quotes)}; trades={len(body.trades)}; "
+                f"auth={getattr(principal, 'auth_method', '')}"
+            ),
+            source_system="market-ticks",
+        )
         session.commit()
     return _env(result.as_dict())
 

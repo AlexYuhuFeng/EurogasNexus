@@ -90,13 +90,14 @@ EurogasDbPoolExhausted reads the waits and timeouts below.
 | `eurogas_stream_connections` (summed over `topic`) | about 1 to 3 per signed-in user | far above: a client reconnecting in a loop |
 | `eurogas_stream_poll_seconds_total` / `eurogas_stream_polls_total` | well under 1.5 s per poll | close to 1.5 s: the poll cannot keep its interval; look for a slow source query |
 | `eurogas_stream_poll_failures_total` | flat | growing: the poller cannot reach the database |
-| `eurogas_stream_refused_total` | 0 | growing: someone opens more than `EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL` (8) streams per process |
+| `eurogas_stream_refused_total` | 0 | growing: someone opens more than `EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL` (5) streams across all processes |
 
 ## What happens when Valkey is down
 
 | What | Behaviour while Valkey cannot be reached |
 | --- | --- |
-| Sign-in and administration rate limits | each process counts for itself again (limits never disappear) |
+| Sign-in and administration rate limits, per-person write and heavy-computation quotas | each process counts for itself again (limits never disappear) |
+| Open streams per person (`EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL`) | each process counts its own new streams; slots already held in Valkey expire within 90 s |
 | Per-address sign-in throttle | each process counts for itself; the per-account lockout is in the database and unaffected |
 | Warm views | each process drops what it kept and computes every read until Valkey answers (slower pages, never an answer from before a user's own change) |
 | Sign-out of an open live-update stream | the stream re-reads its session and identity from the database every 30 s, so it still ends within 30 s; with Valkey it ends at the next poll (1.5 s) |
@@ -112,8 +113,18 @@ outbox events, alerts, the map's inputs, jobs) once per interval for every open 
 process, in one database session, and hands each stream its own events through an in-memory
 queue. Each stream keeps its own cursor and its own user's entitlement (licensed sources, book
 scope, the opportunity and alert read rules). A stream opened with a session ends at the next
-poll after a sign-out on any process. A user may hold `EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL` (8)
-streams per process; one more answers 429 `rate_limited` (reason `stream_limit_reached`).
+poll after a sign-out on any process. A user may hold `EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL`
+(5, security review M7) open streams in all; one more answers 429 `rate_limited` (reason
+`stream_limit_reached`). With Valkey each stream holds a slot there (a 90-second lease renewed
+while the stream sends), so the cap counts across every process and a process that dies frees
+its slots when the leases run out; without Valkey each process counts its own.
+
+The poller reads for every user it serves, so its own reads run in an explicit system scope
+(`portfolio_scope.system_scope`, every book); nothing reaches a connection before that
+connection's own guard has applied its user's book scope (default deny under isolation),
+licensed data scopes and the commercial boundary (a user who loses every commercial role has
+the stream ended at the next re-check, 30 s). `tests/security/test_stream_book_scope.py` runs
+two legal entities on one poller.
 
 ## The load test
 

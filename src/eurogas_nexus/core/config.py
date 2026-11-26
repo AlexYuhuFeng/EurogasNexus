@@ -72,6 +72,23 @@ class DbRuntimeConfig(BaseModel):
     pool_pre_ping: bool = True
 
 
+def runtime_environment(environ=None) -> str:
+    """``EUROGAS_NEXUS_ENV``, lower-cased; never silently ``development`` for a release server.
+
+    Security review L3: an unset environment used to mean development (demo semantics, the
+    development sign-in, simulated sources) even in the customer's release profile. Unset now
+    means ``release`` whenever the release API profile is selected; only an unset profile and
+    an unset environment together mean development (a developer's checkout).
+    """
+
+    env = os.environ if environ is None else environ
+    value = (env.get("EUROGAS_NEXUS_ENV") or "").strip().lower()
+    if value:
+        return value
+    profile = (env.get("EUROGAS_NEXUS_API_PROFILE") or "").strip().lower()
+    return "release" if profile == "release" else "development"
+
+
 def parse_env_bool(value: str | None, *, default: bool) -> bool:
     """Parse explicit boolean environment values."""
 
@@ -131,11 +148,18 @@ class Settings(BaseModel):
     def from_env(cls) -> "Settings":
         """Build settings from process environment variables."""
 
-        environment = os.getenv("EUROGAS_NEXUS_ENV", "development")
+        environment = runtime_environment()
         # Fail-closed: trial/release environments can never enable external
-        # LLM providers, even with an explicit env override (P0-2).
+        # LLM providers, even with an explicit env override (P0-2). A model on the firm's own
+        # network (on-premises) may be enabled explicitly (security review M10).
         if environment in {"trial", "release"}:
-            llm_external_provider_enabled = False
+            from eurogas_nexus.llm.provider import private_endpoint
+
+            base_url = (os.getenv("EUROGAS_NEXUS_LLM_BASE_URL") or "").strip()
+            llm_external_provider_enabled = bool(base_url) and private_endpoint(base_url) and (
+                parse_env_bool(os.getenv("EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED"),
+                               default=False)
+            )
         else:
             llm_external_provider_enabled = parse_env_bool(
                 os.getenv("EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED"),
@@ -241,7 +265,7 @@ def simulated_sources_allowed() -> bool:
     cannot silently ship demo data in a delivered release environment.
     """
 
-    environment = os.getenv("EUROGAS_NEXUS_ENV", "development").strip().lower()
+    environment = runtime_environment()
     if environment in {"trial", "release"}:
         return False
     return parse_env_bool(

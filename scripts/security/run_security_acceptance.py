@@ -123,7 +123,11 @@ def _checks() -> list[dict]:
                 token=internal_token,
                 principal="acceptance-operator",
             )
-            check("internal_operator_headers_valid", principal == "acceptance-operator")
+            # The named operator is recorded as a claim of the internal token (review H3).
+            check(
+                "internal_operator_headers_valid",
+                principal == "internal-api@acceptance-operator",
+            )
         except InternalApiAuthError as exc:
             check("internal_operator_headers_valid", False, exc.code)
     else:
@@ -155,9 +159,18 @@ def _checks() -> list[dict]:
         role_allows("ADMIN", "OPERATOR") and not role_allows("VIEWER", "OPERATOR"),
     )
     legacy = legacy_public_token_principal()
+    from eurogas_nexus.security.deployment_token import SERVICE, token_mode
+
+    # Security review H3: in trial and release the deployment token is a scoped service
+    # principal by default; the legacy OPERATOR-with-* posture is opt-in and deprecated.
+    check(
+        "deployment_token_service_by_default_in_release",
+        token_mode({"EUROGAS_NEXUS_ENV": "release"}) == SERVICE
+        and token_mode({"EUROGAS_NEXUS_ENV": "trial"}) == SERVICE,
+    )
     check(
         "legacy_public_token_compat",
-        legacy.role == "OPERATOR" and legacy.data_scopes == ("*",),
+        legacy.role != "ADMIN" and legacy.auth_method == "legacy_public_token",
     )
 
     from eurogas_nexus.security.oidc import OidcValidationError, validate_oidc_access_token

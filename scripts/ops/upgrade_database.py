@@ -187,7 +187,13 @@ def main(argv: list[str] | None = None) -> int:
 
     configure_logging(service="eurogas-nexus-upgrade")
     args = build_parser().parse_args(argv)
-    return int(args.func(args))
+    from eurogas_nexus.security.portfolio_scope import system_scope
+
+    # An operator's schema step reads and writes across every book (data migrations, the
+    # backup marker and the audit row): it runs in the explicit system scope, so book
+    # isolation (db/book_scope.py) never narrows or denies what a migration sees.
+    with system_scope():
+        return int(args.func(args))
 
 
 if __name__ == "__main__":

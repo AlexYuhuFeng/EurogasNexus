@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import os
 import smtplib
+import ssl
 import uuid
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -143,6 +144,71 @@ def _recipients(channel) -> list[str]:
     return [item.strip() for item in (channel.recipients or "").split(",") if item.strip()]
 
 
+ALERT_EMAIL_DOMAINS_ENV = "EUROGAS_NEXUS_ALERT_EMAIL_DOMAINS"
+#: Categories whose messages carry book figures (limit breaches by book and counterparty).
+BOOK_CATEGORIES = frozenset({"limits"})
+
+
+def approved_domains(environ=None) -> frozenset[str] | None:
+    """The e-mail domains alerts may go to; ``None`` when no list is configured."""
+
+    env = os.environ if environ is None else environ
+    raw = env.get(ALERT_EMAIL_DOMAINS_ENV, "")
+    domains = frozenset(item.strip().lower() for item in raw.split(",") if item.strip())
+    return domains or None
+
+
+def recipient_refusal(session, addresses: list[str], categories: list[str],
+                      environ=None) -> str | None:
+    """Why these recipients may not receive these alerts, or ``None`` (security review M1).
+
+    * Every address must be in an approved domain (``EUROGAS_NEXUS_ALERT_EMAIL_DOMAINS``); in
+      trial and release a list is required, so no alert leaves for a private mailbox.
+    * A category carrying book figures (``limits``) goes only to the addresses of active
+      people who may read limits for every book; its messages would otherwise bypass book
+      isolation and the limits read grant.
+    """
+
+    env = os.environ if environ is None else environ
+    domains = approved_domains(env)
+    from eurogas_nexus.core.config import runtime_environment
+
+    production = runtime_environment(env) in {
+        "trial", "release"
+    }
+    if domains is None and production:
+        return f"set {ALERT_EMAIL_DOMAINS_ENV} to the firm's mail domains first"
+    if domains is not None:
+        outside = [a for a in addresses if a.rsplit("@", 1)[-1].lower() not in domains]
+        if outside:
+            return f"addresses outside the approved domains: {', '.join(outside)}"
+    if BOOK_CATEGORIES & set(categories or []) or not categories:
+        from eurogas_nexus.db.models import IdentityPrincipalRecord
+        from eurogas_nexus.security.authorization import Permission, authorize
+        from eurogas_nexus.security.identity import AuthenticatedPrincipal
+        from eurogas_nexus.security.portfolio_scope import scope_from_data_scopes
+
+        for address in addresses:
+            row = (
+                session.query(IdentityPrincipalRecord)
+                .filter(IdentityPrincipalRecord.email == address, 
+                        IdentityPrincipalRecord.status == "ACTIVE")
+                .first()
+            )
+            if row is None:
+                return f"{address} is not an active person here; limits alerts carry book figures"
+            principal = AuthenticatedPrincipal(
+                principal_id=row.principal_id, name=row.name,
+                principal_type=row.principal_type, role=row.role, status=row.status,
+                data_scopes=tuple(row.data_scopes or ()), roles=tuple(row.roles or [row.role]),
+            )
+            if not authorize(principal, Permission.RISK_LIMITS_READ).allowed or not (
+                scope_from_data_scopes(principal.data_scopes).all_books
+            ):
+                return f"{address} may not read every book's limits"
+    return None
+
+
 def send_email(channel, message: Message, environ=None) -> None:
     env = os.environ if environ is None else environ
     host = env.get(SMTP_HOST_ENV, "").strip()
@@ -155,9 +221,15 @@ def send_email(channel, message: Message, environ=None) -> None:
     email["Subject"] = f"[Eurogas Nexus] {message.severity.upper()}: {message.title}"
     email.set_content(f"{message.body}\n\n-- Eurogas Nexus ({message.category})")
     port = int(env.get(SMTP_PORT_ENV, "587") or 587)
+    domains = approved_domains(env)
+    if domains is not None and any(
+        item.rsplit("@", 1)[-1].lower() not in domains for item in _recipients(channel)
+    ):
+        raise RuntimeError("a recipient is outside the approved mail domains")
     with smtplib.SMTP(host, port, timeout=15) as smtp:
         if env.get(SMTP_STARTTLS_ENV, "true").strip().casefold() not in {"0", "false", "no"}:
-            smtp.starttls()
+            # Verify the relay's certificate and name (security review M1).
+            smtp.starttls(context=ssl.create_default_context())
         username = env.get(SMTP_USERNAME_ENV, "").strip()
         if username:
             smtp.login(username, env.get(SMTP_PASSWORD_ENV, ""))

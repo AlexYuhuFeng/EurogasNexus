@@ -108,9 +108,12 @@ def _analyst_bearer(session: Session, name: str) -> tuple[str, str]:
         name=name,
         display_name=name.title(),
         role="ANALYST",
-        data_scopes=["TTF"],
+        # A head-office analyst: book isolation is on by default (security review H1).
+        data_scopes=["TTF", "BOOKS:*"],
     )
-    _key, bearer = create_identity_api_key(session, principal.principal_id, display_name=name)
+    _key, bearer = create_identity_api_key(
+        session, principal.principal_id, display_name=name, scopes=["*"]
+    )
     return principal.principal_id, bearer
 
 

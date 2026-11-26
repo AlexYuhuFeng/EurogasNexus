@@ -366,6 +366,24 @@ def put_notification_channel(
         raise HTTPException(status_code=422, detail={"code": "recipients_invalid"})
     actor = identity_id(request) or "api"
     sqlalchemy_error = sqlalchemy_error_type()
+    from eurogas_nexus.application.notifications import recipient_refusal
+    from eurogas_nexus.db.session import get_session_factory as _factory
+
+    with _factory()() as check:
+        refusal = recipient_refusal(check, addresses, body.categories)
+    if refusal is not None:
+        raise HTTPException(
+            status_code=422, detail={"code": "recipients_not_allowed", "message": refusal}
+        )
+    # Where alerts go is a security-relevant setting: a second administrator approves (H7/M1).
+    from eurogas_nexus.api.dual_control import require_dual_control
+
+    require_dual_control(
+        request,
+        kind="notification_channel",
+        body={"channel_id": channel_id, **body.model_dump(mode="json")},
+        summary=f"alert channel {channel_id} to {', '.join(addresses)}",
+    )
     try:
         from eurogas_nexus.db.models import NotificationChannelRecord
         from eurogas_nexus.db.repositories.audit import record_audit_event

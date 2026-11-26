@@ -297,7 +297,8 @@ def test_rotate_route_passes_validated_operator_and_retains_expiry_scopes(
         key for key in listed_principal["keys"] if key["key_id"] == new_key["key_id"]
     )
     assert listed_key["scopes"] == ["EEX"]
-    assert listed_key["created_by"] == "ops-admin"
+    # The named operator is recorded as a claim of the internal token (security review H3).
+    assert listed_key["created_by"] == "internal-api@ops-admin"
     assert _parse_utc(listed_key["expires_at_utc"]) == _utc(old_expiry)
 
     engine = create_engine(database_url, future=True)

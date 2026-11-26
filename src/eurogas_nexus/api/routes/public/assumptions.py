@@ -340,6 +340,7 @@ def get_firm_marks(request: Request, hub: str | None = Query(default=None, max_l
     """The firm's marks in force, each labelled "firm's mark"."""
 
     _require(request, Permission.PORTFOLIO_READ)
+    _require(request, Permission.RISK_LIMITS_READ)
     from eurogas_nexus.application.maker_checker import provenance_for
     from eurogas_nexus.db.repositories.commercial_assumptions import (
         current_firm_marks,

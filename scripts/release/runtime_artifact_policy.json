@@ -34,6 +34,8 @@
     "scripts/ops/seed_reference_network.py",
     "scripts/ops/upgrade_database.py",
     "scripts/ops/validate_runtime_db.py",
+    "scripts/ops/verify_audit_chain.py",
+    "scripts/ops/rotate_secret_key.py",
     "scripts/ci/audit_dependencies.py",
     "scripts/release/collect_python_license_texts.py",
     "scripts/release/compatibility_check.py",

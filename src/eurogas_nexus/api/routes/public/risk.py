@@ -20,12 +20,14 @@ from eurogas_nexus.api.routes.public.portfolio_common import (
 from eurogas_nexus.api.routes.public.portfolio_common import db_unavailable as _db_unavailable
 from eurogas_nexus.api.routes.public.portfolio_common import env as _env
 from eurogas_nexus.api.routes.public.portfolio_common import identity_id as _identity_id
+from eurogas_nexus.api.routes.public.portfolio_common import require_permission
 from eurogas_nexus.api.routes.public.portfolio_common import (
     sqlalchemy_error_type as _sqlalchemy_error_type,
 )
 from eurogas_nexus.application.warm_views import ViewSpec, not_json, warm_view
 from eurogas_nexus.domain.ontology.markets import quote_currency
 from eurogas_nexus.domain.ontology.notes import Note, declare, note
+from eurogas_nexus.security.authorization import Permission as _Perm
 
 router = APIRouter(tags=["portfolio"])
 
@@ -96,6 +98,8 @@ def get_credit_exposure(request: Request, format: str = Query("json", pattern=_F
     gas days. Exchange-cleared screen trades carry no bilateral credit and are excluded.
     """
 
+    require_permission(request, _Perm.RISK_LIMITS_READ)
+
     from eurogas_nexus.application.limits_service import credit_exposure_rows
 
     return _limits_report(
@@ -110,6 +114,8 @@ def get_mandate_usage(request: Request, format: str = Query("json", pattern=_FOR
 
     交易员授权使用情况：净头寸、枢纽、期限与产品类型是否超出授权。
     """
+
+    require_permission(request, _Perm.RISK_LIMITS_READ)
 
     from eurogas_nexus.application.limits_service import mandate_usage_rows
 
@@ -339,6 +345,8 @@ def get_credit_line(counterparty_id: str, request: Request) -> dict:
     one changed field does not send the others empty.
     """
 
+    require_permission(request, _Perm.RISK_LIMITS_READ)
+
     from eurogas_nexus.db.models import CreditLineRecord
     from eurogas_nexus.db.session import get_session_factory
 
@@ -505,6 +513,8 @@ def get_hedge_approvals(request: Request) -> dict:
 
     单笔合同对冲审批：风险批准的对冲比例区间与关联交易的实际覆盖。
     """
+
+    require_permission(request, _Perm.RISK_LIMITS_READ)
 
     from eurogas_nexus.domain.risk.limits import HedgeApproval, VolumeLeg, deal_hedge_usage
 

@@ -68,8 +68,10 @@ def test_parse_identity_bearer_rejects_malformed_tokens() -> None:
 def test_legacy_public_token_principal_has_operator_and_wildcard_scope() -> None:
     principal = legacy_public_token_principal()
 
+    # Development default: the deprecated legacy_operator mode (security review H3); OPERATOR
+    # no longer reads positions or limits by role, so it carries explicit grants for them.
     assert principal.role == "OPERATOR"
-    assert principal.data_scopes == ("*",)
+    assert principal.data_scopes == ("*", "PERM:portfolio.read", "PERM:risk.limits.read")
     assert principal.auth_method == "legacy_public_token"
 
 

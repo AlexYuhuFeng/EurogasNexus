@@ -34,8 +34,14 @@ test("sign-in actions reflect server-advertised capabilities", () => {
 
 test("sign-in is one heading and the methods: no eyebrow, no body line, no brand bullets or footer", () => {
   assert.equal((screen.match(/<h1\b/g) ?? []).length, 1);
-  // One heading: "Sign in", or "Choose your password" in the forced change after a temporary one.
-  assert.match(screen, /<h1 id="sign-in-title">\{passwordChange \? t\("auth\.change_title"\) : t\("auth\.title"\)\}<\/h1>/);
+  // One heading: "Sign in", "Choose your password" in the forced change after a temporary one,
+  // or "Second factor" in the code step (security review H6).
+  assert.match(
+    screen,
+    /<h1 id="sign-in-title">\s*\{passwordChange \? t\("auth\.change_title"\) : mfaStep \? t\("auth\.mfa_title"\) : t\("auth\.title"\)\}\s*<\/h1>/,
+  );
+  // The code step keeps the one-time-code autocomplete hint.
+  assert.match(screen, /autoComplete="one-time-code"/);
   for (const removed of ["auth.eyebrow", "auth.body", "auth.brand_point_", "auth.brand_foot", "sign-in-brand-points"]) {
     assert.doesNotMatch(screen, new RegExp(removed.replace(".", "\\.")), removed);
   }

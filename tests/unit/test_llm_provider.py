@@ -10,8 +10,10 @@ from eurogas_nexus.llm.provider import (
 )
 
 
-def test_default_is_deepseek_and_configuration_overrides_it():
-    assert configured_endpoint({}).base_url == "https://api.deepseek.com"
+def test_there_is_no_default_provider_and_configuration_names_it():
+    # Security review M10: no prompt leaves the server until an endpoint is chosen.
+    with pytest.raises(LlmEndpointError, match="no model provider"):
+        configured_endpoint({})
     endpoint = configured_endpoint(
         {
             "EUROGAS_NEXUS_LLM_BASE_URL": "https://eu.models.example.com/v1/",

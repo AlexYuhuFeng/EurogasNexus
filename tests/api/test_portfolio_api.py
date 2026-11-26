@@ -48,8 +48,10 @@ def test_portfolio_live_summary_uses_runtime_db_when_configured(tmp_path, monkey
             role="ANALYST",
             data_scopes=["*"],
         )
+        # A key with no scopes reads public data only; with book isolation on by default
+        # (security review H1) the owner's book needs a key that carries its scopes.
         _, bearer = create_identity_api_key(
-            session, owner.principal_id, display_name="portfolio-tests"
+            session, owner.principal_id, display_name="portfolio-tests", scopes=["*"]
         )
         session.add(
             StrategyRecord(

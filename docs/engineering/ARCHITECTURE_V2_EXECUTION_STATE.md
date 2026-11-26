@@ -6,6 +6,40 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — Security remediation merged onto phase 1 (branch `int2`, not pushed)
+
+- `secfix` merged onto P1-C + P1-A. Streams keep the per-process poller (`api/stream_hub.py`)
+  with secfix's rules: header-only token, session and identity re-checks (now also roles: a
+  lost commercial role ends the stream), and ONE per-person cap,
+  `EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL` (5), counted across processes as expiring slots in
+  the shared cache (per process without one); P1-A's `EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL` is
+  gone. The poller reads in an explicit `portfolio_scope.system_scope()`; each connection's
+  guard applies its user's book scope, licences and commercial boundary
+  (`tests/security/test_stream_book_scope.py`, two entities on one poller).
+- Secfix's write/heavy quotas count through the shared-cache rate limiter (across processes).
+- The scheduler, the upgrade command and the metrics exporter's reads run in the explicit
+  system scope (`tests/security/test_background_scope.py`).
+- Preflight: P1's serving checks plus secfix's start-up refusals (sign-in method, isolation,
+  dual control, deployment token) reported by `config-check` before the API would crash-loop.
+- Compose: secfix's hardening and per-service settings, P1's metrics tmpfs, workers and pool
+  settings; Valkey hardened (read-only, no capabilities, non-root); the migration no longer
+  receives the Valkey URL.
+
+## 2026-11-26 — Security review remediation (branch `secfix`)
+
+- The 2026-11 security review (7 High, 10 Medium, 5 Low) worked through finding by finding:
+  [SECURITY_REVIEW_REMEDIATION_2026-11](../security/SECURITY_REVIEW_REMEDIATION_2026-11.md);
+  behaviour changes for installations in
+  [the release note](../release/notes/SECURITY_HARDENING_2026-11.md).
+- Book isolation on by default, enforced once in the ORM layer (`db/book_scope.py`); the
+  commercial boundary is default-commercial; `risk.limits.read` and `PERM:` grants; OPERATOR no
+  longer reads positions. Compatible with the role-model DRAFT ADR (phase 1 not started).
+- Deployment token as a scoped service principal; licensed venue labels only from a connector
+  key; hash-chained audit trail with a role split (`deploy/runtime/database_roles.sql`); TOTP;
+  dual control with a cooling period and break-glass. Migration `0095_security_hardening`.
+- Open: PostgreSQL row-level security, WebAuthn, an approval screen in Admin, KMS/Vault, image
+  digests for PostgreSQL and Caddy, a query outside a request still sees every book.
+
 ## 2026-11-26 — Demo re-seed clear survives a feed-sized quote table (branch `seedfix`)
 
 - Cause: `_clear` deleted `market_quotes` in one statement. `get_engine` passes its

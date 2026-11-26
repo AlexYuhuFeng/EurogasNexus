@@ -142,6 +142,29 @@ TESTERS: tuple[tuple[str, str, str, tuple[str, ...], tuple[str, ...], str], ...]
 TESTER_NAMES = tuple(row[0] for row in TESTERS)
 TESTER_BY_NAME = {row[0]: row for row in TESTERS}
 
+#: The source families the demo's data carries (simulated exchange, ETRM and demo marks
+#: map to these families), so each tester reads the demo's prices without the ``*`` scope.
+DEMO_SOURCE_FAMILIES = ("DEMO", "ETRM", "EEX", "ICE_OCM", "TRAYPORT")
+#: Book scope per tester (security review H1: book isolation is on by default). A trader sees
+#: their own legal entity's books, operations none, the platform administrator nothing
+#: commercial; the all-roles tester keeps ``*``. Finance reads the books but not credit or
+#: mandate limits (that needs an explicit ``PERM:risk.limits.read`` grant).
+_ALL_BOOKS = ("BOOKS:*",)
+TESTER_SCOPES: dict[str, tuple[str, ...]] = {
+    "tester": ("*",),
+    "demo.trader": (*DEMO_SOURCE_FAMILIES, "BOOKS:ENTITY:NWG-UK"),
+    "demo.nl.trader": (*DEMO_SOURCE_FAMILIES, "BOOKS:ENTITY:NWG-NL"),
+    "demo.analyst": (*DEMO_SOURCE_FAMILIES, *_ALL_BOOKS),
+    "demo.risk": (*DEMO_SOURCE_FAMILIES, *_ALL_BOOKS),
+    "demo.manager": (*DEMO_SOURCE_FAMILIES, *_ALL_BOOKS),
+    "demo.finance": (*DEMO_SOURCE_FAMILIES, *_ALL_BOOKS),
+    "demo.compliance": (*DEMO_SOURCE_FAMILIES, *_ALL_BOOKS),
+    "demo.ops": DEMO_SOURCE_FAMILIES,
+    "demo.originator": (*DEMO_SOURCE_FAMILIES, *_ALL_BOOKS),
+    "demo.operations": (*DEMO_SOURCE_FAMILIES, *_ALL_BOOKS),
+    "demo.admin": (),
+}
+
 
 class StartupError(RuntimeError):
     """A start-up step failed; the message is what the operator reads in the log."""
@@ -250,6 +273,9 @@ def configure_environment(environ: dict[str, str] | os._Environ) -> list[str]:
         "EUROGAS_NEXUS_DEMO_FEED_SESSION": "24h",
         # AI only when the operator supplied a model key.
         "EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED": "true" if llm_key else "false",
+        # There is no default model provider (security review M10): the demo names DeepSeek,
+        # the provider its operator supplies a key for.
+        **({"EUROGAS_NEXUS_LLM_BASE_URL": "https://api.deepseek.com"} if llm_key else {}),
         "EUROGAS_NEXUS_WEB_CLIENT_DIR": str(ROOT / "web"),
         "EUROGAS_NEXUS_RESEARCH_ARTIFACT_ROOT": "/tmp/eurogas-nexus-snapshots",
         # A desk page fires some 28 reads at once. With 3 + 2 connections and the default 5 s
@@ -366,14 +392,20 @@ def ensure_testers(session, *, reapply: bool) -> tuple[int, int]:
             .filter(IdentityPrincipalRecord.name == name)
             .one_or_none()
         )
+        scopes = sorted(TESTER_SCOPES[name])
         if row is None:
             row = create_identity_principal(
-                session, name=name, display_name=display, role=role, data_scopes=["*"], now_utc=now
+                session, name=name, display_name=display, role=role, data_scopes=scopes,
+                now_utc=now,
             )
             created += 1
         elif reapply:
             restored += 1
         else:
+            # Data scopes follow the code on every start (security review H1).
+            if sorted(row.data_scopes or []) != scopes:
+                row.data_scopes = scopes
+                row.updated_at_utc = now
             continue
         row.display_name = display
         row.role = role
@@ -381,7 +413,7 @@ def ensure_testers(session, *, reapply: bool) -> tuple[int, int]:
         row.job_functions = list(functions)
         row.office = office
         row.status = "ACTIVE"
-        row.data_scopes = ["*"]
+        row.data_scopes = scopes
         row.updated_at_utc = now
     session.flush()
     return created, restored
@@ -413,7 +445,7 @@ def ensure_test_accounts(session, *, reapply: bool) -> tuple[list[str], list[str
             display_name=f"Test {display[:1].lower()}{display[1:]}",
             grants=local_accounts.AccountGrants(
                 roles=tuple(roles),
-                data_scopes=("*",),
+                data_scopes=TESTER_SCOPES[spec.template],
                 job_functions=tuple(functions),
                 office=office,
             ),

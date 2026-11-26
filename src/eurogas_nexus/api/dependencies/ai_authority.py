@@ -74,7 +74,13 @@ def ai_authority_denial(principal: AuthenticatedPrincipal) -> str:
     """
 
     if principal.principal_id == LEGACY_PUBLIC_TOKEN_PRINCIPAL_ID:
-        return ""
+        from eurogas_nexus.security.deployment_token import LEGACY_OPERATOR, token_mode
+
+        if token_mode() == LEGACY_OPERATOR:
+            return ""
+        # Service mode (security review H3): the token holds only its configured role.
+        decision = authorize(principal, AI_AUTHORITY_PERMISSION)
+        return "" if decision.allowed else (decision.reason or "permission_not_granted")
     if principal.principal_type != "USER":
         return (
             f"principal type {principal.principal_type!r} is not a user identity, so it "

@@ -238,13 +238,13 @@ def test_new_paths_have_declared_permissions() -> None:
     )
 
 
-def test_catalogue_and_snapshot_reads_stay_out_of_the_commercial_prefix_family() -> None:
-    """The snapshot read is lineage metadata; the analysis *query* family is not it."""
+def test_catalogue_and_snapshot_reads_are_inside_the_commercial_boundary() -> None:
+    """Security review H2: a snapshot carries the portfolio version and context of a decision,
+    and the catalogue counts and dates the firm's own rows, so platform administration alone
+    reads neither. A commercial caller still sees its own entitlement limitation there."""
 
     from eurogas_nexus.security.permissions import serves_commercial_data
 
-    # /api/analysis/ (query + reports) stays commercial; the new paths are not
-    # inside that family, so a caller can see its own entitlement limitation.
     assert serves_commercial_data("/api/analysis/query") is True
-    assert serves_commercial_data("/api/data-products") is False
-    assert serves_commercial_data("/api/analysis-snapshots") is False
+    assert serves_commercial_data("/api/data-products") is True
+    assert serves_commercial_data("/api/analysis-snapshots") is True

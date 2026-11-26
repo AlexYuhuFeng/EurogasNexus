@@ -182,8 +182,17 @@ def effective_compose_environment(values: dict[str, str]) -> dict[str, str]:
     """Resolve the limited interpolation used by the actual shared environment."""
     compose = yaml.safe_load((ROOT / "deploy/runtime/compose.yaml").read_text(encoding="utf-8"))
     shared = compose["x-runtime-environment"]
-    for service in ["config-check", "migrate", "api"]:
-        assert compose["services"][service]["environment"] == shared
+    # The preflight checks what the API receives; the API adds only its artefact path. The
+    # migration runs as the schema owner with its own, smaller environment (security review
+    # M8: per-service settings; docs/security/DATABASE_ROLES.md).
+    assert compose["services"]["config-check"]["environment"] == shared
+    api = compose["services"]["api"]["environment"]
+    assert {key: api[key] for key in shared} == shared
+    assert set(api) - set(shared) == {"EUROGAS_NEXUS_RESEARCH_ARTIFACT_ROOT"}
+    migrate = compose["services"]["migrate"]["environment"]
+    assert "EUROGAS_NEXUS_OWNER_DB_USER" in migrate["RUNTIME_STORE_DATABASE_URL"]
+    assert "EUROGAS_NEXUS_APP_DB_USER" in shared["RUNTIME_STORE_DATABASE_URL"]
+    assert not {key for key in migrate if "TOKEN" in key or "SECRET" in key}
 
     def replace(match):
         name, default = match.group(1), match.group(2)

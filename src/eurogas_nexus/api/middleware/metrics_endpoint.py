@@ -122,8 +122,12 @@ def render_exposition() -> str:
     try:
         from eurogas_nexus.application.dataops_observability import prometheus_metrics
         from eurogas_nexus.db.session import get_session_factory
+        from eurogas_nexus.security.portfolio_scope import system_scope
 
-        with get_session_factory()() as session:
+        # The scrape counts the store's own state (sources, runs, freshness) for operations,
+        # across every book and never per row; the scraper is not a person and has no book
+        # scope. Explicit system scope, so book isolation neither denies nor narrows it.
+        with system_scope(), get_session_factory()() as session:
             body = prometheus_metrics(session)
         return body + _database_up(1)
     except Exception:  # noqa: BLE001 - the process metrics are still worth a scrape

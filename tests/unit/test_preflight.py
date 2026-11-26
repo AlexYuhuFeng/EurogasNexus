@@ -36,6 +36,8 @@ RELEASE_BASE = {
     "EUROGAS_NEXUS_API_PROFILE": "release",
     "RUNTIME_STORE_DATABASE_URL": "postgresql+pg8000://nexus:pw@db:5432/nexus",
     "FORWARDED_ALLOW_IPS": "172.16.0.0/12",
+    # A release server needs a deliberate sign-in method (security review H6).
+    "EUROGAS_NEXUS_LOCAL_ACCOUNTS": "on",
 }
 
 
@@ -417,3 +419,51 @@ def test_several_api_processes_need_one_metrics_directory() -> None:
     assert all(
         finding.variable != "PROMETHEUS_MULTIPROC_DIR" for finding in _check_external_consumers({})
     )
+
+
+# --- the settings the API refuses to start on (security review H1, H3, H6, H7) ----------------
+
+
+def test_a_release_server_without_a_sign_in_method_is_refused() -> None:
+    environ = {k: v for k, v in RELEASE_BASE.items() if k != "EUROGAS_NEXUS_LOCAL_ACCOUNTS"}
+    assert finding_for(environ, "sign_in_missing").severity == "error"
+    sso = {**environ, "EUROGAS_NEXUS_OIDC_ISSUER": "https://login.example.com",
+           "EUROGAS_NEXUS_OIDC_CLIENT_ID": "nexus"}
+    assert "sign_in_missing" not in codes(sso)
+
+
+def test_isolation_off_in_release_needs_the_single_book_declaration() -> None:
+    environ = {**RELEASE_BASE, "EUROGAS_NEXUS_PORTFOLIO_ISOLATION": "false"}
+    assert finding_for(environ, "isolation_refused").severity == "error"
+    declared = {**environ, "EUROGAS_NEXUS_SINGLE_BOOK_FIRM": "true"}
+    assert "isolation_refused" not in codes(declared)
+    dev = {**DEV_BASE, "EUROGAS_NEXUS_PORTFOLIO_ISOLATION": "false"}
+    assert "isolation_refused" not in codes(dev)
+
+
+def test_dual_control_cannot_be_switched_off_in_release() -> None:
+    environ = {**RELEASE_BASE, "EUROGAS_NEXUS_DUAL_CONTROL": "off"}
+    assert finding_for(environ, "dual_control_refused").severity == "error"
+    assert "dual_control_refused" not in codes({**DEV_BASE, "EUROGAS_NEXUS_DUAL_CONTROL": "off"})
+
+
+@pytest.mark.parametrize(
+    ("name", "value"),
+    [
+        ("EUROGAS_NEXUS_PUBLIC_API_TOKEN_ROLE", "ADMIN"),
+        ("EUROGAS_NEXUS_PUBLIC_API_TOKEN_SCOPES", "EEX,*"),
+        ("EUROGAS_NEXUS_PUBLIC_API_TOKEN_MODE", "superuser"),
+    ],
+)
+def test_a_deployment_token_with_administration_or_every_scope_is_refused(name, value) -> None:
+    finding = finding_for({**RELEASE_BASE, name: value}, "deployment_token_refused")
+    assert finding.severity == "error"
+
+
+def test_several_api_processes_need_the_shared_cache_and_a_metrics_directory() -> None:
+    environ = {**RELEASE_BASE, "UVICORN_WORKERS": "4"}
+    assert finding_for(environ, "shared_cache_required").severity == "error"
+    assert finding_for(environ, "metrics_directory_missing").severity == "warning"
+    ready = {**environ, "EUROGAS_NEXUS_SHARED_CACHE_URL": "valkey://:pw@valkey:6379/0",
+             "PROMETHEUS_MULTIPROC_DIR": "/run/eurogas-metrics"}
+    assert check_environment(ready).ok is True

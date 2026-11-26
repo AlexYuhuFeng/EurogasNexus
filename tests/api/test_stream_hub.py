@@ -14,7 +14,7 @@ from sqlalchemy.pool import StaticPool
 import eurogas_nexus.db.models  # noqa: F401  (registers every table)
 from eurogas_nexus.api.routes.public import streaming
 from eurogas_nexus.api.routes.public.streaming import StreamGuard, _LiveStream, _RowStream
-from eurogas_nexus.api.stream_hub import StreamHub, StreamLimitReached
+from eurogas_nexus.api.stream_hub import StreamHub
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import MarketQuoteRecord
 from eurogas_nexus.security.identity import AuthenticatedPrincipal
@@ -90,7 +90,6 @@ def _hub(engine) -> StreamHub:
         interval=lambda: 3600.0,
         session_factory=lambda: (lambda: Session(engine)),
         warning=streaming.warning_event,
-        refused=streaming.refused_event,
         autostart=False,  # the test runs each poll itself
     )
 
@@ -125,10 +124,10 @@ def test_one_read_serves_every_stream_and_each_gets_only_what_its_caller_may_see
                 StreamGuard("quotes", caller),
                 (),
             )
-            subs.append(hub.subscribe(state, caller.principal_id))
+            subs.append(hub.subscribe(state))
         hub.poll(subs)
         await asyncio.sleep(0)  # the poller hands batches over through the loop
-        return [(sub.principal_id, _drain(sub)) for sub in subs]
+        return [(sub.state.guard.principal.principal_id, _drain(sub)) for sub in subs]
 
     received = asyncio.run(drive())
     assert counter.quote_reads == 1
@@ -151,7 +150,7 @@ def test_live_notices_fan_out_by_licence_with_reads_independent_of_the_stream_co
                 licence = "EEX" if n % 2 == 0 else "NONE"
                 guard = StreamGuard("live", _principal(f"p{n}", licence))
                 state = _LiveStream(("prices",), NOW, True, guard, None)
-                subs.append(hub.subscribe(state, f"p{n}"))
+                subs.append(hub.subscribe(state))
             hub.poll(subs)
             await asyncio.sleep(0)
             return ["".join(_drain(sub)) for sub in subs]
@@ -191,24 +190,6 @@ def test_the_poller_reads_off_the_event_loop_thread(engine, monkeypatch):
     loop_thread, first = asyncio.run(drive())
     assert "q-eex" in first
     assert counter.threads and loop_thread not in counter.threads
-
-
-def test_a_caller_past_the_stream_cap_is_refused(engine, monkeypatch):
-    monkeypatch.setenv("EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL", "2")
-
-    async def drive():
-        hub = _hub(engine)
-        state = lambda: _LiveStream(("prices",), NOW, False, None, None)  # noqa: E731
-        first = hub.subscribe(state(), "p-many")
-        hub.subscribe(state(), "p-many")
-        with pytest.raises(StreamLimitReached):
-            hub.subscribe(state(), "p-many")
-        hub.subscribe(state(), "p-other")
-        hub.unsubscribe(first)
-        hub.subscribe(state(), "p-many")  # a closed tab frees its place
-        return hub.streams_of("p-many"), hub.stats.refused_over_cap
-
-    assert asyncio.run(drive()) == (2, 1)
 
 
 def _counter_value(name: str) -> float:
@@ -253,7 +234,7 @@ def test_a_failed_poll_is_logged_as_json_and_counted(engine):
                 warning=streaming.warning_event,
                 autostart=False,
             )
-            sub = hub.subscribe(_LiveStream(("prices",), NOW, False, None, None), "p-log")
+            sub = hub.subscribe(_LiveStream(("prices",), NOW, False, None, None))
             hub.poll([sub])
             hub.poll([sub])
             await asyncio.sleep(0)
@@ -308,7 +289,6 @@ def test_a_read_the_stream_recovers_from_is_still_logged_once(tmp_path):
                     StreamGuard("quotes", _principal("p-gone", "EEX")),
                     (),
                 ),
-                "p-gone",
             )
             hub.poll([sub])
             hub.poll([sub])

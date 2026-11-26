@@ -13,13 +13,13 @@ import httpx
 
 from eurogas_nexus.core.config import get_settings
 from eurogas_nexus.llm.provider import (
-    DEFAULT_BASE_URL,
+    DEEPSEEK_BASE_URL,
     DEFAULT_MODEL,
     LlmEndpointError,
     configured_endpoint,
 )
 
-DEEPSEEK_API_BASE_URL = DEFAULT_BASE_URL
+DEEPSEEK_API_BASE_URL = DEEPSEEK_BASE_URL
 DEEPSEEK_DEFAULT_MODEL = DEFAULT_MODEL
 
 

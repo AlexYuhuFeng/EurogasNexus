@@ -26,6 +26,7 @@ from eurogas_nexus.db.repositories.identity import (
 )
 from eurogas_nexus.security.permissions import (
     COMMERCIAL_DATA_PREFIXES,
+    matches_commercial_prefix,
     serves_commercial_data,
 )
 
@@ -115,7 +116,10 @@ def test_commercial_surface_declaration_matches_the_intended_boundary() -> None:
     for prefix in COMMERCIAL_DATA_PREFIXES:
         assert serves_commercial_data(prefix.rstrip("/"))
         assert serves_commercial_data(prefix + "record")
-        assert not serves_commercial_data(prefix.rstrip("/") + "-unrelated")
+        # Prefix matching of the declared families is exact; an undeclared neighbour is
+        # still commercial by default (security review H2), unless it is a platform path.
+        assert not matches_commercial_prefix(prefix.rstrip("/") + "-unrelated")
+        assert serves_commercial_data(prefix.rstrip("/") + "-unrelated")
 
 
 @pytest.mark.deferred_capabilities  # reads a dormant capability's route (design basis 2, I.3)

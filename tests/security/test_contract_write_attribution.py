@@ -91,7 +91,12 @@ def _prepare_db(tmp_path, monkeypatch) -> str:
 
 
 def _bearer(
-    session: Session, *, name: str, roles: list[str], scopes: list[str]
+    session: Session,
+    *,
+    name: str,
+    roles: list[str],
+    scopes: list[str],
+    key_scopes: list[str] | None = None,
 ) -> tuple[str, str]:
     row = create_identity_principal(
         session,
@@ -101,7 +106,9 @@ def _bearer(
         data_scopes=scopes,
     )
     row.roles = list(roles)
-    _key, bearer = create_identity_api_key(session, row.principal_id, display_name="contract")
+    _key, bearer = create_identity_api_key(
+        session, row.principal_id, display_name="contract", scopes=key_scopes
+    )
     return row.principal_id, bearer
 
 
@@ -154,7 +161,12 @@ def test_body_supplied_actor_is_ignored_and_the_principal_is_recorded(
     url = _prepare_db(tmp_path, monkeypatch)
     with _session(url) as session:
         analyst_id, analyst_bearer = _bearer(
-            session, name="contract-trader", roles=["ANALYST"], scopes=["TTF"]
+            session,
+            name="contract-trader",
+            roles=["ANALYST"],
+            # A head-office trader: book isolation is on by default (security review H1).
+            scopes=["TTF", "BOOKS:*"],
+            key_scopes=["*"],
         )
         session.commit()
 

@@ -931,16 +931,23 @@ def main(argv: Sequence[str] | None = None) -> int:
         point_directions = validate_entsog_point_directions(args.entsog_point_direction)
     except ValueError as exc:
         parser.error(f"invalid --entsog-point-direction: {exc}")
-    return run_loop(
-        interval_seconds=args.interval_seconds,
-        max_iterations=1 if args.once else None,
-        scan_limit=args.scan_limit,
-        run_limit=args.run_limit,
-        entsog_from=args.entsog_from,
-        entsog_to=args.entsog_to,
-        entsog_lookback_gas_days=args.entsog_lookback_gas_days,
-        entsog_point_directions=point_directions,
-    )
+    from eurogas_nexus.security.portfolio_scope import system_scope
+
+    # The scheduler is the firm's own machinery, not a person: it ingests public sources and
+    # runs the firm-wide opportunity evaluation and strategy tracking, which store results for
+    # every book (each reader is filtered when reading). So it runs in the explicit system
+    # scope under book isolation (db/book_scope.py), never in a narrowed or deny-all one.
+    with system_scope():
+        return run_loop(
+            interval_seconds=args.interval_seconds,
+            max_iterations=1 if args.once else None,
+            scan_limit=args.scan_limit,
+            run_limit=args.run_limit,
+            entsog_from=args.entsog_from,
+            entsog_to=args.entsog_to,
+            entsog_lookback_gas_days=args.entsog_lookback_gas_days,
+            entsog_point_directions=point_directions,
+        )
 
 
 if __name__ == "__main__":

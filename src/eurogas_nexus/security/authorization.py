@@ -32,6 +32,10 @@ class Permission(StrEnum):
     MARKET_READ = "market.read"
     PORTFOLIO_READ = "portfolio.read"
     PORTFOLIO_WRITE = "portfolio.write"
+    #: Credit exposure, credit lines, trader mandates and their usage, hedge bands and firm
+    #: marks: the risk function's and the front office's, not operations' or finance's unless
+    #: granted explicitly (security review H1).
+    RISK_LIMITS_READ = "risk.limits.read"
     GAS_DAY_RECORD = "gas_day.record"
     STRATEGY_READ = "strategy.read"
     STRATEGY_CREATE = "strategy.create"
@@ -69,6 +73,7 @@ COMMERCIAL_PERMISSIONS: frozenset[Permission] = frozenset(
         Permission.MARKET_READ,
         Permission.PORTFOLIO_READ,
         Permission.PORTFOLIO_WRITE,
+        Permission.RISK_LIMITS_READ,
         Permission.GAS_DAY_RECORD,
         Permission.STRATEGY_READ,
         Permission.STRATEGY_CREATE,
@@ -130,6 +135,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.ME_READ,
             Permission.MARKET_READ,
             Permission.PORTFOLIO_READ,
+            Permission.RISK_LIMITS_READ,
             Permission.STRATEGY_READ,
             Permission.REVIEW_READ,
             Permission.REVIEW_RECORD,
@@ -145,6 +151,7 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.MARKET_READ,
             Permission.PORTFOLIO_READ,
             Permission.PORTFOLIO_WRITE,
+            Permission.RISK_LIMITS_READ,
             Permission.GAS_DAY_RECORD,
             Permission.STRATEGY_READ,
             Permission.STRATEGY_CREATE,
@@ -164,11 +171,12 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.AGENT_RESEARCH,
         }
     ),
+    # Source operations: no positions (security review H1). An operator who needs the book
+    # is granted ``PERM:portfolio.read`` explicitly (see EXPLICITLY_GRANTABLE).
     Role.OPERATOR: frozenset(
         {
             Permission.ME_READ,
             Permission.MARKET_READ,
-            Permission.PORTFOLIO_READ,
             Permission.STRATEGY_READ,
             Permission.STRATEGY_SHADOW_MANAGE,
             Permission.REVIEW_READ,
@@ -189,6 +197,33 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
     # assignment (see COMMERCIAL_PERMISSIONS and PLATFORM_ADMINISTRATION_PERMISSIONS).
     Role.ADMIN: PLATFORM_ADMINISTRATION_PERMISSIONS,
 }
+
+
+#: Data-scope prefix of an explicit permission grant (``PERM:risk.limits.read``).
+EXPLICIT_GRANT_PREFIX = "PERM:"
+#: Read permissions an administrator may grant one person beyond their roles, through a data
+#: scope, so that operations or finance staff read positions or limits only when named.
+#: A ``*`` scope never grants a permission.
+EXPLICITLY_GRANTABLE: frozenset[Permission] = frozenset(
+    {Permission.PORTFOLIO_READ, Permission.RISK_LIMITS_READ}
+)
+
+
+def explicit_grants(data_scopes: tuple[str, ...] | list[str]) -> frozenset[Permission]:
+    """The permissions named by ``PERM:`` data scopes (only :data:`EXPLICITLY_GRANTABLE`)."""
+
+    granted: set[Permission] = set()
+    for raw in data_scopes or ():
+        value = str(raw).strip()
+        if not value.upper().startswith(EXPLICIT_GRANT_PREFIX):
+            continue
+        try:
+            permission = Permission(value[len(EXPLICIT_GRANT_PREFIX) :].strip().lower())
+        except ValueError:
+            continue
+        if permission in EXPLICITLY_GRANTABLE:
+            granted.add(permission)
+    return frozenset(granted)
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,6 +256,7 @@ def permissions_for_principal(principal: AuthenticatedPrincipal) -> frozenset[Pe
     granted: set[Permission] = set()
     for role in effective_roles(principal):
         granted.update(ROLE_PERMISSIONS.get(role, frozenset()))
+    granted.update(explicit_grants(principal.data_scopes))
     return frozenset(granted)
 
 

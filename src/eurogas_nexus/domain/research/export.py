@@ -7,6 +7,7 @@ import io
 from pathlib import Path
 from typing import Any
 
+from eurogas_nexus.core.csv_safety import neutralise
 from eurogas_nexus.domain.research.datasets import DatasetBuildResult
 
 
@@ -70,6 +71,7 @@ def export_csv(
     writer = csv.DictWriter(buffer, fieldnames=result.columns)
     writer.writeheader()
     for row in result.rows:
-        writer.writerow({column: row.get(column) for column in result.columns})
+        # Formula-injection neutralisation, as for every export (security review M4).
+        writer.writerow({column: neutralise(row.get(column)) for column in result.columns})
     target.write_text(buffer.getvalue(), encoding="utf-8")
     return target

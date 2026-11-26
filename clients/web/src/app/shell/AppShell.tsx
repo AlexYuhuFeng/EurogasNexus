@@ -3,6 +3,7 @@ import { CommandPalette } from "@/components/CommandPalette";
 import { InspectorPanel } from "@/components/InspectorPanel";
 import { RestrictedSurface } from "@/components/RestrictedSurface";
 import { SignInScreen } from "@/components/SignInScreen";
+import { MfaEnrolment } from "@/components/MfaEnrolment";
 import { WorkspaceTopBar } from "@/components/WorkspaceTopBar";
 import { ShellTicker } from "@/components/ShellTicker";
 import { DataProblemNotice } from "@/components/DataProblemNotice";
@@ -131,8 +132,18 @@ export function AppShell({ controller }: AppShellProps) {
         passwordChangeErrorKey={api.passwordChangeErrorKey}
         onCompletePasswordChange={(newPassword) => void api.completePasswordChange(newPassword)}
         onCancelPasswordChange={() => api.cancelPasswordChange()}
+        mfaStep={api.mfaStep}
+        mfaErrorKey={api.mfaErrorKey}
+        onCompleteMfa={(code, recovery) => void api.completeMfa(code, recovery)}
+        onCancelMfa={() => api.cancelMfa()}
       />
     );
+  }
+
+  // The policy requires a second factor this person has not set up: the server answers
+  // nothing else until they enrol (security review H6), so the shell shows only the enrolment.
+  if (api.mfaEnrolmentRequired) {
+    return <MfaEnrolment t={t} onDone={() => void api.finishMfaEnrolment()} onSignOut={() => void api.signOut()} />;
   }
 
   return <AuthenticatedShell controller={controller} />;

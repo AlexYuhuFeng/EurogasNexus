@@ -739,6 +739,10 @@ class SignInOutcome:
     principal: IdentityPrincipalRecord
     session_token: str | None = None
     change_token: str | None = None
+    #: The code step of a sign-in with a second factor (security review H6).
+    mfa_token: str | None = None
+    #: The session opened is for enrolling a second factor only (the policy requires one).
+    mfa_enrolment_required: bool = False
 
 
 def _find_local(
@@ -921,8 +925,66 @@ def sign_in(
         )
         session.flush()
         return SignInOutcome(principal=row, change_token=token)
+    return _session_or_second_factor(session, row, client_type, now, "login")
+
+
+def _session_or_second_factor(
+    session: Session, row: IdentityPrincipalRecord, client_type: str, now: datetime, how: str
+) -> SignInOutcome:
+    """After the password: a session, the code step, or an enrolment-only session (H6)."""
+
+    from eurogas_nexus.application import mfa
+
+    if mfa.enrolled(session, row.principal_id):
+        token = mfa.start_challenge(session, row, client_type, now=now)
+        _audit(
+            session,
+            actor=row.principal_id,
+            action="auth.local.mfa_required",
+            resource=f"identity_principal:{row.principal_id}",
+            outcome="pending",
+            detail=f"step={how}; password accepted, second factor pending",
+            event_type="governance.auth",
+            source_system="local-auth",
+            now_utc=now,
+        )
+        return SignInOutcome(principal=row, mfa_token=token)
+    if mfa.required_for(row) and not getattr(_credential_of(session, row), "is_demo", False):
+        return SignInOutcome(
+            principal=row,
+            session_token=_open_session(session, row, mfa.ENROLMENT_SESSION, now, how),
+            mfa_enrolment_required=True,
+        )
     return SignInOutcome(
-        principal=row, session_token=_open_session(session, row, client_type, now, "login")
+        principal=row, session_token=_open_session(session, row, client_type, now, how)
+    )
+
+
+def _credential_of(session: Session, row: IdentityPrincipalRecord):
+    return credential_for(session, row.principal_id)
+
+
+def complete_mfa_sign_in(
+    session: Session,
+    *,
+    mfa_token: str,
+    code: str | None,
+    recovery_code: str | None,
+    now_utc: datetime | None = None,
+) -> SignInOutcome:
+    """The code step of a sign-in; opens the session (security review H6)."""
+
+    from eurogas_nexus.application import mfa
+
+    now = _now(now_utc)
+    try:
+        row, client_type = mfa.complete_challenge(
+            session, mfa_token, code=code, recovery_code=recovery_code, now=now
+        )
+    except mfa.MfaError as exc:
+        raise LocalAccountError(exc.code, exc.status_code, exc.message) from exc
+    return SignInOutcome(
+        principal=row, session_token=_open_session(session, row, client_type, now, "mfa")
     )
 
 
@@ -1016,10 +1078,7 @@ def complete_password_change(
         source_system="local-auth",
         now_utc=now,
     )
-    return SignInOutcome(
-        principal=row,
-        session_token=_open_session(session, row, client_type, now, "after_password_change"),
-    )
+    return _session_or_second_factor(session, row, client_type, now, "after_password_change")
 
 
 def change_own_password(
@@ -1257,6 +1316,16 @@ def ensure_demo_account(
         row.status = "ACTIVE"
         row.updated_at_utc = now
         if outcome != "created":
+            outcome = "updated"
+    else:
+        # Data scopes follow the code on every start, so a narrowed grant (book isolation,
+        # security review H1) reaches an existing demo account without a reset.
+        wanted = sorted(
+            {str(scope).strip().upper() for scope in grants.data_scopes if str(scope).strip()}
+        )
+        if sorted(row.data_scopes or []) != wanted:
+            row.data_scopes = wanted
+            row.updated_at_utc = now
             outcome = "updated"
     if outcome == "created" or not passwords.verify_password(spec.password, _stored(credential)):
         # Demo only: no policy check (the setting may carry a short shared password).

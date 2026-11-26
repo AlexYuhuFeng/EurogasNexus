@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Index, Integer, String
+from sqlalchemy import JSON, BigInteger, Boolean, DateTime, ForeignKey, Index, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
@@ -232,3 +232,33 @@ class OidcAuthorizationStateRecord(Base):
     consumed_at_utc: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
+
+
+class IdentityMfaRecord(Base):
+    """A local account's second factor: a TOTP secret and its recovery codes (review H6).
+
+    The secret is encrypted with the deployment key (``security/credentials.py``, rotatable);
+    recovery codes are stored as hashes and each works once. ``last_step`` refuses a code a
+    second time. ``challenge_hash`` is the single-use token between the password step and the
+    code step of one sign-in. Migration 0095.
+    """
+
+    __tablename__ = "identity_mfa"
+
+    principal_id: Mapped[str] = mapped_column(
+        String(80), ForeignKey("identity_principals.principal_id"), primary_key=True
+    )
+    secret_encrypted: Mapped[str] = mapped_column(String(400), nullable=False)
+    confirmed_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    last_step: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    recovery_code_hashes: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)
+    challenge_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    challenge_expires_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    challenge_client_type: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    failed_attempts: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

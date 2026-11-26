@@ -54,14 +54,30 @@ _FRAMEWORK_PATHS = frozenset({"/docs", "/docs/oauth2-redirect", "/redoc", "/open
 
 #: Map tiles and the basemap style come from the configured HTTPS tile service; MapLibre
 #: runs its workers from blob URLs; React and MapLibre set inline style attributes.
+#: Security review M5: ``connect-src``/``img-src`` named any HTTPS host, so injected script
+#: could send data anywhere. They now name the tile service the client uses, plus the hosts
+#: in ``EUROGAS_NEXUS_CSP_EXTRA_HOSTS`` (a firm's own tile server or API origin).
+TILE_HOSTS = "https://tiles.openfreemap.org"
+CSP_EXTRA_HOSTS_ENV = "EUROGAS_NEXUS_CSP_EXTRA_HOSTS"
+
+
+def _extra_hosts() -> str:
+    hosts = [
+        item.strip()
+        for item in (os.environ.get(CSP_EXTRA_HOSTS_ENV) or "").split(",")
+        if item.strip().startswith("https://") and ";" not in item and " " not in item.strip()
+    ]
+    return " ".join([TILE_HOSTS, *hosts])
+
+
 CONTENT_SECURITY_POLICY = "; ".join(
     (
         "default-src 'self'",
         "script-src 'self'",
         "style-src 'self' 'unsafe-inline'",
-        "img-src 'self' data: blob: https:",
-        "font-src 'self' data: https:",
-        "connect-src 'self' https:",
+        f"img-src 'self' data: blob: {_extra_hosts()}",
+        f"font-src 'self' data: {_extra_hosts()}",
+        f"connect-src 'self' {_extra_hosts()}",
         "worker-src 'self' blob:",
         "child-src 'self' blob:",
         "object-src 'none'",
@@ -79,7 +95,17 @@ SECURITY_HEADERS: tuple[tuple[bytes, bytes], ...] = (
     (b"permissions-policy", b"camera=(), microphone=(), geolocation=(), payment=(), usb=()"),
     (b"cross-origin-opener-policy", b"same-origin"),
 )
-HSTS_HEADER = (b"strict-transport-security", b"max-age=31536000")
+HSTS_HEADER = (b"strict-transport-security", b"max-age=31536000; includeSubDomains")
+
+#: The API's own answers (JSON, files): nothing in them is a page, so nothing may load.
+API_CONTENT_SECURITY_POLICY = "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+API_SECURITY_HEADERS: tuple[tuple[bytes, bytes], ...] = (
+    (b"content-security-policy", API_CONTENT_SECURITY_POLICY.encode("ascii")),
+    (b"x-content-type-options", b"nosniff"),
+    (b"x-frame-options", b"DENY"),
+    (b"referrer-policy", b"no-referrer"),
+    (b"cross-origin-resource-policy", b"same-site"),
+)
 
 
 def resolve_web_client_dir(environ: dict[str, str] | None = None) -> Path | None:
@@ -194,10 +220,16 @@ def _refusal(status: int, code: str, message: str, headers: dict | None = None) 
 
 
 class SecurityHeadersMiddleware:
-    """Add browser hardening headers to every HTTP response that lacks them."""
+    """Add browser hardening headers to every HTTP response that lacks them.
 
-    def __init__(self, app: ASGIApp) -> None:
+    Installed in every deployment (security review M5), not only where the API serves the web
+    client: ``/api`` answers get the API set (no content may load, no framing, no sniffing,
+    no referrer), pages the client set, and HTTPS answers HSTS.
+    """
+
+    def __init__(self, app: ASGIApp, *, serves_pages: bool = True) -> None:
         self.app = app
+        self.serves_pages = serves_pages
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -212,7 +244,9 @@ class SecurityHeadersMiddleware:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
                 present = {key.lower() for key, _ in headers}
-                extra = [*SECURITY_HEADERS, *((HSTS_HEADER,) if https else ())]
+                page = self.serves_pages and not str(scope.get("path", "")).startswith("/api/")
+                base = SECURITY_HEADERS if page else API_SECURITY_HEADERS
+                extra = [*base, *((HSTS_HEADER,) if https else ())]
                 headers.extend(item for item in extra if item[0] not in present)
                 message = {**message, "headers": headers}
             await send(message)

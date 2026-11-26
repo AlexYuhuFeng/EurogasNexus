@@ -119,10 +119,11 @@ def _analyst_client(url: str) -> tuple[TestClient, str]:
             name="revision-trader",
             display_name="Revision Trader",
             role="ANALYST",
-            data_scopes=["TTF"],
+            # A head-office analyst: book isolation is on by default (security review H1).
+            data_scopes=["TTF", "BOOKS:*"],
         )
         _key, bearer = create_identity_api_key(
-            session, principal.principal_id, display_name="governed-write"
+            session, principal.principal_id, display_name="governed-write", scopes=["*"]
         )
         session.commit()
         principal_id = principal.principal_id

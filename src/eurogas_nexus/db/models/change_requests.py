@@ -51,3 +51,35 @@ class ChangeRequestRecord(Base):
     decided_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
     decided_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     decision_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+
+
+class PrivilegedChangeRecord(Base):
+    """A security-relevant change awaiting a second administrator (security review H7).
+
+    Granting roles or scopes, creating a privileged account, resetting another person's
+    password or second factor, switching four eyes off, enabling an AI use, changing alert
+    recipients and pruning the audit trail are each requested by one administrator and take
+    effect only after a different one approves. The request keeps the exact call (method,
+    path and a hash of the body) so the approved change is the one that is made, once.
+    Migration 0095.
+    """
+
+    __tablename__ = "privileged_changes"
+    __table_args__ = (Index("ix_privileged_changes_state", "state", "requested_at_utc"),)
+
+    change_id: Mapped[str] = mapped_column(String(40), primary_key=True)
+    kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    method: Mapped[str] = mapped_column(String(8), nullable=False)
+    path: Mapped[str] = mapped_column(String(200), nullable=False)
+    body_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    body_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    summary: Mapped[str] = mapped_column(String(300), nullable=False, default="")
+    #: ``pending``, ``approved``, ``rejected``, ``withdrawn`` or ``applied``.
+    state: Mapped[str] = mapped_column(String(16), nullable=False)
+    requested_by: Mapped[str] = mapped_column(String(80), nullable=False)
+    requested_by_name: Mapped[str] = mapped_column(String(80), nullable=False)
+    requested_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    decided_by: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    decided_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    decision_note: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    applied_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

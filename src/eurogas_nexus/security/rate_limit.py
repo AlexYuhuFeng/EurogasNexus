@@ -18,7 +18,8 @@ from fastapi import HTTPException, Request
 
 _WINDOW_SECONDS = 60.0
 _WINDOWS: dict[str, tuple[float, int]] = {}
-_LOCK = threading.Lock()
+# Reentrant: a stream released by the garbage collector may run while this thread holds it.
+_LOCK = threading.RLock()
 
 
 def rate_limit(key: str, *, limit: int, window_seconds: float = _WINDOW_SECONDS) -> bool:
@@ -64,3 +65,265 @@ async def require_admin_rate_limit(request: Request) -> None:
             status_code=429,
             detail={"code": "rate_limited", "message": "Too many administration requests."},
         )
+
+
+# --- per-principal quotas on writes and heavy computations (security review M7) -----------
+
+import os  # noqa: E402
+import weakref  # noqa: E402
+from collections.abc import AsyncIterator  # noqa: E402
+
+HEAVY_LIMIT_ENV = "EUROGAS_NEXUS_RATE_LIMIT_HEAVY_PER_MINUTE"
+WRITE_LIMIT_ENV = "EUROGAS_NEXUS_RATE_LIMIT_WRITES_PER_MINUTE"
+STREAM_LIMIT_ENV = "EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL"
+#: Computations that hold the single API process for seconds (solvers, backtests, reports,
+#: model calls, PDF reading).
+HEAVY_PREFIXES = (
+    "/api/optimization/",
+    "/api/research/",
+    "/api/route-cost/calculate",
+    "/api/route-cost/recommend",
+    "/api/route-cost/resource-pool/",
+    "/api/route-cost/lng-regas/",
+    "/api/analysis/",
+    "/api/reports/",
+    "/api/strategy-lab/",
+    "/api/functional-runs",
+    "/api/functional-models/",
+    "/api/agent/",
+    "/api/contracts/intake",
+    "/api/lng/cargo-economics",
+    "/api/news/",
+    "/api/opportunities/evaluations",
+)
+_STREAMS: dict[str, set[object]] = {}
+
+
+def _production() -> bool:
+    from eurogas_nexus.core.config import runtime_environment
+
+    return runtime_environment() in {"trial", "release"}
+
+
+def _limit(raw: str | None, production_default: int) -> int:
+    """A per-minute limit; 0 means none. Defaults apply in trial and release only."""
+
+    raw = (raw or "").strip()
+    if raw.isdigit():
+        return int(raw)
+    return production_default if _production() else 0
+
+
+def _principal_key(request: Request) -> str:
+    identity = getattr(request.state, "identity", None)
+    principal = getattr(identity, "principal_id", None)
+    return principal or f"address:{request.client.host if request.client else 'unknown'}"
+
+
+async def require_principal_quota(request: Request) -> None:
+    """Per-principal fixed-window quotas on writes and on heavy computations.
+
+    ``EUROGAS_NEXUS_RATE_LIMIT_HEAVY_PER_MINUTE`` (default 30 in trial and release) and
+    ``EUROGAS_NEXUS_RATE_LIMIT_WRITES_PER_MINUTE`` (default 300). Counted in the shared cache
+    like the sign-in throttle (:func:`rate_limit`): with several API processes and a shared
+    cache the quota holds across all of them; without one, or while it cannot be reached,
+    each process counts for itself.
+    """
+
+    if request.method in {"GET", "HEAD", "OPTIONS"}:
+        return
+    key = _principal_key(request)
+    path = request.url.path
+    heavy = _limit(os.environ.get(HEAVY_LIMIT_ENV), 30)
+    if heavy and path.startswith(HEAVY_PREFIXES) and not rate_limit(f"heavy:{key}", limit=heavy):
+        raise HTTPException(
+            status_code=429,
+            detail={"code": "rate_limited", "message": "Too many heavy requests; wait a minute."},
+            headers={"Retry-After": "60"},
+        )
+    writes = _limit(os.environ.get(WRITE_LIMIT_ENV), 300)
+    if writes and not rate_limit(f"write:{key}", limit=writes):
+        raise HTTPException(
+            status_code=429,
+            detail={"code": "rate_limited", "message": "Too many changes; wait a minute."},
+            headers={"Retry-After": "60"},
+        )
+
+
+def stream_limit() -> int:
+    """Open live-update streams per person at most (``EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL``,
+    default 5; 0 means no cap)."""
+
+    raw = (os.environ.get(STREAM_LIMIT_ENV) or "").strip()
+    return int(raw) if raw.isdigit() else 5
+
+
+#: A stream's slot in the shared cache is a lease: refreshed while the stream sends, gone this
+#: long after a process died without releasing it.
+STREAM_SLOT_TTL_SECONDS = 90.0
+STREAM_SLOT_REFRESH_SECONDS = 30.0
+
+
+class _SharedSlot:
+    """One stream's slot ``stream:<owner digest>:<n>`` in the shared cache (n < the cap)."""
+
+    def __init__(self, cache, key: str, token: bytes) -> None:
+        self.cache = cache
+        self.key = key
+        self.token = token
+        self.refreshed = time.monotonic()
+
+    def refresh(self) -> None:
+        now = time.monotonic()
+        if now - self.refreshed < STREAM_SLOT_REFRESH_SECONDS:
+            return
+        self.refreshed = now
+        from eurogas_nexus.core.shared_cache import SharedCacheUnavailable
+
+        try:
+            if self.cache.get(self.key) in (None, self.token):
+                self.cache.set(self.key, self.token, ttl_seconds=STREAM_SLOT_TTL_SECONDS)
+        except SharedCacheUnavailable:
+            pass  # the lease runs out; the stream itself goes on
+
+    def release(self) -> None:
+        from eurogas_nexus.core.shared_cache import SharedCacheUnavailable
+
+        try:
+            if self.cache.get(self.key) == self.token:
+                self.cache.delete(self.key)
+        except SharedCacheUnavailable:
+            pass  # the lease expires on its own
+
+
+def _release(owner: str, slot: _SharedSlot | None, ref) -> None:
+    """Free a stream's place (idempotent; also run when the stream is garbage collected)."""
+
+    with _LOCK:
+        live = _STREAMS.get(owner)
+        if live is not None:
+            live.discard(ref)
+            if not live:
+                _STREAMS.pop(owner, None)
+    if slot is not None:
+        slot.release()
+
+
+class _CountedStream:
+    """An event stream that counts against its principal's cap while it is alive."""
+
+    def __init__(self, principal_id: str, stream: AsyncIterator[str]) -> None:
+        self.principal_id = principal_id
+        self.stream = stream
+        self.slot: _SharedSlot | None = None
+        self._ref = object()
+        self._finalizer = None
+
+    def __aiter__(self) -> _CountedStream:
+        return self
+
+    async def __anext__(self) -> str:
+        try:
+            chunk = await self.stream.__anext__()
+        except BaseException:
+            self.release()
+            raise
+        if self.slot is not None:
+            self.slot.refresh()
+        return chunk
+
+    async def aclose(self) -> None:
+        self.release()
+        closer = getattr(self.stream, "aclose", None)
+        if closer is not None:
+            await closer()
+
+    def release(self) -> None:
+        if self._finalizer is not None:
+            self._finalizer()  # runs _release once
+
+
+def _claim_shared(cache, owner: str, limit: int) -> _SharedSlot | None:
+    """A free slot of ``owner`` in the shared cache, or None when all ``limit`` are held."""
+
+    import secrets
+
+    digest = hashlib.sha256(owner.encode("utf-8")).hexdigest()[:32]
+    token = secrets.token_hex(8).encode()
+    for index in range(limit):
+        key = f"stream:{digest}:{index}"
+        if cache.add(key, token, ttl_seconds=STREAM_SLOT_TTL_SECONDS):
+            return _SharedSlot(cache, key, token)
+    return None
+
+
+def _refuse_stream(limit: int) -> HTTPException:
+    from eurogas_nexus.application import process_metrics
+
+    process_metrics.stream_refused()
+    return HTTPException(
+        status_code=429,
+        detail={
+            # The catalogued code (the client explains it), with the reason.
+            "code": "rate_limited",
+            "reason": "stream_limit_reached",
+            "message": f"At most {limit} live streams per person at once.",
+        },
+        headers={"Retry-After": "30"},
+    )
+
+
+def open_counted_stream(principal_id: str, stream: AsyncIterator[str]) -> AsyncIterator[str]:
+    """``stream`` as a counted stream of ``principal_id``, or 429 past the cap (review M7).
+
+    One cap, ``EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL``. With a shared cache configured
+    (several API processes) each open stream holds a slot there, an expiring lease refreshed
+    while the stream sends, so the cap holds across every process and a process that dies
+    frees its slots within :data:`STREAM_SLOT_TTL_SECONDS`. Without one, or while it cannot be
+    reached, this process counts its own streams.
+
+    A stream is released when it ends or is closed; one whose response never started (the
+    client left first) is released when it is garbage collected.
+    """
+
+    from eurogas_nexus.core.shared_cache import SharedCacheUnavailable, shared_cache
+
+    limit = stream_limit()
+    counted = _CountedStream(principal_id, stream)
+    slot: _SharedSlot | None = None
+    cache = shared_cache()
+    shared = False
+    if limit and cache.shared:
+        try:
+            slot = _claim_shared(cache, principal_id, limit)
+            shared = True
+        except SharedCacheUnavailable:
+            shared = False  # this process's own count below
+        if shared and slot is None:
+            raise _refuse_stream(limit)
+    with _LOCK:
+        live = _STREAMS.setdefault(principal_id, set())
+        if limit and not shared and len(live) >= limit:
+            raise _refuse_stream(limit)
+        live.add(counted._ref)
+    counted.slot = slot
+    counted._finalizer = weakref.finalize(counted, _release, principal_id, slot, counted._ref)
+    return counted
+
+
+def open_streams(principal_id: str) -> int:
+    """This process's open streams of ``principal_id`` (tests, diagnostics)."""
+
+    with _LOCK:
+        return len(_STREAMS.get(principal_id, ()))
+
+
+async def read_body_limited(request: Request, limit: int) -> bytes:
+    """The request body, refused with 413 once it passes ``limit`` bytes (chunked too)."""
+
+    received = bytearray()
+    async for chunk in request.stream():
+        received.extend(chunk)
+        if len(received) > limit:
+            raise HTTPException(status_code=413, detail={"code": "body_too_large"})
+    return bytes(received)

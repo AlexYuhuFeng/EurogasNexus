@@ -22,6 +22,43 @@ from eurogas_nexus.domain.dataops.contracts import as_utc
 
 SESSION_TTL_HOURS = 12
 SESSION_ABSOLUTE_TTL_HOURS = 24
+#: Security review H6: idle and absolute lifetimes are settings, with shorter defaults in
+#: trial and release (30 minutes idle, 10 hours absolute: a trading day).
+SESSION_IDLE_MINUTES_ENV = "EUROGAS_NEXUS_SESSION_IDLE_MINUTES"
+SESSION_ABSOLUTE_HOURS_ENV = "EUROGAS_NEXUS_SESSION_ABSOLUTE_HOURS"
+
+
+def _production() -> bool:
+    from eurogas_nexus.core.config import runtime_environment
+
+    return runtime_environment() in {
+        "trial", "release"
+    }
+
+
+def _positive(raw: str, default: float, low: float, high: float) -> float:
+    raw = (raw or "").strip()
+    try:
+        value = float(raw) if raw else default
+    except ValueError:
+        value = default
+    return min(max(value, low), high)
+
+
+def session_idle_ttl() -> timedelta:
+    default = 30 if _production() else SESSION_TTL_HOURS * 60
+    import os
+
+    raw = os.environ.get(SESSION_IDLE_MINUTES_ENV) or ""
+    return timedelta(minutes=_positive(raw, default, 5, 24 * 60))
+
+
+def session_absolute_ttl() -> timedelta:
+    default = 10 if _production() else SESSION_ABSOLUTE_TTL_HOURS
+    import os
+
+    raw = os.environ.get(SESSION_ABSOLUTE_HOURS_ENV) or ""
+    return timedelta(hours=_positive(raw, default, 1, 7 * 24))
 
 
 def hash_session_token(token: str) -> str:
@@ -52,7 +89,7 @@ def create_session(
         session_token_hash=hash_session_token(token),
         created_at_utc=now,
         last_seen_at_utc=now,
-        expires_at_utc=now + timedelta(hours=SESSION_TTL_HOURS),
+        expires_at_utc=now + min(session_idle_ttl(), session_absolute_ttl()),
         revoked_at_utc=None,
         client_type=client_type[:32],
         client_label=(client_label or "")[:128] or None,
@@ -95,13 +132,11 @@ def touch_session(
     if (now - as_utc(row.last_seen_at_utc)).total_seconds() < 60:
         return
     row.last_seen_at_utc = now
-    absolute_expiry = as_utc(row.created_at_utc) + timedelta(
-        hours=SESSION_ABSOLUTE_TTL_HOURS
-    )
+    absolute_expiry = as_utc(row.created_at_utc) + session_absolute_ttl()
     if now >= absolute_expiry:
         row.revoked_at_utc = now
         return
-    row.expires_at_utc = min(now + timedelta(hours=SESSION_TTL_HOURS), absolute_expiry)
+    row.expires_at_utc = min(now + session_idle_ttl(), absolute_expiry)
     session.flush()
 
 

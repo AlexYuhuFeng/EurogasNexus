@@ -79,6 +79,12 @@ def _configure_env(monkeypatch) -> None:
     monkeypatch.setenv("EUROGAS_NEXUS_OIDC_CLIENT_ID", CLIENT_ID)
     monkeypatch.setenv("EUROGAS_NEXUS_OIDC_AUDIENCE", AUDIENCE)
     monkeypatch.setenv("EUROGAS_NEXUS_OIDC_ALLOW_HTTP", "false")
+    # Roles come from the deployment's explicit group/claim map only (security review M3).
+    monkeypatch.setenv(
+        "EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP",
+        '{"viewer": "VIEWER", "reviewer": "REVIEWER", "analyst": "ANALYST", '
+        '"operator": "OPERATOR", "admin": "ADMIN"}',
+    )
 
 
 @pytest.fixture(autouse=True)

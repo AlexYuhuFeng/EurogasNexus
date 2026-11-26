@@ -72,7 +72,8 @@ def test_the_release_stack_never_upgrades_on_start_scaled_or_not() -> None:
         assert "EUROGAS_NEXUS_AUTO_MIGRATE" not in environment, service
     migrate = _load("compose.yaml")["services"]["migrate"]
     assert migrate["command"] == ["python", "scripts/ops/upgrade_database.py", "on-start"]
-    assert "command" not in _load("compose.scale.yaml")["services"]["migrate"]
+    # The scaled file leaves the migration alone (no command, no serving settings).
+    assert "migrate" not in _load("compose.scale.yaml")["services"]
 
 
 def test_the_preflight_checks_the_topology_that_runs() -> None:

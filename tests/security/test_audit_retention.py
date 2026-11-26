@@ -43,7 +43,8 @@ def test_prune_audit_events_dry_run_counts_only(tmp_path) -> None:
         assert summary["dry_run"] is True
         assert summary["audit_events_deleted"] == 1
 
-        assert session.query(AuditEventRecord).count() == 2
+        # Nothing deleted; the dry run is itself audited.
+        assert session.query(AuditEventRecord).filter_by(action="test").count() == 2
 
 
 def test_prune_audit_events_commit_deletes_only_expired(tmp_path) -> None:
@@ -54,12 +55,16 @@ def test_prune_audit_events_commit_deletes_only_expired(tmp_path) -> None:
         session.add(_row(5))
         session.commit()
 
-        summary = prune_expired_audit_events(session, dry_run=False)
+        # A deletion needs an approved privileged change (security review H5/H7).
+        summary = prune_expired_audit_events(
+            session, dry_run=False, approved_change_id="pc-approved"
+        )
         assert summary["audit_events_deleted"] == 1
 
-        assert {row.event_id for row in session.query(AuditEventRecord).all()} == {
-            "audit-age-5"
-        }
+        # The young row stays, and the prune is itself audited.
+        remaining = {row.event_id: row.action for row in session.query(AuditEventRecord).all()}
+        assert "audit-age-5" in remaining and "audit-age-2100" not in remaining
+        assert "audit.retention.prune" in remaining.values()
 
 
 def test_prune_rejects_unsafe_retention_window(tmp_path) -> None:
@@ -70,7 +75,8 @@ def test_prune_rejects_unsafe_retention_window(tmp_path) -> None:
             prune_expired_audit_events(session, retention_days=1)
             raise AssertionError("expected ValueError")
         except ValueError as exc:
-            assert "between 30 and 3650" in str(exc)
+            # Never below the configured retention (security review H5).
+            assert "between 1827" in str(exc) and "configured retention" in str(exc)
 
 
 def test_prune_script_without_db_url_returns_2(monkeypatch) -> None:

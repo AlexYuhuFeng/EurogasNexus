@@ -96,6 +96,18 @@ async def require_route_permission(request: Request) -> None:
         request.state.actor = identity.name
         return
 
+    from eurogas_nexus.security.deployment_token import (
+        SERVICE,
+        SERVICE_ACTOR,
+        claimed_actor,
+        token_mode,
+    )
+
+    if token_mode() == SERVICE:
+        # The deployment token is a service principal: it cannot name who acts (H3).
+        request.state.actor = SERVICE_ACTOR
+        return
+
     principal = request.headers.get(PRINCIPAL_HEADER)
     try:
         normalized = normalize_principal(principal)
@@ -115,4 +127,6 @@ async def require_route_permission(request: Request) -> None:
                 "reason": str(exc),
             },
         ) from exc
-    request.state.actor = normalized
+    # Deprecated legacy mode: the name is a claim by whoever holds the token, recorded as
+    # such (``public-api@alice``) so the audit trail never presents it as verified (H3).
+    request.state.actor = claimed_actor(SERVICE_ACTOR, normalized)

@@ -1,5 +1,19 @@
 {$SERVER_NAME}:443 {
     tls /etc/caddy/tls/server.crt /etc/caddy/tls/server.key
+    # Security review M5: the gateway states the hardening headers too, so they hold even for
+    # an answer the API did not produce (a gateway error page).
+    header {
+        Strict-Transport-Security "max-age=31536000; includeSubDomains"
+        # "?" sets a header only where the API did not (its pages carry their own policy).
+        ?X-Content-Type-Options "nosniff"
+        ?X-Frame-Options "DENY"
+        ?Referrer-Policy "no-referrer"
+        ?Content-Security-Policy "default-src 'none'; frame-ancestors 'none'; base-uri 'none'"
+        -Server
+    }
+    request_body {
+        max_size 25MB
+    }
     # The metrics endpoint is scraped on the internal network, never through this gateway.
     respond /metrics 404
     reverse_proxy api:8000

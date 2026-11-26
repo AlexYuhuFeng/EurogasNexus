@@ -676,6 +676,46 @@ def _check_security_posture(environ: Mapping[str, str]) -> list[Finding]:
     return []
 
 
+def _check_start_refusals(environ: Mapping[str, str], *, environment: str) -> list[Finding]:
+    """The settings the API itself refuses to start on (security review H1, H3, H6, H7).
+
+    The same functions the application calls at start-up, so the stack's config-check stops
+    before the API container would crash-loop: book isolation off without a single-book
+    declaration, an ADMIN or ``*`` deployment token, a release server with no sign-in
+    method, and dual control switched off in trial or release.
+    """
+
+    from eurogas_nexus.api.dual_control import assert_dual_control_setting_allowed
+    from eurogas_nexus.security.deployment_token import assert_token_settings_allowed
+    from eurogas_nexus.security.local_accounts_policy import assert_sign_in_configured
+    from eurogas_nexus.security.portfolio_scope import assert_isolation_setting_allowed
+
+    env = dict(environ)
+    env.setdefault("EUROGAS_NEXUS_ENV", environment)
+    checks = (
+        ("isolation_refused", "EUROGAS_NEXUS_PORTFOLIO_ISOLATION",
+         lambda: assert_isolation_setting_allowed(environment, env)),
+        ("deployment_token_refused", "EUROGAS_NEXUS_PUBLIC_API_TOKEN_ROLE",
+         lambda: assert_token_settings_allowed(env)),
+        ("sign_in_missing", "EUROGAS_NEXUS_LOCAL_ACCOUNTS",
+         lambda: assert_sign_in_configured(environment, env)),
+        ("dual_control_refused", "EUROGAS_NEXUS_DUAL_CONTROL",
+         lambda: assert_dual_control_setting_allowed(env)),
+    )
+    findings: list[Finding] = []
+    for code, variable, check in checks:
+        try:
+            check()
+        except RuntimeError as exc:
+            findings.append(
+                Finding(severity="error", code=code, variable=variable, message=str(exc))
+            )
+        except ValueError:
+            # A malformed value (a gateway proxy list) has its own finding above.
+            continue
+    return findings
+
+
 def _check_external_consumers(environ: Mapping[str, str]) -> list[Finding]:
     """Record external-consumer variables the deployment did not supply.
 
@@ -691,7 +731,14 @@ def _check_external_consumers(environ: Mapping[str, str]) -> list[Finding]:
         "EUROGAS_NEXUS_API_IMAGE",
         "FORWARDED_ALLOW_IPS",
         "UVICORN_WORKERS",
-        # Needed only with several API processes: _check_serving reports it then.
+        # The separate database roles (docs/security/DATABASE_ROLES.md) fall back to
+        # POSTGRES_USER until they are set up, so their absence is not a finding.
+        "EUROGAS_NEXUS_APP_DB_USER",
+        "EUROGAS_NEXUS_APP_DB_PASSWORD",
+        "EUROGAS_NEXUS_OWNER_DB_USER",
+        "EUROGAS_NEXUS_OWNER_DB_PASSWORD",
+        # Set by the compose file for the API's own metric files, never by the operator;
+        # needed only with several API processes, and _check_serving reports it then.
         "PROMETHEUS_MULTIPROC_DIR",
     }
     findings: list[Finding] = []
@@ -786,8 +833,10 @@ def check_environment(
     """
 
     source: Mapping[str, str] = os.environ if environ is None else environ
-    environment = (_value(source, "EUROGAS_NEXUS_ENV") or "development").lower()
     api_profile = (_value(source, "EUROGAS_NEXUS_API_PROFILE") or "development").lower()
+    # Unset in the release profile means release, never development (security review L3).
+    fallback = "release" if api_profile == "release" else "development"
+    environment = (_value(source, "EUROGAS_NEXUS_ENV") or fallback).lower()
 
     report = PreflightReport(environment=environment, api_profile=api_profile)
     report.findings.extend(_check_unknown_variables(source))
@@ -815,6 +864,7 @@ def check_environment(
     )
     report.findings.extend(_check_local_accounts(source))
     report.findings.extend(_check_security_posture(source))
+    report.findings.extend(_check_start_refusals(source, environment=environment))
     report.findings.extend(_check_external_consumers(source))
     report.findings.extend(_check_serving(source))
     return report

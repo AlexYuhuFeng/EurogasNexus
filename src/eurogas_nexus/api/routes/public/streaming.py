@@ -93,12 +93,6 @@ def _event_id(ts_field_value: object, pk: object) -> str:
     return f"{_iso(ts_field_value)}|{pk}"
 
 
-def refused_event() -> str:
-    """What a stream sends when the caller already holds the most streams allowed; it ends."""
-
-    return _sse({"type": "refused", "message": "STREAM_LIMIT_REACHED"}, event="refused")
-
-
 def warning_event() -> str:
     """What a stream sends while the database is unavailable (it keeps trying)."""
 
@@ -234,7 +228,6 @@ async def _event_stream(
     initial_cursor: Cursor,
     guard: RowGuard | None = None,
     notices: tuple[tuple[str, FetchNotices], ...] = (),
-    principal_id: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """The connection's events: rows after the cursor and notices, from the process's poller.
 
@@ -248,7 +241,7 @@ async def _event_stream(
     from eurogas_nexus.api.stream_hub import get_hub
 
     state = _RowStream(topic, fetch, ts_field, pk_field, initial_cursor, guard, notices)
-    async for chunk in get_hub().stream(state, principal_id):
+    async for chunk in get_hub().stream(state):
         yield chunk
 
 
@@ -647,8 +640,10 @@ def _stream_response(
 ) -> StreamingResponse:
     initial_cursor = _initial_cursor(request)
     guard = _guard_for(topic, request)
+    from eurogas_nexus.security.rate_limit import open_counted_stream
+
     return StreamingResponse(
-        _event_stream(
+        open_counted_stream(_stream_owner(request), _event_stream(
             topic,
             fetch,
             ts_field,
@@ -656,39 +651,25 @@ def _stream_response(
             initial_cursor,
             guard=guard,
             notices=notices,
-            principal_id=_admit(guard),
-        ),
+        )),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
-def _admit(guard: StreamGuard) -> str | None:
-    """The caller's id for the per-caller stream cap, or 429 when the cap is reached.
+def _stream_owner(request: Request) -> str:
+    """Whose stream this is, for the one per-person cap (``security/rate_limit.py``).
 
-    A browser opens one stream per tab; the cap (``EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL`` per
-    process) stops one caller from holding the process's poller with hundreds. The shared
-    deployment token has no identity of its own and is not capped here.
+    The identified caller (the deployment token counts as its own service principal); a
+    caller without an identity (development with anonymous callers) by its address, so
+    anonymous tabs do not share one cap.
     """
 
-    from fastapi import HTTPException
-
-    from eurogas_nexus.api.stream_hub import get_hub, streams_per_principal
-
-    principal = guard.principal
-    if principal is None or principal.auth_method == "legacy_public_token":
-        return None
-    if get_hub().streams_of(principal.principal_id) >= streams_per_principal():
-        raise HTTPException(
-            status_code=429,
-            detail={
-                # The catalogued code (the client explains it): a concurrency limit.
-                "code": "rate_limited",
-                "reason": "stream_limit_reached",
-                "message": "Too many live-update connections for this identity.",
-            },
-        )
-    return principal.principal_id
+    identity = getattr(request.state, "identity", None)
+    principal = getattr(identity, "principal_id", None)
+    if principal:
+        return str(principal)
+    return f"address:{request.client.host if request.client else 'unknown'}"
 
 
 def _guard_for(topic: str, request: Request) -> RowGuard:
@@ -742,10 +723,13 @@ class StreamGuard:
         return self._still_authorised(session)
 
     def __call__(self, session, rows: list[dict]) -> list[dict] | None:
-        """``session`` is a session or the poll's shared reads (books read once per caller)."""
+        """``session`` is a session or the poll's shared reads (books read once per caller).
 
+        The poller reads in a system scope (every book), so this is where the caller's own
+        rules apply: no caller, no rows; a caller who lost commercial access ends the stream.
+        """
 
-        if not self.still_allowed(session):
+        if self.principal is None or not self.still_allowed(session):
             return None
         if not rows:
             return rows
@@ -764,8 +748,15 @@ class StreamGuard:
         return []  # an unknown topic sends nothing
 
     def _still_authorised(self, session) -> bool:
-        """Re-read the stored identity every ``REAUTH_SECONDS``; the static token has none."""
+        """Re-read the stored identity every ``REAUTH_SECONDS``; the static token has none.
 
+        Status, roles and data scopes are re-read (a sign-in reads them from the same row), so
+        a withdrawn book scope narrows the open stream and a lost commercial role ends it: every
+        ``/api/stream/`` path serves commercial data (``security/permissions.py``).
+        """
+
+        if self.principal is None:
+            return False
         if self.principal.auth_method == "legacy_public_token":
             return True
         now = datetime.now(UTC)
@@ -781,8 +772,15 @@ class StreamGuard:
             return False
         if self.session_hash and not _session_active(session, self.session_hash, now):
             return False
-        self.principal = replace(self.principal, data_scopes=tuple(record.data_scopes or ()))
-        return True
+        updates: dict = {"data_scopes": tuple(record.data_scopes or ())}
+        if self.principal.identity_source in {"LOCAL", "GATEWAY"} or self.session_hash:
+            # The row is the authority for these sign-ins; an OIDC access token carries its own.
+            updates["role"] = record.role
+            updates["roles"] = tuple(record.roles or [record.role])
+        self.principal = replace(self.principal, **updates)
+        from eurogas_nexus.security.capabilities import commercial_capabilities_for_principal
+
+        return bool(commercial_capabilities_for_principal(self.principal))
 
 
 def _session_active(session, session_hash: str, now: datetime) -> bool:
@@ -1047,7 +1045,6 @@ async def _live_stream(
     resumed: bool,
     guard: StreamGuard | None,
     outbox_after: str | None = None,
-    principal_id: str | None = None,
 ) -> AsyncGenerator[str, None]:
     """The subscribed topics' ``change`` notices, from the process's poller.
 
@@ -1075,7 +1072,7 @@ async def _live_stream(
     from eurogas_nexus.api.stream_hub import get_hub
 
     state = _LiveStream(topics, start, resumed, guard, outbox_after)
-    async for chunk in get_hub().stream(state, principal_id):
+    async for chunk in get_hub().stream(state):
         yield chunk
 
 
@@ -1098,15 +1095,16 @@ async def stream_live(request: Request, topics: str = "") -> StreamingResponse:
     resume = request.headers.get("last-event-id") or request.query_params.get("last_event_id")
     resumed = _parse_live_id(resume, now)
     guard = _guard_for("live", request)
+    from eurogas_nexus.security.rate_limit import open_counted_stream
+
     return StreamingResponse(
-        _live_stream(
+        open_counted_stream(_stream_owner(request), _live_stream(
             parse_topics(topics),
             resumed[0] if resumed else now,
             resumed is not None,
             guard,
             outbox_after=resumed[1] if resumed else None,
-            principal_id=_admit(guard),
-        ),
+        )),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

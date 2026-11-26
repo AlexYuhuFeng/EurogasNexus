@@ -65,8 +65,12 @@ def validate_internal_operator_headers(
     """Validate internal token and explicit operator principal headers."""
 
     verify_internal_api_token(token)
+    from eurogas_nexus.security.deployment_token import INTERNAL_ACTOR, claimed_actor
+
     try:
-        return normalize_principal(principal)
+        # The internal token identifies the deployment's operators as a group; the named
+        # operator is a claim and is recorded as one (``internal-api@alice``, review H3).
+        return claimed_actor(INTERNAL_ACTOR, normalize_principal(principal))
     except PrincipalValidationError as exc:
         missing = not (principal or "").strip()
         raise InternalApiAuthError(

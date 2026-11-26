@@ -30,7 +30,7 @@ import os
 import threading
 import time
 from collections.abc import AsyncGenerator, Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Any, Protocol
 
 from eurogas_nexus.application import process_metrics
@@ -45,8 +45,6 @@ MAX_PENDING_BATCHES = 200
 EARLY_WAKE_GAP_SECONDS = 0.05
 #: While the store stays unreachable, a failed poll is logged at most this often.
 FAILURE_LOG_INTERVAL_SECONDS = 60.0
-#: Open streams per caller and process at most (``EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL``).
-DEFAULT_STREAMS_PER_PRINCIPAL = 8
 
 
 class StreamState(Protocol):
@@ -64,7 +62,6 @@ class Subscription:
     state: StreamState
     loop: asyncio.AbstractEventLoop
     queue: asyncio.Queue
-    principal_id: str | None = None
     closed: bool = False
 
 
@@ -76,25 +73,7 @@ class HubStats:
     max_poll_seconds: float = 0.0
     failed_polls: int = 0
     slow_consumers_ended: int = 0
-    refused_over_cap: int = 0
     poll_seconds_total: float = 0.0
-    by_principal: dict[str, int] = field(default_factory=dict)
-
-
-class StreamLimitReached(Exception):
-    """The caller already holds the most streams one process allows."""
-
-
-def streams_per_principal(environ: dict[str, str] | None = None) -> int:
-    if environ is None:
-        raw = os.environ.get("EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL", "")
-    else:
-        raw = environ.get("EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL", "")
-    try:
-        value = int(str(raw).strip())
-    except ValueError:
-        return DEFAULT_STREAMS_PER_PRINCIPAL
-    return value if value > 0 else DEFAULT_STREAMS_PER_PRINCIPAL
 
 
 class StreamHub:
@@ -105,14 +84,12 @@ class StreamHub:
         interval: Callable[[], float],
         session_factory: Callable[[], Callable[[], Any]],
         warning: Callable[[], str],
-        refused: Callable[[], str] = lambda: "",
         *,
         autostart: bool = True,
     ) -> None:
         self._interval = interval
         self._session_factory = session_factory
         self._warning = warning
-        self._refused = refused
         self._autostart = autostart  # off: the caller runs :meth:`poll` itself (tests)
         self._subs: set[Subscription] = set()
         self._lock = threading.Lock()
@@ -126,17 +103,13 @@ class StreamHub:
 
     # Subscribers (event-loop side) ----------------------------------------------------------
 
-    def subscribe(self, state: StreamState, principal_id: str | None = None) -> Subscription:
+    def subscribe(self, state: StreamState) -> Subscription:
+        """Add a stream. The per-person cap is applied before, by the route
+        (``security/rate_limit.open_counted_stream``), across processes."""
+
         loop = asyncio.get_running_loop()
-        sub = Subscription(state, loop, asyncio.Queue(), principal_id)
+        sub = Subscription(state, loop, asyncio.Queue())
         with self._lock:
-            if principal_id:
-                held = self.stats.by_principal.get(principal_id, 0)
-                if held >= streams_per_principal():
-                    self.stats.refused_over_cap += 1
-                    process_metrics.stream_refused()
-                    raise StreamLimitReached(principal_id)
-                self.stats.by_principal[principal_id] = held + 1
             self._subs.add(sub)
         if self._autostart:
             self._ensure_thread()
@@ -145,34 +118,17 @@ class StreamHub:
 
     def unsubscribe(self, sub: Subscription) -> None:
         with self._lock:
-            if sub in self._subs:
-                self._subs.discard(sub)
-                if sub.principal_id:
-                    left = self.stats.by_principal.get(sub.principal_id, 1) - 1
-                    if left > 0:
-                        self.stats.by_principal[sub.principal_id] = left
-                    else:
-                        self.stats.by_principal.pop(sub.principal_id, None)
+            self._subs.discard(sub)
             sub.closed = True
 
     def open_streams(self) -> int:
         with self._lock:
             return len(self._subs)
 
-    def streams_of(self, principal_id: str) -> int:
-        with self._lock:
-            return self.stats.by_principal.get(principal_id, 0)
-
-    async def stream(
-        self, state: StreamState, principal_id: str | None = None
-    ) -> AsyncGenerator[str, None]:
+    async def stream(self, state: StreamState) -> AsyncGenerator[str, None]:
         """The connection's events, as the poller hands them over."""
 
-        try:
-            sub = self.subscribe(state, principal_id)
-        except StreamLimitReached:  # opened past the route's check (a race): say so and end
-            yield self._refused()
-            return
+        sub = self.subscribe(state)
         try:
             while True:
                 chunks, done = await sub.queue.get()
@@ -236,7 +192,14 @@ class StreamHub:
         queries = 0
         failed = False
         try:
-            with self._session_factory()() as session:
+            # The poller reads for every caller it serves, so its own reads run in an explicit
+            # system scope (every book): never the scope of whichever request happened to start
+            # the thread. Nothing it reads reaches a connection unfiltered: each stream's state
+            # passes its rows and notices through its own caller's guard (book scope, licensed
+            # data scopes, commercial boundary) before they are delivered.
+            from eurogas_nexus.security.portfolio_scope import system_scope
+
+            with system_scope(), self._session_factory()() as session:
                 reads = Reads(session)
                 for sub in subs:
                     with contextlib.suppress(Exception):
@@ -341,16 +304,12 @@ def get_hub() -> StreamHub:
                 interval=lambda: streaming.POLL_SECONDS,
                 session_factory=session_factory,
                 warning=streaming.warning_event,
-                refused=streaming.refused_event,
             )
         return _HUB
 
 
 __all__ = [
-    "DEFAULT_STREAMS_PER_PRINCIPAL",
     "HubStats",
     "StreamHub",
-    "StreamLimitReached",
     "get_hub",
-    "streams_per_principal",
 ]

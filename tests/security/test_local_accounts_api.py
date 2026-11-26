@@ -11,7 +11,6 @@ never a password or token; demo test accounts never sign in outside the demo pro
 
 from __future__ import annotations
 
-import hashlib
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -20,6 +19,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.api.app import create_app
+from eurogas_nexus.api.middleware.origin_csrf import csrf_for_session
 from eurogas_nexus.application import local_accounts
 from eurogas_nexus.core.config import Settings
 from eurogas_nexus.db.base import Base
@@ -321,7 +321,7 @@ def test_own_password_change_requires_the_current_one_and_ends_other_sessions(st
     assert other.get("/api/me").status_code == 200
 
     session_token = client.cookies.get("eurogas_session")
-    csrf = hashlib.sha256(session_token.encode()).hexdigest()[:32]
+    csrf = csrf_for_session(session_token)
     guarded = {
         "Origin": "https://testserver",
         "X-Forwarded-Proto": "https",

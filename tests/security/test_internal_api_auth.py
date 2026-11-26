@@ -39,7 +39,7 @@ def test_internal_operator_headers_require_token_and_principal(monkeypatch) -> N
             token="super-secret-token",
             principal=" ops-user ",
         )
-        == "ops-user"
+        == "internal-api@ops-user"  # recorded as a claim of the internal token (H3)
     )
     with pytest.raises(InternalApiAuthError) as exc_info:
         validate_internal_operator_headers(token="super-secret-token", principal=None)

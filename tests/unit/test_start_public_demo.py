@@ -133,7 +133,7 @@ def test_testers_are_created_once_and_a_tester_s_admin_changes_survive_a_restart
     assert trader.status == "DISABLED"
     assert start.ensure_testers(session, reapply=True) == (0, len(start.TESTERS))
     assert trader.status == "ACTIVE"
-    assert trader.data_scopes == ["*"]
+    assert trader.data_scopes == sorted(start.TESTER_SCOPES["demo.trader"])
 
 
 def test_seed_marker_drives_seed_once_and_reset(session):

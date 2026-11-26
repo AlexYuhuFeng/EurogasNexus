@@ -61,7 +61,7 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **316 paths / 352 operations**
+- OpenAPI public surface: **328 paths / 364 operations**
 
   (2026-11-26: `GET /api/optimization/planning-inputs` (READ, from the merged desk review);
   315 / 351 before.)

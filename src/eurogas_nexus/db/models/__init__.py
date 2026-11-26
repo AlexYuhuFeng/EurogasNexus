@@ -29,7 +29,7 @@ from eurogas_nexus.db.models.backtest import (
 from eurogas_nexus.db.models.books import TradingBookRecord
 from eurogas_nexus.db.models.capacity_bookings import CapacityBookingRecord
 from eurogas_nexus.db.models.certification import ProviderCertificationRecord
-from eurogas_nexus.db.models.change_requests import ChangeRequestRecord
+from eurogas_nexus.db.models.change_requests import ChangeRequestRecord, PrivilegedChangeRecord
 from eurogas_nexus.db.models.commercial_assumptions import (
     AssumptionSetRecord,
     AssumptionSetVersionRecord,
@@ -67,6 +67,7 @@ from eurogas_nexus.db.models.identity import (
     IdentityApiKeyRecord,
     IdentityExternalIdRecord,
     IdentityLocalCredentialRecord,
+    IdentityMfaRecord,
     IdentityPrincipalRecord,
     OidcAuthorizationStateRecord,
     UserSessionRecord,
@@ -115,6 +116,8 @@ from eurogas_nexus.db.models.monitoring import (
 )
 from eurogas_nexus.db.models.news import NewsItemRecord, NewsSourcePollRecord
 from eurogas_nexus.db.models.observation import (
+    AuditChainAnchorRecord,
+    AuditChainRecord,
     AuditEventRecord,
     CapacityObservationRecord,
     EntitlementDecisionRecord,
@@ -346,6 +349,10 @@ __all__ = [
     "BacktestDecisionEventRecord",
     "BacktestExperimentRecord",
     "BacktestSeriesRecord",
+    "AuditChainAnchorRecord",
+    "PrivilegedChangeRecord",
+    "IdentityMfaRecord",
+    "AuditChainRecord",
     "AuditEventRecord",
     "DataOperationsHeartbeatRecord",
     "IngestionRunIssueRecord",
@@ -495,8 +502,17 @@ __all__ = [
     "AgentToolInvocationRecord",
 ]
 
+# Book isolation is enforced on every Session once the models are loaded (security review H1).
+from eurogas_nexus.db import book_scope as _book_scope  # noqa: E402
 from eurogas_nexus.db.models.strategy_access import (  # noqa: F401, E402
     IdentityGroupMemberRecord,
     IdentityGroupRecord,
     StrategyGroupShareRecord,
 )
+
+_book_scope.install()
+
+# Audit rows are sealed into a hash chain when their transaction commits (security review H5).
+from eurogas_nexus.db import audit_chain as _audit_chain  # noqa: E402
+
+_audit_chain.install()

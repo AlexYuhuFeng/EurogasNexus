@@ -9,7 +9,10 @@ one live-update poller per process, and a shared cache"):
 * generation counters: "a write went through the API", which makes the warm views of every
   process due and the writer's own entries unservable (``application/warm_views.py``);
 * revocation notes: a signed-out session or a disabled identity, read by the live-update
-  streams every poll (``security/session_revocation.py``).
+  streams every poll (``security/session_revocation.py``);
+* stream slots: the open live-update streams per person (expiring leases, so a process that
+  dies frees its slots), which hold the per-person cap across processes
+  (``security/rate_limit.py``).
 
 Two backends, chosen by one setting, ``EUROGAS_NEXUS_SHARED_CACHE_URL``:
 
@@ -70,6 +73,10 @@ class SharedCache(Protocol):
 
     def delete(self, key: str) -> None: ...
 
+    def add(self, key: str, value: bytes, ttl_seconds: float) -> bool:
+        """Set ``key`` only when it is absent (a lease that expires); True when it was set."""
+        ...
+
     def incr(self, key: str, ttl_seconds: float | None = None) -> int:
         """Add one and return the new value; a new key expires after ``ttl_seconds`` (a later
         increment does not extend it: a fixed window that starts at the first count)."""
@@ -115,6 +122,13 @@ class MemoryCache:
     def delete(self, key: str) -> None:
         with self._lock:
             self._values.pop(key, None)
+
+    def add(self, key: str, value: bytes, ttl_seconds: float) -> bool:
+        with self._lock:
+            if self._live(key) is not None:
+                return False
+            self._values[key] = (value, self._clock() + ttl_seconds)
+            return True
 
     def incr(self, key: str, ttl_seconds: float | None = None) -> int:
         with self._lock:
@@ -197,6 +211,10 @@ class ValkeyCache:
 
     def delete(self, key: str) -> None:
         self._call(lambda client: client.delete(KEY_PREFIX + key))
+
+    def add(self, key: str, value: bytes, ttl_seconds: float) -> bool:
+        px = max(1, int(ttl_seconds * 1000))
+        return bool(self._call(lambda client: client.set(KEY_PREFIX + key, value, px=px, nx=True)))
 
     def incr(self, key: str, ttl_seconds: float | None = None) -> int:
         full = KEY_PREFIX + key

@@ -148,8 +148,13 @@ def parse_quote_export(
     received_at_utc: datetime,
     default_units: dict[str, str] | None = None,
     quantity_unit_override: str | None = None,
+    imported_by: str = "operator",
 ) -> QuoteImportResult:
     """Parse one export into ``market_quotes`` rows.
+
+    The rows keep the licensed family as their ``source_system`` (entitlement applies as for
+    a direct connector), but their venue label says what they are: a file imported by a named
+    person (``Trayport (file import)``), never the venue's own feed (security review H4).
 
     Raises:
         QuoteImportError: Unknown source, missing columns or any bad row.
@@ -239,6 +244,7 @@ def parse_quote_export(
         tenor = board_tenor(code, period.kind, period.label)
         venue = LICENSED_QUOTE_SOURCES[source_system]
         instrument_id = f"{venue.upper().replace(' ', '-')}-{hub}-{period.label}"[:128]
+        venue_label = f"{venue} (file import)"
         identity = f"{source_system}|{hub}|{period.label}|{observed.isoformat()}"
         digest = hashlib.sha256(identity.encode()).hexdigest()[:24]
         rows.append(
@@ -246,7 +252,7 @@ def parse_quote_export(
                 "quote_id": f"import-{source_system.lower()}-{digest}",
                 "source_system": source_system,
                 "source_record_id": f"{instrument_id}@{observed.isoformat()}"[:128],
-                "venue": venue,
+                "venue": venue_label,
                 "instrument_id": instrument_id,
                 "hub": hub,
                 "product": tenor,
@@ -268,6 +274,9 @@ def parse_quote_export(
                 "metadata_json": {
                     "source_family": source_system,
                     "import": "operator_licensed_screen_export",
+                    # True origin, shown with the price (H4): who imported which file.
+                    "origin": "file_import",
+                    "imported_by": (imported_by or "operator")[:128],
                     "product_label": period.label,
                     "product_kind": period.kind,
                     "native_unit": native_unit,

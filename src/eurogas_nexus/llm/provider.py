@@ -1,8 +1,10 @@
 """Which language model the installation talks to, and how.
 
 Every supported provider is reached through the OpenAI-compatible chat-completions API:
-DeepSeek (the default), OpenAI and Azure OpenAI, Mistral, Alibaba Qwen, and self-hosted
-servers such as vLLM or Ollama. The endpoint is installation configuration, so the
+DeepSeek, OpenAI and Azure OpenAI, Mistral, Alibaba Qwen, and self-hosted servers such as
+vLLM or Ollama. There is no default provider (security review M10): an installation names its
+endpoint in ``EUROGAS_NEXUS_LLM_BASE_URL``, and until it does no prompt leaves the server.
+The endpoint is installation configuration, so the
 China installation can use an in-country model and a European one an EU-hosted or
 on-premises model, without code changes (docs/architecture/GLOBAL_DEPLOYMENT.md).
 
@@ -19,8 +21,9 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from urllib.parse import urlsplit
 
-DEFAULT_PROVIDER_NAME = "DEEPSEEK"
-DEFAULT_BASE_URL = "https://api.deepseek.com"
+DEFAULT_PROVIDER_NAME = "CONFIGURED"
+#: Kept for the setup guidance that names DeepSeek as one choice; never used implicitly.
+DEEPSEEK_BASE_URL = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-v4-flash"
 
 
@@ -58,11 +61,28 @@ def validate_base_url(base_url: str) -> str:
     return base_url.strip().rstrip("/")
 
 
+def private_endpoint(base_url: str) -> bool:
+    """Whether the endpoint is a model on the firm's own network (on-premises)."""
+
+    host = urlsplit(base_url.strip()).hostname or ""
+    return _private_host(host)
+
+
 def configured_endpoint(environ: Mapping[str, str] | None = None) -> LlmEndpoint:
-    """The installation's endpoint from ``EUROGAS_NEXUS_LLM_*``; DeepSeek when unset."""
+    """The installation's endpoint from ``EUROGAS_NEXUS_LLM_*``.
+
+    Raises:
+        LlmEndpointError: no endpoint is configured (there is no default provider), or the
+            configured one is unsafe.
+    """
 
     env = os.environ if environ is None else environ
-    base_url = str(env.get("EUROGAS_NEXUS_LLM_BASE_URL") or "").strip() or DEFAULT_BASE_URL
+    base_url = str(env.get("EUROGAS_NEXUS_LLM_BASE_URL") or "").strip()
+    if not base_url:
+        raise LlmEndpointError(
+            "no model provider is configured: set EUROGAS_NEXUS_LLM_BASE_URL to the endpoint "
+            "this installation has chosen"
+        )
     model = str(env.get("EUROGAS_NEXUS_LLM_MODEL") or "").strip() or DEFAULT_MODEL
     name = str(env.get("EUROGAS_NEXUS_LLM_PROVIDER_NAME") or "").strip() or DEFAULT_PROVIDER_NAME
     return LlmEndpoint(

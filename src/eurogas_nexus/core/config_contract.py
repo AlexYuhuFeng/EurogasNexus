@@ -301,12 +301,6 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
             "with docs/operations/API_SERVING_AND_SHARED_CACHE.md",
         ),
     ),
-    ConfigVar(
-        name="EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL",
-        scope="OPERATOR",
-        purpose="Live-update streams one identity may hold open on one API process.",
-        default="8",
-    ),
     # --- Caller identity ----------------------------------------------------
     ConfigVar(
         name="EUROGAS_NEXUS_PUBLIC_API_TOKEN",
@@ -318,6 +312,211 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
             "Every route profile identifies its callers, so an unconfigured token "
             "fails closed rather than serving unauthenticated callers.",
         ),
+    ),
+    # --- Security review 2026-11 (docs/security/SECURITY_REVIEW_REMEDIATION_2026-11.md) ---
+    ConfigVar(
+        name="EUROGAS_NEXUS_AUDIT_RETENTION_DAYS",
+        scope="OPERATOR",
+        purpose=(
+            "Audit retention in days: nothing younger is ever pruned, and a prune needs a "
+            "second administrator (365-3650)."
+        ),
+        default="1827",
+        example="1827",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_AUDIT_SINK",
+        scope="OPERATOR",
+        purpose=(
+            "Forward each sealed audit row as a JSON line to the firm's SIEM: stdout, "
+            "file:/path, syslog://host:port (UDP) or an https:// webhook. Unset: no forwarding."
+        ),
+        example="syslog://siem.example.internal:514",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DUAL_CONTROL",
+        scope="OPERATOR",
+        purpose=(
+            "Second-administrator approval of grants, privileged accounts, password and "
+            "second-factor resets, four-eyes switches, AI uses, alert recipients and audit "
+            "prunes: on or off (off refused in trial and release)."
+        ),
+        default="on in trial/release, off in development/test",
+        example="on",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DUAL_CONTROL_COOLING_DAYS",
+        scope="OPERATOR",
+        purpose=(
+            "Days during which an approver whose account or grants the requester created may "
+            "not approve the requester's changes."
+        ),
+        default="7",
+        example="7",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_BREAK_GLASS",
+        scope="OPERATOR",
+        purpose=(
+            "Whether a single administrator may apply a security-relevant change at once with "
+            "a stated reason (audited at critical severity): on or off."
+        ),
+        default="on",
+        example="on",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_MFA_REQUIRED",
+        scope="OPERATOR",
+        purpose=(
+            "Second factor for local accounts: all, privileged (every role above VIEWER and "
+            "SCHEDULER) or off."
+        ),
+        default="privileged in trial/release, off in development/test",
+        example="privileged",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_SESSION_IDLE_MINUTES",
+        scope="OPERATOR",
+        purpose="Minutes of inactivity after which a session ends (5-1440).",
+        default="30 in trial/release, 720 in development/test",
+        example="30",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_SESSION_ABSOLUTE_HOURS",
+        scope="OPERATOR",
+        purpose="Hours after sign-in at which a session ends whatever its use (1-168).",
+        default="10 in trial/release, 24 in development/test",
+        example="10",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_SECRET_KEY_PREVIOUS",
+        scope="OPERATOR",
+        purpose=(
+            "Earlier deployment keys, comma-separated, still accepted for decryption and API "
+            "key checks during a rotation (scripts/ops/rotate_secret_key.py)."
+        ),
+        sensitivity="secret",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_ALERT_EMAIL_DOMAINS",
+        scope="OPERATOR",
+        purpose=(
+            "Mail domains alert e-mails may go to (comma-separated); required in trial and "
+            "release before an alert channel can be set."
+        ),
+        example="example.com",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_CSP_EXTRA_HOSTS",
+        scope="OPERATOR",
+        purpose=(
+            "Extra https:// hosts the web client may load map tiles or images from and connect "
+            "to (a firm's own tile server), comma-separated."
+        ),
+        example="",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DESKTOP_CLIENTS",
+        scope="OPERATOR",
+        purpose="Whether the desktop client's origins are allowed to call the API: on or off.",
+        default="on",
+        example="on",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_RATE_LIMIT_HEAVY_PER_MINUTE",
+        scope="OPERATOR",
+        purpose=(
+            "Heavy computations (solvers, backtests, reports, model calls) per person per "
+            "minute; 0 for none."
+        ),
+        default="30 in trial/release, none in development/test",
+        example="30",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_RATE_LIMIT_WRITES_PER_MINUTE",
+        scope="OPERATOR",
+        purpose="Changes per person per minute; 0 for none.",
+        default="300 in trial/release, none in development/test",
+        example="300",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL",
+        scope="OPERATOR",
+        purpose=(
+            "Live streams one person may hold open at once; 0 for none. Counted across every "
+            "API process through the shared cache when one is configured, per process otherwise."
+        ),
+        default="5",
+        example="5",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_PUBLIC_API_TOKEN_PREVIOUS",
+        scope="OPERATOR",
+        purpose=(
+            "The previous deployment token, still accepted while clients move to a new one "
+            "(rotation window; clear it once every client uses the new token)."
+        ),
+        sensitivity="secret",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_PUBLIC_API_TOKEN_MODE",
+        scope="OPERATOR",
+        purpose=(
+            "What the deployment token is: service (a service principal with the configured "
+            "role and scopes; X-Eurogas-Principal ignored) or legacy_operator (deprecated: "
+            "OPERATOR over every book and dataset, claimed actor names)."
+        ),
+        default="service in trial/release, legacy_operator in development/test",
+        example="service",
+        notes=("legacy_operator logs a deprecation warning on every start",),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_PUBLIC_API_TOKEN_ROLE",
+        scope="OPERATOR",
+        purpose="Role of the deployment token in service mode (never ADMIN).",
+        default="VIEWER",
+        example="VIEWER",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_PUBLIC_API_TOKEN_SCOPES",
+        scope="OPERATOR",
+        purpose=(
+            "Comma-separated data scopes of the deployment token in service mode (source "
+            "families, BOOKS: scopes); '*' is refused. Empty: public sources only."
+        ),
+        default="",
+        example="",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_APP_DB_USER",
+        scope="OPERATOR",
+        purpose=(
+            "PostgreSQL role the services connect as (no UPDATE/DELETE on the audit trail); "
+            "see docs/security/DATABASE_ROLES.md. Defaults to POSTGRES_USER."
+        ),
+        external_reader="compose",
+        example="eurogas_app",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_APP_DB_PASSWORD",
+        scope="OPERATOR",
+        purpose="Password of EUROGAS_NEXUS_APP_DB_USER.",
+        sensitivity="secret",
+        external_reader="compose",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_OWNER_DB_USER",
+        scope="OPERATOR",
+        purpose="PostgreSQL schema-owner role that runs migrations. Defaults to POSTGRES_USER.",
+        external_reader="compose",
+        example="eurogas_owner",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_OWNER_DB_PASSWORD",
+        scope="OPERATOR",
+        purpose="Password of EUROGAS_NEXUS_OWNER_DB_USER.",
+        sensitivity="secret",
+        external_reader="compose",
     ),
     ConfigVar(
         name="EUROGAS_NEXUS_INTERNAL_API_TOKEN",
@@ -484,11 +683,25 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         name="EUROGAS_NEXUS_PORTFOLIO_ISOLATION",
         scope="OPERATOR",
         purpose=(
-            "Restrict contracts, trades and books to the books named by each person's "
-            "BOOKS: data scopes (head office BOOKS:*, regional heads their entity or region)."
+            "Restrict contracts, trades, books, credit lines, mandates, decision cases and "
+            "snapshots to the books named by each person's BOOKS: data scopes (head office "
+            "BOOKS:*, regional heads their entity or region). On by default."
         ),
+        default="true",
+        example="true",
+        notes=(
+            "false is refused in trial and release unless EUROGAS_NEXUS_SINGLE_BOOK_FIRM=true",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_SINGLE_BOOK_FIRM",
+        scope="OPERATOR",
+        purpose=(
+            "Declares a single-office installation with no information barrier to enforce, "
+            "so book isolation may be switched off in trial and release."
+        ),
+        default="false",
         example="false",
-        notes=("Turn on for any installation shared by more than one office",),
     ),
     ConfigVar(
         name="EUROGAS_NEXUS_GATEWAY_EMAIL_HEADER",
@@ -531,14 +744,21 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
     ConfigVar(
         name="EUROGAS_NEXUS_OIDC_ROLE_CLAIM",
         scope="OPERATOR",
-        purpose="Token claim carrying role names.",
+        purpose=(
+            "Token claim whose values are looked up in EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP "
+            "(with realm_access.roles and groups); generic role names are never trusted."
+        ),
         default="roles",
     ),
     ConfigVar(
         name="EUROGAS_NEXUS_OIDC_SCOPE_CLAIM",
         scope="OPERATOR",
-        purpose="Token claim carrying commercial data scopes.",
-        default="entitlements",
+        purpose=(
+            "Token claim carrying commercial data scopes; unset reads none (scopes then come "
+            "from EUROGAS_NEXUS_OIDC_GROUPS_SCOPE_MAP). '*' and PERM: values are never taken "
+            "from a token."
+        ),
+        default="",
     ),
     ConfigVar(
         name="EUROGAS_NEXUS_OIDC_PROVISIONING_MODE",

@@ -162,20 +162,42 @@ def role_allows(actual: str | Role, required: str | Role) -> bool:
 
 
 def legacy_public_token_principal() -> AuthenticatedPrincipal:
-    """Compatibility principal for the static deployment API token.
+    """The principal of the static deployment API token (security review H3).
 
-    Deployments that send only ``X-Eurogas-Api-Key`` keep working as the
-    single-trust-domain operator service. New multi-user clients should send
-    ``X-Eurogas-Identity`` to obtain role/scope-limited authorization.
+    In ``service`` mode (the default in trial and release) a service principal with the
+    configured role and data scopes; in the deprecated ``legacy_operator`` mode the historical
+    single-trust-domain OPERATOR with ``*`` (see ``security/deployment_token.py``).
     """
 
+    from eurogas_nexus.security.deployment_token import (
+        SERVICE,
+        service_role,
+        service_scopes,
+        token_mode,
+    )
+
+    if token_mode() == SERVICE:
+        role = service_role()
+        return AuthenticatedPrincipal(
+            principal_id=LEGACY_PUBLIC_TOKEN_PRINCIPAL_ID,
+            name="public-api",
+            principal_type="SERVICE",
+            role=role,
+            status="ACTIVE",
+            data_scopes=service_scopes(),
+            roles=(role,),
+            identity_source="LOCAL",
+            auth_method="legacy_public_token",
+        )
     return AuthenticatedPrincipal(
         principal_id=LEGACY_PUBLIC_TOKEN_PRINCIPAL_ID,
         name="public-api",
         principal_type="SERVICE",
         role=Role.OPERATOR.value,
         status="ACTIVE",
-        data_scopes=("*",),
+        # OPERATOR no longer reads positions or limits by role (security review H1); the
+        # compatibility caller keeps its historical reach through explicit grants.
+        data_scopes=("*", "PERM:portfolio.read", "PERM:risk.limits.read"),
         roles=(Role.OPERATOR.value,),
         identity_source="LOCAL",
         auth_method="legacy_public_token",
@@ -224,15 +246,20 @@ def verify_key_hash(secret: str, expected_hash: str) -> bool:
     if expected.startswith("hmac:"):
         import os
 
-        raw_key = os.environ.get("EUROGAS_NEXUS_SECRET_KEY", "").strip()
-        if not raw_key:
-            return False
-        digest = hmac.new(
-            raw_key.encode("utf-8"),
-            secret.encode("utf-8"),
-            hashlib.sha256,
-        ).hexdigest()
-        return hmac.compare_digest(digest, expected.removeprefix("hmac:"))
+        # The current key and, during a rotation, the previous ones (security review M9).
+        keys = [os.environ.get("EUROGAS_NEXUS_SECRET_KEY", "").strip()] + [
+            item.strip()
+            for item in os.environ.get("EUROGAS_NEXUS_SECRET_KEY_PREVIOUS", "").split(",")
+        ]
+        matched = False
+        for raw_key in (key for key in keys if key):
+            digest = hmac.new(
+                raw_key.encode("utf-8"),
+                secret.encode("utf-8"),
+                hashlib.sha256,
+            ).hexdigest()
+            matched = hmac.compare_digest(digest, expected.removeprefix("hmac:")) or matched
+        return matched
     return hmac.compare_digest(hash_key_secret(secret), expected)
 
 

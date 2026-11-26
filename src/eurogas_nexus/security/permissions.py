@@ -54,6 +54,8 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # the uniform refusal, per-account back-off and per-address throttle.
     ("/api/auth/login", Permission.PUBLIC),
     ("/api/auth/password-change", Permission.PUBLIC),
+    # The code step of a sign-in with a second factor (H6): the mfa_token is the authority.
+    ("/api/auth/mfa/verify", Permission.PUBLIC),
     ("/api/auth/oidc/login", Permission.PUBLIC),
     ("/api/auth/oidc/callback", Permission.PUBLIC),
     ("/api/auth/oidc/desktop/login", Permission.PUBLIC),
@@ -66,6 +68,10 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/me/api-keys/{key_id}/revoke", Permission.READ),
     # A signed-in local-account user changes their own password (needs the current one).
     ("/api/me/password", Permission.READ),
+    # A person's own second factor (H6): status, enrolment and confirmation.
+    ("/api/me/mfa", Permission.READ),
+    ("/api/me/mfa/enrol", Permission.READ),
+    ("/api/me/mfa/confirm", Permission.READ),
     # A person's own presentation choices; they grant nothing (domain/settings).
     ("/api/me/preferences", Permission.READ),
     # A person's own read and dismissed marks on alerts; the shared alert status is untouched.
@@ -77,6 +83,7 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/access/users", Permission.ADMIN),
     ("/api/access/users/{principal_id}", Permission.ADMIN),
     ("/api/access/users/{principal_id}/reset-password", Permission.ADMIN),
+    ("/api/access/users/{principal_id}/mfa/reset", Permission.ADMIN),
     ("/api/access/roles", Permission.ADMIN),
     ("/api/access/data-scopes", Permission.ADMIN),
     ("/api/access/market-data-licences", Permission.ADMIN),
@@ -84,6 +91,16 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/access/api-keys", Permission.ADMIN),
     ("/api/access/api-keys/{key_id}/revoke", Permission.ADMIN),
     ("/api/audit", Permission.ADMIN),
+    # Security review H5: verify the audit hash chain, record a signed checkpoint of its head,
+    # and prune under dual control (api/dual_control.py). Administration only.
+    ("/api/audit/verify", Permission.ADMIN),
+    ("/api/audit/checkpoint", Permission.ADMIN),
+    ("/api/audit/prune", Permission.ADMIN),
+    # Security review H7: security-relevant changes awaiting a second administrator.
+    ("/api/access/privileged-changes", Permission.ADMIN),
+    ("/api/access/privileged-changes/{change_id}/approve", Permission.ADMIN),
+    ("/api/access/privileged-changes/{change_id}/reject", Permission.ADMIN),
+    ("/api/access/privileged-changes/{change_id}/withdraw", Permission.ADMIN),
     ("/api/access/sso", Permission.ADMIN),
     # First-run setup: the welcome flow's pages and state; keys and approvals go through
     # their own routes.
@@ -317,7 +334,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/decision-cases/{case_id}/evidence", Permission.GOVERNED),
     ("/api/decision-cases/{case_id}/decisions", Permission.REVIEW),
     ("/api/decision-cases/{case_id}/reopen", Permission.REVIEW),
-    ("/api/decision-cases/{case_id}/handoff", Permission.READ),
+    # The signed ERP hand-off is a reviewer's act on a decided case (security review H2):
+    # REVIEW floor, and the handler requires the case's author or one of its deciders.
+    ("/api/decision-cases/{case_id}/handoff", Permission.REVIEW),
     # --- Commercial design basis 2, CP-07: assumption sets, firm marks, snapshots ---
     # Reading a set, a firm mark or a valuation snapshot is a commercial read (portfolio
     # read, checked again in the route; book-owned sets and book rows follow book scope).
@@ -464,6 +483,50 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     # The tariff publication register is reference data everyone reads; the desk maintains it.
     ("GET", "/api/route-cost/tariff-publications", Permission.READ),
     ("GET", "/api/route-cost/tariff-entries", Permission.READ),
+    # Security review M2: every non-GET route is declared with its method. These were reached
+    # through their path family; each keeps the floor it had, now stated explicitly.
+    ("POST", "/api/functional-models/{model_id}/evaluate", Permission.GOVERNED),
+    ("POST", "/api/functional-models/{model_id}/predict", Permission.GOVERNED),
+    ("POST", "/api/functional-runs/reconcile", Permission.GOVERNED),
+    ("POST", "/api/functional-runs/{run_id}/compare", Permission.GOVERNED),
+    ("POST", "/api/functional-runs/{run_id}/replay", Permission.GOVERNED),
+    ("POST", "/api/optimization/capacity", Permission.GOVERNED),
+    ("POST", "/api/optimization/contracts", Permission.GOVERNED),
+    ("POST", "/api/optimization/nomination-window", Permission.GOVERNED),
+    ("POST", "/api/optimization/portfolio-network", Permission.GOVERNED),
+    ("POST", "/api/optimization/resource-pool", Permission.GOVERNED),
+    ("POST", "/api/optimization/route", Permission.GOVERNED),
+    ("POST", "/api/optimization/storage-dispatch", Permission.GOVERNED),
+    ("POST", "/api/research/allocation", Permission.GOVERNED),
+    ("POST", "/api/research/backtest", Permission.GOVERNED),
+    ("POST", "/api/research/capacity-billing", Permission.GOVERNED),
+    ("POST", "/api/research/cash-valuation", Permission.GOVERNED),
+    ("POST", "/api/research/feasibility", Permission.GOVERNED),
+    ("POST", "/api/research/lng-economics-only", Permission.GOVERNED),
+    ("POST", "/api/research/monitoring", Permission.GOVERNED),
+    ("POST", "/api/research/netback", Permission.GOVERNED),
+    ("POST", "/api/research/nowcast", Permission.GOVERNED),
+    ("POST", "/api/research/route-cost", Permission.GOVERNED),
+    ("POST", "/api/research/shadow-run", Permission.GOVERNED),
+    ("POST", "/api/research/spread-analysis", Permission.GOVERNED),
+    ("POST", "/api/research/spreads/evaluate", Permission.GOVERNED),
+    ("POST", "/api/research/spreads/interpret", Permission.GOVERNED),
+    ("POST", "/api/research/strategy-tracks", Permission.GOVERNED),
+    ("POST", "/api/research/strategy-tracks/{track_id}/stop", Permission.GOVERNED),
+    ("POST", "/api/route-cost/calculate", Permission.GOVERNED),
+    ("POST", "/api/route-cost/lng-regas/assess", Permission.GOVERNED),
+    ("POST", "/api/route-cost/recommend", Permission.GOVERNED),
+    ("POST", "/api/route-cost/resource-pool/optimize", Permission.GOVERNED),
+    ("POST", "/api/route-cost/upstream-contracts/{contract_id}/reinstate", Permission.GOVERNED),
+    ("POST", "/api/route-cost/upstream-contracts/{contract_id}/retire", Permission.GOVERNED),
+    ("PUT", "/api/route-cost/tariff-publications/{publication_id}", Permission.GOVERNED),
+    # What-if computations that store nothing (the handler re-checks portfolio.read).
+    ("POST", "/api/portfolio/desk-replay", Permission.READ),
+    ("POST", "/api/portfolio/lng-cargo-bid", Permission.READ),
+    ("POST", "/api/portfolio/sell-down-plan", Permission.READ),
+    ("POST", "/api/weather/degree-days", Permission.READ),
+    # A deal's hedge band is the risk function's (the handler holds REVIEWER itself).
+    ("PUT", "/api/portfolio/hedge-approvals/{contract_id}", Permission.REVIEW),
 )
 
 PERMISSION_ENFORCEMENT: dict[Permission, EnforcementStatus] = {
@@ -540,15 +603,98 @@ COMMERCIAL_DATA_PREFIXES: tuple[str, ...] = (
     # A decision case carries the book, hub, gas day and objective of a commercial decision:
     # platform administration alone must not read it (found reading the demo as admin).
     "/api/decision-cases/",
+    # Analysis snapshots carry the portfolio version and context of a decision, and the data
+    # product catalogue counts and dates the firm's own rows (security review H2).
+    "/api/analysis-snapshots/",
+    "/api/data-products/",
+    "/api/capacity/bookings/",
+    "/api/capacity/cost/",
+    "/api/lng/cargoes/",
+    "/api/lng/cargo-economics/",
+    "/api/lng/disruption/",
+    "/api/lng/pipeline-supplies/",
+    "/api/lng/freight-routes/",
 )
 
 
-def serves_commercial_data(path: str) -> bool:
-    """Whether a public path serves commercial data (V2 platform-admin boundary)."""
+# Security review H2: the boundary was a deny-list, so a new path family (analysis snapshots,
+# data products, LNG cargoes, capacity bookings) was readable by platform administration
+# until someone remembered to list it. Every ``/api/`` path is now commercial unless it is
+# platform, context or public-reference state listed here; the deny-list above stays as the
+# explicit statement for the families that matter most, and wins over this list.
+PLATFORM_PATH_PREFIXES: tuple[str, ...] = (
+    "/api/health",
+    "/api/me",
+    "/api/auth/",
+    "/api/dev/",
+    "/api/access/",
+    "/api/audit",
+    "/api/credentials",
+    "/api/sources",
+    "/api/source-certifications",
+    "/api/ingestion-runs",
+    "/api/runtime",
+    "/api/glossary",
+    "/api/reference-network",
+    "/api/physical/",
+    "/api/storage/",
+    "/api/weather/",
+    "/api/capabilities",
+    "/api/settings/",
+    "/api/setup",
+    "/api/support/",
+    "/api/jobs",
+    "/api/fundamentals/",
+    "/api/tariffs",
+    "/api/pricing/",
+    "/api/internal/",
+    # Public LNG reference: terminals, their published tariffs and public observations.
+    "/api/lng/terminals",
+    "/api/lng/terminal-tariffs",
+    "/api/lng/observations",
+    # Public capacity auction notices; the firm's bookings and costs are commercial.
+    "/api/capacity/notices",
+)
+
+#: Paths inside a platform family that read the firm's books (a glossary term's context
+#: names the caller's own positions).
+COMMERCIAL_PATH_PATTERNS: tuple[re.Pattern[str], ...] = (
+    re.compile(r"^/api/glossary/[^/]+/context$"),
+)
+
+
+def _under(path: str, prefix: str) -> bool:
+    bare = prefix.rstrip("/")
+    return path == bare or path.startswith(bare + "/") or (
+        not prefix.endswith("/") and path.startswith(prefix)
+    )
+
+
+def matches_commercial_prefix(path: str) -> bool:
+    """Whether ``path`` is in one of the explicitly declared commercial families."""
 
     return any(
         path == prefix.rstrip("/") or path.startswith(prefix) for prefix in COMMERCIAL_DATA_PREFIXES
     )
+
+
+def serves_commercial_data(path: str) -> bool:
+    """Whether a public path serves commercial data (V2 platform-admin boundary).
+
+    Default commercial: a path is outside the boundary only when it is listed in
+    :data:`PLATFORM_PATH_PREFIXES` and matches no commercial prefix or pattern.
+    """
+
+    if matches_commercial_prefix(path):
+        return True
+    if any(pattern.match(path) for pattern in COMMERCIAL_PATH_PATTERNS):
+        return True
+    if not path.startswith("/api/"):
+        return False
+    return not any(_under(path, prefix) for prefix in PLATFORM_PATH_PREFIXES)
+
+
+UNSAFE_METHODS = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 
 
 def permission_for_path(path: str, method: str | None = None) -> Permission:
@@ -584,6 +730,12 @@ def permission_for_path(path: str, method: str | None = None) -> Permission:
             best = permission
     if best is None:
         raise KeyError(f"No permission declared for public path {path!r}")
+    if normalized_method in UNSAFE_METHODS and best_key is not None and best_key[0] == 2:
+        # Security review M2: a write is never authorised by a path family's (read) floor.
+        # A non-GET route must be declared itself; otherwise it is refused (deny by default).
+        raise KeyError(
+            f"No permission declared for {normalized_method} {path!r} (only its path family)"
+        )
     return best
 
 
