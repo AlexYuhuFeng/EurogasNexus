@@ -661,9 +661,10 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         default="auto",
         profiles=("development",),
         notes=(
-            "auto turns it on when a public-source key (GIE, EIA, ENTSO-E) is set. A "
-            "background process catches up after a pause, then repeats; ENTSOG and GIE "
-            "still need their certification record.",
+            "auto reads every public source that needs no key (ECB, National Gas, Elexon, "
+            "benchmark rates, ENTSOG outage messages). A background process catches up after "
+            "a pause, then repeats; ENTSOG and GIE still need their certification record, "
+            "which the start-up records only with on or a public-source key set.",
         ),
     ),
     ConfigVar(

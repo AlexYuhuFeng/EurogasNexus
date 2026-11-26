@@ -26,8 +26,9 @@ See ``docs/deployment/SELF_HOSTED_DEMO.md`` for the operator guide.
 7. start the demo exchange feed (``scripts/demo/exchange_feed.py --continuous``: simulated
    WD/DA quotes, prints and session statistics through the tick ingestion; off with
    ``EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=off``);
-8. when live public sources are on (``EUROGAS_NEXUS_DEMO_LIVE_SOURCES``: ``auto`` turns them
-   on when a public-source key is set), start a low-priority background process that waits
+8. unless live public sources are off (``EUROGAS_NEXUS_DEMO_LIVE_SOURCES``: ``auto``, the
+   default, reads every source that needs no key; ENTSOG and GIE are approved by the start-up
+   only with ``on`` or a key), start a low-priority background process that waits
    until the server answers, catches up the gap since the last successful round (at most
    ``EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS``, default 45) and then repeats every
    ``EUROGAS_NEXUS_DEMO_REFRESH_HOURS`` (default 6). It never blocks the health check;
@@ -481,15 +482,29 @@ def prepare_database() -> None:
         log(f"demo test accounts no longer listed, disabled: {', '.join(disabled)}")
 
 
-def live_sources_enabled() -> bool:
-    """``on``/``off`` as set; ``auto`` (default) is on when a public-source key is present."""
+def _live_setting(environ=os.environ) -> str:
+    return (environ.get("EUROGAS_NEXUS_DEMO_LIVE_SOURCES") or "auto").strip().lower()
 
-    setting = (os.environ.get("EUROGAS_NEXUS_DEMO_LIVE_SOURCES") or "auto").strip().lower()
-    if setting in {"on", "true", "1", "yes"}:
+
+def live_sources_enabled(environ=os.environ) -> bool:
+    """On unless set ``off``: ECB, National Gas, Elexon, the SONIA/€STR/SOFR fixings and the
+    ENTSOG outage messages need no key, so a demo without keys still reads them (``auto``,
+    the default, used to stay simulated until a key was set)."""
+
+    return _live_setting(environ) not in {"off", "false", "0", "no"}
+
+
+def live_sources_accepted(environ=os.environ) -> bool:
+    """The operator accepted the approval-gated sources' terms for this demo: live sources
+    set ``on``, or a public-source key set. Only then does the start-up approve ENTSOG and
+    GIE (``certify_public_sources``); ``auto`` alone reads the sources that need no approval,
+    and ENTSOG once an administrator approved it on Admin -> Data sources."""
+
+    if _live_setting(environ) in {"on", "true", "1", "yes"}:
         return True
-    if setting in {"off", "false", "0", "no"}:
-        return False
-    return any((os.environ.get(name) or "").strip() for name in PUBLIC_SOURCE_KEYS)
+    return live_sources_enabled(environ) and any(
+        (environ.get(name) or "").strip() for name in PUBLIC_SOURCE_KEYS
+    )
 
 
 def _int_setting(name: str, default: int, *, low: int, high: int) -> int:
@@ -598,7 +613,7 @@ def serve() -> int:
     if live_sources_enabled():
         start_background_refresh()
     else:
-        log("live public sources off (no public-source key set); demo data only")
+        log("live public sources off (EUROGAS_NEXUS_DEMO_LIVE_SOURCES=off); demo data only")
     log(f"start-up steps finished in {time.monotonic() - started:.1f}s; serving on port {port}")
     command = [
         sys.executable,
@@ -892,6 +907,19 @@ def certification_due(session, system: str, now: datetime) -> str | None:
     return None
 
 
+#: The catch-up steps that read ENTSOG through the approval gate (the UMM read is not gated).
+ENTSOG_STEP_KEYS = frozenset({"entsog", "entsog-history"})
+
+
+def source_approved(session, system: str) -> bool:
+    """An administrator (or the demo start-up) approved ``system``: the ingestion gate's test."""
+
+    from eurogas_nexus.db.repositories.certification import latest_certification
+    from eurogas_nexus.domain.ingestion.source_approval import is_approved
+
+    return is_approved(latest_certification(session, system))
+
+
 def certify_public_sources(factory, now: datetime, environ=os.environ) -> None:
     """The product's public-source approval, run as a demo-profile action.
 
@@ -907,6 +935,11 @@ def certify_public_sources(factory, now: datetime, environ=os.environ) -> None:
 
     from eurogas_nexus.db.models.observation import AuditEventRecord
 
+    if not live_sources_accepted(environ):
+        log("catch-up ENTSOG approval: not given by the start-up (live sources are auto and no "
+            "key is set); approve ENTSOG on Admin -> Data sources, or set "
+            "EUROGAS_NEXUS_DEMO_LIVE_SOURCES=on to accept its terms for this demo")
+        return
     for system, source, keys in CERTIFIED_SOURCES:
         if keys and not _has(environ, *keys):
             continue
@@ -998,6 +1031,14 @@ def catch_up() -> int:
     ok: list[str] = []
     failed: list[str] = []
     steps = catch_up_steps(days, now, windows=windows)
+    with factory() as session:
+        entsog = source_approved(session, "ENTSOG")
+    if not entsog:
+        # Refused without an approval (source_not_approved): leave the ENTSOG reads out
+        # rather than report them failed every round; the simulated flows stay, labelled.
+        steps = [step for step in steps if step.key not in ENTSOG_STEP_KEYS]
+        log("catch-up: ENTSOG flows, capacity and tariffs skipped (not approved for this "
+            "firm); the other public sources are read")
     for index, step in enumerate(steps):
         write_catch_up_status(running=True, done=index, total=len(steps), step=step.name)
         (ok if run_catch_up_step(step) else failed).append(step.key)

@@ -108,7 +108,7 @@ Planted prompt cases (CET/CEST, during trading hours), so a test session of any 
 | `EUROGAS_NEXUS_DEMO_RESET_TOKEN` | Change it to re-seed the demo on the next start | no |
 | `EUROGAS_NEXUS_LLM_API_KEY` | Model key; turns AI on | no |
 | `GIE_API_KEY`, `EIA_API_KEY`, `ENTSOE_SECURITY_TOKEN` | Public-source keys; any one turns live refresh on | no |
-| `EUROGAS_NEXUS_DEMO_LIVE_SOURCES` | `auto` (on when a key is set), `on`, `off` | no |
+| `EUROGAS_NEXUS_DEMO_LIVE_SOURCES` | `auto` (reads every source that needs no key; ENTSOG and GIE approved by the start-up only with `on` or a key), `on`, `off` | no |
 | `EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS`, `EUROGAS_NEXUS_DEMO_REFRESH_HOURS` | Catch-up bound (45 days) and refresh interval (6 h) | no |
 | `EUROGAS_NEXUS_DEMO_EXCHANGE_FEED` | `on` (default) or `off`: the simulated intraday exchange feed | no |
 | `EUROGAS_NEXUS_CORS_ORIGINS` | Only if saving fails with `origin_not_allowed` | no |
@@ -356,8 +356,7 @@ AI: set `EUROGAS_NEXUS_LLM_API_KEY` (for a model other than DeepSeek also
 `EUROGAS_NEXUS_LLM_BASE_URL` and `EUROGAS_NEXUS_LLM_MODEL`) and `docker compose up -d`. The
 product's own guards still decide what evidence may leave. Remove the key to turn AI off.
 
-Live data: with a public-source key set (or `EUROGAS_NEXUS_DEMO_LIVE_SOURCES=on`), a
-low-priority background process in the demo container waits until the server answers, then
+Live data: unless `EUROGAS_NEXUS_DEMO_LIVE_SOURCES=off`, a low-priority background process in the demo container waits until the server answers, then
 runs a catch-up round and repeats it every 6 hours; it never blocks the health check or
 start-up (the server answers about 30 s after a first start). A round reads, with the
 commands and read bounds the product's own scheduler uses on a real store
@@ -399,6 +398,13 @@ the next round, while the others read only theirs. Expected lines (first round):
 Each round is an audit event `demo.catch_up` (`ok=` and `failed=` step lists); a round by
 hand: `docker compose exec demo python scripts/demo/start_public_demo.py catch-up`. While a
 dataset is behind it shows late or stale on screen; nothing stale is presented as current.
+
+Without a key and with the default `auto`, a round reads what needs neither a key nor an
+approval (ECB, National Gas, Elexon, SONIA/€STR/SOFR, ENTSOG outage messages) and leaves the
+ENTSOG flow, capacity and tariff reads out until ENTSOG is approved on Admin → Data sources
+(or `on` is set, below); until then those series stay simulated and labelled. Before
+2026-11-26 `auto` without a key read nothing, so a keyless demo showed only simulated
+fundamentals although public sources were wired.
 
 **Approval.** ENTSOG and GIE are read only after an administrator approves them for the
 firm (the fail-closed gate in `scripts/ops/ingest_public_sources.py`; without an approval a

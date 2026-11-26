@@ -285,7 +285,9 @@ def test_certification_step_runs_the_documented_command_as_the_demo_actor(
     bind = session.get_bind()
     from sqlalchemy.orm import sessionmaker
 
-    start.certify_public_sources(sessionmaker(bind=bind), now, environ={})
+    start.certify_public_sources(
+        sessionmaker(bind=bind), now, environ={"EUROGAS_NEXUS_DEMO_LIVE_SOURCES": "on"}
+    )
     assert len(calls) == 1  # GIE without a key is not certified
     command = calls[0]
     assert command[1:4] == ["scripts/ops/approve_public_source.py", "--source", "entsog"]
@@ -301,18 +303,26 @@ def test_certification_step_runs_the_documented_command_as_the_demo_actor(
     assert "source=ENTSOG" in event.detail and "reason=demo profile" in event.detail
 
 
-def test_live_sources_follow_keys_unless_set(monkeypatch):
+def test_live_sources_are_on_unless_off_and_terms_need_on_or_a_key():
     start = _load()
-    for name in (*start.PUBLIC_SOURCE_KEYS, "EUROGAS_NEXUS_DEMO_LIVE_SOURCES"):
-        monkeypatch.delenv(name, raising=False)
-    assert start.live_sources_enabled() is False
-    monkeypatch.setenv("EIA_API_KEY", "placeholder")
-    assert start.live_sources_enabled() is True
-    monkeypatch.setenv("EUROGAS_NEXUS_DEMO_LIVE_SOURCES", "off")
-    assert start.live_sources_enabled() is False
-    monkeypatch.delenv("EIA_API_KEY")
-    monkeypatch.setenv("EUROGAS_NEXUS_DEMO_LIVE_SOURCES", "on")
-    assert start.live_sources_enabled() is True
+    # auto, no key: the keyless public sources are read; ENTSOG/GIE terms are not accepted.
+    assert start.live_sources_enabled({}) is True
+    assert start.live_sources_accepted({}) is False
+    assert start.live_sources_accepted({"EIA_API_KEY": "placeholder"}) is True
+    assert start.live_sources_enabled({"EUROGAS_NEXUS_DEMO_LIVE_SOURCES": "off"}) is False
+    assert start.live_sources_accepted(
+        {"EUROGAS_NEXUS_DEMO_LIVE_SOURCES": "off", "EIA_API_KEY": "placeholder"}
+    ) is False
+    on = {"EUROGAS_NEXUS_DEMO_LIVE_SOURCES": "on"}
+    assert start.live_sources_enabled(on) is True and start.live_sources_accepted(on) is True
+
+
+def test_auto_without_a_key_approves_nothing(monkeypatch):
+    start = _load()
+    calls = []
+    monkeypatch.setattr(start.subprocess, "run", lambda *a, **k: calls.append(a))
+    start.certify_public_sources(lambda: None, start.datetime.now(start.UTC), environ={})
+    assert calls == []
 
 
 @pytest.fixture(autouse=True)
@@ -395,3 +405,16 @@ def test_the_demo_scans_for_alerts_with_its_own_configuration(monkeypatch):
 class _Done:
     def __init__(self, code: int) -> None:
         self.returncode = code
+
+
+def test_entsog_reads_wait_for_an_approval(session):
+    """Without an approval the catch-up leaves the gated ENTSOG reads out (they would only be
+    refused with source_not_approved); an approval lets them run."""
+
+    start = _load()
+    assert start.source_approved(session, "ENTSOG") is False
+    _certify(session, start)
+    assert start.source_approved(session, "ENTSOG") is True
+    steps = start.catch_up_steps(10, datetime(2026, 11, 16, 9, tzinfo=UTC), environ={})
+    assert {"entsog", "entsog-history"} <= {step.key for step in steps}
+    assert start.ENTSOG_STEP_KEYS == {"entsog", "entsog-history"}
