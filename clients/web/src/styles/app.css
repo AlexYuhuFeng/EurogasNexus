@@ -2298,6 +2298,12 @@ body {
   grid-column: span 3;
 }
 
+/* Any full-width row of a workspace grid (tabs, a summary line, a fold), not only a panel:
+   without it such a row sat in the first column and the next row beside it. */
+.workspace-grid > .span-3:not(.workspace-panel) {
+  grid-column: 1 / -1;
+}
+
 .four-column {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
@@ -7975,7 +7981,7 @@ button.glossary-related-chip {
 }
 
 /* Compatibility notices remain readable beside the settings heading. */
-.settings-about-panel .panel-title-row { flex-wrap: wrap; }
+.settings-about-panel .panel-title-row { flex-wrap: wrap; align-items: flex-start; }
 .settings-about-panel .panel-title-row > div { min-width: 0; flex: 1 1 220px; }
 .settings-about-panel .status-badge { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 
@@ -8279,6 +8285,23 @@ button.glossary-related-chip {
   grid-template-columns: minmax(120px, 1fr) minmax(160px, 1.4fr);
   align-items: center;
   gap: 10px;
+  margin: 0;
+  font-size: var(--ds-text-base);
+  font-weight: var(--ds-weight-regular);
+  color: var(--ds-text-1);
+}
+
+/* One label size and one control look per row: the select and the button read as the page's
+   other controls, the button sized to its text rather than stretched across the column. */
+.settings-preference-row > span:first-child,
+.settings-preference-row select {
+  font-size: var(--ds-text-base);
+  font-weight: var(--ds-weight-regular);
+  color: var(--ds-text-1);
+}
+
+.settings-preference-row > button {
+  justify-self: start;
 }
 
 .settings-language-set {
@@ -8378,3 +8401,22 @@ button.glossary-related-chip {
   gap: var(--ds-space-3);
 }
 
+
+/* Your API keys: the name field and its button on one row, the label above the box. */
+.personal-api-keys > h3 {
+  margin-top: 0;
+}
+
+.personal-api-key-form {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: var(--ds-space-2);
+  margin-bottom: var(--ds-space-2);
+}
+
+.personal-api-key-form label {
+  display: grid;
+  gap: var(--ds-space-1);
+  min-width: 0;
+}

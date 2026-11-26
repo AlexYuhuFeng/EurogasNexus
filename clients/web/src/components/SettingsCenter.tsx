@@ -394,20 +394,21 @@ export function SettingsCenter({
                   <p className="settings-backend-message" role="status">{mapTileMessage}</p>
                 )}
               </div>
+              {/* Fixed guarantees and the reference size: plumbing, kept with the plumbing. */}
+              <div className="workspace-panel settings-boundary-panel">
+                <h2>{t("settings.backend_boundary")}</h2>
+                <PanelHelp text={t("settings.boundary_copy")} label={t("panel.how_to_read")} />
+                {/* Four constant guarantees: a one-line list, not four badges (#69). */}
+                <p className="settings-guardrail-line muted">
+                  {[t("settings.no_client_db_url"), t("settings.no_client_secret_storage"), t("settings.human_review"), t("settings.decision_support_only")].join(" · ")}
+                </p>
+                {/* What this deployment's network reference holds; one line, not a card of its own. */}
+                <p className="settings-reference-counts">
+                  {t("map.nodes")} <strong>{counts.nodes}</strong> · {t("map.edges")} <strong>{counts.edges}</strong> · {t("map.routes")} <strong>{counts.routes}</strong>
+                </p>
+              </div>
             </details>
 
-            <div className="workspace-panel settings-boundary-panel">
-              <h2>{t("settings.backend_boundary")}</h2>
-              <PanelHelp text={t("settings.boundary_copy")} label={t("panel.how_to_read")} />
-              {/* Four constant guarantees: a one-line list, not four badges (#69). */}
-              <p className="settings-guardrail-line muted">
-                {[t("settings.no_client_db_url"), t("settings.no_client_secret_storage"), t("settings.human_review"), t("settings.decision_support_only")].join(" · ")}
-              </p>
-              {/* What this deployment's network reference holds; one line, not a card of its own. */}
-              <p className="settings-reference-counts">
-                {t("map.nodes")} <strong>{counts.nodes}</strong> · {t("map.edges")} <strong>{counts.edges}</strong> · {t("map.routes")} <strong>{counts.routes}</strong>
-              </p>
-            </div>
           </>
         )}
       </div>

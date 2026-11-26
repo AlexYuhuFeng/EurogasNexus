@@ -44,6 +44,9 @@ export function openApprovals(sources: readonly SourceSystemDTO[]): SourceSystem
   return approvalSources(sources).filter((source) => source.approval?.state === "not_approved");
 }
 
+/** The installation's own start-up approves the open sources it is set up with: no person to name. */
+const SETUP_ACTORS = new Set(["demo-start", "setup", "system"]);
+
 export function PublicSourceApprovals({ sources, t }: { sources: readonly SourceSystemDTO[]; t: Translate }) {
   const currentUser = useApiStore((state) => state.currentUser);
   const isAdmin = Boolean(currentUser?.roles?.includes("ADMIN") || currentUser?.role === "ADMIN");
@@ -131,10 +134,12 @@ export function PublicSourceApprovals({ sources, t }: { sources: readonly Source
                 {approval.state === "failing" && approval.reason
                   ? approval.reason
                   : approval.approved_by
-                    ? t("source_approval.approved_by", {
-                        name: approval.approved_by,
-                        when: (approval.approved_at_utc ?? "").slice(0, 10),
-                      })
+                    ? SETUP_ACTORS.has(approval.approved_by)
+                      ? t("source_approval.approved_at_setup", { when: (approval.approved_at_utc ?? "").slice(0, 10) })
+                      : t("source_approval.approved_by", {
+                          name: approval.approved_by,
+                          when: (approval.approved_at_utc ?? "").slice(0, 10),
+                        })
                     : t(`source_approval.next.${approval.state}`)}
               </span>
               {isAdmin && approval.state !== "not_approved" && (
@@ -261,9 +266,16 @@ interface CatchUpProgress {
 export function DemoCatchUpLine({ t }: { t: Translate }) {
   const currentUser = useApiStore((state) => state.currentUser);
   const runsSources = Boolean(currentUser?.roles?.some((role) => role === "ADMIN" || role === "OPERATOR"));
-  const [progress, setProgress] = useState<CatchUpProgress | null>(null);
+  // The workspace batch already read the registry: its meta carries the catch-up, so the line
+  // issues no read of its own unless a round is running (then it polls the registry itself).
+  const batchProgress = useApiStore(
+    (state) => (state.endpointMeta.sources as { demo_catch_up?: CatchUpProgress } | undefined)?.demo_catch_up ?? null,
+  );
+  const [polled, setPolled] = useState<CatchUpProgress | null>(null);
+  const progress = polled ?? batchProgress;
+  const running = Boolean(batchProgress?.running);
   useEffect(() => {
-    if (!runsSources) return undefined;
+    if (!runsSources || !running) return undefined;
     let cancelled = false;
     let timer: number | undefined;
     const read = async () => {
@@ -271,18 +283,18 @@ export function DemoCatchUpLine({ t }: { t: Translate }) {
         const response = await api.sources();
         const meta = (response.meta ?? {}) as { demo_catch_up?: CatchUpProgress };
         if (cancelled) return;
-        setProgress(meta.demo_catch_up ?? null);
+        setPolled(meta.demo_catch_up ?? { running: false });
         if (meta.demo_catch_up?.running) timer = window.setTimeout(read, 30_000);
       } catch {
         if (!cancelled) timer = window.setTimeout(read, 60_000);
       }
     };
-    void read();
+    timer = window.setTimeout(read, 30_000);
     return () => {
       cancelled = true;
       if (timer !== undefined) window.clearTimeout(timer);
     };
-  }, [runsSources]);
+  }, [runsSources, running]);
   if (!runsSources || !progress?.running) return null;
   return (
     <p className="source-approval-notice span-3" role="status" data-record="demo-catch-up">

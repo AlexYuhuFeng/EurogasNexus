@@ -2,7 +2,9 @@ import { personFunction } from "@/app/experience/roleComposition";
 import { localDeadlineToUtc } from "@/app/model/decisionDeadline";
 import { sourceSystemLabel } from "@/app/model/enumLabels";
 import { tabLabels } from "@/components/ui/tabLabels";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useTranslation } from "react-i18next";
+import { auditActionLabel, auditActorLabel, auditOutcomeLabel, auditResourceLabel } from "@/app/model/auditPresentation";
 import {
   api,
   type AccessApiKeyDTO,
@@ -47,6 +49,13 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
   const [activeView, setActiveView] = useUrlView<AccessViewId>("access", "users");
   const [users, setUsers] = useState<AccessUserDTO[]>([]);
   const [usersLoaded, setUsersLoaded] = useState(false);
+  const { i18n } = useTranslation();
+  const language = i18n.language ?? "en";
+  // The audit trail names people, not principal ids.
+  const principalNames = useMemo(
+    () => new Map(users.map((user) => [user.principal_id, user.display_name || user.name])),
+    [users],
+  );
   const [accountOptions, setAccountOptions] = useState<AccountOptionsDTO | null>(null);
   const [keys, setKeys] = useState<AccessApiKeyDTO[]>([]);
   const [audit, setAudit] = useState<AuditEventDTO[]>([]);
@@ -449,11 +458,11 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
             {audit.map((event) => (
               <div key={`audit-${event.event_id}`} className="data-table-row six">
                 <span>{formatTime(event.event_ts_utc)}</span>
-                <strong>{event.principal}</strong>
-                <span>{event.action}</span>
-                <span>{event.resource}</span>
-                <span>{event.outcome}</span>
-                <span>{event.detail}</span>
+                <strong title={event.principal}>{auditActorLabel(event.principal, principalNames)}</strong>
+                <span title={event.action}>{auditActionLabel(event.action, t, language)}</span>
+                <span title={event.resource}>{auditResourceLabel(event.resource, t, language, principalNames)}</span>
+                <span title={event.outcome}>{auditOutcomeLabel(event.outcome, t, language)}</span>
+                <span className="muted">{event.detail}</span>
               </div>
             ))}
           </div>
@@ -477,7 +486,7 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
       {activeView === "sso" && (
         <div id="access-active-panel" role="tabpanel" aria-labelledby="access-tab-sso" className="workspace-panel span-3">
           <PanelHeader title={t("access.sso_title")} />
-          <pre className="access-sso-json">{JSON.stringify(sso, null, 2)}</pre>
+          <SsoProfile sso={sso} t={t} />
         </div>
       )}
     </div>
@@ -505,5 +514,40 @@ function SetupPanel({ t }: { t: (key: string) => string }) {
         {t("access.setup.open")}
       </Button>
     </section>
+  );
+}
+
+/** The SSO settings as labelled rows (they are set in the deployment, so read-only here). */
+const SSO_FIELDS = ["issuer", "client_id", "audience", "redirect_uri", "provisioning_mode", "role_claim", "scope_claim", "client_secret_configured", "groups_role_map", "groups_scope_map"] as const;
+
+function ssoValue(value: unknown, t: AccessCenterProps["t"]): string {
+  if (value === true) return t("access.sso.yes");
+  if (value === false) return t("access.sso.no");
+  if (value === null || value === undefined || value === "") return t("access.sso.not_set");
+  if (typeof value === "object") {
+    const entries = Object.entries(value as Record<string, unknown>);
+    return entries.length === 0 ? t("access.sso.none") : entries.map(([key, mapped]) => `${key} → ${String(mapped)}`).join(" · ");
+  }
+  const text = String(value);
+  const key = `access.sso.value.${text}`;
+  const label = t(key);
+  return label === key ? text : label;
+}
+
+function SsoProfile({ sso, t }: { sso: Record<string, unknown> | null; t: AccessCenterProps["t"] }) {
+  if (!sso) return <p className="panel-copy muted">{t("access.sso.loading")}</p>;
+  const configured = typeof sso.issuer === "string" && sso.issuer.trim() !== "";
+  return (
+    <>
+      <p className="panel-copy">{t(configured ? "access.sso.configured" : "access.sso.not_configured")}</p>
+      <div className="kv-list access-sso-list">
+        {SSO_FIELDS.map((field) => (
+          <div key={field} data-sso-field={field}>
+            <span>{t(`access.sso.field.${field}`)}</span>
+            <strong>{ssoValue(sso[field], t)}</strong>
+          </div>
+        ))}
+      </div>
+    </>
   );
 }
