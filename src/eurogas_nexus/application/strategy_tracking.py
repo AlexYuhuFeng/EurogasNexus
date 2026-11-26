@@ -127,6 +127,7 @@ def create_track(
     else:
         if parsed.kind != "history" or parsed.rule is None:
             raise TrackError("spec.rule", "a daily track needs a history with a rule")
+        _check_daily_rule(parsed)
         rule_json = parsed.rule.as_dict()
         instruments = [f"{leg.hub}|{leg.tenor}" for leg in parsed.legs]
     record = StrategyTrackRecord(
@@ -146,6 +147,24 @@ def create_track(
     session.add(record)
     session.flush()
     return summary(record)
+
+
+def _check_daily_rule(parsed) -> None:
+    """Refuse a daily rule the spread engine would refuse on every evaluation.
+
+    Without this a rule such as ``exit_z >= entry_z`` was saved as an active track whose every
+    evaluation failed, so the panel showed "no signal" for a strategy that could never run.
+    """
+
+    from eurogas_nexus.domain.research.spread_analysis import SpreadAnalysisError, SpreadRule
+
+    rule = {k: v for k, v in parsed.rule.as_dict().items() if v is not None}
+    if parsed.volume_mwh_per_day:
+        rule["volume_mwh_per_day"] = parsed.volume_mwh_per_day
+    try:
+        SpreadRule(**rule).validate()
+    except (SpreadAnalysisError, TypeError) as exc:
+        raise TrackError("spec.rule", str(exc)) from exc
 
 
 def summary(record: StrategyTrackRecord) -> dict[str, Any]:
@@ -541,19 +560,26 @@ def evaluate_daily(session: Session, record: StrategyTrackRecord,
             caller,
         )["data"]
     except SpreadHistoryError as exc:
-        record.snapshot = {**(record.snapshot or {}), "error": str(exc.detail)}
+        record.snapshot = {**(record.snapshot or {}), "error": dict(exc.detail)}
         record.last_evaluated_at_utc = now
         return {"track_id": record.track_id, "status": "refused"}
     points = analysis["points"]
     start: date = _aware(record.created_at_utc).date()
     since = [p for p in points if date.fromisoformat(p["date"]) > start]
     last = points[-1] if points else None
+    # ``position`` is what the rule holds from the latest close (decided at the close before,
+    # under next-close execution); ``signal`` is what the latest close decided, to be traded at
+    # the next close. The advice must be the signal: showing the held position announced every
+    # entry and exit one close after the backtest (and the paper P&L) had already traded it.
     position = last["position"] if last else 0
-    signal = {1: "long", -1: "short", 0: "flat"}[position]
+    decided = int(last.get("signal", position)) if last else 0
+    signal = {1: "long", -1: "short", 0: "flat"}[decided]
     previous = (record.snapshot or {}).get("signal")
     pnl = round(sum(p["pnl"] for p in since), 2)
     snapshot = {
         "at": now.isoformat(), "signal": signal, "position": position,
+        "trade_at": "next close" if (record.rule_json or {}).get("execution", "next_close")
+        == "next_close" else "this close",
         "close_date": last["date"] if last else None, "spread": last["spread"] if last else None,
         "z": last["zscore"] if last else None, "unit": analysis.get("unit"),
         "paper_pnl_since_start": pnl, "days_since_start": len(since),
