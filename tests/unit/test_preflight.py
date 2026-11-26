@@ -382,13 +382,38 @@ def test_several_api_processes_need_the_shared_cache() -> None:
 
     assert _check_serving({}) == []
     assert _check_serving({"UVICORN_WORKERS": "1"}) == []
-    [finding] = _check_serving({"UVICORN_WORKERS": "4"})
+    metrics = {"PROMETHEUS_MULTIPROC_DIR": "/run/eurogas-metrics"}
+    [finding] = _check_serving({"UVICORN_WORKERS": "4", **metrics})
     assert finding.severity == "error" and finding.code == "shared_cache_required"
     assert (
         _check_serving(
-            {"UVICORN_WORKERS": "4", "EUROGAS_NEXUS_SHARED_CACHE_URL": "valkey://valkey:6379/0"}
+            {
+                "UVICORN_WORKERS": "4",
+                "EUROGAS_NEXUS_SHARED_CACHE_URL": "valkey://valkey:6379/0",
+                **metrics,
+            }
         )
         == []
     )
     [bad] = _check_serving({"EUROGAS_NEXUS_SHARED_CACHE_URL": "http://valkey:6379"})
     assert bad.code == "shared_cache_url_invalid"
+
+
+def test_several_api_processes_need_one_metrics_directory() -> None:
+    """P1-C's multi-process metrics: without the shared directory each scrape reports one
+    process; a single process does not need it (and is not told about it)."""
+
+    from eurogas_nexus.core.preflight import _check_external_consumers, _check_serving
+
+    cache = {"EUROGAS_NEXUS_SHARED_CACHE_URL": "valkey://valkey:6379/0"}
+    [finding] = _check_serving({"UVICORN_WORKERS": "4", **cache})
+    assert finding.severity == "warning" and finding.code == "metrics_directory_missing"
+    assert (
+        _check_serving(
+            {"UVICORN_WORKERS": "4", "PROMETHEUS_MULTIPROC_DIR": "/run/eurogas-metrics", **cache}
+        )
+        == []
+    )
+    assert all(
+        finding.variable != "PROMETHEUS_MULTIPROC_DIR" for finding in _check_external_consumers({})
+    )

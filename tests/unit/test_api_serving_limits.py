@@ -104,6 +104,30 @@ def _values(exposition: str) -> dict[str, float]:
     return values
 
 
+def test_only_the_api_turns_the_statement_timeout_on(monkeypatch):
+    """The gated upgrade and the scheduler run in their own processes with their own limits:
+    only the API's lifespan calls ``use_api_statement_timeout``, and an engine made where it
+    was not called sets no statement timeout on connect."""
+
+    from pathlib import Path
+
+    root = Path(__file__).resolve().parents[2]
+    callers = sorted(
+        str(path.relative_to(root))
+        for folder in ("src", "scripts", "alembic", "apps")
+        for path in (root / folder).rglob("*.py")
+        if "use_api_statement_timeout()\n" in path.read_text(encoding="utf-8")
+    )
+    assert callers == ["src/eurogas_nexus/api/app.py"]
+    monkeypatch.setattr(db_session, "_API_PROCESS", False)
+    plain = db_session.get_engine("postgresql+pg8000://u:p@127.0.0.1:1/x")
+    db_session.use_api_statement_timeout()
+    api = db_session.get_engine("postgresql+pg8000://u:p@127.0.0.1:1/x")
+    assert len(api.pool.dispatch.connect) == len(plain.pool.dispatch.connect) + 1
+    plain.dispose()
+    api.dispose()
+
+
 def test_credential_checks_do_not_wait_behind_busy_request_threads():
     """Every request thread busy with a long computation: a sign-in, a session check or a
     stream's opening still gets its credential checked at once, on the identity threads."""

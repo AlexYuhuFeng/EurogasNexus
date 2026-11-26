@@ -36,7 +36,8 @@ sign-in.
 `PROMETHEUS_MULTIPROC_DIR` to an empty directory the workers share (the runtime compose file
 mounts an empty `tmpfs` at `/run/eurogas-metrics`, emptied at every start). Each worker writes
 its samples there and whichever worker answers a scrape adds them all up. Without it, each
-process reports only its own requests, which is right only with a single worker.
+process reports only its own requests, which is right only with a single worker. The preflight
+(`config-check`) warns when `UVICORN_WORKERS` is above 1 and the directory is not set.
 
 ## Step 1: let Prometheus scrape
 
