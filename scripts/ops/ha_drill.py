@@ -52,9 +52,10 @@ for _path in (ROOT / "src", ROOT):
 COMPOSE_FILE = ROOT / "deploy" / "ha" / "compose.yaml"
 HA_DIR = ROOT / "deploy" / "ha"
 GIB = 1024**3
-#: pg8000's ``timeout`` (what ``get_engine`` calls the connect timeout) bounds every socket read,
-#: so a statement longer than it fails; bulk loads and checksums over gigabytes need more.
-DRILL_STATEMENT_TIMEOUT = 3600
+# The drill's engines are command engines (db/session.py): the 5 s connect bound, no statement
+# limit and no socket read limit (keepalives find a dead peer), so bulk loads and checksums over
+# gigabytes run as long as they need. Before the socket-timeout fix they passed a one-hour
+# "connect" timeout to get past pg8000 cutting every statement off at 5 s.
 
 
 def log(event: str, **fields) -> None:
@@ -429,7 +430,7 @@ def pitr(stack: Stack, args) -> dict:
     report: dict = {"drill": "pitr", "project": stack.project, "started_at": _now().isoformat()}
     source_url = stack.url(1)
     report["migrate_seconds"] = migrate(source_url)
-    engine = get_engine(source_url, connect_timeout_seconds=DRILL_STATEMENT_TIMEOUT)
+    engine = get_engine(source_url, statement_timeout=None)
     try:
         gen.require_drill_database(engine)
         load = gen.generate(
@@ -494,7 +495,7 @@ def pitr(stack: Stack, args) -> dict:
         f"postgresql+pg8000://{stack.env['POSTGRES_USER']}:{stack.env['POSTGRES_PASSWORD']}"
         f"@127.0.0.1:{restored['port']}/{stack.env['POSTGRES_DB']}"
     )
-    target_engine = get_engine(target_url, connect_timeout_seconds=DRILL_STATEMENT_TIMEOUT)
+    target_engine = get_engine(target_url, statement_timeout=None)
     try:
         actual = gen.fingerprint(target_engine)
     finally:
@@ -597,7 +598,7 @@ def failover(stack: Stack, args) -> dict:
     if args.target_gb:
         from scripts.ops import generate_drill_store as gen
 
-        engine = get_engine(node1, connect_timeout_seconds=DRILL_STATEMENT_TIMEOUT)
+        engine = get_engine(node1, statement_timeout=None)
         try:
             gen.require_drill_database(engine)
             report["load"] = gen.generate(
