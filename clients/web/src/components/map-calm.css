@@ -91,6 +91,8 @@
   .map-layer-swatch.layer-outages { background: var(--ds-negative); }
   .map-layer-swatch.layer-flows { height: var(--ds-space-05); border-radius: var(--ds-radius-pill); background: var(--ds-positive); }
   .map-layer-swatch.layer-positions { background: var(--ds-accent); }
+  .map-layer-swatch.layer-cargoes { background: var(--ds-accent); }
+  .map-layer-swatch.layer-outages_all { background: var(--ds-negative); }
   .map-layer-swatch.layer-vessels { background: var(--ds-text-2); }
   .map-layer-swatch.layer-infrastructure { background: var(--ds-text-3); }
 
@@ -268,6 +270,13 @@
     border-radius: var(--ds-radius-md);
     background: var(--ds-surface);
     box-shadow: var(--ds-shadow-pop);
+  }
+
+  /* The key's last block draws no rule under itself. */
+  .map-key-extra:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: 0;
   }
 
   .map-key-extra {

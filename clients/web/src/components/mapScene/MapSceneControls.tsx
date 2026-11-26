@@ -47,6 +47,16 @@ export function MapSceneControls({
   const index = scrubberIndex(flowDays, flowDay);
   const dayText = flowDay ?? t("map.scene.flow_day_latest");
   const sites = activeLayers.includes("lng") || activeLayers.includes("network");
+  // The scene's own marks, for what is on the map now.
+  const legend = [
+    sites && <li key="column"><span className="map-scene-swatch is-column" aria-hidden="true" />{t("map.scene.legend.column")}</li>,
+    sites && <li key="stub"><span className="map-scene-swatch is-stub" aria-hidden="true" />{t("map.scene.legend.stub")}</li>,
+    activeLayers.includes("flows") && <li key="flow"><span className="map-scene-swatch is-flow" aria-hidden="true" />{t("map.scene.legend.flow")}</li>,
+    dimension === "3d" && <li key="pillar"><span className="map-scene-swatch is-pillar" aria-hidden="true" />{t("map.scene.legend.pillar")}</li>,
+    dimension === "3d" && (activeLayers.includes("cargoes") || activeLayers.includes("vessels")) && (
+      <li key="hull"><span className="map-scene-swatch is-hull" aria-hidden="true" />{t("map.scene.legend.hull")}</li>
+    ),
+  ].filter(Boolean);
 
   return (
     <>
@@ -107,15 +117,7 @@ export function MapSceneControls({
       {open && (
         <div id={keyId} className="map-scene-key" role="region" aria-label={t("map.scene.key")}>
           {keyExtra}
-          <ul className="map-scene-legend">
-            {sites && <li><span className="map-scene-swatch is-column" aria-hidden="true" />{t("map.scene.legend.column")}</li>}
-            {sites && <li><span className="map-scene-swatch is-stub" aria-hidden="true" />{t("map.scene.legend.stub")}</li>}
-            {activeLayers.includes("flows") && <li><span className="map-scene-swatch is-flow" aria-hidden="true" />{t("map.scene.legend.flow")}</li>}
-            {dimension === "3d" && <li><span className="map-scene-swatch is-pillar" aria-hidden="true" />{t("map.scene.legend.pillar")}</li>}
-            {dimension === "3d" && (activeLayers.includes("cargoes") || activeLayers.includes("vessels")) && (
-              <li><span className="map-scene-swatch is-hull" aria-hidden="true" />{t("map.scene.legend.hull")}</li>
-            )}
-          </ul>
+          {legend.length > 0 && <ul className="map-scene-legend">{legend}</ul>}
         </div>
       )}
     </>

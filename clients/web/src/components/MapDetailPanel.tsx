@@ -232,6 +232,19 @@ function CargoDetail({
   const simulated = /_sim$/i.test(cargo.source_system);
   const terminal = cargoDestinationSite(cargo, sites);
   const country = cargo.destination?.country ?? null;
+  // How the arrival sits against the slot waiting for it: on time, early, or late (in days).
+  const slotTiming = (() => {
+    const slot = voyage.slot;
+    const etaMs = eta.etaUtc ? Date.parse(eta.etaUtc) : Number.NaN;
+    if (!slot || !Number.isFinite(etaMs)) return null;
+    const day = 86_400_000;
+    const opens = Date.parse(slot.window_start_utc);
+    const closes = Date.parse(slot.window_end_utc);
+    if (etaMs > closes) return { late: true, text: t("map.cargo.slot_missed") };
+    if (etaMs > opens + day / 2) return { late: true, text: t("map.cargo.slot_late", { count: Math.max(1, Math.round((etaMs - opens) / day)) }) };
+    if (etaMs < opens - day / 2) return { late: false, text: t("map.cargo.slot_early", { count: Math.round((opens - etaMs) / day) }) };
+    return { late: false, text: t("map.cargo.slot_on_time") };
+  })();
   return (
     <>
       <header className="map-detail-header">
@@ -275,6 +288,7 @@ function CargoDetail({
         <Section title={t("map.detail.slot_waiting")}>
           <div className="map-detail-row">
             <strong>{voyage.slot.terminal_name}</strong>
+            {slotTiming && <span className={slotTiming.late ? "map-cargo-missing" : "muted"}>{slotTiming.text}</span>}
             <small>{when(voyage.slot.window_start_utc)} → {when(voyage.slot.window_end_utc)}{voyage.slot.send_out_gwh_d != null ? ` · ${n(voyage.slot.send_out_gwh_d)} GWh/d` : ""}</small>
           </div>
         </Section>

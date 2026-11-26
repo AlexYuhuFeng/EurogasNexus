@@ -6954,5 +6954,13 @@
   "map.situation.stale_since": "地图自 {{time}} UTC 起未刷新",
   "map.corridor.out_of_service": "停运",
   "map.key.corridor": "进口走廊及其入口流量（虚线：停运）",
-  "outages.open_end": "未定"
+  "outages.open_end": "未定",
+  "map.cargo.slot_missed": "抵达时窗口已关闭",
+  "map.cargo.slot_late_one": "比窗口开启晚 {{count}} 天抵达",
+  "map.cargo.slot_late_other": "比窗口开启晚 {{count}} 天抵达",
+  "map.cargo.slot_early_one": "比窗口早 {{count}} 天抵达",
+  "map.cargo.slot_early_other": "比窗口早 {{count}} 天抵达",
+  "map.cargo.slot_on_time": "窗口开启时抵达",
+  "map.cargo.slot_late": "比窗口开启晚 {{count}} 天抵达",
+  "map.cargo.slot_early": "比窗口早 {{count}} 天抵达"
 }

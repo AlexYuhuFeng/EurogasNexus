@@ -6954,5 +6954,13 @@
   "map.situation.stale_since": "Map not refreshed since {{time}} UTC",
   "map.corridor.out_of_service": "out of service",
   "map.key.corridor": "Import corridor and its entry flow (dashed: out of service)",
-  "outages.open_end": "open"
+  "outages.open_end": "open",
+  "map.cargo.slot_missed": "arrives after the slot closes",
+  "map.cargo.slot_late_one": "arrives {{count}} day into the slot",
+  "map.cargo.slot_late_other": "arrives {{count}} days into the slot",
+  "map.cargo.slot_early_one": "arrives {{count}} day before the slot",
+  "map.cargo.slot_early_other": "arrives {{count}} days before the slot",
+  "map.cargo.slot_on_time": "arrives as the slot opens",
+  "map.cargo.slot_late": "arrives {{count}} days into the slot",
+  "map.cargo.slot_early": "arrives {{count}} days before the slot"
 }
