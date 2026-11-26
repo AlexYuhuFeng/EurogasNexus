@@ -538,7 +538,10 @@ def outage_view(
                 "technical_capacity": m.technical_capacity,
                 "available_capacity": m.available_capacity,
                 "unavailable_capacity": m.unavailable_capacity,
-                "capacity_impact_mcm_d": figure.mcm_d or 0.0,
+                # None, not 0, when the message gives no volume figure: an outage published
+                # in GWh/d with no conversion is not an outage of zero (``unavailable_gwh_d``
+                # and ``daily_basis`` carry what is known).
+                "capacity_impact_mcm_d": figure.mcm_d,
                 "unavailable_gwh_d": figure.gwh_d,
                 "unavailable_mcm_d": figure.mcm_d,
                 "unavailable_gwh_h": figure.gwh_h,
