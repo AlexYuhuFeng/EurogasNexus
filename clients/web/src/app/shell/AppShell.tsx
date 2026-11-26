@@ -350,6 +350,10 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     glossary: api.glossaryTerms,
     permissions: currentUser?.permissions ?? [],
     language: i18n.language,
+    // A live answer (a spread) moves with the session's market updates while a stream is open.
+    liveStamp: api.marketLastUpdatedAtUtc,
+    streaming: api.streamingActive,
+    liveQuotes: api.marketQuotes,
   });
   const openAnswerTarget = (target: AnswerTarget) => {
     const command = target.kind === "glossary"

@@ -6,7 +6,8 @@
  * 2. Instant (tier 1, synchronous, no network): a unit or price conversion, arithmetic, a
  *    gas-day/date answer, or a definition question whose subject is a glossary term
  *    ("what is TTF", "TTF 是什么"), which goes to the glossary and never to the model.
- * 3. Looked up (tier 2): a price conversion for a future delivery period (`78 p/th in eur/mwh
+ * 3. Looked up (tier 2): a live spread between two hubs ("NBP TTF spread"), the book at a
+ *    glance ("what's my portfolio"), a price conversion for a future delivery period (`78 p/th in eur/mwh
  *    jan27`, converted by the server at the forward FX of that period), a price, storage, LNG,
  *    Norway, outages or, with `portfolio.read`, a book look-up (`intent.ts`).
  * 4. A bare glossary term ("hedge ratio", "UMM") shows its definition.
@@ -20,7 +21,7 @@ import { gasDayAnswer, type GasDayAnswer } from "./gasDay.ts";
 import { definitionSubject, findTerm, glossaryAnswer, type GlossaryAnswer, type GlossaryEntry } from "./glossary.ts";
 import { lookupIntent, type LookupIntent } from "./intent.ts";
 import { splitTrailingPeriod } from "./period.ts";
-import { spreadStudy } from "./strategy.ts";
+import { liveSpread, spreadStudy } from "./strategy.ts";
 import { convertQuery, priceConversionParts, type Conversion, type FxHeld } from "./units.ts";
 import type { UnitsReferenceDTO } from "../../api/client.ts";
 
@@ -91,6 +92,11 @@ export function routeQuery(raw: string, context: RouteContext): Route {
   const day = gasDayAnswer(body, context.now);
   if (day) return { tier: 1, kind: "gasday", answer: day };
   if (forced) return body ? { tier: 1, kind: "not-calc", text: body } : { tier: 0, kind: "none" };
+
+  // A spread asked for its number ("NBP TTF spread", "current NBP–TTF spread") is read live;
+  // Enter still opens the study in Research → Spreads with the text.
+  const live = liveSpread(body);
+  if (live) return { tier: 2, kind: "lookup", intent: { kind: "spread", ...live, text: body } };
 
   // A spread study ("NBP vs TTF front month net of tariff") opens Research → Spreads.
   const study = spreadStudy(body);

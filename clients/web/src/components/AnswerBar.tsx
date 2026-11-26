@@ -13,7 +13,7 @@ import { useTranslation } from "react-i18next";
 import { formatGasDay } from "@/app/time/timeFormat";
 
 import type { AskAnswerDTO } from "@/api/client";
-import type { AnswerTarget, AnswerText, AnswerView } from "@/app/answer/answerModel";
+import type { AnswerFact, AnswerTarget, AnswerText, AnswerView } from "@/app/answer/answerModel";
 import type { AskState } from "@/app/hooks/useAnswerBar";
 import { KeyFigure } from "@/components/ui/KeyFigure";
 import "./AnswerBar.css";
@@ -40,6 +40,7 @@ export function answerAnnouncement(answer: AnswerView, t: Translate): string {
   const parts = [answerText(answer.label, t)];
   if (answer.value) parts.push(`${answer.value}${answer.unit ? ` ${answerText(answer.unit, t)}` : ""}`);
   if (answer.sentence) parts.push(answerText(answer.sentence, t));
+  for (const fact of answer.facts ?? []) parts.push(`${answerText(fact.label, t)} ${answerText(fact.value, t)}`);
   if (answer.simulated) parts.push(t("today.simulated_long"));
   return parts.filter(Boolean).join(", ");
 }
@@ -51,11 +52,31 @@ interface AnswerRowProps {
   onChoose: () => void;
 }
 
+/** A several-part answer's figures (the portfolio at a glance), one cell each. */
+function AnswerFacts({ facts, t }: { facts: readonly AnswerFact[]; t: Translate }) {
+  return (
+    <dl className="answer-facts">
+      {facts.map((fact, index) => (
+        <div key={index} className="answer-fact" data-tone={fact.tone}>
+          <dt>{answerText(fact.label, t)}</dt>
+          <dd>
+            <strong>{answerText(fact.value, t)}</strong>
+            {fact.detail && <small>{answerText(fact.detail, t)}</small>}
+          </dd>
+        </div>
+      ))}
+    </dl>
+  );
+}
+
 export function AnswerRow({ answer, active, onHover, onChoose }: AnswerRowProps) {
   const { t } = useTranslation();
   const label = answerText(answer.label, t);
   const lines = answer.lines.map((line) => answerText(line, t)).filter(Boolean);
   const detail = lines.length ? <>{lines.map((line) => <span key={line} className="answer-line">{line}</span>)}</> : null;
+  const facts = answer.facts?.length ? <AnswerFacts facts={answer.facts} t={t} /> : null;
+  // A live figure pulses once when it changes (keyed on the value); still under reduced motion.
+  const liveMark = answer.live ? <span key={answer.value ?? ""} className="answer-live-mark" aria-hidden="true" /> : undefined;
   const hint = answer.target ? t("answer.hint.open") : answer.copy ? t("answer.hint.copy") : null;
   return (
     <li role="presentation">
@@ -66,32 +87,40 @@ export function AnswerRow({ answer, active, onHover, onChoose }: AnswerRowProps)
         className={`answer-row${active ? " active" : ""}`}
         data-answer-kind={answer.kind}
         data-answer-simulated={answer.simulated ? "true" : undefined}
+        data-answer-live={answer.live ? "true" : undefined}
         onMouseEnter={onHover}
         onClick={onChoose}
       >
         <span className="command-palette-group">{t(`answer.tag.${answer.kind}`)}</span>
-        {answer.value !== null ? (
-          <KeyFigure
-            className="answer-figure"
-            size="lg"
-            label={label}
-            value={<span data-answer-value>{answer.value}</span>}
-            unit={answer.unit ? answerText(answer.unit, t) : undefined}
-            delta={answer.delta ?? undefined}
-            marker={answer.simulated ? (
-              <span className="ds-cell-mark" data-state="simulated" title={t("today.simulated_long")}>
-                {t("today.simulated_short")}
-              </span>
-            ) : undefined}
-            detail={detail ?? undefined}
-          />
-        ) : (
-          <div className="answer-sentence-block">
-            <span className="answer-label">{label}</span>
-            <span className="answer-sentence">{answerText(answer.sentence, t)}</span>
-            {detail && <small className="answer-detail">{detail}</small>}
-          </div>
-        )}
+        <div className="answer-body">
+          {answer.value !== null ? (
+            <KeyFigure
+              className="answer-figure"
+              size="lg"
+              label={label}
+              value={<span data-answer-value>{answer.value}</span>}
+              unit={answer.unit ? answerText(answer.unit, t) : undefined}
+              delta={answer.delta ?? undefined}
+              marker={answer.simulated ? (
+                <>
+                  <span className="ds-cell-mark" data-state="simulated" title={t("today.simulated_long")}>
+                    {t("today.simulated_short")}
+                  </span>
+                  {liveMark}
+                </>
+              ) : liveMark}
+              detail={detail ?? undefined}
+            />
+          ) : (
+            <div className="answer-sentence-block">
+              <span className="answer-label">{label}</span>
+              {answer.sentence && <span className="answer-sentence">{answerText(answer.sentence, t)}</span>}
+              {!facts && detail && <small className="answer-detail">{detail}</small>}
+            </div>
+          )}
+          {facts}
+          {facts && answer.value === null && detail && <small className="answer-detail">{detail}</small>}
+        </div>
         {hint && <span className="answer-hint">{hint}</span>}
       </div>
     </li>

@@ -175,6 +175,95 @@ test("book look-ups: a month's position per day, credit headroom of a named coun
   assert.equal(lookupIntent("credit rhinmark", { bookAllowed: false }), null);
 });
 
+const FX = { source: "ECB", rates: { GBP: { rate: 0.85, date: "2026-11-13" }, USD: { rate: 1.08, date: "2026-11-13" } } };
+
+function quote(hub: string, product: string, bid: number, ask: number, unit: { currency: string; unit: string }, observed: string, start: string, end: string) {
+  return {
+    quote_id: `${hub}-${product}-${observed}`, hub, product, bid_price: bid, ask_price: ask, currency: unit.currency, unit: unit.unit,
+    bid_quantity_mwh: 10, ask_quantity_mwh: 10, source_system: "ICE_ENDEX", simulated: false, observed_at_utc: observed,
+    delivery_start_utc: start, delivery_end_utc: end, metadata_json: {},
+  };
+}
+
+test("a spread asked for its number: screen mids of both hubs, in EUR/MWh at the held ECB rate, live", async () => {
+  for (const query of ["NBP TTF spread", "current NBP–TTF spread", "what's the NBP vs TTF spread?", "NBP-TTF", "英国和荷兰之间的价差"]) {
+    const route = routeQuery(query, { units: UNITS, fx: FX, glossary: GLOSSARY, bookAllowed: true, zh: false, now: NOW });
+    assert.equal(route.kind === "lookup" ? route.intent.kind : route.kind, "spread", query);
+  }
+  const route = routeQuery("NBP TTF spread", { units: UNITS, fx: FX, glossary: GLOSSARY, bookAllowed: true, zh: false, now: NOW });
+  assert.ok(route.kind === "lookup");
+  const quotes = [
+    quote("NBP", "month-ahead", 85, 86, { currency: "GBP", unit: "MWh" }, "2026-11-16T11:58:00Z", "2026-12-01T05:00:00Z", "2027-01-01T05:00:00Z"),
+    quote("TTF", "month-ahead", 41.9, 42.1, { currency: "EUR", unit: "MWh" }, "2026-11-16T11:59:00Z", "2026-12-01T05:00:00Z", "2027-01-01T05:00:00Z"),
+  ];
+  const answer = await lookup(route.intent, reads({ quotes: async () => quotes as never, fx: () => FX }), new AbortController().signal);
+  // NBP 85.5 GBP/MWh ÷ 0.85 = 100.588 EUR/MWh; less TTF 42.0.
+  assert.equal(answer.kind, "spread");
+  assert.equal(answer.value, `+${(85.5 / 0.85 - 42).toFixed(3)}`);
+  assert.equal(answer.unit, "EUR/MWh");
+  assert.equal(answer.live, true);
+  assert.deepEqual(answer.lines.map((line) => line.key), ["answer.spread.legs", "answer.spread.fx", "answer.spread.basis_screen", "answer.as_of_source"]);
+  assert.deepEqual(answer.lines[1].values, { source: "ECB", pair: "EURGBP", rate: "0.8500", date: "2026-11-13" });
+  assert.equal(answer.lines[3].values?.source, "ICE_ENDEX");
+  assert.deepEqual(answer.target, { kind: "task", mode: "research", task: "spreads", params: { describe: "NBP TTF spread" } });
+
+  // No screen quotes: the front-month closes; the server's own pair figure when it has one.
+  const closes = today();
+  (closes.rows[0] as { prices: unknown[] }).prices.push({ key: "price.NBP", label: "NBP Dec-26", value: 85.5, unit: "GBP/MWh", as_of: "2026-11-15T12:00:00Z",
+    state: "current", simulated: false, source: "ICE", hub: "NBP", product: "Dec-26", tenor: "month-ahead", close_day: "2026-11-15", day_change: null, day_change_vs: null });
+  const fromCloses = await lookup(route.intent, reads({ deskToday: async () => closes, fx: () => FX }), new AbortController().signal);
+  assert.equal(fromCloses.value, `+${(85.5 / 0.85 - 42.472).toFixed(3)}`);
+  assert.equal(fromCloses.lines.find((line) => line.key === "answer.spread.basis_close")?.values?.day, "2026-11-15");
+  (closes.rows[0] as { market?: unknown }).market = { hubs: [], series_days: 30, spreads: [
+    { key: "spread.NBP.TTF", label: "NBP–TTF Dec-26", pair: "NBP–TTF", product: "Dec-26", value: 58.1, unit: "EUR/MWh", as_of: "2026-11-15", state: "current",
+      simulated: false, source: null, fx: { pair: "EURGBP", base: "EUR", quote: "GBP", rate: 0.8512, value_date: "2026-12-16" }, route_cost: { value: null, unit: "EUR/MWh", verdict: null } },
+  ] };
+  const server = await lookup(route.intent, reads({ deskToday: async () => closes, fx: () => FX }), new AbortController().signal);
+  assert.equal(server.value, "+58.100");
+  assert.equal(server.lines.find((line) => line.key === "answer.spread.fx_forward")?.values?.rate, "0.8512");
+  const reversed = await lookup({ kind: "spread", a: "TTF", b: "NBP", tenor: "front", text: "TTF NBP spread" }, reads({ deskToday: async () => closes, fx: () => FX }), new AbortController().signal);
+  assert.equal(reversed.value, "−58.100");
+  // A study (a tariff, a route) is still opened, not answered.
+  assert.equal(routeQuery("NBP TTF spread net of tariff", { units: UNITS, fx: FX, glossary: GLOSSARY, bookAllowed: true, zh: false, now: NOW }).kind, "spreads");
+});
+
+test("what's my portfolio: positions by hub and month, open P&L, cargoes under way, the tightest credit line", async () => {
+  for (const query of ["what's my portfolio like", "my portfolio", "portfolio", "how's my book", "我的投资组合", "Portfolio?"]) {
+    assert.equal(lookupIntent(query, { bookAllowed: true, now: NOW })?.kind, "portfolio", query);
+    assert.equal(lookupIntent(query, { bookAllowed: false, now: NOW }), null, `${query} without portfolio.read`);
+  }
+  const answer = await answerFor("what's my portfolio like", {
+    ladder: async () => ({
+      rows: [
+        { hub: "NBP", month: "2026-12", net_mwh: 574000, physical_mwh: 1054000, financial_mwh: -480000 },
+        { hub: "NBP", month: "2027-01", net_mwh: -120000, physical_mwh: 0, financial_mwh: -120000 },
+        { hub: "TTF", month: "2026-12", net_mwh: -310000, physical_mwh: 0, financial_mwh: -310000 },
+      ],
+      horizon: { start: "2026-11-16" }, mark_to_market: 1240000, reporting_currency: "EUR", var_95_1d: 310000, unpriced_rows: 1,
+    }) as never,
+    cargoes: async () => [
+      { cargo_id: "C1", vessel_name: "Arctic Lady", status: "laden", own: true, destination_terminal: "Gate" },
+      { cargo_id: "C2", vessel_name: "Gaslog", status: "loading", own: true, destination_terminal: null },
+      { cargo_id: "C3", vessel_name: "Market ship", status: "laden", own: false, destination_terminal: null },
+    ] as never,
+  });
+  assert.equal(answer.kind, "portfolio");
+  assert.equal(answer.value, "€1.24m");
+  assert.deepEqual(answer.label, { key: "answer.portfolio.label_mtm" });
+  assert.deepEqual(answer.facts?.map((fact) => fact.label), ["NBP", "TTF", { key: "answer.portfolio.cargoes" }, { key: "answer.portfolio.headroom" }]);
+  assert.equal(answer.facts?.[0].value, "+454,000 MWh");
+  assert.equal(answer.facts?.[0].detail, "Dec-26 +574,000 · Jan-27 −120,000");
+  assert.equal(answer.facts?.[1].tone, "down");
+  assert.deepEqual(answer.facts?.[2].value, { key: "answer.portfolio.cargoes_value", values: { transit: 1, loading: 1, discharging: 0 } });
+  assert.equal(answer.facts?.[3].value, "−€491,592");
+  assert.equal(answer.facts?.[3].tone, "down");
+  assert.deepEqual(answer.lines.map((line) => line.key), ["answer.portfolio.var", "answer.portfolio.unpriced", "answer.portfolio.flagged", "answer.as_of"]);
+  assert.deepEqual(answer.target, { kind: "task", mode: "book", task: "position" });
+  // A cargo read that fails leaves the rest of the summary.
+  const partial = await answerFor("portfolio", { cargoes: async () => { throw new Error("403"); } });
+  assert.equal(partial.facts?.some((fact) => typeof fact.label !== "string" && fact.label.key === "answer.portfolio.cargoes"), false);
+});
+
 test("the answer row: an option with the value in tabular figures and the simulated mark beside it", async () => {
   const harness = await loadApiStore();
   const { AnswerRow, AskRow, AskPanel } = await harness.load<typeof import("../src/components/AnswerBar.tsx")>("/src/components/AnswerBar.tsx");
@@ -184,6 +273,12 @@ test("the answer row: an option with the value in tabular figures and the simula
   assert.match(row, /id="palette-answer" role="option" aria-selected="true"/);
   assert.match(row, /<span data-answer-value="true">42.472<\/span>/);
   assert.match(row, /class="ds-cell-mark" data-state="simulated"/);
+  // A live figure carries its tick mark; facts render as a definition list.
+  const live = renderToStaticMarkup(React.createElement("ul", { role: "listbox" },
+    React.createElement(AnswerRow, { answer: { ...answer, live: true, facts: [{ label: "NBP", value: "+454,000 MWh", detail: "Dec-26 +574,000", tone: "up" }] }, active: false, onHover: () => {}, onChoose: () => {} })));
+  assert.match(live, /data-answer-live="true"/);
+  assert.match(live, /class="answer-live-mark" aria-hidden="true"/);
+  assert.match(live, /<dl class="answer-facts"><div class="answer-fact" data-tone="up"><dt>NBP<\/dt><dd><strong>\+454,000 MWh<\/strong><small>Dec-26 \+574,000<\/small>/);
   const ask = renderToStaticMarkup(React.createElement("ul", { role: "listbox" },
     React.createElement(AskRow, { question: "why did storage jump", aiAllowed: false, active: false, onHover: () => {}, onChoose: () => {} })));
   assert.match(ask, /id="palette-ask" role="option"/);
@@ -221,6 +316,9 @@ test("the answer bar evaluates nothing: no eval, no Function, and Ask never runs
   }
   const hook = readFileSync(new URL("../src/app/hooks/useAnswerBar.ts", import.meta.url), "utf8");
   assert.match(hook, /LOOKUP_DEBOUNCE_MS = 250/);
+  // A look-up whose reads are held runs at once; a live answer is read again only while shown.
+  assert.match(hook, /ready \? 0 : LOOKUP_DEBOUNCE_MS/);
+  assert.match(hook, /if \(!liveShown\) return;/);
   assert.match(hook, /controller\.abort\(\)/);
   // The model is reached only through runAsk, which only Enter or the Ask row calls.
   assert.equal(hook.match(/api\s*\.ask\(/g)?.length, 1);

@@ -268,4 +268,100 @@
     display: none;
   }
 }
+
+/* The answer's figures and its several-part facts (the portfolio at a glance). */
+.answer-body {
+  display: grid;
+  gap: var(--ds-space-2);
+  min-width: 0;
+}
+
+.answer-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: var(--ds-space-2) var(--ds-space-3);
+  margin: 0;
+}
+
+.answer-fact {
+  display: grid;
+  gap: var(--ds-space-05);
+  min-width: 0;
+  padding-left: var(--ds-space-2);
+  border-left: 2px solid var(--ds-border-subtle);
+}
+
+.answer-fact[data-tone="up"] { border-left-color: var(--ds-positive); }
+.answer-fact[data-tone="down"] { border-left-color: var(--ds-negative); }
+.answer-fact[data-tone="attention"] { border-left-color: var(--ds-status-watch); }
+
+.answer-fact dt {
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-xs);
+  font-weight: var(--ds-weight-medium);
+  line-height: var(--ds-line-xs);
+}
+
+.answer-fact dd {
+  display: grid;
+  gap: var(--ds-space-05);
+  margin: 0;
+  min-width: 0;
+}
+
+.answer-fact strong {
+  color: var(--ds-text-1);
+  font-size: var(--ds-text-base);
+  font-variant-numeric: var(--ds-numeric);
+  line-height: var(--ds-line-base);
+}
+
+.answer-fact small {
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-xs);
+  line-height: var(--ds-line-xs);
+  overflow-wrap: anywhere;
+}
+
+/* A live figure: a small dot beside it that pulses once each time the figure is read again. */
+.answer-live-mark {
+  display: inline-block;
+  width: var(--ds-space-2);
+  height: var(--ds-space-2);
+  margin-left: var(--ds-space-1);
+  border-radius: var(--ds-radius-pill);
+  background: var(--ds-accent);
+  vertical-align: middle;
+  animation: answer-live-pulse 1.2s ease-out 1;
+}
+
+@keyframes answer-live-pulse {
+  from { box-shadow: 0 0 0 0 var(--ds-accent-soft); }
+  to { box-shadow: 0 0 0 var(--ds-space-2) transparent; }
+}
+
+/* A look-up under way: a thin line moving under the field. */
+.answer-busy {
+  height: 2px;
+  margin-top: -2px;
+  overflow: hidden;
+  background: transparent;
+}
+
+/* Starts off to the left and moves only after 150 ms: a look-up answered from held reads never
+   flashes it. */
+.answer-busy[data-busy="true"] {
+  background: linear-gradient(90deg, transparent, var(--ds-accent), transparent) -40% 0 / 40% 100% no-repeat;
+  animation: answer-busy-slide 1s linear 150ms infinite;
+}
+
+@keyframes answer-busy-slide {
+  from { background-position: -40% 0; }
+  to { background-position: 140% 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .answer-live-mark { animation: none; }
+  .answer-busy[data-busy="true"] { animation: none; background: var(--ds-accent-soft); }
+}
 }

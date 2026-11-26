@@ -114,11 +114,17 @@ test("a link carries the description; a too-short one is ignored", () => {
 
 test("answer bar: a spread study opens Research → Spreads with the text, EN and ZH", () => {
   const context = { units: UNITS, fx: null, glossary: [], bookAllowed: true, zh: false, now: new Date("2026-11-16T12:00:00Z") };
-  for (const text of ["forward spread net of transport tariff between TTF and NBP", "NBP vs TTF front month", "英国和荷兰之间的价差"]) {
+  for (const text of ["forward spread net of transport tariff between TTF and NBP", "NBP vs TTF Jan-27 net of tariff", "英国和荷兰之间扣除运输费的价差"]) {
     const route = routeQuery(text, context);
     assert.equal(route.kind, "spreads", text);
     const answer = instantAnswer(route);
     assert.deepEqual(answer?.target, { kind: "task", mode: "research", task: "spreads", params: { describe: text } });
+  }
+  // Asked for its number, a spread is read live; Enter on it still opens the study with the text.
+  for (const text of ["NBP vs TTF front month", "英国和荷兰之间的价差", "current NBP–TTF spread"]) {
+    const route = routeQuery(text, context);
+    assert.equal(route.kind === "lookup" ? route.intent.kind : route.kind, "spread", text);
+    assert.equal(route.kind === "lookup" && route.intent.kind === "spread" ? route.intent.text : null, text);
   }
   // A price look-up or a single hub is not a spread study.
   assert.equal(spreadStudy("TTF Jan-27"), null);
