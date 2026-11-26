@@ -4245,6 +4245,8 @@
   "reports.hubs": "Hubs",
   "reports.hubs_hint": "Hub codes, for example TTF, NBP. Empty: every hub you hold data for.",
   "reports.sections": "Sections",
+  "reports.hubs_all": "every hub held",
+  "reports.sections_chosen": "{{count}} of {{total}}",
   "reports.section.situation_event": "The event",
   "reports.section.prices": "Hub prices",
   "reports.section.alerts": "Open alerts",

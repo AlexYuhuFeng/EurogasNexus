@@ -4245,6 +4245,8 @@
   "reports.hubs": "枢纽",
   "reports.hubs_hint": "枢纽代码，例如 TTF、NBP。留空：所有有数据的枢纽。",
   "reports.sections": "章节",
+  "reports.hubs_all": "所有有数据的枢纽",
+  "reports.sections_chosen": "已选 {{count}} / {{total}}",
   "reports.section.situation_event": "事件",
   "reports.section.prices": "枢纽价格",
   "reports.section.alerts": "未结告警",
