@@ -49,6 +49,8 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
+from eurogas_nexus.domain.ontology.provenance import is_simulated
+
 #: Volatility bounds the solver searches (decimal per year): 0.1 % to 1000 %.
 MIN_VOL = 0.001
 MAX_VOL = 10.0
@@ -443,7 +445,7 @@ def option_source_tier(source_system: str) -> int:
     """Precedence tier of a source system (unknown sources rank after the simulator)."""
 
     value = (source_system or "").strip()
-    if value.endswith("_Sim"):
+    if is_simulated(value):
         return SIMULATED_TIER
     if value in OPTION_EXCHANGE_SOURCES:
         return EXCHANGE_TIER
