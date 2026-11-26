@@ -274,6 +274,7 @@ def test_the_stream_says_ready_then_one_notice_per_changed_topic(session, monkey
     assert events[0][0] == "ready"
     assert events[0][1]["topics"] == ["prices", "tariffs"]
     assert events[0][1]["resumed_from"] is not None
+    assert events[0][1]["event_id"].startswith("live|")
     # Two quotes in one poll: one notice (the burst is coalesced).
     assert events[1][0] == "change"
     assert events[1][1]["topic"] == "prices"

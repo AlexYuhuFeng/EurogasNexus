@@ -771,15 +771,19 @@ async def _live_stream(
                 outbox = outbox_start(session)
         except Exception:
             outbox = None  # the first poll that reaches the store starts it
+    ready_id = event_id()
     yield _sse(
         {
             "topics": list(topics),
             "resumed_from": start if resumed else None,
             "poll_seconds": POLL_SECONDS,
             "heartbeat_seconds": LIVE_HEARTBEAT_SECONDS,
+            # In the payload too (as every live event): a browser's EventSource keeps the id to
+            # itself, and the client resumes from the last one it was given.
+            "event_id": ready_id,
         },
         event="ready",
-        event_id=event_id(),
+        event_id=ready_id,
     )
     last_heartbeat = datetime.now(UTC)
     while True:
