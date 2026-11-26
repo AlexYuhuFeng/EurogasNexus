@@ -7256,5 +7256,8 @@
   "runtime.source_count_one": "{{count}} 个数据源",
   "runtime.source_count_other": "{{count}} 个数据源",
   "runtime.db_connected": "已连接",
-  "runtime.db_failed": "未连接"
+  "runtime.db_failed": "未连接",
+  "alerts.close": "关闭",
+  "alerts.simulated_input": "模拟价格输入",
+  "alerts.action.acknowledge": "确认"
 }

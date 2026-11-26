@@ -3,6 +3,7 @@ import { localDeadlineToUtc } from "@/app/model/decisionDeadline";
 import { sourceSystemLabel } from "@/app/model/enumLabels";
 import { tabLabels } from "@/components/ui/tabLabels";
 import { useEffect, useMemo, useState } from "react";
+import { displayTime } from "@/app/time/displayTime";
 import { useTranslation } from "react-i18next";
 import { auditActionLabel, auditActorLabel, auditOutcomeLabel, auditResourceLabel } from "@/app/model/auditPresentation";
 import {
@@ -39,10 +40,9 @@ interface AccessCenterProps {
   t: (key: string) => string;
 }
 
+/** An audit or key instant in the app's time format and zone, never the browser's locale. */
 function formatTime(value: string | null | undefined): string {
-  if (!value) return "n/a";
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+  return displayTime(value);
 }
 
 export function AccessCenter({ currentUser, t }: AccessCenterProps) {

@@ -7256,5 +7256,8 @@
   "runtime.source_count_one": "{{count}} source",
   "runtime.source_count_other": "{{count}} sources",
   "runtime.db_connected": "Connected",
-  "runtime.db_failed": "Not connected"
+  "runtime.db_failed": "Not connected",
+  "alerts.close": "Close",
+  "alerts.simulated_input": "simulated price input",
+  "alerts.action.acknowledge": "Acknowledge"
 }
