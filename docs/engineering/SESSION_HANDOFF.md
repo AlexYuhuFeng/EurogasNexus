@@ -10,8 +10,9 @@ Eurogas Nexus is a decision-support second screen for a European gas trading des
 trading screens and the trading and risk system of record (the ETRM). It never places orders,
 submits nominations, settles or books.
 
-- `main` holds everything described below and is tagged `v1.0.0-beta`.
-- The demo server (https://8080-agq6hf7a5l6f4ybvl7s2z7xpuq.instabox.tech) runs that tag. The
+- `main` holds everything described below. The beta pre-release is created by the release
+  workflow (see section 8); the cloud session could not push tags.
+- The demo server (https://8080-agq6hf7a5l6f4ybvl7s2z7xpuq.instabox.tech) runs the final `main` of 2026-11-26. The
   owner decided it stays on that version: do not deploy to it again unless he asks.
 - Seven professional reviews were run on 2026-11-26 (front office, middle and back office,
   technology, multinational, security, operations and governance, quant models). They are in
@@ -103,6 +104,13 @@ Known open items from the merged work (do not lose these):
 - Background jobs that run inside the API share its 30 s statement limit.
 - The security work left: no approval screen for dual control; PostgreSQL row-level security
   as a second layer; per-day budgets for AI calls; a KMS or Vault integration.
+- The Review page sends 145 to 389 read requests on a cold load; they are not rate-limited,
+  but it is a load concern.
+- The sign-in throttle is still counted per client address, so people behind one gateway
+  share it.
+- `application/ai_gate.py`, `application/ai_eval.py` and `core/config.py` still find the
+  repository root from their own file location, which is wrong in an installed image (the
+  same cause that broke the upgrade command on 2026-11-26). Check each in the image.
 - An external penetration test is to be commissioned at the end of phase 1 (owner's action).
 
 ## 5. The archived research branch
@@ -178,3 +186,25 @@ source-code escrow; the external penetration test; the production hardware.
   offline fallback. There is no 3D view: intensity is shown with flat encodings.
 - The Danish hub is one hub, coded ETF, with GTF as its alias.
 - No new polish or feature work on areas the plan marks for removal or redesign.
+
+## 8. Repository housekeeping the cloud session could not do
+
+The cloud session's access allowed pushing commits to `main` and its working branch only; tag
+pushes and branch deletions were refused. Do these with the owner's own git credentials:
+
+1. Check that the hosted CI run for the newest commit on `main` is green (rule 16); fix what
+   is red before anything else. See `docs/engineering/CI_AND_BRANCH_PROTECTION.md` for what
+   only hosted CI verifies and how to reproduce each job.
+2. Release: the product version is `1.0.0-beta.1`. Either run the "Build and Release" workflow
+   on `main` with `release_channel: beta` (it creates the tag and the pre-release), or push
+   the tag `v1.0.0-beta`, which the workflow accepts as the alias of `v1.0.0-beta.1`.
+3. Archive the research branch, then delete it:
+   `git tag -a archive/research-agentic-decision-architecture origin/research/agentic-decision-architecture -m "Archived research branch"`
+   and push the tag.
+4. Delete the remote branches that are fully merged into `main` (verify each with
+   `git merge-base --is-ancestor origin/<branch> origin/main` first):
+   `innovation/continuous-commercial-intelligence`, every `fix/*-on-innovation` branch,
+   `fix/demo-review`, `fix/portfolio-report-main`, `fix/portfolio-report-on-innovation`,
+   `wip/berth-rule-on-innovation`, `wip/timescale-on-innovation`, and, after step 3,
+   `research/agentic-decision-architecture`. Keep `main`. The cloud session's working branch
+   `claude/gas-trading-tool-review-08bgpo` equals `main` and can go too.
