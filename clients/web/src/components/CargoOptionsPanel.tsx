@@ -14,7 +14,7 @@ import { readKey, useCachedRead } from "@/app/data/readCache";
 import { apiErrorDetailCode, describeFailure, presentError } from "@/app/experience/errorPresentation";
 import { canChoose, optionRows, statusKey, timelineLine, type OptionRow, type OptionStanding } from "@/app/model/disruptionOptionsModel";
 import { formatAmount } from "@/app/time/valueFormat";
-import { Button, Field, Instant, StatusBadge, type StatusTone } from "@/components/ui";
+import { Button, Field, Instant, Skeleton, StatusBadge, type StatusTone } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -43,7 +43,7 @@ export function CargoOptionsPanel({ cargoId, t, language, canChooseOptions }: { 
   return (
     <div className="cargo-options" data-cargo-options="">
       <p className="cargo-plan-warning" role="note">{t("lng.cargo.options.advisory")}</p>
-      {read.loading && !data && <p className="muted" role="status">{t("lng.cargo.options.loading")}</p>}
+      {read.loading && !data && <Skeleton label={t("lng.cargo.options.loading")} rows={3} />}
       {failure && (
         <div className="cargo-board-error" role="alert">
           <strong>{failure.title}</strong>

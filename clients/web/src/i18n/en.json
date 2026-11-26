@@ -6542,6 +6542,7 @@
   "news.empty": "No items match these filters.",
   "news.load_failed": "News could not be loaded.",
   "news.loading": "Loading the item",
+  "news.list_loading": "Reading the news and events",
   "news.time_unknown": "time not stated",
   "news.open_source": "Open the source",
   "news.source_terms": "Source: {{source}}. Terms: {{licence}}",
