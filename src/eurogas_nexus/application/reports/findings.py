@@ -32,10 +32,27 @@ GLANCE_MENU = ("price.", "spread.", "landings", "lng", "storage.fill", "storage.
 NO_NEWS = ("Flows, storage and prices moved within their recent range: no indicator changed by "
            "more than its usual daily variation.")
 NO_NEWS_ZH = "流量、储气与价格均在近期波动范围内：没有指标的变动超过其通常的日波动。"
+#: The quiet line when prices are the only market indicators in the report.
+PRICES_QUIET = ("Prices moved within their recent range: no hub changed by more than its usual "
+                "daily variation.")
+PRICES_QUIET_ZH = "价格均在近期波动范围内：没有枢纽的变动超过其通常的日波动。"
+#: Indicator families the quiet line speaks for (a book or portfolio fact is not one).
+MARKET_FAMILIES = {"prices", "landings", "lng", "storage", "power", "balance", "outages"}
 
 
 def no_news() -> str:
     return T(NO_NEWS, NO_NEWS_ZH)
+
+
+def _quiet_line(candidates: list[dict[str, Any]]) -> str | None:
+    """What a quiet report says first: only about the market indicators it holds."""
+
+    held = {family(f) for f in candidates} & MARKET_FAMILIES
+    if not held:
+        return None
+    if held == {"prices"}:
+        return T(PRICES_QUIET, PRICES_QUIET_ZH)
+    return no_news()
 
 
 def assign_ids(sections: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -86,9 +103,10 @@ def rank_findings(sheet: list[dict[str, Any]]) -> list[dict[str, Any]]:
         })
         if len(chosen) == MAX_FINDINGS:
             break
-    if chosen and chosen[0]["score"] < MATERIAL:
-        chosen.insert(0, {"fact_ids": [f["id"] for f in candidates[:3]], "text": no_news(),
-                          "implication": None,
+    quiet = _quiet_line(candidates) if chosen and chosen[0]["score"] < MATERIAL else None
+    if quiet:
+        chosen.insert(0, {"fact_ids": [f["id"] for f in candidates[:3]], "text": quiet,
+                          "implication": None, "quiet": True,
                           "why": f"no fact scored {MATERIAL} or more (largest "
                                  f"{chosen[0]['score']})", "score": 0.0})
         chosen = chosen[:MAX_FINDINGS]
@@ -164,6 +182,8 @@ def headline_of(findings: list[dict], sheet: list[dict]) -> str:
     if lead["text"] in {NO_NEWS, NO_NEWS_ZH}:
         return T("Flows, storage and prices within their recent range",
                  "流量、储气与价格均在近期波动范围内")
+    if lead["text"] in {PRICES_QUIET, PRICES_QUIET_ZH}:
+        return T("Prices within their recent range", "价格均在近期波动范围内")
     fact = next((f for f in sheet if f["id"] == lead["fact_ids"][0]), None)
     text = (fact or {}).get("headline") or lead["text"]
     if fact and fact.get("simulated") and "(simulated)" not in text and "模拟" not in text:

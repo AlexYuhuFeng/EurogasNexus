@@ -60,7 +60,10 @@ def test_the_rule_lead_is_the_expected_lead(case):
     sheet = build_sheet(case)
     ranked = findings.rank_findings(sheet)
     if case["expected_lead"] == "NO_NEWS":
-        assert ranked[0]["text"] == findings.NO_NEWS
+        # The quiet line speaks only for the market families the sheet holds.
+        families = {findings.family(f) for f in sheet} & findings.MARKET_FAMILIES
+        quiet = findings.PRICES_QUIET if families == {"prices"} else findings.NO_NEWS
+        assert ranked[0]["text"] == quiet
     else:
         lead = next(f for f in sheet if f["id"] == ranked[0]["fact_ids"][0])
         assert lead["key"] == case["expected_lead"]
