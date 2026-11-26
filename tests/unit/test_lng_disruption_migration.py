@@ -33,7 +33,8 @@ def test_up_down_and_model_match():
     )
 
     module = _load("0086_lng_disruption.py")
-    assert module.revision == DB_SCHEMA_REVISION == "0086_lng_disruption"
+    assert module.revision == "0086_lng_disruption"
+    assert DB_SCHEMA_REVISION == "0088_tar2_capacity_bookings"
     assert module.down_revision == "0084_news_items"
     models = (
         LngSlotTermsRecord,

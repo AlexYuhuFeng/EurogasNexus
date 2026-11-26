@@ -27,7 +27,7 @@ def test_0083_is_the_head_and_expands_only():
     module = _load("0083_tar1_tariff_book.py")
     assert module.revision == "0083_tar1_tariff_book"
     assert module.down_revision == "0082_data1_integration"
-    assert DB_SCHEMA_REVISION == "0086_lng_disruption"
+    assert DB_SCHEMA_REVISION == "0088_tar2_capacity_bookings"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
         module.op = Operations(MigrationContext.configure(connection=connection))
@@ -36,7 +36,8 @@ def test_0083_is_the_head_and_expands_only():
         assert set(inspector.get_table_names()) == {"tariff_versions", "capacity_notices"}
         for model in (TariffVersionRecord, CapacityNoticeRecord):
             columns = {c["name"] for c in inspector.get_columns(model.__tablename__)}
-            assert columns == set(model.__table__.columns.keys())
+            # TAR-2's 0088 adds tariff_versions.tariff_year.
+            assert columns == set(model.__table__.columns.keys()) - {"tariff_year"}
             indexes = {i["name"] for i in inspector.get_indexes(model.__tablename__)}
             assert {i.name for i in model.__table__.indexes} <= indexes
         uniques = {u["name"] for u in inspector.get_unique_constraints("tariff_versions")}

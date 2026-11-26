@@ -29,7 +29,7 @@ def test_up_down_and_model_match():
 
     module = _load("0084_news_items.py")
     assert module.revision == "0084_news_items"
-    assert DB_SCHEMA_REVISION == "0086_lng_disruption"
+    assert DB_SCHEMA_REVISION == "0088_tar2_capacity_bookings"
     assert module.down_revision == "0085_sched1_nomination_matching"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:

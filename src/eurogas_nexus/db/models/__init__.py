@@ -27,6 +27,7 @@ from eurogas_nexus.db.models.backtest import (
     BacktestSeriesRecord,
 )
 from eurogas_nexus.db.models.books import TradingBookRecord
+from eurogas_nexus.db.models.capacity_bookings import CapacityBookingRecord
 from eurogas_nexus.db.models.certification import ProviderCertificationRecord
 from eurogas_nexus.db.models.change_requests import ChangeRequestRecord
 from eurogas_nexus.db.models.commercial_assumptions import (
@@ -400,6 +401,7 @@ __all__ = [
     "LngTerminalTariffRecord",
     "TsoTariffEntryRecord",
     "TariffVersionRecord",
+    "CapacityBookingRecord",
     "CapacityNoticeRecord",
     "LngTerminalTermsRecord",
     "HedgeApprovalRecord",
