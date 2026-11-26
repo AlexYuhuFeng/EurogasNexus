@@ -93,20 +93,10 @@ Electron is not approved.
 
 ## Map Tile Providers
 
-MapLibre GL uses configurable raster basemaps owned by
-`clients/web/src/app/mapTileProviders.ts`:
-
-- `osm`: OpenStreetMap raster tiles (international default).
-- `carto`: CARTO Voyager (international fallback).
-- `amap`: AMap / 高德地图 (mainland-China default for `zh` browser locales).
-  AMap uses GCJ-02; the client transforms WGS84 network coordinates to GCJ-02
-  for display alignment.
-- `tianditu`: Tianditu / 天地图 WMTS with an operator-provided token.
-
-Provider and token are stored as non-sensitive local client preferences and
-may also be supplied through `VITE_EUROGAS_MAP_TILE_PROVIDER` and
-`VITE_EUROGAS_MAP_TILE_TOKEN` at build time. No provider key is committed to
-the repository.
+MapLibre GL draws one basemap, owned by `clients/web/src/app/mapTileProviders.ts`:
+OpenStreetMap data through OpenFreeMap's vector styles (no key, commercial use allowed, ODbL
+attribution shown). The bundled Natural Earth outline is the automatic fallback offline and
+the basemap of a mainland China installation. There is no provider choice and no key.
 
 ## Internationalization Libraries
 

@@ -296,9 +296,6 @@ fn main() {
             let id = event.id().as_ref();
             if let Some(window) = app.get_webview_window("main") {
                 match id {
-                    "window.fullscreen" => {
-                        let _ = window.set_fullscreen(!window.is_fullscreen().unwrap_or(false));
-                    }
                     "window.minimize" => {
                         let _ = window.minimize();
                     }
@@ -374,13 +371,16 @@ fn main() {
                 .paste()
                 .select_all()
                 .build()?;
-            let fullscreen = MenuItemBuilder::with_id("window.fullscreen", "Toggle full screen")
+            // No native full screen (owner, 2026-11-26): on macOS the WebView in native full
+            // screen blocks keyboard input (the map's finder could not be typed into) and
+            // dragging misbehaves. F11 maximises the window instead; the map has its own
+            // in-app "Expand map" mode (clients/web/src/app/hooks/useExpandedView.ts).
+            let maximize = MenuItemBuilder::with_id("window.maximize", "Maximize / Restore")
                 .accelerator("F11")
                 .build(app)?;
             let window_menu = SubmenuBuilder::new(app, "Window")
-                .item(&fullscreen)
                 .text("window.minimize", "Minimize")
-                .text("window.maximize", "Maximize / Restore")
+                .item(&maximize)
                 .build()?;
             let menu = MenuBuilder::new(app)
                 .item(&workspace_menu)

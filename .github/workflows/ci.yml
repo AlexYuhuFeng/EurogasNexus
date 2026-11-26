@@ -449,9 +449,9 @@ jobs:
           fi
           exit "$sweep_status"
 
-      - name: The default map makes no third-party request (P3)
-        # The bundled basemap (Natural Earth, Inter glyphs) is served by the application; this
-        # fails when the default map asks any other host for tiles, styles, glyphs or data.
+      - name: The map asks only its own host and its one basemap (OpenFreeMap)
+        # One basemap: OpenStreetMap data through OpenFreeMap (commercial use allowed). This
+        # fails when the map asks any other host for tiles, styles, glyphs or data.
         env:
           EUROGAS_UAT_PLAYWRIGHT_PATH: scripts/ci/browser-acceptance/node_modules/playwright/index.js
           EUROGAS_UAT_BASE_URL: http://127.0.0.1:3000

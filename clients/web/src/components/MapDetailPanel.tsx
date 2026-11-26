@@ -14,6 +14,7 @@ import {
   type MapSelection,
   type Site,
 } from "@/app/mapSelection";
+import { arrivalPhrase, cargoDrawable, cargoEta, etaBasisPhrase, etaUtcText } from "@/app/mapCargo";
 import { Icon } from "@/components/ui/Icon";
 import { glossaryAnswer } from "@/app/answer/glossary";
 import { openGlossaryTerm, resolveGlossaryTerm } from "@/app/model/glossaryEntry";
@@ -222,34 +223,57 @@ function CargoDetail({
   t: Translate;
 }) {
   const voyage = cargoVoyage(cargo, situation);
+  // The card answers the trader's questions in order: where it is going, how long until it gets
+  // there, when exactly (UTC), and what that time rests on (rule 19: never invented).
+  const eta = cargoEta(cargo, Date.now());
+  const { i18n } = useTranslation();
+  const drawable = cargoDrawable(cargo);
   // A simulated feed (the demo's stand-in for a licensed one) is marked on the card itself.
   const simulated = /_sim$/i.test(cargo.source_system);
   const terminal = cargoDestinationSite(cargo, sites);
+  const country = cargo.destination?.country ?? null;
+  // How the arrival sits against the slot waiting for it: on time, early, or late (in days).
+  const slotTiming = (() => {
+    const slot = voyage.slot;
+    const etaMs = eta.etaUtc ? Date.parse(eta.etaUtc) : Number.NaN;
+    if (!slot || !Number.isFinite(etaMs)) return null;
+    const day = 86_400_000;
+    const opens = Date.parse(slot.window_start_utc);
+    const closes = Date.parse(slot.window_end_utc);
+    if (etaMs > closes) return { late: true, text: t("map.cargo.slot_missed") };
+    if (etaMs > opens + day / 2) return { late: true, text: t("map.cargo.slot_late", { count: Math.max(1, Math.round((etaMs - opens) / day)) }) };
+    if (etaMs < opens - day / 2) return { late: false, text: t("map.cargo.slot_early", { count: Math.round((opens - etaMs) / day) }) };
+    return { late: false, text: t("map.cargo.slot_on_time") };
+  })();
   return (
     <>
       <header className="map-detail-header">
         <h3>{cargo.vessel_name}</h3>
-        <p className="muted">{cargo.vessel_imo ? `IMO ${cargo.vessel_imo}` : cargo.cargo_id}</p>
         <div className="map-detail-roles">
           <span className={`map-role is-${cargo.own ? "own" : "neutral"}`}>{t(cargo.own ? "map.situation.own_cargo" : "map.situation.market_cargo")}</span>
           <span className="map-role is-neutral">{t(`map.situation.cargo_${cargo.status}`)}</span>
           {simulated && <span className="map-role is-watch">{t("map.detail.simulated")}</span>}
         </div>
       </header>
-      <div className="map-detail-voyage">
-        <span>{cargo.load_port}</span>
-        {voyage.progress != null ? (
-          <div className="map-detail-progress" aria-hidden="true">
-            <i style={{ width: `${Math.round(voyage.progress * 100)}%` }} />
-          </div>
-        ) : <span className="muted" aria-hidden="true">→</span>}
-        <span>{cargo.destination_terminal ?? t("map.situation.destination_unknown")}</span>
+      {/* Where it is going and when: words in the page's own type, the time in tabular figures. */}
+      <div className="map-cargo-head">
+        <p className="map-cargo-to">
+          <span className="muted">{t("map.cargo.to")}</span>{" "}
+          <strong>{cargo.destination_terminal ?? t("map.cargo.destination_unknown")}</strong>
+          {country ? <span className="muted"> · {country}</span> : null}
+        </p>
+        <p className="map-cargo-arrival">
+          <strong>{arrivalPhrase(eta, t)}</strong>
+          {eta.etaUtc ? <span className="muted">{t("map.cargo.eta")} {etaUtcText(eta.etaUtc, i18n.language)}</span> : null}
+        </p>
       </div>
       <div className="map-detail-figures">
-        <Figure label="ETA" value={when(cargo.eta_utc)} hint={voyage.etaDays == null ? undefined : voyage.etaDays >= 0 ? t("map.detail.in_days", { days: n(voyage.etaDays, 1) }) : t("map.detail.overdue_days", { days: n(-voyage.etaDays, 1) })} />
-        <Figure label={t("map.situation.cargo_size")} value={cargo.energy_gwh != null ? n(cargo.energy_gwh) : "–"} unit="GWh" hint={cargo.volume_m3 != null ? `${n(cargo.volume_m3)} m³ LNG` : undefined} />
-        {cargo.departed_at_utc && <Figure label={t("map.detail.departed")} value={when(cargo.departed_at_utc)} />}
+        <Figure label={t("map.cargo.size")} value={cargo.energy_gwh != null ? n(cargo.energy_gwh) : "–"} unit={cargo.energy_gwh != null ? "GWh" : undefined} hint={cargo.volume_m3 != null ? `${n(cargo.volume_m3)} m³ LNG` : undefined} />
       </div>
+      {eta.basis && <p className="map-cargo-basis muted">{t("map.cargo.basis_label")}: {etaBasisPhrase(eta, t)}</p>}
+      {(!drawable.position || (drawable.position && !drawable.destination && cargo.status === "laden")) && (
+        <p className="map-cargo-missing">{t(!drawable.position ? "map.cargo.no_position" : "map.cargo.no_destination_leg")}</p>
+      )}
       {terminal && onSelect && (
         // The destination terminal's own card: its send-out, slots and other inbound cargoes.
         <button
@@ -264,14 +288,23 @@ function CargoDetail({
         <Section title={t("map.detail.slot_waiting")}>
           <div className="map-detail-row">
             <strong>{voyage.slot.terminal_name}</strong>
+            {slotTiming && <span className={slotTiming.late ? "map-cargo-missing" : "muted"}>{slotTiming.text}</span>}
             <small>{when(voyage.slot.window_start_utc)} → {when(voyage.slot.window_end_utc)}{voyage.slot.send_out_gwh_d != null ? ` · ${n(voyage.slot.send_out_gwh_d)} GWh/d` : ""}</small>
           </div>
         </Section>
       )}
-      <footer className="map-detail-footer muted">
-        {t("map.detail.position_at", { at: when(cargo.position_at_utc), source: cargo.source_system })}
-        {cargo.status === "laden" && cargo.destination ? ` · ${t("map.situation.indicative_leg")}` : ""}
-      </footer>
+      <details className="map-detail-fold">
+        <summary>{t("map.detail.more")}</summary>
+        <p className="muted">
+          {[
+            cargo.vessel_imo ? `IMO ${cargo.vessel_imo}` : null,
+            cargo.load_port ? `${t("map.detail.from_port")} ${cargo.load_port}` : null,
+            cargo.departed_at_utc ? `${t("map.detail.departed")} ${when(cargo.departed_at_utc)}` : null,
+          ].filter(Boolean).join(" · ")}
+        </p>
+        {cargo.position_at_utc && <p className="muted">{t("map.cargo.position_line", { at: when(cargo.position_at_utc), source: cargo.source_system })}</p>}
+        {drawable.position && drawable.destination && cargo.status === "laden" && <p className="muted">{t("map.cargo.leg_note")}</p>}
+      </details>
     </>
   );
 }

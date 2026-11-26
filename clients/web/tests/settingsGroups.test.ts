@@ -59,11 +59,13 @@ test("Organisation holds the defaults; Connection keeps deployment plumbing behi
   const advanced = connection.slice(connection.indexOf("<details"), connection.indexOf("</details>"));
   assert.match(connection, /settings-about-panel/);
   assert.match(connection, /<PersonalApiKeysPanel/);
-  for (const plumbing of ["settings-backend-panel", "settings.api_token", "settings.operator_principal", "settings.map_tile_provider", "settings.map_tile_token"]) {
+  for (const plumbing of ["settings-backend-panel", "settings.api_token", "settings.operator_principal"]) {
     assert.ok(advanced.includes(plumbing), `${plumbing} sits behind the Advanced fold`);
   }
   const personal = settings.slice(0, settings.indexOf('group === "organisation"'));
-  assert.doesNotMatch(personal, /settings-backend-panel|map_tile/);
+  assert.doesNotMatch(personal, /settings-backend-panel/);
+  // One basemap (OpenStreetMap): Settings offers no map provider at all (owner review 2026-11-26).
+  assert.doesNotMatch(settings, /map_tile|MAP_TILE/);
 });
 
 test("every group string exists in English and Chinese", () => {

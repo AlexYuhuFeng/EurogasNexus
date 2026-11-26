@@ -77,20 +77,20 @@ def runtime_db_status(request: Request) -> dict:
     }
 
 
-#: Basemaps a deployment may choose as its default (clients/web/src/app/mapTileProviders.ts).
-MAP_PROVIDERS = {"none", "bundled", "outline", "custom", "openfreemap", "versatiles", "tianditu"}
+#: Basemaps a deployment may run (clients/web/src/app/mapTileProviders.ts): OpenStreetMap through
+#: OpenFreeMap everywhere, the bundled outline in a mainland China installation.
+MAP_PROVIDERS = {"openfreemap", "outline"}
 
 
 def deployment_profile(environ: dict[str, str] | None = None) -> dict[str, str]:
-    """The installation's region and its default basemap.
+    """The installation's region and its basemap.
 
-    A global installation defaults to the ``bundled`` basemap: Natural Earth land, borders and
-    place names (public domain) with labels in the bundled Inter, all served by the application
-    itself, so the map makes no third-party request and works offline. The operator may name an
-    external style instead (OpenFreeMap or VersaTiles, OpenStreetMap data under ODbL; its own
-    tile service; Tianditu with a key). Maps published in mainland China must come from an
-    approved provider, so a China installation defaults to the bundled ``outline`` (land only,
-    no border drawn) unless the operator names its licensed provider.
+    The map has one basemap: OpenStreetMap data through OpenFreeMap's vector styles (ODbL,
+    free for commercial use with attribution, no key). Maps published in mainland China must
+    come from an approved provider, so a China installation draws the bundled ``outline``
+    (Natural Earth land served by the application, no borders). The client also falls back to
+    the outline by itself when OpenFreeMap cannot be reached (offline, an office proxy).
+    ``EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER=outline`` forces the outline (an air-gapped site).
     """
 
     import os
@@ -99,7 +99,7 @@ def deployment_profile(environ: dict[str, str] | None = None) -> dict[str, str]:
     region = str(env.get("EUROGAS_NEXUS_DEPLOYMENT_REGION") or "global").strip().lower()
     chosen = str(env.get("EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER") or "").strip().lower()
     if chosen not in MAP_PROVIDERS:
-        chosen = "outline" if region == "china" else "bundled"
+        chosen = "outline" if region == "china" else "openfreemap"
     return {"region": region, "map_default_provider": chosen}
 
 

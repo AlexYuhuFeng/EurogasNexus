@@ -1,5 +1,5 @@
-import type { MapAssetDTO, MapCargoDTO } from "@/api/client";
-import { STALE_AFTER_HOURS, assetFigures, cargoPositions, figureAgeHours } from "./mapScene.ts";
+import type { MapAssetDTO } from "@/api/client";
+import { STALE_AFTER_HOURS, assetFigures, figureAgeHours } from "./mapScene.ts";
 
 /**
  * The hover cards of the map scene (MAP-1): every figure with its source, its gas day and how
@@ -50,7 +50,7 @@ function directionWord(kind: MapAssetDTO["kind"], direction: string, t: Translat
   return t(direction === "entry" ? "map.scene.dir.send_out" : "map.scene.dir.exit");
 }
 
-export function assetCard(asset: MapAssetDTO, now: Date, t: Translate, dimension: "2d" | "3d"): CardText {
+export function assetCard(asset: MapAssetDTO, now: Date, t: Translate): CardText {
   const figures = assetFigures(asset);
   const lines: string[] = [];
   const capacity = asset.capacity.find((item) => item.direction === figures.capacityDirection) ?? null;
@@ -89,50 +89,10 @@ export function assetCard(asset: MapAssetDTO, now: Date, t: Translate, dimension
     lines.push(t("map.scene.no_stock"));
   }
   const notes = [t("map.scene.position_approx")];
-  if (dimension === "3d") notes.push(t("map.scene.column_note"));
   return {
     title: `${asset.name} · ${t(asset.kind === "storage" ? "map.scene.kind.storage" : "map.scene.kind.lng_terminal")}`,
     lines,
     note: notes.join(" "),
-  };
-}
-
-/** An instant as the reader's formatter writes it (app/time/timeFormat.ts, via the map). */
-export type FormatInstant = (iso: string) => string;
-
-function etaLine(cargo: MapCargoDTO, t: Translate, when: FormatInstant): string {
-  if (!cargo.eta_utc) return t("map.scene.eta_none");
-  const basis = cargo.eta?.basis ? t(`map.scene.eta_basis.${cargo.eta.basis}`) : t("map.scene.eta_basis.none");
-  const confidence = cargo.eta?.confidence ? t(`map.scene.eta_confidence.${cargo.eta.confidence}`) : t("map.scene.eta_confidence.none");
-  return t("map.scene.eta", {
-    when: when(cargo.eta_utc),
-    terminal: cargo.destination_terminal ?? "",
-    basis,
-    confidence,
-    source: cargo.eta?.source ?? cargo.source_system,
-  });
-}
-
-/** The card of a cargo's estimated position: an interpolation, never an observation. */
-export function estimateCard(cargo: MapCargoDTO, now: Date, t: Translate, when: FormatInstant): CardText | null {
-  const { estimate } = cargoPositions(cargo, now);
-  if (!estimate) return null;
-  const from = estimate.from === "reported"
-    ? t("map.scene.estimate_from_report", { age: ageText(figureAgeHours(cargo.position_at_utc, now), t) })
-    : t("map.scene.estimate_from_departure", { port: cargo.load_port });
-  return {
-    title: `${cargo.vessel_name} · ${t("map.scene.estimated_position")}`,
-    lines: [etaLine(cargo, t, when)],
-    note: t("map.scene.estimate_note", { from, terminal: cargo.destination_terminal ?? "" }),
-  };
-}
-
-/** The card of a voyage drawn without a reported track: origin to destination, not a route. */
-export function voyageCard(cargo: MapCargoDTO, t: Translate, when: FormatInstant): CardText {
-  return {
-    title: `${cargo.vessel_name} · ${cargo.load_port} → ${cargo.destination_terminal ?? ""}`,
-    lines: [etaLine(cargo, t, when)],
-    note: t("map.scene.voyage_note"),
   };
 }
 

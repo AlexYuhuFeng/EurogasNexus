@@ -100,7 +100,7 @@ with `EUROGAS_NEXUS_PORTFOLIO_ISOLATION=true` ([GLOBAL_DEPLOYMENT.md](../archite
   (`EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED=false`, or point the LLM adapter at an
   internal model), use file imports for market data (`import_settlements.py`,
   `import_market_quotes.py`, `import_remit_umm.py`) and schedule only sources the network
-  can reach. Set `EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER=none` (or `custom`, pointing
-  at an internal tile server) so the map does not reach for a public basemap.
+  can reach. Set `EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER=outline` so the map draws the
+  bundled outline and does not reach for the public basemap.
 - **Installation:** the server bundle and container images install from an internal
   registry; `docs/deployment/DEPLOYMENT_ROLES-EN.md` lists what each role needs.

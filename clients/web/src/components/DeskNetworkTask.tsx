@@ -42,8 +42,8 @@ export function DeskNetworkTask({ controller, active }: { controller: AppControl
       activeLayers={controls.activeLayers}
       searchTerm={controls.searchTerm}
       networkGeometryState={portfolio.networkGeometryState}
-      onResetSearch={() => controls.setSearchTerm("")}
       onToggleLayer={controls.toggleLayer}
+      onDefaultLayers={controls.resetLayers}
       // Parked while another page shows: nothing it opened stays above that page, and its
       // timers and map rendering pause.
       active={active}

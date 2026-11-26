@@ -37,8 +37,10 @@ test("the Network page holds one selection for map and panel", () => {
   // The book's panels are the fourth tab, in the book view, with book permission only.
   assert.match(page, /const showBookTab = mapView === "book" && canReadBook\(currentUser\?\.permissions\);/);
   assert.match(page, /book=\{bookPanels\}/);
-  // Full screen keeps the whole instrument.
-  assert.match(page, /useFullscreen\(shellRef\)/);
+  // Expanded keeps the whole instrument, by CSS: never the browser's Fullscreen API, which
+  // blocks typing in the finder on macOS WebKit and the Tauri WebView.
+  assert.match(page, /const expandedView = useExpandedView\(\);/);
+  assert.doesNotMatch(page, /requestFullscreen|fullscreenElement/);
 });
 
 test("the panel's tabs count the current filter and its rows link to the map", () => {

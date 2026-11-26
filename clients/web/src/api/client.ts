@@ -5846,6 +5846,34 @@ function definedQuery(query: Record<string, string | number | boolean | undefine
   );
 }
 
+/** One import supply corridor (GET /api/reference-network/supply-corridors). */
+export interface SupplyCorridorDTO {
+  id: string;
+  name: string;
+  group: string;
+  source_country: string;
+  source: { place: string; lon: number; lat: number; position_quality: string };
+  operator: { operator_key: string; name: string; basis?: string } | null;
+  landing_points: Array<{ point_key: string; name: string; node_id: string | null; lon: number; lat: number }>;
+  into_market_areas: string[];
+  capacity: { firm_technical_kwh_d: number | null; gas_day: string | null; citation: string | null } | null;
+  status: "in_service" | "out_of_service" | "not_published";
+  since: string | null;
+  since_basis?: string | null;
+  status_source: { citation: string | null; last_flow_day?: string | null } | null;
+  geometry: { basis: "reference_pipeline_direction" | "schematic"; coordinates: Array<[number, number]> };
+  flow_series: Array<{ point_key: string; operator_key: string; latest_flow: { energy_gwh_d: number; gas_day_start_utc: string; source_system: string } | null }>;
+  /** Sum of the entry series' latest stored flow; null means not published (never zero). */
+  latest_flow_gwh_d: number | null;
+}
+
+export interface SupplyCorridorsDTO {
+  corridors: SupplyCorridorDTO[];
+  gas_day: string | null;
+  source: { attribution?: string | null } | null;
+  flow_rule?: string;
+}
+
 export const api = {
   health: async () =>
     parseResponse<HealthDTO>(await fetch(apiUrl("/health"), requestInit())),
@@ -5855,6 +5883,9 @@ export const api = {
       limit: REFERENCE_NETWORK_READ_LIMIT,
       ...params,
     }, options),
+
+  supplyCorridors: (options?: ApiRequestOptions) =>
+    get<SupplyCorridorsDTO>("/reference-network/supply-corridors", {}, options),
 
   edges: (params?: { from_node_id?: string; to_node_id?: string }, options?: ApiRequestOptions) =>
     get<EdgeDTO[]>("/reference-network/edges", {

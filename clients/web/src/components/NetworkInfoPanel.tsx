@@ -23,6 +23,7 @@ import {
   outageListRows,
 } from "@/app/model/networkPanelModel";
 import { timeWindow } from "@/app/model/todayModel";
+import { formatGasDay } from "@/app/time/timeFormat";
 import { CapacityWorkspace, buildOperatingRows, type CapacityWorkspaceProps, type OperatingRow } from "@/components/CapacityWorkspace";
 import { DataGrid, Segmented, StatusBadge, WorkspaceTabs, type DataGridColumn } from "@/components/ui";
 import { ReportLink } from "@/components/ReportLink";
@@ -225,6 +226,17 @@ export function NetworkInfoPanel({
   );
 
   /* ---------------------------------------------------------------- columns */
+  // An outage's period in days ("23 Nov – 29 Nov", the year where it is not this one); the exact
+  // window with times is its tooltip.
+  const outagePeriod = (row: OutageListRow) => {
+    const thisYear = String(new Date(nowMs).getUTCFullYear());
+    const day = (iso: string) => formatGasDay(iso.slice(0, 10), language, iso.slice(0, 4) !== thisYear);
+    return (
+      <small className="network-panel-period" title={timeWindow(row.startUtc, row.endUtc, nowMs)}>
+        {row.startUtc ? day(row.startUtc) : "–"} – {row.endUtc ? day(row.endUtc) : t("outages.open_end")}
+      </small>
+    );
+  };
   const outageColumns = useMemo<DataGridColumn<OutageListRow>[]>(
     () => [
       {
@@ -235,32 +247,21 @@ export function NetworkInfoPanel({
         priority: "primary",
         value: (row) => row.asset,
         cellTitle: (row) => [row.reason, row.messages.length > 1 ? `${t("outages.messages_count", { count: row.messages.length })}: ${row.messages.join(", ")}` : row.eventId].filter(Boolean).join("\n"),
-        // One line a desk scans: whether it is out now, and the asset. The rest folds.
+        // What a desk scans: whether it is out now, the asset, and under it the period (the
+        // panel is narrow: one cell, two lines, instead of a period column pushing Why out of
+        // view). The exact window with times is the period's tooltip; the rest folds.
         render: (row) => (
-          <span className="network-outage-line">
-            <i className={`network-outage-state is-${row.state}`} aria-hidden="true" />
-            <span className="visually-hidden">{t(`outages.state.${row.state}`)}: </span>
-            <strong>{row.asset}</strong>
+          <span className="network-outage-cell">
+            <span className="network-outage-line">
+              <i className={`network-outage-state is-${row.state}`} aria-hidden="true" />
+              <span className="visually-hidden">{t(`outages.state.${row.state}`)}: </span>
+              <strong title={row.asset}>{row.asset}</strong>
+            </span>
+            {outagePeriod(row)}
           </span>
         ),
       },
-      {
-        id: "where",
-        header: t("outages.where"),
-        priority: "secondary",
-        value: (row) => row.zone,
-        render: (row) => (
-          <span className="network-panel-cell-stack">
-            <span>{[row.zone, row.operators.join(" · "), t(`outages.type_${row.eventType}`, { defaultValue: row.eventType })].filter(Boolean).join(" · ")}</span>
-            {row.placement !== "placed" && (
-              <small className="network-panel-placement" data-outage-placement={row.placement}>
-                {t(`outages.placement.${row.placement}`)}
-                {row.placementNote && <> · {t(row.placementNote.key, row.placementNote.values)}</>}
-              </small>
-            )}
-          </span>
-        ),
-      },
+
       {
         id: "offline",
         header: t("outages.offline"),
@@ -275,30 +276,32 @@ export function NetworkInfoPanel({
         width: "10ch",
       },
       {
-        id: "period",
-        header: t("outages.period"),
-        type: "date",
-        sortable: true,
-        priority: "secondary",
-        value: (row) => row.startUtc,
-        // Two lines: the start, then the end, so a multi-year window keeps its years visible.
-        format: (_, row) => {
-          const [from, to] = timeWindow(row.startUtc, row.endUtc, nowMs).split(" – ");
-          return (
-            <span className="network-panel-cell-stack network-panel-period">
-              <span>{from}</span>
-              <span>– {to ?? ""}</span>
-            </span>
-          );
-        },
-      },
-      {
+        // One action on the row: why it matters. The report link folds with the details.
         id: "actions",
         header: <span className="visually-hidden">{t("why.button")}</span>,
-        priority: "secondary",
+        priority: "primary",
         render: (row) => (
-          <span className="network-panel-actions network-panel-actions-stack">
+          <span className="network-panel-actions">
             <WhyButton subject="outage" id={row.eventId} label={row.asset} language={language} t={t} />
+          </span>
+        ),
+      },
+      {
+        // The row's fold: zone, operator, type, the event code and whether the map can place it.
+        id: "where",
+        header: t("outages.where"),
+        priority: "secondary",
+        value: (row) => row.zone,
+        render: (row) => (
+          <span className="network-panel-cell-stack">
+            <span>{[row.zone, row.operators.join(" · "), t(`outages.type_${row.eventType}`, { defaultValue: row.eventType })].filter(Boolean).join(" · ")}</span>
+            <small className="muted">{row.eventId}</small>
+            {row.placement !== "placed" && (
+              <small className="network-panel-placement" data-outage-placement={row.placement}>
+                {t(`outages.placement.${row.placement}`)}
+                {row.placementNote && <> · {t(row.placementNote.key, row.placementNote.values)}</>}
+              </small>
+            )}
             <ReportLink subject={{ kind: "outage", id: row.eventId }} label={row.asset} t={t} />
           </span>
         ),

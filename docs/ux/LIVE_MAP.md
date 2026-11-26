@@ -7,13 +7,34 @@ happening on the network, and where does it touch us?**
 
 ## What it shows
 
-| Layer (chip) | What is drawn | Located by | Data |
+The map answers one question: **what in the gas system affects my book right now** (owner
+review 2026-11-26). The first view is that footprint, framed on what we hold; everything else
+is one click away in the single **Layers** menu (and "Back to the default layers").
+
+| Layer | On by default | What is drawn | Data |
 |---|---|---|---|
-| Hubs, LNG, IPs, Network | Network points and verified pipelines | ENTSOG connection points | public (ENTSOG terms) |
-| **Outages** | Red dot = capacity out now, amber = scheduled; size grows with the share of technical capacity out; a slow pulse on outages that are live | The asset's EIC code on a network point (the REMIT key), else exact name | REMIT UMMs |
-| **Flows** | Ring at each point sized by the latest physical flow (GWh/d); gas moving along pipelines that report flow | ENTSOG point key | ENTSOG operational data |
-| **Our positions** | Contract pin at each delivery point (several contracts share one pin); our LNG cargoes with the track sailed and a dashed leg to the destination; a ring on terminals where we hold regas slots | Point name; the coordinates the vessel feed or ETRM supplied | Upstream contracts, `lng_cargoes`, `regas_slots` (book-scoped) |
-| **Infrastructure** | Platforms, fields, storage, liquefaction and plants, from zoom 5 | Published coordinates | Openly licensed datasets (below) |
+| **Hubs and prices** | yes | Each hub as its desk name and price ("TTF 31.20", a quiet "sim" mark where simulated). A balancing zone with no trading point (`zone_only`) is a small grey dot with its name from regional zoom, never a price | ENTSOG hubs, the hub board's prices |
+| **Our positions** | yes | A ring at each contract's delivery place (named with our MWh/d; a delivery at a hub is the hub's label) and at terminals where we hold regas slots | Upstream contracts, `regas_slots` (book-scoped) |
+| **Our cargoes** | yes | The vessel at its latest reported position, an arrow turned to its heading (a dot when no heading is known), the track it sailed from its position history (thin, solid), a straight dashed line to its terminal (the direction, not a route), and "Meridian → Zeebrugge · 2 d 4 h". Its card (in the panel) gives the terminal, "arrives in", the ETA in UTC and what the ETA rests on | `lng_cargoes` |
+| **Outages on our book** | yes | Red = out now, amber = scheduled, for outages touching our contracts, slots or cargoes | REMIT UMMs |
+| All outages, Flows, All LNG vessels, Infrastructure, LNG terminals, Entry and interconnection points, Storage and other points, Pipelines | no | As before, one click away | as below |
+
+Import corridors (Norway, North Africa, TAP, TurkStream; Nord Stream out of service) read as
+supply corridors, one line each to the entry point, named with the flow measured there
+("Langeled · 61 GWh/d"); one out of service is faint and dashed and carries no flow
+(`app/mapCorridors.ts`: an edge with `edge_type` "import_corridor" or `metadata.corridor`).
+
+**ETA, rule 19.** The ETA shown is the one the source reported, named by its basis (AIS, the
+master's notice, the feed, the schedule, a manual entry, the confirmation's window, or "basis
+not stated"). Only when none was reported is one computed, from the straight-line distance to
+the terminal and the speed between the last two timed positions, and it says so (a lower
+bound). No position is interpolated; a cargo with no position or no destination is said so on
+its card and not drawn.
+
+**Names never overlap.** Every name on the map is one MapLibre symbol layer with collision
+detection (`app/mapLabels.ts`): our cargoes and positions first, then hubs, then terminals we
+use, outages, other points; a name that would touch another is dropped, the less important
+first, and the basemap's own names give way to ours.
 
 Hovering any item shows a compact card in desk units: an outage's unavailable and
 technical capacity, window, zone and reason; the contracts landing at a point with MWh/d
@@ -27,13 +48,13 @@ Desk → Network is one task: the map and what used to be the separate "Outages 
 page (AGENTS rule 9: a capability does not earn a page). It sits in the same page frame as
 Today and Prices (width, gutters, header, context strip), so switching Desk tabs does not move
 the page; the map is a panel inside that frame and, at desktop sizes, map and panel fill the
-height below the header without a page scroll. Full screen stays the deliberate edge-to-edge
+height below the header without a page scroll. Expand map stays the deliberate edge-to-edge
 view (below).
 
 | Width | Layout |
 |---|---|
-| Desktop | One toolbar row (view, reset, layers, situation chips, Full screen) above the map (about 63 %) and the information panel (about 37 %) |
-| Phone | The map on top (about 45 % of the screen) and the panel below as a sheet; its handle (drag or press) raises the sheet to about 78 % and lowers it again; choosing a row brings the map back into view |
+| Desktop (above 900 px) | One toolbar row (view, Layers menu, Expand map) above the map (about 63 %) and the information panel (about 37 %); the context line holds only the gas day and one freshness button |
+| Phone and tablet portrait (to 900 px) | The map on top (about 45 % of the screen) and the panel below as a sheet; its handle (drag or press) raises the sheet to about 78 % and lowers it again; choosing a row brings the map back into view |
 
 **Panel tabs** (the tab is in the URL: `?workspace=market&task=network&panel=capacity`):
 
@@ -99,10 +120,10 @@ held slot in one move; under *reduce motion* it jumps instead of flying.
 The map behaves like a city map: scroll, pinch or double-click to zoom, and the detail grows
 with it.
 
-- **Basemap detail.** With a detailed basemap (OpenFreeMap, VersaTiles, Tianditu or the
-  firm's own tiles) the map zooms to street level (zoom 17) with roads and places. The
-  bundled outline stops at zoom 10: it holds coastlines only, and zooming further would
-  only magnify the error of approximate positions.
+- **Basemap detail.** On OpenStreetMap (through OpenFreeMap) the map zooms to street level
+  (zoom 17) with roads and places, muted so the network reads first. The offline outline
+  stops at zoom 10: it holds coastlines only, and zooming further would only magnify the
+  error of approximate positions.
 - **Icons by kind.** Infrastructure is drawn with a shape per kind and a colour per family:
   triangle = production platform, ring = field, hexagon = processing plant, rounded square
   = LNG terminal or liquefaction, square = storage, diamond = compressor or border point,
@@ -117,25 +138,22 @@ with it.
   soft ring around each such point shows that the true position lies somewhere nearby;
   imported infrastructure with published coordinates has no ring.
 
-## Basemaps by country
+## Basemap
 
-| Installation | Default | Why |
+One basemap (owner review 2026-11-26: "OpenStreetMap is good enough"): OpenStreetMap data
+through OpenFreeMap's vector styles (positron in light, dark in dark), muted (points of
+interest and buildings hidden, roads faint, place names quiet). ODbL, free for commercial use,
+no key; "© OpenStreetMap contributors, © OpenMapTiles" sits in the map's corner.
+
+| Situation | Basemap | Why |
 |---|---|---|
-| Global | Bundled basemap (Natural Earth land, coast, borders and names, labels in the bundled Inter) | Served by the application: no third-party request, works offline and air-gapped; land, borders and names fade in when the map loads (at once under reduced motion); names follow the app language |
-| Mainland China | Bundled outline (Natural Earth, public domain) | Foreign tile services are often unreachable and published maps of China need approval. The outline is served by the application, covers Europe, North Africa and the Middle East only, and draws no Chinese territory and no borders |
-| Air-gapped | Bundled outline, or the firm's own tile server | Nothing leaves the network |
+| Normal | OpenStreetMap (OpenFreeMap) | Detail to street level, commercial use allowed |
+| Offline, or OpenFreeMap unreachable | Bundled outline (Natural Earth, public domain) | Automatic; the map says it is showing the outline |
+| Mainland China installation | Bundled outline | Published maps of China need an approved provider; the outline draws no borders |
 
-For street-level detail in mainland China the operator chooses a licensed domestic
-provider: **Tianditu** (government service, free key; confirm the current terms for
-enterprise use) or **AMap / 高德**, whose enterprise use requires its paid commercial
-licence (public reports put the basic tier at about CNY 50,000 a year; confirm with AMap).
-AMap's public endpoint is listed for evaluation only. The outline is rebuilt with
-`scripts/ui/build_offline_basemap.py`; its `--natural-earth` mode rebuilds the bundled
-basemap's borders and names, and `scripts/ui/build_map_glyphs.mjs` its Inter label glyphs.
-An operator who wants street-level detail names an external style
-(`EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER=openfreemap` or `versatiles`, a licensed or own tile
-service, or Settings → Map per user). `scripts/uat/map_no_third_party.mjs` checks in a browser
-that the default map makes no request to another host.
+There is no provider choice in Settings. `EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER=outline` forces the
+outline (an air-gapped site). The outline is rebuilt with `scripts/ui/build_offline_basemap.py`
+and its label glyphs with `scripts/ui/build_map_glyphs.mjs`.
 
 ## Selecting: what each thing tells you
 
@@ -225,9 +243,9 @@ warnings and evidence stack left the Network page with the optimiser pages (CP-2
 **The panel.** The right-hand panel collapses to a slim rail of its tabs with their counts
 (the handle at its top left; remembered per user on the device), so the map takes the full
 width; a tab in the rail opens the panel on that tab. At phone width collapsing lowers the
-sheet to its row of tabs. Full screen is the map alone, with the panel as a drawer from the
+sheet to its row of tabs. Expanded, the map is alone, with the panel as a drawer from the
 right ("Panel"; Escape closes it). While another Desk task or page shows, nothing the map
-opened stays above it: full screen ends, the drawer, key and status popovers close and an
+opened stays above it: the expanded view ends, the drawer, key and status popovers close and an
 Inspector opened from the map closes; the selection is kept for coming back.
 
 **The status line** is the same for everyone: Live, Out now, Contracts, LNG vessels. The
@@ -273,27 +291,18 @@ decoration.
   opportunity with a path, a limit with a hub) head the Our book list; selecting one flies the map
   there and opens its card, selecting on the map highlights its row.
 
-## Full screen: the wall view
+## Expanded map: the wall view
 
-The map normally sits on the Network page beside its information panel: a cockpit, where the
-trader reads the map next to the lists. A desk also wants it on a wall screen or a second
-monitor, watching the day: cargoes moving along their tracks, regas windows open, outages,
-measured entry flows. **Full screen** (the last chip on the toolbar) shows the whole Network
-instrument edge to edge on the display:
+**Expand map** (the last control on the toolbar) fills the app window with the whole Network
+instrument: the toolbar, the map with its finder and controls, and the panel as a drawer
+("Panel"). It stays current the same way as the page. **Restore** or Esc returns (Esc first
+closes an open drawer or card, and Esc typed in the finder stays in the finder).
 
-- The toolbar, the map with its place finder, live strip and line key, and the panel with the
-  selected object's card come along. The page header and the rest of the shell do not.
-- It stays current the same way as the page (see "How the map stays current"). The strip says when the
-  situation is as of and when this screen last read it; when reads keep failing it says
-  so ("Not refreshed: showing the last good read") instead of showing an old picture as
-  live.
-- The strip adds what a wall view watches: regas slots open now and the measured entry flow
-  of the latest gas day in GWh/d, next to outages, contracts and cargoes at sea.
-- It uses the browser's own full screen (the desktop app, Edge, Chrome, Safari on iPad),
-  so Esc leaves it. Where the browser has no element full screen (Safari on iPhone), the
-  map expands over the page instead and Esc or the same chip closes it.
-
-It is a view, not a mode: it holds no state of its own and grants nothing.
+It is done by CSS inside the app window, never with the browser's or the operating system's
+full screen: on macOS, WebKit full screen (Safari, and the desktop app's WebView in native full
+screen) blocks keyboard input, so the finder could not be typed into, and dragging the map
+misbehaved. The desktop app's Window menu maximises the window (F11) instead of entering native
+full screen. It is a view, not a mode: it holds no state of its own and grants nothing.
 
 ## Phone width, who sees what, and keeping the map
 
@@ -466,12 +475,15 @@ with the details on hover.
 
 ## Decisions
 
-- **No 3D.** Extruded terrain or buildings add nothing to a gas network at country scale
-  and cost legibility and battery. The map supports pitch for those who want it, but
-  values are never encoded in height, which is hard to read and compare.
-- **Flows at points, not invented arrows between countries.** Cross-border direction comes
-  from the points' own entry and exit data and from pipelines whose geometry is verified.
-  Country-to-country arrows would need a netting the sources do not publish.
+- **Flat, north-up, no 3D** (owner, 2026-11-26). Height is hard to read and compare; the map
+  has no pitch and no rotation (mouse, touch or keyboard), and no 2D/3D control or setting.
+  Intensity is drawn flat, one metric at a time from the Layers menu: flow by line width and
+  arrowhead (one net figure per border at Europe zoom, point by point closer in), utilisation
+  by colour, outage impact and storage or LNG by circle area. Exact comparison is the side
+  panel's ranked list (the largest ten), not the map.
+- **Border flows from the points' own data.** A border's net figure sums each point's larger
+  reported flow, oriented by its operator's side (the market-area link that lists it); a point
+  whose operator is on no listed side adds nothing rather than a guessed direction.
 - **One read for the picture.** `GET /api/portfolio/map-situation` composes outages, flows,
   contracts, cargoes and slots in one call, so the map is consistent at one moment and
   access is decided in one place.

@@ -47,7 +47,7 @@ export function TradingContextControls({
   summaryOnly?: boolean;
   /** False where the page has its own product selector (Prices' board tenors). */
   showProduct?: boolean;
-  /** False where the page chooses its hubs itself (Prices: the board's hub picker and a click
+  /** False where the page chooses its hubs itself (the map: its finder; Prices: the board's hub picker and a click
    * on a hub row are the one hub control). */
   showHub?: boolean;
   gasDay: string;

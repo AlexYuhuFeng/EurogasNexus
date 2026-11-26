@@ -90,17 +90,11 @@ export function ProjectionContextStrip({
       {controls}
       <div className="projection-context-status">
         {freshness}
-        {/* The as-of instant stays on the line itself: a trader reads how old the page is without
-            opening anything, and the browser sweep holds this text to the read it belongs to. */}
-        {/* In the reader's zone, short ("as of 00:57 CET"); the full instant is the tooltip and the
-            UTC instant the `dateTime` the sweep compares with the read. */}
-        {shownAsOf ? (
-          <time className="projection-context-asof" dateTime={shownAsOf.iso} title={shownAsOf.title}>
-            {t(compact ? "context_line.as_of_short" : key("as_of"), { value: shownAsOf.text })}
-          </time>
-        ) : (
-          <span className="projection-context-asof">{t(key("as_of_unknown"))}</span>
-        )}
+        {/* One freshness indicator (owner review 2026-11-26), not "as of" + "N stale" + "Data
+            feeds" side by side: the button reads how old the page is ("as of 00:57 CET", in the
+            reader's zone; the full instant is its tooltip, the UTC instant the `dateTime` the
+            sweep compares with the read), adds how many feeds are behind when any is, and opens
+            the feeds by name with the time basis and calendar (FRESH-02). */}
         <Popover
           label={t(key("title"))}
           id="feed-status"
@@ -110,14 +104,23 @@ export function ProjectionContextStrip({
               {...props}
               type="button"
               className={`projection-context-trigger ${degraded.length === 0 || freshness ? "is-ok" : "is-degraded"}`}
+              title={shownAsOf?.title}
             >
-              {freshness || (compact && degraded.length === 0)
-                ? t("context_line.feeds")
-                : degraded.length === 0
-                  ? t("context_line.fresh")
-                  : compact
-                    ? t("context_line.stale_short", { count: degraded.length, total: readings.length })
-                    : t("context_line.stale", { count: degraded.length, total: readings.length })}
+              {shownAsOf ? (
+                <time className="projection-context-asof" dateTime={shownAsOf.iso}>
+                  {t(compact ? "context_line.as_of_short" : key("as_of"), { value: shownAsOf.text })}
+                </time>
+              ) : (
+                <span className="projection-context-asof">{t(key("as_of_unknown"))}</span>
+              )}
+              {degraded.length > 0 && !freshness && (
+                <>
+                  <span className="projection-context-sep" aria-hidden="true">{"\u00a0·\u00a0"}</span>
+                  <span className="projection-context-stale">
+                    {t("context_line.stale_short", { count: degraded.length, total: readings.length })}
+                  </span>
+                </>
+              )}
             </button>
           )}
         >

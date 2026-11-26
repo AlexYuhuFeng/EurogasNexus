@@ -1,53 +1,6 @@
-/* The map scene's controls and key (MAP-1). Tokens only; the swatches use the same series
-   tokens the map's marks repeat (app/mapScene.ts SCENE_COLOURS). */
+/* The map's key (MAP-1). Tokens only; the swatches use the same series tokens the map's marks
+   repeat (app/mapScene.ts SCENE_COLOURS). */
 @layer ds-components {
-  .map-scene-controls {
-    position: absolute;
-    z-index: 41;
-    right: calc(var(--ds-space-3) * 3 + var(--ds-control-touch) + var(--ds-control));
-    bottom: var(--ds-space-3);
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: flex-end;
-    gap: var(--ds-space-2);
-    max-width: min(36rem, calc(100% - var(--ds-space-8) * 2));
-    padding: var(--ds-space-1) var(--ds-space-2);
-    border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-md);
-    background: color-mix(in srgb, var(--ds-surface) 94%, transparent);
-    color: var(--ds-text-1);
-    font-size: var(--ds-text-sm);
-  }
-
-  [data-width-class="compact"] .map-scene-controls {
-    right: auto;
-    left: var(--ds-space-2);
-    bottom: calc(var(--ds-space-2) * 2 + var(--ds-control));
-    max-width: calc(100% - var(--ds-space-2) * 2);
-  }
-
-  .map-scene-scrubber {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--ds-space-2);
-    min-height: var(--ds-control);
-  }
-
-  .map-scene-scrubber label {
-    color: var(--ds-text-2);
-  }
-
-  .map-scene-scrubber input[type="range"] {
-    width: 8rem;
-    accent-color: var(--ds-accent);
-  }
-
-  .map-scene-scrubber output {
-    min-width: 7rem;
-    font-variant-numeric: tabular-nums;
-  }
-
   .map-scene-key {
     position: absolute;
     right: 0;
@@ -64,8 +17,7 @@
     box-shadow: var(--ds-shadow-pop);
   }
 
-  .map-scene-legend,
-  .map-scene-list {
+  .map-scene-legend {
     display: grid;
     gap: var(--ds-space-1);
     margin: 0;
@@ -82,30 +34,6 @@
     line-height: var(--ds-line-sm);
   }
 
-  .map-scene-list .ds-button {
-    display: flex;
-    justify-content: space-between;
-    width: 100%;
-    gap: var(--ds-space-2);
-    text-align: left;
-  }
-
-  .map-scene-list small,
-  .map-scene-note {
-    color: var(--ds-text-2);
-    font-size: var(--ds-text-xs);
-  }
-
-  .map-scene-note {
-    margin: 0;
-  }
-
-  .map-scene-heading {
-    margin: 0;
-    font-size: var(--ds-text-sm);
-    font-weight: var(--ds-weight-semibold);
-  }
-
   .map-scene-swatch {
     display: inline-block;
     width: var(--ds-icon-sm);
@@ -113,14 +41,19 @@
     margin-top: var(--ds-space-05);
   }
 
-  .map-scene-swatch.is-column {
+  /* A site: a circle in the terminal and storage colours; a small grey one has no published
+     capacity. */
+  .map-scene-swatch.is-site {
     border: 1px solid var(--ds-series-5);
-    background: linear-gradient(to top, var(--ds-series-6) 60%, transparent 60%);
+    border-radius: var(--ds-radius-pill);
+    background: color-mix(in srgb, var(--ds-series-6) 30%, transparent);
   }
 
-  .map-scene-swatch.is-stub {
-    height: var(--ds-space-1);
-    margin-top: var(--ds-space-2);
+  .map-scene-swatch.is-site-none {
+    width: var(--ds-space-2);
+    height: var(--ds-space-2);
+    margin: var(--ds-space-1);
+    border-radius: var(--ds-radius-pill);
     background: var(--ds-text-3);
   }
 
@@ -128,30 +61,6 @@
     height: 0;
     margin-top: var(--ds-space-2);
     border-top: 3px dashed var(--ds-series-2);
-  }
-
-  .map-scene-swatch.is-estimate {
-    border: 2px solid var(--ds-text-2);
-    border-radius: var(--ds-radius-pill);
-  }
-
-  .map-scene-swatch.is-voyage {
-    height: 0;
-    margin-top: var(--ds-space-2);
-    border-top: 2px dotted var(--ds-text-2);
-  }
-
-  /* 3D solids: a hexagonal pillar and a hull pointing right (the map draws them lit and shaded). */
-  .map-scene-swatch.is-pillar {
-    background: linear-gradient(to right, var(--ds-text-2) 50%, var(--ds-text-3) 50%);
-    clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
-  }
-
-  .map-scene-swatch.is-hull {
-    height: var(--ds-space-2);
-    margin-top: var(--ds-space-1);
-    background: var(--ds-text-2);
-    clip-path: polygon(0 0, 70% 0, 100% 50%, 70% 100%, 0 100%);
   }
 
   .map-scene-card small.muted {

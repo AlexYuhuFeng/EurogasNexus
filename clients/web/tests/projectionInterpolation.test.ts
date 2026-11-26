@@ -136,7 +136,7 @@ test("the component passes every option its locales declare", () => {
   // prints braces, so the call sites are held to the placeholders the entries declare.
   const strip = readWebSource("components/ProjectionContextStrip.tsx");
   assert.match(strip, /t\(compact \? "context_line\.as_of_short" : key\("as_of"\), \{ value: shownAsOf\.text \}\)/);
-  assert.match(strip, /t\("context_line\.stale", \{ count: degraded\.length, total: readings\.length \}\)/);
+  assert.match(strip, /t\("context_line\.stale_short", \{ count: degraded\.length, total: readings\.length \}\)/);
   assert.match(strip, /t\(key\("rows"\), \{ count: reading\.rowCount \}\)/);
   assert.match(strip, /t\(key\("restricted"\), \{ count: reading\.filteredOut \}\)/);
 
@@ -152,10 +152,7 @@ test("no locale entry carries an interpolated placeholder i18next cannot fill", 
   // looks like a placeholder must use `{{ }}`. The single declared exception is a value the
   // operator reads - the documented URL template for a licensed tile service - and it is declared
   // with its reason rather than left to look like an oversight.
-  const LITERAL_BRACES_BY_DESIGN: Readonly<Record<string, string>> = {
-    "settings.map_tile_provider_custom":
-      "documents the `{z}/{x}/{y}` template an operator must configure, so the text itself shows it",
-  };
+  const LITERAL_BRACES_BY_DESIGN: Readonly<Record<string, string>> = {};
 
   for (const locale of ["en", "zh"] as const) {
     const catalogue = readLocale(locale);
