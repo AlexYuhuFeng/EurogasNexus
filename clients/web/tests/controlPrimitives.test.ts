@@ -116,7 +116,7 @@ test("Field wires label, hint and error to the control; Select is the native lis
   const html = render(
     h(Field, { label: "Summary", hint: "One line", error: "Too short", children: h("input", { id: "summary", defaultValue: "" }) }),
   );
-  assert.match(html, /<label class="ds-field-label" for="summary">Summary<\/label>/);
+  assert.match(html, /<label class="ds-field-label" for="summary" title="Summary">Summary<\/label>/);
   assert.match(html, /<input id="summary" aria-describedby="summary-hint summary-error" aria-invalid="true"/);
   assert.match(html, /<small id="summary-error" class="ds-field-error" role="alert">Too short<\/small>/);
   const select = render(

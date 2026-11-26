@@ -65,6 +65,45 @@
     border-color: var(--ds-status-breach);
   }
 
+  /* Form rows: every box in a row sits on one line. A row aligns its fields at the top, a
+     label takes one line of one height (ellipsis when its column is too narrow; Field gives it
+     a title and the full text stays the accessible name), and a hint or error goes under its
+     control without moving it. A control with no visible label of its own (a segmented
+     choice, the row's button) moves down by one label line, a segmented choice less its own
+     padding and border, so its buttons sit on the line of the boxes beside it. The screens
+     listed predate Field and keep their own markup; their rows follow the same rule. On a
+     phone the fields stack and a long label wraps again. */
+  :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body) {
+    --ds-field-label-space: calc(var(--ds-line-xs) + var(--ds-space-1));
+    align-items: start;
+  }
+
+  :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body)
+    > :is(button, .ds-form-grid-action) {
+    margin-top: var(--ds-field-label-space);
+  }
+
+  :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body)
+    > .ds-segmented {
+    margin-top: calc(var(--ds-field-label-space) - var(--ds-space-05) - 1px);
+  }
+
+  :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body)
+    :is(.ds-field-label, .cargo-field-label, .field-label) {
+    line-height: var(--ds-line-xs);
+  }
+
+  @media (min-width: 641px) {
+    :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body)
+      :is(.ds-field-label, .cargo-field-label, .field-label) {
+      display: block;
+      min-width: 0;
+      overflow: hidden;
+      white-space: nowrap;
+      text-overflow: ellipsis;
+    }
+  }
+
   /* ----------------------------------------------------------------- Select */
   .ds-select {
     box-sizing: border-box;
