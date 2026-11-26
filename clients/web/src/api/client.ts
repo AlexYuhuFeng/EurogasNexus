@@ -4484,7 +4484,11 @@ export interface OutageEventDTO {
   balancing_zone: string;
   unit: string;
   unavailable_capacity: number | null;
-  capacity_impact_mcm_d: number;
+  /**
+   * Capacity removed in mcm/d; null when the message gives no volume figure (an outage in
+   * GWh/d). Unknown, never 0: show "unknown", or use `unavailable_gwh_d`/`unavailable_capacity`.
+   */
+  capacity_impact_mcm_d: number | null;
   description: string;
   market_participant: string;
   /** The daily figure through the unit authority; null where the message has none. */
@@ -4494,6 +4498,8 @@ export interface OutageEventDTO {
   direction?: string;
   source_system?: string;
   source_reference?: string;
+  /** True for the demo desk's invented messages (rule 17: never read as a real outage). */
+  simulated?: boolean;
   attribution?: string;
   /** With `grouped=true`: every message of the event, its operators and how many. */
   messages?: string[];
