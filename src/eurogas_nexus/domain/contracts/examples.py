@@ -24,8 +24,8 @@ def tender_terms(today: date) -> dict:
     return {
         "schema": "upstream-tender/v2",
         "counterparty_id": "DEMO-NORDVIK",
-        "seller_name": "Nordvik Energy (fictional)",
-        "field_name": "Skarv West (fictional field)",
+        "seller_name": "Nordvik Energy",
+        "field_name": "Skarv West field",
         "tender_reference": "NV-T-Q1",
         "delivery_point": "NBP",
         "period_start": start.isoformat(),
@@ -56,7 +56,7 @@ def mspa_terms(today: date) -> dict:
     return {
         "schema": "lng-mspa/v1",
         "counterparty_id": "DEMO-ATLANTIC-LNG",
-        "counterparty_name": "Atlantic LNG Marketing (fictional)",
+        "counterparty_name": "Atlantic LNG Marketing",
         "our_side": "buyer",
         "master_reference": "MSPA-2025-014",
         "signed_on": date(today.year - 1, 3, 14).isoformat(),
