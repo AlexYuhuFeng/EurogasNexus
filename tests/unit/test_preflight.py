@@ -375,3 +375,20 @@ def test_findings_render_with_a_remedy() -> None:
     rendered = finding_for(environ, "placeholder_secret").render()
     assert "ERROR" in rendered
     assert "fix:" in rendered
+
+
+def test_several_api_processes_need_the_shared_cache() -> None:
+    from eurogas_nexus.core.preflight import _check_serving
+
+    assert _check_serving({}) == []
+    assert _check_serving({"UVICORN_WORKERS": "1"}) == []
+    [finding] = _check_serving({"UVICORN_WORKERS": "4"})
+    assert finding.severity == "error" and finding.code == "shared_cache_required"
+    assert (
+        _check_serving(
+            {"UVICORN_WORKERS": "4", "EUROGAS_NEXUS_SHARED_CACHE_URL": "valkey://valkey:6379/0"}
+        )
+        == []
+    )
+    [bad] = _check_serving({"EUROGAS_NEXUS_SHARED_CACHE_URL": "http://valkey:6379"})
+    assert bad.code == "shared_cache_url_invalid"

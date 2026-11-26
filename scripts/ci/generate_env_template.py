@@ -81,6 +81,7 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
     (
         "Serving: several API processes",
         (
+            "UVICORN_WORKERS",
             "EUROGAS_NEXUS_SHARED_CACHE_URL",
             "EUROGAS_NEXUS_API_THREADS",
             "EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL",

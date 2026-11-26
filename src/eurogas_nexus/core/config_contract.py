@@ -290,6 +290,17 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         ),
     ),
     ConfigVar(
+        name="UVICORN_WORKERS",
+        scope="OPERATOR",
+        purpose="API processes per server (read by uvicorn); more than one needs the shared cache.",
+        default="1",
+        external_reader="uvicorn",
+        notes=(
+            "deploy/runtime/compose.scale.yaml runs 4 with a Valkey; size each process's pool "
+            "with docs/operations/API_SERVING_AND_SHARED_CACHE.md",
+        ),
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL",
         scope="OPERATOR",
         purpose="Live-update streams one identity may hold open on one API process.",

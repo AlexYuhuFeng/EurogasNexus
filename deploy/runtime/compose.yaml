@@ -2,6 +2,13 @@ name: eurogas-nexus-runtime
 
 x-runtime-environment: &runtime-environment
   RUNTIME_STORE_DATABASE_URL: postgresql+pg8000://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  # API processes (read by uvicorn in the api service only). One by default; several
+  # (compose.scale.yaml) need the shared cache: docs/operations/API_SERVING_AND_SHARED_CACHE.md.
+  UVICORN_WORKERS: ${UVICORN_WORKERS:-1}
+  EUROGAS_NEXUS_SHARED_CACHE_URL: ${EUROGAS_NEXUS_SHARED_CACHE_URL:-}
+  EUROGAS_NEXUS_DB_POOL_SIZE: ${EUROGAS_NEXUS_DB_POOL_SIZE:-10}
+  EUROGAS_NEXUS_DB_MAX_OVERFLOW: ${EUROGAS_NEXUS_DB_MAX_OVERFLOW:-20}
+  EUROGAS_NEXUS_DB_STATEMENT_TIMEOUT_MS: ${EUROGAS_NEXUS_DB_STATEMENT_TIMEOUT_MS:-30000}
   EUROGAS_NEXUS_ENV: release
   EUROGAS_NEXUS_API_PROFILE: release
   EUROGAS_NEXUS_VERSION: ${EUROGAS_NEXUS_VERSION}
