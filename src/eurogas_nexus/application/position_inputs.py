@@ -155,7 +155,9 @@ def curve_snapshot(rows: list[dict]) -> tuple[list, list[str]]:
             key = (row["first"], row["end"])
             if key not in chosen or rank > chosen[key]["_rank"]:
                 chosen[key] = {**row, "_rank": rank}
-        stale -= set(chosen)  # a window with a quote in date is priced, not left out
+        # A window with a quote in date is priced, not left out; a window whose delivery has
+        # begun (yesterday's balance of month) is superseded, not missing.
+        stale = {key for key in stale - set(chosen) if key[0] > as_of}
         if stale:
             left_out.append(
                 f"{hub}: {len(stale)} product(s) quoted only longer ago than their tenor allows "
