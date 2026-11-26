@@ -732,7 +732,8 @@ def test_an_older_volume_gets_bands_storage_and_assumptions_but_not_removed_cont
 def test_the_board_quotes_the_gas_day_the_desk_trades_on(session, monkeypatch):
     """On gas day D the desk reads D's prompt: WD is gas day D, DA the next quoted day; WD and
     DA are a running snapshot per roll-forward, with a size and a last inside bid and offer.
-    With the demo exchange feed running, the roll-forward writes no WD or DA of its own."""
+    While the demo exchange feed quotes a hub, the roll-forward writes no WD or DA for it; with
+    the feed on but quiet (outside its hours) or off, it writes them all."""
 
     from eurogas_nexus.db.models import MarketQuoteRecord
 
@@ -757,8 +758,23 @@ def test_the_board_quotes_the_gas_day_the_desk_trades_on(session, monkeypatch):
     session.commit()
     hubs = {hub for hub, _currency in seed.DEMO_PRICE_HUBS}
     assert counts["market_quote_rows"] == 2 * len(hubs)
-    monkeypatch.setenv(seed.EXCHANGE_FEED_SETTING, "true")
-    assert seed.roll_forward(session, later + timedelta(hours=1))["market_quote_rows"] == 0
+    # The default is on; a feed that has not ticked lately owns nothing.
+    assert seed.demo_exchange_feed_running() is True
+    assert seed.roll_forward(session, later + timedelta(minutes=30))["market_quote_rows"] == (
+        2 * len(hubs)
+    )
+    feed_quote = MarketQuoteRecord(**{
+        column.name: getattr(wd, column.name) for column in MarketQuoteRecord.__table__.columns
+    })
+    feed_quote.quote_id = "feed-ttf-wd"
+    feed_quote.source_reference = seed.EXCHANGE_FEED_REFERENCE
+    feed_quote.observed_at_utc = later + timedelta(minutes=58)
+    session.add(feed_quote)
+    session.commit()
+    rolled = seed.roll_forward(session, later + timedelta(hours=1))
+    assert rolled["market_quote_rows"] == 2 * (len(hubs) - 1)  # TTF is the feed's
+    monkeypatch.setenv(seed.EXCHANGE_FEED_SETTING, "off")
+    assert seed.demo_exchange_feed_running(session, later + timedelta(hours=1)) == set()
 
 
 def test_a_friday_board_quotes_monday_as_day_ahead(session):
