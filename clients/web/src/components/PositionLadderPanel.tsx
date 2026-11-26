@@ -16,6 +16,7 @@ import {
 } from "@/app/model/positionLadderModel";
 import { pnlClass } from "@/app/model/pnlColor";
 import { ladderNotes } from "@/app/model/ladderNotes";
+import { unitLabel } from "@/app/model/instrumentPicker";
 import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -361,7 +362,12 @@ function TenorShockScenario({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   if (keys.length === 0) return null;
-  const unit = (hub: string) => `${hubCurrency(hub) ?? ""}/MWh`;
+  // A shock is entered as the desk quotes the hub (NBP in p/th, AGENTS rule 17). The unit is
+  // the one the server quotes the hub's marks in (`mark_quote_unit`, from the unit authority);
+  // the server converts it, so no factor lives here.
+  const quoteUnit = (hub: string) =>
+    ladder.rows.find((row) => row.hub === hub && row.mark_quote_unit)?.mark_quote_unit ?? `${hubCurrency(hub) ?? ""}/MWh`;
+  const unit = (hub: string) => unitLabel(quoteUnit(hub));
   const effective = (key: string) => {
     const own = overrides[key];
     return own !== undefined && own.trim() !== "" ? own : hubShift[key.split(":")[0] ?? ""] ?? "";
@@ -376,7 +382,7 @@ function TenorShockScenario({
     try {
       const response = await api.positionLadder(months, undefined, {
         reportingCurrency: currency || undefined,
-        shocks: shocks.map(([key, value]) => `${key}:${Number(value)}`),
+        shocks: shocks.map(([key, value]) => `${key}:${Number(value)}:${quoteUnit(key.split(":")[0] ?? "")}`),
       });
       setResult(response.data.scenario ?? null);
     } catch (caught) {

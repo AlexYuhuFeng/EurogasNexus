@@ -4636,6 +4636,8 @@ export interface SellDownInput {
   short_penalty_per_mwh: number;
   long_discount_per_mwh: number;
   lot_mwh: number;
+  /** The unit the four prices are entered in (NBP in GBp/th); omitted, per MWh. */
+  price_unit?: string;
 }
 
 export interface DailyBalanceDayDTO {
