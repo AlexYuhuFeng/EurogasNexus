@@ -51,7 +51,7 @@ export function Field({ label, children, hint, error, inline = false, className 
     .join(" ");
   return (
     <div className={classes}>
-      <label className="ds-field-label" htmlFor={id}>
+      <label className="ds-field-label" htmlFor={id} title={typeof label === "string" ? label : undefined}>
         {label}
       </label>
       {control}
