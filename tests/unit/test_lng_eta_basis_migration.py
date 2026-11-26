@@ -25,7 +25,7 @@ def test_chain_up_down_and_model_match():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.down_revision == "0079_licensed_data_use"
-    assert DB_SCHEMA_REVISION == "0089_alert_reader_state"
+    assert DB_SCHEMA_REVISION == "0090_lng_berth_rules"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     before = sa.MetaData()
     sa.Table(
