@@ -39,6 +39,7 @@ from eurogas_nexus.db.models import (
     LngDisruptionDecisionRecord,
     LngDisruptionRunRecord,
     LngSlotTermsRecord,
+    LngTerminalBerthRuleRecord,
     LngTerminalTermsRecord,
     LngVoyageTermsRecord,
     NotificationOutboxRecord,
@@ -113,7 +114,7 @@ class Case:
         return out
 
 
-def seed(session, case: Case, *, berth_call: bool = False) -> None:
+def seed(session, case: Case, *, berth_call: bool = False, zeebrugge_call: bool = False) -> None:
     t = case.terminals
     # ECB EUR/USD of the day before, so GATE-1's 77,000 USD/day is 70,000 EUR/day.
     session.add(
@@ -145,6 +146,44 @@ def seed(session, case: Case, *, berth_call: bool = False) -> None:
                 demurrage_currency="EUR",
                 boil_off_mwh_per_day=1_000.0,
                 source_reference="LNG-4 test: illustrative",
+                updated_at_utc=NOW,
+            )
+        )
+    if zeebrugge_call:
+        # Another company's carrier due at the Zeebrugge berth on 28 Jan for two gas days, with
+        # its quote to give up that turn (44,000 USD, 40,000 EUR at the ECB fix); and an example
+        # berth rule recorded for Gate, cited as illustrative.
+        session.add(
+            LngBerthCallRecord(
+                call_id=f"lng3-{case.sfx}-zb-call",
+                terminal_name=t["Zeebrugge"],
+                label="Other Shipper's carrier",
+                berth_gas_day=jan(28),
+                berth_days=2,
+                laytime_left_hours=24.0,
+                demurrage_rate_per_day=65_000.0,
+                demurrage_currency="EUR",
+                boil_off_mwh_per_day=1_000.0,
+                counterparty="Other Shipper (illustrative)",
+                quote_amount=44_000.0,
+                quote_currency="USD",
+                quote_reference="berth swap quote (illustrative)",
+                source_reference="berth rule test: illustrative",
+                updated_at_utc=NOW,
+            )
+        )
+        session.add(
+            LngTerminalBerthRuleRecord(
+                terminal_name=t["Gate"],
+                arrival_window_days=2,
+                late_laytime_from="berthing",
+                swap_needs_terminal_approval=True,
+                basis="example",
+                citation=(
+                    "example access code, berthing clause (illustrative, not a published code)"
+                ),
+                rule_text=None,
+                source_reference="berth rule test: illustrative",
                 updated_at_utc=NOW,
             )
         )
@@ -364,6 +403,9 @@ def seed(session, case: Case, *, berth_call: bool = False) -> None:
 
 def clean(session, case: Case) -> None:
     like = f"lng3-{case.sfx}%"
+    session.query(LngTerminalBerthRuleRecord).filter(
+        LngTerminalBerthRuleRecord.terminal_name.like(f"LNG3 {case.sfx}%")
+    ).delete(synchronize_session=False)
     for model, column in (
         (LngDisruptionDecisionRecord, LngDisruptionDecisionRecord.book_id),
         (LngDisruptionRunRecord, LngDisruptionRunRecord.book_id),
@@ -412,11 +454,12 @@ def test_the_owner_scenario_is_valued_from_the_store_and_chosen(engine):
                 # No boil-off in these rows: the swap saves GATE-1's half day of demurrage.
                 "A:swap:B+absorb": (35_000, -391_000, -35_000, 1_000_000, 1_000_000),
                 # Direct: -40,000 physical - 212,000 re-hedge - 35,000 demurrage + 100,000
-                # release = -187,000. Opportunity (LNG-4): ZEE-1 holds the Dunkerque berth on
-                # 30 and 31 Jan, so the carrier due on 30 Jan waits 48 h against 24 h laytime
-                # (65,000) and boils off 2,000 MWh at PEG 30.20 (60,400); the slot's
-                # 1,000,000 MWh could have been released at 0.05 (50,000). -187,000 - 175,400.
-                "A:divert:D+absorb": (-362_400, -432_400, 247_000, 0, 0),
+                # release = -187,000. Opportunity: the slot's 1,000,000 MWh could have been
+                # released at 0.05 (50,000). -187,000 - 50,000. ZEE-1 is on time at Dunkerque
+                # and berths first in turn on 30 Jan, so the carrier due that day berths two
+                # days later: stated, and since 2026-11-26 not valued (another company's
+                # demurrage is never in the book's P&L; it was 125,400 until then).
+                "A:divert:D+absorb": (-237_000, -307_000, 247_000, 0, 0),
                 # LNG-4: possible at Huelva's interruptible capacity, and breaking Cepsa.
                 "A:swap:C+absorb": (-215_000, -289_500, 65_000, 850_000, 1_000_000),
             }
@@ -425,18 +468,21 @@ def test_the_owner_scenario_is_valued_from_the_store_and_chosen(engine):
             divert = options[case.key("A:divert:D+absorb")]
             assert (divert["direct_pnl_expected"], divert["opportunity_cost_expected"]) == (
                 -187_000,
-                175_400,
+                50_000,
             )
-            (call, forgone) = divert["opportunity"]
-            assert (call["kind"], call["delay_days"], call["held_by"]) == (
+            (forgone,) = divert["opportunity"]
+            assert (forgone["kind"], forgone["value_eur"]) == ("capacity_forgone", -50_000)
+            (call,) = divert["counterparty_effects"]
+            assert (call["kind"], call["delay_days"], call["held_by"], call["in_pnl"]) == (
                 "berth_delay",
                 2,
                 "ZEE-1",
+                False,
             )
-            assert (call["demurrage_eur"], call["boil_off_eur"]) == (-65_000, -60_400)
-            assert (forgone["kind"], forgone["value_eur"]) == ("capacity_forgone", -50_000)
-            # The knock-on moves the contracted Dunkerque slot below staying and absorbing.
-            assert divert["rank"] > options[case.key("A:stay+absorb")]["rank"]
+            assert "demurrage_eur" not in call and call["value_eur"] is None
+            # Without the carrier's demurrage the contracted Dunkerque slot ranks above staying
+            # and absorbing (it ranked below until 2026-11-26).
+            assert divert["rank"] < options[case.key("A:stay+absorb")]["rank"]
             iberia = options[case.key("A:swap:C+absorb")]
             assert iberia["possible"] and iberia["flags"]["contract_breach"]
             huelva = case.terminals["Huelva"]
@@ -488,6 +534,61 @@ def test_the_owner_scenario_is_valued_from_the_store_and_chosen(engine):
             assert session.get(LngCargoRecord, case.ids["A"]).eta_utc is not None
             held = session.get(RegasSlotRecord, case.slots["Z"])
             assert held.cargo_id == case.ids["A"]  # nothing moved: the choice is a record
+        finally:
+            session.rollback()
+            clean(session, case)
+
+
+def test_a_late_cargo_waits_its_turn_and_a_swap_with_another_company_is_its_quote(engine):
+    """The berth rule from the store (the owner, 2026-11-26): ZEE-1, late for its window, waits
+    for another company's carrier at Zeebrugge; the swap with that carrier is costed at the
+    carrier's quote in USD converted at the ECB fix, never at its demurrage; and Gate's recorded
+    example rule is read and cited."""
+
+    case = Case()
+    with Session(engine) as session:
+        try:
+            seed(session, case, zeebrugge_call=True)
+            session.commit()
+            data = lng_disruption.disruption_options(session, case.ids["A"], now=NOW)
+            options = {o["key"]: o for o in data["options"]}
+            stay = options[case.key("A:stay+absorb")]
+            leg = next(x for x in stay["legs"] if x["supply_id"] == case.ids["A"])
+            assert (leg["on_time"], leg["berth_priority"], leg["berth"]) == (
+                False,
+                "next_free_gap",
+                "2027-01-30",
+            )
+            assert (leg["laytime_from"], leg["demurrage_eur"]) == ("berthing", 0.0)
+            call_id = f"lng3-{case.sfx}-zb-call"
+            swap = options[f"{case.ids['A']}:stay/counterparty_swap:{call_id}+absorb"]
+            assert swap["kind"] == "counterparty_swap"
+            assert swap["flags"]["needs_terminal_approval"]
+            assert not swap["flags"]["counterparty_quote_pending"]
+            (quote,) = swap["quotes"]
+            assert (quote["status"], quote["amount_eur"], quote["counterparty"]) == (
+                "entered",
+                40_000,
+                "Other Shipper (illustrative)",
+            )
+            assert quote["note"].startswith("44,000 USD at")
+            detail = lng_disruption.option_detail(
+                session, case.ids["A"], swap["option_id"], now=NOW
+            )
+            assert detail["components"]["counterparty_quote"] == -40_000
+            labels = [line["label"] for line in detail["arithmetic"]]
+            assert f"quote {call_id}" in labels
+            assert not any(call_id in x and not x.startswith("quote") for x in labels)
+            (effect,) = swap["counterparty_effects"]
+            # ZEE-1 takes the carrier's 28 Jan turn for its one gas day; the carrier berths 29 Jan.
+            assert (effect["delay_days"], effect["swapped"], effect["in_pnl"]) == (1, True, False)
+            assert effect["value_eur"] is None
+            rules = {r["terminal"]: r for r in data["berth_rules"]}
+            gate = rules[case.terminals["Gate"]]
+            assert (gate["basis"], gate["arrival_window_days"]) == ("example", 2)
+            assert gate["citation"].startswith("example access code")
+            assert rules[case.terminals["Zeebrugge"]]["basis"] == "default"
+            assert any(i["input"] == f"berth rule {case.terminals['Gate']}" for i in data["inputs"])
         finally:
             session.rollback()
             clean(session, case)
