@@ -48,6 +48,7 @@ REPORTING_CURRENCIES = ("EUR", "GBP", "USD")
 #: The sources a user can pick: the benchmark fixes the platform knows, or a rate entered.
 FX_SOURCES = ("ECB", "WMR", "BFIX", "manual")
 MANUAL = "manual"
+FIRM_ORDER_CONTEXT = "lng_demurrage"
 DEMO_FX_SOURCE = "DEMO_Sim"
 
 
@@ -148,14 +149,25 @@ class FxBook:
     on: date
     rows: list[Mapping[str, Any]] = field(default_factory=list)
     allow_demo: bool = False
+    session: Any = None
+    allowed_systems: frozenset[str] | None = None
 
     def rate(self, currency: str) -> FxRate | None:
-        """``currency`` per EUR under the choice, or ``None`` when no rate is held."""
+        """``currency`` per EUR under the choice, or ``None`` when no rate is held.
+
+        With the default choice (ECB reference, no date) and a session, the firm's source order
+        comes first (TAR-2's ``resolve_fx_rate``, context ``lng_demurrage``): a contracted or
+        clearing bank's rate, then a published reference the reader is entitled to, then ECB.
+        A source the user chose explicitly is used as chosen.
+        """
 
         currency = (currency or "").upper()
         if currency == "EUR":
             return FxRate("EUR", 1.0, "identity", "EUR", None)
         choice = self.choice
+        firm = self._firm_order(currency)
+        if firm is not None:
+            return firm
         if choice.manual:
             if currency != choice.rate_currency.upper():
                 return None
@@ -186,6 +198,44 @@ class FxBook:
                     simulated=True,
                 )
         return None
+
+    def _firm_order(self, currency: str) -> FxRate | None:
+        """The firm's order for ``currency`` per EUR when a bank or a published reference holds
+        it; ``None`` leaves the ECB reference (and the demo rows) to the usual path."""
+
+        if self.session is None or not self.choice.as_dict()["default"]:
+            return None
+        from datetime import UTC, datetime, time
+
+        from eurogas_nexus.application.source_precedence import resolve_fx_rate
+        from eurogas_nexus.domain.pricing.source_precedence import TIER_TEXT
+
+        try:
+            resolution = resolve_fx_rate(
+                self.session,
+                "EUR",
+                currency,
+                datetime.combine(self.on, time(23, 59, 59), tzinfo=UTC),
+                FIRM_ORDER_CONTEXT,
+                allowed_systems=self.allowed_systems,
+            )
+        except Exception:  # noqa: BLE001 - an unreadable order leaves the ECB reference
+            return None
+        used = resolution.used
+        if (
+            used is None
+            or used.found is None
+            or used.tier not in ("contracted_bank", "published_reference")
+            or not resolution.value
+        ):
+            return None
+        return FxRate(
+            currency,
+            float(resolution.value),
+            used.found.source,
+            TIER_TEXT.get(used.tier, used.tier),
+            used.found.as_of[:10] if used.found.as_of else None,
+        )
 
     def missing(self, currency: str) -> str:
         """Why no rate is held for ``currency``, in a sentence."""
@@ -287,10 +337,10 @@ def _fx_rate(
 ) -> FxResolution:
     """The one conversion the LNG-4 valuation uses: 1 ``from_ccy`` in ``to_ccy`` on ``as_of``.
 
-    For now: the user's selectable source (``context``: an :class:`FxBook`, or an
-    :class:`FxChoice` read against the fixes any reader may see), ECB by default, crossed
-    through EUR. Integration point: a source-precedence resolver (contracted or clearing-bank
-    rate, then a published reference, then ECB) replaces this body; every caller keeps the
+    The user's selectable source (``context``: an :class:`FxBook`, or an :class:`FxChoice`
+    read against the fixes any reader may see), crossed through EUR. By default the firm's
+    source order applies (:meth:`FxBook.rate`: a contracted or clearing bank's rate, then a
+    published reference, then ECB); an explicit choice is used as chosen. Every caller gets the
     same answer shape (rate, source, rate date, the sources tried).
     """
 
@@ -346,7 +396,27 @@ def fx_book(
     from eurogas_nexus.core.config import demo_marks_allowed
 
     held = list(rows) if rows is not None else public_fx_rows(session)
-    return FxBook(choice or FxChoice(), on, held, allow_demo=demo_marks_allowed())
+    allowed: frozenset[str] | None = None
+    if session is not None:
+        from eurogas_nexus.application.source_precedence import (
+            ECB_SYSTEMS,
+            configured_institutions,
+        )
+
+        try:
+            banks = {bank.source_system for bank in configured_institutions(session)}
+        except Exception:  # noqa: BLE001 - no setting readable: no bank tier
+            banks = set()
+        seen = {str(row.get("source_system") or "") for row in held}
+        allowed = frozenset(seen | set(ECB_SYSTEMS) | banks)
+    return FxBook(
+        choice or FxChoice(),
+        on,
+        held,
+        allow_demo=demo_marks_allowed(),
+        session=session,
+        allowed_systems=allowed,
+    )
 
 
 # ------------------------------------------------------------------------- demurrage terms

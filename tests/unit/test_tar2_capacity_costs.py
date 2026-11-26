@@ -474,3 +474,35 @@ def test_0088_adds_bookings_and_the_tariff_year_and_downgrades():
         inspector = inspect(connection)
         assert "capacity_bookings" not in inspector.get_table_names()
         assert "tariff_year" not in {c["name"] for c in inspector.get_columns("tariff_versions")}
+
+
+def test_lng4_demurrage_fx_takes_the_firms_order_by_default_and_a_chosen_source_as_chosen(
+    session,
+):
+    from eurogas_nexus.application.lng_demurrage import FxChoice, _fx_rate, fx_book
+
+    _fx(session, "ecb-1", "ECB", "EUR", "USD", 1.10, "2026-11-24", T0)
+    session.flush()
+    on = AS_OF.date()
+    # No bank configured: the ECB reference, as before.
+    ecb = fx_book(session, None, on=on).rate("USD")
+    assert ecb.source == "ECB" and ecb.units_per_eur == pytest.approx(1.10)
+    _banks(session, {"ABCBANK": {"name": "ABC Bank", "contracted": True, "provides": ["fx"]}})
+    _fx(session, "bank-1", "BANK:ABCBANK", "EUR", "USD", 1.095, "2026-11-24", T0)
+    session.flush()
+    book = fx_book(session, None, on=on)
+    bank = book.rate("USD")
+    assert bank.source == "BANK:ABCBANK" and bank.units_per_eur == pytest.approx(1.095)
+    used = _fx_rate(session, "USD", "EUR", on, book)
+    assert used.rate == pytest.approx(1 / 1.095) and used.source == "BANK:ABCBANK"
+    # A rate entered by hand is used as entered, whatever the firm's order.
+    manual = fx_book(session, FxChoice(source="manual", rate=1.2, rate_currency="USD"), on=on)
+    assert manual.rate("USD").units_per_eur == 1.2 and manual.rate("USD").entered
+    # The firm can put ECB first for this calculation.
+    session.add(OrganisationSettingRecord(
+        setting_key="source_precedence",
+        value_json={"fx_rate@lng_demurrage": ["ecb_reference", "contracted_bank"]},
+        updated_by="admin", updated_at_utc=T0,
+    ))
+    session.flush()
+    assert fx_book(session, None, on=on).rate("USD").source == "ECB"

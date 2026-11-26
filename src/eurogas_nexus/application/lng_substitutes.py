@@ -71,11 +71,10 @@ def _transport_cost(
 ) -> TransportCost:
     """The one transport cost the LNG-4 substitute options use, per MWh in EUR.
 
-    For now: capacity the firm holds on the leg (its charge is sunk, so using it costs nil),
-    then the published tariffs along the cheapest proven route, else not held
-    (``contract_costs.transport_leg_cost``), converted to EUR through ``_fx_rate``.
-    Integration point: a contracted-then-public-tariff precedence resolver replaces this body;
-    callers keep the same answer.
+    Capacity the firm holds on the leg (its charge is sunk, so using it costs nil), then the
+    published tariffs along the cheapest proven route, else not held
+    (``contract_costs.transport_leg_cost``, which reads TAR-2's bookings before public
+    tariffs), converted to EUR through ``_fx_rate`` (the firm's source order by default).
     """
 
     from eurogas_nexus.application.contract_costs import transport_leg_cost
