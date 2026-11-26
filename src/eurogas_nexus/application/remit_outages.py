@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+#: Open messages one outage read considers; past it the read refuses rather than drop some.
+MAX_OPEN_MESSAGES = 5_000
+
 
 def _aware(moment: datetime | None) -> datetime | None:
     if moment is None:
@@ -38,10 +41,17 @@ def load_outage_rows(
     )
     if asset_type:
         open_ids = open_ids.filter(RemitUmmRecord.asset_type == asset_type.casefold())
+    # The bound used to be applied to an unordered DISTINCT, so past 5,000 open messages an
+    # arbitrary part of the outages was left out of the list and the map without a word.
+    from eurogas_nexus.application.bounded_reads import read_bounded
+
+    bounded_ids = [row[0] for row in read_bounded(
+        open_ids.distinct(), MAX_OPEN_MESSAGES, what="open REMIT message"
+    )]
     records = (
-        session.query(RemitUmmRecord)
-        .filter(RemitUmmRecord.message_id.in_(open_ids.distinct().limit(5_000)))
-        .all()
+        session.query(RemitUmmRecord).filter(RemitUmmRecord.message_id.in_(bounded_ids)).all()
+        if bounded_ids
+        else []
     )
     fields = UmmMessage.__dataclass_fields__
     messages = [

@@ -14,6 +14,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from eurogas_nexus.api.csv_export import report_response
 from eurogas_nexus.api.dependencies.row_entitlement import current_principal
 from eurogas_nexus.api.schemas.nwe_balance import NweBalanceRequest
+from eurogas_nexus.application.bounded_reads import read_bounded
 from eurogas_nexus.application.nwe_balance_scenario import run_nwe_balance_scenario
 from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
 from eurogas_nexus.application.warm_views import ViewSpec, not_json, warm_view
@@ -89,7 +90,7 @@ def daily_settlements(
 
     if not codes:
         return {}
-    rows = (
+    rows = read_bounded(
         session.query(
             MarketObservationRecord.product,
             MarketObservationRecord.price,
@@ -100,9 +101,11 @@ def daily_settlements(
         )
         .filter(or_(*(MarketObservationRecord.product.like(f"{code} %") for code in codes)))
         .filter(MarketObservationRecord.observed_at_utc >= _bound(session, first))
-        .filter(MarketObservationRecord.observed_at_utc < _bound(session, last + timedelta(days=1)))
-        .limit(50_000)
-        .all()
+        .filter(
+            MarketObservationRecord.observed_at_utc < _bound(session, last + timedelta(days=1))
+        ),
+        50_000,
+        what="market observation",
     )
     candidates = [
         {

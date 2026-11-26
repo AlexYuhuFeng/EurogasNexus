@@ -56,6 +56,7 @@ from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from eurogas_nexus.application.bounded_reads import ReadBoundExceeded
 from eurogas_nexus.domain.operations.error_taxonomy import code_for_status, error_payload
 from eurogas_nexus.governance.audit import GovernedAuditError
 from eurogas_nexus.security.identity import ROLE_RANK, Role
@@ -206,6 +207,18 @@ def register_error_handlers(app: FastAPI) -> None:
             },
             headers={"X-Request-Id": correlation_id},
         )
+
+    @app.exception_handler(ReadBoundExceeded)
+    async def _read_bound_exceeded(request: Request, exc: ReadBoundExceeded) -> JSONResponse:
+        """A calculation whose inputs exceed its read bound refuses instead of using part."""
+
+        correlation_id = getattr(request.state, "request_id", None) or uuid4().hex
+        body = error_body(
+            422,
+            {"code": exc.code, "message": str(exc), "what": exc.what, "bound": exc.bound},
+            correlation_id=correlation_id,
+        )
+        return JSONResponse(status_code=422, content=body)
 
     @app.exception_handler(Exception)
     async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse:

@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
+from eurogas_nexus.application.bounded_reads import read_bounded
 from eurogas_nexus.application.caller import Caller
 from eurogas_nexus.application.position_inputs import is_simulated_marks_warning
 
@@ -991,7 +992,7 @@ def _storage(session, caller: Caller, now: datetime, read: _Read) -> dict[str, A
         """Storage rows of the NW Europe countries for ``days`` gas days up to ``until``."""
 
         first = until - timedelta(days=days + 5)
-        records = (
+        records = read_bounded(
             session.query(
                 Storage.period_start_utc,
                 Storage.country,
@@ -1003,9 +1004,9 @@ def _storage(session, caller: Caller, now: datetime, read: _Read) -> dict[str, A
             .filter(Storage.country.in_(NWE_COUNTRIES))
             .filter(Storage.inventory_twh.isnot(None), Storage.working_capacity_twh.isnot(None))
             .filter(Storage.period_start_utc >= (first.replace(tzinfo=None) if naive else first))
-            .filter(Storage.period_start_utc <= (until.replace(tzinfo=None) if naive else until))
-            .limit(40_000)
-            .all()
+            .filter(Storage.period_start_utc <= (until.replace(tzinfo=None) if naive else until)),
+            40_000,
+            what="storage observation",
         )
         allowed = [r for r in records if row_allowed(caller.principal, r.source_system)]
         real = [r for r in allowed if not str(r.source_system).endswith("_Sim")]
