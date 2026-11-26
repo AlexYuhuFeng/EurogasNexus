@@ -13,9 +13,10 @@
 
 import { monthLabel } from "./gasDay.ts";
 import { normalizeTyped } from "./numbers.ts";
+import { canonicalHub } from "../hubAliases.ts";
 
 /** The hubs the bar recognises by name, with the balancing zone their outages carry. */
-export const HUBS = ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF", "GTF"] as const;
+export const HUBS = ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF"] as const;
 export type Hub = (typeof HUBS)[number];
 
 /** Country names and codes (EN and ZH) to the codes storage and LNG reads use. */
@@ -96,7 +97,9 @@ function hubIn(word: string, typed: string): Hub | null {
   const upper = word.toUpperCase();
   // "the" is a word long before it is a hub: only the capitalised code reads as THE.
   if (upper === "THE" && typed !== "THE") return null;
-  return (HUBS as readonly string[]).includes(upper) ? (upper as Hub) : null;
+  // A hub's other name is that hub: "GTF" reads as ETF, "VTP" as CEGH.
+  const code = canonicalHub(upper);
+  return (HUBS as readonly string[]).includes(code) ? (code as Hub) : null;
 }
 
 function country(text: string): string | null {

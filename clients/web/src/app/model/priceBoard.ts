@@ -7,6 +7,7 @@
  */
 
 import type { NormaliseRequestDTO, NormaliseResponseDTO } from "../../api/comparablePrices.ts";
+import { canonicalHub } from "../hubAliases.ts";
 
 export const BOARD_DEFAULT_HUBS: readonly string[] = ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV"];
 export const BOARD_HUBS_KEY = "egn.prices.board-hubs";
@@ -38,7 +39,10 @@ export function readBoardHubs(store: StorageLike | null = storage()): string[] {
     const raw = store?.getItem(BOARD_HUBS_KEY);
     const parsed = raw ? (JSON.parse(raw) as unknown) : null;
     if (Array.isArray(parsed)) {
-      const hubs = parsed.filter((item): item is string => typeof item === "string" && /^[A-Z]{2,5}$/.test(item));
+      // A board saved with a hub's other name (GTF) lists that hub (ETF), once.
+      const hubs = parsed
+        .filter((item): item is string => typeof item === "string" && /^[A-Z]{2,8}$/.test(item))
+        .map(canonicalHub);
       if (hubs.length > 0) return [...new Set(hubs)].slice(0, MAX_BOARD_HUBS);
     }
   } catch {
