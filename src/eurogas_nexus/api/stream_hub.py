@@ -251,10 +251,17 @@ class StreamHub:
                     self._deliver(sub, chunks, done)
                     delivered.add(id(sub))
                 queries = reads.queries
+                # A stream that could not read answers with a warning event and goes on; the
+                # poll still failed to reach the store for it: log and count it once.
+                if reads.failure is not None:
+                    failed = True
+                    self.stats.failed_polls += 1
+                    self._log_failed_poll(reads.failure)
         except Exception:
-            failed = True
-            self.stats.failed_polls += 1
-            self._log_failed_poll()
+            if not failed:  # counted once per poll
+                failed = True
+                self.stats.failed_polls += 1
+                self._log_failed_poll()
             for sub in subs:
                 if id(sub) not in delivered:
                     sub.state.started = True
@@ -276,7 +283,7 @@ class StreamHub:
         # The poller checks out connections between requests: publish the pool counts too.
         process_metrics.observe_pools()
 
-    def _log_failed_poll(self) -> None:
+    def _log_failed_poll(self, exc_info: Any = True) -> None:
         """Log the first failed poll with its error, then at most once a minute while the
         store stays unreachable (a poll runs every 1.5 s)."""
 
@@ -285,12 +292,13 @@ class StreamHub:
             self._failing_since = now
             self._failures_at_start = self.stats.failed_polls - 1
             self._failure_logged_at = now
-            logger.exception("live-update poll could not reach the store")
+            logger.error("live-update poll could not reach the store", exc_info=exc_info)
         elif now - self._failure_logged_at >= FAILURE_LOG_INTERVAL_SECONDS:
             self._failure_logged_at = now
-            logger.exception(
+            logger.error(
                 "live-update poll still cannot reach the store (%d failed polls)",
                 self.stats.failed_polls - self._failures_at_start,
+                exc_info=exc_info,
             )
 
     def _deliver(self, sub: Subscription, chunks: list[str], done: bool) -> None:

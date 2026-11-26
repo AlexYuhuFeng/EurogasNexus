@@ -272,3 +272,55 @@ def test_a_failed_poll_is_logged_as_json_and_counted(engine):
     assert "could not reach the store" in errors[0]["message"]
     assert _counter_value("eurogas_stream_polls_total") == polls_before + 2
     assert _counter_value("eurogas_stream_poll_failures_total") == failures_before + 2
+
+
+def test_a_read_the_stream_recovers_from_is_still_logged_once(tmp_path):
+    """The usual outage: the session opens, the stream's own read fails and the stream answers
+    with a warning event. The poller logs it (with the database error) and counts the poll."""
+
+    import json
+    import logging
+
+    from eurogas_nexus.core.structured_logging import JsonFormatter
+
+    gone = create_engine(f"sqlite:///{tmp_path / 'missing' / 'store.db'}")  # cannot open
+    records: list[str] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(self.format(record))
+
+    handler = _Capture()
+    handler.setFormatter(JsonFormatter("eurogas-nexus-api"))
+    hub_logger = logging.getLogger("eurogas_nexus.api.stream_hub")
+    hub_logger.addHandler(handler)
+    try:
+
+        async def drive():
+            hub = _hub(gone)
+            sub = hub.subscribe(
+                _RowStream(
+                    "quotes",
+                    streaming._fetch_new_quotes,
+                    "observed_at_utc",
+                    "quote_id",
+                    (NOW, ""),
+                    StreamGuard("quotes", _principal("p-gone", "EEX")),
+                    (),
+                ),
+                "p-gone",
+            )
+            hub.poll([sub])
+            hub.poll([sub])
+            await asyncio.sleep(0)
+            return hub.stats.failed_polls, _drain(sub)
+
+        failed, delivered = asyncio.run(drive())
+    finally:
+        hub_logger.removeHandler(handler)
+        gone.dispose()
+    assert failed == 2
+    assert any("RUNTIME_POSTGRESQL_UNAVAILABLE" in chunk for chunk in delivered)
+    [error] = [json.loads(line) for line in records]
+    assert error["level"] == "error" and error["error_type"] == "OperationalError"
+    assert "stack" in error

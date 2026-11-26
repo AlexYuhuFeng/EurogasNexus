@@ -38,6 +38,7 @@ plain session (one stream, a test), and then reads exactly what that one caller 
 
 from __future__ import annotations
 
+import sys
 from collections.abc import Callable, Hashable
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -217,6 +218,9 @@ class Reads:
         self._revocations: set[tuple] = set()
         #: Reads that went to the store (for the hub's metrics and the tests).
         self.queries = 0
+        #: The first error a stream recovered from in this poll (``sys.exc_info()``): the
+        #: streams answer it with a warning event, the hub logs and counts it once.
+        self.failure: tuple | None = None
 
     # What the streams need ---------------------------------------------------------------
 
@@ -274,8 +278,14 @@ class Reads:
             self.want("jobs", as_utc(since))
 
     def recover(self) -> None:
-        """After a failed read: end the session's failed transaction so later reads may run."""
+        """After a failed read: end the session's failed transaction so later reads may run.
 
+        Called from the ``except`` block of the failed read; the error is kept for the hub."""
+
+        if self.failure is None:
+            info = sys.exc_info()
+            if info[0] is not None:
+                self.failure = info
         try:
             self.session.rollback()
         except Exception:  # noqa: BLE001 - the store is gone; the next poll tries again
