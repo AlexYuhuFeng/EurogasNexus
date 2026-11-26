@@ -20,6 +20,9 @@ test("the server's English notes on the book are said in Chinese, contracts by n
     "deviates from nominations on more than 1 day in 5",
     "volatile delivery (CV above 15%)",
     "3 cargo(es) on the ladder from their plans and recorded hedges; volume only, not valued",
+    "FX: derived (interest parity from SONIA, SOFR, flat rate), value date 2027-01-15",
+    "FX: spot (ECB reference rate of 2026-11-24)",
+    "ECB reference rate 2026-11-24",
   ];
   for (const sample of samples) assert.match(serverWarningText(sample, t, names), /\p{Script=Han}/u, sample);
   assert.equal(serverWarningText(samples[0], t, names), "Skarv West tender：价格随 NBP day-ahead 浮动；头寸阶梯仅计气量");
@@ -31,6 +34,8 @@ test("the server still writes the sentences this table recognises", () => {
   for (const fragment of ["price floats with ", "; volume only on the ladder", "an FOB cargo is not on a European hub until it is sold or ", "Marks are simulated prices, not market prices.", "cargo(es) on the ladder from their plans and recorded "]) {
     assert.ok(inputs.includes(fragment), `position_inputs.py no longer writes "${fragment}"`);
   }
+  const fx = read("../../../src/eurogas_nexus/domain/market/fx_forward.py");
+  assert.ok(fx.includes('f"derived (interest parity from {names}, flat rate)"'), "fx_forward.py label changed");
   const delivery = read("../../../src/eurogas_nexus/domain/risk/delivery.py");
   for (const fragment of ["deviates from nominations on more than 1 day in 5", "% against DCQ", "volatile delivery (CV above 15%)"]) {
     assert.ok(delivery.includes(fragment), `delivery.py no longer writes "${fragment}"`);

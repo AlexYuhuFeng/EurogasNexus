@@ -24,6 +24,13 @@ const TEMPLATES: readonly [string, RegExp, readonly string[]][] = [
   ["delivery_deviates", /^deviates from nominations on more than 1 day in 5$/, []],
   ["delivery_trend", /^last 7 days ([+-]?[\d.]+)% against DCQ$/, ["pct"]],
   ["delivery_volatile", /^volatile delivery \(CV above 15%\)$/, []],
+  // FX basis notes (domain/market/fx_forward.py `label`, application/valuation_snapshot.py).
+  ["fx_derived_dated", /^FX: derived \(interest parity from (.+), flat rate\), value date (\S+)$/, ["names", "date"]],
+  ["fx_derived", /^(?:FX: )?derived \(interest parity from (.+), flat rate\)$/, ["names"]],
+  ["fx_spot", /^FX: spot \(ECB reference rate of (\S+)\)$/, ["date"]],
+  ["fx_reference", /^(?:FX: )?ECB reference rate (\S+?)(?:, value date \S+)?$/, ["date"]],
+  ["fx_simulated", /^(?:FX: )?simulated reference rate (\S+?)(?:, value date \S+)?$/, ["date"]],
+  ["fx_sourced", /^(?:FX: )?sourced \((.+)\)(?:, value date (\S+))?$/, ["source", "date"]],
   ["spreads_simulated", /^Simulated inputs: these spreads are not market prices\.?$/, []],
 ];
 
