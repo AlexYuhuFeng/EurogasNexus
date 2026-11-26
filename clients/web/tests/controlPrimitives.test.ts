@@ -335,7 +335,7 @@ function todayFixture(): DeskTodayDTO {
     gas_day: "2026-11-15",
     front_month: "Dec-26",
     simulated: true,
-    simulated_notice: "Demo data: simulated figures, not market data.",
+    simulated_notice: "Source: simulated.",
     stale_figures: [],
     warnings: [],
     rows: [
@@ -446,10 +446,10 @@ test("Today: four rows, simulated marked beside each value, empty sections give 
   assert.match(html, /aria-label="why\.label\(subject=Demo Haldor field\)"/);
   // Risk figures carry a Method affordance.
   assert.match(html, /data-method="net_position"/);
-  // The demo desk does not shout stale, and demo mode is said once by the shell (the badge by the
-  // mark, the account menu), not as a chip in every page's context line.
+  // A simulated desk does not shout stale, and no page carries a demo chip or banner: a simulated
+  // source is named only in its source line or tag (owner, 2026-11-26).
   const fresh = render(h(TodayFreshness, { today: todayFixture(), t, nowMs: props.nowMs }));
-  assert.match(fresh, /data-today-freshness="demo"/);
+  assert.match(fresh, /data-today-freshness="simulated"/);
   assert.doesNotMatch(fresh, /today\.demo_data/);
   assert.doesNotMatch(fresh, /stale/);
   const live = { ...todayFixture(), simulated: false, stale_figures: [{ key: "price.NBP", label: "NBP Dec-26", state: "stale" as const, as_of: "2026-11-12" }] };
@@ -471,7 +471,7 @@ test("Method note: the reader's language when the build has the key, the server'
   assert.deepEqual(missing.includes, ["Physical contracts"]);
 });
 
-test("Today: an all-simulated page says it once and drops the per-figure marker; mixed keeps it", async () => {
+test("Today: an all-simulated page names its source once, quietly, and drops the per-figure marker; mixed keeps it", async () => {
   const { load } = await loadApiStore();
   const { TodayScreen } = await load<typeof import("../src/components/TodayScreen.tsx")>("/src/components/TodayScreen.tsx");
   const { simulatedScopeOf } = await load<typeof import("../src/components/ui/SimulatedScope.tsx")>("/src/components/ui/SimulatedScope.tsx");
@@ -483,7 +483,9 @@ test("Today: an all-simulated page says it once and drops the per-figure marker;
     onRefresh: () => undefined, onOpenBrief: () => undefined, onOpenLimits: () => undefined, onOpenOutages: () => undefined,
   };
   const all = render(h(TodayScreen, { ...props, today: { ...todayFixture(), all_simulated: true } }));
-  assert.match(all, /data-simulated-scope="all"[^>]*>today\.all_simulated</);
+  // One quiet source line, never a banner or callout (owner, 2026-11-26).
+  assert.match(all, /class="simulated-scope-source" data-simulated-scope="all">simulated\.source_line</);
+  assert.doesNotMatch(all, /role="note"[^>]*data-simulated-scope/);
   assert.doesNotMatch(all, /class="ds-cell-mark"/);
   const mixed = render(h(TodayScreen, { ...props, today: todayFixture() }));
   assert.doesNotMatch(mixed, /data-simulated-scope/);

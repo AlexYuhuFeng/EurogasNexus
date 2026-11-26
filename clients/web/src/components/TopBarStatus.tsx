@@ -50,7 +50,7 @@ export function TopBarStatus({
   marketLastUpdatedAtUtc,
   onReportProblem,
   showSourceCounts = false,
-  demoPrices = false,
+  simulatedMarks = false,
   staleFigures = [],
   nowMs = Date.now(),
   onOpenFigure,
@@ -71,8 +71,8 @@ export function TopBarStatus({
   onReportProblem?: () => void;
   /** Only whoever administers sources counts them; others see the sources line inside. */
   showSourceCounts?: boolean;
-  /** The server values positions with simulated demo prices. */
-  demoPrices?: boolean;
+  /** The server values positions with simulated prices. */
+  simulatedMarks?: boolean;
   /** Today's figures that are not current (the same list as Today's "N figures not current"). */
   staleFigures?: DeskTodayDTO["stale_figures"];
   nowMs?: number;
@@ -125,8 +125,8 @@ export function TopBarStatus({
 
   const failures = endpointFailures?.total ?? 0;
   const sourceIssues = showSourceCounts && sourceSummary.showCounts ? sourceSummary.issues : 0;
-  // A demo desk's static store is the demo, not an incident: its figures are not counted stale.
-  const staleCount = demoPrices ? 0 : staleFigures.length;
+  // A static simulated store is not an incident: its figures are not counted stale.
+  const staleCount = simulatedMarks ? 0 : staleFigures.length;
   const count = dataProblemCount({ endpointFailures: failures, staleFigures: staleCount, sourceIssues });
   const shown: DataHealth =
     health === "down" || health === "checking" ? health : count > 0 || health === "attention" ? "attention" : "ok";
@@ -253,8 +253,6 @@ export function TopBarStatus({
                   : t("status.partial_unknown")}
             </p>
           ) : null}
-
-          {demoPrices ? <p className="topbar-status-demo">{t("topbar.demo_mode")}</p> : null}
 
           <dl className="topbar-status-facts">
             <div>

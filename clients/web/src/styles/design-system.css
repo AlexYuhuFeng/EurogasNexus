@@ -1780,24 +1780,7 @@
   }
 
   /* --------------------------------------------------------- notices, states */
-  /* Simulated has its own status colour, so it is never read as a warning about a real price
-     (UX_REFERENCE rule 10). */
-  .market-simulated-banner {
-    padding: var(--ds-space-2) var(--ds-space-3);
-    border: 1px solid color-mix(in srgb, var(--ds-status-simulated) 35%, transparent);
-    border-radius: var(--ds-radius-md);
-    background: var(--ds-status-simulated-soft);
-    color: var(--ds-text-1);
-    font-size: var(--ds-text-base);
-  }
-
-  .market-simulated-banner strong {
-    color: var(--ds-status-simulated);
-    font-weight: var(--ds-weight-semibold);
-    text-transform: none;
-  }
-
-  [role="alert"]:not(.market-simulated-banner) {
+  [role="alert"] {
     color: var(--ds-negative);
   }
 
@@ -1952,7 +1935,7 @@
   }
 
   /* Priorities: the menu button and the lines of work never shrink; the controls cluster
-     shrinks only through its one flexible item, the demo chip, which truncates first. */
+     shrinks only through its one flexible item, which truncates first. */
   /* The menu button keeps its icon; its label (page and context) truncates first. */
   .cockpit-app .app-header .topbar-menu-button {
     flex: 0 1 auto;
@@ -3270,7 +3253,6 @@
   .topbar-status.is-ok .topbar-status-chip i { background: var(--ds-positive); }
   .topbar-status.is-attention .topbar-status-chip i { background: var(--ds-status-watch); }
   .topbar-status.is-down .topbar-status-chip i { background: var(--ds-negative); }
-  .topbar-status.is-demo .topbar-status-chip i { background: var(--ds-status-simulated); }
   .topbar-status.is-down .topbar-status-chip { color: var(--ds-text-1); }
 
   .topbar-status-panel {
@@ -4312,27 +4294,6 @@
     margin-right: 0;
   }
 
-  /* Demo mode, said once and quietly beside the mark (and in the account menu). */
-  .topbar-demo-badge {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    height: var(--ds-chip);
-    padding: 0 var(--ds-space-1);
-    border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-sm);
-    color: var(--ds-text-2);
-    font-size: var(--ds-text-xs);
-    font-weight: var(--ds-weight-medium);
-    line-height: var(--ds-line-xs);
-  }
-
-  .topbar-menu-demo {
-    color: var(--ds-text-2);
-    font-size: var(--ds-text-xs);
-    line-height: var(--ds-line-xs);
-  }
-
   /* Search names itself in words where the bar has room; a phone keeps the magnifier, which
      still carries its name (aria-label, tooltip). */
   .cockpit-app .app-header .topbar-command .topbar-command-label {
@@ -4405,7 +4366,6 @@
 
   .topbar-status-head > span,
   .topbar-status-calm,
-  .topbar-status-demo,
   .topbar-status-more {
     margin: 0;
     color: var(--ds-text-2);

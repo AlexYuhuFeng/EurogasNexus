@@ -18,7 +18,8 @@ then red, as the deadline nears). A status you set on the checklist is your own 
 labelled as entered by hand; nothing is nominated from Eurogas Nexus. A figure that is not
 current says so in words beside it ("late 3 h", "stale 2 d"); the link at the right of the
 context line lists every such figure and takes you to it. Simulated figures carry "sim"
-beside the value, and the demo desk says "Demo data" once. Risk figures have a **Method**
+beside the value; when every figure on a page is simulated, one quiet line says "Source:
+simulated" instead. Risk figures have a **Method**
 note: what the figure includes and what it leaves out.
 
 Under the top bar a single line, the **situational strip**, tells you when something needs you
@@ -106,7 +107,7 @@ since you opened it, you are asked to reload instead of overwriting their change
 
 Charts on Today (storage fill against the previous year and the EU target, NW Europe supply
 and call) and on Desk → **Prices** show their unit and as-of time in the head and say
-"Simulated" on demo data. Prices has three views: the **Hub board** (each hub in its own
+"Simulated" on simulated data. Prices has three views: the **Hub board** (each hub in its own
 quotation, NBP in p/th, TTF in EUR/MWh; your reporting currency and unit on hover), the
 **Ladder** (forward curve by delivery month) and **Prompt** (within-day and day-ahead). **Table** shows the same
 figures as a table, **CSV** downloads exactly what is plotted, and with the chart focused the

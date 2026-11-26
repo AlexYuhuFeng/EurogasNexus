@@ -31,8 +31,6 @@ interface HeaderPreferencesMenuProps {
   onOpenAdministration?: () => void;
   /** "Report a problem": the help desk form (it left the top bar; the answer bar finds it too). */
   onReportProblem?: () => void;
-  /** A demo deployment: said here once, quietly, instead of a chip on every page. */
-  demoMode?: boolean;
   onSignOut: () => void;
 }
 
@@ -48,7 +46,6 @@ export function HeaderPreferencesMenu({
   onOpenHelp,
   onOpenAdministration,
   onReportProblem,
-  demoMode = false,
   onSignOut,
 }: HeaderPreferencesMenuProps) {
   const [open, setOpen] = useState(false);
@@ -177,7 +174,6 @@ export function HeaderPreferencesMenu({
               {personFunction(currentUser) ? t(`person.function.${personFunction(currentUser)}`) : ""}
               {currentUser.experience?.office ? ` · ${currentUser.experience.office}` : ""}
             </span>
-            {demoMode ? <span className="topbar-menu-demo" data-demo-mode="true">{t("topbar.demo_mode")}</span> : null}
           </div>
 
           <div className="topbar-menu-group" role="group" aria-label={t("settings.language")}>

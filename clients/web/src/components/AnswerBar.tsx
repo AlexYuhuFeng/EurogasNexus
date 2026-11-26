@@ -222,9 +222,6 @@ export function AskPanel({ state, onCancel, onRetry, onOpen, onOpenReport }: Ask
 
       {result && (
         <>
-          {result.simulated && (
-            <p className="answer-ask-simulated" data-answer-simulated="true">{t("answer.ask.simulated")}</p>
-          )}
           {result.answer ? (
             <p className="answer-ask-text">{result.answer}</p>
           ) : (
@@ -234,7 +231,11 @@ export function AskPanel({ state, onCancel, onRetry, onOpen, onOpenReport }: Ask
           )}
           {result.lines.length > 0 && (
             <details className="answer-ask-facts" open={!result.answer}>
-              <summary>{t("answer.ask.facts", { count: result.lines.length })}</summary>
+              {/* A simulated source is named once, quietly, beside the facts it came from. */}
+              <summary>
+                {t("answer.ask.facts", { count: result.lines.length })}
+                {result.simulated && <small className="answer-ask-source" data-answer-simulated="true"> · {t("simulated.source_tag")}</small>}
+              </summary>
               <ul>
                 {result.lines.map((line) => (
                   <li key={`${line.source}:${line.text}`}>

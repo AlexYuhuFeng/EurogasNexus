@@ -179,7 +179,7 @@
 
   
 
-  /* Freshness: the demo badge once, or a link naming the late and stale figures. */
+  /* Freshness: a link naming the late and stale figures. */
   .today-freshness {
     display: inline-flex;
     flex-wrap: wrap;

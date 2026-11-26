@@ -151,7 +151,7 @@ export function AccessUsers({ users, accountOptions, roles, scopeCatalogue, curr
       render: (user) => (
         <span className="access-kind">
           {t(`access.users.kind.${user.account_kind ?? "key"}`)}
-          {user.local_password?.demo_account && <StatusBadge tone="simulated">{t("access.users.demo")}</StatusBadge>}
+          {user.local_password?.demo_account && <StatusBadge tone="neutral">{t("access.users.demo")}</StatusBadge>}
         </span>
       ),
     },

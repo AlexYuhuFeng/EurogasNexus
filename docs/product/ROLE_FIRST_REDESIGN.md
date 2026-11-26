@@ -467,7 +467,7 @@ The user's zone is the office zone (`OFFICE_TIME_ZONES` in `security/capabilitie
 | I3 | No internal ids or raw enums in visible text. | Browser: no visible text matches a UUID, `[A-Z]+_[A-Z_]+`, or `[a-z]+_[a-z_]+` outside `code` in Admin. Allow-list for product names. |
 | I4 | One primary action per view. | Browser: at most one `.button-primary` (or `data-primary-action`) visible per task. |
 | I5 | An empty state is one line: why, and where to fix it. | Browser: every `[data-empty-state]` is at most 2 lines high and contains a reason; a link when a fix exists. |
-| I6 | A simulated figure carries the mark; a simulated board carries the banner. | Existing hooks `data-state="simulated"`, `data-simulated-board`. |
+| I6 | A simulated figure carries the mark; an all-simulated page carries one quiet source line, never a banner (owner, 2026-11-26). | Existing hooks `data-state="simulated"`, `data-simulated-scope="all"`. |
 | I7 | Freshness is one word on the status chip; a degraded figure is marked at the figure. | Browser: no `.projection-context` slice table in the default view of a commercial page. |
 | I8 | Pipeline and platform state never appear on commercial pages for commercial roles. | Browser as `demo.trader`: no source-approval notice, no endpoint banner, no data-source item in the strip or bell. |
 | I9 | One number, one place per page (`UX_REFERENCE.md` rule 1). | Review checklist; automated for storage fill and net position by `data-figure` key uniqueness. |

@@ -240,9 +240,9 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         }}
       />
       <div id="portfolio-task-panel">
-        {/* The demo desk's book is simulated end to end: said once at the top, not per figure
-            (UX_REFERENCE rule 17; components/ui/SimulatedScope.tsx). */}
-        <SimulatedScope scope={deskToday.today?.simulated ? "all" : "none"} notice={t("today.all_simulated")}>
+        {/* A book valued on simulated prices names its source once, in one quiet source line,
+            not per figure (UX_REFERENCE rule 17; components/ui/SimulatedScope.tsx). */}
+        <SimulatedScope scope={deskToday.today?.simulated ? "all" : "none"} source={t("simulated.source_line")}>
         <PortfolioContextStrip
           projection={api.portfolioSnapshot}
           t={t}

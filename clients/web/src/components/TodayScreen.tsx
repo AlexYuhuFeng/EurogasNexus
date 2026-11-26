@@ -112,7 +112,7 @@ export interface TodayScreenProps {
 
 /** The simulated marker beside a value: a short word, its meaning for screen readers. */
 export function SimulatedMark({ t }: { t: Translate }) {
-  // Not on every value when the whole page is simulated: the page says it once (SimulatedScope).
+  // Not on every value when the whole page is simulated: its source line says it once (SimulatedScope).
   if (!useSimulatedPills()) return null;
   return (
     <span className="ds-cell-mark" data-state="simulated" title={t("today.simulated_long")}>
@@ -696,16 +696,15 @@ export function StaleFigureList({
 
 /**
  * The page's freshness line. Late or stale figures are named in a popover, each leading to where
- * it is shown; the demo desk says "Demo data" once instead of counting a static store as stale.
+ * it is shown; a simulated desk does not count its static store as stale.
  */
 export function TodayFreshness({ today, t, nowMs }: { today: DeskTodayDTO | null; t: Translate; nowMs: number }) {
   const compact = useCompactWidth();
   if (!today) return null;
   const stale = today.stale_figures;
   return (
-    // Demo mode is said once, quietly, by the shell (the badge beside the mark and the account
-    // menu); the page's simulated-prices banner still marks every simulated figure.
-    <span className="today-freshness" data-today-freshness={today.simulated ? "demo" : stale.length ? "stale" : "current"}>
+    // A simulated source is named in the page's quiet source line (SimulatedScope), not here.
+    <span className="today-freshness" data-today-freshness={today.simulated ? "simulated" : stale.length ? "stale" : "current"}>
       {stale.length > 0 && (
         <Popover
           label={t("today.stale_title")}
@@ -783,7 +782,7 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
   };
   const scope = today.all_simulated ? "all" : today.simulated ? "mixed" : "none";
   return (
-    <SimulatedScope scope={scope} notice={t("today.all_simulated")}>
+    <SimulatedScope scope={scope} source={t("simulated.source_line")}>
     <div className="today" data-today="ready">
       {/* One header line (gas day, as of, data feeds, brief, refresh): the page's context strip
           carries it when the cockpit composes Today; standalone, it is drawn here. */}

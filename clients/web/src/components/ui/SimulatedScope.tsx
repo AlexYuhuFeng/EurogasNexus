@@ -1,12 +1,12 @@
 /**
  * Simulated scope (AGENTS.md rule 17): one rule for every page that can show simulated figures.
  *
- * - **All simulated** (the demo desk): the page says it once at the top ("Demo data: simulated,
- *   not market prices") and the per-figure "sim" pill is dropped, because a pill on every value
- *   says nothing a reader has not been told.
- * - **Mixed**: the pill stays on each simulated figure, so a simulated value can never be read as
- *   a market price beside real ones.
- * - **None**: nothing is shown.
+ * - **All simulated**: the page names the source once, in one quiet source line ("Source:
+ *   simulated"), and the per-figure "sim" pill is dropped, because a pill on every value says
+ *   nothing the source line has not said. No banner, callout or repeated tip (owner, 2026-11-26).
+ * - **Mixed**: the small source tag stays on each simulated figure, so a simulated value can never
+ *   be read as a market price beside real ones.
+ * - **None**: nothing is shown; real figures carry only their source and as-of time.
  *
  * A page wraps its content in `<SimulatedScope scope=…>`; a marker asks `useSimulatedPills()`.
  * Shared by Today, Prices and Spreads so the three say it the same way.
@@ -32,22 +32,23 @@ export function useSimulatedPills(): boolean {
 
 export function SimulatedScope({
   scope,
-  notice,
+  source,
   children,
 }: {
   scope: SimulatedScopeKind;
   /**
-   * The one line said when every figure is simulated; omitted for a part of the page whose
-   * notice is already shown elsewhere on it (the scope then only drops the pills).
+   * The quiet source line said when every figure is simulated (`simulated.source_line`); omitted
+   * for a part of the page whose source is already named elsewhere on it (the scope then only
+   * drops the pills).
    */
-  notice?: string;
+  source?: string;
   children: ReactNode;
 }) {
   return (
     <ScopeContext.Provider value={scope}>
-      {scope === "all" && notice && (
-        <p className="simulated-scope-notice" role="note" data-simulated-scope="all">
-          {notice}
+      {scope === "all" && source && (
+        <p className="simulated-scope-source" data-simulated-scope="all">
+          {source}
         </p>
       )}
       {children}

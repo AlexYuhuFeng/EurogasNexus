@@ -138,7 +138,7 @@ export function OpportunitiesPage({
         </div>
       </header>
 
-      <SimulatedScope scope={scope} notice={t("opportunities.banner.simulated")}>
+      <SimulatedScope scope={scope} source={t("simulated.source_line")}>
 
       {!list && !failed && <Skeleton label={t("opportunities.empty.loading")} rows={5} />}
 

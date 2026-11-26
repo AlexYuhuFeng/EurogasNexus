@@ -159,15 +159,9 @@
   .answer-ask-spinner { animation: none; }
 }
 
-.answer-ask-simulated {
-  margin: 0;
-  padding: var(--ds-space-1) var(--ds-space-2);
-  border-radius: var(--ds-radius-sm);
-  background: var(--ds-status-simulated-soft);
-  color: var(--ds-status-simulated);
+.answer-ask-source {
+  color: var(--ds-text-2);
   font-size: var(--ds-text-xs);
-  font-weight: var(--ds-weight-medium);
-  line-height: var(--ds-line-xs);
 }
 
 .answer-ask-text {

@@ -103,8 +103,11 @@ unchanged; these rules govern how much of that evidence is *on screen by default
    GY-27, Cal-27), "Bid / Offer", volumes in MW (continental) and th/d (NBP), and offer
    the ladder layout (products down, hubs across, Bid Vol | Bid | Offer | Offer Vol).
    Do not copy any vendor's visual design.
-10. **Simulated is never mistaken for market.** Any simulated price on screen carries a
-    board-level banner. Real and simulated quotes never compete for a best price.
+10. **Simulated is never mistaken for market, and never shouted.** A simulated figure carries one
+    quiet mark: its source tag or the page's one source line ("Source: simulated"), never a
+    banner, callout, watermark or repeated tip, and nothing calls the product a demo (owner,
+    2026-11-26: commercial delivery). Real data shows only its source and as-of time. Real and
+    simulated quotes never compete for a best price.
 11. **Accessible by default.** Text meets WCAG AA contrast in light and dark themes, and
     scrollable regions are keyboard focusable. The browser-acceptance axe sweep enforces
     this.
@@ -138,7 +141,7 @@ unchanged; these rules govern how much of that evidence is *on screen by default
     and a line saying why this person sees it). An item is urgent for six hours after it
     became true or materially changed, then it is standing and only the bell lists it. Every
     item names its source and is a translated sentence built from fields; an unsourced item
-    is rejected; a demo figure carries `sim`. Hide is personal and the item comes back when
+    is rejected; a simulated figure carries `sim`. Hide is personal and the item comes back when
     its size or status changes. A new item is announced once; a standing state never is.
     Thresholds (outage GWh/d and share, price move %, focus hubs, the quiet line) are personal
     preferences with organisation defaults. Hooks: `[data-shell-region="ticker"]`,
@@ -168,9 +171,8 @@ exact copy, so that presentation can improve without weakening a gate.
     ("as of 00:57 CET"), and the feed status is a short word.
 15. **The top bar holds navigation, search, alerts, data status and the account, nothing else.**
     Below 1024 px the mark is the menu (one control). Every icon-only control has an accessible
-    name and a tooltip, and is 44 px on a touch screen. Demo mode is said once and quietly: a small
-    "Demo" badge beside the mark and one line in the account menu, never a chip on every page (the
-    simulated-prices banner on a board stays, rule 10). Help, keyboard shortcuts and "Report a
+    name and a tooltip, and is 44 px on a touch screen. There is no demo badge, demo line or demo
+    mode on the bar or in the account menu (rule 10). Help, keyboard shortcuts and "Report a
     problem" live in the account menu and in the answer bar ("help", "report a problem"), not as a
     "?" button on the bar.
 16. **Problems are listed, not pinned.** Reads that did not load show as a count on the top bar's

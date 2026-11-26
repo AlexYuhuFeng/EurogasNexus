@@ -186,7 +186,8 @@ export function WorkspaceTopBar({
     return () => window.removeEventListener("keydown", onKey);
   }, [drawerOpen]);
   const shortcutLabel = /Mac|iPhone|iPad/.test(globalThis.navigator?.platform ?? "") ? "⌘K" : "Ctrl K";
-  const demoMode = useApiStore((state) => state.runtimeRelease?.demo_marks === true) || deskToday.today?.simulated === true;
+  // Simulated marks: the status panel does not count a static simulated store's figures as stale.
+  const simulatedMarks = useApiStore((state) => state.runtimeRelease?.demo_marks === true) || deskToday.today?.simulated === true;
   const storeSources = useApiStore((state) => state.sources);
   const heldSources = heldApprovalSources(storeSources ?? []).length;
   const closeDrawer = () => {
@@ -202,8 +203,7 @@ export function WorkspaceTopBar({
       data-shell-region="global-context"
     >
       {/* Top-left: the mark. Where the lines of work live in the drawer (below 1024 px) the mark
-          is the one control that opens it, not a logo beside a separate hamburger. A demo
-          deployment says so once, quietly, beside the mark (and in the account menu). */}
+          is the one control that opens it, not a logo beside a separate hamburger. */}
       {drawerNav ? (
         <button
           ref={menuButtonRef}
@@ -216,7 +216,6 @@ export function WorkspaceTopBar({
           onClick={() => setDrawerOpen((open) => !open)}
         >
           <BrandMark variant="mark" size="md" tone="mono" className="topbar-brand" />
-          {demoMode ? <span className="topbar-demo-badge" aria-hidden="true">{t("topbar.demo_badge")}</span> : null}
           {!compact ? (
             <span className="topbar-menu-label">
               <span>{menuLabel}</span>
@@ -227,9 +226,6 @@ export function WorkspaceTopBar({
       ) : (
         <span className="topbar-brand-group">
           <BrandMark variant={widthClass === "wide" ? "wordmark" : "mark"} size="md" tone="mono" className="topbar-brand" />
-          {demoMode ? (
-            <span className="topbar-demo-badge" title={t("topbar.demo_mode")}>{t("topbar.demo_badge")}</span>
-          ) : null}
         </span>
       )}
       {drawerNav && drawerOpen && createPortal(
@@ -343,7 +339,7 @@ export function WorkspaceTopBar({
             streamingActive={streamingActive}
             marketLastUpdatedAtUtc={marketLastUpdatedAtUtc}
             showSourceCounts={compositionSeesAdministration(composition)}
-            demoPrices={demoMode}
+            simulatedMarks={simulatedMarks}
             staleFigures={seesCommercial ? deskToday.today?.stale_figures ?? [] : []}
             onOpenFigure={openFigure}
             endpointFailures={endpointFailures}
@@ -374,7 +370,6 @@ export function WorkspaceTopBar({
                   onOpenHelp={() => onOpenPrimaryWorkspace("system")}
                   onOpenAdministration={seesAdministration ? () => onOpenPrimaryWorkspace("administration") : undefined}
                   onReportProblem={() => requestProblemReport({})}
-                  demoMode={demoMode}
                   onSignOut={onSignOut}
                 />
               </>
