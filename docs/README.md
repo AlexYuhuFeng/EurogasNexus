@@ -154,6 +154,7 @@ behavior.
 | Document | Authority |
 | --- | --- |
 | [Architecture decisions and ADR process](architecture/ARCHITECTURE_DECISION_RECORD.md) | Normative for architecture decisions |
+| [Architecture plan, version 3](architecture/ARCHITECTURE_V3_PLAN.md) and its [draft decisions](architecture/decisions/) | Proposal awaiting the owner's decisions; not normative; responds to the [professional review of 2026-11-26](assessments/professional-review-2026-11-26/README.md) |
 | [Coding standards](engineering/CODING_STANDARDS.md) | Normative for Python code review |
 | [API contract evolution policy EN](architecture/API_CONTRACT_EVOLUTION_POLICY.md) / [CN](architecture/API_CONTRACT_EVOLUTION_POLICY-CN.md) | Normative for `/api` change control |
 | [API path policy](api/API_PATH_POLICY.md) | Normative for route prefixes |
