@@ -296,8 +296,20 @@ def list_quotes(
     product: str | None = None,
     source_system: str | None = None,
     limit: int = Query(default=500, ge=1, le=2000),
+    cursor: str | None = _PAGE_CURSOR,
+    from_utc: str | None = _FROM_UTC,
+    to_utc: str | None = _TO_UTC,
 ) -> dict:
-    """Return normalized L1 quotes from the runtime DB."""
+    """Return normalized L1 quotes from the runtime DB, newest first, one keyset page.
+
+    The page used to stop at ``limit`` without saying so; it now states
+    ``meta.continuation`` (``has_more``, ``cursor``) like every paged read.
+    """
+
+    page = _page_request(
+        limit, cursor, from_utc, to_utc,
+        {"hub": hub or "", "product": product or "", "source_system": source_system or ""},
+    )
 
     if not _db_is_configured():
         return _env(
@@ -312,27 +324,22 @@ def list_quotes(
 
         now = datetime.now(UTC)
         with get_session_factory()() as session:
-            rows = _filter_entitled_rows(
-                request,
-                market_quotes(
-                    session,
-                    hub=hub,
-                    product=product,
-                    source_system=source_system,
-                    limit=limit,
-                ),
-                source_key="source_system",
+            found, more = market_quotes(
+                session, hub=hub, product=product, source_system=source_system, page=page
             )
+            rows = _filter_entitled_rows(request, found, source_key="source_system")
             # P-08: the one price every screen reads for each quote's hub and window.
             book = open_price_book(
                 session, request, now=now, hubs={str(row.get("hub") or "") for row in rows}
             )
         # Each quote with its as-of, age against the source's cadence and the previous close
         # (additive fields; the close is read from the desk's daily closes for this caller).
-        return _env(
+        envelope = _env(
             attach_resolved(annotate_quotes(rows, quote_close_rows(request, now), now=now), book),
             source="runtime-postgresql",
         )
+        envelope["meta"]["continuation"] = more
+        return envelope
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 

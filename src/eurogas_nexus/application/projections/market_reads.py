@@ -373,8 +373,10 @@ def market_quotes(
     product: str | None = None,
     source_system: str | None = None,
     limit: int = 500,
-) -> list[dict[str, Any]]:
-    """Return normalized L1 quotes newest first (repository filter semantics)."""
+    page: Any = None,
+) -> Any:
+    """Return normalized L1 quotes newest first (repository filter semantics); with ``page``
+    a keyset page and its ``meta.continuation``."""
 
     from eurogas_nexus.db.repositories.market_intelligence import list_market_quotes
 
@@ -384,6 +386,7 @@ def market_quotes(
         product=product,
         source_system=source_system,
         limit=limit,
+        page=page,
     )
 
 

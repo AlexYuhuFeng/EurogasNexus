@@ -125,3 +125,12 @@ def test_csv_pages_say_so_in_headers(client) -> None:
 def test_fx_pages_the_same_way(client) -> None:
     body = client.get("/api/market/fx", params={"limit": 5}, headers=TOKEN).json()
     assert body["meta"]["continuation"]["limit"] == 5
+
+
+def test_quotes_state_their_page(client) -> None:
+    """``/api/market/quotes`` stopped at ``limit`` without saying so."""
+
+    body = client.get("/api/market/quotes", params={"limit": 50}, headers=TOKEN).json()
+    assert body["meta"]["continuation"] == {
+        "anchor_utc": None, "limit": 50, "returned": 0, "has_more": False, "cursor": None,
+    }
