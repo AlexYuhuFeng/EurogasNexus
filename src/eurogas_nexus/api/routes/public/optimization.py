@@ -18,6 +18,7 @@ from uuid import uuid4
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel, ConfigDict, Field
 
+from eurogas_nexus.api.manual_inputs import states_manual_inputs
 from eurogas_nexus.domain.market.gas_day import (
     DEFAULT_GAS_DAY_CALENDAR,
     gas_day_label,
@@ -478,6 +479,7 @@ def optimize_contracts(body: ContractOptimizationRequest) -> dict:
 
 
 @router.post("/storage-dispatch")
+@states_manual_inputs(include=("facility", "periods", "inventory_step_mwh"))
 def optimize_storage_dispatch(body: StorageDispatchOptimizationRequest) -> dict:
     """Assess multi-period storage inject/withdraw/hold dispatch.
 

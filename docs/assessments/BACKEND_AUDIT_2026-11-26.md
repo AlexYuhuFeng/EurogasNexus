@@ -32,7 +32,7 @@ integrator meets, or a measured hot spot; **L** hygiene.
 | A3b | `/api/strategies`, `/api/strategy-runs`, `/api/shadow-*` answer `runtime_db_unavailable` (retry) when no store is configured (configure) | `_db_unavailable` used for both cases | `backtest-experiments` | `runtime_db_required` when no store is configured (strategy registry, shadow) | L | Fixed |
 | A4 | Calculation inputs read with `.limit(N).all()` stopped silently past the bound; some reads were unordered (an arbitrary part) or ascending (the **newest** marks dropped) | A memory guard written without an overflow signal | `position_inputs.curve_quotes` (ascending, 20k), `desk_today` storage (unordered, 40k), `fundamentals` NWE prices (unordered, 50k), report LNG (60k) and power burn (400k), `remit_outages` open messages (unordered DISTINCT, 5k: outages left out of the list and the map), `news_ingest._latest_remit` (unordered 20k: a message's "latest" could be an older version) | `application/bounded_reads.read_bounded()` reads one past the bound and raises `ReadBoundExceeded`, answered 422 `read_bound_exceeded` with `params {what, bound}` | H | Fixed |
 | A4b | Newest-first reads with a bound (`map_situation` flows 20k, `map_assets` capacity 20k / stock 5k, `analysis` 20–50, `support` reports 500, `streaming` pages) drop the oldest rows silently | Same cause, lower harm (the newest per key is what they want) | — | Proposal: `read_bounded` where the result is a list shown to the user (`support` reports: page with `meta.next_cursor`) | M | Proposal |
-| A4c | `GET /api/market/observations` returns the whole table: 20.8 MB, 2.3 s on the demo desk | "Deliberately unbounded" export read (`market_reads.market_observations`) | CSV form of the same read | Proposal: `limit`/`cursor` with `meta.next_cursor`, default bound for JSON; CSV export as a background job for full history | M | Proposal |
+| A4c | `GET /api/market/observations` returned the whole table: 20.8 MB, 2.3 s on the demo desk | "Deliberately unbounded" export read | `/api/market/fx` (whole table), `/api/market/quotes` (stopped at `limit` silently) | One keyset style (`application/keyset_paging.py`, the audit cursor made general): `limit` (default 1,000), `cursor`, `from_utc`/`to_utc`, `meta.continuation`; CSV pages in headers; SDK reads a range page by page; CLI/MCP read seven days; web FX reads ten days | M | Fixed |
 | A5 | Pagination: four styles (`limit` 33 routes, `cursor+limit` 2, `limit+offset` 2, `after+limit` 1) | Grown per route | — | Proposal: `limit` + opaque `cursor`, `meta.limit`, `meta.next_cursor`, `meta.truncated` on every list | L | Proposal |
 | A6 | Permissions | Checked: the route-permission registry is central (`security/permissions.py`, 500 on an undeclared path); work mode is derived from capabilities (`available_work_modes`) and `work_mode_grants_authority` is reported false; no route grants by persona (rule 7 holds) | `db/repositories/strategy_access.py` raises HTTP errors from the data layer | Its two refusals now carry codes; proposal: a domain `AccessDenied` mapped at the API edge | L | Partly fixed |
 | O1 | "Is this row simulated?" had five rules in ~50 places: `endswith("_Sim")` (most), that or `metadata.simulated`, a case-insensitive suffix, or suffix or a `demo` prefix | No shared predicate; each reader wrote its own | 39 hand-written suffix checks remain | `domain/ontology/provenance.is_simulated()`: metadata flag, `*_Sim` any case, or the demo desk's `DEMO` source; the five named helpers delegate to it; a ratchet test stops new hand checks; market observation rows carry `simulated` | H | Fixed (ratchet) |
@@ -42,7 +42,7 @@ integrator meets, or a measured hot spot; **L** hygiene.
 | O4 | Hub identity duplicated (aliases, case, quote currency) | — | Branch `hubid` unifies it (ETF/GTF, VTP/CEGH, migration 0091) | Not touched here | M | Other branch |
 | O5 | Money and price fields with no unit or currency beside them | Payload shapes grown per screen | `desk/today` series `value`, `forward-balance` `price`, `daily-balance` `cash_out_cost`, `position-ladder` `mark`/`mark_to_market`, `spreads/board` `cost`/`value`, `upstream-contracts` `credit_support_amount` (from the consistency audit) | Proposal: add `unit`/`currency` siblings (additive) | M | Proposal |
 | O6 | Time-named keys holding non-times: `largest_at: "NBP 2027-01"`, `marked_at: "current mid"`, `as_of: "2025-12"`, `daily_at: "08:15"` | Naming | `discoveries`, `mandate-usage`, `market/prompt`, `forward-balance`, `sources` | Proposal: rename additively (`largest_contract`, `mark_basis`, `as_of_month`, `daily_at_local`) | L | Proposal |
-| O7 | Rule 19: which inputs were entered by hand | Checked: valuation snapshots classify every input (`InputClass`: sourced, derived, firm mark, indicative, assumption, simulated, missing); not every calculation route states its manual inputs in one field | Route-cost, capacity optimiser, storage valuation, LNG disruption take free-form overrides | Proposal: `meta.inputs_entered_by_hand: [{field, value, unit}]` on every calculation response, from one helper | M | Proposal |
+| O7 | Rule 19: which inputs were entered by hand | Each calculation said it its own way (`inputs: ["manual"]`, `basis: "entered"`, "entered by hand" texts) or not at all | Every calculation route | One field `meta.manual_inputs: [{name, value, unit, entered_by, entered_at}]`, empty when all inputs came from records; builder `application/manual_inputs.py`, one-line decorator `api/manual_inputs.states_manual_inputs`; client `components/ui/ManualInputsNote.tsx`. Inventory below | M | Fixed (wired routes listed) |
 | O8 | Ingestion run status vocabulary mixed (`succeeded` vs `SUCCEEDED_WITH_WARNINGS`) | The simulated-price writer and the scheduler write different spellings | Normalised at read (`domain/dataops/run_status.py`) | Proposal: write the enum value | L | Proposal |
 | I1 | Each ingest script hand-rolls its HTTP retry | Scripts written one source at a time | `ingest_eia._read_with_retry`, `gie_iip.http_page_getter`, `national_gas_rest`, `national_gas_demand` | Proposal: one bounded retry helper in `core/outbound_http` (Retry-After, capped back-off, refusal envelope hook) | M | Proposal |
 | I2 | Freshness | Checked: GIE AGSI/ALSI rounds read the newest page within the operator budget and are recorded `SUCCEEDED_WITH_WARNINGS` with `complete=false;stop=operator_record_budget`; freshness is the newest gas day held, which is honest | — | — | — | OK |
@@ -51,6 +51,39 @@ integrator meets, or a measured hot spot; **L** hygiene.
 | P3 | `/api/desk/today` 158 statements / 4.9 s; `/api/reports/catalogue` 97 / 5.8 s; `/api/discoveries` 2.3 s; `/api/fundamentals/forward-balance` 3.2 s | Composite reads of many sections; screen orders read 11 times on Today | — | Proposal: profile per section; Today's screen-order read once per request | M | Proposal |
 | P4 | Missing indexes on hot reads | Storage and LNG reads filter `country IN (…) AND period_start_utc` (Today, NWE balance, reports) but the index is `(facility_id, period_start_utc)`; flow reads for the map filter `period_start_utc` and `kind` with no point, which `(point_id, period_start_utc)` cannot serve | `storage_observations`, `lng_observations`, `flow_observations` | Proposal: migration adding `(country, period_start_utc)` on storage and LNG and `(kind, period_start_utc)` on flows, after `EXPLAIN ANALYZE` on a production-sized store; deferred because seven branches carry migrations and the head literals are pinned in 13 places | M | Proposal |
 | P5 | Glossary per-row requests | Checked: the glossary is one list read (12 ms); context is read on selection only | — | — | — | OK |
+
+## Manual inputs: inventory (rule 19)
+
+Wired (`meta.manual_inputs` on every response):
+
+| Endpoint | Hand-entered fields stated |
+|----------|----------------------------|
+| `POST /api/research/route-cost`, `/netback`, `/feasibility`, `/allocation`, `/cash-valuation`, `/capacity-billing`, `/lng-economics-only` | every figure the caller set (sandbox calculations) |
+| `POST /api/route-cost/calculate` | `flow_quantity`, the typed tariff legs' figures |
+| `POST /api/lng/cargo-economics` | cargo figures typed per cargo (prices, slope, voyage costs), terminal inputs, `eua_eur_t` |
+| `POST /api/lng/cargoes/{id}/plan/what-if` | `eta_utc`, `berth_delay_hours`, `laytime_hours`, `demurrage_per_day` |
+| `POST /api/portfolio/lng-cargo-bid` (bid sheet) | cargo size, target margin, boil-off, charter |
+| `POST /api/portfolio/sell-down-plan` | `da_price`, `wd_expected_price`, penalties, lot |
+| `POST /api/optimization/storage-dispatch` | the facility and period figures |
+| `GET /api/portfolio/position-ladder?shock=` (price shock scenario) | each tenor shock |
+
+Not yet wired (each needs the route to collect what it read from a stored hand entry, so not
+a one-line change): `GET /api/fundamentals/forward-balance` (temperature, Norway, LNG and
+outage overrides; today `lines[].inputs = ["manual"]`), `POST /api/optimization/route`,
+`/capacity`, `/contracts`, `/portfolio-network`, `/resource-pool`, `/nomination-window`,
+`POST /api/route-cost/recommend`, `/lng-regas/assess`, `/resource-pool/optimize`,
+`GET /api/capacity/cost` (a rate entered by hand in the FX check), `GET
+/api/lng/cargoes/{id}/disruption-options` (pipeline days entered by hand, a hand FX rate),
+`POST /api/research/spreads/evaluate` (the spec mixes choices and typed costs),
+`GET /api/market/valuation-snapshots/{id}` (inputs of class `assumption`), the hedge planner
+(`GET /api/portfolio/hedge-approvals`), gas-day bands entered by hand (`application/gas_day.py`).
+
+Client wiring points for the UI reviewers (`<ManualInputsNote meta={response.meta} />` under
+the result; each panel must first keep `response.meta`): `SellDownPanel.tsx` (sell-down),
+`research/CargoStudy.tsx` (cargo economics), `CargoPlanView.tsx` (what-if),
+`PositionLadderPanel.tsx` (shock scenario), the bid sheet panel, `app/model/
+useOptimizationAssessment.ts` (storage dispatch), the route-cost calculator and the research
+sandbox panels.
 
 ## Fixes in this branch
 

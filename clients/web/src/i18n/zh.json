@@ -6932,5 +6932,8 @@
   "view.refreshing": "数据截至 {{time}}，正在更新",
   "view.refreshing.detail": "本页部分数据为 {{time}} 计算的最近结果。已有新数据到达，正在重新计算，完成后页面会更新。",
   "map.start_failed.title": "此浏览器无法启动地图",
-  "map.start_failed.body": "地图需要 WebGL，而此浏览器或电脑已将其关闭。本页的管网列表和数据仍可使用；如需查看地图，请换用其他浏览器或开启硬件加速。"
+  "map.start_failed.body": "地图需要 WebGL，而此浏览器或电脑已将其关闭。本页的管网列表和数据仍可使用；如需查看地图，请换用其他浏览器或开启硬件加速。",
+  "manualInputs.summary_one": "{{count}} 项输入为手工录入",
+  "manualInputs.summary_other": "{{count}} 项输入为手工录入",
+  "manualInputs.enteredBy": "录入人：{{who}}"
 }

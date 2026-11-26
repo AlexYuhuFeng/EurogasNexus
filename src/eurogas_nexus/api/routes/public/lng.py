@@ -5,6 +5,7 @@ from datetime import date, datetime
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
+from eurogas_nexus.api.manual_inputs import states_manual_inputs
 from eurogas_nexus.api.routes.public import observation_window
 
 router = APIRouter(tags=["lng"])
@@ -483,6 +484,12 @@ def record_freight_route(
 
 
 @router.post("/api/lng/cargo-economics")
+@states_manual_inputs(
+    include=("cargoes", "terminal_inputs", "eua_eur_t"),
+    exclude=("term", "label", "standard", "ballast", "des_currency", "des_price_unit",
+             "pricing_month"),
+    units={"eua_eur_t": "EUR/t"},
+)
 def post_cargo_economics(body: CargoEconomicsBody, request: Request) -> dict:
     """FOB and DES cargoes in one table: cost at the ship's rail, netback and margin per
     terminal for the arrival month, every input with its class and source (design C.1-C.3).
@@ -608,6 +615,10 @@ def cargo_plan(
 
 
 @router.post("/api/lng/cargoes/{cargo_id}/plan/what-if")
+@states_manual_inputs(
+    include=("eta_utc", "berth_delay_hours", "laytime_hours", "demurrage_per_day"),
+    units={"demurrage_per_day": "per day"},
+)
 def cargo_plan_what_if(cargo_id: str, body: CargoWhatIfBody, request: Request) -> dict:
     """The plan now against the plan under another ETA, slot or berth delay (READ: nothing is
     stored)."""

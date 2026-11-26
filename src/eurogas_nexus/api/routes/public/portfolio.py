@@ -325,8 +325,17 @@ def get_position_ladder(
             title="Position ladder",
             about=about,
         )
-    return _env(
-        payload, request, source="runtime-postgresql", warnings=[*warnings, *report.warnings]
+    from eurogas_nexus.application.manual_inputs import attach, manual_input
+
+    # Rule 19: each tenor shock is a price move typed by hand.
+    return attach(
+        _env(
+            payload, request, source="runtime-postgresql", warnings=[*warnings, *report.warnings]
+        ),
+        [
+            manual_input(f"shock:{hub}:{month}", delta, "per MWh (hub currency)")
+            for (hub, month), delta in sorted(tenor_shocks.items())
+        ],
     )
 
 

@@ -12,6 +12,7 @@ from datetime import UTC, date, datetime, timedelta
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
+from eurogas_nexus.api.manual_inputs import states_manual_inputs
 from eurogas_nexus.api.positions import ladder_inputs
 from eurogas_nexus.api.routes.public.portfolio_common import (
     db_is_configured as _db_is_configured,
@@ -745,6 +746,12 @@ class CargoBidBody(BaseModel):
 
 
 @router.post("/api/portfolio/lng-cargo-bid")
+@states_manual_inputs(
+    include=("cargo_mwh", "cargo_mmbtu", "target_margin_per_mwh", "boil_off_pct_per_day",
+             "charter_per_day"),
+    units={"target_margin_per_mwh": "per MWh", "boil_off_pct_per_day": "%/d",
+           "charter_per_day": "per day"},
+)
 def post_lng_cargo_bid(body: CargoBidBody, request: Request) -> dict:
     """The most the firm can bid DES for a cargo at each terminal, best first.
 
@@ -952,6 +959,12 @@ class SellDownBody(BaseModel):
 
 
 @router.post("/api/portfolio/sell-down-plan")
+@states_manual_inputs(
+    include=("da_price", "wd_expected_price", "short_penalty_per_mwh", "long_discount_per_mwh",
+             "lot_mwh"),
+    units={"da_price": "per MWh", "wd_expected_price": "per MWh",
+           "short_penalty_per_mwh": "per MWh", "long_discount_per_mwh": "per MWh"},
+)
 def post_sell_down_plan(body: SellDownBody, request: Request) -> dict:
     """How much of tomorrow's supply at a hub to sell day-ahead, and how much to keep back.
 

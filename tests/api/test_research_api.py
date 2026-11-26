@@ -65,3 +65,15 @@ def test_research_metadata(client: TestClient) -> None:
     assert data["research_only"] is True
     assert "assumptions" in data
     assert "source_references" in data
+
+
+def test_a_sandbox_calculation_states_what_was_typed(client: TestClient) -> None:
+    """Rule 19: every input of the sandbox netback was entered by hand, and says so."""
+
+    r = client.post("/api/research/netback", json={
+        "route_name": "TTF-NBP", "from_market": "TTF", "to_market": "NBP",
+        "market_price_eur_mwh": 42.50, "route_cost_eur_mwh": 1.80, "fx_rate": 0.851,
+    })
+    manual = {item["name"]: item for item in r.json()["meta"]["manual_inputs"]}
+    assert set(manual) == {"market_price_eur_mwh", "route_cost_eur_mwh", "fx_rate"}
+    assert manual["market_price_eur_mwh"]["unit"] == "EUR/MWh"

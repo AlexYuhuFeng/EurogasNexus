@@ -6932,5 +6932,8 @@
   "view.refreshing": "Figures from {{time}}, updating",
   "view.refreshing.detail": "Some figures on this page are the last ones computed, at {{time}}. Newer data has arrived and they are being recomputed; the page updates when they are ready.",
   "map.start_failed.title": "The map can't start in this browser",
-  "map.start_failed.body": "It needs WebGL, which this browser or machine has switched off. The network lists and figures on this page still work; try another browser or turn on hardware acceleration to see the map."
+  "map.start_failed.body": "It needs WebGL, which this browser or machine has switched off. The network lists and figures on this page still work; try another browser or turn on hardware acceleration to see the map.",
+  "manualInputs.summary_one": "{{count}} input entered by hand",
+  "manualInputs.summary_other": "{{count}} inputs entered by hand",
+  "manualInputs.enteredBy": "entered by {{who}}"
 }

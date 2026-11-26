@@ -12,6 +12,7 @@ from eurogas_nexus.api.dependencies.acting_actor import require_acting_actor
 from eurogas_nexus.api.dependencies.analysis_snapshot import (
     require_known_analysis_snapshot,
 )
+from eurogas_nexus.api.manual_inputs import states_manual_inputs
 from eurogas_nexus.application.resource_pool import (
     active_company_tsos,
     compose_resource_pool_options,
@@ -902,6 +903,7 @@ def get_resource_pool_options(
 
 
 @router.post("/api/route-cost/calculate")
+@states_manual_inputs(include=("flow_quantity", "tariff_legs"))
 def post_route_cost_calculation(body: RouteCostScenario, request: Request) -> dict:
     """Calculate a European explicit-leg route-cost scenario."""
 
