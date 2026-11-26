@@ -104,6 +104,28 @@ def _dataset_spec_error(exc: ValidationError) -> HTTPException:
     for error in exc.errors():
         location = ".".join(str(part) for part in error.get("loc", ())) or "dataset_spec"
         message = str(error.get("msg") or "")
+        if error.get("type") == "extra_forbidden":
+            issues.append(
+                {
+                    "field": location[:128],
+                    "code": "dataset_field_unknown",
+                    "message": "Unknown dataset specification field; it would be ignored.",
+                }
+            )
+            continue
+        if location in {"timezone", "output_format"}:
+            issues.append(
+                {
+                    "field": location,
+                    "code": f"{location}_unsupported",
+                    "message": (
+                        "Only 'UTC' is supported; origins are aligned in UTC."
+                        if location == "timezone"
+                        else "Only the 'long' output format is supported."
+                    ),
+                }
+            )
+            continue
         # Split checks come first: their messages mention `end must be after start` and
         # dates too, so a later branch would classify a split fault as a top-level one and
         # the caller would look in the wrong place for the mistake.

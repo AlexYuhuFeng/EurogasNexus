@@ -16,7 +16,7 @@ from datetime import UTC, datetime, timedelta
 from enum import StrEnum
 from typing import Any
 
-from pydantic import BaseModel, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from eurogas_nexus.domain.research.feature_transforms import (
     apply_transform,
@@ -134,6 +134,10 @@ def walk_forward_folds(
 class DatasetSpec(BaseModel):
     """Declarative, versioned dataset definition."""
 
+    # An unknown key used to be dropped in silence: a spec with ``"frequency": "1d"``
+    # instead of ``forecast_origin_frequency`` built an hourly dataset with no warning.
+    model_config = ConfigDict(extra="forbid")
+
     dataset_spec_id: str
     name: str
     description: str
@@ -155,6 +159,25 @@ class DatasetSpec(BaseModel):
     split_specs: list[DatasetSplit] = Field(default_factory=list)
     output_format: str = "long"
     ontology_version: str = "energy-ontology/v1"
+
+    @field_validator("timezone")
+    @classmethod
+    def _timezone_is_honoured(cls, value: str) -> str:
+        # Origins are generated and aligned in UTC (see ``_origins``); any other value was
+        # accepted and ignored, so ``Europe/Amsterdam`` still produced UTC-midnight origins.
+        if str(value).strip().upper() != "UTC":
+            raise ValueError(
+                "timezone: only 'UTC' is supported; express gas-day or CET origins "
+                "through start (e.g. 2026-01-01T05:00:00Z)"
+            )
+        return "UTC"
+
+    @field_validator("output_format")
+    @classmethod
+    def _output_format_is_honoured(cls, value: str) -> str:
+        if value != "long":
+            raise ValueError("output_format: only 'long' is supported")
+        return value
 
     @model_validator(mode="after")
     def validate_service_bounds(self) -> DatasetSpec:
