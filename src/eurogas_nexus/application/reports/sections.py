@@ -1375,25 +1375,29 @@ def book_pnl(ctx: Ctx) -> SectionResult:
         for pid, snap in sorted(latest.items())
     ]
     if not hubs_out and not snapshots:
-        return _empty(result, "No P&L figure is held for the books you may see", "Open P&L")
+        return _empty(result, T("No P&L figure is held for the books you may see",
+                                "您可查看的账簿中没有损益数据"), T("Open P&L", "打开损益"))
     result.tables.append(table(
-        "Day P&L change on the open position",
-        [("hub", "Hub", "text"), ("change", "Day change", "signed"),
-         ("currency", "Currency", "text"), ("reason", "Not valued because", "text")],
+        T("Day P&L change on the open position", "敞口的当日损益变化"),
+        [("hub", T("Hub", "枢纽"), "text"), ("change", T("Day change", "日变化"), "signed"),
+         ("currency", T("Currency", "货币"), "text"),
+         ("reason", T("Not valued because", "未估值原因"), "text")],
         hubs_out,
     ))
     if snapshots:
         result.tables.append(table(
-            "Imported indicative P&L valuations",
-            [("portfolio", "Portfolio", "text"), ("pnl", "Indicative P&L (GBP)", "num"),
-             ("change", "Since previous (GBP)", "signed"), ("valued", "Valued", "datetime")],
+            T("Imported indicative P&L valuations", "导入的指示性损益估值"),
+            [("portfolio", T("Portfolio", "组合"), "text"),
+             ("pnl", T("Indicative P&L (GBP)", "指示性损益（GBP）"), "num"),
+             ("change", T("Since previous (GBP)", "较上次（GBP）"), "signed"),
+             ("valued", T("Valued", "估值时间"), "datetime")],
             snapshots,
         ))
         result.simulated = result.simulated or any(s["simulated"] for s in snapshots)
-    result.methods.append({"key": "day_pnl_change", "title": "Day P&L change",
+    result.methods.append({"key": "day_pnl_change", "title": T("Day P&L change", "当日损益变化"),
                            "text": method_note("day_pnl_change")["summary"]})
-    result.sources.append(source("Position ladder and daily closes", "operator-input", ctx.now,
-                                 "current"))
+    result.sources.append(source(T("Position ladder and daily closes", "头寸阶梯与每日收盘价"),
+                                 "operator-input", ctx.now, "current"))
     result.books = sorted({leg.book_id for leg in book.inputs.legs if leg.book_id}) \
         if book.inputs else []
     return _apply(result, rules.pnl({"hubs": hubs_out, "snapshots": snapshots,
@@ -1482,16 +1486,19 @@ def book_contracts(ctx: Ctx) -> SectionResult:
         if contract.book_id:
             books.add(contract.book_id)
     if not rows:
-        return _empty(result, "No supply contract is in effect in the books you may see",
-                      "Open Contracts")
+        return _empty(result, T("No supply contract is in effect in the books you may see",
+                                "您可查看的账簿中没有生效的供应合同"),
+                      T("Open Contracts", "打开合同"))
     result.tables.append(table(
-        "Contracts in effect today",
-        [("name", "Contract", "text"), ("point", "Delivery point", "text"),
-         ("gas_year", "Gas year", "text"), ("mwh_per_day", "MWh/d", "num"),
-         ("price", "Price", "num"), ("unit", "Price unit", "text"), ("book", "Book", "text")],
+        T("Contracts in effect today", "今日生效的合同"),
+        [("name", T("Contract", "合同"), "text"), ("point", T("Delivery point", "交付点"), "text"),
+         ("gas_year", T("Gas year", "燃气年"), "text"), ("mwh_per_day", "MWh/d", "num"),
+         ("price", T("Price", "价格"), "num"), ("unit", T("Price unit", "价格单位"), "text"),
+         ("book", T("Book", "账簿"), "text")],
         rows,
     ))
-    result.sources.append(source("Contract register", "operator-input", ctx.now, "current"))
+    result.sources.append(source(T("Contract register", "合同登记"), "operator-input", ctx.now,
+                                 "current"))
     result.books = sorted(books)
     return _apply(result, rules.contracts({"rows": rows}))
 
@@ -1718,3 +1725,8 @@ BUILDERS: dict[str, Callable[[Ctx], SectionResult]] = {
     "book_limits": book_limits,
     "book_contracts": book_contracts,
 }
+
+# The portfolio and outlook sections live in their own module (it reads this one's helpers).
+from eurogas_nexus.application.reports import portfolio as _portfolio  # noqa: E402
+
+BUILDERS.update(_portfolio.BUILDERS)

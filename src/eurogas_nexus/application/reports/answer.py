@@ -302,6 +302,9 @@ def build(plan, results: list[dict], raws: dict[str, Any], *, today: date,
             cannot.append(f"{section_title(result['key'], result['title'])}"
                           f"{T(': ', '：')}{omitted_reason(result['empty']['reason'])}"
                           f"{T('.', '。')}")
+    if "pf_pnl" in by_key or "pf_outlook" in by_key:
+        budget = "variance against a budget (no budget or plan figures are held)"
+        cannot.append(T(f"{NOT_SHOWN} {budget}.", f"{NOT_SHOWN_ZH}{MISSING_ZH[budget]}。"))
     if "balance" in by_key:
         cannot.append(T("The balance forecast is a model estimate with no range.",
                         "平衡预测为模型估算，没有区间。"))
@@ -339,6 +342,14 @@ def rule_answer(sheet: list[dict], info: dict[str, Any], plan) -> dict[str, Any]
         cited = [f for f in sheet if f["key"] in keys and not f.get("scheduled")][:3]
         closing = joins.closing(info["kind"]) if cited else next(
             (c for c in info["cannot_tell"] if c.startswith((NOT_SHOWN, NOT_SHOWN_ZH))), None)
+    elif any(f["section"].startswith("pf_") for f in sheet):
+        # A portfolio question: where the book stands forward, what it is worth, what was
+        # traded (each section's headline fact), then what the data cannot tell.
+        heads = {f["section"]: f for f in sheet if f["key"].endswith(".0") and f.get("sentence")
+                 and f["score"] > 0}
+        cited = [heads[key] for key in ("pf_outlook", "pf_pnl", "pf_trades") if key in heads]
+        closing = next((c for c in info["cannot_tell"]
+                        if c.startswith((NOT_SHOWN, NOT_SHOWN_ZH))), None)
     else:
         ranked = sorted((f for f in sheet if f.get("sentence") and not f.get("scheduled")
                          and not f.get("forecast")), key=lambda f: -f["score"])
@@ -371,6 +382,8 @@ MISSING_ZH = {
     "Asian demand and prices (the platform covers NW Europe)": "亚洲需求与价格（平台覆盖西北欧）",
     "LNG cargo tracking (no vessel source is connected)": "LNG 船货跟踪（未接入船舶数据源）",
     "power prices in a report section": "电价章节",
+    "variance against a budget (no budget or plan figures are held)":
+        "与预算的差异（平台未持有预算或计划数据）",
 }
 
 

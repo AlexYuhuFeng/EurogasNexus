@@ -164,9 +164,68 @@ SECTIONS: tuple[SectionType, ...] = (
         description="Delivery point, gas year, quantity and price of each contract in effect.",
         keywords=("contract", "contracts", "合同"),
     ),
+    # Portfolio and outlook (``portfolio.py``): the book as a desk head or a CFO reads it.
+    SectionType(
+        "pf_supply", "Supply portfolio", "Our book",
+        "Contract register and contract allocations in the caller's books",
+        ("bar", "table"), internal_only=True,
+        description="Contracts by delivery type (beach, entry point, hub, LNG), counterparty, "
+        "price basis, delivered to date and contracted for the rest of the year and next year.",
+        keywords=("supply portfolio", "beach", "upstream", "field", "project", "delivery type",
+                  "供应组合", "岸边", "上游"),
+    ),
+    SectionType(
+        "pf_trades", "Trades and sales", "Our book",
+        "Filled trades in the caller's books and the gas day schedule",
+        ("bar", "table"), internal_only=True,
+        description="Traded volume by counterparty, hub and country, average prices, delivered "
+        "to date, and today's scheduled physical sales.",
+        keywords=("trade", "trades", "traded", "sales", "sold", "sell", "counterparty",
+                  "counterparties", "customer", "customers", "交易", "销售", "交易对手", "客户"),
+    ),
+    SectionType(
+        "pf_pnl", "Realised and unrealised", "Our book",
+        "Position ladder marks, contract allocations and imported P&L valuations",
+        ("table",), internal_only=True,
+        description="Unrealised value of the forward book by hub, realised sale prices and "
+        "supply costs on delivered gas, and the ETRM's realised P&L when imported.",
+        keywords=("realised", "realized", "unrealised", "unrealized", "mark-to-market", "mtm",
+                  "margin", "已实现", "未实现", "盯市"),
+    ),
+    SectionType(
+        "pf_outlook", "Forward view", "Our book",
+        "Position ladder, hedge approvals and daily closes over the caller's books",
+        ("stacked_bar", "table"), internal_only=True,
+        description="Bought, sold and open volume for the rest of the year and by quarter next "
+        "year, hedge cover against approved bands, sensitivities and value at risk.",
+        keywords=("portfolio", "outlook", "next year", "forward", "hedge", "hedged", "hedging",
+                  "open position", "risk", "var", "sensitivity", "expect", "expecting",
+                  "组合", "展望", "明年", "对冲", "风险", "敞口"),
+    ),
+    SectionType(
+        "pf_lng", "LNG cargoes and regas", "Our book",
+        "LNG confirmations in the contract register, own cargoes and regas slots",
+        ("table",), internal_only=True,
+        description="Own cargoes in transit, cargoes in plan under a master agreement and the "
+        "regasification slots held.",
+        keywords=("cargo", "cargoes", "ship", "ships", "vessel", "regas slot", "slot", "mspa",
+                  "船货", "气化窗口"),
+    ),
+    SectionType(
+        "pf_strategies", "How the book is run", "Our book",
+        "Contract sale routes, hedges linked to contracts, strategies and held capacity",
+        ("table",), internal_only=True,
+        description="Sale routes by contract, hedges tied to named supply, registered "
+        "strategies and cross-border flows on held capacity.",
+        keywords=("strategy", "strategies", "route", "routes", "策略"),
+    ),
 )
 SECTION_BY_KEY = {section.key: section for section in SECTIONS}
-BOOK_SECTIONS = tuple(s.key for s in SECTIONS if s.internal_only)
+#: The book sections a daily, weekly or monthly market report carries by default.
+BOOK_SECTIONS = tuple(s.key for s in SECTIONS if s.internal_only and s.key.startswith("book_"))
+#: A portfolio and outlook report, in print order (an asked portfolio question proposes it).
+PORTFOLIO_SECTIONS = ("pf_outlook", "pf_pnl", "pf_supply", "pf_trades", "pf_lng",
+                      "pf_strategies", "book_limits")
 
 #: Each kind's default section list, in print order.
 DEFAULT_SECTIONS: dict[str, tuple[str, ...]] = {
