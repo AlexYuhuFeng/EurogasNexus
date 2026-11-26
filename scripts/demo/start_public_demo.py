@@ -519,10 +519,20 @@ DEMO_EVENTS_INTERVAL_SECONDS = 3600
 
 
 def monitoring_command() -> list[str]:
-    """One monitoring scan, as the production worker runs it; no model call unless AI is on."""
+    """One monitoring scan, as the production worker runs it; no model call unless AI is on.
+
+    Enrichment runs only under a named service identity (owner decision D7). The demo turns
+    the model provider on by default but provisions no ``EUROGAS_NEXUS_WORKER_PRINCIPAL``,
+    so every hourly scan printed ``degraded ... service_principal_not_configured`` (demo log,
+    2026-11-26): a configuration the demo itself chose, reported as a fault. Enrichment is
+    asked for only when both are set.
+    """
 
     command = [sys.executable, "scripts/ops/run_monitoring_worker.py", "--once"]
-    if (os.environ.get("EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED") or "").lower() != "true":
+    provider_on = (
+        (os.environ.get("EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED") or "").lower() == "true"
+    )
+    if not provider_on or not (os.environ.get("EUROGAS_NEXUS_WORKER_PRINCIPAL") or "").strip():
         command.append("--no-llm")
     return command
 

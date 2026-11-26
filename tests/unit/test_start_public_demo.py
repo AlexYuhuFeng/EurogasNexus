@@ -378,6 +378,11 @@ def test_the_demo_scans_for_alerts_with_its_own_configuration(monkeypatch):
     command = start.monitoring_command()
     assert command[1:] == ["scripts/ops/run_monitoring_worker.py", "--once", "--no-llm"]
     monkeypatch.setenv("EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED", "true")
+    # Provider on but no service identity to enrich under: asking would only be refused and
+    # logged as "degraded" every hour (demo log 2026-11-26).
+    monkeypatch.delenv("EUROGAS_NEXUS_WORKER_PRINCIPAL", raising=False)
+    assert "--no-llm" in start.monitoring_command()
+    monkeypatch.setenv("EUROGAS_NEXUS_WORKER_PRINCIPAL", "svc-monitoring")
     assert "--no-llm" not in start.monitoring_command()
     # Hourly: an item is news on the strip for six hours.
     assert start.DEMO_EVENTS_INTERVAL_SECONDS == 3600
