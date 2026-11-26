@@ -168,10 +168,31 @@ think time), 120 s, every user starting cold (no view computed for them yet).
 | After, 1 process, no Valkey | 14 | 23,539 | 29,108 | 1,925 | 98 | 112 / 802 | 76 / 74 | 4,711 | 113 / 2,273 |
 | After, 4 processes + Valkey | 45 | 20,351 | 26,569 | 1,883 | 114 | 28 / 166 | 143 / 7 | 3,830 | 165 / 2,225 |
 | Reference: 1 user, 1 tab, 1 process | 118 | 48 | 2,290 | 0 | 89 | 5 / 35 | 1 / 0 | 74 | 228 / 0 |
+| Rerun 2026-11-26 after the security merge and the socket-timeout fix, 1 process, no Valkey | 7 | 16,467 | 29,945 | 1,936 | 83 | 153 / 1,663 | 61 / 89 | 3,702 | 91 / 2,285 |
+| Rerun, same build, 4 processes + Valkey | 31 | 16,453 | 24,516 | 1,911 | 110 | 50 / 376 | 150 / 0 | 7,697 | 146 / 2,257 |
 
 (An earlier pass, before credentials got their own threads, gave on 4 processes 42 main reads,
 health 59 / 269 ms, 150 streams opened and none broken, 6,273 events; on 1 process 18 main
 reads, health 61 / 651 ms, 89 / 61 streams. Timeouts are the client's 30 s limit.)
+
+**The rerun (after the security merge and the 5-second socket fix).** Same procedure and seed,
+with the security settings a production deployment has where the demo profile allows them:
+book isolation on (the 50 load accounts copy the demo trader's scopes, so each sees its own
+entity's books), dual control on, the production write and heavy quotas (GETs are not
+counted), the 5-stream cap per person (counted in Valkey on the 4-process run), 30-minute idle
+sessions. The demo profile itself requires the `development` environment, so the second factor
+stays off (it would put every load account into enrolment). The machine was otherwise idle this
+time: load average about 1 before each run; during the 1-process run it stayed between 0.3 and
+1.8 (one process computes on one core), during the 4-process run it rose from 0.5 to 9.5 (the
+four processes and PostgreSQL saturating 4 cores). Every failure in both runs is the load
+client's own 30 s limit; **the server answered no 5xx at all**, and its counters show
+0 statements cancelled (`eurogas_db_statement_timeouts_total`), 0 connections lost and 0 pool
+timeouts (on 4 processes, 3,046 of 5,680 checkouts waited for a connection: requests the client
+had abandoned kept computing and holding one). Before the fix a read over 5 s on the database
+ended in a client-side `TimeoutError` (500, a 502 behind the gateway); here reads of 16 to 24 s
+were answered. The 4-process run holds every stream (150 opened, none broken, 7,697 events) and
+answers health in 50 ms median. Main reads stay bound by the per-person cold computation
+described below, not by serving: 31 answered on 4 processes against 7 on one.
 
 What the numbers show:
 

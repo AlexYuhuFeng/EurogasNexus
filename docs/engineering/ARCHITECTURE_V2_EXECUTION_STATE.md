@@ -24,6 +24,15 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
 - Compose: secfix's hardening and per-service settings, P1's metrics tmpfs, workers and pool
   settings; Valkey hardened (read-only, no capabilities, non-root); the migration no longer
   receives the Valkey URL.
+- The gated upgrade runs as the owner role and refuses up front as the application role;
+  `alembic/env.py` now migrates the URL it is given (it used to prefer the environment's).
+- The 5 s socket defect fixed: the connect bound no longer bounds every statement
+  (`db/session.py`); a server-cancelled statement answers 503 `runtime_db_timeout` with
+  `Retry-After`, is counted and leaves the connection usable; every engine audited; timeouts
+  table in `docs/operations/DB_RUNTIME_HARDENING.md`. Load rerun in
+  `docs/operations/API_SERVING_AND_SHARED_CACHE.md` (no 5xx; main reads still CPU-bound cold).
+- Open: background jobs inside the API share its 30 s per-statement limit; the demo launcher
+  needs a built web client to serve; per-person cold reads (phase 2).
 
 ## 2026-11-26 — Security review remediation (branch `secfix`)
 
