@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import time
 import uuid
+from collections.abc import Iterable
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
@@ -480,15 +481,21 @@ def on_market_update(session: Session, instruments: set[str],
     return {"evaluated": len(results), "debounced": debounced, "results": results}
 
 
-def run_due(session: Session, now: datetime | None = None) -> dict[str, Any]:
+def run_due(session: Session, now: datetime | None = None, *,
+            track_ids: Iterable[str] | None = None) -> dict[str, Any]:
     """The trailing tick of each intraday track (a quote newer than its last evaluation),
-    and the daily tracks whose newest close is newer than their last evaluation."""
+    and the daily tracks whose newest close is newer than their last evaluation.
+
+    ``track_ids`` limits the pass to those tracks (a newly created track's first evaluation
+    must not run every other user's tracks inside that user's request).
+    """
 
     now = now or datetime.now(UTC)
     evaluated = 0
-    for record in session.query(StrategyTrackRecord).filter(
-        StrategyTrackRecord.state == "active"
-    ).all():
+    query = session.query(StrategyTrackRecord).filter(StrategyTrackRecord.state == "active")
+    if track_ids is not None:
+        query = query.filter(StrategyTrackRecord.track_id.in_(list(track_ids)))
+    for record in query.all():
         last = _aware(record.last_evaluated_at_utc)
         if record.mode == "intraday":
             hubs_products = [key.split("|", 1) for key in record.instruments or ()]

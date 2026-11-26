@@ -1,9 +1,9 @@
 /**
  * Research → Spreads → Track: a shadow run of the strategy on the screen (paper only).
  *
- * "Track this strategy" saves the current StrategySpec: legs on prompt products (WD, DA, WE,
- * BOM) are tracked intraday on arriving quotes with a 30-minute mean-reversion rule; a history
- * with a rule is tracked daily on new closes. The panel lists the caller's own tracks and shows
+ * "Track this strategy" saves the current StrategySpec: a history with a rule is tracked daily
+ * on new closes with that rule; otherwise legs on prompt products (WD, DA, WE, BOM) are tracked
+ * intraday on arriving quotes with a 30-minute mean-reversion rule (see ``trackModeOf``). The panel lists the caller's own tracks and shows
  * the selected one: the signal while it is actionable (with its countdown and the cut-off it
  * comes from; withdrawn when it expires or its quote goes stale), the paper position and P&L,
  * the blotter and the assumptions. Nothing is sent anywhere: every fill is a paper fill.
@@ -16,9 +16,11 @@ import { api } from "@/api/client";
 import type { StrategySpecDTO } from "@/api/spreads";
 import type { StrategyTrackDTO } from "@/api/strategyTracks";
 import { Button, Instant } from "@/components/ui";
+import { trackModeOf } from "@/app/model/strategyTrack";
 import { formatMeasure } from "@/app/time/valueFormat";
 
-const PROMPT = new Set(["WD", "DA", "WE", "BOM"]);
+export { trackModeOf };
+
 const INTRADAY_RULE = {
   kind: "zscore_window", window_minutes: 30, min_points: 30, entry_z: 2, exit_z: 0.5, size_mw: 10,
   min_top_size_mwh: 24, max_quote_age_seconds: 60, max_no_trade_minutes: 10, debounce_seconds: 1,
@@ -35,12 +37,6 @@ function useSecondClock(): number {
     return () => window.clearInterval(timer);
   }, []);
   return now;
-}
-
-export function trackModeOf(spec: StrategySpecDTO | null): "intraday" | "daily" | null {
-  if (!spec || spec.legs.length < 2) return null;
-  if (spec.legs.every((leg) => PROMPT.has((leg.tenor ?? "").toUpperCase()))) return "intraday";
-  return spec.kind === "history" && spec.rule ? "daily" : null;
 }
 
 export function StrategyTrackPanel({ spec }: { spec: StrategySpecDTO | null }) {
