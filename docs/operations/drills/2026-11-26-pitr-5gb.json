@@ -1,0 +1,86 @@
+{
+  "drill": "pitr",
+  "project": "p1d-drill-5g",
+  "started_at": "2026-11-26T15:57:41.455435+00:00",
+  "migrate_seconds": 1.4,
+  "load": {
+    "database_bytes": 5474327575,
+    "batches": 22,
+    "next_batch": 24,
+    "load_seconds": 333.6
+  },
+  "base_backup_seconds": 22.8,
+  "base_backup": {
+    "label": "20261126-160316F",
+    "database_bytes": 5497692681,
+    "repository_bytes": 655548112
+  },
+  "target_time": "2026-11-26T16:04:01.008652+00:00",
+  "expected": {
+    "market_observations": {
+      "rows": 5770000,
+      "checksum": "3325249078166197744864076"
+    },
+    "market_quotes": {
+      "rows": 5770000,
+      "checksum": "3326627223948567605272486"
+    },
+    "audit_events": {
+      "rows": 50,
+      "checksum": "30442078916497881807"
+    }
+  },
+  "source_after_target": {
+    "market_observations": {
+      "rows": 5790000,
+      "checksum": "3336781964010046563686436"
+    },
+    "market_quotes": {
+      "rows": 5790000,
+      "checksum": "3338142594061929456409560"
+    },
+    "audit_events": {
+      "rows": 100,
+      "checksum": "58147992765943795561"
+    }
+  },
+  "source_database_bytes": 5511724055,
+  "wal_archive_check_seconds": 0.3,
+  "source_removed_before_restore": true,
+  "restore": {
+    "container": "p1d-drill-5g-restored",
+    "restore_files_seconds": 13.3,
+    "wal_replay_and_promote_seconds": 3.49,
+    "total_restore_seconds": 17.1
+  },
+  "restored": {
+    "market_observations": {
+      "rows": 5770000,
+      "checksum": "3325249078166197744864076"
+    },
+    "market_quotes": {
+      "rows": 5770000,
+      "checksum": "3326627223948567605272486"
+    },
+    "audit_events": {
+      "rows": 50,
+      "checksum": "30442078916497881807"
+    }
+  },
+  "counts_and_checksums_match": true,
+  "rows_after_target_absent": true,
+  "verification": {
+    "ok": true,
+    "revision": "0095_retention_by_class",
+    "audit_events_rows": 50,
+    "ingestion_runs_rows": 0,
+    "identity_principals_rows": 0,
+    "source_runtime_states_rows": 0,
+    "missing_tables": [],
+    "timescaledb_target": "absent",
+    "api_smoke_status": 200,
+    "api_smoke_path": "/api/health/ready"
+  },
+  "ok": true,
+  "finished_at": "2026-11-26T16:05:23.435294+00:00"
+}

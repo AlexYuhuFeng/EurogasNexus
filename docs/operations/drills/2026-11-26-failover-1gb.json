@@ -1,0 +1,50 @@
+{
+  "drill": "failover",
+  "project": "p1d-drill-fo",
+  "started_at": "2026-11-26T16:16:26.550487+00:00",
+  "migrate_seconds": 1.9,
+  "load": {
+    "database_bytes": 1223826455,
+    "batches": 5,
+    "next_batch": 6,
+    "load_seconds": 42.9
+  },
+  "standby_caught_up_seconds": 0.18,
+  "primary_killed_at": "2026-11-26T16:17:12.792902+00:00",
+  "readiness_during_outage": {
+    "status": 503,
+    "code": "runtime_db_unavailable"
+  },
+  "failover_script_seconds": 1.4,
+  "failover_script_events": [
+    {
+      "event": "failover.start",
+      "seconds_from_start": 0.0
+    },
+    {
+      "event": "failover.stopped",
+      "seconds_from_start": 0.26
+    },
+    {
+      "event": "failover.fenced",
+      "seconds_from_start": 0.9
+    },
+    {
+      "event": "failover.promoted",
+      "seconds_from_start": 1.22
+    },
+    {
+      "event": "failover.done",
+      "seconds_from_start": 1.4
+    }
+  ],
+  "app_ready_after_seconds_from_crash": 2.3,
+  "committed_before_and_after_present": true,
+  "app_on_writable_primary": true,
+  "old_primary_in_recovery_after_restart": true,
+  "app_still_writes_to_new_primary": true,
+  "readiness_after_fenced_restart": 200,
+  "rejoin_seconds": 36.71,
+  "ok": true,
+  "finished_at": "2026-11-26T16:17:41.369149+00:00"
+}

@@ -52,6 +52,9 @@ for _path in (ROOT / "src", ROOT):
 COMPOSE_FILE = ROOT / "deploy" / "ha" / "compose.yaml"
 HA_DIR = ROOT / "deploy" / "ha"
 GIB = 1024**3
+#: pg8000's ``timeout`` (what ``get_engine`` calls the connect timeout) bounds every socket read,
+#: so a statement longer than it fails; bulk loads and checksums over gigabytes need more.
+DRILL_STATEMENT_TIMEOUT = 3600
 
 
 def log(event: str, **fields) -> None:
@@ -426,7 +429,7 @@ def pitr(stack: Stack, args) -> dict:
     report: dict = {"drill": "pitr", "project": stack.project, "started_at": _now().isoformat()}
     source_url = stack.url(1)
     report["migrate_seconds"] = migrate(source_url)
-    engine = get_engine(source_url)
+    engine = get_engine(source_url, connect_timeout_seconds=DRILL_STATEMENT_TIMEOUT)
     try:
         gen.require_drill_database(engine)
         load = gen.generate(
@@ -491,7 +494,7 @@ def pitr(stack: Stack, args) -> dict:
         f"postgresql+pg8000://{stack.env['POSTGRES_USER']}:{stack.env['POSTGRES_PASSWORD']}"
         f"@127.0.0.1:{restored['port']}/{stack.env['POSTGRES_DB']}"
     )
-    target_engine = get_engine(target_url)
+    target_engine = get_engine(target_url, connect_timeout_seconds=DRILL_STATEMENT_TIMEOUT)
     try:
         actual = gen.fingerprint(target_engine)
     finally:
@@ -594,7 +597,7 @@ def failover(stack: Stack, args) -> dict:
     if args.target_gb:
         from scripts.ops import generate_drill_store as gen
 
-        engine = get_engine(node1)
+        engine = get_engine(node1, connect_timeout_seconds=DRILL_STATEMENT_TIMEOUT)
         try:
             gen.require_drill_database(engine)
             report["load"] = gen.generate(
@@ -695,11 +698,12 @@ def failover(stack: Stack, args) -> dict:
     if args.rejoin:
         started = time.monotonic()
         stack.script("rejoin.sh", "pg-node1")
-        report["rejoin_seconds"] = wait_until(
+        wait_until(
             lambda: stack.psql("pg-node2", "SELECT count(*) FROM pg_stat_replication "
                                "WHERE state = 'streaming'") == "1",
             timeout=1800, interval=3, what="the old primary to stream as the new standby",
-        ) + round(time.monotonic() - started, 1)
+        )
+        report["rejoin_seconds"] = round(time.monotonic() - started, 1)
     report["ok"] = bool(
         report["readiness_during_outage"]["status"] == 503
         and report["committed_before_and_after_present"]

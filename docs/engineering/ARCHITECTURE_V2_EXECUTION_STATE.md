@@ -6,6 +6,26 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — P1-D recovery and retention (branch `p1-D`, not pushed)
+
+- Decision record accepted: `docs/architecture/decisions/2026-11-26-standby-backup-object-storage-retention.md`
+  (was `DRAFT-...`), appended as ADR Decision 40.
+- Database tier `deploy/ha`: primary and hot standby, pgBackRest (MIT) to any S3-compatible store,
+  one-command failover with fencing, rejoin by delta restore. Test object store SeaweedFS
+  (Apache-2.0), test-only; MinIO not used (AGPL). No new Python dependency (S3 signing over httpx).
+- Application during failover: `db/resilience.py` (start-up backoff, readiness fails on an
+  unreachable or read-only database, 503 instead of 500, `runtime_db_commit_unconfirmed` for a
+  commit whose outcome is unknown, failover hosts).
+- Retention by class (`application/retention.py`, migration `0095_retention_by_class`,
+  `DB_SCHEMA_REVISION` updated); raw pages stored once per digest; the 30/90-day deletion and
+  `prune_runtime_data.py` removed; audit prune floor 7 years.
+- Drills: `scripts/ops/ha_drill.py pitr|failover`; measured results in
+  `docs/operations/BACKUP_RESTORE.md` and `DISASTER_RECOVERY.md`. The 50 GB exit-criterion drill
+  needs the pilot servers.
+- Merge notes: migration 0095 may collide with other phase-1 packages' migrations (renumber the
+  later one); `scripts/ops/run_dataops_scheduler.py` and `deploy/runtime/compose.yaml` are also
+  edited by P1-C (small, separate hunks).
+
 ## 2026-11-26 — Architecture plan version 3 proposed (branch `archplan`, docs only, not pushed)
 
 - Seven professional reviews (front office, middle and back office, technology, multinational,

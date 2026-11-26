@@ -22,6 +22,10 @@ is_primary() {
         'SELECT NOT pg_is_in_recovery()' 2>/dev/null)" = "t" ]
 }
 
+# Stop at once on SIGTERM (docker stop, a failover): a shell waiting in `sleep` would otherwise
+# ignore it until the stop timeout, which delayed every failover by that timeout.
+trap 'log scheduler.stopped; exit 0' TERM INT
+
 while true; do
     if is_primary; then
         if ! pgbackrest --stanza="$STANZA" check >/dev/null 2>&1; then
@@ -45,5 +49,6 @@ while true; do
             fi
         fi
     fi
-    sleep "${NEXUS_BACKUP_POLL_SECONDS:-60}"
+    sleep "${NEXUS_BACKUP_POLL_SECONDS:-60}" &
+    wait $!
 done

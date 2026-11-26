@@ -216,7 +216,7 @@ def main(argv: list[str] | None = None) -> int:
 
     from eurogas_nexus.db.session import get_engine
 
-    engine = get_engine(args.database_url)
+    engine = get_engine(args.database_url, connect_timeout_seconds=3600)
     try:
         require_drill_database(engine)
         result = generate(

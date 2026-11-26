@@ -1075,3 +1075,37 @@ a later revision into an earlier read). Tests: `tests/unit/test_timescale_option
 `tests/integration/test_timescale_optional_postgres.py` (plain PostgreSQL),
 `tests/integration/test_timescale_present_postgres.py` (TimescaleDB), `tests/unit/test_reliability_ops.py`.
 
+
+## Decision 40: Primary and hot standby, continuous backup to object storage, retention by data class
+
+Accepted 2026-11-26 (owner), from the plan version 3 section 3.2; full record
+[decisions/2026-11-26-standby-backup-object-storage-retention.md](decisions/2026-11-26-standby-backup-object-storage-retention.md).
+Amends Decision 24 (retention) and Decision 22 (the standby is required, not on a trigger).
+
+Built (phase 1, P1-D): `deploy/ha` runs PostgreSQL 16 as a primary and a hot standby, each with
+pgBackRest (MIT) shipping WAL continuously (`archive_timeout` 60 s) and taking weekly full and
+daily differential backups, encrypted, to any S3-compatible store; failover is one command that
+fences before it promotes (`failover.sh`), rejoin is a delta restore (`rejoin.sh`). pgBackRest
+over WAL-G (Apache-2.0, also acceptable) for parallel and delta restore, standby builds from the
+repository and repository encryption. The drills' S3 test double is SeaweedFS (Apache-2.0),
+test-only; MinIO is not used even there (AGPL). No new Python dependency: the product's object
+store client signs S3 requests over the existing `httpx` (`runtime_store/object_store.py`).
+
+The application follows a failover (`db/resilience.py`): start-up waits with backoff, readiness
+fails while the database is unreachable or read-only, a lost database is a 503 with a retry code,
+a connection lost during COMMIT is reported as "outcome unknown" (`runtime_db_commit_unconfirmed`)
+and never retried silently, and `EUROGAS_NEXUS_DB_FAILOVER_HOSTS` makes each new connection land
+on the node that accepts writes.
+
+Retention (`application/retention.py`, migration `0095_retention_by_class`) replaces the 30/90-day
+deletion: classes with floors in code (trading records, decisions and audit kept, 7-year floor;
+settlements, marks and fundamentals kept; ticks archived per day then thinned to one-minute bars
+after 90 days; raw pages stored once per digest and offloaded after 28 days; intraday snapshots
+archived then removed after 90 days), archive verified before anything is removed, run daily by
+the scheduler, audited, with a dry run. The operator audit prune refuses windows under 7 years.
+Schedule for compliance: `docs/compliance/RETENTION_SCHEDULE.md`. Runbooks:
+`docs/operations/BACKUP_RESTORE.md`, `DISASTER_RECOVERY.md`.
+
+Not yet: automatic failover (Patroni needs a consensus store; one-command failover meets the
+pilot's target), write-once retention on the bucket (the store's setting, documented), Parquet
+cold tier and monthly partitions (Decision 24's triggers stand), the 50 GB drill (pilot hardware).
