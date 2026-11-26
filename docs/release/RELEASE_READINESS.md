@@ -61,11 +61,13 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **311 paths / 347 operations**
+- OpenAPI public surface: **312 paths / 348 operations**
 
-  (2026-11-26: each reader's own alert marks, `GET`/`POST /api/me/alert-state` (READ; marks
-  read, dismissed or restored for the caller only, on alerts they may see; the shared, audited
-  alert status is untouched); 310 / 345 before.)
+  (2026-11-26: live data, `GET /api/stream/live` (server-sent change notices per topic from
+  the market event outbox and the screens' own tables, no row or value, the caller's own
+  entitlement; job progress for the caller's own jobs); 311 / 347 before.
+  Each reader's own alert marks, `GET`/`POST /api/me/alert-state` (READ; marks read, dismissed
+  or restored for the caller only, on alerts they may see; the shared, audited alert status is untouched); 310 / 345 before.)
 
   (2026-11-26: LNG-4 REMIT outages on pipeline supply,
   `GET /api/lng/pipeline-supplies/{supply_id}/outage-links` (READ, PORTFOLIO_READ and book

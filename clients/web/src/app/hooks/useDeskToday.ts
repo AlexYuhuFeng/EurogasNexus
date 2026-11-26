@@ -7,12 +7,17 @@
  * makes one request per navigation however many components read it, and React's development
  * double effects (StrictMode) join the request already in flight instead of sending another.
  *
+ * It is live: while it is shown it re-reads when anything on it changes (a price, a trade, a
+ * mark, an alert, an outage, a nomination, a flow for the imbalance, a cargo:
+ * app/data/liveStream.ts), at most once per `DESK_TODAY_LIVE_MS` however many components read it.
+ *
  * The key carries the caller's principal, so a change of identity never shows another caller's
  * figures; `clearDeskTodayCache` drops everything on sign-out.
  */
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 import { api, type DeskTodayDTO } from "@/api/client";
+import { useLiveTopics } from "@/app/hooks/useLive";
 import { useApiStore } from "@/stores/api";
 
 export interface DeskTodayRead {
@@ -86,6 +91,17 @@ export function loadDeskToday(key: string, force = false, now = Date.now()): Pro
   return request;
 }
 
+/** The topics whose change Today shows, and the shortest time between two live re-reads. */
+export const DESK_TODAY_TOPICS = ["prices", "trades", "book", "alerts", "outages", "nominations", "flows", "cargoes"] as const;
+export const DESK_TODAY_LIVE_MS = 5_000;
+
+/** Re-read on a change notice: join a read in flight (several readers hear the same notice). */
+export function reloadDeskTodayOnChange(key: string): Promise<void> {
+  const entry = entries.get(key);
+  if (entry?.inFlight) return entry.inFlight;
+  return loadDeskToday(key, true);
+}
+
 /** The cached read for `key` (no request). */
 export function deskTodaySnapshot(key: string): Snapshot {
   return entries.get(key)?.snapshot ?? EMPTY;
@@ -125,5 +141,9 @@ export function useDeskToday(enabled = true): DeskTodayRead {
   const refresh = useCallback(() => {
     void loadDeskToday(key, true);
   }, [key]);
+  useLiveTopics(DESK_TODAY_TOPICS, () => void reloadDeskTodayOnChange(key), {
+    enabled,
+    minIntervalMs: DESK_TODAY_LIVE_MS,
+  });
   return { ...snapshot, loading: enabled ? snapshot.loading || (!snapshot.today && !snapshot.error) : snapshot.loading, refresh };
 }

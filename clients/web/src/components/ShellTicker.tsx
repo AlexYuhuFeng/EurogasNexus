@@ -42,6 +42,8 @@ import {
   type TickerOutage,
 } from "@/app/model/tickerItems";
 import { useDeskToday } from "@/app/hooks/useDeskToday";
+import { useLiveJobs, useLiveTopics } from "@/app/hooks/useLive";
+import type { LiveJobEvent, LiveTopic } from "@/app/data/liveStream";
 import { saveStripHidden } from "@/app/preferences/remotePreferences";
 import { useStripPreferences } from "@/app/preferences/stripPreferences";
 import { useShellLayout } from "@/app/shell/useShellLayout";
@@ -65,29 +67,54 @@ const USES: Record<"outages" | "today" | "cases" | "windows" | "trades", readonl
   trades: ["trader"],
 };
 
-/** A periodic read for one audience: null until it answers, kept on a failed refresh. */
-function usePeriodicRead<T>(enabled: boolean, load: () => Promise<T>, everyMs: number, key: string): T | null {
+/** What re-reads a strip item between its periodic reads: change notices, or a job's event. */
+interface LiveRereads {
+  topics?: readonly Exclude<LiveTopic, "jobs">[];
+  job?: (job: LiveJobEvent) => boolean;
+}
+
+/** The shortest time between two re-reads of one strip item on a burst of notices. */
+const LIVE_REREAD_MS = 5_000;
+
+/**
+ * A periodic read for one audience: null until it answers, kept on a failed refresh. With
+ * `live`, it is also re-read when its data changes (app/data/liveStream.ts), so the strip
+ * says a new outage or trade at once instead of at the next period.
+ */
+function usePeriodicRead<T>(enabled: boolean, load: () => Promise<T>, everyMs: number, key: string, live: LiveRereads = {}): T | null {
   const [value, setValue] = useState<T | null>(null);
   const loader = useRef(load);
   loader.current = load;
+  const rerun = useRef<(() => void) | null>(null);
   useEffect(() => {
     setValue(null);
     if (!enabled) return undefined;
-    let live = true;
+    let current = true;
     const run = () =>
       loader
         .current()
         .then((next) => {
-          if (live) setValue(next);
+          if (current) setValue(next);
         })
         .catch(() => undefined);
+    rerun.current = () => void run();
     run();
     const timer = window.setInterval(run, everyMs);
     return () => {
-      live = false;
+      current = false;
+      rerun.current = null;
       window.clearInterval(timer);
     };
   }, [enabled, everyMs, key]);
+  useLiveTopics(live.topics ?? [], () => rerun.current?.(), {
+    enabled: enabled && Boolean(live.topics?.length),
+    minIntervalMs: LIVE_REREAD_MS,
+  });
+  const jobMatters = useRef(live.job);
+  jobMatters.current = live.job;
+  useLiveJobs((job) => {
+    if (jobMatters.current?.(job)) rerun.current?.();
+  }, enabled && Boolean(live.job));
   return value;
 }
 
@@ -122,6 +149,7 @@ export function ShellTicker({
     () => api.outages(14, undefined, { grouped: true }).then((response) => (Array.isArray(response.data) ? (response.data as unknown as TickerOutage[]) : [])),
     REFRESH_MS,
     principal,
+    { topics: ["outages"] },
   );
   const cases = usePeriodicRead<DecisionCaseSummaryDTO[]>(
     readsCases,
@@ -140,6 +168,7 @@ export function ShellTicker({
     () => api.screenOrders().then((response) => response.data ?? []),
     SLOW_REFRESH_MS,
     principal,
+    { topics: ["trades"] },
   );
   const desk = useDeskToday(uses("today"));
   const platform = Boolean(user) && audience === "platform";
@@ -148,6 +177,7 @@ export function ShellTicker({
     () => api.jobs({ status: "FAILED", limit: "20" }).then((response) => response.data ?? []),
     REFRESH_MS,
     principal,
+    { job: (job) => job.status === "FAILED" },
   );
   const reports = usePeriodicRead<SupportReportDTO[]>(
     platform,

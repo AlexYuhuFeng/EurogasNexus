@@ -3070,7 +3070,8 @@ def demo_market_rows(session, now: datetime, days: int) -> tuple[list, list]:
     board_anchors = {
         (hub, currency): history[max(history)] for (hub, currency), history in histories.items()
     }
-    return closes, demo_board_rows(market_module, market, board_anchors, now, outages)
+    fed = demo_exchange_feed_running(session, now)
+    return closes, demo_board_rows(market_module, market, board_anchors, now, outages, fed=fed)
 
 
 def _board_day(now: datetime) -> date:
@@ -3081,7 +3082,9 @@ def _board_day(now: datetime) -> date:
     return date.fromisoformat(gas_day_label(now))
 
 
-def demo_board_rows(market_module, market, last_closes, now: datetime, outages) -> list:
+def demo_board_rows(
+    market_module, market, last_closes, now: datetime, outages, fed: set[str] | None = None
+) -> list:
     """The board of the gas day the desk trades on at ``now`` (gas day D).
 
     On D the desk reads D's prompt: WD is gas day D, DA the next product the market quotes
@@ -3105,12 +3108,12 @@ def demo_board_rows(market_module, market, last_closes, now: datetime, outages) 
     outage = any(first <= board_day <= last for first, last in outages)
     prompts = market.prompts(board_day, anchors, outage=outage)
     quotes: list = []
-    feed = demo_exchange_feed_running()
+    fed = fed or set()  # the hubs the demo exchange feed quotes now
     for hub, month_ahead in anchors.items():
         currency = currencies[hub]
         for code, kind in _BOARD_PROMPT:
             delivery = _delivery(code, board_day)
-            if delivery is None or (feed and code in RUNNING_PROMPT):
+            if delivery is None or (hub in fed and code in RUNNING_PROMPT):
                 continue
             _period, start, end = delivery
             mid = prompts[hub][_PROMPT_TENOR[code]]
@@ -3138,19 +3141,42 @@ def demo_board_rows(market_module, market, last_closes, now: datetime, outages) 
 
 #: Prompt products written at every roll-forward (a running snapshot), not once a day.
 RUNNING_PROMPT = frozenset({"WD", "DA"})
-#: The demo start-up setting that says the continuous demo exchange feed writes today's WD
-#: and DA quotes (``scripts/demo/start_public_demo.py``); the roll-forward then writes none.
+#: The demo start-up setting for the continuous demo exchange feed (``scripts/demo/
+#: exchange_feed.py``): on unless it says off, the one meaning the start-up, the feed and the
+#: roll-forward use.
 EXCHANGE_FEED_SETTING = "EUROGAS_NEXUS_DEMO_EXCHANGE_FEED"
+#: The feed's own quotes (``exchange_feed.run_continuous`` writes them through the tick
+#: ingestion), and how recent its last one must be for it to count as quoting a hub now.
+EXCHANGE_FEED_REFERENCE = "feed:simulated-exchange"
+EXCHANGE_FEED_FRESH = timedelta(minutes=5)
 
 
-def demo_exchange_feed_running() -> bool:
-    """Whether the continuous demo exchange feed owns today's WD and DA quotes."""
+def demo_exchange_feed_running(session=None, now: datetime | None = None) -> set[str] | bool:
+    """Whether the continuous demo exchange feed owns today's WD and DA quotes, and for which hubs.
+
+    Without a session: whether the feed is on (it is unless the setting says off). With one:
+    the hubs the feed has quoted in the last :data:`EXCHANGE_FEED_FRESH` before ``now``. Outside
+    its trading hours (07:00-19:00 CET), or before its first tick, that is none, and the
+    roll-forward's snapshot keeps the board quoted (and gives the feed its next anchor).
+    """
 
     import os
 
-    return (os.environ.get(EXCHANGE_FEED_SETTING) or "").strip().lower() in {
-        "1", "true", "yes", "on"
-    }
+    value = (os.environ.get(EXCHANGE_FEED_SETTING) or "on").strip().lower()
+    on = value not in {"off", "false", "0", "no"}
+    if session is None or not on:
+        return on if session is None else set()
+    from eurogas_nexus.db.models import MarketQuoteRecord
+
+    moment = _aware(now or datetime.now(UTC))
+    rows = (
+        session.query(MarketQuoteRecord.hub)
+        .filter(MarketQuoteRecord.source_reference == EXCHANGE_FEED_REFERENCE)
+        .filter(MarketQuoteRecord.observed_at_utc >= moment - EXCHANGE_FEED_FRESH)
+        .distinct()
+        .all()
+    )
+    return {hub for (hub,) in rows}
 
 
 def _quote_row(market, hub, currency, code, label, kind, mid, start, end, now, day, *,

@@ -221,9 +221,10 @@ demo image; the customer runtime does not ship `scripts/demo`.
 **Today's prompt.** On gas day D the desk reads D's prompt market: the board quotes WD for gas
 day D and DA for the next day the market quotes (Monday's on a Friday; the weekend is WE). Every
 roll-forward (at start-up and hourly) writes one snapshot of WD and DA, two-sided with a size and
-a running "last", and the curve once a day. When the continuous demo exchange feed runs, set
-`EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=true`: the feed then owns today's WD and DA quotes and the
-roll-forward writes none.
+a running "last", and the curve once a day. While the demo exchange feed quotes (it is on unless
+`EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=off`; 07:00-19:00 CET/CEST) it owns today's TTF and NBP WD and
+DA quotes and the roll-forward writes the other hubs'; outside those hours, or with the feed off,
+the roll-forward writes them all, so the board is quoted overnight too.
 
 **Evaluation on the demo.** The demo image runs no data-operations scheduler, so the seed and
 every roll-forward note the input classes they changed and run the scheduled opportunity

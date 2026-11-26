@@ -6758,5 +6758,14 @@
   "alerts.category.gas_day_break": "燃气日对账差异",
   "alerts.category.news_trader": "影响账簿的新闻",
   "alerts.category.news_lng": "影响 LNG 船货的新闻",
-  "alerts.category.news_scheduler": "影响排程的新闻"
+  "alerts.category.news_scheduler": "影响排程的新闻",
+  "live.state.live": "实时",
+  "live.state.connecting": "连接中",
+  "live.state.stale": "延迟",
+  "live.state.offline": "正在重连",
+  "live.last_update": "最近更新",
+  "live.title.live": "屏幕上的价格与数据随变化实时更新。",
+  "live.title.connecting": "正在建立实时连接。",
+  "live.title.stale": "一段时间未收到更新：数据显示最后一次的值，连接正在重建。",
+  "live.title.offline": "实时连接已中断：数据显示最后一次的值，正在自动重连。"
 }

@@ -4,6 +4,26 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-26 (live data): one path, one operation. `GET /api/stream/live?topics=...`
+(server-sent events, the caller's own entitlement) sends `change` notices (`topic`, `changed_at`;
+no row, no value) for the subscribed topics: from the market event outbox (`market_events`, read
+through the change feed) `prices` (price, FX, rate), `outages`, `tariffs`, `cargoes`, `book`
+(contract, mark, limit, assumption, freight), `capacity`, `sources`, `news`; from their own
+tables `prices` (screen quotes), `trades`, `alerts`, `nominations`, `tariffs` (publications) and
+the map's `outages`, `flows`, `cargoes`, `slots`, `opportunities`. `jobs` events carry the
+caller's own jobs (`job_id`, `kind`, `status`, `progress`, `step`), a `heartbeat` comes every 5 s,
+and `ready`, `warning` and `revoked` as on the other streams. Resumes from `Last-Event-ID` or
+`last_event_id` (`live|<time>|<outbox cursor>`; the time at most 15 min back). Census on the
+innovation branch: 312 paths / 348 operations (+1 / +1 on 311 / 347).
+
+Additive 2026-11-26 (each reader's own alert marks, demo-test alert centre): one path, two
+operations, both READ. `GET /api/me/alert-state` returns the caller's own read and dismissed
+marks on the unresolved alerts they may see; `POST /api/me/alert-state` marks alerts `read`,
+`dismiss` or `restore` (1-500 ids) for the caller only and lists unknown or hidden ids under
+`not_found`. The shared, audited alert status is untouched, and a mark lapses when the alert
+recurs or escalates. Stored in `monitoring_alert_reader_state` (migration
+`0089_alert_reader_state`). Census: 311 paths / 347 operations (+1 / +2 on 310 / 345).
+
 Additive 2026-11-26 (options with consequences, demurrage by contract, REMIT outages on
 pipeline supply, Commercial Intelligence V3 LNG-4, ADR Decision 37): two paths, two operations;
 every other change is additive. `GET /api/lng/cargoes/{cargo_id}/disruption-options`, `GET
@@ -1301,12 +1321,3 @@ was). Additive and backward compatible:
   (`runtime_decision_input_blocked` on the portfolio-network optimisation).
 
 Public census unchanged: 231 paths / 248 operations.
-
-## 2026-11-26 additive alert reader state
-
-`GET /api/me/alert-state` returns the caller's own read and dismissed marks on the unresolved
-alerts they may see; `POST /api/me/alert-state` marks alerts `read`, `dismiss` or `restore`
-(1-500 ids) for the caller only and lists unknown or hidden ids under `not_found`. Both need
-READ. The shared, audited alert status is untouched, and a mark lapses when the alert recurs
-or escalates. Stored in `monitoring_alert_reader_state` (migration `0089_alert_reader_state`). Additive
-and backward compatible. Public census: 311 paths / 347 operations.

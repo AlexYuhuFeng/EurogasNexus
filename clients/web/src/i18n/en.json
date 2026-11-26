@@ -6758,5 +6758,14 @@
   "alerts.category.gas_day_break": "Gas-day break",
   "alerts.category.news_trader": "News for the book",
   "alerts.category.news_lng": "News for LNG cargoes",
-  "alerts.category.news_scheduler": "News for scheduling"
+  "alerts.category.news_scheduler": "News for scheduling",
+  "live.state.live": "Live",
+  "live.state.connecting": "Connecting",
+  "live.state.stale": "Delayed",
+  "live.state.offline": "Reconnecting",
+  "live.last_update": "last update",
+  "live.title.live": "Prices and figures on screen update as they change.",
+  "live.title.connecting": "Opening the live connection.",
+  "live.title.stale": "No update has arrived for a while: figures show their last value while the connection is renewed.",
+  "live.title.offline": "The live connection dropped: figures show their last value. Reconnecting automatically."
 }

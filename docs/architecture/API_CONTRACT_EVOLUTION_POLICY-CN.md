@@ -1,5 +1,15 @@
 # API 契约演化策略
 
+2026-11-26 新增 `GET /api/stream/live?topics=...`（服务器推送事件，按调用方自身权限过滤）：按订阅主题
+推送 `change` 变更通知（`topic`、`changed_at`，不含数据行与数值）。市场事件发件箱（`market_events`，经
+变更流读取）提供价格（含汇率、利率）、停运、费率、船货、账簿（合同、估值、限额、假设、运费）、容量、
+数据源与新闻；屏幕报价、成交、告警、提名、费率公告及地图的停运、流量、船货、窗口与机会读自各自的表。
+`jobs` 事件推送调用方自己的作业进度（`job_id`、`kind`、`status`、`progress`、`step`）；每 5 秒一次
+`heartbeat`。支持 `Last-Event-ID` 或 `last_event_id` 断点续传（`live|<时间>|<发件箱游标>`，时间最多回溯
+15 分钟）。创新分支接口统计：312 条路径 / 348 个操作（在 311 / 347 基础上 +1 / +1）。
+
+2026-11-26 新增每位用户自己的告警标记（演示测试告警中心）：一条路径、两个操作，均为 READ。`GET /api/me/alert-state` 返回调用方对其可见的未解决告警的已读与忽略标记；`POST /api/me/alert-state` 仅为调用方将告警标记为 `read`、`dismiss` 或 `restore`（1-500 个 id），未知或不可见的 id 列在 `not_found` 下。共享且有审计的告警状态不受影响；告警复发或升级时标记失效。存于 `monitoring_alert_reader_state`（迁移 `0089_alert_reader_state`）。接口统计：311 条路径 / 347 个操作（在 310 / 345 基础上 +1 / +2）。
+
 2026-11-26 新增带影响的方案、按合同计算的滞期费与管道供应的 REMIT 停运（Commercial Intelligence V3
 LNG-4，ADR 决策 37）：两条路径、两个操作，其余变更均为新增字段。
 `GET /api/lng/cargoes/{cargo_id}/disruption-options`、`GET .../disruption-options/{option_id}` 与

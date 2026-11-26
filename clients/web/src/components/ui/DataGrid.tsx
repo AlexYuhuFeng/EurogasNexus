@@ -45,14 +45,12 @@ import { useCompactWidth } from "@/app/shell/useShellLayout";
 import { EmptyState } from "./EmptyState";
 import { gridRowIndex } from "./keyboard";
 import { Skeleton } from "./Skeleton";
-import { DirectionMark } from "./DirectionMark";
+import { LiveValue } from "./LiveValue";
 import {
-  nextFlash,
   nextSort,
   phoneColumnSplit,
   sortRows,
   spanRuns,
-  type FlashState,
   type SortDirection,
   type SortState,
   type SortValue,
@@ -177,24 +175,6 @@ function StateMark({ state }: { state: CellState }) {
   );
 }
 
-/**
- * A live cell (UX R2): a neutral background flash on a real tick, and the direction as a glyph
- * that stays until the next tick. A change of instrument under the same row is not a tick.
- */
-function FlashValue({ watch, identity, children }: { watch: SortValue; identity: string; children: ReactNode }) {
-  const [state, setState] = useState<FlashState>(() => nextFlash(null, identity, watch));
-  useEffect(() => {
-    setState((previous) => nextFlash(previous, identity, watch));
-  }, [identity, watch]);
-  const ticked = state.identity === identity && state.count > 0;
-  return (
-    <span className="ds-cell-flash" data-flash={ticked ? (state.count % 2 ? "a" : "b") : undefined}>
-      {children}
-      {ticked ? <DirectionMark direction={state.direction} announce /> : null}
-    </span>
-  );
-}
-
 interface RowProps<R> {
   row: R;
   rowId: string;
@@ -245,9 +225,9 @@ function RowView<R>({ row, rowId, columns, spans, index, tabbable, interactive, 
             {...column.cellAttributes?.(row)}
           >
             {column.flash ? (
-              <FlashValue watch={column.value?.(row)} identity={`${rowId}|${column.id}|${column.flashIdentity?.(row) ?? ""}`}>
+              <LiveValue watch={column.value?.(row)} identity={`${rowId}|${column.id}|${column.flashIdentity?.(row) ?? ""}`}>
                 {content}
-              </FlashValue>
+              </LiveValue>
             ) : (
               content
             )}

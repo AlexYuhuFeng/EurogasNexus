@@ -1,6 +1,7 @@
 /**
- * Prices → Prompt: within-day and day-ahead for one hub, read every two seconds while shown
- * (`GET /api/market/prompt`): the live screen (bid/offer with size, last, VWAP, volume, trades),
+ * Prices → Prompt: within-day and day-ahead for one hub (`GET /api/market/prompt`), re-read
+ * when a price or a trade changes (app/data/liveStream.ts), and every two seconds while the
+ * live stream is down: the live screen (bid/offer with size, last, VWAP, volume, trades),
  * the WD − DA spread, today's booked prompt trades against VWAP, settlement and the mid at
  * decision time, and the tracked signals that expired unused. The gas day's position,
  * deadlines and imbalance are Today's. Decision support only: orders go on the execution
@@ -12,10 +13,16 @@ import { useTranslation } from "react-i18next";
 import "@/styles/promptDesk.css";
 import { api } from "@/api/client";
 import type { PromptMarketDTO, PromptQuoteDTO } from "@/api/strategyTracks";
-import { EmptyState, Instant, Segmented, Skeleton } from "@/components/ui";
+import { EmptyState, Instant, LiveValue, Segmented, Skeleton } from "@/components/ui";
 import { formatMeasure } from "@/app/time/valueFormat";
+import { liveStatus } from "@/app/data/liveStream";
+import { useLiveTopics } from "@/app/hooks/useLive";
 
 const POLL_MS = 2_000;
+/** While live, a read this often keeps the quotes' age current between notices. */
+const LIVE_AGE_MS = 10_000;
+/** The shortest time between two re-reads on a burst of ticks. */
+const LIVE_REREAD_MS = 500;
 const HUBS = ["TTF", "NBP"] as const;
 
 function num(value: number | null | undefined, places = 3): string {
@@ -32,12 +39,16 @@ export function PromptDeskPanel({ hub: initialHub }: { hub: string }) {
   const [data, setData] = useState<PromptMarketDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
   const busy = useRef(false);
+  const reload = useRef<() => void>(() => undefined);
+  useLiveTopics(["prices", "trades"], () => reload.current(), { minIntervalMs: LIVE_REREAD_MS });
 
   useEffect(() => {
     let alive = true;
+    let lastRead = 0;
     const load = async () => {
       if (busy.current || document.visibilityState !== "visible") return;
       busy.current = true;
+      lastRead = Date.now();
       try {
         const response = await api.promptMarket(hub);
         if (alive) { setData(response.data); setError(null); }
@@ -47,9 +58,13 @@ export function PromptDeskPanel({ hub: initialHub }: { hub: string }) {
         busy.current = false;
       }
     };
+    reload.current = () => void load();
     void load();
-    const timer = window.setInterval(() => void load(), POLL_MS);
-    return () => { alive = false; window.clearInterval(timer); };
+    const timer = window.setInterval(() => {
+      if (liveStatus().state === "live" && Date.now() - lastRead < LIVE_AGE_MS) return;
+      void load();
+    }, POLL_MS);
+    return () => { alive = false; reload.current = () => undefined; window.clearInterval(timer); };
   }, [hub]);
 
   const unit = data?.market.within_day.quote?.currency ?? data?.market.day_ahead.quote?.currency ?? (hub === "NBP" ? "GBP" : "EUR");
@@ -57,10 +72,10 @@ export function PromptDeskPanel({ hub: initialHub }: { hub: string }) {
     <tr key={key} data-prompt-product={key}>
       <th scope="row">{t(`prompt.product.${key}`)}</th>
       <td className="num">{num(quote?.bid_mwh_per_day, 0)}</td>
-      <td className="num" data-prompt-bid>{num(quote?.bid)}</td>
-      <td className="num" data-prompt-ask>{num(quote?.ask)}</td>
+      <td className="num" data-prompt-bid><LiveValue watch={quote?.bid} identity={`${hub}|${key}|bid`}>{num(quote?.bid)}</LiveValue></td>
+      <td className="num" data-prompt-ask><LiveValue watch={quote?.ask} identity={`${hub}|${key}|ask`}>{num(quote?.ask)}</LiveValue></td>
       <td className="num">{num(quote?.ask_mwh_per_day, 0)}</td>
-      <td className="num">{num(quote?.last_trade?.price ?? quote?.last)}</td>
+      <td className="num"><LiveValue watch={quote?.last_trade?.price ?? quote?.last} identity={`${hub}|${key}|last`}>{num(quote?.last_trade?.price ?? quote?.last)}</LiveValue></td>
       <td className="num">{num(quote?.vwap)}</td>
       <td className="num">{num(quote?.volume_mwh, 0)}</td>
       <td className="num">{quote?.trade_count ?? "–"}</td>

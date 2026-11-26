@@ -427,11 +427,12 @@ test("Today: four rows, simulated marked beside each value, empty sections give 
   assert.match(html, /data-spread="NBP–TTF" data-empty-code="not_convertible"/);
   assert.doesNotMatch(html, /Withheld/i);
   // The NBP price carries its unit and the simulated marker inside the value.
-  assert.match(html, /<strong[^>]*>33\.662<small class="metric-strip-unit key-figure-unit">GBP\/MWh<\/small><span class="ds-cell-mark" data-state="simulated"/);
+  // A price is live: its figure sits in the flash span, the glyph's place kept before a tick.
+  assert.match(html, /<strong[^>]*><span class="ds-cell-flash">33\.662<span class="ds-direction" data-direction="none" aria-hidden="true"><\/span><\/span><small class="metric-strip-unit key-figure-unit">GBP\/MWh<\/small><span class="ds-cell-mark" data-state="simulated"/);
   assert.match(html, /−0\.082/);
   // A real (not simulated) figure carries no marker. A position reads by its sign in neutral
   // ink: no long/short (gain-like) colour class on the value.
-  assert.match(html, /<strong[^>]*>\+46,000<small class="metric-strip-unit key-figure-unit">MWh\/d<\/small><\/strong>/);
+  assert.match(html, /<strong[^>]*><span class="ds-cell-flash">\+46,000<span class="ds-direction" data-direction="none" aria-hidden="true"><\/span><\/span><small class="metric-strip-unit key-figure-unit">MWh\/d<\/small><\/strong>/);
   assert.doesNotMatch(html, /<strong class="is-(long|short)"/);
   // Method sits on the label line as a quiet link, so the figure keeps one height.
   assert.match(html, /<span class="key-figure-head"><span id="[^"]+" title="today\.net_today">today\.net_today<\/span><span class="key-figure-notes"><button[^>]*class="ds-inline-link"[^>]*data-method="net_position"/);
