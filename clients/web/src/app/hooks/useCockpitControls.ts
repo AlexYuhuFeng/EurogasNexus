@@ -1,9 +1,10 @@
 import { useState } from "react";
+import { DEFAULT_MAP_LAYERS } from "@/app/mapSituation";
 
 export function useCockpitControls() {
-  // A calm first view: pipelines, hubs, LNG, what is out and where we are. Points, interconnection
-  // markers, vessels and flows are one click away in the Layers menu.
-  const [activeLayers, setActiveLayers] = useState(["routes", "hubs", "lng", "outages", "positions"]);
+  // A calm first view: hubs with their price, our positions, our cargoes and the outages that
+  // touch the book. Everything else is one click away in the Layers menu (app/mapSituation.ts).
+  const [activeLayers, setActiveLayers] = useState<string[]>(() => [...DEFAULT_MAP_LAYERS]);
   const [searchTerm, setSearchTerm] = useState("");
 
   function toggleLayer(layer: string) {
@@ -12,10 +13,15 @@ export function useCockpitControls() {
     );
   }
 
+  function resetLayers() {
+    setActiveLayers([...DEFAULT_MAP_LAYERS]);
+  }
+
   return {
     activeLayers,
     searchTerm,
     setSearchTerm,
     toggleLayer,
+    resetLayers,
   };
 }

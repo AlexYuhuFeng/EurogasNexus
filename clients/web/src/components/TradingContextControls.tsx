@@ -36,8 +36,11 @@ export function TradingContextControls({
   onDeliveryProductChange,
   onHubChange,
   showProduct = true,
+  showHub = true,
   summaryOnly = false,
 }: {
+  /** False where a hub focus does not apply (the map: its finder focuses a hub). */
+  showHub?: boolean;
   /**
    * One quiet summary ("19 Nov · All products · All hubs") that opens the fields in a sheet, on
    * every width: for pages where the context only refines what is shown (Book, Deals), so the page
@@ -61,7 +64,7 @@ export function TradingContextControls({
   const summary = [
     formatGasDay(gasDay, language),
     ...(showProduct ? [t(PRODUCT_LABEL_KEYS[deliveryProduct] ?? "context.all_products")] : []),
-    hubId ?? t("context.no_hub_focus"),
+    ...(showHub ? [hubId ?? t("context.no_hub_focus")] : []),
   ].join(" · ");
   const fields = (
     <>
@@ -78,7 +81,7 @@ export function TradingContextControls({
           <option value="month-ahead">{t("context.month_ahead")}</option>
         </select>
       </label>}
-      <label>
+      {showHub && <label>
         <span>{t("context.hub")}</span>
         <select
           aria-label={t("context.hub")}
@@ -90,7 +93,7 @@ export function TradingContextControls({
             <option key={hub} value={hub}>{hub}</option>
           ))}
         </select>
-      </label>
+      </label>}
     </>
   );
   return (
@@ -146,11 +149,12 @@ export function tradingContextControlsFor(
     setHubId: (value: string | null) => void;
   },
   t: Translate,
-  { product = true, summary = false }: { product?: boolean; summary?: boolean } = {},
+  { product = true, hub = true, summary = false }: { product?: boolean; hub?: boolean; summary?: boolean } = {},
 ) {
   return (
     <TradingContextControls
       showProduct={product}
+      showHub={hub}
       summaryOnly={summary}
       gasDay={traderContext.gasDay}
       deliveryProduct={traderContext.deliveryProduct}

@@ -290,6 +290,8 @@ export interface HubPrice {
   change: number | null;
   observedAt: string | null;
   source: string | null;
+  /** A simulated quote (a `_Sim` source or `metadata.simulated`): marked wherever it shows. */
+  simulated: boolean;
 }
 
 /** Latest day-ahead and month-ahead prices for a hub from the rows the hub board shows. */
@@ -308,6 +310,7 @@ export function hubPrices(hub: string, rows: readonly NormalizedMarketObsDTO[]):
       change: previous && previous.unit === latest.unit ? latest.price - previous.price : null,
       observedAt: latest.observed_at_utc ?? null,
       source: latest.source_system ?? latest.market_venue ?? null,
+      simulated: /_sim$/i.test(latest.source_system ?? "") || latest.metadata_json?.simulated === true,
     });
   }
   return out;

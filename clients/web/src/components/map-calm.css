@@ -1,11 +1,12 @@
 /*
  * The live map, calm (owner review 2026-11-26: "minimalistic, clean, straightforward").
  *
- * One toolbar row (view, Layers menu, then the view's own actions at the end), one quiet status
- * chip in the map's top-left corner under the finder, one control stack in the top-right
- * corner under the zoom (2D/3D, fit our positions, the key), and the flow-day bar only while
- * flows are drawn. Nothing on the map overlaps anything else: every overlay has its own corner.
- * Tokens only.
+ * One toolbar row (view, Layers menu, then Expand map at the end), the finder in the map's
+ * top-left corner, one control stack in the top-right corner under the zoom (2D/3D, fit our
+ * positions, the key), the attribution bottom-left and the flow-day bar only while flows are
+ * drawn. No status chip over the map (owner review 2026-11-26: it repeated the outage panel's
+ * counts). Names are a decluttered MapLibre symbol layer, not boxes. Nothing on the map overlaps
+ * anything else: every overlay has its own corner. Tokens only.
  */
 @layer ds-components {
   /* ------------------------------------------------------------------ toolbar */
@@ -93,24 +94,100 @@
   .map-layer-swatch.layer-vessels { background: var(--ds-text-2); }
   .map-layer-swatch.layer-infrastructure { background: var(--ds-text-3); }
 
-  /* ------------------------------------------------------------------ status chip */
-  /* Top-left, under the finder: live, what is out now, and how old the picture is. The other
-     counts are in the key. */
-  .workspace-network .network-map-column .map-situation-strip {
-    top: calc(var(--ds-space-3) + var(--ds-control) + var(--ds-space-2));
-    bottom: auto;
-    left: var(--ds-space-3);
-    max-width: calc(100% - 2 * var(--ds-space-3) - var(--ds-control-touch) - var(--ds-space-6));
-    gap: var(--ds-space-2);
-    padding: var(--ds-space-05) var(--ds-space-3);
-    border-color: var(--ds-border);
-    background: color-mix(in srgb, var(--ds-surface) 94%, transparent);
+  /* ------------------------------------------------------------------ map notices */
+  /* Only exceptional states are said over the map (the offline outline, a map read that keeps
+     failing): bottom-left, beside the attribution button, never over the finder or the zoom. */
+  .workspace-network .network-map-column .gas-map .map-basemap-state,
+  .workspace-network .network-map-column .map-situation-stale,
+  .gas-map .map-basemap-state {
+    top: auto;
+    right: auto;
+    bottom: var(--ds-space-3);
+    left: calc(var(--ds-space-3) + var(--ds-control-sm) + var(--ds-space-2));
+    max-width: calc(100% - 2 * var(--ds-control-sm) - 4 * var(--ds-space-3));
+    padding: var(--ds-space-1) var(--ds-space-2);
+    border-left-width: 1px;
+    border-radius: var(--ds-radius-pill);
     font-size: var(--ds-text-xs);
   }
 
-  .workspace-network .network-map-column .map-situation-strip small {
-    color: var(--ds-text-3);
-    white-space: nowrap;
+  .gas-map .map-basemap-state strong,
+  .network-map-column .map-situation-stale strong {
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  /* ------------------------------------------------------------------ expanded map */
+  /* Expanded fills the app window by CSS (never the Fullscreen API); the page behind does not
+     scroll. The toolbar keeps its place at the top, the panel opens as a drawer. */
+  :root.has-expanded-view,
+  :root.has-expanded-view body {
+    overflow: hidden;
+  }
+
+  .map-layer-default {
+    justify-self: start;
+    margin-top: var(--ds-space-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  .map-fullscreen-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+  }
+
+  /* ------------------------------------------------------------------ key symbols */
+  .node-swatch.zone {
+    width: var(--ds-space-2);
+    height: var(--ds-space-2);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-text-3);
+  }
+
+  .map-key-vessel {
+    flex: none;
+    width: 0;
+    height: 0;
+    border-right: var(--ds-space-1) solid transparent;
+    border-bottom: var(--ds-space-3) solid var(--ds-accent);
+    border-left: var(--ds-space-1) solid transparent;
+  }
+
+  .line-swatch.sailed {
+    border-top-width: var(--ds-space-05);
+    border-top-style: solid;
+    border-top-color: var(--ds-accent);
+  }
+
+  .line-swatch.ahead {
+    border-top-width: var(--ds-space-05);
+    border-top-style: dashed;
+    border-top-color: var(--ds-accent);
+    border-radius: 0;
+  }
+
+  /* ------------------------------------------------------------------ cargo card */
+  .map-cargo-basis {
+    margin: 0;
+    font-size: var(--ds-text-xs);
+  }
+
+  .map-cargo-missing {
+    margin: 0;
+    color: var(--ds-status-watch);
+    font-size: var(--ds-text-sm);
+  }
+
+  .map-detail-fold > summary {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    cursor: pointer;
+  }
+
+  .map-detail-fold > p {
+    margin: var(--ds-space-1) 0 0;
+    font-size: var(--ds-text-xs);
   }
 
   /* ------------------------------------------------------------------ control stack */
@@ -324,5 +401,53 @@
     justify-items: start;
     width: 100%;
     text-align: start;
+  }
+}
+
+@layer ds-components {
+  /* The outage row's period: one line of gas days (the exact window is its tooltip). */
+  .network-panel-period {
+    white-space: nowrap;
+  }
+}
+
+@layer ds-components {
+  /* Our cargo's card: where it is going, then when it arrives, then what that rests on. */
+  .map-cargo-head {
+    display: grid;
+    gap: var(--ds-space-1);
+  }
+
+  .map-cargo-to,
+  .map-cargo-arrival {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--ds-space-1) var(--ds-space-2);
+    margin: 0;
+  }
+
+  .map-cargo-to strong {
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .map-cargo-arrival strong {
+    font-size: var(--ds-text-md);
+    font-weight: var(--ds-weight-semibold);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .map-cargo-arrival .muted {
+    font-size: var(--ds-text-xs);
+    font-variant-numeric: tabular-nums;
+  }
+}
+
+@layer ds-components {
+  /* An import corridor in the key: a firm line, as drawn. */
+  .line-swatch.corridor {
+    border-top-width: var(--ds-space-05);
+    border-top-style: solid;
+    border-top-color: var(--ds-text-2);
   }
 }

@@ -1,16 +1,15 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { ComponentProps } from "react";
 import { useApiStore } from "@/stores/api";
-import { useShellLayout } from "@/app/shell/useShellLayout";
 import { api, type EdgeDTO, type NodeDTO, type RouteEligibilityDTO, type TodayNeedsMeItemDTO } from "@/api/client";
 import { buildVisibleMapNetworkLines } from "@/app/networkMapLines";
 import { legPaths, zoneMemberIds } from "@/app/mapLineGeometry";
+import { isSupplyCorridor } from "@/app/mapCorridors";
 import { normalizePointName } from "@/app/routeMetadata";
 import { isMapEligibleNode, type NetworkGeometryState } from "@/app/workspaceDerivedData";
 import {
   bookEmphasis,
   bookReasonLines,
-  cargoProgress,
   contractPathLines,
   disruptionCallout,
   disruptionMarks,
@@ -25,10 +24,11 @@ import {
 } from "@/app/mapBookRelevance";
 import { MapBookRelevance, OpportunityCard, type NeedsYouRow } from "@/components/MapBookRelevance";
 import { GasNetworkMap, type MapCallout } from "@/components/GasNetworkMap";
-import { SITUATION_LAYERS, situationSummary } from "@/app/mapSituation";
+import { NETWORK_LAYERS, SITUATION_LAYERS, situationSummary } from "@/app/mapSituation";
 import { buildSites, topologyIssues, type MapSelection } from "@/app/mapSelection";
 import { MAP_SITUATION_REFRESH_MS, useMapSituation } from "@/app/hooks/useMapSituation";
-import { useFullscreen } from "@/app/hooks/useFullscreen";
+import { useExpandedView } from "@/app/hooks/useExpandedView";
+import { useNetworkSheetLayout } from "@/app/hooks/useNetworkSheetLayout";
 import { bookItems, bookSituation, liveSituation, replayTrack, type BookItem } from "@/app/mapBook";
 import { MapBookPanel, MapReplayBar, useReplay } from "@/components/MapBookPanel";
 import { MapDetailPanel } from "@/components/MapDetailPanel";
@@ -62,8 +62,9 @@ interface NetworkWorkspaceProps {
   activeLayers: string[];
   searchTerm: string;
   networkGeometryState: NetworkGeometryState;
-  onResetSearch: () => void;
   onToggleLayer: (layer: string) => void;
+  /** Back to the first view's layers (hubs, our positions and cargoes, outages on our book). */
+  onDefaultLayers: () => void;
   /** The reads behind the panel's Capacity tab (the retired "Outages & capacity" board). */
   capacity: Omit<CapacityWorkspaceProps, "t" | "scope" | "selectedKey" | "onSelectPoint">;
   language: string;
@@ -136,15 +137,15 @@ export function NetworkWorkspace({
   activeLayers,
   searchTerm,
   networkGeometryState,
-  onResetSearch,
   onToggleLayer,
+  onDefaultLayers,
   capacity,
   language,
   active = true,
   needsMe = [],
 }: NetworkWorkspaceProps) {
-  const compactLayout = useShellLayout().widthClass === "compact";
-  const [statusOpen, setStatusOpen] = useState(false);
+  // The sheet layout's width, the stylesheet's (app/hooks/useNetworkSheetLayout.ts).
+  const compactLayout = useNetworkSheetLayout();
   // Wave 9: map nodes hand their detail to the canonical Inspector. This page declares
   // `network-node` as an inspectable subject, so the hand-over is legal here; the builder
   // refuses it everywhere the composition does not declare it.
@@ -168,7 +169,7 @@ export function NetworkWorkspace({
   };
   // The book view also reads 120 days of completed deals for its history.
   // Cache-first; kept current while on screen, paused while parked (app/hooks/useMapSituation.ts).
-  const { situation: rawSituation, facilities, error: situationError, readAt, updating: situationUpdating } =
+  const { situation: rawSituation, facilities, error: situationError, readAt } =
     useMapSituation(true, mapView === "book" ? 120 : 0, active);
   const nowMs = readAt?.getTime() ?? Date.now();
   const situation = useMemo(
@@ -200,24 +201,19 @@ export function NetworkWorkspace({
     else if (item.cargo && item.phase === "completed") setReplayCargo(item.cargo);
     else setFocus({ refId: item.refId, nonce: Date.now() });
   };
+  // The data-maintenance line (for those who run the sources) still counts what is placed.
   const summary = situationSummary(liveSituation(rawSituation, nowMs));
-  // "Live" only when the read carries something in force now; a reachable server with nothing
-  // to show is not live data (#35).
-  const isLive = Boolean(summary) && (
-    summary!.outagesNow + summary!.outagesScheduled + summary!.contracts + summary!.cargoesAtSea
-      + summary!.slots > 0 || summary!.entryGwhD !== null
-  );
-  // The book view always draws our positions and the outages that can stop them.
+  // The book view always draws our positions, our cargoes and the outages that can stop them.
   const mapLayers = useMemo(
-    () => (mapView === "book" ? [...new Set([...activeLayers, "positions", "outages"])] : activeLayers),
+    () => (mapView === "book" ? [...new Set([...activeLayers, "positions", "cargoes", "outages"])] : activeLayers),
     [activeLayers, mapView],
   );
-  // Full screen: the map column (chips, map, live strip, card, key) as a wall or
-  // second-monitor view; the situation keeps refreshing while it is up.
-  // Full screen takes the whole Network instrument (toolbar, map and panel) edge to edge.
+  // Expanded: the whole Network instrument (toolbar, map, panel as a drawer) fills the app
+  // window by CSS; the situation keeps refreshing. Never the browser's Fullscreen API
+  // (app/hooks/useExpandedView.ts).
   const shellRef = useRef<HTMLDivElement | null>(null);
   const mapColumnRef = useRef<HTMLElement | null>(null);
-  const fullscreen = useFullscreen(shellRef);
+  const expandedView = useExpandedView();
   // The right-hand panel collapses to a rail so the map takes the full width; remembered per
   // user on this device. In full screen the map is alone and the panel opens as a drawer.
   const principalId = useApiStore((state) => state.currentUser?.principal_id ?? "anonymous");
@@ -246,16 +242,27 @@ export function NetworkWorkspace({
   };
   const [drawerOpen, setDrawerOpen] = useState(false);
   useEffect(() => {
-    if (!fullscreen.active) setDrawerOpen(false);
-  }, [fullscreen.active]);
+    if (!expandedView.expanded) setDrawerOpen(false);
+  }, [expandedView.expanded]);
+  // Escape: an open drawer closes first, then a selected object's card (its own handler), and
+  // only then does the expanded map restore. Escape typed in a field (the finder) stays there.
+  const escapeStateRef = useRef({ drawerOpen, hasSelection: false });
   useEffect(() => {
-    if (!drawerOpen) return undefined;
+    if (!drawerOpen && !expandedView.expanded) return undefined;
     const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDrawerOpen(false);
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest("input, textarea, select, [contenteditable=true], [popover]")) return;
+      if (escapeStateRef.current.drawerOpen) {
+        setDrawerOpen(false);
+        return;
+      }
+      if (escapeStateRef.current.hasSelection) return;
+      expandedView.exit();
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [drawerOpen]);
+  }, [drawerOpen, expandedView]);
   // A read that keeps failing leaves the last good picture up; say so once it is old.
   const situationStale = Boolean(situationError) && readAt !== null
     && Date.now() - readAt.getTime() > 2 * MAP_SITUATION_REFRESH_MS;
@@ -264,7 +271,10 @@ export function NetworkWorkspace({
   const topology = useMemo(() => topologyIssues(nodes, edges), [edges, nodes]);
   const openNodeInspector = (nodeId: string, label: string) => {
     const subject = inspectorSubjectFor("network-node", nodeId, label, "network");
-    if (subject) inspector.open(subject);
+    if (!subject) return;
+    // The Inspector is a page-level drawer: the expanded map steps back so it is not covered.
+    expandedView.exit();
+    inspector.open(subject);
   };
   // Nothing this page opened stays above another page: when the Network task is hidden (another
   // Desk task shows) or leaves (another mode), full screen ends, the drawer and the popovers
@@ -272,9 +282,8 @@ export function NetworkWorkspace({
   // back; its card lives in the panel, which is hidden with the page.
   const closeTransientRef = useRef<() => void>(() => undefined);
   closeTransientRef.current = () => {
-    fullscreen.exit();
+    expandedView.exit();
     setDrawerOpen(false);
-    setStatusOpen(false);
     setHoverAt(null);
     const open = useInspectorStore.getState();
     if (open.subject?.originPage === "network" && open.subject.kind === "network-node") open.close();
@@ -407,6 +416,7 @@ export function NetworkWorkspace({
 
   /* ---------------------------------------------------------------- one selection */
   const [selection, setSelection] = useState<MapSelection | null>(null);
+  escapeStateRef.current = { drawerOpen, hasSelection: selection !== null };
   const [selectedRow, setSelectedRow] = useState<PanelRowRef | null>(null);
   const [hoverAt, setHoverAt] = useState<LonLat | null>(null);
   const [bounds, setBounds] = useState<MapBounds | null>(null);
@@ -562,13 +572,14 @@ export function NetworkWorkspace({
       if (compactLayout) setSheetRaised(false);
     }
   };
-  // The callouts on the map. Calm by default: in the book view, one per disruption that pulses;
-  // otherwise only for what is opened (a disruption, a contract's window, our cargo's voyage).
+  // The callouts on the map: only for what the trader opened (a disruption, a contract's window),
+  // one at a time. A pulsing disruption is its pulse, not a box over the map; a selected cargo's
+  // card is in the panel, not floating over the map (owner review 2026-11-26).
   const callouts = useMemo<MapCallout[]>(() => {
     const out: MapCallout[] = [];
     if (mapView === "book") {
       for (const item of disruptions) {
-        if (!item.pulse && !(openMark?.kind === "disruption" && openMark.id === item.event_id)) continue;
+        if (!(openMark?.kind === "disruption" && openMark.id === item.event_id)) continue;
         const { title, lines } = disruptionCallout(item, tr, language);
         out.push({ id: `disruption:${item.event_id}`, at: [item.location.lon, item.location.lat], title, lines, tone: "alert" });
       }
@@ -589,17 +600,9 @@ export function NetworkWorkspace({
         });
       }
     }
-    if (selection?.kind === "cargo") {
-      const cargo = situation?.cargoes.find((item) => item.cargo_id === selection.id);
-      const at = cargo?.position ?? cargo?.destination;
-      if (cargo?.own && at) {
-        const voyage = cargoProgress(cargo, situation?.regas_slots ?? [], nowMs, tr, language);
-        out.push({ id: `cargo:${cargo.cargo_id}`, at: [at.lon, at.lat], title: cargo.vessel_name, lines: [voyage.line], progress: voyage.fraction, tone: "own" });
-      }
-    }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [bookFlows, disruptions, language, mapView, nowMs, openMark, relevance, selection, situation]);
+  }, [bookFlows, disruptions, language, mapView, openMark, relevance]);
 
   const bookPanels = (
     <section className="network-book-tab" aria-label={t("network.panel.tab.book")}>
@@ -705,10 +708,10 @@ export function NetworkWorkspace({
   // Phone width: the map is the page. Its controls live in the bottom sheet (view switch,
   // reset, full screen, then the layer chips in one row that scrolls sideways), never as
   // a second row of chrome above the map. Full screen keeps the toolbar over the map.
-  const controlsInSheet = compactLayout && !fullscreen.active;
+  const controlsInSheet = compactLayout && !expandedView.expanded;
   const layerChips = (
     <>
-        {["routes", "network", "lng", "ips", "hubs"].map((layer) => (
+        {NETWORK_LAYERS.map((layer) => (
           <button
             key={layer}
             type="button"
@@ -746,7 +749,7 @@ export function NetworkWorkspace({
   );
   // Desktop: the layers are one menu, not a row of chips. The map is what the page shows; the
   // toolbar names the view and keeps its choices one click away.
-  const shownLayerCount = [...["routes", "network", "lng", "ips", "hubs"], ...SITUATION_LAYERS].filter((layer) => activeLayers.includes(layer)).length;
+  const shownLayerCount = [...NETWORK_LAYERS, ...SITUATION_LAYERS].filter((layer) => activeLayers.includes(layer)).length;
   const layerOption = (layer: string, hint: string) => (
     <label key={layer} className="map-layer-option" title={t(hint)}>
       <input type="checkbox" checked={activeLayers.includes(layer)} onChange={() => onToggleLayer(layer)} />
@@ -768,15 +771,19 @@ export function NetworkWorkspace({
         </button>
       )}
     >
-      <fieldset className="map-layer-group">
-        <legend>{t("map.layers.group_network")}</legend>
-        {["routes", "network", "lng", "ips", "hubs"].map((layer) =>
-          layerOption(layer, layer === "routes" ? "map.layer.routes_hint" : `map.layer.${layer}`))}
-      </fieldset>
+      {/* What touches the book first (on by default), then the rest of the system. */}
       <fieldset className="map-layer-group">
         <legend>{t("map.layers.group_situation")}</legend>
         {SITUATION_LAYERS.map((layer) => layerOption(layer, `map.layer.${layer}_hint`))}
       </fieldset>
+      <fieldset className="map-layer-group">
+        <legend>{t("map.layers.group_network")}</legend>
+        {NETWORK_LAYERS.map((layer) =>
+          layerOption(layer, layer === "routes" ? "map.layer.routes_hint" : layer === "network" ? "map.layer.network_hint" : `map.layer.${layer}`))}
+      </fieldset>
+      <button type="button" className="link-button map-layer-default" onClick={onDefaultLayers}>
+        {t("map.layers.default")}
+      </button>
     </Popover>
   );
   const toolbar = (
@@ -791,32 +798,28 @@ export function NetworkWorkspace({
         {!controlsInSheet && (compactLayout ? layerChips : layerMenu)}
         {/* The rest of the row is the map's; the view's own actions sit at its end. */}
         <span className="map-toolbar-spacer" aria-hidden="true" />
-        {/* Phone width: one compact row, icons with their names for assistive technology. */}
-        <button
-          className={compactLayout ? "chip reset-chip map-icon-chip" : "chip reset-chip"}
-          type="button"
-          onClick={onResetSearch}
-          aria-label={compactLayout ? t("map.reset") : undefined}
-          title={compactLayout ? t("map.reset") : undefined}
-        >
-          {compactLayout ? (
-            <Icon name="reset" />
-          ) : t("map.reset")}
-        </button>
+        {/* Phone width: one compact row, an icon with its name for assistive technology. The
+            map's own view controls (3D, fit, key) are in its corner; nothing here repeats them. */}
         <button
           type="button"
           className={compactLayout ? "chip map-fullscreen-chip map-icon-chip" : "chip map-fullscreen-chip"}
-          aria-pressed={fullscreen.active}
-          aria-label={compactLayout ? t(fullscreen.active ? "map.fullscreen.exit" : "map.fullscreen.enter") : undefined}
-          title={t(fullscreen.active ? "map.fullscreen.exit_hint" : "map.fullscreen.enter_hint")}
-          onClick={fullscreen.toggle}
+          aria-pressed={expandedView.expanded}
+          aria-label={compactLayout ? t(expandedView.expanded ? "map.expand.exit" : "map.expand.enter") : undefined}
+          title={t(expandedView.expanded ? "map.expand.exit_hint" : "map.expand.enter_hint")}
+          onClick={expandedView.toggle}
+          data-map-expand={expandedView.expanded ? "on" : "off"}
         >
           {compactLayout ? (
-            <Icon name={fullscreen.active ? "exit-full-screen" : "full-screen"} />
-          ) : t(fullscreen.active ? "map.fullscreen.exit" : "map.fullscreen.enter")}
+            <Icon name={expandedView.expanded ? "exit-full-screen" : "full-screen"} />
+          ) : (
+            <>
+              <Icon name={expandedView.expanded ? "exit-full-screen" : "full-screen"} />
+              <span>{t(expandedView.expanded ? "map.expand.exit" : "map.expand.enter")}</span>
+            </>
+          )}
         </button>
-        {fullscreen.active && (
-          // Full screen is the map alone; the panel opens over it as a drawer.
+        {expandedView.expanded && (
+          // Expanded, the map is alone; the panel opens over it as a drawer.
           <button
             type="button"
             className="chip map-drawer-chip"
@@ -830,49 +833,39 @@ export function NetworkWorkspace({
       </div>
   );
 
-  // The one map key: what is drawn now (counts), then the lines, then the scene's marks.
+  // The one map key: symbology only, for what is drawn (owner review 2026-11-26). Counts, the
+  // list of sites and the explanation of how flows are drawn are not the key's job.
+  const showsOwnCargo = mapLayers.includes("cargoes") && (situation?.cargoes ?? []).some((item) => item.own);
   const keyExtra = (
     <div className="map-key-extra">
-      {summary && (
-        <p className="map-key-now">
-            {summary.contracts > 0 && (
-              <span><i className="situation-dot own" />{t("map.situation.contracts")} <b>{summary.contracts}</b></span>
-            )}
-            {summary.cargoesAtSea > 0 && (
-              <span><i className="situation-dot own" />{t("map.situation.cargoes_at_sea")} <b>{summary.cargoesAtSea}</b></span>
-            )}
-            {summary.slots > 0 && (
-              <span><i className="situation-dot own ring" />{t("map.situation.slots")} <b>{summary.slots}</b></span>
-            )}
-            {summary.regasNow > 0 && (
-              <span><i className="situation-dot own" />{t("map.situation.regas_now")} <b>{summary.regasNow}</b></span>
-            )}
-            {summary.entryGwhD != null && (
-              <span>{t("map.situation.entry_flow")} <b>{Math.round(summary.entryGwhD).toLocaleString()}</b> GWh/d</span>
-            )}
-            {mapLayers.includes("vessels") && situation?.vessel_feed?.entitled === false && (
-              // A licensed feed the caller does not hold: say so rather than show an empty sea.
-              <span className="is-alert">{t("map.situation.vessels_unentitled")}</span>
-            )}
-            {mapLayers.includes("vessels") && (situation?.vessel_feed?.market_cargoes ?? 0) > 0 && (
-              <span>
-                <i className="situation-dot market" />{t("map.situation.vessels")}{" "}
-                <b>{situation!.vessel_feed!.market_cargoes}</b>
-                {situation!.vessel_feed!.simulated > 0 ? <small> sim</small> : null}
-              </span>
-            )}
-        </p>
-      )}
       <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
+        {displayedHubCount > 0 && mapLayers.includes("hubs") && <span><i className="node-swatch hubs" />{t("map.key.hub_area")}</span>}
+        {mapLayers.includes("hubs") && nodes.some((node) => node.metadata_json?.zone_only === true) && (
+          <span><i className="node-swatch zone" />{t("map.key.zone_only")}</span>
+        )}
+        {mapLayers.includes("positions") && <span><i className="situation-dot own ring" />{t("map.key.own_position")}</span>}
+        {showsOwnCargo && <span><i className="map-key-vessel" />{t("map.key.own_cargo")}</span>}
+        {showsOwnCargo && <span><i className="line-swatch sailed" />{t("map.key.sailed")}</span>}
+        {showsOwnCargo && <span><i className="line-swatch ahead" />{t("map.key.ahead")}</span>}
+        {(mapLayers.includes("outages") || mapLayers.includes("outages_all")) && (
+          <span><i className="situation-dot outage-active" />{t("map.key.outage_active")}</span>
+        )}
+        {(mapLayers.includes("outages") || mapLayers.includes("outages_all")) && (
+          <span><i className="situation-dot outage-scheduled" />{t("map.key.outage_scheduled")}</span>
+        )}
+        {edges.some(isSupplyCorridor) && <span><i className="line-swatch corridor" />{t("map.key.corridor")}</span>}
         {surveyedPipelineCount > 0 && <span><i className="line-swatch verified" />{t("map.key.pipeline")}</span>}
         {connectionLinkCount > 0 && <span><i className="line-swatch link" />{t("map.key.connection")}</span>}
-        {mapView === "book" && <span className="map-book-legend-line">{t("map.book.legend")}</span>}
         {mapLayers.includes("routes") && mapView === "network" && (
           <span><i className="line-swatch context" />{t("map.key.context_pipelines")}</span>
         )}
         {indicativeRouteCount > 0 && <span><i className="line-swatch indicative" />{t("map.indicative_route_lines")}</span>}
         {bookFlows.length > 0 && mapLayers.includes("positions") && <span><i className="line-swatch flow" />{t("map.key.book_flow")}</span>}
-        {displayedHubCount > 0 && <span><i className="node-swatch hubs" />{t("map.key.hub_area")}</span>}
+        {mapView === "book" && <span className="map-book-legend-line">{t("map.book.legend")}</span>}
+        {mapLayers.includes("vessels") && situation?.vessel_feed?.entitled === false && (
+          // A licensed feed the caller does not hold: said where the vessels would be drawn.
+          <span className="is-alert">{t("map.situation.vessels_unentitled")}</span>
+        )}
       </div>
     </div>
   );
@@ -880,7 +873,7 @@ export function NetworkWorkspace({
   return (
     <div
       ref={shellRef}
-      className={`network-workspace-shell network-desk${fullscreen.active ? " is-fullscreen" : ""}${fullscreen.expanded ? " is-expanded" : ""}${sheetRaised ? " is-sheet-raised" : ""}${panelCollapsed && !fullscreen.active && !compactLayout ? " is-panel-collapsed" : ""}${drawerOpen ? " is-drawer-open" : ""}`}
+      className={`network-workspace-shell network-desk${expandedView.expanded ? " is-fullscreen" : ""}${expandedView.expanded ? " is-expanded" : ""}${sheetRaised ? " is-sheet-raised" : ""}${panelCollapsed && !expandedView.expanded && !compactLayout ? " is-panel-collapsed" : ""}${drawerOpen ? " is-drawer-open" : ""}`}
       data-map-view={mapView}
     >
       {!controlsInSheet && toolbar}
@@ -949,44 +942,13 @@ export function NetworkWorkspace({
             t={t as (key: string, options?: Record<string, unknown>) => string}
           />
         )}
-        {summary && compactLayout && (
-          // Phone width: the map shows the map. One compact line (Live · Out now N) that
-          // opens the full status on tap.
-          <button
-            type="button"
-            className="map-situation-compact"
-            aria-expanded={statusOpen}
-            onClick={() => setStatusOpen((open) => !open)}
-          >
-            <span className={isLive ? "map-situation-live" : "map-situation-live is-empty"}>
-              {t(isLive ? "map.situation.live" : "map.situation.no_live_data")}
-            </span>
-            {summary.outagesNow > 0 && (
-              <span className="is-alert">· {t("map.situation.outages_now")} <b>{summary.outagesNow}</b></span>
-            )}
-          </button>
-        )}
-        {summary && (!compactLayout || statusOpen) && (
-          <div className="map-situation-strip" role="status" aria-live="polite">
-            {/* "Live" only when the read carries something in force now; a reachable
-                server with nothing to show is not live data (#35). */}
-            {isLive
-              ? <span className="map-situation-live">{t("map.situation.live")}</span>
-              : <span className="map-situation-live is-empty">{t("map.situation.no_live_data")}</span>}
-            {summary.outagesNow > 0 && (
-              <span className="is-alert"><i className="situation-dot outage-active" />{t("map.situation.outages_now")} <b>{summary.outagesNow}</b></span>
-            )}
-            {summary.outagesScheduled > 0 && (
-              <span><i className="situation-dot outage-scheduled" />{t("map.situation.outages_scheduled")} <b>{summary.outagesScheduled}</b></span>
-            )}
-            {situationStale && <span className="is-alert">{t("map.situation.stale")}</span>}
-            {/* A newer picture is being read behind this one: said quietly, never a spinner. */}
-            {situationUpdating && <span className="map-situation-updating">{t("map.situation.updating")}</span>}
-            <small>
-              {t("map.situation.as_of")} {summary.asOf.slice(11, 16)} UTC
-              {readAt ? ` · ${t("map.situation.read_at")} ${readAt.toISOString().slice(11, 16)} UTC` : ""}
-            </small>
-          </div>
+        {/* No status chip over the map: the outage counts are the panel's, and the page's one
+            freshness indicator is in its context line. Only a map read that keeps failing is
+            said here, because the picture on screen is then older than the page claims. */}
+        {situationStale && readAt && (
+          <p className="map-basemap-state is-fallback map-situation-stale" role="status">
+            <strong>{tr("map.situation.stale_since", { time: readAt.toISOString().slice(11, 16) })}</strong>
+          </p>
         )}
         {!mapHasVisibleEvidence && (
           <div className="map-empty-state" role="status">
@@ -1050,8 +1012,8 @@ export function NetworkWorkspace({
           book={bookPanels}
           footer={footer}
           // A phone lowers the sheet with its handle instead.
-          collapsed={panelCollapsed && !fullscreen.active && !compactLayout}
-          onCollapse={fullscreen.active ? () => setDrawerOpen(false) : () => choosePanelCollapsed(true)}
+          collapsed={panelCollapsed && !expandedView.expanded && !compactLayout}
+          onCollapse={expandedView.expanded ? () => setDrawerOpen(false) : () => choosePanelCollapsed(true)}
           onExpand={(tab) => {
             setPanelTab(tab);
             choosePanelCollapsed(false);

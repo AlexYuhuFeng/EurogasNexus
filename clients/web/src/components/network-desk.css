@@ -448,8 +448,7 @@
       text-overflow: ellipsis;
     }
 
-    /* The context line shares the tab row: the filter summary, short; the as-of time is on
-       the map's status line, and the feeds link shows only when a feed is stale. */
+    /* The context line shares the tab row: the gas day, short, and the one freshness button. */
     .cockpit-app.workspace-network .market-context-strip {
       position: absolute;
       z-index: 5;
@@ -458,16 +457,26 @@
       display: flex;
       align-items: center;
       gap: var(--ds-space-1);
+      flex-wrap: nowrap;
       height: var(--ds-control-touch);
-      max-width: 34%;
+      max-width: 52%;
       margin: 0;
       padding: 0;
       border: 0;
       background: transparent;
     }
 
-    .cockpit-app.workspace-network .market-context-strip .projection-context-asof,
-    .cockpit-app.workspace-network .market-context-strip .projection-context-trigger.is-ok {
+    /* One row: the gas day and the freshness button side by side, never stacked over the
+       purpose line below. */
+    .cockpit-app.workspace-network .market-context-strip .projection-context-status {
+      flex-wrap: nowrap;
+      margin-left: 0;
+    }
+
+    /* The one freshness button: "as of 05:15" while every feed is current; only the stale count
+       when one is behind (the as-of is then its tooltip), so it never wraps on a phone. */
+    .cockpit-app.workspace-network .market-context-strip .projection-context-trigger.is-degraded .projection-context-asof,
+    .cockpit-app.workspace-network .market-context-strip .projection-context-trigger.is-degraded .projection-context-sep {
       display: none;
     }
 

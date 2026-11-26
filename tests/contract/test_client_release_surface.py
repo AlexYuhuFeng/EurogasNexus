@@ -508,8 +508,15 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     map_tile_providers = (
         ROOT / "clients" / "web" / "src" / "app" / "mapTileProviders.ts"
     ).read_text(encoding="utf-8")
-    assert "basemap-raster" in map_component
-    assert "tianditu.gov.cn" in map_tile_providers
+    # One basemap (owner review 2026-11-26): OpenStreetMap data through OpenFreeMap's vector
+    # styles (ODbL, commercial use allowed, attribution shown), the bundled outline only as the
+    # automatic offline / China fallback. No second provider, no custom URL, no "none".
+    assert "tiles.openfreemap.org/styles/positron" in map_tile_providers
+    assert "© OpenStreetMap contributors, © OpenMapTiles" in map_tile_providers
+    assert 'export type MapTileProviderId = "openfreemap" | "outline";' in map_tile_providers
+    assert "tianditu" not in map_tile_providers.lower()
+    assert "VITE_EUROGAS_MAP_TILE_URL" not in map_tile_providers
+    assert "basemap-raster" not in map_component
     # Public endpoints whose terms exclude a commercial product are not offered (owner review
     # 2026-11-26): OpenStreetMap's tile servers, CARTO's free tiles, AMap's public raster.
     assert "tile.openstreetmap.org/{z}" not in map_tile_providers
@@ -775,7 +782,9 @@ def test_web_client_settings_page_is_trader_preference_center() -> None:
     assert 'import { SettingsCenter } from "@/components/SettingsCenter";' in app
     assert "<SettingsCenter" in app
     assert "settings-preference-center" in settings_center
-    assert "settings-unit-panel" in settings_center
+    # One basemap (owner review 2026-11-26): no map-provider panel in Settings.
+    assert "settings-unit-panel" not in settings_center
+    assert "map_tile" not in settings_center
     assert "settings-service-panel" in settings_center
     assert "settings-boundary-panel" in settings_center
     assert "settings-auth-grid" in settings_center
@@ -1011,12 +1020,16 @@ def test_web_client_map_fallback_prioritizes_labels_for_trader_readability() -> 
     assert "MAX_MAP_LABELS" in map_component
     assert "MAJOR_HUB_PRIORITY" in map_component
     assert "priorityLabelNodes" in map_component
-    assert "map-node-label" in map_component
+    # Names on the live map are one decluttered MapLibre symbol layer (no HTML label boxes);
+    # the no-WebGL fallback keeps its own priority labels.
+    assert '"map-labels"' in map_component
+    assert '"symbol-sort-key": ["get", "rank"]' in map_component
+    assert '"text-allow-overlap": false' in map_component
     assert "fallbackLabelPriorityIds" in map_component
     assert "shouldShowFallbackNodeLabel" in map_component
     assert "isSearchLabelMatch" in map_component
-    assert "highlightedRoutePoints.from.id" in map_component
-    assert "highlightedRoutePoints.to.id" in map_component
+    assert "addWithinBudget(highlightedRoutePoints.from)" in map_component
+    assert "addWithinBudget(highlightedRoutePoints.to)" in map_component
     assert 'node.node_type === "hub"' in map_component
     assert "fallback-node-label priority" in map_component
     assert "{shouldShowFallbackNodeLabel(node, index) && (" in map_component

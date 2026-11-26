@@ -23,6 +23,7 @@ import {
   outageListRows,
 } from "@/app/model/networkPanelModel";
 import { timeWindow } from "@/app/model/todayModel";
+import { formatGasDay } from "@/app/time/timeFormat";
 import { CapacityWorkspace, buildOperatingRows, type CapacityWorkspaceProps, type OperatingRow } from "@/components/CapacityWorkspace";
 import { DataGrid, Segmented, StatusBadge, WorkspaceTabs, type DataGridColumn } from "@/components/ui";
 import { ReportLink } from "@/components/ReportLink";
@@ -244,23 +245,7 @@ export function NetworkInfoPanel({
           </span>
         ),
       },
-      {
-        id: "where",
-        header: t("outages.where"),
-        priority: "secondary",
-        value: (row) => row.zone,
-        render: (row) => (
-          <span className="network-panel-cell-stack">
-            <span>{[row.zone, row.operators.join(" · "), t(`outages.type_${row.eventType}`, { defaultValue: row.eventType })].filter(Boolean).join(" · ")}</span>
-            {row.placement !== "placed" && (
-              <small className="network-panel-placement" data-outage-placement={row.placement}>
-                {t(`outages.placement.${row.placement}`)}
-                {row.placementNote && <> · {t(row.placementNote.key, row.placementNote.values)}</>}
-              </small>
-            )}
-          </span>
-        ),
-      },
+
       {
         id: "offline",
         header: t("outages.offline"),
@@ -279,26 +264,46 @@ export function NetworkInfoPanel({
         header: t("outages.period"),
         type: "date",
         sortable: true,
-        priority: "secondary",
+        priority: "primary",
         value: (row) => row.startUtc,
-        // Two lines: the start, then the end, so a multi-year window keeps its years visible.
+        // One short line of gas days ("23 Nov – 29 Nov"), the year where it is not this one; the
+        // exact window (with times) is the cell's tooltip, so the row stays one line in a panel.
         format: (_, row) => {
-          const [from, to] = timeWindow(row.startUtc, row.endUtc, nowMs).split(" – ");
+          const day = (iso: string | null) => (iso ? formatGasDay(iso.slice(0, 10), language, iso.slice(0, 4) !== String(new Date(nowMs).getUTCFullYear())) : "");
           return (
-            <span className="network-panel-cell-stack network-panel-period">
-              <span>{from}</span>
-              <span>– {to ?? ""}</span>
+            <span className="network-panel-period" title={timeWindow(row.startUtc, row.endUtc, nowMs)}>
+              {day(row.startUtc)} – {row.endUtc ? day(row.endUtc) : t("outages.open_end")}
             </span>
           );
         },
       },
       {
+        // One action on the row: why it matters. The report link folds with the details.
         id: "actions",
         header: <span className="visually-hidden">{t("why.button")}</span>,
-        priority: "secondary",
+        priority: "primary",
         render: (row) => (
-          <span className="network-panel-actions network-panel-actions-stack">
+          <span className="network-panel-actions">
             <WhyButton subject="outage" id={row.eventId} label={row.asset} language={language} t={t} />
+          </span>
+        ),
+      },
+      {
+        // The row's fold: zone, operator, type, the event code and whether the map can place it.
+        id: "where",
+        header: t("outages.where"),
+        priority: "secondary",
+        value: (row) => row.zone,
+        render: (row) => (
+          <span className="network-panel-cell-stack">
+            <span>{[row.zone, row.operators.join(" · "), t(`outages.type_${row.eventType}`, { defaultValue: row.eventType })].filter(Boolean).join(" · ")}</span>
+            <small className="muted">{row.eventId}</small>
+            {row.placement !== "placed" && (
+              <small className="network-panel-placement" data-outage-placement={row.placement}>
+                {t(`outages.placement.${row.placement}`)}
+                {row.placementNote && <> · {t(row.placementNote.key, row.placementNote.values)}</>}
+              </small>
+            )}
             <ReportLink subject={{ kind: "outage", id: row.eventId }} label={row.asset} t={t} />
           </span>
         ),

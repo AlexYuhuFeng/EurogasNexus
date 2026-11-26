@@ -7,6 +7,7 @@ import type {
   MapRegasSlotDTO,
   MapSituationDTO,
 } from "@/api/client";
+import { cargoHeading } from "./mapCargo.ts";
 
 /**
  * The live map's situation layers as GeoJSON, built from `/api/portfolio/map-situation`.
@@ -21,8 +22,20 @@ import type {
 
 export type Project = (lon: number, lat: number) => [number, number];
 
-export const SITUATION_LAYERS = ["outages", "flows", "positions", "vessels", "infrastructure"] as const;
+/**
+ * The situation layers, in the Layers menu's order. On by default (useCockpitControls): our
+ * positions, our cargoes and the outages that touch our book; everything else one click away.
+ */
+export const SITUATION_LAYERS = ["positions", "cargoes", "outages", "outages_all", "flows", "vessels", "infrastructure"] as const;
 export type SituationLayer = (typeof SITUATION_LAYERS)[number];
+/** The network's own layers, in the Layers menu's order: hubs first, the rest off by default. */
+export const NETWORK_LAYERS = ["hubs", "lng", "ips", "network", "routes"] as const;
+/**
+ * The first view (owner review 2026-11-26): the map answers "what in the gas system affects my
+ * book right now". Hubs with their price, our positions, our cargoes and the outages that touch
+ * the book; every other point, all flows, all vessels and all outages are one click away.
+ */
+export const DEFAULT_MAP_LAYERS: readonly string[] = ["hubs", "positions", "cargoes", "outages"];
 
 type Props = Record<string, string | number | boolean | null>;
 interface PointFeature {
@@ -150,22 +163,32 @@ export function cargoFeatures(
   const sailed: LineFeature[] = [];
   const ahead: LineFeature[] = [];
   for (const cargo of cargoes) {
+    // Where the vessel is: its reported position, or the port it is loading at or the terminal
+    // it is discharging at. Nothing else: no position is interpolated (rule 19).
     const at = cargo.position ?? (cargo.status === "loading" ? cargo.origin : null)
       ?? (cargo.status === "discharging" || cargo.status === "delivered" ? cargo.destination : null);
-    const props: Props = { kind: "cargo", id: cargo.cargo_id, own: cargo.own, status: cargo.status, name: cargo.vessel_name };
+    const heading = cargo.position ? cargoHeading(cargo) : null;
+    const props: Props = {
+      kind: "cargo",
+      id: cargo.cargo_id,
+      own: cargo.own,
+      status: cargo.status,
+      name: cargo.vessel_name,
+      heading: heading ?? 0,
+      icon: heading === null ? "still" : "heading",
+    };
     if (at) positions.push(point(project, at.lon, at.lat, props));
-    const track = cargo.track.length > 1
-      ? cargo.track
-      : cargo.origin && cargo.position
-        ? [[cargo.origin.lon, cargo.origin.lat], [cargo.position.lon, cargo.position.lat]] as Array<[number, number]>
-        : [];
-    if (track.length > 1) {
+    // The track already sailed, only from the position history the store holds; a straight
+    // line from the load port would draw a route the vessel never sailed (over land, even).
+    if (cargo.track.length > 1) {
       sailed.push({
         type: "Feature",
         properties: props,
-        geometry: { type: "LineString", coordinates: track.map(([lon, lat]) => project(lon, lat)) },
+        geometry: { type: "LineString", coordinates: cargo.track.map(([lon, lat]) => project(lon, lat)) },
       });
     }
+    // The leg still to go: a straight dashed line from the last position to the terminal, styled
+    // and named as the direction to the destination, not as a route.
     if (at && cargo.destination && cargo.status === "laden") {
       ahead.push({
         type: "Feature",

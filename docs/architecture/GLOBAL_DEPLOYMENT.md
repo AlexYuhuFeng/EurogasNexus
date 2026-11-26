@@ -94,12 +94,11 @@ is different on every row of the table, so it gets its own installation.
   profile attribute and does not grant data by itself.
 - Isolation inside one installation is an access control, not a residency boundary: data
   that must not leave a jurisdiction still needs its own installation (above).
-- **Basemaps by country.** `EUROGAS_NEXUS_DEPLOYMENT_REGION` selects the default network
-  basemap: OpenFreeMap (OpenStreetMap data, free for commercial use with attribution)
-  elsewhere, none in a `china` installation, where those services may be unreachable and
-  map content is regulated; an approved domestic provider (Tianditu with the customer's own
-  key) or an internal tile server can be configured there. `EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER`
-  overrides the default; each person can still choose in Settings.
+- **Basemaps by country.** One basemap: OpenFreeMap (OpenStreetMap data, free for commercial
+  use with attribution). A `china` installation (`EUROGAS_NEXUS_DEPLOYMENT_REGION`) draws the
+  bundled outline instead, where foreign services may be unreachable and map content is
+  regulated; `EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER=outline` forces it anywhere (air-gapped). The
+  client also falls back to the outline when OpenFreeMap cannot be reached.
 
 ## When to add capacity, not before
 

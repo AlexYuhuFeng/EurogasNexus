@@ -1,7 +1,12 @@
 /**
  * The map scene's layers on the live map (MAP-1): terminal and storage columns (3D) or points
- * (2D), flow lines moving in the gas's direction, and LNG voyages with estimated positions
- * drawn hollow on a dashed leg. Models in app/mapScene.ts; cards in app/mapSceneCards.ts.
+ * (2D), flow lines moving in the gas's direction, and in 3D the LNG carriers as low hulls at
+ * their reported positions. Models in app/mapScene.ts; cards in app/mapSceneCards.ts.
+ *
+ * A cargo is drawn once, by the map's situation layers (GasNetworkMap: the vessel at its latest
+ * reported position, the track it sailed, a dashed direction to its terminal). The scene no
+ * longer adds a second picture of it: no load-port-to-terminal arc, and no position interpolated
+ * towards the ETA (owner review 2026-11-26, rule 19: a position is reported, never estimated).
  *
  * - Data arrives with the map's situation, which the change stream keeps current
  *   (useMapSituation: `map` notices answered with a conditional read). A vessel or estimate
@@ -23,16 +28,12 @@ import {
   flowLayers,
   flowMotion,
   flowsForDay,
-  pointIndex,
   sceneCamera,
-  tweenPoints,
-  voyageLayers,
-  type FC,
   type FlowLayers,
   type Project,
   type SceneDimension,
 } from "@/app/mapScene";
-import { assetCard, estimateCard, flowCard, voyageCard, type CardText, type FormatInstant, type Translate } from "@/app/mapSceneCards";
+import { assetCard, flowCard, voyageCard, type CardText, type FormatInstant, type Translate } from "@/app/mapSceneCards";
 import { durationToken, easeOut, prefersReducedMotion } from "@/app/mapMotion";
 import { frameSummary } from "@/app/mapSceneFrames";
 import { SCENE_LIGHT, shipMarks, shipSolids, siteSolids, tweenShips, type ShipMark } from "@/app/mapSceneSolids";
@@ -75,9 +76,6 @@ const SOURCES = [
   "scene-asset-points",
   "scene-flow-lines",
   "scene-flow-chevrons",
-  "scene-voyage-arcs",
-  "scene-estimate-legs",
-  "scene-voyage-estimated",
   "scene-site-solids",
   "scene-ship-solids",
 ] as const;
@@ -87,8 +85,6 @@ const HOVER_LAYERS = [
   "scene-asset-columns",
   "scene-asset-points",
   "scene-flow-lines",
-  "scene-voyage-estimated",
-  "scene-voyage-arcs",
   "scene-ship-solids",
 ] as const;
 const EMPTY: GeoData = { type: "FeatureCollection", features: [] };
@@ -145,10 +141,13 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
     () => flowLayers(flowsForDay(situation, flowDay), nodes, edges, project),
     [edges, flowDay, nodes, project, situation],
   );
-  const voyages = useMemo(() => voyageLayers(situation?.cargoes, now, project), [now, project, situation?.cargoes]);
   const pillarNodes = options.pillarNodes ?? nodes;
   const sites = useMemo(() => siteSolids(pillarNodes, situation?.assets, project), [pillarNodes, project, situation?.assets]);
-  const ships = useMemo(() => shipMarks(situation?.cargoes, now), [now, situation?.cargoes]);
+  // Hulls only where a position was reported (or the vessel is at its port), never estimated.
+  const ships = useMemo(
+    () => shipMarks(situation?.cargoes, now).filter((mark) => mark.basis !== "estimated"),
+    [now, situation?.cargoes],
+  );
 
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -170,9 +169,6 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
     };
     add({ id: "scene-flow-lines", type: "line", source: "scene-flow-lines", layout: { "line-cap": "butt", "line-join": "round" }, paint: { "line-color": flowColour, "line-width": ["get", "width"], "line-opacity": 0.7, "line-dasharray": flowDashAt(0, "static") } });
     add({ id: "scene-flow-chevrons", type: "line", source: "scene-flow-chevrons", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": flowColour, "line-width": 1.5, "line-opacity": 0.85 } });
-    add({ id: "scene-voyage-arcs", type: "line", source: "scene-voyage-arcs", layout: { "line-cap": "round" }, paint: { "line-color": colours.estimate, "line-width": 1.2, "line-opacity": 0.55, "line-dasharray": [1, 3] } });
-    add({ id: "scene-estimate-legs", type: "line", source: "scene-estimate-legs", layout: { "line-cap": "butt" }, paint: { "line-color": colours.estimate, "line-width": 1.5, "line-opacity": 0.8, "line-dasharray": [2, 2] } });
-    add({ id: "scene-voyage-estimated", type: "circle", source: "scene-voyage-estimated", paint: { "circle-radius": 6, "circle-color": colours.estimate, "circle-opacity": 0, "circle-stroke-color": colours.estimate, "circle-stroke-width": 2 } });
     add({ id: "scene-asset-points", type: "circle", source: "scene-asset-points", paint: { "circle-radius": ["get", "radius"], "circle-color": kindColour as never, "circle-opacity": 0.28, "circle-stroke-color": kindColour as never, "circle-stroke-width": 1.4 } });
     add({ id: "scene-asset-columns", type: "fill-extrusion", source: "scene-asset-columns", paint: { "fill-extrusion-color": kindColour as never, "fill-extrusion-height": ["get", "height"], "fill-extrusion-base": 0, "fill-extrusion-opacity": 0.38 } });
     add({ id: "scene-asset-fills", type: "fill-extrusion", source: "scene-asset-fills", paint: { "fill-extrusion-color": kindColour as never, "fill-extrusion-height": ["get", "height"], "fill-extrusion-base": 0, "fill-extrusion-opacity": 0.9 } });
@@ -201,12 +197,7 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
         return asset ? assetCard(asset, nowRef.current, tr, dimensionRef.current) : null;
       }
       const cargo = current?.cargoes.find((item) => item.cargo_id === props.id);
-      if (layer === "scene-voyage-estimated") return cargo ? estimateCard(cargo, nowRef.current, tr, when) : null;
-      if (layer === "scene-voyage-arcs") return cargo ? voyageCard(cargo, tr, when) : null;
-      if (layer === "scene-ship-solids") {
-        if (!cargo) return null;
-        return props.basis === "estimated" ? estimateCard(cargo, nowRef.current, tr, when) : voyageCard(cargo, tr, when);
-      }
+      if (layer === "scene-ship-solids") return cargo ? voyageCard(cargo, tr, when) : null;
       if (layer === "scene-flow-lines") {
         return flowCard({ name: String(props.name ?? ""), direction: String(props.direction ?? ""), gwh_d: Number(props.gwh_d ?? 0), gas_day: props.gas_day ? String(props.gas_day) : null }, tr);
       }
@@ -263,9 +254,6 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
       ["scene-asset-fills", "fill-extrusion-color", kindColour],
       ["scene-asset-points", "circle-color", kindColour],
       ["scene-asset-points", "circle-stroke-color", kindColour],
-      ["scene-voyage-arcs", "line-color", colours.estimate],
-      ["scene-estimate-legs", "line-color", colours.estimate],
-      ["scene-voyage-estimated", "circle-stroke-color", colours.estimate],
       ["scene-flow-lines", "line-color", flowColour],
       ["scene-flow-chevrons", "line-color", flowColour],
       ["scene-site-solids", "fill-extrusion-color", pillarColour(optionsRef.current, colours)],
@@ -279,34 +267,15 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
     }
   }, [flowColour, live, map, theme, options.pointColours?.hub, options.pointColours?.point, options.shipColours?.own, options.shipColours?.market]);
 
-  // Data: sites and flows replace in place; vessels and estimates ease to their new place.
-  const drawnVoyages = useRef<FC<{ type: "Point"; coordinates: [number, number] }> | null>(null);
+  // Data: sites and flows replace in place.
   useEffect(() => {
-    if (!live || !map) return undefined;
+    if (!live || !map) return;
     setData(map, "scene-asset-columns", assets.columns as GeoData);
     setData(map, "scene-asset-fills", assets.fills as GeoData);
     setData(map, "scene-asset-points", assets.points as GeoData);
     setData(map, "scene-flow-lines", flows.lines as GeoData);
     setData(map, "scene-flow-chevrons", flows.chevrons as GeoData);
-    setData(map, "scene-voyage-arcs", voyages.arcs as GeoData);
-    setData(map, "scene-estimate-legs", voyages.estimateLegs as GeoData);
-    const before = drawnVoyages.current ? pointIndex(drawnVoyages.current) : new Map<string, [number, number]>();
-    drawnVoyages.current = voyages.estimated;
-    const duration = prefersReducedMotion() ? 0 : durationToken("--ds-duration-map", 400);
-    if (duration <= 0 || before.size === 0) {
-      setData(map, "scene-voyage-estimated", voyages.estimated as GeoData);
-      return undefined;
-    }
-    const start = performance.now();
-    let frame = 0;
-    const step = (time: number) => {
-      const k = Math.min(1, (time - start) / duration);
-      setData(map, "scene-voyage-estimated", tweenPoints(before, voyages.estimated, easeOut(k)) as GeoData);
-      if (k < 1) frame = requestAnimationFrame(step);
-    };
-    frame = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(frame);
-  }, [assets, flows, live, map, voyages]);
+  }, [assets, flows, live, map]);
 
   // Pillars and site shadows replace in place.
   useEffect(() => {
@@ -350,7 +319,7 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
     ];
     const assetFilter = ["in", ["get", "asset_kind"], ["literal", kinds]];
     const owners = [
-      ...(activeLayers.includes("positions") ? [true] : []),
+      ...(activeLayers.includes("cargoes") || activeLayers.includes("positions") ? [true] : []),
       ...(activeLayers.includes("vessels") ? [false] : []),
     ];
     const voyageFilter = ["in", ["get", "own"], ["literal", owners]];
@@ -361,7 +330,6 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
     show("scene-asset-points", dimension === "2d");
     show("scene-flow-lines", activeLayers.includes("flows"));
     show("scene-flow-chevrons", activeLayers.includes("flows"));
-    for (const layer of ["scene-voyage-arcs", "scene-estimate-legs", "scene-voyage-estimated"]) map.setFilter(layer, voyageFilter as never);
     // 3D solids: pillars follow the map's own point filter; site shadows follow the columns'.
     const siteFilter = ["any", ["==", ["get", "kind"], "pillar"], ["in", ["get", "asset_kind"], ["literal", kinds]]];
     map.setFilter("scene-site-shadows", ["all", ["==", ["get", "part"], "shadow"], siteFilter] as never);

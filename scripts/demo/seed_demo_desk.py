@@ -953,11 +953,27 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
         ("demo-lng-c", "Solace", "Huelva terminal", t - timedelta(days=2), "high",
          "demo-d1-huelva"),
     )
+    # Where each cargo is at sea (lat, lon), the two fixes before it, and its terminal (lat, lon,
+    # country), so the map can draw the vessel, its track and the way to go (simulated voyages).
+    at_sea = {
+        "demo-lng-a": ((40.6, -11.4), ((31.0, -25.0), (35.9, -18.0)), (51.33, 3.20, "BE")),
+        "demo-lng-b": ((46.2, -9.6), ((34.0, -40.0), (40.5, -23.0)), (51.96, 4.04, "NL")),
+        "demo-lng-c": ((34.5, -11.8), ((14.0, -19.5), (24.0, -17.0)), (37.10, -6.95, "ES")),
+    }
     for cargo_id, vessel, terminal, eta, confidence, _slot in cargoes:
         departed = now - timedelta(days=8)
+        here, (first, second), (dest_lat, dest_lon, dest_country) = at_sea[cargo_id]
+        fixed = now - timedelta(hours=3)
         session.add(LngCargoRecord(
             cargo_id=cargo_id, vessel_name=vessel, status="laden", load_port="Load port",
             departed_at_utc=departed, destination_terminal=terminal,
+            destination_country=dest_country, destination_lat=dest_lat, destination_lon=dest_lon,
+            position_lat=here[0], position_lon=here[1], position_at_utc=fixed,
+            track=[
+                [first[1], first[0], (now - timedelta(days=3)).isoformat()],
+                [second[1], second[0], (now - timedelta(days=1, hours=12)).isoformat()],
+                [here[1], here[0], fixed.isoformat()],
+            ],
             eta_utc=start(eta) + timedelta(hours=6), volume_m3=170_000.0, energy_gwh=1_000.0,
             book_id=D1_BOOK, source_system=D1_SOURCE, source_reference="demo:d1-cargo",
             updated_at_utc=now, eta_basis="master_notice", eta_confidence=confidence,

@@ -76,3 +76,49 @@ export function drawFacilityIcon(facilityType: string, theme: "light" | "dark"):
   }
   return context.getImageData(0, 0, SIZE * scale, SIZE * scale);
 }
+
+/** MapLibre image id of a vessel mark: with a heading (an arrow) or without (a dot). */
+export function vesselIconId(kind: "heading" | "still", owner: "own" | "market", theme: "light" | "dark"): string {
+  return `vessel-${kind}-${owner}-${theme}`;
+}
+
+/**
+ * A vessel: a navigation arrow pointing up (the map rotates it to the reported heading), or a
+ * dot when no heading is known, never pointed at its destination. A halo keeps it legible on
+ * any basemap. Returns null where no canvas exists (tests, SSR).
+ */
+export function drawVesselIcon(kind: "heading" | "still", colour: string, halo: string): ImageData | null {
+  if (typeof document === "undefined") return null;
+  const scale = 2;
+  const canvas = document.createElement("canvas");
+  canvas.width = SIZE * scale;
+  canvas.height = SIZE * scale;
+  const context = canvas.getContext("2d");
+  if (!context) return null;
+  context.scale(scale, scale);
+  const c = SIZE / 2;
+  const arrow = (r: number) => {
+    context.beginPath();
+    context.moveTo(c, c - r);
+    context.lineTo(c + r * 0.78, c + r * 0.8);
+    context.lineTo(c, c + r * 0.38);
+    context.lineTo(c - r * 0.78, c + r * 0.8);
+    context.closePath();
+  };
+  if (kind === "heading") {
+    arrow(11.5);
+    context.fillStyle = halo;
+    context.fill();
+    arrow(8.5);
+  } else {
+    context.beginPath();
+    context.arc(c, c, 7.5, 0, Math.PI * 2);
+    context.fillStyle = halo;
+    context.fill();
+    context.beginPath();
+    context.arc(c, c, 5.5, 0, Math.PI * 2);
+  }
+  context.fillStyle = colour;
+  context.fill();
+  return context.getImageData(0, 0, SIZE * scale, SIZE * scale);
+}

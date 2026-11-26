@@ -52,24 +52,19 @@ def test_release_profile_requires_public_token_for_release_metadata() -> None:
 def test_deployment_profile_picks_region_appropriate_basemaps():
     from eurogas_nexus.api.routes.public.runtime import deployment_profile
 
-    # The bundled basemap: no third-party request by default.
-    assert deployment_profile({}) == {"region": "global", "map_default_provider": "bundled"}
+    # One basemap: OpenStreetMap data through OpenFreeMap (commercial use allowed).
+    assert deployment_profile({}) == {"region": "global", "map_default_provider": "openfreemap"}
+    # A mainland China installation draws the bundled outline.
     china = deployment_profile({"EUROGAS_NEXUS_DEPLOYMENT_REGION": "china"})
     assert china["map_default_provider"] == "outline"
-    chosen = deployment_profile(
-        {
-            "EUROGAS_NEXUS_DEPLOYMENT_REGION": "china",
-            "EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER": "tianditu",
-        }
-    )
-    assert chosen["map_default_provider"] == "tianditu"
-    assert (
-        deployment_profile({"EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER": "osm"})["map_default_provider"]
-        == "bundled"
-    )  # a non-commercial endpoint is never a deployment default
-    assert (
-        deployment_profile({"EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER": "openfreemap"})[
-            "map_default_provider"
-        ]
-        == "openfreemap"
-    )  # an external style the operator names
+    # An air-gapped site may force the outline anywhere.
+    forced = deployment_profile({"EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER": "outline"})
+    assert forced["map_default_provider"] == "outline"
+    # Retired choices (a second provider, a non-commercial endpoint) fall back to the default.
+    for retired in ("osm", "tianditu", "bundled", "custom", "none", "versatiles"):
+        assert (
+            deployment_profile({"EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER": retired})[
+                "map_default_provider"
+            ]
+            == "openfreemap"
+        ), retired

@@ -19,14 +19,6 @@ import {
   testApiBaseUrl,
 } from "@/api/client";
 import {
-  MAP_TILE_PROVIDERS,
-  configuredMapTileProviderId,
-  configuredMapTileToken,
-  mapTileProviderById,
-  saveMapTileProvider,
-  saveMapTileToken,
-} from "@/app/mapTileProviders";
-import {
   RUNTIME_DATA_AVAILABILITY_CAPTION_KEY,
   dataPlaneState,
   runtimeDataAvailability,
@@ -109,11 +101,6 @@ export function SettingsCenter({
   const [authMessage, setAuthMessage] = useState<string | null>(null);
   const [apiConnectionState, setApiConnectionState] = useState<ApiConnectionState | null>(null);
   const [testingApi, setTestingApi] = useState(false);
-  const [mapTileProviderId, setMapTileProviderId] = useState(() => configuredMapTileProviderId());
-  const [mapTileToken, setMapTileToken] = useState(() => configuredMapTileToken());
-  const [mapTileMessage, setMapTileMessage] = useState<string | null>(null);
-  const selectedMapTileProvider =
-    mapTileProviderById(mapTileProviderId) ?? MAP_TILE_PROVIDERS[0];
   /**
    * The runtime store's own availability, as the workspace batch reported it - never a
    * statement that the readings inside that store are fresh or fit to decide on.
@@ -323,77 +310,6 @@ export function SettingsCenter({
                 </div>
               </div>
 
-              <div className="workspace-panel settings-panel settings-unit-panel">
-                <h2>{t("preferences.workstation_title")}</h2>
-                <PanelHelp text={t("preferences.workstation_help")} label={t("panel.how_to_read")} />
-                <label>
-                  {t("settings.map_tile_provider")}
-                  <select
-                    value={mapTileProviderId}
-                    onChange={(event) => setMapTileProviderId(event.target.value as typeof mapTileProviderId)}
-                  >
-                    {MAP_TILE_PROVIDERS.filter((provider) => provider.id !== "outline").map((provider) => (
-                      <option key={provider.id} value={provider.id}>
-                        {language.startsWith("zh") ? provider.labelZh : provider.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                {/*
-                  Owner decision D4: the product ships no third-party basemap, and the endpoints whose terms
-                  exclude commercial use say so where the operator picks one. A licence the operator is
-                  about to rely on belongs next to the control that selects it, not in a document.
-                */}
-                <p
-                  className={
-                    selectedMapTileProvider.licence === "not-for-commercial-use"
-                      ? "settings-map-licence is-restricted"
-                      : "settings-map-licence"
-                  }
-                  role="status"
-                >
-                  <strong>
-                    {t(
-                      selectedMapTileProvider.licence === "not-for-commercial-use"
-                        ? "settings.map_tile_licence_evaluation"
-                        : selectedMapTileProvider.licence === "open-licence"
-                          ? "settings.map_tile_licence_open"
-                          : "settings.map_tile_licence_deployment",
-                    )}
-                  </strong>
-                  <small>{t(`settings.map_tile_provider_${selectedMapTileProvider.id}`)}</small>
-                  <small>{t(`settings.map_tile_availability_${selectedMapTileProvider.availability}`)}</small>
-                </p>
-                {selectedMapTileProvider.id === "custom" && (
-                  <p className="settings-map-licence">
-                    <small>{t("settings.map_tile_custom_detail")}</small>
-                  </p>
-                )}
-                <label>
-                  {t("settings.map_tile_token")}
-                  <input
-                    type="password"
-                    value={mapTileToken}
-                    spellCheck={false}
-                    autoComplete="off"
-                    onChange={(event) => setMapTileToken(event.target.value)}
-                    placeholder="Tianditu tk"
-                  />
-                </label>
-                <button
-                  type="button"
-                  onClick={() => {
-                    saveMapTileProvider(mapTileProviderId);
-                    saveMapTileToken(mapTileToken);
-                    setMapTileMessage(t("settings.map_tile_saved"));
-                  }}
-                >
-                  {t("settings.map_tile_save")}
-                </button>
-                {mapTileMessage && (
-                  <p className="settings-backend-message" role="status">{mapTileMessage}</p>
-                )}
-              </div>
             </details>
 
             <div className="workspace-panel settings-boundary-panel">

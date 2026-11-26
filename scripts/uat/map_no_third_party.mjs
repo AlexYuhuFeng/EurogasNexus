@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 /**
- * The default map makes no request to a third party (P3, bundled basemap).
+ * The map asks no host but its own and its one basemap (owner review 2026-11-26).
  *
- * Signs in, opens Desk → Network with no basemap chosen (the deployment default), waits for the
- * map to draw and fails when any request leaves for a host other than the application's own.
+ * The basemap is OpenStreetMap data through OpenFreeMap (tiles.openfreemap.org: ODbL, commercial
+ * use allowed). Signs in, opens Desk → Network, waits for the map to draw and fails when any
+ * request leaves for another host: a tile service whose terms exclude a commercial product
+ * (tile.openstreetmap.org, CARTO, AMap), a font CDN, an analytics beacon. Without internet the
+ * map falls back to the bundled outline and the check still holds.
  * Run against a running web client and API, as the browser sweep is:
  *
  *     EUROGAS_UAT_BASE_URL=http://127.0.0.1:3000 EUROGAS_NEXUS_DEV_LOGIN_USERNAME=... \
@@ -18,15 +21,10 @@ const username = process.env.EUROGAS_NEXUS_DEV_LOGIN_USERNAME || "";
 const password = process.env.EUROGAS_NEXUS_DEV_LOGIN_PASSWORD || "";
 
 const own = new URL(BASE).host;
+/** The one basemap host the product may call. */
+const BASEMAP_HOST = "tiles.openfreemap.org";
 const browser = await chromium.launch();
 const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
-await context.addInitScript(() => {
-  try {
-    localStorage.removeItem("eurogas.settings.map_tile_provider");
-  } catch {
-    // Storage blocked: the deployment default applies anyway.
-  }
-});
 const page = await context.newPage();
 const foreign = new Set();
 let glyphs = 0;
@@ -35,7 +33,7 @@ context.on("request", (request) => {
   const url = new URL(request.url());
   if (["data:", "blob:"].includes(url.protocol)) return;
   if (url.pathname.includes("/basemaps/glyphs/")) glyphs += 1;
-  if (url.host !== own) foreign.add(`${url.host}${url.pathname}`);
+  if (url.host !== own && url.host !== BASEMAP_HOST) foreign.add(`${url.host}${url.pathname}`);
 });
 await page.goto(`${BASE}/?workspace=market&task=network`);
 const user = page.locator("#sign-in-username");
@@ -54,7 +52,7 @@ await page.mouse.wheel(0, -600);
 await page.waitForTimeout(4000);
 await browser.close();
 if (foreign.size) {
-  console.error(`the default map requested other hosts:\n  ${[...foreign].join("\n  ")}`);
+  console.error(`the map requested hosts other than its own and ${BASEMAP_HOST}:\n  ${[...foreign].join("\n  ")}`);
   process.exit(1);
 }
-console.log(`default map: no third-party request (bundled glyph ranges read: ${glyphs})`);
+console.log(`map: only its own host and ${BASEMAP_HOST} (bundled glyph ranges read: ${glyphs})`);

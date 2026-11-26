@@ -39,7 +39,6 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "contracts.kind.slope_price": "a price formula of figures and unit codes, no words",
   "evidence.utc": "a time-basis token, the same in both locales",
   "experience.palette.group.ai": "an acronym",
-  "map.layer.lng": "an acronym",
   "nwe.lng": "an acronym",
   "fb.line.lng": "an acronym",
   "panel.lng": "an acronym in a vendor's own product name",

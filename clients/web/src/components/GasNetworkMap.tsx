@@ -14,7 +14,7 @@ import {
 import type { ExpressionSpecification } from "maplibre-gl";
 import mapLibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { EdgeDTO, FacilityDTO, MapSituationDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
+import { EdgeDTO, FacilityDTO, MapCargoDTO, MapSituationDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
 import {
   OVERVIEW_MAX_ZOOM,
   SITUATION_COLOURS,
@@ -50,20 +50,21 @@ import {
 } from "@/app/mapLineGeometry";
 import i18n from "@/i18n";
 import {
-  BUNDLED_FONTSTACK,
+  OSM_ATTRIBUTION,
   buildMapStyle,
-  bundledPalette,
   configuredMapTileProvider,
+  labelFont,
   mapTileProviderById,
-  quietBasemapMinZoom,
-  configuredMapTileToken,
-  labelBudgetForZoom,
-  mapTileBasemapState,
   mapZoomRange,
+  muteVectorBasemap,
+  outlinePalette,
   transformCoordinate,
 } from "@/app/mapTileProviders";
 import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
-import { FACILITY_ICON, drawFacilityIcon } from "@/app/mapIcons";
+import { FACILITY_ICON, drawFacilityIcon, drawVesselIcon, vesselIconId } from "@/app/mapIcons";
+import { isZoneOnly, labelFeatures, mapLabels, type MapLabel } from "@/app/mapLabels";
+import { cargoEta, cargoMapLabel } from "@/app/mapCargo";
+import { corridorLabel, supplyCorridors } from "@/app/mapCorridors";
 import { MapFinder, type MapFinderPlace } from "@/components/MapFinder";
 import { MapDetailPanel } from "@/components/MapDetailPanel";
 import {
@@ -261,6 +262,27 @@ const SITUATION_HOVER_LAYERS = [
 /** MapLibre instances created in this page's life (see `data-map-instance`). */
 let MAP_INSTANCES = 0;
 
+/**
+ * Frame our cargo: the vessel and the terminal it is going to in one view, so "where is it and
+ * how far to go" reads at a glance; the vessel alone when no destination is located.
+ */
+function frameCargo(map: MapLibreMap, cargo: MapCargoDTO | undefined, project: (lon: number, lat: number) => [number, number]): boolean {
+  const at = cargo?.position ?? cargo?.origin ?? cargo?.destination;
+  if (!cargo || !at) return false;
+  const points = [at, cargo.destination].filter(Boolean).map((place) => project(place!.lon, place!.lat));
+  if (points.length < 2 || (points[0][0] === points[1][0] && points[0][1] === points[1][1])) {
+    focusOn(map, points[0], Math.max(map.getZoom(), 5));
+    return true;
+  }
+  const { clientWidth: width, clientHeight: height } = map.getContainer();
+  const pad = Math.max(24, Math.min(90, Math.round(Math.min(width, height) * 0.15)));
+  map.fitBounds(
+    [[Math.min(points[0][0], points[1][0]), Math.min(points[0][1], points[1][1])], [Math.max(points[0][0], points[1][0]), Math.max(points[0][1], points[1][1])]],
+    { padding: pad, maxZoom: 7, ...(prefersReducedMotion() ? { duration: 0 } : cameraMotion()) },
+  );
+  return true;
+}
+
 function focusOn(map: MapLibreMap, center: [number, number], zoom: number): void {
   const target = { center, zoom: Math.min(zoom, map.getMaxZoom()) };
   if (prefersReducedMotion()) map.jumpTo(target);
@@ -429,13 +451,25 @@ export function GasNetworkMap({
 }: GasNetworkMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
-  const labelMarkersRef = useRef<Marker[]>([]);
+  /** The basemap's own place-name layers (named in the app language). */
+  const basemapSymbolIdsRef = useRef<string[]>([]);
   const [mapReady, setMapReady] = useState(false);
   // MapLibre needs WebGL. On a machine without it (remote desktop, locked-down browser, old
   // GPU driver) the constructor throws; without this the throw took the whole page down to a
   // white screen. The page now says why the map is missing and keeps the network lists.
   const [mapStartError, setMapStartError] = useState<string | null>(null);
   const [tier, setTier] = useState<ZoomTier>("overview");
+  /** The whole zoom level, for the labels that appear as the view narrows. */
+  const [labelZoom, setLabelZoom] = useState(3);
+  /** 2D or 3D (MAP-1). */
+  const [dimension, setDimension] = useState<SceneDimension>(() => (compact ? "2d" : storedDimension()));
+  /** The outages the map draws: those touching our book, or every one with "All outages". */
+  const outageIds = useMemo(() => {
+    if (!situation) return new Set<string>();
+    if (activeLayers.includes("outages_all")) return new Set(situation.outages.map((item) => item.event_id));
+    if (!activeLayers.includes("outages")) return new Set<string>();
+    return new Set(situation.book_relevance?.outages_touching ?? []);
+  }, [activeLayers, situation]);
   // The "control tower" selection: one object at a time, its card docked on the right, the
   // object and what it relates to highlighted and the rest dimmed.
   // Uncontrolled, the selection is remembered across a remount (a mode switch), as the camera is.
@@ -530,10 +564,9 @@ export function GasNetworkMap({
   const configuredProvider = useMemo(configuredMapTileProvider, [deploymentMapDefault]);
   const basemapFellBack = unreachableBasemap === configuredProvider.id;
   const mapTileProvider = basemapFellBack ? mapTileProviderById("outline")! : configuredProvider;
-  const basemapState = useMemo(
-    () => basemapFellBack ? "fallback" as const : mapTileBasemapState(mapTileProvider, configuredMapTileToken()),
-    [basemapFellBack, mapTileProvider],
-  );
+  // The outline is said only when it stands in for OpenStreetMap (offline, unreachable); a China
+  // installation draws it by design and says nothing.
+  const showingOfflineOutline = mapTileProvider.id === "outline" && deploymentMapDefault !== "outline";
   const toMapCoordinates = (lon: number, lat: number): [number, number] =>
     transformCoordinate(mapTileProvider.id, lon, lat);
   const mapColors = useMemo(
@@ -546,6 +579,7 @@ export function GasNetworkMap({
           route: "#50e3c2",
           // Generic points are neutral: blue on this map means the firm's own positions.
           node: "#94a3b8",
+          zone: "#71717a",
           hub: "#50e3c2",
           lng: "#b978ff",
           interconnection: "#f5a623",
@@ -558,6 +592,7 @@ export function GasNetworkMap({
           link: "#4b5563",
           route: "#00b871",
           node: "#64748b",
+          zone: "#a1a1aa",
           hub: "#50e3c2",
           lng: "#7928ca",
           interconnection: "#f5a623",
@@ -711,8 +746,8 @@ export function GasNetworkMap({
     return index >= 0 && fallbackLabelPriorityIds.has(node.id);
   }
 
-  // A vector basemap has its own light and dark style, so the map is rebuilt when the theme
-  // changes; a raster or outline basemap is recoloured in place (below).
+  // OpenStreetMap has its own light and dark style, so the map is rebuilt when the theme
+  // changes; the outline is recoloured in place (below).
   const basemapStyleKey = `${mapTileProvider.id}:${mapTileProvider.styleUrl ? effectiveTheme : "any"}`;
   const lastViewRef = useRef<{ center: [number, number]; zoom: number } | null>(
     compact ? null : remembered.camera,
@@ -721,7 +756,6 @@ export function GasNetworkMap({
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
 
-    const mapTileToken = configuredMapTileToken();
     const view = lastViewRef.current;
     // Each MapLibre instance is numbered, so a measurement can tell a kept map from a rebuilt one.
     MAP_INSTANCES += 1;
@@ -737,16 +771,7 @@ export function GasNetworkMap({
         attributionControl: false,
         style: buildMapStyle(
           mapTileProvider.id,
-          mapTileToken,
-          {
-            background: mapColors.background,
-            rasterOpacity: effectiveTheme === "dark" ? 0.56 : 0.72,
-            rasterSaturation: -1,
-            rasterContrast: effectiveTheme === "dark" ? 0.2 : 0.28,
-            rasterBrightnessMin: effectiveTheme === "dark" ? 0.12 : 0.2,
-            rasterBrightnessMax: effectiveTheme === "dark" ? 0.76 : 0.96,
-            language: i18n.language,
-          },
+          { background: mapColors.background },
           effectiveTheme === "dark" ? "dark" : "light",
         ),
       });
@@ -768,29 +793,8 @@ export function GasNetworkMap({
       // against the Mediterranean as on a flat Mercator map; MapLibre flattens it as the view
       // narrows to a region.
       map.setProjection({ type: "globe" });
-      // The bundled basemap is revealed rather than popped in: land, coast, borders and names
-      // fade up together (at once under reduced motion).
-      if (map.getLayer("bundled-borders")) {
-        const duration = prefersReducedMotion() ? 0 : 700;
-        for (const [layerId, property, value] of [
-          ["outline-land", "fill-opacity", 1],
-          ["outline-coast", "line-opacity", 1],
-          ["bundled-borders", "line-opacity", 0.9],
-          ["bundled-country-labels", "text-opacity", 1],
-          ["bundled-city-labels", "text-opacity", 0.9],
-        ] as const) {
-          map.setPaintProperty(layerId, `${property}-transition` as never, { duration, delay: 0 } as never);
-          map.setPaintProperty(layerId, property as never, value as never);
-        }
-      }
-      if (mapTileProvider.styleUrl) {
-        for (const layer of map.getStyle().layers) {
-          if (layer.type !== "symbol") continue;
-          const from = quietBasemapMinZoom(layer.id, layer.minzoom);
-          if (from !== null) map.setLayerZoomRange(layer.id, from, layer.maxzoom ?? 24);
-          map.setPaintProperty(layer.id, "text-opacity", 0.72);
-        }
-      }
+      // OpenStreetMap, muted: the network, our positions and prices are the content.
+      if (mapTileProvider.styleUrl) muteVectorBasemap(map);
       setMapReady(true);
     });
     let unreachable: ReturnType<typeof setTimeout> | undefined;
@@ -801,6 +805,17 @@ export function GasNetworkMap({
       map.on("style.load", () => {
         styleArrived = true;
         clearTimeout(unreachable);
+      });
+      // The ODbL credit in the words the licence asks for, once (OpenFreeMap's own line says the
+      // same less plainly): the attribution control reads each source's text, which a vector
+      // source sets when its TileJSON (metadata) arrives.
+      map.on("sourcedata", (event) => {
+        if (event.sourceDataType !== "metadata") return;
+        const source = map.getSource(event.sourceId) as { attribution?: string } | undefined;
+        if (source && typeof source.attribution === "string" && /openstreetmap|openmaptiles/i.test(source.attribution)
+          && source.attribution !== OSM_ATTRIBUTION) {
+          source.attribution = OSM_ATTRIBUTION;
+        }
       });
       const fallBack = () => {
         if (!loaded && !styleArrived) setUnreachableBasemap(mapTileProvider.id);
@@ -815,7 +830,10 @@ export function GasNetworkMap({
       if (!map.queryRenderedFeatures(event.point, { layers: interactive }).length) setSelection(null);
     });
     // Semantic zoom: the tier decides what the map shows, not only how big it is.
-    const syncTier = () => setTier(zoomTier(map.getZoom()));
+    const syncTier = () => {
+      setTier(zoomTier(map.getZoom()));
+      setLabelZoom(Math.floor(map.getZoom()));
+    };
     syncTier();
     map.on("zoomend", syncTier);
     mapRef.current = map;
@@ -835,19 +853,29 @@ export function GasNetworkMap({
       if (!compact) remembered.camera = lastViewRef.current;
       resizeObserver?.disconnect();
       setMapReady(false);
+      basemapSymbolIdsRef.current = [];
       map.remove();
       mapRef.current = null;
     };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basemapStyleKey]);
 
-  // The bundled basemap names places in the app language (English or Chinese).
+  // OpenStreetMap names places in the app language where OSM holds the name (Chinese or
+  // English), else in Latin script: a Chinese desk reads 荷兰, not Nederland.
   useEffect(() => {
     const apply = (language: string) => {
       const map = mapRef.current;
-      if (!map || !mapReady || !map.getLayer("bundled-country-labels")) return;
-      const field = String(language).toLowerCase().startsWith("zh") ? "name_zh" : "name_en";
-      map.setLayoutProperty("bundled-country-labels", "text-field", ["get", field]);
-      map.setLayoutProperty("bundled-city-labels", "text-field", ["get", field]);
+      if (!map || !mapReady || !mapTileProvider.styleUrl) return;
+      if (!basemapSymbolIdsRef.current.length) {
+        basemapSymbolIdsRef.current = (map.getStyle().layers ?? [])
+          .filter((layer) => layer.type === "symbol" && JSON.stringify(layer.layout?.["text-field"] ?? "").includes("name"))
+          .map((layer) => layer.id);
+      }
+      const own = String(language).toLowerCase().startsWith("zh") ? "name:zh" : "name:en";
+      for (const id of basemapSymbolIdsRef.current) {
+        if (!map.getLayer(id)) continue;
+        map.setLayoutProperty(id, "text-field", ["coalesce", ["get", own], ["get", "name:latin"], ["get", "name"]]);
+      }
     };
     apply(i18n.language);
     i18n.on("languageChanged", apply);
@@ -867,26 +895,10 @@ export function GasNetworkMap({
       map.setPaintProperty("background", "background-color", mapColors.background);
     }
     if (map.getLayer("outline-land")) {
-      map.setPaintProperty("outline-land", "fill-color", effectiveTheme === "dark" ? "#18181b" : "#ffffff");
-      map.setPaintProperty("outline-coast", "line-color", effectiveTheme === "dark" ? "#3f3f46" : "#d4d4d8");
+      const palette = outlinePalette(effectiveTheme === "dark" ? "dark" : "light");
+      map.setPaintProperty("outline-land", "fill-color", palette.land);
+      map.setPaintProperty("outline-coast", "line-color", palette.coast);
     }
-    if (map.getLayer("bundled-borders")) {
-      const palette = bundledPalette(effectiveTheme === "dark" ? "dark" : "light");
-      map.setPaintProperty("bundled-borders", "line-color", palette.border);
-      for (const [layerId, colour] of [["bundled-country-labels", palette.country], ["bundled-city-labels", palette.city]] as const) {
-        map.setPaintProperty(layerId, "text-color", colour);
-        map.setPaintProperty(layerId, "text-halo-color", palette.halo);
-      }
-    }
-    for (const rasterLayerId of ["basemap-raster", "tianditu-vec-raster", "tianditu-label-raster"]) {
-      if (!map.getLayer(rasterLayerId)) continue;
-      map.setPaintProperty(rasterLayerId, "raster-opacity", effectiveTheme === "dark" ? 0.56 : 0.72);
-      map.setPaintProperty(rasterLayerId, "raster-saturation", -1);
-      map.setPaintProperty(rasterLayerId, "raster-contrast", effectiveTheme === "dark" ? 0.2 : 0.28);
-      map.setPaintProperty(rasterLayerId, "raster-brightness-min", effectiveTheme === "dark" ? 0.12 : 0.2);
-      map.setPaintProperty(rasterLayerId, "raster-brightness-max", effectiveTheme === "dark" ? 0.76 : 0.96);
-    }
-    if (!mapReady) return;
 
     if (map.getLayer("verified-pipeline-lines")) {
       map.setPaintProperty("verified-pipeline-lines", "line-color", routeLineColor(mapColors));
@@ -909,15 +921,10 @@ export function GasNetworkMap({
     }
     if (map.getLayer("nodes-circle")) {
       map.setPaintProperty("nodes-circle", "circle-color", [
-        "match",
-        ["get", "node_type"],
-        "hub",
-        mapColors.hub,
-        "lng",
-        mapColors.lng,
-        "interconnection",
-        mapColors.interconnection,
-        mapColors.node,
+        "case",
+        ["get", "zone_only"],
+        mapColors.zone,
+        ["match", ["get", "node_type"], "hub", mapColors.hub, "lng", mapColors.lng, "interconnection", mapColors.interconnection, "entry_point", mapColors.interconnection, mapColors.node],
       ]);
       map.setPaintProperty("nodes-circle", "circle-stroke-color", mapColors.stroke);
       map.setPaintProperty("nodes-circle", "circle-opacity", [
@@ -946,6 +953,8 @@ export function GasNetworkMap({
         id: node.id,
         name: node.name,
         node_type: node.node_type,
+        // A balancing zone with no trading point: a small grey dot, never a hub's mark.
+        zone_only: isZoneOnly(node),
         country: node.country,
         capacity_boe_d: node.capacity_boe_d,
         source_system: node.source_system ?? "",
@@ -1201,8 +1210,7 @@ export function GasNetworkMap({
         layout: {
           "text-field": ["get", "point_count_abbreviated"],
           "text-size": 11,
-          // The bundled basemap's Inter glyphs; a vector basemap keeps its own font.
-          ...(mapTileProvider.id === "bundled" ? { "text-font": [BUNDLED_FONTSTACK] } : {}),
+          "text-font": labelFont(mapTileProvider.id),
           // A count always shows inside its circle, and never pushes a basemap name away.
           "text-allow-overlap": true,
           "text-ignore-placement": true,
@@ -1215,9 +1223,12 @@ export function GasNetworkMap({
         source: "nodes",
         filter: ["!", ["has", "point_count"]],
         paint: {
-          "circle-radius": ["case", ["==", ["get", "node_type"], "hub"], 6, 3.5],
+          "circle-radius": ["case", ["get", "zone_only"], 3, ["==", ["get", "node_type"], "hub"], 6, 3.5],
           "circle-color": [
-            "match",
+            "case",
+            ["get", "zone_only"],
+            mapColors.zone,
+            ["match",
             ["get", "node_type"],
             "hub",
             mapColors.hub,
@@ -1227,7 +1238,7 @@ export function GasNetworkMap({
             mapColors.interconnection,
             "entry_point",
             mapColors.interconnection,
-            mapColors.node,
+            mapColors.node],
           ],
           "circle-stroke-color": mapColors.stroke,
           "circle-stroke-width": [
@@ -1366,7 +1377,6 @@ export function GasNetworkMap({
   // Our book view: the opportunities' paths. An actionable one pops out (wide, the opportunity
   // colour) with its headline on the far hub; a watch-state one is a thin outline. Selecting
   // either opens the opportunity.
-  const opportunityMarkersRef = useRef<Marker[]>([]);
   const selectOpportunityRef = useRef(onSelectOpportunity);
   selectOpportunityRef.current = onSelectOpportunity;
   useEffect(() => {
@@ -1417,26 +1427,7 @@ export function GasNetworkMap({
     const visible = view === "book" ? "visible" : "none";
     map.setLayoutProperty("book-opportunity-lines", "visibility", visible);
     map.setLayoutProperty("book-opportunity-hit", "visibility", visible);
-    opportunityMarkersRef.current.forEach((marker) => marker.remove());
-    opportunityMarkersRef.current = view === "book"
-      ? bookOpportunities.map((line) => {
-          const element = document.createElement("button");
-          element.type = "button";
-          element.className = `map-node-label map-opportunity-label is-${line.emphasis}`;
-          element.textContent = line.label;
-          element.addEventListener("click", (event) => {
-            event.stopPropagation();
-            selectOpportunityRef.current?.(line.opportunityId);
-          });
-          return new Marker({ element, anchor: "bottom-left", offset: [10, -10] })
-            .setLngLat(toMapCoordinates(line.labelAt[0], line.labelAt[1]))
-            .addTo(map);
-        })
-      : [];
-    return () => {
-      opportunityMarkersRef.current.forEach((marker) => marker.remove());
-      opportunityMarkersRef.current = [];
-    };
+    // Each opportunity's headline is a label in the map's one label layer (selecting it opens it).
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookOpportunities, effectiveTheme, mapReady, view]);
 
@@ -1538,37 +1529,9 @@ export function GasNetworkMap({
         arrow.className = "map-flow-arrow";
         arrow.setAttribute("aria-hidden", "true");
         arrow.style.transform = `rotate(${Math.atan2(uy, ux)}rad)`;
-        const label = document.createElement("div");
-        label.className = "map-node-label map-flow-label";
-        label.textContent = flow.label;
-        label.title = `${flow.mwhPerDay.toLocaleString()} MWh/d`;
+        // The volume is the flow's label in the map's one label layer (decluttered).
         bookFlowMarkersRef.current.push(
           new Marker({ element: arrow, anchor: "center", rotationAlignment: "viewport" }).setLngLat(arrowAt).addTo(map),
-          new Marker({ element: label, anchor: "top", offset: [0, 10] }).setLngLat(end).addTo(map),
-        );
-      }
-      // In the book view a delivery at a place is a badge there, its volume summed: a contract
-      // at a hub is a market position, not a line to the hub's points.
-      if (view !== "book") return;
-      const flowEnds = new Set(bookFlows.map((flow) => flow.toId));
-      const byPlace = new Map<string, { lon: number; lat: number; mwhD: number; names: string[] }>();
-      for (const contract of situation?.contracts ?? []) {
-        const { lon, lat, ref_id: refId } = contract.location;
-        if (!Number.isFinite(lon) || !Number.isFinite(lat) || (refId && flowEnds.has(refId))) continue;
-        const key = refId || `${plainDecimal(lon, 4)},${plainDecimal(lat, 4)}`;
-        const place = byPlace.get(key) ?? { lon, lat, mwhD: 0, names: [] };
-        place.mwhD += contract.delivery_mwh_d;
-        place.names.push(contract.contract_name);
-        byPlace.set(key, place);
-      }
-      for (const place of byPlace.values()) {
-        if (!(place.mwhD > 0)) continue;
-        const badge = document.createElement("div");
-        badge.className = "map-node-label map-flow-label";
-        badge.textContent = compactMwhPerDay(place.mwhD);
-        badge.title = `${place.names.join("\n")}\n${place.mwhD.toLocaleString()} MWh/d`;
-        bookFlowMarkersRef.current.push(
-          new Marker({ element: badge, anchor: "top", offset: [0, 12] }).setLngLat(toMapCoordinates(place.lon, place.lat)).addTo(map),
         );
       }
     };
@@ -1578,7 +1541,7 @@ export function GasNetworkMap({
       map.off("moveend", place);
       clear();
     };
-  }, [activeLayers, bookFlows, effectiveTheme, mapReady, situation, view]);
+  }, [activeLayers, bookFlows, effectiveTheme, mapReady, view]);
 
 
   // Disruptions touching the book (book view only): a quiet mark each; the ones active and
@@ -1610,7 +1573,6 @@ export function GasNetworkMap({
   // one highlighted, with its benefit on the line. The proposed line draws in once (at most
   // 600 ms, the map's motion tokens) when it first shows or is selected; at once under
   // reduced motion.
-  const proposalMarkersRef = useRef<Marker[]>([]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
@@ -1678,24 +1640,9 @@ export function GasNetworkMap({
     } else {
       source.setData(lineData(1));
     }
-    proposalMarkersRef.current.forEach((marker) => marker.remove());
-    proposalMarkersRef.current = shown.map((line) => {
-      const element = document.createElement("button");
-      element.type = "button";
-      element.className = "map-node-label map-proposal-label";
-      element.textContent = line.label;
-      element.addEventListener("click", (event) => {
-        event.stopPropagation();
-        selectOpportunityRef.current?.(line.opportunityId);
-      });
-      return new Marker({ element, anchor: "bottom", offset: [0, -8] })
-        .setLngLat(toMapCoordinates(line.labelAt[0], line.labelAt[1]))
-        .addTo(map);
-    });
+    // The benefit on the line is a label in the map's one label layer.
     return () => {
       cancelAnimationFrame(frame);
-      proposalMarkersRef.current.forEach((marker) => marker.remove());
-      proposalMarkersRef.current = [];
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bookProposals, drawInKey, effectiveTheme, mapReady, view]);
@@ -1763,6 +1710,20 @@ export function GasNetworkMap({
         if (image) map.addImage(id, image, { pixelRatio: 2 });
       }
     }
+    // Vessel marks, one per kind, owner and theme: an arrow turned to the reported heading, or a
+    // dot where no heading is known.
+    for (const theme of ["light", "dark"] as const) {
+      const colours = SITUATION_COLOURS[theme];
+      for (const kind of ["heading", "still"] as const) {
+        for (const owner of ["own", "market"] as const) {
+          const id = vesselIconId(kind, owner, theme);
+          if (map.hasImage(id)) continue;
+          const image = drawVesselIcon(kind, owner === "own" ? colours.own : colours.market, colours.halo);
+          if (image) map.addImage(id, image, { pixelRatio: 2 });
+        }
+      }
+    }
+    const vesselImage = ["concat", "vessel-", ["get", "icon"], "-", ["case", ["get", "own"], "own", "market"], `-${effectiveTheme}`];
     const iconImage = ["concat", "infra-", ["get", "facility_type"], `-${effectiveTheme}`];
     if (upsertSource(map, "situation-facilities", facilityFeatures(facilities, toMapCoordinates))) {
       map.addLayer({
@@ -1837,10 +1798,11 @@ export function GasNetworkMap({
         type: "line",
         source: "situation-cargo-sailed",
         layout: { "line-cap": "round", "line-join": "round" },
+        // The track already sailed: thin and solid.
         paint: {
           "line-color": ["case", ["get", "own"], palette.own, palette.market],
-          "line-width": ["case", ["get", "own"], 2, 1.2],
-          "line-opacity": 0.55,
+          "line-width": ["case", ["get", "own"], 1.6, 1],
+          "line-opacity": 0.7,
         },
       });
     }
@@ -1850,11 +1812,13 @@ export function GasNetworkMap({
         type: "line",
         source: "situation-cargo-ahead",
         layout: { "line-cap": "butt" },
+        // The way still to go: a straight dashed line to the terminal, the direction and not a
+        // route (no sea-lane routing is held, and a great circle can cross land).
         paint: {
           "line-color": ["case", ["get", "own"], palette.own, palette.market],
-          "line-width": ["case", ["get", "own"], 2, 1],
-          "line-opacity": 0.8,
-          "line-dasharray": [0, 4, 3],
+          "line-width": ["case", ["get", "own"], 1.4, 1],
+          "line-opacity": 0.65,
+          "line-dasharray": [3, 3],
         },
       });
     }
@@ -1911,15 +1875,21 @@ export function GasNetworkMap({
     if (cargoCreated) {
       map.addLayer({
         id: "situation-cargo-positions",
-        type: "circle",
+        type: "symbol",
         source: "situation-cargo-positions",
-        paint: {
-          "circle-radius": ["case", ["get", "own"], 6, 4],
-          "circle-color": ["case", ["get", "own"], palette.own, palette.market],
-          "circle-stroke-color": palette.halo,
-          "circle-stroke-width": 1.5,
+        layout: {
+          "icon-image": vesselImage as never,
+          "icon-size": ["case", ["get", "own"], 1, 0.75] as never,
+          "icon-rotate": ["get", "heading"],
+          "icon-rotation-alignment": "map",
+          // A vessel always shows; names give way around it.
+          "icon-allow-overlap": true,
+          "icon-ignore-placement": false,
+          "symbol-sort-key": ["case", ["get", "own"], 0, 1] as never,
         },
       });
+    } else if (map.getLayer("situation-cargo-positions")) {
+      map.setLayoutProperty("situation-cargo-positions", "icon-image", vesselImage as never);
     }
     if (upsertSource(map, "situation-outages", situation ? outageFeatures(situation.outages, toMapCoordinates) : empty)) {
       map.addLayer({
@@ -1976,6 +1946,12 @@ export function GasNetworkMap({
             ? coordinates
             : [event.lngLat.lng, event.lngLat.lat] as [number, number];
           hover.remove();
+          if (props.kind === "cargo") {
+            const cargo = situationRef.current?.cargoes.find((item) => item.cargo_id === String(props.id));
+            if (!frameCargo(map, cargo, toMapCoordinates)) focusOn(map, target, Math.max(map.getZoom(), 7));
+            setSelection({ kind: "cargo", id: String(props.id) });
+            return;
+          }
           focusOn(map, target, Math.max(map.getZoom(), layerId === "situation-facilities" ? 9 : 7));
           if (props.kind === "cargo") setSelection({ kind: "cargo", id: String(props.id) });
           else setSelection(selectForRef.current(String(layerId === "situation-facilities" ? props.id : props.ref ?? "")));
@@ -2002,32 +1978,42 @@ export function GasNetworkMap({
       "situation-outage-halo",
       "situation-outages",
     ]) {
-      // In the book view our own deals are the subject: drawn at every zoom, not folded
-      // into country totals.
-      const ownLayer = layerId.startsWith("situation-cargo") || layerId === "situation-regas" || layerId === "situation-contracts";
-      if (map.getLayer(layerId)) map.setLayerZoomRange(layerId, view === "book" && ownLayer ? 0 : OVERVIEW_MAX_ZOOM, 24);
+      // What touches our book (our deals, our cargoes, the outages on the book) is the map's
+      // subject and draws at every zoom; the rest of the system from regional zoom.
+      const bookLayer = layerId.startsWith("situation-cargo") || layerId === "situation-regas"
+        || layerId === "situation-contracts" || layerId.startsWith("situation-outage");
+      if (map.getLayer(layerId)) map.setLayerZoomRange(layerId, bookLayer ? 0 : OVERVIEW_MAX_ZOOM, 24);
     }
     const show: Record<string, boolean> = {
       "situation-facilities": activeLayers.includes("infrastructure"),
       "situation-pipeline-flow": activeLayers.includes("flows"),
       "situation-flows": activeLayers.includes("flows"),
-      // Own cargoes with "Our positions", market vessels with "LNG vessels" (filtered below).
-      "situation-cargo-sailed": activeLayers.includes("positions") || activeLayers.includes("vessels"),
-      "situation-cargo-ahead": activeLayers.includes("positions") || activeLayers.includes("vessels"),
+      // Our cargoes with "Our cargoes", market vessels with "LNG vessels" (filtered below).
+      "situation-cargo-sailed": activeLayers.includes("cargoes") || activeLayers.includes("vessels"),
+      "situation-cargo-ahead": activeLayers.includes("cargoes") || activeLayers.includes("vessels"),
       "situation-regas": activeLayers.includes("positions"),
       "situation-contracts": activeLayers.includes("positions"),
-      "situation-cargo-positions": activeLayers.includes("positions") || activeLayers.includes("vessels"),
-      "situation-outage-halo": activeLayers.includes("outages"),
-      "situation-outages": activeLayers.includes("outages"),
+      // In 3D the vessel is the hull the scene draws at the same place.
+      "situation-cargo-positions": (activeLayers.includes("cargoes") || activeLayers.includes("vessels")) && dimension !== "3d",
+      "situation-outage-halo": outageIds.size > 0,
+      "situation-outages": outageIds.size > 0,
     };
     for (const [layerId, on] of Object.entries(show)) {
       if (map.getLayer(layerId)) map.setLayoutProperty(layerId, "visibility", visibility(on));
     }
     const cargoFilter = [
       "any",
-      ["all", ["==", ["get", "own"], true], activeLayers.includes("positions")],
+      ["all", ["==", ["get", "own"], true], activeLayers.includes("cargoes")],
       ["all", ["==", ["get", "own"], false], activeLayers.includes("vessels")],
     ];
+    // Outages: by default those that touch our book; "All outages" shows every one.
+    const outageFilter = ["in", ["get", "id"], ["literal", [...outageIds]]];
+    for (const layerId of ["situation-outages"]) {
+      if (map.getLayer(layerId)) map.setFilter(layerId, outageFilter as never);
+    }
+    if (map.getLayer("situation-outage-halo")) {
+      map.setFilter("situation-outage-halo", ["all", ["==", ["get", "status"], "active"], outageFilter] as never);
+    }
     for (const layerId of ["situation-cargo-sailed", "situation-cargo-positions"]) {
       if (map.getLayer(layerId)) map.setFilter(layerId, cargoFilter as never);
     }
@@ -2048,8 +2034,6 @@ export function GasNetworkMap({
       ["situation-regas", "circle-stroke-color", palette.own],
       ["situation-contracts", "circle-color", palette.halo],
       ["situation-contracts", "circle-stroke-color", palette.own],
-      ["situation-cargo-positions", "circle-color", ownOrMarket],
-      ["situation-cargo-positions", "circle-stroke-color", palette.halo],
       ["situation-outage-halo", "circle-color", palette.outageActive],
       ["situation-outages", "circle-color", ["match", ["get", "status"], "active", palette.outageActive, palette.outageScheduled]],
       ["situation-outages", "circle-stroke-color", palette.halo],
@@ -2057,10 +2041,10 @@ export function GasNetworkMap({
     for (const [layerId, property, value] of paints) {
       if (map.getLayer(layerId)) map.setPaintProperty(layerId, property as never, value as never);
     }
-  }, [activeLayers, effectiveTheme, facilities, mapReady, situation, t, verifiedPipelineLines, view]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLayers, dimension, effectiveTheme, facilities, mapReady, outageIds, situation, t, verifiedPipelineLines, view]);
 
   // Selection: draw the selected object and what it relates to on top, dim everything else.
-  const selectionMarkersRef = useRef<Marker[]>([]);
   const dimmedRef = useRef<Map<string, unknown>>(new Map());
   useEffect(() => {
     const map = mapRef.current;
@@ -2074,19 +2058,16 @@ export function GasNetworkMap({
     if (selection?.kind === "cargo" && situation) {
       const cargo = situation.cargoes.find((item) => item.cargo_id === selection.id);
       if (cargo) {
-        const at = cargo.position ?? cargo.origin;
-        const track: Coord[] = cargo.track.length > 1
-          ? cargo.track.map(([lon, lat]) => [lon, lat] as Coord)
-          : cargo.origin && cargo.position ? [[cargo.origin.lon, cargo.origin.lat], [cargo.position.lon, cargo.position.lat]] : [];
-        if (track.length > 1) lines.push({ part: "sailed", coords: track });
-        if (at && cargo.destination) lines.push({ part: "ahead", coords: [[at.lon, at.lat], [cargo.destination.lon, cargo.destination.lat]] });
-        if (cargo.origin) {
-          points.push({ part: "end", at: [cargo.origin.lon, cargo.origin.lat] });
-          labels.push({ at: [cargo.origin.lon, cargo.origin.lat], text: cargo.load_port });
+        // The vessel where it was reported, the track it sailed (only from its position history)
+        // and the direction to its terminal, with the terminal named; the card is in the panel.
+        const at = cargo.position ?? (cargo.status === "loading" ? cargo.origin : null);
+        if (cargo.track.length > 1) lines.push({ part: "sailed", coords: cargo.track.map(([lon, lat]) => [lon, lat] as Coord) });
+        if (at && cargo.destination && cargo.status === "laden") {
+          lines.push({ part: "ahead", coords: [[at.lon, at.lat], [cargo.destination.lon, cargo.destination.lat]] });
         }
         if (cargo.destination) {
           points.push({ part: "end", at: [cargo.destination.lon, cargo.destination.lat] });
-          labels.push({ at: [cargo.destination.lon, cargo.destination.lat], text: `${cargo.destination_terminal ?? ""} · ETA ${(cargo.eta_utc ?? "").slice(5, 10)}` });
+          if (cargo.destination_terminal) labels.push({ at: [cargo.destination.lon, cargo.destination.lat], text: cargo.destination_terminal });
         }
         if (at) points.push({ part: "current", at: [at.lon, at.lat] });
       }
@@ -2115,7 +2096,7 @@ export function GasNetworkMap({
             if (at) {
               lines.push({ part: "ahead", coords: [[at.lon, at.lat], [site.lon, site.lat]] });
               points.push({ part: "end", at: [at.lon, at.lat] });
-              labels.push({ at: [at.lon, at.lat], text: `${cargo.vessel_name} · ETA ${(cargo.eta_utc ?? "").slice(5, 10)}` });
+              labels.push({ at: [at.lon, at.lat], text: cargoMapLabel(cargo, cargoEta(cargo, Date.now()), t) });
             }
           }
         }
@@ -2211,7 +2192,7 @@ export function GasNetworkMap({
       ["situation-cargo-ahead", "line-opacity"],
       ["situation-regas", "circle-opacity"],
       ["situation-contracts", "circle-opacity"],
-      ["situation-cargo-positions", "circle-opacity"],
+      ["situation-cargo-positions", "icon-opacity"],
       ["situation-outages", "circle-opacity"],
     ];
     const emphasis: Record<string, unknown> = { ...VIEW_EMPHASIS[view] };
@@ -2240,13 +2221,35 @@ export function GasNetworkMap({
         : 0.25;
       map.setPaintProperty(layerId, property as never, (selection || replay ? dimmed : base) as never);
     }
-    selectionMarkersRef.current.forEach((marker) => marker.remove());
-    selectionMarkersRef.current = labels.map((label) => {
-      const element = document.createElement("div");
-      element.className = "map-node-label map-selection-label";
-      element.textContent = label.text;
-      return new Marker({ element, anchor: "left", offset: [12, 0] }).setLngLat(toMapCoordinates(label.at[0], label.at[1])).addTo(map);
-    });
+    // The selection's names: a symbol layer above the map's own labels, so they win a collision.
+    const selectionLabelData = {
+      type: "FeatureCollection" as const,
+      features: labels.map((label) => ({
+        type: "Feature" as const,
+        properties: { text: label.text },
+        geometry: { type: "Point" as const, coordinates: toMapCoordinates(label.at[0], label.at[1]) },
+      })),
+    };
+    if (upsertSource(map, "selection-labels", selectionLabelData)) {
+      map.addLayer({
+        id: "selection-labels",
+        type: "symbol",
+        source: "selection-labels",
+        layout: {
+          "text-field": ["get", "text"],
+          "text-font": labelFont(mapTileProvider.id, "bold"),
+          "text-size": 12,
+          "text-variable-anchor": ["left", "right", "top", "bottom"],
+          "text-radial-offset": 1.1,
+          "text-justify": "auto",
+          "text-padding": 3,
+        },
+        paint: { "text-color": accent, "text-halo-color": SITUATION_COLOURS[effectiveTheme].halo, "text-halo-width": 1.4 },
+      });
+    }
+    map.setPaintProperty("selection-labels", "text-color", accent);
+    map.setPaintProperty("selection-labels", "text-halo-color", SITUATION_COLOURS[effectiveTheme].halo);
+    map.moveLayer("selection-labels");
   }, [bookEmphasis, edges, effectiveTheme, facilities, mapReady, nodeLookup, nodes, selection, situation, sites, verifiedPipelineLines, view, Boolean(replay)]);
 
   // Replay of a completed deal: the whole voyage faint, the part sailed by the replay clock
@@ -2315,8 +2318,7 @@ export function GasNetworkMap({
     if (focus.cargoId) {
       const cargo = situationRef.current?.cargoes.find((item) => item.cargo_id === focus.cargoId);
       setSelection({ kind: "cargo", id: focus.cargoId });
-      const at = cargo?.position ?? cargo?.origin ?? cargo?.destination;
-      if (at) focusOn(map, toMapCoordinates(at.lon, at.lat), 5);
+      frameCargo(map, cargo, toMapCoordinates);
       return;
     }
     if (focus.refId) {
@@ -2367,147 +2369,127 @@ export function GasNetworkMap({
   // Motion rules (design system): nothing on the map loops except the pulse of a disruption
   // touching the book (CSS, `.map-disruption.is-pulse`). Flows and voyages are drawn still.
 
+  // The map's names: one symbol layer MapLibre declutters (app/mapLabels.ts). A label that would
+  // touch another is dropped, the less important first, and the basemap's names give way to
+  // ours; nothing is an HTML box over the map.
+  // The main import corridors, as supply corridors with their entry-point flow (app/mapCorridors).
+  const corridors = useMemo(() => supplyCorridors(edges, nodes, situation?.flows ?? []), [edges, nodes, situation?.flows]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-
-    const clearLabels = () => {
-      labelMarkersRef.current.forEach((marker) => marker.remove());
-      labelMarkersRef.current = [];
+    const data = {
+      type: "FeatureCollection" as const,
+      features: corridors.map((corridor) => ({
+        type: "Feature" as const,
+        properties: { id: corridor.id, in_service: corridor.inService },
+        geometry: { type: "LineString" as const, coordinates: corridor.coordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)) },
+      })),
     };
-    // Our labels are HTML; an invisible copy of each in the map's own symbol placement makes the
-    // bundled basemap's names give way to them (a country or city name that would overlap a hub,
-    // terminal or asset label is hidden). Only the bundled basemap has the glyphs for it.
-    const blockers: Array<{ at: [number, number]; text: string; offset: [number, number] }> = [];
-    const publishBlockers = () => {
-      if (!map.getLayer("bundled-country-labels")) return;
-      const data = {
-        type: "FeatureCollection" as const,
-        features: blockers.map((item) => ({
-          type: "Feature" as const,
-          // Offsets in ems of the 12 px text, as the HTML label is offset in pixels.
-          properties: { text: item.text, offset: [item.offset[0] / 12, item.offset[1] / 12] },
-          geometry: { type: "Point" as const, coordinates: item.at },
-        })),
-      };
-      if (upsertSource(map, "label-blockers", data)) {
-        map.addLayer({
-          id: "label-blockers",
-          type: "symbol",
-          source: "label-blockers",
-          layout: {
-            "text-field": ["get", "text"],
-            "text-font": [BUNDLED_FONTSTACK],
-            "text-size": 12,
-            "text-anchor": "left",
-            "text-offset": ["array", "number", 2, ["get", "offset"]],
-            "text-allow-overlap": true,
-            "text-ignore-placement": false,
-            "text-padding": 6,
-          },
-          paint: { "text-opacity": 0 },
-        });
+    const colour = mapColors.link;
+    if (upsertSource(map, "supply-corridors", data)) {
+      map.addLayer({
+        id: "supply-corridors",
+        type: "line",
+        source: "supply-corridors",
+        layout: { "line-cap": "round", "line-join": "round" },
+        // In service: a firm line; out of service: faint and dashed.
+        paint: {
+          "line-color": colour,
+          "line-width": ["case", ["get", "in_service"], 2.4, 1.4],
+          "line-opacity": ["case", ["get", "in_service"], 0.8, 0.4],
+          "line-dasharray": ["case", ["get", "in_service"], ["literal", [1, 0]], ["literal", [2, 2]]] as never,
+        },
+      }, map.getLayer("node-clusters") ? "node-clusters" : undefined);
+    }
+    map.setPaintProperty("supply-corridors", "line-color", colour);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [corridors, mapColors, mapReady]);
+  const extraLabels = useMemo<MapLabel[]>(() => {
+    const base = { price: "", sim: "", action: "" };
+    // Each corridor names itself and its entry-point flow at its entry point.
+    const corridorLabels: MapLabel[] = corridors.map((corridor) => ({
+      ...base, at: corridor.labelAt, text: corridorLabel(corridor, t), rank: 2, tone: "point",
+    }));
+    if (view !== "book") return corridorLabels;
+    const out: MapLabel[] = [...corridorLabels];
+    if (activeLayers.includes("positions")) {
+      for (const flow of bookFlows) {
+        const end = flow.coordinates[flow.coordinates.length - 1];
+        if (end) out.push({ ...base, at: end, text: flow.label, rank: 0, tone: "own" });
       }
-    };
-    const renderLabels = () => {
-      clearLabels();
-      blockers.length = 0;
-      const occupied: Array<{ x: number; y: number }> = [];
-      const budget = labelBudgetForZoom(map.getZoom());
-      const bounds = map.getBounds();
-      let shown = 0;
-      // Detail tier: each situation asset carries its key numbers, ahead of plain names.
-      const current = situationRef.current;
-      if (current && zoomTier(map.getZoom()) === "detail") {
-        const candidates: Array<{ kind: string; id: string; lon: number; lat: number }> = [
-          ...current.outages.map((item) => ({ kind: "outage", id: item.event_id, ...item.location })),
-          ...current.regas_slots.map((item) => ({ kind: "regas", id: item.terminal_name, ...item.location })),
-          ...current.cargoes
-            .filter((item) => item.position ?? item.origin)
-            .map((item) => ({ kind: "cargo", id: item.cargo_id, ...(item.position ?? item.origin)! })),
-          ...current.contracts.map((item) => ({ kind: "contract", id: item.contract_id, ...item.location })),
-        ];
-        const seen = new Set<string>();
-        for (const item of candidates) {
-          const key = `${item.kind}:${item.id}`;
-          if (seen.has(key) || shown >= budget) continue;
-          seen.add(key);
-          const at = toMapCoordinates(item.lon, item.lat);
-          if (!bounds.contains(at)) continue;
-          const text = detailLabel(item.kind, item.id, current);
-          if (!text) continue;
-          const projected = map.project(at);
-          // Assets at one place (an outage and a contract at the same terminal) stack
-          // their labels instead of hiding each other.
-          let dy = 0;
-          while (occupied.some((point) => Math.abs(point.x - projected.x) < 150 && Math.abs(point.y - (projected.y + dy)) < 22) && dy < 88) {
-            dy += 22;
-          }
-          if (dy >= 88) continue;
-          occupied.push({ x: projected.x, y: projected.y + dy });
-          shown += 1;
-          const element = document.createElement("div");
-          element.className = `map-node-label map-detail-label is-${item.kind}`;
-          element.textContent = text;
-          labelMarkersRef.current.push(
-            new Marker({ element, anchor: "left", offset: [12, dy] }).setLngLat(at).addTo(map),
-          );
-          blockers.push({ at, text, offset: [12, dy] });
-        }
-      }
-      priorityLabelNodes.forEach((node) => {
-        if (shown >= budget || !bounds.contains(toMapCoordinates(node.lon, node.lat))) return;
-        const projected = map.project(toMapCoordinates(node.lon, node.lat));
-        const isHighlighted = Boolean(
-          highlightedRoutePoints &&
-          [highlightedRoutePoints.from.id, highlightedRoutePoints.to.id].includes(node.id),
-        );
-        const collides = occupied.some(
-          (point) => Math.abs(point.x - projected.x) < 76 && Math.abs(point.y - projected.y) < 24,
-        );
-        if (collides && !isHighlighted) return;
-        occupied.push({ x: projected.x, y: projected.y });
-        shown += 1;
-        const element = document.createElement("div");
-        element.className = `map-node-label map-node-label-${node.node_type}${isHighlighted ? " highlighted" : ""}`;
-        element.textContent = fallbackNodeLabel(node);
-        element.title = node.name;
-        labelMarkersRef.current.push(
-          new Marker({ element, anchor: "left", offset: [9, -7] })
-            .setLngLat(toMapCoordinates(node.lon, node.lat))
-            .addTo(map),
-        );
-        blockers.push({ at: toMapCoordinates(node.lon, node.lat), text: fallbackNodeLabel(node), offset: [9, -7] });
+    }
+    for (const line of bookOpportunities) {
+      out.push({ ...base, at: line.labelAt, text: line.label, rank: 0, tone: "opportunity", action: `opportunity:${line.opportunityId}` });
+    }
+    for (const line of bookProposals) {
+      out.push({ ...base, at: line.labelAt, text: line.label, rank: 0, tone: "opportunity", action: `opportunity:${line.opportunityId}` });
+    }
+    return out;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLayers, bookFlows, bookOpportunities, bookProposals, corridors, view]);
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const palette = SITUATION_COLOURS[effectiveTheme];
+    const strong = effectiveTheme === "dark" ? "#f4f4f5" : "#18181b";
+    const muted = effectiveTheme === "dark" ? "#a1a1aa" : "#52525b";
+    const labels = mapLabels({
+      nodes: filteredNodes,
+      activeLayers,
+      situation,
+      marketRows,
+      facilities,
+      zoom: labelZoom,
+      nowMs: Date.now(),
+      t,
+      outageIds,
+      extra: extraLabels,
+    });
+    const regular = labelFont(mapTileProvider.id);
+    const bold = labelFont(mapTileProvider.id, "bold");
+    if (upsertSource(map, "map-labels", labelFeatures(labels, toMapCoordinates))) {
+      map.addLayer({
+        id: "map-labels",
+        type: "symbol",
+        source: "map-labels",
+        layout: {
+          "text-field": [
+            "format",
+            ["get", "text"], { "text-font": ["match", ["get", "tone"], "hub", ["literal", bold], ["literal", regular]] },
+            ["get", "price"], { "text-font": ["literal", bold] },
+            ["get", "sim"], { "font-scale": 0.8, "text-font": ["literal", regular] },
+          ] as never,
+          "text-font": regular,
+          "text-size": ["match", ["get", "tone"], "hub", 12.5, "own", 12, "opportunity", 12, 11] as never,
+          // A label sits beside its point, on whichever side is free; if none is, it is dropped.
+          "text-variable-anchor": ["left", "right", "top", "bottom"],
+          "text-radial-offset": 0.8,
+          "text-justify": "auto",
+          "text-max-width": 28,
+          "text-padding": 3,
+          "text-allow-overlap": false,
+          "text-ignore-placement": false,
+          "symbol-sort-key": ["get", "rank"],
+        },
+        paint: {
+          "text-color": ["match", ["get", "tone"], "own", palette.own, "hub", strong, "outage", palette.outageActive, "opportunity", palette.opportunity, muted] as never,
+          "text-halo-color": palette.halo,
+          "text-halo-width": 1.4,
+        },
       });
-      // Close in, infrastructure gets names too, quieter than network points.
-      if (map.getZoom() >= 7 && activeLayers.includes("infrastructure")) {
-        for (const facility of facilities) {
-          if (shown >= budget) break;
-          const at = toMapCoordinates(facility.lon, facility.lat);
-          if (!bounds.contains(at) || !FACILITY_ICON[facility.facility_type]) continue;
-          const projected = map.project(at);
-          if (occupied.some((point) => Math.abs(point.x - projected.x) < 76 && Math.abs(point.y - projected.y) < 24)) continue;
-          occupied.push({ x: projected.x, y: projected.y });
-          shown += 1;
-          const element = document.createElement("div");
-          element.className = "map-node-label map-facility-label";
-          element.textContent = facility.name;
-          labelMarkersRef.current.push(
-            new Marker({ element, anchor: "left", offset: [10, 0] }).setLngLat(at).addTo(map),
-          );
-          blockers.push({ at, text: facility.name, offset: [10, 0] });
-        }
-      }
-      publishBlockers();
-    };
-
-    renderLabels();
-    map.on("moveend", renderLabels);
-    return () => {
-      map.off("moveend", renderLabels);
-      clearLabels();
-    };
-  }, [activeLayers, facilities, highlightedRoutePoints, mapReady, priorityLabelNodes, situation]);
+      map.on("click", "map-labels", (event) => {
+        const action = String(event.features?.[0]?.properties?.action ?? "");
+        if (action.startsWith("opportunity:")) selectOpportunityRef.current?.(action.slice("opportunity:".length));
+      });
+    } else {
+      map.setPaintProperty("map-labels", "text-color", ["match", ["get", "tone"], "own", palette.own, "hub", strong, "outage", palette.outageActive, "opportunity", palette.opportunity, muted] as never);
+      map.setPaintProperty("map-labels", "text-halo-color", palette.halo);
+    }
+    // Names above every line and mark drawn since (the scene, the selection).
+    map.moveLayer("map-labels");
+    if (map.getLayer("selection-labels")) map.moveLayer("selection-labels");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeLayers, effectiveTheme, extraLabels, facilities, filteredNodes, labelZoom, mapReady, marketRows, outageIds, situation, t]);
 
   // Overview tier: no per-country cards over the map (they collided with labels and each
   // other); the outage list groups by zone, and a click on the map selects what is there.
@@ -2532,7 +2514,7 @@ export function GasNetworkMap({
     const points: Array<[number, number]> = [
       ...situation.contracts.map((item) => [item.location.lon, item.location.lat] as [number, number]),
       ...situation.regas_slots.map((item) => [item.location.lon, item.location.lat] as [number, number]),
-      ...situation.cargoes.filter((item) => item.own).flatMap((item) =>
+      ...situation.cargoes.filter((item) => item.own && item.status !== "delivered" && item.status !== "ballast").flatMap((item) =>
         [item.position, item.destination].filter(Boolean).map((at) => [at!.lon, at!.lat] as [number, number])),
     ].map(([lon, lat]) => toMapCoordinates(lon, lat));
     if (!points.length) return;
@@ -2546,15 +2528,23 @@ export function GasNetworkMap({
   const fitOurPositionsRef = useRef(fitOurPositions);
   fitOurPositionsRef.current = fitOurPositions;
 
-  // Switching to the book frames the book; once per switch, not on every refresh.
+  // The first view is our footprint (owner review 2026-11-26): the map opens framed on what we
+  // hold (contracts, slots, our cargoes and where they are going), once, unless the person had
+  // a view of their own to come back to. Switching to the book frames the book, once per switch.
   const framedBookRef = useRef(false);
+  const framedFootprintRef = useRef(compact || remembered.camera !== null);
   useEffect(() => {
+    if (!mapReady || !situation) return;
     if (view !== "book") {
       framedBookRef.current = false;
+      if (framedFootprintRef.current) return;
+      framedFootprintRef.current = true;
+      fitOurPositionsRef.current();
       return;
     }
-    if (!mapReady || !situation || framedBookRef.current) return;
+    if (framedBookRef.current) return;
     framedBookRef.current = true;
+    framedFootprintRef.current = true;
     fitOurPositionsRef.current();
   }, [mapReady, situation, view]);
 
@@ -2576,7 +2566,6 @@ export function GasNetworkMap({
 
   // MAP-1: terminal and storage columns, moving flows, voyages with estimated positions. Its
   // layers are added after the map's own (this hook's effects run after the ones above).
-  const [dimension, setDimension] = useState<SceneDimension>(() => (compact ? "2d" : storedDimension()));
   const chooseDimension = (next: SceneDimension) => {
     setDimension(next);
     try {
@@ -2651,7 +2640,7 @@ export function GasNetworkMap({
     }
     // Our cargoes with our positions, market vessels with the vessels layer (as drawn).
     for (const cargo of situation?.cargoes ?? []) {
-      if (!activeLayers.includes(cargo.own ? "positions" : "vessels")) continue;
+      if (!activeLayers.includes(cargo.own ? "cargoes" : "vessels")) continue;
       const at = cargo.position ?? cargo.origin ?? cargo.destination;
       if (at) {
         places.push({
@@ -2672,7 +2661,8 @@ export function GasNetworkMap({
     const map = mapRef.current;
     if (!map) return;
     const at = toMapCoordinates(place.lon, place.lat);
-    focusOn(map, at, place.zoom);
+    const cargo = place.cargoId ? situationRef.current?.cargoes.find((item) => item.cargo_id === place.cargoId) : undefined;
+    if (!frameCargo(map, cargo, toMapCoordinates)) focusOn(map, at, place.zoom);
     // A short-lived pin marks the spot the map flew to.
     const element = document.createElement("div");
     element.className = "map-finder-pin";
@@ -2710,14 +2700,8 @@ export function GasNetworkMap({
           flowDays={flowDays}
           flowDay={shownFlowDay}
           onFlowDay={setFlowDay}
-          flowCounts={scene.flows}
-          situation={situation}
-          now={scene.now}
           t={t as (key: string, options?: Record<string, unknown>) => string}
-          onFlyTo={(at, zoom) => {
-            const map = mapRef.current;
-            if (map) focusOn(map, toMapCoordinates(at[0], at[1]), zoom);
-          }}
+          activeLayers={activeLayers}
           showFlowDay={activeLayers.includes("flows")}
           onFitPositions={
             situation && (situation.contracts.length > 0 || situation.regas_slots.length > 0 || situation.cargoes.some((item) => item.own))
@@ -2741,36 +2725,16 @@ export function GasNetworkMap({
           t={t as (key: string, options?: Record<string, unknown>) => string}
         />
       )}
-      {/*
-        Owner decision D4 (amended 2026-11-05): a global installation defaults to OpenFreeMap, an
-        open basemap licensed for commercial use; China installations to the bundled outline. The
-        map says which state it is in when it draws no imagery: "no basemap" is the deployment's
-        choice, "cannot be drawn" a configuration fault, and "fallback" a basemap the network
-        could not reach, replaced by the outline. A blank map would look like a data failure.
-      */}
       {mapStartError && (
         <p className="map-basemap-state is-unavailable" role="alert">
           <strong>{t("map.start_failed.title")}</strong>
           <small>{t("map.start_failed.body")}</small>
         </p>
       )}
-      {!mapStartError && basemapState !== "configured" && (
-        <p className={`map-basemap-state is-${basemapState}`} role="status">
-          <strong>
-            {t(
-              basemapState === "no-basemap"
-                ? "map.basemap.none"
-                : basemapState === "fallback" ? "map.basemap.fallback" : "map.basemap.unavailable",
-              { provider: configuredProvider.label },
-            )}
-          </strong>
-          <small>
-            {t(
-              basemapState === "no-basemap"
-                ? "map.basemap.none_detail"
-                : basemapState === "fallback" ? "map.basemap.fallback_detail" : "map.basemap.unavailable_detail",
-            )}
-          </small>
+      {!mapStartError && showingOfflineOutline && (
+        // OpenStreetMap could not be reached (offline, a proxy): the coastline outline stands in.
+        <p className="map-basemap-state is-fallback" role="status">
+          <strong>{t("map.basemap.offline")}</strong>
         </p>
       )}
       <svg className={mapReady ? "fallback-network-map map-ready" : "fallback-network-map"} viewBox="0 0 1000 620" role="presentation">

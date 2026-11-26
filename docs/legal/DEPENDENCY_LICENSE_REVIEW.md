@@ -52,9 +52,11 @@ Non-code assets:
   licence travels with it: it is reproduced in `THIRD_PARTY_NOTICES.md` and emitted as
   `dist/licenses/Inter-OFL-1.1.txt`. Record: `clients/web/src/assets/fonts/fonts.json`. Chinese
   text uses the device's own CJK face.
-- Map tiles default to the bundled basemap (Natural Earth, public domain; no third-party
-  request); public OSM/CARTO tiles are marked not for commercial use
-  (`clients/web/src/app/mapTileProviders.ts`, `docs/legal/DATA_SOURCE_TERMS.md`).
+- The map has one basemap: OpenStreetMap data through OpenFreeMap's vector styles (ODbL,
+  commercial use allowed, attribution "© OpenStreetMap contributors, © OpenMapTiles" shown on
+  the map); the bundled Natural Earth outline (public domain) is drawn only offline and in a
+  mainland China installation. The OSM Foundation's own tile servers and CARTO's public
+  tiles are not used (`clients/web/src/app/mapTileProviders.ts`, `docs/legal/DATA_SOURCE_TERMS.md`).
 
 Optional OCR for scanned contracts calls a Tesseract binary (Apache-2.0) that the customer
 installs; the product neither bundles it nor any GPL tool such as Poppler.

@@ -1,10 +1,11 @@
 /**
- * D4: the basemap decision, held to what the audience it serves needs.
+ * The basemap (owner review 2026-11-26: "OpenStreetMap is good enough").
  *
- * The audience is a deployment IT and commercial team receiving a commercially licensed product.
- * What it needs from this file is that the product never implies a licence the customer does not
- * hold, that an unconfigured basemap is a *stated* state rather than a blank map, and that a
- * provider whose terms exclude commercial use cannot be reached without the operator choosing it.
+ * One basemap: OpenStreetMap data through OpenFreeMap's vector styles (ODbL, commercial use
+ * allowed, no key), with the ODbL attribution on the map. The bundled Natural Earth outline is
+ * never a choice: it is drawn when OpenFreeMap cannot be reached and in a mainland China
+ * installation. No endpoint whose terms exclude a commercial product is offered, and Settings
+ * holds no provider choice.
  */
 
 import assert from "node:assert/strict";
@@ -24,150 +25,67 @@ function locale(name: "en" | "zh"): Record<string, string> {
   return JSON.parse(readWebSource(`src/i18n/${name}.json`)) as Record<string, string>;
 }
 
-test("no third-party basemap is the default", () => {
-  const source = readWebSource("src/app/mapTileProviders.ts");
+test("one basemap: OpenStreetMap through OpenFreeMap, with its attribution", async () => {
+  const providers = await import("../src/app/mapTileProviders.ts");
+  assert.deepEqual(providers.MAP_TILE_PROVIDERS.map((item) => item.id), ["openfreemap", "outline"]);
+  assert.equal(providers.DEFAULT_MAP_TILE_PROVIDER_ID, "openfreemap");
+  const osm = providers.mapTileProviderById("openfreemap")!;
+  assert.equal(osm.styleUrl?.light, "https://tiles.openfreemap.org/styles/positron");
+  assert.equal(osm.styleUrl?.dark, "https://tiles.openfreemap.org/styles/dark");
+  assert.equal(providers.OSM_ATTRIBUTION, "© OpenStreetMap contributors, © OpenMapTiles");
+  // The map rewrites the source's credit to the ODbL wording.
+  assert.match(readWebSource("src/components/GasNetworkMap.tsx"), /source\.attribution = OSM_ATTRIBUTION/);
+});
 
-  // The default is the bundled basemap (P3), served by the application itself: land, borders
-  // and names from Natural Earth, labels in glyphs built from the bundled Inter.
-  assert.match(source, /export const DEFAULT_MAP_TILE_PROVIDER_ID: MapTileProviderId = "bundled";/);
-  assert.ok(readWebSource("public/basemaps/land-trading-region.geojson").includes("Natural Earth"));
-  assert.ok(readWebSource("public/basemaps/borders-trading-region.geojson").includes("Natural Earth"));
-  const places = JSON.parse(readWebSource("public/basemaps/places-trading-region.geojson")) as {
-    features: Array<{ properties: { kind: string; name_en: string; name_zh: string } }>;
+test("no endpoint whose terms exclude a commercial product, no second provider", () => {
+  const source = readWebSource("src/app/mapTileProviders.ts");
+  for (const host of ["tile.openstreetmap.org", "basemaps.cartocdn.com", "autonavi", "tianditu", "versatiles"]) {
+    assert.ok(!source.toLowerCase().includes(host), host);
+  }
+  assert.doesNotMatch(source, /VITE_EUROGAS_MAP_TILE_(URL|TOKEN|PROVIDER)|localStorage/);
+  // Settings shows no provider choice at all.
+  assert.doesNotMatch(readWebSource("src/components/SettingsCenter.tsx"), /map_tile|MAP_TILE|mapTileProviders/);
+  for (const name of ["en", "zh"] as const) {
+    assert.ok(!Object.keys(locale(name)).some((key) => key.startsWith("settings.map_tile")), name);
+  }
+});
+
+test("the outline is the automatic fallback: offline, unreachable, or a China installation", async () => {
+  const providers = await import("../src/app/mapTileProviders.ts");
+  providers.setDeploymentMapDefault("outline");
+  assert.equal(providers.configuredMapTileProviderId(), "outline");
+  // Any retired value from an older server keeps OpenStreetMap.
+  for (const retired of ["bundled", "tianditu", "custom", "none", null]) {
+    providers.setDeploymentMapDefault(retired);
+    assert.equal(providers.configuredMapTileProviderId(), "openfreemap", String(retired));
+  }
+  // The outline is served by the application itself and carries the label glyphs.
+  const outline = providers.buildMapStyle("outline", { background: "#000" }, "dark") as unknown as {
+    glyphs: string;
+    sources: Record<string, { data: string }>;
   };
-  assert.ok(places.features.some((feature) => feature.properties.kind === "country" && feature.properties.name_zh));
-  for (const range of ["0-255", "256-511", "8192-8447"]) {
-    assert.ok(readFileSync(resolve(web, `public/basemaps/glyphs/Inter Regular/${range}.pbf`)).length > 1000, range);
-  }
-  // The bundled style names no other host: every URL it holds is built from the app's origin.
-  const bundled = source.slice(source.indexOf('if (providerId === "bundled")'), source.indexOf('if (providerId === "outline")'));
-  assert.doesNotMatch(bundled, /https?:\/\//);
-  assert.match(bundled, /ownAssetUrl\(BUNDLED_GLYPHS_PATH\)/);
-  // The old default was chosen from the browser's language, which put AMap's public endpoint in
-  // front of a Chinese-locale operator without anybody deciding it.
-  assert.doesNotMatch(source, /navigator\.language/);
-  // And the endpoint the policy excludes is no longer the fallback branch of the style builder.
-  assert.match(source, /if \(providerId === "none"\)/);
-});
-
-test("every provider declares its licence state, and the excluded ones say so", () => {
-  const source = readWebSource("src/app/mapTileProviders.ts");
-
-  // Public endpoints whose terms exclude a commercial product (OpenStreetMap's tile servers,
-  // CARTO's free tiles, AMap's public raster) are not offered at all (owner review 2026-11-26):
-  // a customer with a licence for one uses "Your own tile service".
-  for (const id of ["osm", "carto", "amap", "versatiles"]) {
-    assert.doesNotMatch(source, new RegExp(`id: "${id}"`), id);
-  }
-  for (const id of ["none", "custom", "tianditu"]) {
-    const block = source.slice(source.indexOf(`id: "${id}"`));
-    const record = block.slice(0, block.indexOf("},"));
-    assert.match(record, /licence: "licensed-by-deployment"/, id);
-  }
-
-  const settings = readWebSource("src/components/SettingsCenter.tsx");
-  // The licence travels to the control that selects the provider, not only to a document.
-  assert.match(settings, /settings\.map_tile_licence_evaluation/);
-  assert.match(settings, /settings\.map_tile_licence_deployment/);
-  assert.match(settings, /settings\.map_tile_provider_\$\{selectedMapTileProvider\.id\}/);
-});
-
-test("the map states an absent or unusable basemap instead of drawing nothing", () => {
-  const map = readWebSource("src/components/GasNetworkMap.tsx");
-
-  assert.match(map, /mapTileBasemapState\(mapTileProvider, configuredMapTileToken\(\)\)/);
-  assert.match(map, /basemapState !== "configured"/);
-  assert.match(map, /basemapState === "no-basemap"\s*\?\s*"map\.basemap\.none"\s*:\s*basemapState === "fallback" \? "map\.basemap\.fallback" : "map\.basemap\.unavailable"/);
-  assert.match(map, /map\.basemap\.none_detail/);
-  assert.match(map, /map\.basemap\.unavailable_detail/);
-
-  // "No basemap chosen" and "the chosen basemap cannot be drawn" are different sentences, and
-  // neither is an empty state.
-  const keys = locale("en");
-  assert.notEqual(keys["map.basemap.none"], keys["map.basemap.unavailable"]);
-  assert.ok(keys["map.basemap.none_detail"].length > 40);
-  assert.ok(keys["map.basemap.unavailable_detail"].length > 40);
-});
-
-test("a custom source is drawn only with a configured template", () => {
-  const source = readWebSource("src/app/mapTileProviders.ts");
-
-  assert.match(source, /VITE_EUROGAS_MAP_TILE_URL/);
-  assert.match(source, /VITE_EUROGAS_MAP_TILE_ATTRIBUTION/);
-  // An operator's licence decides the attribution, so it is taken from configuration and only
-  // attached when it is declared.
-  assert.match(source, /\(attribution \? \{ attribution \} : \{\}\)/);
-  // Without a template the custom provider cannot be drawn, and says so rather than drawing empty.
-  assert.match(
-    source,
-    /if \(providerId === "custom"\) \{\s*const template = configuredCustomTileTemplate\(\);\s*if \(!template\) \{/,
-  );
-});
-
-test("every basemap sentence exists in both locales, distinguishable and without a question mark", () => {
-  const en = locale("en");
-  const zh = locale("zh");
-  const keys = [
-    "map.basemap.none",
-    "map.basemap.none_detail",
-    "map.basemap.unavailable",
-    "map.basemap.unavailable_detail",
-    "settings.map_tile_licence_deployment",
-    "settings.map_tile_licence_evaluation",
-    "settings.map_tile_provider_none",
-    "settings.map_tile_provider_custom",
-    "settings.map_tile_provider_tianditu",
-    "settings.map_tile_custom_detail",
-  ];
-
-  for (const key of keys) {
-    assert.ok(en[key], `en missing ${key}`);
-    assert.ok(zh[key], `zh missing ${key}`);
-    assert.notEqual(en[key], zh[key], `untranslated ${key}`);
-    assert.ok(!en[key].includes("?"), `en carries a question mark: ${key}`);
-    assert.ok(!zh[key].includes("?"), `zh carries a question mark: ${key}`);
-  }
-});
-
-test("the deployment can choose its own source without touching code", () => {
-  const source = readWebSource("src/app/mapTileProviders.ts");
-
-  // Configuration channels: build-time env for the provider, the URL, the attribution and the
-  // token; a stored preference for the operator's own choice in the UI.
-  for (const variable of [
-    "VITE_EUROGAS_MAP_TILE_PROVIDER",
-    "VITE_EUROGAS_MAP_TILE_URL",
-    "VITE_EUROGAS_MAP_TILE_ATTRIBUTION",
-    "VITE_EUROGAS_MAP_TILE_TOKEN",
-  ]) {
-    assert.ok(source.includes(variable), variable);
-  }
-  assert.match(source, /MAP_TILE_STORAGE_KEY/);
-});
-
-test("a vector basemap stays quiet under the network at overview", async () => {
-  const { quietBasemapMinZoom } = await import("../src/app/mapTileProviders.ts");
-  // Countries, seas and capitals keep their own zoom range.
-  for (const id of ["label_country_1", "label_city_capital", "place_city_large", "water_name_point_label"]) {
-    assert.equal(quietBasemapMinZoom(id, 3), null, id);
-  }
-  // Other places wait until the view narrows to a region.
-  assert.equal(quietBasemapMinZoom("label_city", 3), 5.5);
-  assert.equal(quietBasemapMinZoom("label_town", 6), 7.5);
-  assert.equal(quietBasemapMinZoom("place_village", undefined), 7.5);
-  assert.equal(quietBasemapMinZoom("label_state", 5), 6);
-  // A layer that already starts later keeps its later start.
-  assert.equal(quietBasemapMinZoom("label_other", 8), 8);
-});
-
-test("a basemap that cannot be reached falls back to the bundled outline and says so", () => {
+  assert.match(outline.glyphs, /basemaps\/glyphs\/\{fontstack\}\/\{range\}\.pbf$/);
+  assert.match(outline.sources.land.data, /basemaps\/land-trading-region\.geojson$/);
+  assert.ok(readWebSource("public/basemaps/land-trading-region.geojson").includes("Natural Earth"));
+  // A style that never arrives falls back, and the map says so (only then).
   const map = readWebSource("src/components/GasNetworkMap.tsx");
   assert.match(map, /setUnreachableBasemap\(mapTileProvider\.id\)/);
   assert.match(map, /mapTileProviderById\("outline"\)/);
-  for (const name of ["en", "zh"] as const) {
-    assert.ok(locale(name)["map.basemap.fallback"]?.includes("{{provider}}"), name);
-    assert.ok(locale(name)["map.basemap.fallback_detail"], name);
+  assert.match(map, /showingOfflineOutline && \(/);
+  for (const name of ["en", "zh"] as const) assert.ok(locale(name)["map.basemap.offline"], name);
+});
+
+test("the basemap stays quiet under the network", async () => {
+  const { quietBasemapMinZoom, hiddenBasemapLayer } = await import("../src/app/mapTileProviders.ts");
+  for (const id of ["label_country_1", "label_city_capital", "place_city_large", "water_name_point_label"]) {
+    assert.equal(quietBasemapMinZoom(id, 3), null, id);
   }
-  // Dark mode reads OpenFreeMap's dark style, not the light one.
-  assert.match(readWebSource("src/app/mapTileProviders.ts"), /dark: "https:\/\/tiles\.openfreemap\.org\/styles\/dark"/);
+  assert.equal(quietBasemapMinZoom("label_city", 3), 5.5);
+  assert.equal(quietBasemapMinZoom("label_town", 6), 7.5);
+  assert.equal(quietBasemapMinZoom("label_state", 5), 6);
+  assert.equal(quietBasemapMinZoom("label_other", 8), 8);
+  // Points of interest and buildings carry nothing a gas desk reads.
+  assert.ok(hiddenBasemapLayer("poi_r1"));
+  assert.ok(hiddenBasemapLayer("building"));
+  assert.ok(!hiddenBasemapLayer("water"));
 });

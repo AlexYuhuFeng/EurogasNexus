@@ -133,12 +133,18 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
               : task === "cargoes"
                 ? // The cargo board is the book's cargoes: no hub or tenor filter applies to it.
                   undefined
-                : // On Prices the board's tenor selector is the product choice: no second one here.
-                  tradingContextControlsFor(traderContext, t, { product: task !== "curves" })
+                : task === "network"
+                  ? // The map: the gas day only. A delivery product does not apply to a map, and
+                    // the map's finder focuses a hub (owner review 2026-11-26).
+                    tradingContextControlsFor(traderContext, t, { product: false, hub: false })
+                  : // On Prices the board's tenor selector is the product choice: no second one here.
+                    tradingContextControlsFor(traderContext, t, { product: task !== "curves" })
           }
           variant={task === "overview" ? "line" : "strip"}
           freshness={
-            task === "overview" || desk.today?.simulated ? (
+            // The map's context line has one freshness indicator: the as-of button (owner review
+            // 2026-11-26), which names the feeds that are behind when any is.
+            task === "overview" || (desk.today?.simulated && task !== "network") ? (
               <TodayFreshness today={desk.today} t={t} nowMs={nowMs} />
             ) : undefined
           }

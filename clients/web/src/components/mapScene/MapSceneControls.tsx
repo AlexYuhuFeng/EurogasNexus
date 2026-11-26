@@ -1,14 +1,13 @@
 /**
- * The map scene's controls (MAP-1): 2D or 3D, the stored gas day the flows show, and a key
- * that says what each mark means and lists the figures on the map as buttons that fly there,
- * so every site and estimate is reachable from the keyboard as well as by pointer.
+ * The map's own controls (MAP-1), in one stack beside the zoom: 2D or 3D, fit to our positions,
+ * and the key. The key holds symbology only (what each mark means), for the layers on the map;
+ * counts, site lists and source notes are not the key's job (owner review 2026-11-26). The
+ * flow-day bar shows only while flows are drawn.
  */
-import { useId, useMemo, useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 
-import type { MapSituationDTO } from "@/api/client";
-import { Button } from "@/components/ui";
 import { Icon } from "@/components/ui/Icon";
-import { assetFigures, cargoPositions, scrubberIndex, type LonLat, type SceneDimension } from "@/app/mapScene";
+import { scrubberIndex, type SceneDimension } from "@/app/mapScene";
 import type { Translate } from "@/app/mapSceneCards";
 
 export interface MapSceneControlsProps {
@@ -19,13 +18,11 @@ export interface MapSceneControlsProps {
   /** null: latest (each point's newest closed day). */
   flowDay: string | null;
   onFlowDay: (value: string | null) => void;
-  flowCounts: { oriented: number; unoriented: number };
-  situation: MapSituationDTO | null;
-  now: Date;
   t: Translate;
-  onFlyTo: (at: LonLat, zoom: number) => void;
   /** The flow-day bar shows only while flows are drawn. */
   showFlowDay: boolean;
+  /** The layers on the map: the key lists only their marks. */
+  activeLayers: readonly string[];
   /** Fit the map to our positions; absent when we hold none on the map. */
   onFitPositions?: () => void;
   /** The page's own key lines (pipelines, links, our flows), above the scene's. */
@@ -38,12 +35,9 @@ export function MapSceneControls({
   flowDays,
   flowDay,
   onFlowDay,
-  flowCounts,
-  situation,
-  now,
   t,
-  onFlyTo,
   showFlowDay,
+  activeLayers,
   onFitPositions,
   keyExtra,
 }: MapSceneControlsProps) {
@@ -52,21 +46,7 @@ export function MapSceneControls({
   const scrubberId = useId();
   const index = scrubberIndex(flowDays, flowDay);
   const dayText = flowDay ?? t("map.scene.flow_day_latest");
-
-  const sites = useMemo(
-    () => (situation?.assets ?? [])
-      .map((asset) => ({ asset, figures: assetFigures(asset) }))
-      .filter((item) => item.figures.capacityGwhD !== null || item.asset.stock)
-      .sort((a, b) => (b.figures.capacityGwhD ?? 0) - (a.figures.capacityGwhD ?? 0))
-      .slice(0, 12),
-    [situation?.assets],
-  );
-  const estimates = useMemo(
-    () => (situation?.cargoes ?? [])
-      .map((cargo) => ({ cargo, estimate: cargoPositions(cargo, now).estimate }))
-      .filter((item) => item.estimate !== null),
-    [now, situation?.cargoes],
-  );
+  const sites = activeLayers.includes("lng") || activeLayers.includes("network");
 
   return (
     <>
@@ -128,56 +108,14 @@ export function MapSceneControls({
         <div id={keyId} className="map-scene-key" role="region" aria-label={t("map.scene.key")}>
           {keyExtra}
           <ul className="map-scene-legend">
-            <li><span className="map-scene-swatch is-column" aria-hidden="true" />{t("map.scene.legend.column")}</li>
-            <li><span className="map-scene-swatch is-stub" aria-hidden="true" />{t("map.scene.legend.stub")}</li>
-            <li><span className="map-scene-swatch is-flow" aria-hidden="true" />{t("map.scene.legend.flow")}</li>
-            <li><span className="map-scene-swatch is-estimate" aria-hidden="true" />{t("map.scene.legend.estimate")}</li>
-            <li><span className="map-scene-swatch is-voyage" aria-hidden="true" />{t("map.scene.legend.voyage")}</li>
-            {dimension === "3d" && (
-              <>
-                <li><span className="map-scene-swatch is-pillar" aria-hidden="true" />{t("map.scene.legend.pillar")}</li>
-                <li><span className="map-scene-swatch is-hull" aria-hidden="true" />{t("map.scene.legend.hull")}</li>
-              </>
+            {sites && <li><span className="map-scene-swatch is-column" aria-hidden="true" />{t("map.scene.legend.column")}</li>}
+            {sites && <li><span className="map-scene-swatch is-stub" aria-hidden="true" />{t("map.scene.legend.stub")}</li>}
+            {activeLayers.includes("flows") && <li><span className="map-scene-swatch is-flow" aria-hidden="true" />{t("map.scene.legend.flow")}</li>}
+            {dimension === "3d" && <li><span className="map-scene-swatch is-pillar" aria-hidden="true" />{t("map.scene.legend.pillar")}</li>}
+            {dimension === "3d" && (activeLayers.includes("cargoes") || activeLayers.includes("vessels")) && (
+              <li><span className="map-scene-swatch is-hull" aria-hidden="true" />{t("map.scene.legend.hull")}</li>
             )}
           </ul>
-          <p className="map-scene-note">
-            {t("map.scene.flow_counts", { oriented: flowCounts.oriented, unoriented: flowCounts.unoriented })}
-          </p>
-          {sites.length > 0 && (
-            <>
-              <h3 className="map-scene-heading">{t("map.scene.sites")}</h3>
-              <ul className="map-scene-list">
-                {sites.map(({ asset, figures }) => (
-                  <li key={asset.asset_id}>
-                    <Button variant="quiet" onClick={() => onFlyTo([asset.location.lon, asset.location.lat], 8)}>
-                      <span>{asset.name}</span>
-                      <small>
-                        {figures.capacityGwhD !== null
-                          ? t("map.scene.site_capacity", { value: Math.round(figures.capacityGwhD) })
-                          : t("map.scene.no_capacity_short")}
-                      </small>
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-          {estimates.length > 0 && (
-            <>
-              <h3 className="map-scene-heading">{t("map.scene.estimates")}</h3>
-              <ul className="map-scene-list">
-                {estimates.map(({ cargo, estimate }) => (
-                  <li key={cargo.cargo_id}>
-                    <Button variant="quiet" onClick={() => estimate && onFlyTo(estimate.at, 6)}>
-                      <span>{cargo.vessel_name}</span>
-                      <small>{t("map.scene.estimated_position")}</small>
-                    </Button>
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-          <p className="map-scene-note">{t("map.scene.sources")}</p>
         </div>
       )}
     </>
