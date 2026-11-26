@@ -65,32 +65,57 @@ refuses a tester password shorter than 12 characters
 (`[demo-start] FATAL: refusing to start: …`). Nothing is generated for you and no credential
 has a default.
 
-### The demo exchange feed (intraday, simulated)
+### The demo exchange feed (a simulated live screen)
 
 While the demo is up, `scripts/demo/exchange_feed.py --continuous` (started by the demo start-up)
-streams two-sided quotes with size, trade prints (screen and the odd block) and session
-statistics (open/high/low, VWAP, volume, trade count, prior settlement) for **TTF and NBP, WD and
-DA**, bursty and seconds apart (about one message a second, bursts of several a second, at most
-four a second), on the demo market's own prices. It writes as `DEMO_Sim` through the same tick
-ingestion a licensed feed adapter uses (`POST /api/market/ticks` / `application/market_ticks`:
-validation, the source family's entitlement, the inputs-changed hook that evaluates tracked
-strategies), and a simulated prompt trade is booked into the demo books every 15 minutes, so the
-prompt market's performance figures move. Admin → Data feeds lists it as **Demo exchange feed
-(simulated)** with its last message, rate and status, one status line a minute.
+behaves like a live exchange screen, so every screen that reads prices moves as it would on a
+licensed feed. For **every demo hub the tick intake accepts** (TTF, NBP, THE, PEG, ZTP, PSV,
+CEGH, PVB, ETF; GTF stays on the roll-forward's snapshot) it quotes **WD, DA, WE and the front
+month, quarter and season**, each instrument on its own clock: after every quote the next one is
+drawn uniformly from 1 to 5 seconds later. Moves are small and on the hub's tick, the odd quote
+comes with a trade print (screen, or now and then a block), and every quote carries the session
+statistics (open/high/low, VWAP, volume, trade count, prior settlement). The rest of each hub's
+curve (months to M+12, the next three quarters, the next winter, two calendar years) requotes
+with the front in whole-curve moves 20 to 60 seconds apart, so a quarter, season or year stays
+its months' day-weighted average: no arbitrage within a hub.
 
-- **Hours**: 07:00-19:00 CET/CEST every day; outside them it pauses (and says so in its status).
+The prices sit on the demo market (`scripts/demo/demo_market.py`): every mid starts on the
+demo board of the gas day (`seed_demo_desk.demo_board_now`, the board the roll-forward prices)
+and reverts to it; a common factor moves the hubs together and each hub's own part is bounded,
+so a locational spread stays inside the demo market's arbitrage band (net of the simulated
+route cost) except where a case is planted. It writes as `DEMO_Sim` through the same tick
+ingestion a licensed feed adapter uses (`application/market_ticks`: validation, the source
+family's entitlement, the inputs-changed hook that evaluates tracked strategies), one batch at
+most every half second, so the live stream's `prices` notice fires for every poll that saw a
+new tick and the Prices board, Today (DA, front month, spreads, marks and the day's P&L), the
+position ladder, the spread board and the prompt desk re-read (each at most every 0.5-5
+seconds) and flash what moved. A simulated prompt trade is booked into the demo books every 15
+minutes, so the prompt market's performance figures move. Admin → Data feeds lists it as **Demo
+exchange feed (simulated)** with its last message, rate, session and status, one line a minute.
+
+- **Session** (`EUROGAS_NEXUS_DEMO_FEED_SESSION`): the demo image sets `24h`, a **demo-only
+  24-hour session** that never closes, so a demo opened at 03:00 still moves. It is not a
+  venue's timetable: **real ICE Endex and EEX gas sessions differ**, and the feed's status line
+  says so ("simulated 24-hour demo session"). `exchange` (the feed's own default anywhere else)
+  quotes 07:00-19:00 CET/CEST every day and pauses outside, saying so in its status.
+- **Rate** (measured on PostgreSQL 16, 207 instruments over nine hubs): about 22 quotes a
+  second (some 145 a minute per hub, one every 3 seconds per prompt or front-curve
+  instrument) and about 25 prints a minute.
+- **Storage**: every quote of the last hour is kept; older ones are thinned to the last of each
+  instrument per ten minutes, and everything (quotes, prints, status lines, booked simulated
+  trades) is pruned after 48 hours, every ten minutes. Measured: about 850 bytes per stored
+  quote with its indexes, so the first hour adds about 68 MB, the next 47 about 1 MB an hour of
+  thinned quotes plus about 1 MB of prints; the feed's rows level off at about 160 MB.
 - **Restart**: started again by every demo start; an advisory lock keeps one running.
-- **Retention**: its quotes, prints, status lines and the booked simulated trades are kept for
-  48 hours, pruned every ten minutes.
-- **Who writes today's WD/DA**: the feed, while it runs. With it off the roll-forward's daily
-  board snapshot stands alone.
+- **Who writes today's WD/DA**: the feed, for every hub it quotes, while it runs. With it off
+  (`EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=off`) the roll-forward's board snapshot stands alone.
 - Every row is simulated and labelled; the customer image does not ship `scripts/demo`.
 
-Planted prompt cases (CET/CEST, during trading hours), so a test session of any length finds them:
+Planted prompt cases (CET/CEST, while the feed quotes), so a test session of any length finds them:
 
 | Case | Where | Schedule | What is planted |
 |---|---|---|---|
-| `P1-ttf-wd-da` | TTF, WD vs DA | minutes 10-12, 30-32 and 50-52 of every trading hour | WD 0.60 EUR/MWh over DA (even hours) or under it (odd hours), on top of the usual drift |
+| `P1-ttf-wd-da` | TTF, WD vs DA | minutes 10-12, 30-32 and 50-52 of every hour the feed quotes | WD 0.60 EUR/MWh over DA (even hours) or under it (odd hours), on top of the usual drift |
 | `P2-nbp-ttf-da` | NBP vs TTF, DA | 10:00-10:09 and 15:00-15:09 | NBP DA in EUR at the demo fixing 0.80 EUR/MWh above TTF DA plus the simulated BBL route cost (1.88); at all other times at least 0.30 below it |
 
 ## Settings
@@ -110,7 +135,8 @@ Planted prompt cases (CET/CEST, during trading hours), so a test session of any 
 | `GIE_API_KEY`, `EIA_API_KEY`, `ENTSOE_SECURITY_TOKEN` | Public-source keys; any one turns live refresh on | no |
 | `EUROGAS_NEXUS_DEMO_LIVE_SOURCES` | `auto` (on when a key is set), `on`, `off` | no |
 | `EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS`, `EUROGAS_NEXUS_DEMO_REFRESH_HOURS` | Catch-up bound (45 days) and refresh interval (6 h) | no |
-| `EUROGAS_NEXUS_DEMO_EXCHANGE_FEED` | `on` (default) or `off`: the simulated intraday exchange feed | no |
+| `EUROGAS_NEXUS_DEMO_EXCHANGE_FEED` | `on` (default) or `off`: the simulated live exchange screen | no |
+| `EUROGAS_NEXUS_DEMO_FEED_SESSION` | `24h` (default here: demo-only, real ICE Endex/EEX sessions differ) or `exchange` (07:00-19:00 CET/CEST) | no |
 | `EUROGAS_NEXUS_CORS_ORIGINS` | Only if saving fails with `origin_not_allowed` | no |
 
 The image sets the rest: `EUROGAS_NEXUS_ENV=development` (the demo seed refuses trial and
@@ -222,9 +248,10 @@ demo image; the customer runtime does not ship `scripts/demo`.
 day D and DA for the next day the market quotes (Monday's on a Friday; the weekend is WE). Every
 roll-forward (at start-up and hourly) writes one snapshot of WD and DA, two-sided with a size and
 a running "last", and the curve once a day. While the demo exchange feed quotes (it is on unless
-`EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=off`; 07:00-19:00 CET/CEST) it owns today's TTF and NBP WD and
-DA quotes and the roll-forward writes the other hubs'; outside those hours, or with the feed off,
-the roll-forward writes them all, so the board is quoted overnight too.
+`EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=off`; all day in the demo's 24-hour session) it owns today's WD
+and DA quotes of every hub it quotes and the roll-forward writes the rest (GTF's); outside its
+session, or with the feed off, the roll-forward writes them all, so the board is always quoted.
+The feed's newer quotes of WE and the curve supersede the snapshot's as they arrive.
 
 **Evaluation on the demo.** The demo image runs no data-operations scheduler, so the seed and
 every roll-forward note the input classes they changed and run the scheduled opportunity

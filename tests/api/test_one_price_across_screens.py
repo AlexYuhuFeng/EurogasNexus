@@ -147,3 +147,32 @@ def test_the_curve_and_the_close_are_held_but_lose_to_the_fresher_quote(desk):
     assert {"live_tick", "settlement"} <= held
     answer = book.month("TTF", f"{start:%Y-%m}")
     assert answer.kind == "live_tick" and answer.considered >= 2
+
+
+def test_todays_day_ahead_follows_a_live_tick_and_keeps_its_change_against_the_close(desk):
+    """A live (here simulated) DA tick moves Today's day-ahead as it moves the front month;
+    the change stays against the previous day's close (a day-ahead is a new contract daily)."""
+
+    from eurogas_nexus.application.market_ticks import ingest_ticks
+
+    engine, client = desk
+    before = _ok(client.get("/api/desk/today"))
+    da = next(h for h in before["rows"][0]["market"]["hubs"] if h["hub"] == "TTF")["day_ahead"]
+    assert da is not None
+    first = da["value"]
+    previous = da["series"][-2]["value"] if len(da["series"]) > 1 else None
+    bid, ask = round(first + 0.25, 3), round(first + 0.30, 3)
+    with Session(engine) as session:
+        ingest_ticks(session, source_system="DEMO_Sim", simulated_allowed=True, quotes=[{
+            "hub": "TTF", "product": "DA", "bid": bid, "ask": ask, "bid_qty": 10,
+            "ask_qty": 10, "exchange_time": (datetime.now(UTC) - timedelta(seconds=1)).isoformat(),
+            "sequence": 1}])
+        session.commit()
+    after = _ok(client.get("/api/desk/today"))
+    da = next(h for h in after["rows"][0]["market"]["hubs"] if h["hub"] == "TTF")["day_ahead"]
+    one = da["resolved_price"]
+    assert one is not None and one["kind"] == "live_tick" and one["simulated"] is True
+    assert da["value"] == pytest.approx((bid + ask) / 2, abs=1e-4)
+    assert da["simulated"] is True and da["source"] == "Demo price"
+    if previous is not None:
+        assert da["day_change"] == pytest.approx(da["value"] - previous, abs=1e-3)
