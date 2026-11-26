@@ -51,17 +51,12 @@ def _database_url() -> str:
 
 
 def _plan() -> upgrade.UpgradePlan:
-    from sqlalchemy import create_engine
+    from eurogas_nexus.db.session import default_driver_url, get_engine
 
-    from eurogas_nexus.db.connection_url import pg8000_ssl_arguments
-    from eurogas_nexus.db.session import default_driver_url
-
-    url, ssl_arguments = pg8000_ssl_arguments(default_driver_url(_database_url()))
-    engine = create_engine(url, connect_args=ssl_arguments or {}, future=True)
+    url = default_driver_url(_database_url())
+    engine = get_engine(url, one_off=True, statement_timeout=None)
     try:
-        return upgrade.build_plan(
-            engine, upgrade.alembic_config(url.render_as_string(hide_password=False))
-        )
+        return upgrade.build_plan(engine, upgrade.alembic_config(url))
     finally:
         engine.dispose()
 

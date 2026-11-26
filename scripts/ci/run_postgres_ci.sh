@@ -86,4 +86,5 @@ python -m pytest -q \
   tests/integration/test_demo_seed_clear_postgres.py \
   tests/integration/test_database_upgrade_postgres.py \
   tests/integration/test_upgrade_with_roles_postgres.py \
-  tests/integration/test_scheduler_lease_postgres.py
+  tests/integration/test_scheduler_lease_postgres.py \
+  tests/integration/test_db_timeouts_postgres.py

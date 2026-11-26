@@ -351,24 +351,25 @@ def run_upgrade(
 ) -> int:
     """Plan, gate, migrate and audit. Returns 0 done/up to date, 1 failed, 2 refused."""
 
-    from sqlalchemy import create_engine
     from sqlalchemy.orm import Session
 
     from alembic import command
-    from eurogas_nexus.db.connection_url import pg8000_ssl_arguments
     from eurogas_nexus.db.migration_rules import migration_timeouts
-    from eurogas_nexus.db.session import default_driver_url
+    from eurogas_nexus.db.session import default_driver_url, get_engine
 
     principal = _principal(operator)
     now = now_utc or datetime.now(UTC)
     timeouts = migration_timeouts(
         {"lock_timeout": lock_timeout, "statement_timeout": statement_timeout}
     )
-    url, ssl_arguments = pg8000_ssl_arguments(default_driver_url(database_url))
-    engine = create_engine(url, connect_args=ssl_arguments or {}, future=True)
+    # The URL as given (an ``sslmode`` kept): alembic/env.py turns it into pg8000's TLS context.
+    url = default_driver_url(database_url)
+    # The plan, the backup check and the audit rows: a bounded connect and keepalives, no
+    # statement limit (the migrations themselves run under alembic/env.py's limits).
+    engine = get_engine(database_url, one_off=True, statement_timeout=None)
     try:
         config = alembic_config(
-            url.render_as_string(hide_password=False),
+            url,
             lock_timeout=timeouts[0],
             statement_timeout=timeouts[1],
         )

@@ -20,7 +20,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, func, text
+from sqlalchemy import func, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
@@ -49,8 +49,11 @@ def _seed_module():
 @contextmanager
 def _session():
     url = make_url(_POSTGRES_URL)
-    connect_args = {"timeout": 10} if url.get_driver_name() == "pg8000" else {"connect_timeout": 10}
-    engine = create_engine(url, future=True, connect_args=connect_args)
+    from eurogas_nexus.db.session import get_engine
+
+    # The runtime's settings: a bounded connect and keepalives, not a socket
+    # timeout that would cut every statement off (db/session.py).
+    engine = get_engine(url.render_as_string(hide_password=False), statement_timeout=None)
     schema = f"demoseedtest_{uuid4().hex}"
     try:
         with engine.connect() as connection:

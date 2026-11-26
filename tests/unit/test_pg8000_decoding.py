@@ -74,6 +74,7 @@ def test_a_pg8000_engine_registers_the_converters_on_connect():
     listeners = [
         fn for fn in engine.pool.dispatch.connect
         if getattr(fn, "__module__", "") == "eurogas_nexus.db.session"
+        and "_tune_socket" not in getattr(fn, "__qualname__", "")
     ]
     assert len(listeners) == 1
 

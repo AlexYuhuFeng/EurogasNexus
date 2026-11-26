@@ -2005,6 +2005,8 @@
   "errors.audit_unavailable.action": "Nothing changed. Retry shortly; if it persists, quote the correlation id to an operator.",
   "errors.runtime_db_unavailable.message": "The runtime database could not be reached.",
   "errors.runtime_db_unavailable.action": "Retry shortly; if it persists, quote the correlation id to an operator.",
+  "errors.runtime_db_timeout.message": "The database stopped this read because it took too long.",
+  "errors.runtime_db_timeout.action": "Retry in a few seconds; if it keeps happening, narrow the request or quote the correlation id to an operator.",
   "errors.service_unavailable.message": "A required service is unavailable.",
   "errors.service_unavailable.action": "Retry shortly; if it persists, quote the correlation id to an operator.",
   "errors.session_invalid.message": "The session ended or was revoked.",

@@ -75,9 +75,12 @@ def read_view(url: str, view: str) -> tuple[list[str], list[tuple]]:
 
     if not _VIEW.match(view):
         raise ValueError(f"not a plain view name: {view!r}")
-    from sqlalchemy import create_engine, text
+    from sqlalchemy import text
 
-    engine = create_engine(url, pool_pre_ping=True)
+    from eurogas_nexus.db.session import get_engine
+
+    # A bounded connect and keepalives; a read of a published view has no statement limit.
+    engine = get_engine(url, one_off=True, statement_timeout=None)
     try:
         with engine.connect() as connection:
             result = connection.execute(text(f"SELECT * FROM {view} LIMIT {ROW_LIMIT + 1}"))

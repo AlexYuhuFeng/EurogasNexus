@@ -66,16 +66,30 @@ def run_migrations_online() -> None:
         raise RuntimeError("Alembic config is unavailable outside an Alembic runtime.")
 
     section = config.get_section(config.config_ini_section, {})
+    configured = _configured_database_url()
     # A libpq ``sslmode`` becomes pg8000's ``ssl_context``; without one nothing changes.
-    url, ssl_arguments = pg8000_ssl_arguments(_configured_database_url())
+    url, ssl_arguments = pg8000_ssl_arguments(configured)
     section["sqlalchemy.url"] = url.render_as_string(hide_password=False)
 
-    connectable = engine_from_config(
-        section,
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-        **({"connect_args": ssl_arguments} if ssl_arguments else {}),
-    )
+    if url.get_backend_name() == "postgresql":
+        # A bounded connect and TCP keepalives (a dead peer fails the run within about a
+        # minute and a half); the statement and lock limits are set below. No socket read
+        # timeout: a long migration statement is bounded by statement_timeout on the server.
+        from eurogas_nexus.db.session import get_engine
+
+        connectable = get_engine(
+            configured,  # get_engine applies the same sslmode -> ssl_context mapping
+            one_off=True,
+            statement_timeout=None,
+            socket_timeout_seconds=None,
+        )
+    else:
+        connectable = engine_from_config(
+            section,
+            prefix="sqlalchemy.",
+            poolclass=pool.NullPool,
+            **({"connect_args": ssl_arguments} if ssl_arguments else {}),
+        )
 
     with connectable.connect() as connection:
         if connection.dialect.name == "postgresql":

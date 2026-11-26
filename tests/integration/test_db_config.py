@@ -75,12 +75,14 @@ def test_get_engine_bounds_postgresql_connection_and_pool_waits(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     captured: dict[str, Any] = {}
-    sentinel = object()
+    real_create_engine = db_session.create_engine
 
     def fake_create_engine(url: str, **kwargs: object) -> object:
         captured["url"] = url
         captured.update(kwargs)
-        return sentinel
+        # A real engine, never connected (psycopg need not be installed: the DBAPI is
+        # imported on first connect only).
+        return real_create_engine("postgresql+pg8000://u:p@database.invalid/eurogas")
 
     monkeypatch.setattr(db_session, "create_engine", fake_create_engine)
 
@@ -88,9 +90,17 @@ def test_get_engine_bounds_postgresql_connection_and_pool_waits(
         "postgresql+psycopg://user:password@database.invalid/eurogas",
         connect_timeout_seconds=3,
     )
+    engine.dispose()
 
-    assert engine is sentinel
-    assert captured["connect_args"] == {"connect_timeout": 3}
+    # libpq's connect_timeout bounds the connect only; keepalives find a dead peer.
+    assert captured["connect_args"] == {
+        "connect_timeout": 3,
+        "keepalives": 1,
+        "keepalives_idle": db_session.TCP_KEEPALIVE_IDLE_SECONDS,
+        "keepalives_interval": db_session.TCP_KEEPALIVE_INTERVAL_SECONDS,
+        "keepalives_count": db_session.TCP_KEEPALIVE_COUNT,
+        "tcp_user_timeout": db_session.DEAD_PEER_SECONDS * 1000,
+    }
     assert captured["pool_timeout"] == 5.0
 
 

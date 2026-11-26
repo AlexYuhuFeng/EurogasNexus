@@ -626,7 +626,10 @@ def test_the_driver_socket_timeout_stays_above_the_server_statement_timeout(
     assert module._driver_socket_timeout_seconds(10**9)[0] == module.MAX_STATEMENT_TIMEOUT_MS
 
     _, engine, report, _ = _measure(monkeypatch)
-    assert engine.kwargs == {"connect_timeout_seconds": report["driver_timeout_seconds"]}
+    assert engine.kwargs == {
+        "statement_timeout": None,
+        "socket_timeout_seconds": report["driver_timeout_seconds"],
+    }
     assert report["driver_timeout_seconds"] > report["statement_timeout_ms"] / 1000
 
 

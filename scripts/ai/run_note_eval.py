@@ -56,9 +56,11 @@ def assert_demo_only(evidence, environ=None, store_check=None) -> None:
 
 
 def _store_is_demo(url: str) -> bool:
-    from sqlalchemy import create_engine, inspect, text
+    from sqlalchemy import inspect, text
 
-    engine = create_engine(url)
+    from eurogas_nexus.db.session import get_engine
+
+    engine = get_engine(url, one_off=True, statement_timeout=None)
     try:
         with engine.connect() as connection:
             if "trading_books" not in inspect(connection).get_table_names():

@@ -87,6 +87,7 @@ EurogasDbPoolExhausted reads the waits and timeouts below.
 | `eurogas_db_pool_waits_total` | flat or slow growth | it climbs steadily: the pool is too small for the load, or a slow read holds connections |
 | `eurogas_db_pool_timeouts_total` | 0 | any growth: requests fail for lack of a connection; raise the pool (within the formula) or find the slow read |
 | `eurogas_db_pool_checked_out` | below size + overflow | at the ceiling for minutes |
+| `eurogas_db_statement_timeouts_total` | flat | growing: reads hit the 30 s statement timeout (a slow query or an overloaded database); users see 503 `runtime_db_timeout` and retry |
 | `eurogas_stream_connections` (summed over `topic`) | about 1 to 3 per signed-in user | far above: a client reconnecting in a loop |
 | `eurogas_stream_poll_seconds_total` / `eurogas_stream_polls_total` | well under 1.5 s per poll | close to 1.5 s: the poll cannot keep its interval; look for a slow source query |
 | `eurogas_stream_poll_failures_total` | flat | growing: the poller cannot reach the database |

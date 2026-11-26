@@ -348,6 +348,14 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
             ErrorFamily.DEPENDENCY,
             recoverability=Recoverability.RETRY,
         ),
+        # The database cancelled a read after its time limit (``statement_timeout``): the
+        # store is up, the read was too slow at that moment; retry after ``Retry-After``.
+        _definition(
+            "runtime_db_timeout",
+            ErrorFamily.DEPENDENCY,
+            severity=ErrorSeverity.WARNING,
+            recoverability=Recoverability.RETRY,
+        ),
         _definition(
             "audit_unavailable",
             ErrorFamily.DEPENDENCY,

@@ -74,6 +74,30 @@ The authoritative list lives in code and should be validated with:
 python scripts/ops/validate_runtime_db.py --json
 ```
 
+## Timeouts
+
+Each timeout has one meaning (`db/session.py`; `tests/unit/test_db_timeouts.py`,
+`tests/integration/test_db_timeouts_postgres.py`).
+
+| Bound | Where | Value |
+| --- | --- | --- |
+| Connect (TCP, TLS, sign-in) | every engine `get_engine` builds | 5 s |
+| Statement (PostgreSQL `statement_timeout`) | API processes, incl. background jobs run inside the API | 30 s per statement (`EUROGAS_NEXUS_DB_STATEMENT_TIMEOUT_MS`) |
+| | workers, the scheduler, the demo seed, operator commands | none |
+| | migrations (`alembic/env.py`, the gated upgrade) | 1 h, with `lock_timeout` 10 s (`EUROGAS_NEXUS_MIGRATION_*`) |
+| Socket read (safety net only) | API connections | statement timeout + 30 s (60 s) |
+| | every other connection | none; TCP keepalives instead |
+| Dead peer (TCP keepalive, `TCP_USER_TIMEOUT`) | every connection | about 80 s (30 s idle, then 5 probes 10 s apart) |
+
+The socket bound is never the statement limit. pg8000's `timeout` argument stays on the socket
+for every read, so passing the connect bound that way (as before 2026-11-26) cut every statement
+off after 5 s on the client while the server went on running it, holding its connection and
+locks: the demo's re-seed and heavy pages under load failed that way, and the API's 30 s
+statement timeout could never act. Now a statement the server cancels answers 503
+`runtime_db_timeout` with `Retry-After: 5`, its connection goes back to the pool rolled back,
+and `eurogas_db_statement_timeouts_total` counts it; a lost connection is dropped, answered 503
+`runtime_db_unavailable` and counted in `eurogas_db_connections_lost_total`.
+
 ## Import Safety Guarantee
 
 - `apps.api.main` import does not require a database URL.

@@ -119,6 +119,16 @@ def _metrics() -> dict[str, Any]:
             "Time spent waiting for a connection.",
             registry=registry,
         ),
+        "statement_timeouts": Counter(
+            "eurogas_db_statement_timeouts",
+            "Statements the database cancelled after statement_timeout or lock_timeout.",
+            registry=registry,
+        ),
+        "connections_lost": Counter(
+            "eurogas_db_connections_lost",
+            "Connections dropped because the database stopped answering or went away.",
+            registry=registry,
+        ),
         "stream_polls": Counter(
             "eurogas_stream_polls",
             "Polls of the live-update pollers (one poller per API process).",
@@ -192,6 +202,8 @@ _POOL_COUNTER_METRICS = {
     "waits": "pool_waits",
     "timeouts": "pool_timeouts",
     "wait_seconds": "pool_wait_seconds",
+    "statement_timeouts": "statement_timeouts",
+    "connections_lost": "connections_lost",
 }
 #: The totals already added to this process's counters.
 _pool_published: dict[str, float] = dict.fromkeys(_POOL_COUNTER_METRICS, 0)

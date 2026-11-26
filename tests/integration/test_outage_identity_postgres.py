@@ -15,7 +15,7 @@ from pathlib import Path
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, select, text
+from sqlalchemy import select, text
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
@@ -48,8 +48,11 @@ NOW = datetime(2026, 11, 16, 9, 0, tzinfo=UTC)
 @contextmanager
 def _session():
     url = make_url(_POSTGRES_URL)
-    connect_args = {"timeout": 5} if url.get_driver_name() == "pg8000" else {"connect_timeout": 5}
-    engine = create_engine(url, future=True, connect_args=connect_args)
+    from eurogas_nexus.db.session import get_engine
+
+    # The runtime's settings: a bounded connect and keepalives, not a socket
+    # timeout that would cut every statement off (db/session.py).
+    engine = get_engine(url.render_as_string(hide_password=False), statement_timeout=None)
     schema = f"outageidentity_{uuid4().hex}"
     created = False
     try:

@@ -14,6 +14,7 @@ from eurogas_nexus.api.dependencies.route_permission import require_route_permis
 from eurogas_nexus.api.error_handlers import register_error_handlers
 from eurogas_nexus.api.middleware.compression import ApiReadCompressionMiddleware
 from eurogas_nexus.api.middleware.conditional import ConditionalReadMiddleware
+from eurogas_nexus.api.middleware.database_failure import DatabaseFailureMiddleware
 from eurogas_nexus.api.middleware.licensed_use import LicensedUseMiddleware
 from eurogas_nexus.api.middleware.metrics_endpoint import MetricsEndpointMiddleware
 from eurogas_nexus.api.middleware.observability import HttpObservabilityMiddleware
@@ -137,8 +138,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # correlation id alongside it.
     register_error_handlers(app)
 
-    # Innermost: a read answered without a runtime database says so in its meta (one rule
-    # for every route; a deployment with a database never enters it).
+    # Innermost: a statement the database cancelled, or a lost store, that no route caught
+    # answers the coded 503 with Retry-After instead of a bare 500.
+    app.add_middleware(DatabaseFailureMiddleware)
+    # A read answered without a runtime database says so in its meta (one rule for every
+    # route; a deployment with a database never enters it).
     app.add_middleware(RuntimeStoreStateMiddleware)
     # One licensed-data usage meter per API request (GOV-1, P6).
     app.add_middleware(LicensedUseMiddleware)

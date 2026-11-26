@@ -105,9 +105,14 @@ def _walk(value, path, findings, *, check_time: bool):
 
 
 def probe_pass(postgres: str | None) -> dict:
-    from sqlalchemy import create_engine, event, text
+    from sqlalchemy import event, text
     from sqlalchemy.engine import Engine
     from sqlalchemy.orm import Session
+
+    from eurogas_nexus.db.session import get_engine
+
+    def create_engine(target):  # a bounded connect and keepalives, no statement limit
+        return get_engine(target, one_off=True, statement_timeout=None)
 
     schema = None
     if postgres:

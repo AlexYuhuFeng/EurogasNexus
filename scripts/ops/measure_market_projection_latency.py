@@ -483,8 +483,8 @@ def _bounded_statement_timeout_ms(statement_timeout_ms: int) -> int:
 def _driver_socket_timeout_seconds(statement_timeout_ms: int) -> tuple[int, int]:
     """Return ``(statement_timeout_ms, driver_socket_timeout_seconds)``, both bounded.
 
-    ``get_engine(connect_timeout_seconds=...)`` is the driver's own socket
-    timeout (pg8000 applies it to socket operations), so it must exceed the
+    ``get_engine(socket_timeout_seconds=...)`` is the driver's socket read
+    timeout once connected (the connect has its own short bound), so it must exceed the
     server's ``statement_timeout``: the server has to be the side that stops a
     slow plan, with a clean cancellation, instead of the client giving up on a
     socket and tearing the connection down mid-statement.
@@ -610,7 +610,13 @@ def _measure_db(
         )
         return report, 2
 
-    engine = get_engine(database_url, connect_timeout_seconds=driver_timeout_seconds)
+    # Connecting keeps its short bound; the socket's safety net sits above the statement
+    # timeout this run sets on each connection (db/session.py: the two are separate).
+    engine = get_engine(
+        database_url,
+        statement_timeout=None,
+        socket_timeout_seconds=driver_timeout_seconds,
+    )
     try:
         # A store that cannot be reached at all is not "measured with failures":
         # one probe decides that, before any statement is reported on.

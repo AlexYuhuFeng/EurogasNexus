@@ -117,6 +117,7 @@ def register_error_handlers(app: FastAPI) -> None:
 
     async def _http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         operator = _is_operator_request(request)
+        exc = _as_database_timeout(exc)
         detail = exc.detail
         if isinstance(detail, dict) and "error_class" in detail and not operator:
             # Security review L1: an exception's class name is for operators only, whichever
@@ -266,6 +267,65 @@ def register_error_handlers(app: FastAPI) -> None:
             content={"detail": _SERVER_ERROR_DETAIL, **payload, "params": {}},
             headers={"X-Request-Id": correlation_id},
         )
+
+
+def database_failure_exception(exc: BaseException) -> HTTPException | None:
+    """The coded 503 for a database failure a route did not catch, or None.
+
+    A statement the server cancelled (``statement_timeout``) answers ``runtime_db_timeout``; a
+    lost or unreachable store ``runtime_db_unavailable``; both say when to retry.
+    """
+
+    from eurogas_nexus.core.db_errors import (
+        DB_RETRY_AFTER_SECONDS,
+        DB_TIMEOUT_CODE,
+        database_failure,
+    )
+
+    kind = database_failure(exc)
+    if kind is None:
+        return None
+    retry = {"Retry-After": str(DB_RETRY_AFTER_SECONDS)}
+    if kind == "timeout":
+        return HTTPException(
+            status_code=503,
+            detail={
+                "code": DB_TIMEOUT_CODE,
+                "message": "The database stopped this read because it took too long.",
+                "error_class": type(exc).__name__,
+            },
+            headers=retry,
+        )
+    return HTTPException(
+        status_code=503,
+        detail={
+            "code": "runtime_db_unavailable",
+            "message": "The runtime database could not be reached.",
+            "error_class": type(exc).__name__,
+        },
+        headers=retry,
+    )
+
+
+def _as_database_timeout(exc: StarletteHTTPException) -> StarletteHTTPException:
+    """A route's own 503 for a database error whose cause was a statement timeout.
+
+    Routes answer a database error as ``runtime_db_unavailable`` (``raise ... from exc``);
+    when the cause was the server cancelling a slow statement, the store is up and the read
+    was slow, so the answer names that and tells the client when to retry.
+    """
+
+    if exc.status_code != 503 or exc.__cause__ is None:
+        return exc
+    from eurogas_nexus.core.db_errors import is_statement_timeout
+
+    if not is_statement_timeout(exc.__cause__):
+        return exc
+    coded = database_failure_exception(exc.__cause__)
+    if coded is None:
+        return exc
+    headers = {**(exc.headers or {}), **(coded.headers or {})}
+    return HTTPException(status_code=503, detail=coded.detail, headers=headers)
 
 
 def _unhandled_detail(exc: Exception, *, operator: bool) -> str | None:

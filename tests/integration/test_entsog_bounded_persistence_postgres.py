@@ -12,7 +12,7 @@ from types import SimpleNamespace
 from uuid import uuid4
 
 import pytest
-from sqlalchemy import create_engine, select, text, update
+from sqlalchemy import select, text, update
 from sqlalchemy.engine import make_url
 from sqlalchemy.orm import Session
 
@@ -56,8 +56,11 @@ pytestmark = pytest.mark.skipif(
 @contextmanager
 def _session():
     url = make_url(os.environ["RUNTIME_STORE_DATABASE_URL"])
-    connect_args = {"timeout": 5} if url.get_driver_name() == "pg8000" else {"connect_timeout": 5}
-    engine = create_engine(url, future=True, connect_args=connect_args)
+    from eurogas_nexus.db.session import get_engine
+
+    # The runtime's settings: a bounded connect and keepalives, not a socket
+    # timeout that would cut every statement off (db/session.py).
+    engine = get_engine(url.render_as_string(hide_password=False), statement_timeout=None)
     schema = f"entsogtest_{uuid4().hex}"
     schema_created = False
     try:

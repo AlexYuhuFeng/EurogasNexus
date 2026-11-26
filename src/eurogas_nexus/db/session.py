@@ -11,7 +11,24 @@ for a connection (a connection wait ends in an error after ``EUROGAS_NEXUS_DB_PO
 Every API connection carries a ``statement_timeout`` (:func:`use_api_statement_timeout`), so a
 runaway read is cancelled instead of holding a connection while every other request queues.
 The pool counts its checkouts, the ones that had to wait and the ones that timed out
-(:func:`pool_counters`, published as ``eurogas_db_pool_*`` metrics).
+(:func:`pool_counters`, published as ``eurogas_db_pool_*`` metrics), and the statements the
+server cancelled and the connections lost (``eurogas_db_statement_timeouts``,
+``eurogas_db_connections_lost``).
+
+Timeouts, one meaning each (``docs/operations/DB_RUNTIME_HARDENING.md``, "Timeouts"):
+
+* **connect**: opening a connection (TCP, TLS, authentication) waits at most
+  :data:`CONNECT_TIMEOUT_SECONDS`;
+* **statement**: PostgreSQL's own ``statement_timeout`` bounds each statement (30 s for the
+  API; none for workers, the scheduler, the seed and operator commands; one hour for a
+  migration, with a 10 s ``lock_timeout``). The server cancels the statement cleanly and the
+  connection stays usable;
+* **socket**: only a safety net for a network that stopped answering. pg8000 applies its
+  ``timeout`` argument to every read of the socket, so a connect bound passed that way used to
+  cut every statement off at 5 s on the client while the server went on running it. After the
+  connection is made the socket's timeout becomes the statement timeout plus
+  :data:`SOCKET_TIMEOUT_MARGIN_SECONDS` (none without a statement timeout), and TCP keepalives
+  find a dead peer within about :data:`DEAD_PEER_SECONDS` either way.
 """
 
 import os
@@ -45,6 +62,20 @@ API_STATEMENT_TIMEOUT_MS = 30_000
 #: Set by the API application (:func:`use_api_statement_timeout`).
 _API_PROCESS = False
 
+#: Opening a connection (TCP, TLS and authentication) waits at most this long.
+CONNECT_TIMEOUT_SECONDS = 5
+#: How much longer than the statement timeout the socket waits for an answer before it gives
+#: the connection up: the server's cancellation always comes first.
+SOCKET_TIMEOUT_MARGIN_SECONDS = 30
+#: TCP keepalives on every connection: probes after this much silence, then every interval.
+TCP_KEEPALIVE_IDLE_SECONDS = 30
+TCP_KEEPALIVE_INTERVAL_SECONDS = 10
+TCP_KEEPALIVE_COUNT = 5
+#: A peer that stopped answering is found after about this long (idle + interval x count).
+DEAD_PEER_SECONDS = (
+    TCP_KEEPALIVE_IDLE_SECONDS + TCP_KEEPALIVE_INTERVAL_SECONDS * TCP_KEEPALIVE_COUNT
+)
+
 
 class PoolCounters:
     """Checkouts, waits and timeouts of every pool in this process (thread-safe)."""
@@ -55,6 +86,8 @@ class PoolCounters:
         self.waits = 0
         self.timeouts = 0
         self.wait_seconds = 0.0
+        self.statement_timeouts = 0
+        self.connections_lost = 0
 
     def record(self, waited: float, *, timed_out: bool, exhausted: bool) -> None:
         """One checkout: ``exhausted`` when no connection was idle and none could be opened,
@@ -69,6 +102,15 @@ class PoolCounters:
                 self.waits += 1
                 self.wait_seconds += waited
 
+    def record_failure(self, *, statement_timeout: bool, connection_lost: bool) -> None:
+        """A statement the server cancelled, or a connection that was lost (and dropped)."""
+
+        with self._lock:
+            if statement_timeout:
+                self.statement_timeouts += 1
+            if connection_lost:
+                self.connections_lost += 1
+
     def snapshot(self) -> dict[str, float]:
         with self._lock:
             return {
@@ -76,6 +118,8 @@ class PoolCounters:
                 "waits": self.waits,
                 "timeouts": self.timeouts,
                 "wait_seconds": self.wait_seconds,
+                "statement_timeouts": self.statement_timeouts,
+                "connections_lost": self.connections_lost,
             }
 
 
@@ -235,18 +279,105 @@ def redact_database_url(database_url: str | None) -> str | None:
         return re.sub(r"(://[^:/?#]+:)[^@/?#]+(@)", r"\1***\2", database_url)
 
 
+_FROM_ROLE = object()
+
+
+def socket_timeout_for(statement_timeout_ms: int | None) -> float | None:
+    """The socket's read timeout for a connection whose statements end after
+    ``statement_timeout_ms``: that plus a margin, or none (keepalives alone) without one."""
+
+    if not statement_timeout_ms:
+        return None
+    return statement_timeout_ms / 1000 + SOCKET_TIMEOUT_MARGIN_SECONDS
+
+
+def driver_connect_args(drivername: str, connect_timeout_seconds: float) -> dict[str, object]:
+    """The driver's connect arguments: a connect bound and TCP keepalives.
+
+    pg8000's ``timeout`` is a socket timeout that stays on the socket for every later read;
+    :func:`get_engine` replaces it as soon as the connection is made. libpq's
+    ``connect_timeout`` (psycopg, psycopg2) bounds the connect only; its keepalive and
+    ``tcp_user_timeout`` options find a dead peer.
+    """
+
+    bound = max(1, int(connect_timeout_seconds))
+    if drivername.endswith("+pg8000"):
+        return {"timeout": bound, "tcp_keepalive": True}
+    return {
+        "connect_timeout": bound,
+        "keepalives": 1,
+        "keepalives_idle": TCP_KEEPALIVE_IDLE_SECONDS,
+        "keepalives_interval": TCP_KEEPALIVE_INTERVAL_SECONDS,
+        "keepalives_count": TCP_KEEPALIVE_COUNT,
+        "tcp_user_timeout": DEAD_PEER_SECONDS * 1000,
+    }
+
+
+def tune_pg8000_socket(dbapi_connection, socket_timeout: float | None) -> None:
+    """After connecting: the socket's timeout becomes the safety net, keepalives are tuned.
+
+    pg8000 has no public setting for this; its socket is ``_usock`` (pg8000 1.31). A
+    connection without one (another driver, a test double) is left as it is.
+    """
+
+    import socket
+
+    sock = getattr(dbapi_connection, "_usock", None)
+    if sock is None:
+        return
+    sock.settimeout(socket_timeout)
+    options = [(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)]
+    for name, value in (
+        ("TCP_KEEPIDLE", TCP_KEEPALIVE_IDLE_SECONDS),
+        ("TCP_KEEPINTVL", TCP_KEEPALIVE_INTERVAL_SECONDS),
+        ("TCP_KEEPCNT", TCP_KEEPALIVE_COUNT),
+        # Unacknowledged data (a request sent to a peer that vanished) gives up after this.
+        ("TCP_USER_TIMEOUT", DEAD_PEER_SECONDS * 1000),
+    ):
+        option = getattr(socket, name, None)
+        if option is not None:
+            options.append((socket.IPPROTO_TCP, option, value))
+    for level, option, value in options:
+        try:
+            sock.setsockopt(level, option, value)
+        except OSError:  # a Unix socket has no TCP options
+            continue
+
+
+def _count_failure(context) -> None:
+    """Count a statement the server cancelled and a connection lost (the pool metrics)."""
+
+    from eurogas_nexus.core.db_errors import is_statement_timeout
+
+    timed_out = is_statement_timeout(context.original_exception)
+    lost = bool(getattr(context, "is_disconnect", False))
+    if timed_out or lost:
+        _POOL_COUNTERS.record_failure(statement_timeout=timed_out, connection_lost=lost)
+
+
 def get_engine(
     database_url: str | None = None,
     *,
     echo: bool = False,
     pool_pre_ping: bool = True,
-    connect_timeout_seconds: int = 5,
+    connect_timeout_seconds: float = CONNECT_TIMEOUT_SECONDS,
     pool_size: int | None = None,
     max_overflow: int | None = None,
     pool_timeout_seconds: float | None = None,
     pool_recycle_seconds: int | None = None,
+    statement_timeout: int | None | object = _FROM_ROLE,
+    socket_timeout_seconds: float | None | object = _FROM_ROLE,
+    one_off: bool = False,
 ) -> Engine:
-    """Create a SQLAlchemy engine lazily without opening a connection."""
+    """Create a SQLAlchemy engine lazily without opening a connection.
+
+    ``connect_timeout_seconds`` bounds opening a connection only. ``statement_timeout``
+    (milliseconds) defaults to this process's role (:func:`statement_timeout_ms`: the API's
+    30 s, none elsewhere); ``socket_timeout_seconds`` defaults to that plus
+    :data:`SOCKET_TIMEOUT_MARGIN_SECONDS` (none without a statement timeout). ``one_off``: a
+    command's engine without a pool (each connection closed when released), with the same
+    connect bound, keepalives and timeouts.
+    """
 
     resolved_url = database_url.strip() if database_url else resolve_database_url()
     if not resolved_url:
@@ -261,12 +392,17 @@ def get_engine(
     # A libpq ``sslmode`` (as a managed PostgreSQL service issues it) becomes the
     # ``ssl_context`` pg8000 takes; a URL without one is left exactly as it was.
     parsed_url, ssl_arguments = pg8000_ssl_arguments(make_url(resolved_url))
-    if parsed_url.get_backend_name() == "postgresql":
-        bounded_timeout = max(1, int(connect_timeout_seconds))
-        timeout_parameter = (
-            "timeout" if parsed_url.drivername.endswith("+pg8000") else "connect_timeout"
-        )
-        engine_options["connect_args"] = {timeout_parameter: bounded_timeout, **ssl_arguments}
+    postgresql = parsed_url.get_backend_name() == "postgresql"
+    if postgresql:
+        engine_options["connect_args"] = {
+            **driver_connect_args(parsed_url.drivername, connect_timeout_seconds),
+            **ssl_arguments,
+        }
+    if postgresql and one_off:
+        from sqlalchemy.pool import NullPool
+
+        engine_options["poolclass"] = NullPool
+    elif postgresql:
         engine_options["pool_size"] = max(
             1,
             pool_size
@@ -294,22 +430,36 @@ def get_engine(
         engine_options["poolclass"] = CountingQueuePool
 
     engine = create_engine(parsed_url, **engine_options)
-    timeout_ms = statement_timeout_ms()
-    if parsed_url.get_backend_name() == "postgresql" and timeout_ms:
-        from sqlalchemy import event
+    if not postgresql:
+        return engine
+    from sqlalchemy import event
+
+    timeout_ms = statement_timeout_ms() if statement_timeout is _FROM_ROLE else statement_timeout
+    socket_timeout = (
+        socket_timeout_for(timeout_ms)  # type: ignore[arg-type]
+        if socket_timeout_seconds is _FROM_ROLE
+        else socket_timeout_seconds
+    )
+    if parsed_url.drivername.endswith("+pg8000"):
+
+        def _tune_socket(connection, _record) -> None:
+            tune_pg8000_socket(connection, socket_timeout)  # type: ignore[arg-type]
+
+        # First, so every later set-up statement already runs under the long bound.
+        event.listen(engine, "connect", _tune_socket, insert=True)
+    if timeout_ms:
 
         def _set_statement_timeout(connection, _record) -> None:
             cursor = connection.cursor()
             try:
-                cursor.execute(f"SET statement_timeout = {int(timeout_ms)}")
+                cursor.execute(f"SET statement_timeout = {int(timeout_ms)}")  # type: ignore[arg-type]
             finally:
                 cursor.close()
             connection.commit()
 
         event.listen(engine, "connect", _set_statement_timeout)
+    event.listen(engine, "handle_error", _count_failure)
     if parsed_url.drivername.endswith("+pg8000"):
-        from sqlalchemy import event
-
         from eurogas_nexus.db.pg8000_decoding import register
 
         # Dates and timestamps decoded with fromisoformat, not strptime (pg8000_decoding.py).
