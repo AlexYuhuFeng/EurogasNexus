@@ -69,8 +69,9 @@ def test_the_store_is_opened_read_only(tmp_path):
     _store(store)
     from sqlalchemy.engine import make_url
 
-    connection = sqlite3.connect(measure_db._sqlite_read_only_url(make_url(f"sqlite:///{store}")),
-                                 uri=True)
+    connection = sqlite3.connect(
+        measure_db._sqlite_read_only_url(make_url(f"sqlite:///{store}")), uri=True
+    )
     with pytest.raises(sqlite3.OperationalError, match="readonly"):
         connection.execute("DELETE FROM market_events")
     connection.close()
