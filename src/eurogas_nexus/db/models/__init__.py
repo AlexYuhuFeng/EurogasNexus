@@ -105,7 +105,10 @@ from eurogas_nexus.db.models.market_positioning import (
     ScreenOrderObservationRecord,
 )
 from eurogas_nexus.db.models.market_report import MarketReportRecord
-from eurogas_nexus.db.models.monitoring import MonitoringAlertRecord
+from eurogas_nexus.db.models.monitoring import (
+    MonitoringAlertReaderStateRecord,
+    MonitoringAlertRecord,
+)
 from eurogas_nexus.db.models.news import NewsItemRecord, NewsSourcePollRecord
 from eurogas_nexus.db.models.observation import (
     AuditEventRecord,
@@ -441,6 +444,7 @@ __all__ = [
     "MarketTradeRecord",
     "StrategyTrackEventRecord",
     "StrategyTrackRecord",
+    "MonitoringAlertReaderStateRecord",
     "MonitoringAlertRecord",
     "NodeFacilityMapping",
     "NominationWindowMasterRecord",

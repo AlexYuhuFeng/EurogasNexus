@@ -68,6 +68,8 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/me/password", Permission.READ),
     # A person's own presentation choices; they grant nothing (domain/settings).
     ("/api/me/preferences", Permission.READ),
+    # A person's own read and dismissed marks on alerts; the shared alert status is untouched.
+    ("/api/me/alert-state", Permission.READ),
     ("/api/settings/organisation", Permission.READ),
     ("/api/access/groups", Permission.ADMIN),
     ("/api/access/groups/{group_id}", Permission.ADMIN),

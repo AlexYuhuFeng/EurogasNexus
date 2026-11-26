@@ -186,6 +186,109 @@ def _record_acknowledgement_audit(
     )
 
 
+class AlertReaderActionRequest(BaseModel):
+    """A person's own mark on alerts in their alert centre.
+
+    Attributes:
+        action: ``read`` (seen), ``dismiss`` (hide from my list until it recurs or
+            escalates) or ``restore`` (show a dismissed alert again).
+        alert_ids: The alerts to mark (1-500).
+    """
+
+    action: Literal["read", "dismiss", "restore"]
+    alert_ids: list[str] = Field(min_length=1, max_length=500)
+
+
+@router.get("/api/me/alert-state")
+def get_alert_reader_state(request: Request) -> dict:
+    """Return the caller's own read and dismissed marks on the alerts they can see.
+
+    返回当前用户对可见告警的已读与忽略标记。
+
+    Reading and dismissing are personal: they change the caller's list only and leave the
+    shared, audited alert status alone. A mark lapses when the alert recurs or escalates.
+
+    Returns:
+        Enveloped ``{"alerts": {alert_id: {read, dismissed, read_at_utc,
+        dismissed_at_utc}}}``; alerts with no current mark are left out.
+    """
+
+    from eurogas_nexus.application.alert_scope import alert_visibility
+    from eurogas_nexus.db.models import MonitoringAlertRecord
+    from eurogas_nexus.db.repositories.monitoring import reader_state
+
+    principal_id = _reader_principal_id(request)
+    with _session() as session:
+        visible = alert_visibility(session)
+        rows = [
+            row
+            for row in session.query(MonitoringAlertRecord)
+            .filter(MonitoringAlertRecord.status != "resolved")
+            .all()
+            if visible(row)
+        ]
+        data = {"alerts": reader_state(session, principal_id, rows)}
+    return _env(data)
+
+
+@router.post("/api/me/alert-state")
+def post_alert_reader_state(payload: AlertReaderActionRequest, request: Request) -> dict:
+    """Mark alerts read, dismissed or restored for the caller only.
+
+    为当前用户标记告警为已读、忽略或恢复（不影响其他用户与告警的共享状态）。
+
+    Only alerts the caller can see are marked; ids that are unknown or not visible are
+    returned under ``not_found`` and nothing is written for them.
+
+    Returns:
+        Enveloped ``{"changed": n, "not_found": [...], "alerts": {...}}`` with the caller's
+        marks on the requested alerts after the change.
+    """
+
+    from eurogas_nexus.application.alert_scope import alert_visibility
+    from eurogas_nexus.db.models import MonitoringAlertRecord
+    from eurogas_nexus.db.repositories.monitoring import apply_reader_action, reader_state
+
+    principal_id = _reader_principal_id(request)
+    requested = list(dict.fromkeys(payload.alert_ids))
+    with _session() as session:
+        visible = alert_visibility(session)
+        rows = [
+            row
+            for row in session.query(MonitoringAlertRecord)
+            .filter(MonitoringAlertRecord.alert_id.in_(requested))
+            .all()
+            if visible(row)
+        ]
+        found = {row.alert_id for row in rows}
+        changed = apply_reader_action(
+            session, principal_id, rows, payload.action, now_utc=datetime.now(UTC)
+        )
+        session.commit()
+        data = {
+            "changed": changed,
+            "not_found": [alert_id for alert_id in requested if alert_id not in found],
+            "alerts": reader_state(session, principal_id, rows),
+        }
+    return _env(data)
+
+
+def _reader_principal_id(request: Request) -> str:
+    """The person whose marks these are; the shared compatibility token is not a person."""
+
+    principal = getattr(request.state, "identity", None)
+    principal_id = getattr(principal, "principal_id", None)
+    if not principal_id or getattr(principal, "auth_method", "") == "legacy_public_token":
+        raise HTTPException(
+            status_code=401,
+            detail={
+                "code": "named_principal_required",
+                "message": "Sign in as a named user to keep your own alert marks.",
+            },
+        )
+    return str(principal_id)
+
+
 @router.post("/api/monitoring/alerts/{alert_id}/analysis")
 def analyze_alert(alert_id: str, payload: AlertAnalysisRequest, request: Request) -> dict:
     """Ask live DeepSeek about one alert without exposing the API credential.
