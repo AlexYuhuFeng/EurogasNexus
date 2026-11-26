@@ -28,8 +28,11 @@ row-entitlement enforcement.
 
 from __future__ import annotations
 
+import functools
+import weakref
+
+import anyio.to_thread
 from fastapi import HTTPException, Request
-from starlette.concurrency import run_in_threadpool
 
 from eurogas_nexus.api.dependencies.exempt_paths import (
     CREDENTIAL_EXEMPT_PREFIXES,
@@ -61,6 +64,24 @@ IDENTITY_AUTHENTICATED_FLAG = "identity_authenticated"
 #: Paths that must answer without a credential. Declared once, in ``exempt_paths``, because the
 #: public-token gate needs the same list; re-exported here for the readers of this dependency.
 IDENTITY_EXEMPT_PREFIXES = CREDENTIAL_EXEMPT_PREFIXES
+
+#: Threads that resolve credentials at once, beside the request threads (``db/session.py``
+#: counts their connections). Their own limit: a sign-in, a session check or a live stream's
+#: opening never queues behind request threads busy with a long computation.
+IDENTITY_THREADS = 2
+_IDENTITY_LIMITERS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
+async def run_in_threadpool(function, *args):
+    """Run a credential check in a thread, under the identity threads' own limit."""
+
+    import asyncio
+
+    loop = asyncio.get_running_loop()
+    limiter = _IDENTITY_LIMITERS.get(loop)
+    if limiter is None:
+        limiter = _IDENTITY_LIMITERS[loop] = anyio.CapacityLimiter(IDENTITY_THREADS)
+    return await anyio.to_thread.run_sync(functools.partial(function, *args), limiter=limiter)
 
 
 def _allow_anonymous(request: Request) -> bool:

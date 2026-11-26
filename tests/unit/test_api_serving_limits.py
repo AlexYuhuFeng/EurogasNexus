@@ -65,3 +65,29 @@ def test_the_metrics_publish_the_pool_and_poller_counters():
         "eurogas_db_pool_timeouts_total",
         "eurogas_db_pool_wait_seconds_total",
     } <= names
+
+
+def test_credential_checks_do_not_wait_behind_busy_request_threads():
+    """Every request thread busy with a long computation: a sign-in, a session check or a
+    stream's opening still gets its credential checked at once, on the identity threads."""
+
+    import asyncio
+    import time
+
+    import anyio.to_thread
+
+    from eurogas_nexus.api.dependencies import identity
+
+    async def scenario() -> float:
+        anyio.to_thread.current_default_thread_limiter().total_tokens = 1
+        release = threading.Event()
+        busy = asyncio.ensure_future(anyio.to_thread.run_sync(release.wait))
+        await asyncio.sleep(0.05)  # the one request thread is now taken
+        started = time.monotonic()
+        assert await identity.run_in_threadpool(lambda value: value * 2, 21) == 42
+        waited = time.monotonic() - started
+        release.set()
+        await busy
+        return waited
+
+    assert asyncio.run(scenario()) < 1.0

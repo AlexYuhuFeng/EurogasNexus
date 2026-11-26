@@ -60,3 +60,14 @@ installed image content are checked during build; container acceptance reruns
 digest. Local `.dnx*` working data is excluded from the Docker context.
 These content checks do not certify an existing database as simulation-free;
 customer data acceptance must inspect database provenance separately.
+
+## Several API processes (production shape)
+
+`compose.yaml` runs one API process with no shared cache. For a production server add
+`compose.scale.yaml`: it starts a password-protected Valkey on the internal network and runs
+four API processes that share it (`VALKEY_PASSWORD` must be set in the environment file):
+
+    docker compose -f compose.yaml -f compose.scale.yaml --env-file .env up -d
+
+The preflight refuses more than one API process without a shared cache. Pool sizing, what to
+watch and what happens when Valkey is down: `docs/operations/API_SERVING_AND_SHARED_CACHE.md`.

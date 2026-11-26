@@ -263,11 +263,12 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
     ConfigVar(
         name="EUROGAS_NEXUS_API_THREADS",
         scope="OPERATOR",
-        purpose="Request threads per API process (default: pool size + overflow - 3).",
+        purpose="Request threads per API process (default: pool size + overflow - 5).",
         default=None,
         notes=(
-            "Keep it at or below the pool's connections less 3 (the live-update poller and "
-            "two warm-view refreshes), so requests queue for a thread, not for a connection",
+            "Keep it at or below the pool's connections less 5 (the live-update poller, two "
+            "warm-view refreshes and two identity threads), so requests queue for a thread, "
+            "not for a connection",
         ),
     ),
     # --- Several API processes ------------------------------------------------

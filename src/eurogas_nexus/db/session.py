@@ -35,9 +35,10 @@ DB_URL_ENV_VARS = (
 )
 
 
-#: Connections an API process uses beside its request threads: the live-update poller and the
-#: warm views' two background refreshes (``api/stream_hub.py``, ``application/warm_views.py``).
-API_BACKGROUND_CONNECTIONS = 3
+#: Connections an API process uses beside its request threads: the live-update poller, the
+#: warm views' two background refreshes and the two identity threads (``api/stream_hub.py``,
+#: ``application/warm_views.py``, ``api/dependencies/identity.py``).
+API_BACKGROUND_CONNECTIONS = 5
 #: The statement timeout an API process applies when none is configured (milliseconds).
 API_STATEMENT_TIMEOUT_MS = 30_000
 

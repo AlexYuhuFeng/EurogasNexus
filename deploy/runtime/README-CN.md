@@ -50,3 +50,14 @@ API wheel 排除可执行市场模拟器；镜像只复制
 `python scripts/release/verify_customer_artifact.py`。Docker 构建上下文排除本地
 `.dnx*` 工作数据。这些内容检查不证明已有数据库没有模拟行；客户数据验收
 仍需单独核查数据库来源信息。
+
+## 多个 API 进程（生产形态）
+
+`compose.yaml` 默认只运行一个 API 进程，不使用共享缓存。生产服务器请叠加
+`compose.scale.yaml`：它在内部网络上启动一个带密码的 Valkey，并运行共享该缓存的四个 API 进程
+（须在环境文件中设置 `VALKEY_PASSWORD`）：
+
+    docker compose -f compose.yaml -f compose.scale.yaml --env-file .env up -d
+
+没有共享缓存时，预检会拒绝多于一个 API 进程。连接池容量计算、监控指标以及 Valkey 不可用时的行为见
+`docs/operations/API_SERVING_AND_SHARED_CACHE.md`。
