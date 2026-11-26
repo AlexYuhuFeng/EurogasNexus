@@ -2725,7 +2725,9 @@ export function GasNetworkMap({
       {mapReady && !compact && (
         <MapFinder places={finderPlaces} onPick={flyToPlace} t={t} collapsible={phoneWidth} />
       )}
-      {mapReady && !compact && (
+      {/* Not at phone width: the network sheet covers the map's foot there, so the scene
+          controls would sit under it, drawn but out of reach (browser acceptance, 390 px). */}
+      {mapReady && !compact && !phoneWidth && (
         <MapSceneControls
           dimension={dimension}
           onDimension={chooseDimension}
