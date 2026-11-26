@@ -313,7 +313,8 @@ def hub_spread(results: dict, raws: dict, hubs: list[str], ctx) -> tuple[list, l
                 except NormalisationError as exc:
                     return out, [T(f"{NOT_SHOWN} the {a}–{b} spread: {b} cannot be put into "
                                    f"{unit} ({exc}).",
-                                   f"{NOT_SHOWN_ZH}{a}–{b}价差：{b}无法折算为{unit}（{exc}）。")]
+                                   f"{NOT_SHOWN_ZH}{a}–{b}价差：{b}无法折算为{unit}"
+                                   f"（{_unconvertible_zh(exc)}）。")]
             for d in held:
                 factors[d] = conv.factor
             fx = conv.fx
@@ -462,3 +463,16 @@ def closing(kind: str) -> str:
 
 __all__ = ["RELATIONS", "border_flows", "closing", "hub_spread", "kind_of", "lng_country",
            "since", "since_date", "storage_country"]
+
+
+def _unconvertible_zh(exc: Exception) -> str:
+    """Why a conversion was refused, in Chinese: the engine's reason is English, and a Chinese
+    report should not print it raw ("not convertible: no EURGBP rate held")."""
+    import re
+
+    held = re.search(r"no (EUR[A-Z]{3}) rate held", str(exc))
+    if held:
+        return f"未持有截至该日的 {held.group(1)} 汇率"
+    if "forward" in str(exc):
+        return "无可用的远期汇率"
+    return "缺少所需的汇率或换算系数"
