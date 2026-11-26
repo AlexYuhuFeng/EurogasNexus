@@ -1772,9 +1772,40 @@ SIMULATED_SERIES = (
     ("vessels", LngCargoRecord, SIMULATED_VESSEL_SOURCE, None),
 )
 
+#: Series whose demo rows are dated, and retire only from the first day a real row covers.
+#: Real FX and benchmark rates rarely reach as far back as the simulated price history (the
+#: ECB publishes a 90-day file; a demo started today holds one day). Deleting every older
+#: demo rate left the year of simulated prices with nothing to convert at, so NBP-TTF,
+#: EUR conversions and the reports refused ("no EURGBP rate held"). Each day still has one
+#: source: simulated before real coverage starts, real from then on.
+DATED_SIMULATED_SERIES = {"fx": "value_date", "rates": "value_date"}
+
 
 def _scope(value) -> str:
     return str(value or "").strip().upper()
+
+
+def _retire_dated(session, model, demo_source, column, demo_scopes, date_name) -> int:
+    """Delete demo rows of each scope dated on or after that scope's first real row."""
+
+    from sqlalchemy import func
+
+    day = getattr(model, date_name)
+    count = 0
+    for scope in demo_scopes:
+        first_real = (
+            session.query(func.min(day))
+            .filter(model.source_system != demo_source, func.upper(column) == _scope(scope))
+            .scalar()
+        )
+        if first_real is None:
+            continue
+        count += (
+            session.query(model)
+            .filter(model.source_system == demo_source, column == scope, day >= first_real)
+            .delete(synchronize_session=False)
+        )
+    return count
 
 
 def retire_simulated_series(session) -> dict[str, int]:
@@ -1808,12 +1839,15 @@ def retire_simulated_series(session) -> dict[str, int]:
                 if _scope(value) in covered
             ]
             count = 0
-            if demo_scopes:
+            dated = DATED_SIMULATED_SERIES.get(name)
+            if demo_scopes and dated is None:
                 count = (
                     session.query(model)
                     .filter(model.source_system == demo_source, column.in_(demo_scopes))
                     .delete(synchronize_session=False)
                 )
+            elif demo_scopes:
+                count = _retire_dated(session, model, demo_source, column, demo_scopes, dated)
         if count:
             removed[name] = count
     tariffs = retire_simulated_tariffs(session)

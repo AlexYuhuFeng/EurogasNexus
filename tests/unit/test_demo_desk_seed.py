@@ -329,10 +329,18 @@ def test_real_public_data_replaces_the_simulated_series_it_covers(session):
     ])
     session.commit()
     sim_flows = session.query(FlowObservationRecord).count()
-    # The demo holds a daily EUR/GBP history (for conversions at each day's rate): all of it goes.
+    # The demo holds a daily EUR/GBP history (for conversions at each day's rate): the days the
+    # real ECB row covers go, the older simulated days stay so older prices still convert.
     sim_gbp = (
         session.query(FxObservationRecord)
         .filter_by(pair="EURGBP", source_system=seed.SOURCE)
+        .filter(FxObservationRecord.value_date >= "2026-11-06")
+        .count()
+    )
+    sim_gbp_older = (
+        session.query(FxObservationRecord)
+        .filter_by(pair="EURGBP", source_system=seed.SOURCE)
+        .filter(FxObservationRecord.value_date < "2026-11-06")
         .count()
     )
 
@@ -347,11 +355,13 @@ def test_real_public_data_replaces_the_simulated_series_it_covers(session):
 
     assert storage("DE") == {"GIE"} and storage("EU") == {"GIE"}  # "eu" covers "EU"
     assert storage("FR") == {seed.SOURCE}  # not covered: stays simulated, labelled so
-    pairs = {
-        (row.pair, row.source_system) for row in session.query(FxObservationRecord)
-    }
-    assert ("EURGBP", seed.SOURCE) not in pairs and ("EURUSD", seed.SOURCE) in pairs
-    assert removed["storage"] == 40 and removed["fx"] == sim_gbp > 1
+    gbp = session.query(FxObservationRecord).filter_by(pair="EURGBP").all()
+    assert all(row.source_system == "ECB" for row in gbp if row.value_date >= "2026-11-06")
+    assert sum(row.source_system == seed.SOURCE for row in gbp) == sim_gbp_older > 1
+    assert session.query(FxObservationRecord).filter_by(
+        pair="EURUSD", source_system=seed.SOURCE
+    ).count() > 0
+    assert removed["storage"] == 40 and removed["fx"] == sim_gbp >= 1
     assert "flows" not in removed and session.query(FlowObservationRecord).count() == sim_flows
     assert session.query(MarketObservationRecord).count() > 0  # demo prices stay
 

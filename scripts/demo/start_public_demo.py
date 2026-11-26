@@ -721,7 +721,7 @@ def catch_up_steps(
 
     anchor = now.replace(microsecond=0).isoformat()
     steps = [
-        CatchUpStep("ecb", "ECB reference rates", [*ingest, "--source", "ecb"]),
+        CatchUpStep("ecb", "ECB reference rates", [*ingest, "--source", "ecb", "--ecb-history"]),
         CatchUpStep(
             "entsog",
             f"ENTSOG reference, tariffs, flows and capacity ({ENTSOG_WEEK} gas days)",
