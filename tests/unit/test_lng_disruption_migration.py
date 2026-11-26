@@ -64,7 +64,7 @@ def test_up_down_and_model_match():
     assert lng3.down_revision == "0084_news_items"
     assert lng4.revision == "0087_lng4_options_demurrage"
     assert lng4.down_revision == "0088_tar2_capacity_bookings"
-    assert DB_SCHEMA_REVISION == "0089_alert_reader_state"  # later revisions follow
+    assert DB_SCHEMA_REVISION == "0090_timescale_optional"  # later revisions follow
     assert len(lng4.revision) <= 32  # alembic_version.version_num is VARCHAR(32)
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:

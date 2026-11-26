@@ -79,6 +79,8 @@ def test_readiness_with_complete_sqlite_schema(tmp_path, monkeypatch, revision) 
         return
     assert response.status_code == 200
     assert response.json()["status"] == "ready"
+    # TimescaleDB is optional and informational (ADR Decision 39); SQLite is never it.
+    assert response.json()["extensions"] == {"timescaledb": "not_postgresql"}
     # A fresh store: ready, and it names the public sources waiting for an approval.
     attention = response.json()["attention"]
     held = {item["source_id"]: item["state"] for item in attention["public_sources_held_back"]}
