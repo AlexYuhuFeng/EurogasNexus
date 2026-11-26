@@ -104,7 +104,11 @@ def test_server_runtime_is_db_first_and_has_explicit_migration() -> None:
         "public-ingestion-worker:",
     ]:
         assert service in compose
-    assert 'command: ["alembic", "upgrade", "head"]' in compose
+    # The migrate step is explicit and gated (plan 3.10): in this release stack it only
+    # checks the revision and refuses to start the API on an old schema; the upgrade itself
+    # is the operator's `upgrade_database.py upgrade` (backup check, timeouts, audit).
+    assert 'command: ["python", "scripts/ops/upgrade_database.py", "on-start"]' in compose
+    assert '"alembic", "upgrade"' not in compose
     assert "postgresql+pg8000://" in compose
     assert "preview-seed:" not in compose
     assert "simulated-prices:" not in compose

@@ -26,6 +26,21 @@ x-runtime-environment: &runtime-environment
   # looking like plain http: the session cookie would then be issued without
   # Secure, and the origin guard could not derive the browser's real origin.
   FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-172.16.0.0/12}
+  # Observability (docs/operations/MONITORING.md). GET /metrics answers only a scraper with
+  # this token and/or from these networks; with neither set it does not exist.
+  EUROGAS_NEXUS_METRICS_SCRAPE_TOKEN: ${EUROGAS_NEXUS_METRICS_SCRAPE_TOKEN:-}
+  EUROGAS_NEXUS_METRICS_ALLOWED_NETWORKS: ${EUROGAS_NEXUS_METRICS_ALLOWED_NETWORKS:-}
+  # Shared by the API's worker processes (an empty tmpfs mounted by the api service).
+  PROMETHEUS_MULTIPROC_DIR: /run/eurogas-metrics
+  EUROGAS_NEXUS_LOG_FORMAT: ${EUROGAS_NEXUS_LOG_FORMAT:-json}
+  EUROGAS_NEXUS_OTEL_ENABLED: ${EUROGAS_NEXUS_OTEL_ENABLED:-0}
+
+# One JSON log line per record (stderr); Docker rotates the files (5 x 20 MB per container).
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
 
 services:
   postgres:
@@ -65,9 +80,15 @@ services:
     restart: "no"
 
   migrate:
+    # Never migrates in this (release) stack: it checks that the database is at the revision
+    # this version needs and refuses to let the API start otherwise. Upgrading is the gated
+    # operator step (backup check, lock and statement timeouts, audit):
+    #   docker compose run --rm migrate python scripts/ops/upgrade_database.py upgrade \
+    #     --operator "<your name>"
+    # docs/operations/DATABASE_UPGRADE.md
     image: ${EUROGAS_NEXUS_API_IMAGE}
     environment: *runtime-environment
-    command: ["alembic", "upgrade", "head"]
+    command: ["python", "scripts/ops/upgrade_database.py", "on-start"]
     depends_on:
       postgres:
         condition: service_healthy
@@ -92,6 +113,10 @@ services:
     image: ${EUROGAS_NEXUS_API_IMAGE}
     restart: unless-stopped
     environment: *runtime-environment
+    logging: *default-logging
+    # Empty at every start, so the metric files never outlive the processes that wrote them.
+    tmpfs:
+      - /run/eurogas-metrics:mode=1777
     ports:
       - "127.0.0.1:${API_PORT}:8000"
     depends_on:
@@ -179,6 +204,7 @@ services:
     image: ${EUROGAS_NEXUS_API_IMAGE}
     profiles: ["public-ingestion"]
     restart: unless-stopped
+    logging: *default-logging
     environment: *runtime-environment
     command:
       - python
@@ -201,6 +227,7 @@ services:
     image: ${EUROGAS_NEXUS_API_IMAGE}
     profiles: ["public-ingestion"]
     restart: unless-stopped
+    logging: *default-logging
     environment: *runtime-environment
     command:
       - python
@@ -216,6 +243,7 @@ services:
     image: ${EUROGAS_NEXUS_API_IMAGE}
     profiles: ["monitoring"]
     restart: unless-stopped
+    logging: *default-logging
     environment: *runtime-environment
     command:
       - python

@@ -12,6 +12,8 @@ revision = "0050_remit_umm_messages"
 down_revision = "0049_power_observations"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

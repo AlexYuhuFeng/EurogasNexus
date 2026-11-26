@@ -428,3 +428,16 @@ def test_a_partial_read_counts_as_the_steps_round_and_says_what_it_missed(monkey
     report["sources"]["gie_iip"]["inserted"] = 0
     report["sources"]["gie_iip"]["records"] = 0
     assert module.run_catch_up_step(step) is False
+
+
+def test_demo_runs_the_products_scheduler_by_default() -> None:
+    """P1-C: the demo showed "no heartbeat, 0/42 scheduled" because no scheduler ran there."""
+
+    import importlib
+
+    demo = importlib.import_module("scripts.demo.start_public_demo")
+    assert demo.demo_scheduler_enabled({}) is True
+    assert demo.demo_scheduler_enabled({"EUROGAS_NEXUS_DEMO_SCHEDULER": "off"}) is False
+    command = demo.scheduler_command()
+    assert command[1] == "scripts/ops/run_dataops_scheduler.py"
+    assert "--entsog-lookback-gas-days" in command

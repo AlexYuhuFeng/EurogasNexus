@@ -137,7 +137,9 @@ Installation performs, in order:
 2. random database and backend secret generation;
 3. restricted server configuration under `%ProgramData%\Eurogas Nexus`;
 4. PostgreSQL startup and health check;
-5. explicit `alembic upgrade head` in a one-shot container;
+5. the gated database upgrade in a one-shot container (`upgrade_database.py upgrade`: a new store
+   needs no backup, an installed one a backup recorded in the last 24 hours; see
+   `docs/operations/DATABASE_UPGRADE.md`);
 6. API and HTTPS gateway startup;
 7. ECB ingestion, and ENTSOG once approved (see "First run"), unless `-SkipPublicData` is set;
 8. end-to-end API and database revision validation.

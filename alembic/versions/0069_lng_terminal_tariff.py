@@ -20,6 +20,8 @@ revision = "0069_lng_terminal_tariff"
 down_revision = "0068_installation_setup"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

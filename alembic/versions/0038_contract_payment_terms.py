@@ -43,6 +43,8 @@ revision: str = "0038_contract_payment_terms"
 down_revision: str | None = "0037_contract_revisions"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

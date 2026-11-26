@@ -14,6 +14,12 @@ revision = "0062_observation_revisions"
 down_revision = "0061_audit_keyset_index"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "conditional"
+reversibility_note = (
+    'The downgrade refuses while data recorded since this revision would be lost (its error '
+    'says which); export that data first or restore the pre-upgrade backup.'
+)
 
 _TABLES = (
     "flow_observations",

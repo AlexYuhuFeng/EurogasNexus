@@ -15,6 +15,8 @@ revision = "0031_research_data_foundation"
 down_revision = "0030_reliability_indexes"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

@@ -14,6 +14,8 @@ revision = "0075_tso_tariff_entry"
 down_revision = "0074_gas_day_schedule"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

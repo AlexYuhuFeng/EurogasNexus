@@ -18,6 +18,8 @@ revision = "0066_commercial_assumptions"
 down_revision = "0065_local_accounts"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 _DECIMAL = sa.Numeric(28, 10)
 

@@ -12,6 +12,12 @@ revision = "0042_national_gas_actual_demand"
 down_revision = "0041_job_owner_identity"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "irreversible"
+reversibility_note = (
+    'National Gas actual-demand migration cannot be downgraded; restore an approved '
+    'pre-migration backup instead.'
+)
 
 
 def upgrade():

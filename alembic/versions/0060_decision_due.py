@@ -8,6 +8,8 @@ revision = "0060_decision_due"
 down_revision = "0059_functional_runs"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

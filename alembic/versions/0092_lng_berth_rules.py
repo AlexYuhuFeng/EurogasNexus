@@ -24,6 +24,8 @@ revision = "0092_lng_berth_rules"
 down_revision = "0091_hub_one_identity"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 _COLUMNS = (
     ("lng_berth_calls", "counterparty", sa.String(160)),

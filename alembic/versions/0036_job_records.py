@@ -33,6 +33,8 @@ revision: str = "0036_job_records"
 down_revision: str | None = "0035_decision_cases"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

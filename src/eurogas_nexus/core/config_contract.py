@@ -572,6 +572,96 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         example="data/snapshots",
         notes=("Defaults to the git-ignored data/snapshots directory of the deployment checkout",),
     ),
+    # --- Observability: metrics, logs, traces (P1-C) ------------------------
+    ConfigVar(
+        name="EUROGAS_NEXUS_METRICS_SCRAPE_TOKEN",
+        scope="OPERATOR",
+        purpose="Bearer token Prometheus sends to GET /metrics (unset: no token rule).",
+        sensitivity="secret",
+        profiles=_SERVED,
+        notes=(
+            "GET /metrics exists only when this or EUROGAS_NEXUS_METRICS_ALLOWED_NETWORKS "
+            "is set; with both, a scrape needs both (docs/operations/MONITORING.md)",
+            "At least 24 random characters; Prometheus reads it from a credentials file",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_METRICS_ALLOWED_NETWORKS",
+        scope="OPERATOR",
+        purpose="Comma-separated addresses or CIDR ranges allowed to scrape GET /metrics.",
+        profiles=_SERVED,
+        example="10.20.0.0/24",
+        notes=(
+            "Behind a proxy the address is the one uvicorn resolved from the trusted "
+            "proxy (FORWARDED_ALLOW_IPS); block /metrics at the public gateway either way",
+        ),
+    ),
+    ConfigVar(
+        name="PROMETHEUS_MULTIPROC_DIR",
+        scope="OPERATOR",
+        purpose="Empty directory the API workers share for metric files (multi-worker).",
+        required_when="the API runs more than one worker process",
+        profiles=_SERVED,
+        example="/run/eurogas-metrics",
+        external_reader="prometheus_client",
+        notes=(
+            "Mount an empty tmpfs there so a restart starts from clean files; unset, each "
+            "process keeps its own metrics (correct only with one worker)",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_LOG_FORMAT",
+        scope="OPERATOR",
+        purpose="Log line format: json (one object per line) or text.",
+        default="json in trial and release, text elsewhere",
+        example="json",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_LOG_LEVEL",
+        scope="OPERATOR",
+        purpose="Minimum log level (DEBUG, INFO, WARNING, ERROR).",
+        default="INFO",
+        example="INFO",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_OTEL_ENABLED",
+        scope="OPERATOR",
+        purpose="Send OpenTelemetry traces (needs the OpenTelemetry packages in the image).",
+        default="0",
+        example="0",
+        notes=(
+            "The exporter reads the standard OTEL_EXPORTER_OTLP_ENDPOINT and "
+            "OTEL_SERVICE_NAME; see docs/operations/MONITORING.md, Tracing",
+        ),
+    ),
+    # --- Gated database upgrades (P1-C) -------------------------------------
+    ConfigVar(
+        name="EUROGAS_NEXUS_AUTO_MIGRATE",
+        scope="OPERATOR",
+        purpose="Upgrade the database at start (development and demo only).",
+        default="on outside trial and release",
+        profiles=("development",),
+        example="0",
+        notes=(
+            "Ignored in trial and release: there the upgrade is the gated operator step "
+            "(scripts/ops/upgrade_database.py upgrade; docs/operations/DATABASE_UPGRADE.md)",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_MIGRATION_LOCK_TIMEOUT",
+        scope="OPERATOR",
+        purpose="Longest a migration statement waits for a lock before failing and rolling "
+        "back (PostgreSQL duration).",
+        default="10s",
+        example="10s",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_MIGRATION_STATEMENT_TIMEOUT",
+        scope="OPERATOR",
+        purpose="Longest one migration statement may run (PostgreSQL duration).",
+        default="1h",
+        example="1h",
+    ),
     # --- Model and source behaviour ----------------------------------------
     ConfigVar(
         name="EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED",
@@ -725,6 +815,14 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         scope="OPERATOR",
         purpose="Hours between live public-source refresh rounds on the demo server.",
         default="6",
+        profiles=("development",),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_SCHEDULER",
+        scope="OPERATOR",
+        purpose="Run the product's data-operations scheduler on the demo server after the "
+        "first catch-up round (on) or repeat catch-up rounds without one (off).",
+        default="on",
         profiles=("development",),
     ),
     ConfigVar(

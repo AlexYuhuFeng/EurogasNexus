@@ -78,6 +78,19 @@ class _StubSession:
     def query(self, *_args, **_kwargs) -> _StubQuery:
         return _StubQuery()
 
+    def execute(self, *_args, **_kwargs) -> _StubQuery:
+        """The aggregate reads: no rows (the subject is rendering, not the query)."""
+
+        return _StubQuery()
+
+    def get(self, *_args, **_kwargs) -> None:
+        """No heartbeat row."""
+
+        return None
+
+    def rollback(self) -> None:
+        return None
+
 
 @pytest.fixture()
 def exposition() -> str:
@@ -110,6 +123,15 @@ def test_every_sample_value_is_numeric(exposition: str) -> None:
         "these samples are not numeric, so a Prometheus scrape of this endpoint would "
         f"be rejected outright: {offending}"
     )
+
+
+def test_every_database_collector_answers_on_an_empty_store(exposition: str) -> None:
+    """A collector that raised would report 0 here and silently drop its families."""
+
+    rendered = [
+        line for line in exposition.splitlines() if line.startswith("eurogas_metrics_collector_up")
+    ]
+    assert rendered and all(line.endswith(" 1") for line in rendered), rendered
 
 
 def test_no_sample_carries_a_python_repr(exposition: str) -> None:
@@ -147,7 +169,8 @@ def test_checked_out_is_read_as_a_callable_not_as_a_method_object(exposition: st
 
     rendered = dict(_sample_lines(exposition))
     value = rendered["eurogas_db_pool_checked_out"]
-    assert value == "0", (
+    # prometheus_client writes gauges as floats ("0.0").
+    assert float(value) == 0, (
         "an idle pool should report 0 checked-out connections, but the exposition "
         f"says {value!r}"
     )

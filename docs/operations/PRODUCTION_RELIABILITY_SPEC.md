@@ -223,8 +223,10 @@ evidence in `docs/operations/BACKUP_RESTORE.md`.
 
 ## 15. Migration safety
 
-- Migrations are explicit operator actions (`alembic upgrade head`), never
-  import-time.
+- Migrations are explicit operator actions through the gated upgrade
+  (`scripts/ops/upgrade_database.py upgrade`: recent backup or audited override,
+  `lock_timeout`/`statement_timeout`, reversibility plan, audit record), never import-time
+  and never on start in trial or release (docs/operations/DATABASE_UPGRADE.md).
 - `scripts/ops/migration_preflight.py` checks current/expected revision, DB
   reachability, required-table baseline, backup age (warning), and refuses a
   downgrade request.

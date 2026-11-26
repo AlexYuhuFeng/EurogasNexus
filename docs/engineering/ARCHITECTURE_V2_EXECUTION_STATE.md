@@ -29,6 +29,67 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   daily) EUR/MWh with 1.80 sunk; Rhinmark replacement 19,377,360 -> 19,228,594 EUR.
 - Not built (plan work, `ARCHITECTURE_V3_PLAN.md`): storage extrinsic value, swing/ToP,
   options, PFE, P&L attribution, power, the stored EOD ladder/VaR run.
+## 2026-11-26 — P1-C: observability, scheduler safety, gated upgrades (branch `p1-C`, not pushed)
+
+Plan v3 section 3.10 (and 3.2 for migrations), phase 1. Built:
+
+- **Metrics.** `GET /metrics` (plain Prometheus text) for a scrape token
+  (`EUROGAS_NEXUS_METRICS_SCRAPE_TOKEN`) and/or allowed networks
+  (`EUROGAS_NEXUS_METRICS_ALLOWED_NETWORKS`); 404 with neither, served outside the route table,
+  404 at both gateways. `prometheus_client` multi-process mode (`PROMETHEUS_MULTIPROC_DIR`,
+  tmpfs in the runtime compose): latency histograms and counters by route group, method and
+  status class; pool gauges and open streams summed over live workers. Database metrics at
+  scrape time with aggregates (the old exporter loaded all of `ingestion_runs` per scrape):
+  freshness aged by the clock against each source's stale rule, heartbeat age (+Inf when
+  never), jobs, feed lag, outbox lag. `/api/runtime/metrics` keeps its JSON for the UI.
+- **Logs and traces.** JSON lines (default in trial/release) with `request_id` and
+  `principal_id`, redaction, one access record per request (route template, no address or
+  query); Docker rotation in the runtime compose. OpenTelemetry seam, off by default.
+- **Alerts.** `deploy/monitoring/prometheus/`: 12 rules, promtool unit tests (stopped
+  scheduler fires), example scrape config; responses in `docs/operations/ALERT_RESPONSES.md`.
+- **Scheduler.** PostgreSQL advisory lock (standby exits 3 with `--once`, takes over when the
+  lock frees, notices a lost lock connection); heartbeat every 30 s while active. The demo's
+  "no heartbeat, 0/42 scheduled" was real, not only a display fault: no scheduler process ran on
+  the demo (its refresh loop called the ingest scripts directly), and the Runtime page counted
+  schedules in source rows that only a scheduler scan creates. The demo now starts the product
+  scheduler after its first catch-up (`EUROGAS_NEXUS_DEMO_SCHEDULER`, default on); the Runtime
+  row reads the heartbeat (not running / stopped / the scheduler's own count and age).
+- **Gated upgrades.** `scripts/ops/upgrade_database.py` (plan, check, upgrade, record-backup,
+  on-start): backup marker within 24 h or an audited override; `lock_timeout` 10s and
+  `statement_timeout` 1h in `alembic/env.py`; pending revisions with their reversibility;
+  `database.upgrade` audit rows. Release compose `migrate` only checks; development and demo
+  auto-upgrade through the same command (`EUROGAS_NEXUS_AUTO_MIGRATE`, ignored in trial and
+  release). All 94 migrations declare `reversibility` (scripted,
+  `scripts/dev/declare_migration_reversibility.py`); contract test for the declaration and for
+  non-blocking index builds on large tables after 0094 (seven older blocking builds listed).
+
+Decisions (P1-C):
+
+1. **P1-C-1 `prometheus-client` added** (Apache-2.0 AND BSD-2-Clause, no dependencies; the gate
+   passes). Locks updated with `uv pip compile` without `--upgrade`: only this pin moved.
+2. **P1-C-2 `/metrics` outside the route table** (an outermost ASGI middleware), so the sign-in,
+   permission and CSRF dependencies a scraper cannot satisfy are not bypassed per route, and
+   the endpoint is not public API surface. Network binding is by allowed ranges, not a second
+   listener (a second port cannot be shared by N workers).
+3. **P1-C-3 OpenTelemetry not added to the locks.** Its licences pass the gate, but SDK plus
+   OTLP exporter add about a dozen packages to every install for a setting that is off by
+   default; the seam activates when a deployment installs them (MONITORING.md, Tracing).
+4. **P1-C-4 Advisory lock, not a lease row**: no migration, released by PostgreSQL when the
+   holder dies. SQLite (single process) uses a no-op lease.
+5. **P1-C-5 Backup marker is an audit event** (`database.backup.recorded`), not a file: it
+   lives in the database the upgrade runs against, works for pgBackRest or managed snapshots
+   (`record-backup`), and auditors see it.
+6. **P1-C-6 Auto-migrate refused in trial and release even when set**: plan 3.10 says never on
+   start in production.
+7. **P1-C-7 Job and failure alerts read last-hour gauges, not all-time counters**: pruning
+   `job_records` would read as a counter reset and fire a false alert.
+8. **P1-C-8 `create_index_nonblocking` ends a leftover transaction** in Alembic's autocommit
+   block: under pg8000 Alembic's isolation-level read opens one, and `CONCURRENTLY` then fails.
+
+No migration added; `DB_SCHEMA_REVISION` unchanged (0094). Verified on PostgreSQL 16
+(scratch container): lock and takeover, upgrade gate, lock-timeout rollback, concurrent
+index; end-to-end: 2 uvicorn workers summed in one scrape, a real Prometheus scraping with
+the token, EurogasSchedulerHeartbeatMissing firing and clearing when a heartbeat started.
 
 ## 2026-11-26 — Architecture plan version 3 proposed (branch `archplan`, docs only, not pushed)
 

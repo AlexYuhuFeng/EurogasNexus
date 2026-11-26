@@ -216,6 +216,20 @@ def runtime_dependencies(request: Request) -> dict:
                 schedulers["dataops"] = _heartbeat_state(
                     dataops.last_heartbeat_at_utc if dataops else None, now
                 )
+                # What the running scheduler last reported, so the Runtime page shows the
+                # scheduler's own count instead of guessing it from source rows (a store no
+                # scheduler ever scanned has none, which read as "0/42 scheduled").
+                from eurogas_nexus.domain.dataops.registry import source_definitions
+
+                schedulers["dataops"]["registered_sources"] = len(source_definitions())
+                if dataops is not None:
+                    schedulers["dataops"]["sources_scheduled"] = int(dataops.sources_scheduled)
+                    if dataops.last_scan_at_utc is not None:
+                        from eurogas_nexus.domain.dataops.contracts import as_utc
+
+                        schedulers["dataops"]["last_scan_at_utc"] = as_utc(
+                            dataops.last_scan_at_utc
+                        ).isoformat()
                 schedulers["shadow"] = _heartbeat_state(
                     shadow.last_heartbeat_at_utc if shadow else None, now
                 )

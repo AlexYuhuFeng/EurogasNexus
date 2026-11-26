@@ -14,6 +14,8 @@ revision: str = "0028_data_operations_v1"
 down_revision: str | None = "0027_shadow_runtime_v1"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def _add_ingestion_run_columns() -> None:

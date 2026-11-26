@@ -52,18 +52,36 @@ throwaway container that does not mount `eurogas-nexus-postgres-data`.
 
 ## Apply migrations
 
-Run only after the operator confirms the target database. This is a live DB
-operation and is not part of import-time code, app startup, or default tests.
+**Trial and release (production): use the gated upgrade**, never a bare `alembic upgrade`:
+[DATABASE_UPGRADE.md](DATABASE_UPGRADE.md). It refuses without a recent recorded backup,
+prints each pending revision with whether it can be undone, runs with `lock_timeout` and
+`statement_timeout`, and records who ran it in the audit trail. The release stack's start-up
+step only checks the revision and keeps the API from starting on an old schema.
 
 ```bash
-alembic upgrade head
+python scripts/ops/upgrade_database.py plan
+python scripts/ops/upgrade_database.py upgrade --operator "<your name>"
 ```
 
+On a local development or scratch database `alembic upgrade head` still works; `alembic/env.py`
+sets the same timeouts on PostgreSQL (`EUROGAS_NEXUS_MIGRATION_LOCK_TIMEOUT`, default 10s;
+`EUROGAS_NEXUS_MIGRATION_STATEMENT_TIMEOUT`, default 1h).
+
 ## Roll back latest migration
+
+Check the revision's `reversibility` first (`upgrade_database.py plan` prints it for pending
+revisions; each migration file declares it). An `irreversible` revision refuses; restore the
+backup instead.
 
 ```bash
 alembic downgrade -1
 ```
+
+## Writing a migration
+
+Declare `reversibility` (and a `reversibility_note` unless `reversible`), and build an index
+on a large table with `eurogas_nexus.db.migration_rules.create_index_nonblocking`; the
+template has both and `tests/contract/test_migration_reversibility.py` enforces them.
 
 ## Notes
 

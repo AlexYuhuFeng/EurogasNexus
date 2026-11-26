@@ -10,6 +10,7 @@ import type {
 } from "@/api/client";
 import { useState } from "react";
 import { dependencyDetailText } from "@/app/model/runtimeDependencyDetail";
+import { schedulerReadiness } from "@/app/model/runtimeScheduler";
 import {
   ENDPOINT_FAILURE_LABEL_KEYS,
   UNKNOWN_ENDPOINT_FAILURE_LABEL_KEY,
@@ -26,7 +27,7 @@ import { DiagnosticsPanel } from "@/components/DiagnosticsPanel";
 import { useUrlView } from "@/app/navigation/useUrlView";
 import { groupConnectors } from "@/app/model/connectorCatalogModel";
 
-type Translate = (key: string) => string;
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 type ReadinessState = "ready" | "partial" | "blocked";
 type RuntimeViewId = "readiness" | "delivery" | "governance" | "support";
 
@@ -127,14 +128,17 @@ export function RuntimeWorkspace({
   const failedSources = sources.filter((source) => (
     source.consecutive_failures >= 3 || source.circuit_state === "OPEN_CIRCUIT"
   ));
-  const schedulerState: ReadinessState = scheduledSources.length === 0
-    ? "blocked"
-    : staleSources.length > 0 || failedSources.length > 0
-      ? "partial"
-      : "ready";
-  const schedulerDetail = scheduledSources.length === 0
-    ? t("runtime.scheduler_blocked_detail")
-    : `${staleSources.length} ${t("runtime.stale_sources")} / ${failedSources.length} ${t("runtime.failed_sources")}`;
+  // The scheduler's own heartbeat says whether it runs and what it schedules (#P1-C).
+  const scheduler = schedulerReadiness(
+    runtimeDependencies?.schedulers?.dataops,
+    {
+      scheduled: scheduledSources.length,
+      registered: sources.length,
+      stale: staleSources.length,
+      failed: failedSources.length,
+    },
+    t,
+  );
   // Sources are judged by the Connectors rule (#26): an optional provider nobody connected is
   // offered, not a blocker, and a licensed source counts once it has been set up.
   const connectorGroups = groupConnectors(sources);
@@ -202,9 +206,9 @@ export function RuntimeWorkspace({
     {
       key: "data_operations_scheduler",
       label: t("runtime.data_operations_scheduler"),
-      state: schedulerState,
-      value: `${scheduledSources.length}/${sources.length} ${t("runtime.scheduled_sources")}`,
-      detail: schedulerDetail,
+      state: scheduler.state,
+      value: scheduler.value,
+      detail: scheduler.detail,
     },
     {
       key: "streaming_delivery",
