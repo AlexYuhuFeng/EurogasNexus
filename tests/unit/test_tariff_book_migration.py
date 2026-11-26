@@ -27,7 +27,7 @@ def test_0083_is_the_head_and_expands_only():
     module = _load("0083_tar1_tariff_book.py")
     assert module.revision == "0083_tar1_tariff_book"
     assert module.down_revision == "0082_data1_integration"
-    assert DB_SCHEMA_REVISION == "0086_lng_disruption"
+    assert DB_SCHEMA_REVISION == "0087_job_progress_steps"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
         module.op = Operations(MigrationContext.configure(connection=connection))

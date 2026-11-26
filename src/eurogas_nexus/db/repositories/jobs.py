@@ -24,6 +24,7 @@ from eurogas_nexus.domain.operations.jobs import (
     job_payload,
     job_progress,
     job_started,
+    job_step,
     job_succeeded,
 )
 
@@ -99,6 +100,28 @@ def update_progress(
 
     row = _require_job(session, job_id)
     return _apply(session, row, job_progress(_to_domain(row), progress))
+
+
+def record_job_step(
+    session: Session,
+    job_id: str,
+    step: int,
+    total: int,
+    label: str = "",
+    *,
+    now_utc: datetime | None = None,
+) -> dict:
+    """Record the step a background job is on and refresh its heartbeat.
+
+    Raises:
+        ValueError: ``unknown_job``, ``job_already_finished`` or ``job_step_out_of_range``.
+    """
+
+    row = _require_job(session, job_id)
+    payload = _apply(session, row, job_step(_to_domain(row), step, total, label))
+    row.heartbeat_at_utc = _as_utc(now_utc or datetime.now(UTC))
+    session.flush()
+    return payload
 
 
 def finish_job(
@@ -233,6 +256,9 @@ def _apply(session: Session, row: JobRecord, domain: Job) -> dict:
     row.error_message = domain.error_message or None
     row.retryable = domain.retryable
     row.cancellable = domain.cancellable
+    row.progress_step = domain.step
+    row.progress_total = domain.step_total
+    row.progress_label = domain.step_label or None
     session.flush()
     return job_payload(domain)
 
@@ -258,6 +284,9 @@ def _to_domain(row: JobRecord) -> Job:
         cancellable=bool(row.cancellable),
         correlation_id=row.correlation_id,
         provenance=tuple(str(value) for value in row.provenance_json or []),
+        step=row.progress_step,
+        step_total=row.progress_total,
+        step_label=row.progress_label or "",
     )
 
 

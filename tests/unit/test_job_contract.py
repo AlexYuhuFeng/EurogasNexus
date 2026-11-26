@@ -23,6 +23,7 @@ from eurogas_nexus.domain.operations.jobs import (
     job_payload,
     job_progress,
     job_started,
+    job_step,
     job_succeeded,
     transition_allowed,
 )
@@ -194,6 +195,9 @@ def test_the_payload_is_telemetry_safe() -> None:
         "cancellable",
         "correlation_id",
         "provenance",
+        "step",
+        "step_total",
+        "step_label",
     }
     assert payload["kind"] == "DATASET_BUILD"
     assert payload["status"] == "FAILED"
@@ -317,3 +321,30 @@ def test_run_tracked_job_runs_untracked_when_the_store_cannot_accept_the_job(
     )
 
     assert result == "computed"
+
+
+def test_a_step_sets_progress_from_the_steps_already_finished() -> None:
+    job = job_step(job_started(_job(), now_utc=NOW), 3, 6, "dataset.compute")
+
+    assert (job.step, job.step_total, job.step_label) == (3, 6, "dataset.compute")
+    assert job.progress == pytest.approx(2 / 6)
+    payload = job_payload(job)
+    assert (payload["step"], payload["step_total"], payload["step_label"]) == (
+        3,
+        6,
+        "dataset.compute",
+    )
+
+
+def test_a_step_never_rewinds_and_never_touches_a_finished_job() -> None:
+    running = job_step(job_started(_job(), now_utc=NOW), 4, 6, "dataset.write_files")
+
+    assert job_step(running, 2, 6, "dataset.read_prices") is running
+    with pytest.raises(ValueError, match="job_step_out_of_range"):
+        job_step(running, 7, 6)
+    with pytest.raises(ValueError, match="job_step_out_of_range"):
+        job_step(running, 1, 0)
+    finished = job_succeeded(running, now_utc=NOW)
+    assert finished.progress == 1.0 and finished.step == 4
+    with pytest.raises(ValueError, match="job_already_finished"):
+        job_step(finished, 5, 6)

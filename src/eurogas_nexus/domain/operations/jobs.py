@@ -10,8 +10,8 @@ Common states: ``QUEUED``, ``RUNNING``, ``WAITING_FOR_INPUT``, ``SUCCEEDED``,
 ``FAILED``, ``CANCELLED``, ``EXPIRED``.
 
 Fields: job id/type/version, principal, scope, snapshot id, input hash, progress,
-status, start/finish, output refs, error code, retry/cancel, correlation id and
-provenance.
+status, start/finish, output refs, error code, retry/cancel, correlation id,
+provenance and, for a background job, the step it is on (step x of n and a step code).
 
 Rules enforced here rather than documented only:
 
@@ -253,6 +253,11 @@ class Job:
     cancellable: bool = True
     correlation_id: str | None = None
     provenance: tuple[str, ...] = ()
+    #: Step progress of a background job: working on ``step`` of ``step_total``, described by
+    #: ``step_label`` (a stable step code a client translates). Empty for request-scoped jobs.
+    step: int | None = None
+    step_total: int | None = None
+    step_label: str = ""
 
     @property
     def terminal(self) -> bool:
@@ -289,6 +294,32 @@ def job_progress(job: Job, value: float) -> Job:
     if value < job.progress:
         return job
     return replace(job, progress=value)
+
+
+def job_step(job: Job, step: int, total: int, label: str = "") -> Job:
+    """Record that the job is working on ``step`` of ``total`` (1-based).
+
+    Progress follows the steps already finished, ``(step - 1) / total``, and never moves
+    backwards; the step itself may be re-reported (a label refinement) but not rewound.
+
+    Raises:
+        ValueError: the job is terminal (``job_already_finished``) or the step is out of
+            range (``job_step_out_of_range``).
+    """
+
+    if job.terminal:
+        raise ValueError("job_already_finished")
+    if total < 1 or not 1 <= step <= total:
+        raise ValueError("job_step_out_of_range")
+    if job.step is not None and step < job.step:
+        return job
+    return replace(
+        job,
+        step=step,
+        step_total=total,
+        step_label=(label or "").strip()[:64],
+        progress=max(job.progress, (step - 1) / total),
+    )
 
 
 def job_started(job: Job, *, now_utc: datetime | None = None) -> Job:
@@ -412,6 +443,9 @@ def job_payload(job: Job) -> dict[str, object]:
         "cancellable": job.cancellable,
         "correlation_id": job.correlation_id,
         "provenance": list(job.provenance),
+        "step": job.step,
+        "step_total": job.step_total,
+        "step_label": job.step_label,
     }
 
 

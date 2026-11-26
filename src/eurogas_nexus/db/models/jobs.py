@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import JSON, Boolean, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
@@ -40,3 +40,13 @@ class JobRecord(Base):
     cancellable: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     correlation_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
     provenance_json: Mapped[list] = mapped_column(JSON, nullable=False, default=list)
+    # Background jobs (0077): step progress, and the process running the job with its last
+    # heartbeat, so a job whose process died is failed with a reason. Empty for jobs tracked
+    # inside a request.
+    progress_step: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    progress_total: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    progress_label: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    runner_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    heartbeat_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
