@@ -153,6 +153,14 @@ test("Spinner: a ring, not a word; announced once when it has a label; filled to
   assert.match(render(h(Spinner, { label: "x", value: Number.NaN })), /role="status"/, "an unknown value is unknown progress");
 });
 
+test("UpdatingMark: the ring beside the title, the word for assistive technology and the tooltip", async () => {
+  const { UpdatingMark } = await ui();
+  assert.equal(render(h(UpdatingMark, { active: false, label: "Updating" })), "");
+  const html = render(h(UpdatingMark, { active: true, label: "Updating" }));
+  assert.match(html, /^<span class="ds-updating" role="status" aria-live="polite" title="Updating"><span class="ds-spinner" data-size="xs"/);
+  assert.match(html, /<span class="ds-visually-hidden">Updating<\/span><\/span>$/);
+});
+
 test("the busy ring turns only when motion is allowed, from the duration tokens", () => {
   const css = readFileSync(new URL("../src/components/ui/controls.css", import.meta.url), "utf8");
   const motion = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: no-preference)"));
