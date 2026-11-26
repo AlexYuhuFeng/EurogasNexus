@@ -136,6 +136,62 @@ def classify_failure(
     )
 
 
+#: An ingest script's own failure code (``failures[].code`` in its ``--json`` report) to a
+#: category, by the words the codes are made of (``iip_rate_limited``,
+#: ``iip_upstream_refused``, ``eia_http_502``, ``iip_timeout``...). First match wins.
+_SCRIPT_CODE_RULES: tuple[tuple[tuple[str, ...], FailureCategory], ...] = (
+    (("rate_limit", "upstream_refused", "_429", "throttl"), FailureCategory.RATE_LIMITED),
+    (("timeout", "timed_out", "connection", "network"), FailureCategory.NETWORK_TRANSIENT),
+    (
+        ("http_500", "http_502", "http_503", "http_504", "unavailable", "gateway", "outage"),
+        FailureCategory.PROVIDER_UNAVAILABLE,
+    ),
+    (("http_401", "http_403", "unauthor", "forbidden"), FailureCategory.AUTHENTICATION),
+    (("key_missing", "key_unavailable", "credential", "not_set"), FailureCategory.CONFIGURATION),
+    (("entitlement", "licen"), FailureCategory.ENTITLEMENT),
+    (("schema", "unknown_field"), FailureCategory.SCHEMA_CHANGED),
+    (("read_bound", "quality", "refused_rows"), FailureCategory.QUALITY_REJECTED),
+    (("malformed", "unreadable", "not_json", "too_large", "http_"), FailureCategory.BAD_RESPONSE),
+)
+
+
+def classify_script_failure(codes: list[str]) -> FailureClassification:
+    """Classify a failed ingest script by the failure codes its JSON report states.
+
+    The scheduler used to record every script that exited non-zero as INTERNAL: a GIE rate
+    limit, an EIA gateway outage and a bug looked the same to the retry and circuit policy
+    and to the operator. The script already says what happened; this reads it.
+    """
+
+    for code in codes:
+        text = (code or "").casefold()
+        for markers, category in _SCRIPT_CODE_RULES:
+            if any(marker in text for marker in markers):
+                return FailureClassification(
+                    category,
+                    retryable=category in _RETRYABLE_SCRIPT_CATEGORIES,
+                    code=code,
+                    message=f"Ingest script reported {code}.",
+                )
+    return FailureClassification(
+        FailureCategory.INTERNAL,
+        retryable=True,
+        code=(codes[0] if codes else "internal_error"),
+        message="Unclassified ingest script failure; bounded retry applies.",
+    )
+
+
+_RETRYABLE_SCRIPT_CATEGORIES = frozenset(
+    {
+        FailureCategory.NETWORK_TRANSIENT,
+        FailureCategory.RATE_LIMITED,
+        FailureCategory.PROVIDER_UNAVAILABLE,
+        FailureCategory.BAD_RESPONSE,
+        FailureCategory.INTERNAL,
+    }
+)
+
+
 def retry_decision(
     classification: FailureClassification,
     *,

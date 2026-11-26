@@ -234,7 +234,10 @@ def test_script_stores_a_partial_read_and_reports_it_incomplete(tmp_path, monkey
     assert module.main(["--days", "2", "--commit", "--json"], get_page=get_page) == 1
     report = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
     assert report["ok"] is False
-    assert report["failures"] == [{"code": "iip_upstream_refused", "partial": True}]
+    (failure,) = report["failures"]
+    assert failure["code"] == "iip_upstream_refused" and failure["partial"] is True
+    # How far back the kept part reaches: the rest of the window was not read.
+    assert failure["read_back_to"].endswith("Z")
     assert report["sources"]["gie_iip"]["inserted"] == 7
     with Session(engine) as session:
         assert len(session.execute(select(RemitUmmRecord)).scalars().all()) == 7

@@ -392,3 +392,31 @@ def test_the_demo_scans_for_alerts_with_its_own_configuration(monkeypatch):
 class _Done:
     def __init__(self, code: int) -> None:
         self.returncode = code
+
+
+def test_a_partial_read_counts_as_the_steps_round_and_says_what_it_missed(monkeypatch):
+    """GIE IIP stopped by its rate limit after the newest pages: before, the step was
+    'failed', its window stayed at the maximum and every round re-read the same pages into
+    the same limit. Now the newest rows are its round, and the hole is logged."""
+
+    from types import SimpleNamespace
+
+    module = _load()
+    report = {
+        "ok": False,
+        "failures": [{"code": "iip_upstream_refused", "partial": True,
+                      "read_back_to": "2026-11-03T08:00:00Z"}],
+        "sources": {"gie_iip": {"records": 481, "inserted": 481, "updated": 0}},
+    }
+    monkeypatch.setattr(module.subprocess, "run", lambda *a, **k: SimpleNamespace(
+        returncode=1, stdout=json.dumps(report), stderr=""))
+    lines: list[str] = []
+    monkeypatch.setattr(module, "log", lines.append)
+    step = module.CatchUpStep("remit-iip", "GIE REMIT", ["x"])
+    assert module.run_catch_up_step(step) == "partial"
+    assert "before 2026-11-03T08:00:00Z" in lines[-1]
+
+    # A refusal with nothing stored is still a failure.
+    report["sources"]["gie_iip"]["inserted"] = 0
+    report["sources"]["gie_iip"]["records"] = 0
+    assert module.run_catch_up_step(step) is False

@@ -54,3 +54,21 @@ def test_an_outage_that_does_not_clear_and_a_refused_key_are_raised():
     with pytest.raises(urllib.error.HTTPError):
         module._read_with_retry("u", sleep=lambda _s: None, opener=opener)
     assert len(calls) == 1
+
+
+def test_an_outage_that_does_not_clear_is_reported_with_its_code(monkeypatch, capsys):
+    """The scheduler classifies the failure by this code (PROVIDER_UNAVAILABLE), where an
+    exit with no report used to be recorded as an internal fault."""
+
+    import json
+
+    module = _script()
+    monkeypatch.setattr(module, "resolve_eia_key", lambda: "dummy-key")
+
+    def outage(url, *, sleep):
+        raise _http(502)
+
+    monkeypatch.setattr(module, "_read_with_retry", outage)
+    assert module.main(["--json", "--days", "2"]) == 1
+    report = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert report == {"ok": False, "failures": [{"code": "eia_http_502"}], "sources": {}}

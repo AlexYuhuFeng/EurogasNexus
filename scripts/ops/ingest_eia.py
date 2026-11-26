@@ -47,6 +47,15 @@ def _read_with_retry(url: str, *, sleep=time.sleep, opener=urllib.request.urlope
     raise AssertionError("unreachable")
 
 
+def _failed(as_json: bool, code: str) -> int:
+    """Exit 1, with the scheduler's report naming the failure so it is classified (a gateway
+    outage is PROVIDER_UNAVAILABLE, not an internal fault)."""
+
+    if as_json:
+        print(json.dumps({"ok": False, "failures": [{"code": code}], "sources": {}}))
+    return 1
+
+
 def main(argv: list[str] | None = None, *, sleep=time.sleep) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--days", type=int, default=14, help="look-back window")
@@ -70,12 +79,17 @@ def main(argv: list[str] | None = None, *, sleep=time.sleep) -> int:
             # The URL carries the key, so only the reference is reported.
             code = getattr(exc, "code", None)
             say(f"{reference}: {type(exc).__name__}{f' HTTP {code}' if code else ''}")
-            return 1
+            return _failed(
+                args.json,
+                f"eia_http_{code}" if isinstance(code, int)
+                else "eia_timeout" if isinstance(exc, TimeoutError)
+                else "eia_connection_failed",
+            )
     try:
         prices = parse_prices(payload)
     except EiaParseError as exc:
         say(f"Refused: {exc}")
-        return 1
+        return _failed(args.json, "eia_response_unreadable")
 
     from eurogas_nexus.db.models import MarketObservationRecord
     from eurogas_nexus.db.session import get_session_factory, resolve_database_url
@@ -103,6 +117,8 @@ def main(argv: list[str] | None = None, *, sleep=time.sleep) -> int:
                 }
             },
         }
+        if not prices:
+            report["failures"] = [{"code": "eia_no_prices"}]
         print(json.dumps(report, sort_keys=True))
     return 0 if prices else 1
 
