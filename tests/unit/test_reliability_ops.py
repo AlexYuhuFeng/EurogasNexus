@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -94,7 +95,8 @@ def test_optional_provider_outage_does_not_change_liveness() -> None:
         (),
         {"app": type("App", (), {"state": type("State", (), {"settings": Settings()})()})()},
     )()
-    payload = health_live(request)
+    # Answered on the event loop since P1-A (it reads settings only).
+    payload = asyncio.run(health_live(request))
     assert payload["scope"] == "liveness"
 
 
