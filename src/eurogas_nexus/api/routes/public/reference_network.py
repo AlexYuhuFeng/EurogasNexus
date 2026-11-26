@@ -150,6 +150,54 @@ def list_tso_access(
 
 
 # ---------------------------------------------------------------------------
+# Supply corridor route
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/reference-network/supply-corridors")
+def list_supply_corridors(request: Request) -> dict:
+    """Europe's main import supply corridors with each entry series' latest stored flow.
+
+    Shipped reference data (``reference_data/supply_corridors.json``: entry points, operator,
+    capacity and status from ENTSOG, each with its date); the latest flow per entry series is
+    read from the store when one is configured, else left ``null``.
+    """
+    from datetime import UTC, datetime
+
+    from eurogas_nexus.application.supply_corridors_read import corridors_read
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    session = _session_or_none()
+    try:
+        if session is None:
+            data = corridors_read(None, now=datetime.now(UTC))
+        else:
+            with session:
+                data = corridors_read(session, now=datetime.now(UTC))
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    source = data.get("source") or {}
+    return {
+        "data": data,
+        "meta": {
+            "research_only": True,
+            "human_review_required": True,
+            "source_references": ["ENTSOG", "SciGRID_gas IGGIELGN"],
+            "lineage": ["reference-data:supply_corridors", "runtime-postgresql"]
+            if session is not None
+            else ["reference-data:supply_corridors"],
+            "attribution": source.get("attribution"),
+            "assumptions": [
+                "Corridor status and capacity are ENTSOG's as of the file's gas day; the "
+                "latest flow is the store's newest closed gas day per entry series."
+            ],
+            "missing_inputs": [] if session is not None else ["RUNTIME_STORE_DATABASE_URL"],
+            "warnings": [],
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
 # Optional PostgreSQL reads
 # ---------------------------------------------------------------------------
 
