@@ -447,22 +447,22 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
             <button type="submit" disabled={auditBusy}>{t("access.audit_search")}</button>
           </form>
           <div className="data-table" tabIndex={0}>
-            <div className="data-table-row header six">
+            {/* The server's detail (`reason=invalid_credentials`) is evidence for a log search: it
+                stays in the row's title, not in a column of codes. */}
+            <div className="data-table-row header five">
               <span>{t("access.audit_time")}</span>
               <span>{t("access.audit_actor")}</span>
               <span>{t("access.audit_action")}</span>
               <span>{t("access.audit_resource")}</span>
               <span>{t("access.audit_outcome")}</span>
-              <span>{t("access.audit_detail")}</span>
             </div>
             {audit.map((event) => (
-              <div key={`audit-${event.event_id}`} className="data-table-row six">
+              <div key={`audit-${event.event_id}`} className="data-table-row five" title={event.detail || undefined}>
                 <span>{formatTime(event.event_ts_utc)}</span>
                 <strong title={event.principal}>{auditActorLabel(event.principal, principalNames)}</strong>
                 <span title={event.action}>{auditActionLabel(event.action, t, language)}</span>
                 <span title={event.resource}>{auditResourceLabel(event.resource, t, language, principalNames)}</span>
                 <span title={event.outcome}>{auditOutcomeLabel(event.outcome, t, language)}</span>
-                <span className="muted">{event.detail}</span>
               </div>
             ))}
           </div>
