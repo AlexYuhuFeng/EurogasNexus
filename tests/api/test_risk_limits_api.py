@@ -580,3 +580,22 @@ def test_the_edit_form_reads_the_whole_line_and_an_empty_list_does_not_unlink(
         headers=_h(who, "risk"),
     )
     assert _approved(client, who, unlinked)["changed"] == ["contract_ids"]
+
+
+
+def test_planning_starts_from_the_contracts_in_execution_and_the_calendar(tmp_path, monkeypatch):
+    """Book -> Planning (AGENTS rule 19): the book's contracts with DCQ/ACQ and their window,
+    the TSO calendar (here the network-code default, said as an assumption) and storage."""
+
+    _engine, who = _setup(tmp_path, monkeypatch)
+    client = TestClient(create_app())
+    read = client.get("/api/optimization/planning-inputs", headers=_h(who, "analyst"))
+    assert read.status_code == 200, read.text
+    data = read.json()["data"]
+    nbp = next(item for item in data["contracts"] if item["contract_id"] == "nbp-supply")
+    assert nbp["name"] == "NBP supply" and nbp["hub"] == "NBP" and nbp["dcq_mwh"] == 1000.0
+    assert nbp["acq_mwh"] >= 1000.0 * 365
+    assert nbp["delivery_start"] <= data["gas_day"] <= nbp["delivery_end"]
+    assert data["windows"]["basis"] == "assumption"
+    assert data["windows"]["windows"][0]["window_id"] == "default-renomination"
+    assert data["storage"] == []
