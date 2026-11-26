@@ -49,17 +49,6 @@
   gap: var(--ds-space-2);
 }
 
-/* Hubs and sections: one summary line each, the choices folded under it. */
-.reports-fold > summary {
-  color: var(--ds-text-2);
-  font-size: var(--ds-text-sm);
-  cursor: pointer;
-}
-
-.reports-fold[open] > summary {
-  margin-bottom: var(--ds-space-2);
-}
-
 .reports-sections {
   border: 1px solid var(--ds-border);
   border-radius: var(--ds-radius-sm);
