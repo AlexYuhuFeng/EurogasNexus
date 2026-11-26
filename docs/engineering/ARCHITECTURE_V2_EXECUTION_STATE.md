@@ -6,7 +6,7 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
-## 2026-11-25 — Commercial Intelligence V3, CODEX-1: the Codex assessments reviewed (branch `wip/codex-review`)
+## 2026-11-25 — Commercial Intelligence V3, CODEX-1: the Codex assessments reviewed
 
 - Reviewed `research/agentic-decision-architecture` (five Codex commits on `main@6d21b89`) against
   the innovation branch; verdicts and the list for the owner in

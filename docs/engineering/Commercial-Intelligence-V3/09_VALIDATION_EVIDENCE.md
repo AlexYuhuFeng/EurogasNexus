@@ -376,7 +376,7 @@ The engine is about 2 ms per option (112 options in 0.22 s; the 256 cap about 0.
 | Markdown links | `python scripts/ci/check_markdown_links.py` | All local links resolve |
 | Web | `npx tsc --noEmit -p .`; `npm test` (in `clients/web`) | clean; 1,394 tests, 1,391 passed, 3 skipped, 0 failed (5 new in `disruptionOptionsModel.test.ts`); token lint 43 of 44 stylesheets clean, baseline unchanged |
 
-## CODEX-1 the Codex assessments reviewed (2026-11-25, branch `wip/codex-review`)
+## CODEX-1 the Codex assessments reviewed (2026-11-25)
 
 Verdicts in [18](18_CODEX_ASSESSMENT_REVIEW.md). Codex's own measurements on the research
 branch, quoted and not re-run here (no model was called): the evidence-gated workflow costs
