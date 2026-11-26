@@ -66,3 +66,18 @@ step the test executes; the identifier and the unit are asserted at every hop.
   lists stored rows naming ETF/GTF/Gaspoint with their hub before and after (read-only; it
   corrects a stored hub column only with `--commit`): 0 rows in the demo store and in the
   live store on 2026-11-15.
+- **Decided 2026-11-26 (owner), superseding the ETF/GTF split above:** the Danish hub is
+  one hub with one identity, processed like every other hub. ETF (the EEX product name) and
+  GTF (Energinet's and the OTC name, ENTSOG VTP-00001) name the same virtual trading point of
+  the joint DK/SE balancing zone. `markets.py` codes it `ETF` with aliases `GTF` and
+  `GASPOINT`, and `venue_names` records which venue says which (`venue_name("ETF", "OTC")`
+  is `GTF`). Every intake resolves a hub through the registry (`canonical_hub`;
+  `licensed_quote_import.intake_hub` for the tick feed and the screen import, whose accepted
+  hubs are now the registry's active European gas hubs rather than a hand list), so a tick, a
+  close, a contract, the reference network's trading point and the glossary all name `ETF`.
+  The same rule moved `VTP` (stored as its own hub by the screen import) to `CEGH` and added
+  `TRF` (Trading Region France, the merged PEG Nord/TRS zone since 2018) as an alias of PEG.
+  Migration `0091_hub_one_identity` moves stored `GTF`/`VTP` hub codes to the registry code
+  and deletes the demo's second, invented GTF series. One quote key per product on every
+  intake: `products.board_tenor` (`jan-27`, `month-ahead`, `bom`), which the demo board now
+  uses too (it wrote `Jan-27`).

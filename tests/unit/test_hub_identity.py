@@ -16,7 +16,9 @@ from eurogas_nexus.domain.ontology.identity import resolve_hub
         ("NBP Day-Ahead", "NBP", "code"),
         ("Kestrel supply (TTF)", "TTF", "code"),
         ("ETF", "ETF", "code"),
-        ("GTF", "GTF", "code"),
+        ("GTF", "ETF", "alias"),  # the Danish hub's OTC name (2026-11-26)
+        ("VTP Austria", "CEGH", "alias"),
+        ("TRF", "PEG", "alias"),
         ("Gaspoint Nordic", "ETF", "alias"),
         ("THE Day-Ahead", "THE", "code"),
         ("Haldor supply (Easington)", "NBP", "delivery_point"),
@@ -103,7 +105,7 @@ def test_an_unmapped_contract_is_left_out_and_said_so(tmp_path, monkeypatch):
     assert any("lost" in w and "does not name a hub" in w for w in inputs.warnings)
 
 
-# --- ETF is the Danish exchange hub, never TTF; ETF and GTF are distinct (2026-11-15) ---
+# --- ETF is the Danish hub, never TTF (2026-11-15); GTF is its OTC name (2026-11-26) ---
 
 
 @pytest.mark.parametrize("text", ["ETF", "ETF Day-Ahead", "Danish supply (ETF)", "etf"])
@@ -120,22 +122,66 @@ def test_ttf_never_resolves_from_danish_text():
         assert resolve_hub(text, points={"EXCHANGE TRANSFER FACILITY": "ETF"}).hub != "TTF"
 
 
-def test_etf_and_gtf_stay_distinct():
-    from eurogas_nexus.domain.ontology.markets import market
+def test_etf_and_gtf_are_one_hub():
+    from eurogas_nexus.domain.ontology.markets import canonical_hub, market, venue_name
 
-    assert resolve_hub("GTF").hub == "GTF"
-    assert market("ETF") is not market("GTF")
-    assert resolve_hub("ETF/GTF transfer").hub is None  # two hubs named: ambiguous, not merged
+    assert resolve_hub("GTF").hub == "ETF"
+    assert market("GTF") is market("ETF")
+    assert canonical_hub("gtf") == "ETF" and canonical_hub("Gaspoint") == "ETF"
+    assert resolve_hub("ETF/GTF transfer").hub == "ETF"  # one hub named twice
+    assert (venue_name("ETF", "EEX"), venue_name("ETF", "OTC")) == ("ETF", "GTF")
     assert hub_from_text("Exchange Transfer Facility") is None  # free text: intake maps it
 
 
-def test_contract_intake_names_keep_the_danish_hubs_apart():
+def test_contract_intake_names_resolve_to_the_one_danish_hub():
     from eurogas_nexus.application.contract_intake import _HUBS
 
     points = {name.upper(): code for code, names in _HUBS.items() for name in names}
     assert resolve_hub("Exchange Transfer Facility", points=points).hub == "ETF"
-    assert resolve_hub("Gas Transfer Facility", points=points).hub == "GTF"
+    assert resolve_hub("Gas Transfer Facility", points=points).hub == "ETF"
     assert resolve_hub("Title Transfer Facility", points=points).hub == "TTF"
+
+
+def test_every_intake_takes_a_hub_under_any_of_its_names():
+    from datetime import UTC, datetime
+
+    from eurogas_nexus.application.market_ticks import quote_row
+    from eurogas_nexus.ingestion.licensed_quote_import import (
+        SUPPORTED_HUBS,
+        intake_hub,
+        parse_quote_export,
+    )
+
+    assert (intake_hub("GTF"), intake_hub("vtp"), intake_hub("ETF")) == ("ETF", "CEGH", "ETF")
+    assert "GTF" not in SUPPORTED_HUBS and "VTP" not in SUPPORTED_HUBS  # codes only
+    now = datetime(2026, 11, 26, 10, tzinfo=UTC)
+    tick = {"hub": "GTF", "product": "DA", "bid": 38.1, "ask": 38.3,
+            "exchange_time": "2026-11-26T09:59:00+00:00"}
+    row = quote_row("EEX", False, tick, now)
+    assert row["hub"] == "ETF" and row["product"] == "day-ahead"
+    parsed = parse_quote_export(
+        "timestamp,hub,product,bid,ask\n2026-11-26T09:59:00+00:00,GTF,Jan-27,38.1,38.3\n"
+        "2026-11-26T09:59:00+00:00,VTP,DA,40.1,40.3\n",
+        source_system="Trayport", source_reference="test", received_at_utc=now,
+    )
+    assert [(r["hub"], r["product"]) for r in parsed.rows] == [
+        ("ETF", "jan-27"), ("CEGH", "day-ahead")]
+
+
+def test_one_quote_key_per_product_on_every_intake():
+    from datetime import UTC, datetime
+
+    from eurogas_nexus.application.market_ticks import quote_row
+
+    now = datetime(2026, 11, 26, 10, tzinfo=UTC)
+
+    def key(product: str) -> str:
+        tick = {"hub": "TTF", "product": product, "bid": 30.0, "ask": 30.2,
+                "exchange_time": "2026-11-26T09:59:00+00:00"}
+        return quote_row("EEX", False, tick, now)["product"]
+
+    assert key("Jan-27") == key("jan-27") == key("M+2") == "jan-27"
+    assert key("M+1") == "month-ahead" and key("BOM") == "bom"
 
 
 def test_a_danish_zone_prices_at_etf():

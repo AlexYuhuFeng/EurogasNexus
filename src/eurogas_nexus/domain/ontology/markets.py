@@ -67,7 +67,13 @@ class Market:
     price_sources: tuple[str, ...] = ()
     #: Public, commercially reusable price reference where one exists.
     public_reference: str | None = None
+    #: Other names the same hub is written under (an old name, an exchange's or a TSO's
+    #: name). Every intake resolves an alias to ``code``; nothing is stored under an alias.
     aliases: tuple[str, ...] = ()
+    #: The name a venue lists this hub under, where venues differ (venue -> name), e.g.
+    #: EEX lists the Danish hub as ETF and OTC/Energinet name it GTF. Display only: the
+    #: hub's identity is ``code`` on every venue.
+    venue_names: tuple[tuple[str, str], ...] = ()
     #: Power markets: the gas hub and carbon market that set a gas plant's fuel cost.
     gas_hub: str | None = None
     carbon_market: str | None = None
@@ -123,32 +129,28 @@ MARKETS: tuple[Market, ...] = (
         price_sources=("ICE_ENDEX", "Trayport"),
     ),
     _eu_gas("THE", "Trading Hub Europe", "DE"),
-    _eu_gas("PEG", "Point d'Echange de Gaz", "FR"),
+    # PEG Nord and TRS merged on 1 Nov 2018 into one zone, Trading Region France (TRF), whose
+    # trading point is PEG: TRF is the zone's name for the same hub.
+    _eu_gas("PEG", "Point d'Echange de Gaz", "FR", aliases=("TRF",)),
     _eu_gas("ZTP", "Zeebrugge Trading Point", "BE"),
     _eu_gas("PSV", "Punto di Scambio Virtuale", "IT", timezone="Europe/Rome"),
     _eu_gas("CEGH", "Central European Gas Hub (VTP)", "AT", aliases=("VTP",)),
     _eu_gas("PVB", "Punto Virtual de Balance", "ES", timezone="Europe/Madrid"),
-    # Denmark has two transfer facilities and they are not one hub. ETF (Exchange Transfer
-    # Facility) is where exchange trades transfer: EEX lists Danish gas there (formerly
-    # Gaspoint Nordic, hence the alias). GTF (Gas Transfer Facility) is Energinet's
-    # bilateral OTC transfer point, the "GTF (Bilateral Trading Point)" ENTSOG VTP-00001 in
-    # the reference bundle. Assumption, not verified against a licensed feed: EUR/MWh and
-    # MW on the European gas day, as for the other continental hubs; GTF has no published
-    # price, so a position at GTF is left unvalued rather than marked at ETF.
+    # Denmark (joint DK/SE balancing zone) has one virtual trading point, written two ways:
+    # ETF (Exchange Transfer Facility) is the EEX product name, GTF (Gas Transfer Facility)
+    # Energinet's and the OTC market's name, ENTSOG VTP-00001 "GTF (Bilateral Trading
+    # Point)". One hub, one code (owner decision 2026-11-26, superseding the 2026-11-15
+    # split): ETF, with GTF and the former exchange's name Gaspoint Nordic as aliases, so a
+    # tick, a close, a contract or a map node written either way is the same hub. Assumption,
+    # not verified against a licensed feed: EUR/MWh and MW on the European gas day.
     _eu_gas(
         "ETF",
-        "Exchange Transfer Facility (Denmark)",
+        "Danish VTP: ETF (EEX) / GTF (OTC), joint DK/SE balancing zone",
         "DK",
         timezone="Europe/Copenhagen",
-        price_sources=("EEX",),
-        aliases=("GASPOINT",),
-    ),
-    _eu_gas(
-        "GTF",
-        "Gas Transfer Facility (Denmark, bilateral)",
-        "DK",
-        timezone="Europe/Copenhagen",
-        price_sources=(),
+        price_sources=("EEX", "Trayport"),
+        aliases=("GTF", "GASPOINT"),
+        venue_names=(("EEX", "ETF"), ("OTC", "GTF"), ("Energinet", "GTF")),
     ),
     _eu_gas(
         "NCG",
@@ -344,6 +346,24 @@ def markets(
         and (region is None or m.region is region)
         and m.status in statuses
     )
+
+
+def canonical_hub(code: str | None) -> str | None:
+    """The registry code a hub code or alias names (``GTF`` -> ``ETF``, ``VTP`` -> ``CEGH``).
+
+    ``None`` for text that names no market. A superseded market (NCG) keeps its own code:
+    its history is not its successor's price.
+    """
+
+    found = find_market(code or "")
+    return found.code if found else None
+
+
+def venue_name(code: str, venue: str) -> str:
+    """The name ``venue`` lists hub ``code`` under (``ETF`` on EEX, ``GTF`` OTC)."""
+
+    found = market(code)
+    return dict(found.venue_names).get(venue, found.code)
 
 
 def market_codes(**filters) -> tuple[str, ...]:

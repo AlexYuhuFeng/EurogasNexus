@@ -35,13 +35,13 @@ from eurogas_nexus.domain.market.feed import (
     check_plausible_price,
 )
 from eurogas_nexus.domain.market.gas_day import gas_day_label
-from eurogas_nexus.domain.market.products import ProductCodeError, resolve_product
+from eurogas_nexus.domain.market.products import ProductCodeError, board_tenor, resolve_product
 from eurogas_nexus.domain.market.units import HUB_NATIVE_PRICE_UNIT, convert_energy, convert_price
 from eurogas_nexus.ingestion.licensed_quote_import import (
-    _BOARD_TENOR,
     _PRODUCT_ALIASES,
     LICENSED_QUOTE_SOURCES,
     SUPPORTED_HUBS,
+    intake_hub,
 )
 
 SIMULATED_FEED_SOURCES = {"EEX_Sim": "EEX (simulated)", "DEMO_Sim": "Exchange feed (simulated)"}
@@ -120,7 +120,7 @@ def _when(value: Any, field: str) -> datetime:
 
 
 def _period(hub: str, product: str, observed: datetime):
-    hub = (hub or "").strip().upper()
+    hub = intake_hub(hub)
     if hub not in SUPPORTED_HUBS:
         raise FeedError(f"unsupported hub {hub!r}")
     code = _PRODUCT_ALIASES.get((product or "").strip().upper(), (product or "").strip())
@@ -130,10 +130,7 @@ def _period(hub: str, product: str, observed: datetime):
         period = resolve_product(code, trade_date)
     except ProductCodeError as exc:
         raise FeedError(f"{hub} {product}: {exc}") from exc
-    tenor = _BOARD_TENOR.get(period.kind) or (
-        "month-ahead" if code.upper() in {"M+1", "MA"} else period.label.lower()
-    )
-    return hub, code, period, tenor
+    return hub, code, period, board_tenor(code, period.kind, period.label)
 
 
 def _price(

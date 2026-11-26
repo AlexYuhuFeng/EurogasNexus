@@ -33,7 +33,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from eurogas_nexus.domain.market.gas_day import EU_CAM_UTC_CALENDAR
-from eurogas_nexus.domain.market.products import ProductCodeError, resolve_product
+from eurogas_nexus.domain.market.products import ProductCodeError, board_tenor, resolve_product
 from eurogas_nexus.domain.market.units import (
     HUB_NATIVE_PRICE_UNIT,
     UnitConversionError,
@@ -42,6 +42,7 @@ from eurogas_nexus.domain.market.units import (
     convert_price,
 )
 from eurogas_nexus.domain.ontology.boundary import check_boundary, refuse_if_invalid
+from eurogas_nexus.domain.ontology.markets import canonical_hub, european_gas_hubs
 
 #: Licensed families an operator may import and the venue label stored with them.
 LICENSED_QUOTE_SOURCES = {
@@ -49,7 +50,11 @@ LICENSED_QUOTE_SOURCES = {
     "ICE_OCM": "ICE Endex",
     "EEX": "EEX",
 }
-SUPPORTED_HUBS = {"TTF", "NBP", "THE", "PEG", "ZTP", "PSV", "CEGH", "VTP", "PVB", "ETF"}
+#: Hubs a licensed screen or feed may quote: every active European gas hub of the market
+#: reference model, by its canonical code. A venue's own name for a hub (EEX's ETF and the
+#: OTC GTF for the Danish hub, VTP for CEGH) is resolved to that code by :func:`intake_hub`
+#: before this check, so every intake path accepts the same hubs and stores them one way.
+SUPPORTED_HUBS = frozenset(european_gas_hubs())
 MAX_IMPORT_ROWS = 20_000
 _PRODUCT_ALIASES = {
     "WITHIN DAY": "WD",
@@ -60,8 +65,16 @@ _PRODUCT_ALIASES = {
     "BAL MONTH": "BOM",
     "BALANCE OF MONTH": "BOM",
 }
-#: Board tenors the market terminal groups by; other products keep their desk label.
-_BOARD_TENOR = {"within_day": "within-day", "day_ahead": "day-ahead", "weekend": "weekend"}
+
+
+def intake_hub(text: str | None) -> str:
+    """The canonical code of the hub a feed or export names (``GTF`` -> ``ETF``).
+
+    Text that names no market comes back upper-cased, for the caller to refuse.
+    """
+
+    raw = (text or "").strip().upper()
+    return canonical_hub(raw) or raw
 
 
 def _refused(message: str, check, default_code: str) -> QuoteImportError:
@@ -163,7 +176,7 @@ def parse_quote_export(
         if line - 1 > MAX_IMPORT_ROWS:
             raise QuoteImportError(f"export exceeds {MAX_IMPORT_ROWS} rows")
         observed = _timestamp(cell(record, "timestamp") or "", line)
-        hub = (cell(record, "hub") or "").strip().upper()
+        hub = intake_hub(cell(record, "hub"))
         # ONT-03: hub and product against the ontology, with a reason code on refusal.
         checked = check_boundary(market=hub, gas_hub_required=True)
         if hub not in SUPPORTED_HUBS or not checked.ok:
@@ -223,9 +236,7 @@ def parse_quote_export(
         hours_per_day = period.hours / period.gas_days
         bid_qty = _number(cell(record, "bid_qty"), line, "bid_qty", required=False)
         ask_qty = _number(cell(record, "ask_qty"), line, "ask_qty", required=False)
-        board_tenor = _BOARD_TENOR.get(period.kind)
-        if board_tenor is None:
-            board_tenor = "month-ahead" if code.upper() in {"M+1", "MA"} else period.label.lower()
+        tenor = board_tenor(code, period.kind, period.label)
         venue = LICENSED_QUOTE_SOURCES[source_system]
         instrument_id = f"{venue.upper().replace(' ', '-')}-{hub}-{period.label}"[:128]
         identity = f"{source_system}|{hub}|{period.label}|{observed.isoformat()}"
@@ -238,7 +249,7 @@ def parse_quote_export(
                 "venue": venue,
                 "instrument_id": instrument_id,
                 "hub": hub,
-                "product": board_tenor,
+                "product": tenor,
                 "delivery_start_utc": period.delivery_start_utc,
                 "delivery_end_utc": period.delivery_end_utc,
                 "bid_price": bid_mwh,
