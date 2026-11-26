@@ -217,6 +217,14 @@ test("a spread asked for its number: screen mids of both hubs, in EUR/MWh at the
   const server = await lookup(route.intent, reads({ deskToday: async () => closes, fx: () => FX }), new AbortController().signal);
   assert.equal(server.value, "+58.100");
   assert.equal(server.lines.find((line) => line.key === "answer.spread.fx_forward")?.values?.rate, "0.8512");
+  // Without screen quotes the answer is a close, never read as live; a simulated server figure
+  // makes the answer simulated (PR 61 review: it showed a simulated spread as live).
+  assert.equal(fromCloses.live, false);
+  assert.equal(server.live, false);
+  ((closes.rows[0] as { market: { spreads: Array<{ simulated: boolean }> } }).market.spreads[0]).simulated = true;
+  const simulatedServer = await lookup(route.intent, reads({ deskToday: async () => closes, fx: () => FX }), new AbortController().signal);
+  assert.equal(simulatedServer.simulated, true);
+  assert.equal(simulatedServer.live, false);
   const reversed = await lookup({ kind: "spread", a: "TTF", b: "NBP", tenor: "front", text: "TTF NBP spread" }, reads({ deskToday: async () => closes, fx: () => FX }), new AbortController().signal);
   assert.equal(reversed.value, "−58.100");
   // A study (a tariff, a route) is still opened, not answered.

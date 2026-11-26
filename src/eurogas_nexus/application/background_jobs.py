@@ -41,6 +41,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.application.jobs import _error_code, job_input_hash
@@ -194,6 +195,7 @@ def submit_background_job(
 
     now = now_utc or datetime.now(UTC)
     if owner_principal_id is not None:
+        _serialise_owner(session, owner_principal_id)
         active = (
             session.query(JobRecord.job_id)
             .filter(JobRecord.owner_principal_id == owner_principal_id)
@@ -224,6 +226,25 @@ def submit_background_job(
     session.flush()
     payload.update(step=0, step_total=row.progress_total, step_label=first_step_label)
     return payload
+
+
+def _serialise_owner(session: Session, owner_principal_id: str) -> None:
+    """Make one owner's count-then-create a single step (PR 61 review).
+
+    Without it two requests that arrive together both count the same active jobs and both
+    create one, passing the per-owner limit. On PostgreSQL a transaction-scoped advisory lock
+    keyed by the owner holds the second request until the first commits (or rolls back), so it
+    counts the first one's job. SQLite admits one writer at a time to the database file and the
+    desktop runs one user's requests in one process, so no lock is taken there.
+    """
+
+    bind = session.get_bind()
+    if bind.dialect.name != "postgresql":
+        return
+    session.execute(
+        text("SELECT pg_advisory_xact_lock(hashtextextended(:key, 0))"),
+        {"key": f"background-jobs:{owner_principal_id}"},
+    )
 
 
 def run_background_job(

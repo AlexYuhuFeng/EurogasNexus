@@ -543,6 +543,7 @@ async function spreadAnswer(intent: SpreadIntent, reads: AnswerReads, signal: Ab
   let product = screen?.product ?? (intent.tenor === "DA" ? "DA" : "");
   let basis: AnswerText | null = screen ? { key: "answer.spread.basis_screen" } : null;
   let serverValue: number | null = null;
+  let serverSimulated = false;
   let serverFx: AnswerText | null = null;
   if (!legs && intent.tenor === "front") {
     const today = await reads.deskToday(signal);
@@ -556,6 +557,7 @@ async function spreadAnswer(intent: SpreadIntent, reads: AnswerReads, signal: Ab
     if (server) {
       // The server's figure converts each leg at its delivery month's FX: it is the one shown.
       serverValue = (server.item.value as number) * server.sign;
+      serverSimulated = Boolean((server.item as { simulated?: boolean }).simulated);
       product = server.item.product || product;
       const fx = server.item.fx as { pair?: string; base?: string; quote?: string; rate?: number; value_date?: string } | null;
       if (fx && typeof fx.rate === "number") {
@@ -580,8 +582,11 @@ async function spreadAnswer(intent: SpreadIntent, reads: AnswerReads, signal: Ab
     label,
     value: formatValue(spread, unit, true),
     unit: deskUnitLabel(unit),
-    simulated: (legs ?? []).some((leg) => leg.simulated),
-    live: true,
+    // A simulated figure anywhere in the answer makes it simulated, the server's spread included.
+    simulated: serverSimulated || (legs ?? []).some((leg) => leg.simulated),
+    // Live only when it rests on screen quotes; a close or the server's front-month figure is not
+    // a live price and is not re-read as one.
+    live: Boolean(screen?.legs),
     lines: [
       ...(legs ? [{
         key: "answer.spread.legs",
