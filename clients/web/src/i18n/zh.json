@@ -1498,7 +1498,7 @@
   "sources.active_sources": "工作流就绪数据源",
   "sources.issue_sources": "异常数据源",
   "sources.action_required": "需要处理",
-  "sources.runtime_records": "运行记录",
+  "sources.runtime_records": "已存记录",
   "sources.count_unavailable": "计数不可用：服务器未能读取",
   "sources.workspace_views": "数据源工作区视图",
   "sources.view.attention": "连接器",
@@ -7259,5 +7259,8 @@
   "runtime.db_failed": "未连接",
   "alerts.close": "关闭",
   "alerts.simulated_input": "模拟价格输入",
-  "alerts.action.acknowledge": "确认"
+  "alerts.action.acknowledge": "确认",
+  "sources.freshness_days": "每 {{count}} 天",
+  "sources.freshness_hours": "每 {{count}} 小时",
+  "sources.freshness_minutes": "每 {{count}} 分钟"
 }

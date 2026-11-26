@@ -1293,7 +1293,7 @@
   "sources.active_sources": "Workflow-ready sources",
   "sources.issue_sources": "Issue sources",
   "sources.action_required": "Action required",
-  "sources.runtime_records": "Runtime records",
+  "sources.runtime_records": "Records held",
   "sources.count_unavailable": "Count unavailable: the server could not read it",
   "sources.workspace_views": "Data source workspace views",
   "sources.view.attention": "Connectors",
@@ -7259,5 +7259,8 @@
   "runtime.db_failed": "Not connected",
   "alerts.close": "Close",
   "alerts.simulated_input": "simulated price input",
-  "alerts.action.acknowledge": "Acknowledge"
+  "alerts.action.acknowledge": "Acknowledge",
+  "sources.freshness_days": "every {{count}} d",
+  "sources.freshness_hours": "every {{count}} h",
+  "sources.freshness_minutes": "every {{count}} min"
 }

@@ -276,6 +276,14 @@ function SourceRegistryNotice({
   );
 }
 
+/** How fresh a source is expected to be, in the unit a reader uses ("24 h", "15 min"). */
+function freshnessText(minutes: number | null | undefined, t: (key: string) => string): string {
+  if (!minutes) return "–";
+  if (minutes % 1440 === 0) return t("sources.freshness_days").replace("{{count}}", String(minutes / 1440));
+  if (minutes % 60 === 0) return t("sources.freshness_hours").replace("{{count}}", String(minutes / 60));
+  return t("sources.freshness_minutes").replace("{{count}}", String(minutes));
+}
+
 export function SourceCenter({
   t,
   sources,
@@ -412,7 +420,8 @@ export function SourceCenter({
               {
                 label: t("sources.runtime_records"),
                 value: recordCount(sourceStats.records),
-                detail: `${simulatedOrPreviewSources} ${t("sources.preview_substitutes_active")}`,
+                // A zero earns no note (normal operation earns no badge).
+                detail: simulatedOrPreviewSources > 0 ? `${simulatedOrPreviewSources} ${t("sources.preview_substitutes_active")}` : undefined,
               },
             ]}
           />
@@ -678,10 +687,12 @@ export function SourceCenter({
               <div><span>{t("sources.integration_label")}</span><strong>{t(`sources.integration.${selectedSource.integration ?? "api"}`)}</strong></div>
               <div><span>{t("sources.native_status")}</span><strong>{sourceLabel("sources.status", selectedSource.connectivity_status)}</strong></div>
               <div><span>{t("sources.credential_state")}</span><strong>{sourceLabel("sources.credential", selectedSource.credential_state)}</strong></div>
-              <div><span>{t("sources.freshness")}</span><strong>{selectedSource.freshness_expectation_minutes ? `${selectedSource.freshness_expectation_minutes}m` : "n/a"}</strong></div>
+              <div><span>{t("sources.freshness")}</span><strong>{freshnessText(selectedSource.freshness_expectation_minutes, t)}</strong></div>
               <div><span>{t("sources.last_failure")}</span><strong>{formatSourceTimestamp(selectedSource.last_failure_at_utc)}</strong></div>
               <div><span>{t("sources.next_run")}</span><strong>{selectedSource.scheduler_enabled ? formatSourceTimestamp(selectedSource.next_run_at_utc) : t("sources.scheduler_disabled")}</strong></div>
-              <div><span>{t("sources.circuit_state")}</span><strong>{selectedSource.circuit_state ?? "n/a"}</strong></div>
+              {selectedSource.circuit_state && (
+                <div><span>{t("sources.circuit_state")}</span><strong>{sourceLabel("sources.circuit", selectedSource.circuit_state)}</strong></div>
+              )}
               <div><span>{t("sources.consecutive_failures")}</span><strong>{selectedSource.consecutive_failures}</strong></div>
             </div>
             <div className="source-datasets">
