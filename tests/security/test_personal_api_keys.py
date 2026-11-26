@@ -6,9 +6,9 @@ and change limits as them, with the audit naming the risk manager.
 
 from __future__ import annotations
 
-import hashlib
 from datetime import UTC, datetime, timedelta
 
+from eurogas_nexus.api.middleware.origin_csrf import csrf_for_session
 from tests.security.test_local_accounts_api import (  # noqa: F401 - fixtures
     _admin,
     _audit,
@@ -25,7 +25,7 @@ def _guarded(client) -> dict[str, str]:
     return {
         "Origin": "https://testserver",
         "X-Forwarded-Proto": "https",
-        "X-Eurogas-CSRF": hashlib.sha256(token.encode()).hexdigest()[:32],
+        "X-Eurogas-CSRF": csrf_for_session(token),
     }
 
 

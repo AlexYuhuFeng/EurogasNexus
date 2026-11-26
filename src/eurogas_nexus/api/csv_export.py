@@ -26,13 +26,18 @@ from fastapi.responses import Response
 
 
 def _cell(value: Any) -> str:
+    from eurogas_nexus.core.csv_safety import neutralise
+
     if value is None:
         return ""
     if isinstance(value, (list, dict, tuple)):
-        return json.dumps(value, sort_keys=True, ensure_ascii=False)
+        return neutralise(json.dumps(value, sort_keys=True, ensure_ascii=False))
     if isinstance(value, float):
         return repr(value)
-    return str(value)
+    if isinstance(value, (int, bool)):
+        return str(value)
+    # Text from outside sources is never run as a spreadsheet formula (security review M4).
+    return neutralise(str(value))
 
 
 def _export_decision(file_format: str):

@@ -535,8 +535,12 @@ def _stream_response(
     notices: tuple[tuple[str, FetchNotices], ...] = (),
 ) -> StreamingResponse:
     initial_cursor = _initial_cursor(request)
+    from eurogas_nexus.security.rate_limit import acquire_stream, counted_stream
+
+    who = _stream_owner(request)
+    acquire_stream(who)
     return StreamingResponse(
-        _event_stream(
+        counted_stream(who, _event_stream(
             topic,
             fetch,
             ts_field,
@@ -544,10 +548,15 @@ def _stream_response(
             initial_cursor,
             guard=_guard_for(topic, request),
             notices=notices,
-        ),
+        )),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+def _stream_owner(request: Request) -> str:
+    identity = getattr(request.state, "identity", None)
+    return str(getattr(identity, "principal_id", None) or "anonymous")
 
 
 def _guard_for(topic: str, request: Request) -> RowGuard:
@@ -863,14 +872,18 @@ async def stream_live(request: Request, topics: str = "") -> StreamingResponse:
     now = datetime.now(UTC)
     resume = request.headers.get("last-event-id") or request.query_params.get("last_event_id")
     resumed = _parse_live_id(resume, now)
+    from eurogas_nexus.security.rate_limit import acquire_stream, counted_stream
+
+    who = _stream_owner(request)
+    acquire_stream(who)
     return StreamingResponse(
-        _live_stream(
+        counted_stream(who, _live_stream(
             parse_topics(topics),
             resumed[0] if resumed else now,
             resumed is not None,
             _guard_for("live", request),
             outbox_after=resumed[1] if resumed else None,
-        ),
+        )),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

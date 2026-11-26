@@ -34,7 +34,8 @@ EMAIL_HEADER_ENV = "EUROGAS_NEXUS_GATEWAY_EMAIL_HEADER"
 OFFICE_HEADER_ENV = "EUROGAS_NEXUS_GATEWAY_OFFICE_HEADER"
 SECRET_HEADER = "X-Eurogas-Gateway-Secret"
 MIN_SECRET_LENGTH = 32
-_ROLE_ORDER = ("VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN")
+# SCHEDULER was missing, so a scheduler group mapped to nothing (security review M3).
+_ROLE_ORDER = ("VIEWER", "SCHEDULER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN")
 
 
 class GatewayAuthError(Exception):

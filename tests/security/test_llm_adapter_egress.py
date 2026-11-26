@@ -43,6 +43,8 @@ def test_disabled_adapter_never_transmits(monkeypatch, environment, enabled, ope
 def test_explicitly_enabled_development_calls_both_operations(monkeypatch):
     monkeypatch.setenv("EUROGAS_NEXUS_ENV", "development")
     monkeypatch.setenv("EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED", "true")
+    # There is no default provider (security review M10): the installation names one.
+    monkeypatch.setenv("EUROGAS_NEXUS_LLM_BASE_URL", "https://api.deepseek.com")
     requests = []
 
     def post(url, **kwargs):

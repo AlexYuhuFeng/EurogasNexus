@@ -323,7 +323,13 @@ async def post_contract_intake(
     declared = int(request.headers.get("content-length") or 0)
     if declared > MAX_PDF_BYTES:
         raise HTTPException(status_code=413, detail={"code": "pdf_too_large"})
-    content = await request.body()
+    # A chunked body has no Content-Length: the limit is applied while reading (M7).
+    from eurogas_nexus.security.rate_limit import read_body_limited
+
+    try:
+        content = await read_body_limited(request, MAX_PDF_BYTES)
+    except HTTPException as exc:
+        raise HTTPException(status_code=413, detail={"code": "pdf_too_large"}) from exc
     try:
         result = intake_pdf(content, file_name=file_name)
     except IntakeError as exc:

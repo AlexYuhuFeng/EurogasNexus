@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import secrets
 
 import pytest
@@ -11,6 +10,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.api.app import create_app
+from eurogas_nexus.api.middleware.origin_csrf import csrf_for_session
 from eurogas_nexus.core.config import (
     DEV_LOGIN_PASSWORD_ENV,
     DEV_LOGIN_USERNAME_ENV,
@@ -70,7 +70,7 @@ def test_cookie_mutation_requires_origin_and_csrf(tmp_path, monkeypatch) -> None
     # The endpoint's own `detail` shape is kept, so a client reading it is unaffected.
     assert wrong_csrf.json()["detail"]["error"] == "csrf_invalid"
 
-    csrf = hashlib.sha256(token.encode("utf-8")).hexdigest()[:32]
+    csrf = csrf_for_session(token)
     ok = client.post(
         "/api/auth/logout",
         headers={

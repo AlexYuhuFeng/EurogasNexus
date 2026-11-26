@@ -28,6 +28,7 @@ from eurogas_nexus.api.web_client import (
     resolve_web_client_dir,
 )
 from eurogas_nexus.core.config import Settings, get_settings
+from eurogas_nexus.security.rate_limit import require_principal_quota
 
 
 @asynccontextmanager
@@ -66,6 +67,20 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     from eurogas_nexus.security.local_accounts_policy import assert_demo_accounts_allowed
 
     assert_demo_accounts_allowed(route_profile.name, resolved_settings.environment)
+    # Book isolation is on by default; off only where declared single-office (H1).
+    from eurogas_nexus.security.portfolio_scope import assert_isolation_setting_allowed
+
+    assert_isolation_setting_allowed(resolved_settings.environment)
+    # The deployment token's mode, role and scopes (H3).
+    from eurogas_nexus.security.deployment_token import assert_token_settings_allowed
+
+    assert_token_settings_allowed()
+    # A release server needs a deliberate way to sign in (H6), and dual control stays on (H7).
+    from eurogas_nexus.api.dual_control import assert_dual_control_setting_allowed
+    from eurogas_nexus.security.local_accounts_policy import assert_sign_in_configured
+
+    assert_sign_in_configured(resolved_settings.environment)
+    assert_dual_control_setting_allowed()
 
     dependencies = (
         [
@@ -75,6 +90,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             # Architecture V2: rank alone cannot express "administration is not
             # commercial access", so commercial paths need a commercial capability.
             Depends(require_commercial_access),
+            # Per-principal quotas on writes and heavy computations (security review M7).
+            Depends(require_principal_quota),
         ]
         if route_profile.require_auth
         else []
@@ -125,6 +142,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             "X-Eurogas-Principal",
             "X-Eurogas-CSRF",
             "X-Eurogas-Session",
+            "X-Eurogas-Dual-Control",
+            "X-Eurogas-Break-Glass",
         ],
         allow_credentials=True,
     )
@@ -139,7 +158,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     web_client_dir = resolve_web_client_dir()
     if web_client_dir is not None:
         app.add_middleware(WebClientMiddleware, directory=web_client_dir)
-        app.add_middleware(SecurityHeadersMiddleware)
+    # Security headers on every answer in every deployment (security review M5).
+    app.add_middleware(SecurityHeadersMiddleware, serves_pages=web_client_dir is not None)
 
     return app
 
@@ -170,17 +190,6 @@ def _declare_openapi_security_scheme(app: FastAPI) -> None:
 
 
 def _cors_origins() -> list[str]:
-    import os
+    from eurogas_nexus.api.middleware.origin_csrf import cors_origins
 
-    configured = [
-        value.strip().rstrip("/")
-        for value in os.environ.get("EUROGAS_NEXUS_CORS_ORIGINS", "").split(",")
-        if value.strip()
-    ]
-    return [
-        "http://localhost",
-        "http://127.0.0.1",
-        "http://tauri.localhost",
-        "tauri://localhost",
-        *configured,
-    ]
+    return cors_origins()

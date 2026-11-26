@@ -6,7 +6,6 @@ environment; no credential is hardcoded in source or tests.
 
 from __future__ import annotations
 
-import hashlib
 import secrets
 
 import pytest
@@ -16,6 +15,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.api.app import create_app
+from eurogas_nexus.api.middleware.origin_csrf import csrf_for_session
 from eurogas_nexus.core.config import (
     DEV_LOGIN_PASSWORD_ENV,
     DEV_LOGIN_USERNAME_ENV,
@@ -342,9 +342,7 @@ def test_dev_login_issues_a_revocable_backend_session(env_db, monkeypatch) -> No
             "/api/auth/logout",
             headers={
                 "Origin": "http://testserver",
-                "X-Eurogas-CSRF": hashlib.sha256(
-                    session_token.encode("utf-8")
-                ).hexdigest()[:32],
+                "X-Eurogas-CSRF": csrf_for_session(session_token),
             },
         )
 

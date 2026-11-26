@@ -121,7 +121,11 @@ def _sheet_xml(header: list[str], body: list[list[Any]], *, frozen: bool) -> str
             elif value is None or value == "":
                 continue
             else:
-                text = escape(_text(value))
+                # inlineStr cells are never formulas; neutralised as well for tools that
+                # re-save a workbook as CSV (security review M4).
+                from eurogas_nexus.core.csv_safety import neutralise
+
+                text = escape(neutralise(_text(value)))
                 parts.append(
                     f'<c r="{ref}" t="inlineStr"><is><t xml:space="preserve">{text}</t></is></c>'
                 )

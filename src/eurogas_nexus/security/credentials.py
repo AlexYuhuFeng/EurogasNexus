@@ -10,9 +10,13 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Any
 
-from cryptography.fernet import Fernet
+from cryptography.fernet import Fernet, MultiFernet
 
 SECRET_KEY_ENV = "EUROGAS_NEXUS_SECRET_KEY"
+#: Earlier keys, comma-separated, still accepted for decryption during a rotation (security
+#: review M9). New values are always encrypted with the current key; run
+#: ``scripts/ops/rotate_secret_key.py`` to re-encrypt stored values, then clear this.
+PREVIOUS_SECRET_KEYS_ENV = "EUROGAS_NEXUS_SECRET_KEY_PREVIOUS"
 
 
 @dataclass(frozen=True)
@@ -81,7 +85,7 @@ def decrypt_credential_payload(encrypted_payload: str) -> dict[str, Any]:
             Fernet error propagates for wrong keys/corrupt payloads.
     """
 
-    plaintext = Fernet(_secret_key()).decrypt(encrypted_payload.encode("ascii"))
+    plaintext = keyring().decrypt(encrypted_payload.encode("ascii"))
     value = json.loads(plaintext.decode("utf-8"))
     if not isinstance(value, dict):
         raise ValueError("Credential payload is not an object.")
@@ -129,10 +133,42 @@ def utc_now() -> datetime:
     return datetime.now(UTC)
 
 
+def keyring() -> MultiFernet:
+    """The current key first, then every previous key (decryption accepts any)."""
+
+    keys = [Fernet(_secret_key())]
+    for raw in (os.environ.get(PREVIOUS_SECRET_KEYS_ENV) or "").split(","):
+        if raw.strip():
+            keys.append(Fernet(_derive(raw.strip())))
+    return MultiFernet(keys)
+
+
+def reencrypt(encrypted_payload: str) -> str:
+    """The same value encrypted under the current key (MultiFernet rotation)."""
+
+    return keyring().rotate(encrypted_payload.encode("ascii")).decode("ascii")
+
+
+def encrypt_text(value: str) -> str:
+    """Encrypt one text value under the current deployment key (a second-factor secret)."""
+
+    return Fernet(_secret_key()).encrypt(value.encode("utf-8")).decode("ascii")
+
+
+def decrypt_text(token: str) -> str:
+    """Decrypt a value encrypted by :func:`encrypt_text`, under the current or a previous key."""
+
+    return keyring().decrypt(token.encode("ascii")).decode("utf-8")
+
+
 def _secret_key() -> bytes:
     raw = os.environ.get(SECRET_KEY_ENV, "").strip()
     if not raw:
         raise ValueError("Credential encryption key is not configured.")
+    return _derive(raw)
+
+
+def _derive(raw: str) -> bytes:
     try:
         decoded = base64.urlsafe_b64decode(raw.encode("ascii"))
         if len(decoded) == 32:

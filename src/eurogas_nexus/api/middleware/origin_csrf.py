@@ -18,6 +18,7 @@ mutating route stays guarded.
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import os
 from collections.abc import Awaitable, Callable
@@ -34,15 +35,61 @@ CSRF_EXEMPT_PATH_PREFIXES = ("/api/auth/oidc/",)
 #: ``/api/auth/password-change`` carries its own single-use change token (the authority a
 #: forged request could not know); these handlers refuse a foreign Origin themselves.
 CSRF_EXEMPT_PATHS = frozenset(
-    {"/api/auth/login", "/api/auth/password-change", "/api/dev/auth/login"}
+    {
+        "/api/auth/login",
+        "/api/auth/password-change",
+        # The code step carries its own single-use mfa_token and refuses a foreign Origin.
+        "/api/auth/mfa/verify",
+        "/api/dev/auth/login",
+    }
 )
 
-_ALLOWED_ORIGINS = {
-    "http://localhost",
-    "http://127.0.0.1",
-    "http://tauri.localhost",
-    "tauri://localhost",
-}
+#: Local origins: a developer's own web server. In trial and release any local process on a
+#: user's PC could otherwise send credentialed requests (security review M6), so they are
+#: allowed only in development and test.
+LOCAL_ORIGINS = frozenset({"http://localhost", "http://127.0.0.1"})
+#: The desktop client's webview origins. The desktop holds its session in a header, never a
+#: cookie, so they are CORS origins only, never cookie (CSRF) origins outside development.
+DESKTOP_ORIGINS = frozenset({"http://tauri.localhost", "tauri://localhost"})
+_ALLOWED_ORIGINS = set(LOCAL_ORIGINS | DESKTOP_ORIGINS)
+DESKTOP_CLIENTS_ENV = "EUROGAS_NEXUS_DESKTOP_CLIENTS"
+
+
+def _development() -> bool:
+    from eurogas_nexus.core.config import runtime_environment
+
+    return runtime_environment() in {"development", "test"}
+
+
+def desktop_clients_enabled() -> bool:
+    return (os.environ.get(DESKTOP_CLIENTS_ENV) or "on").strip().lower() not in {
+        "off", "false", "0", "no"
+    }
+
+
+def cors_origins() -> list[str]:
+    """Origins allowed to call the API from a browser (security review M6)."""
+
+    configured = [
+        value.strip().rstrip("/")
+        for value in os.environ.get(ALLOWED_ORIGINS_ENV, "").split(",")
+        if value.strip()
+    ]
+    local = sorted(LOCAL_ORIGINS) if _development() else []
+    desktop = sorted(DESKTOP_ORIGINS) if (_development() or desktop_clients_enabled()) else []
+    return [*local, *desktop, *configured]
+
+
+def csrf_for_session(token: str) -> str:
+    """The CSRF token of a cookie session (security review L2).
+
+    It used to be a prefix of the stored session hash, so anyone with read access to the
+    database could compute it. It is now domain-separated and keyed with the deployment key
+    when one is set; neither form can be derived from the stored hash.
+    """
+
+    key = ("eurogas-nexus-csrf|" + os.environ.get("EUROGAS_NEXUS_SECRET_KEY", "")).encode()
+    return hmac.new(key, token.encode("utf-8"), hashlib.sha256).hexdigest()[:32]
 
 
 def _allowed_origins() -> set[str]:
@@ -51,7 +98,8 @@ def _allowed_origins() -> set[str]:
         for value in os.environ.get(ALLOWED_ORIGINS_ENV, "").split(",")
         if value.strip()
     }
-    return configured | _ALLOWED_ORIGINS
+    # Cookie (CSRF) origins: the local ones in development only (M6).
+    return configured | (set(_ALLOWED_ORIGINS) if _development() else set())
 
 
 def _csrf_exempt(method: str, path: str) -> bool:
@@ -65,7 +113,7 @@ def _csrf_exempt(method: str, path: str) -> bool:
 
 
 def _csrf_for_session(token: str) -> str:
-    return hashlib.sha256(token.encode("utf-8")).hexdigest()[:32]
+    return csrf_for_session(token)
 
 
 class OriginCsrfGuardMiddleware:

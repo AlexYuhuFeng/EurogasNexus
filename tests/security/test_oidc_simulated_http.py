@@ -100,6 +100,12 @@ def issuer(monkeypatch):
     monkeypatch.setenv("EUROGAS_NEXUS_OIDC_CLIENT_ID", "synthetic-client")
     monkeypatch.setenv("EUROGAS_NEXUS_OIDC_AUDIENCE", "synthetic-api")
     monkeypatch.setenv("EUROGAS_NEXUS_OIDC_ALLOW_HTTP", "true")
+    # Roles come from the deployment's explicit group/claim map only (security review M3).
+    monkeypatch.setenv(
+        "EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP",
+        '{"viewer": "VIEWER", "reviewer": "REVIEWER", "analyst": "ANALYST", '
+        '"operator": "OPERATOR", "admin": "ADMIN"}',
+    )
     # Keep actual HTTP transport while isolating loopback from ambient proxies.
     monkeypatch.setenv("NO_PROXY", "127.0.0.1,localhost")
     monkeypatch.setenv("no_proxy", "127.0.0.1,localhost")

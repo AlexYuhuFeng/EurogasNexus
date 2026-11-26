@@ -34,20 +34,8 @@ DISCOVERY_CACHE_TTL_SECONDS = 300.0
 DEFAULT_LEEWAY_SECONDS = 60.0
 SUPPORTED_ALGORITHM = "RS256"
 
-_ROLE_ALIASES = {
-    "admin": "ADMIN",
-    "administrator": "ADMIN",
-    "operator": "OPERATOR",
-    "ops": "OPERATOR",
-    "operations": "OPERATOR",
-    "analyst": "ANALYST",
-    "trader": "ANALYST",
-    "research": "ANALYST",
-    "reviewer": "REVIEWER",
-    "review": "REVIEWER",
-    "viewer": "VIEWER",
-    "read": "VIEWER",
-}
+#: Roles a group or claim value may be mapped to (EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP).
+MAPPABLE_ROLES = ("VIEWER", "SCHEDULER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN")
 
 _cache: dict[str, tuple[float, Any]] = {}
 
@@ -170,7 +158,7 @@ def validate_oidc_access_token(
         subject=str(payload["sub"]),
         name=_display_name(payload),
         role=_mapped_role(payload),
-        data_scopes=tuple(_claim_list(payload, _scope_claim())),
+        data_scopes=_mapped_scopes(payload),
         issuer=issuer,
         email=email if isinstance(email, str) and email.strip() else None,
         groups=groups,
@@ -290,20 +278,47 @@ def _validate_payload_claims(
 
 
 def _mapped_role(payload: dict) -> str:
-    role_claim = _role_claim()
-    claims = _claim_list(payload, role_claim)
-    if role_claim != "roles":
-        claims.extend(_claim_list(payload, "roles"))
-    if role_claim != "realm_access.roles":
-        claims.extend(_claim_list(payload, "realm_access.roles"))
-    claims.extend(_scope_roles(payload.get("scope")))
-    normalized = {str(value).strip().lower() for value in claims if isinstance(value, str)}
-    matched = [_ROLE_ALIASES[value] for value in normalized if value in _ROLE_ALIASES]
+    """The role from explicitly configured mappings only (security review M3).
+
+    The values of the role claim (``EUROGAS_NEXUS_OIDC_ROLE_CLAIM``), ``realm_access.roles``
+    and the ``groups`` claim are looked up, exactly, in ``EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP``.
+    Generic names (``admin``, ``ops``) and the OAuth ``scope`` string are never read as roles:
+    a realm-wide role another application uses must not make someone an administrator here.
+    Use application-prefixed group names in the map (``eurogas-nexus-admin``).
+    """
+
+    mapping = _groups_role_map()
+    values = set(_claim_list(payload, _role_claim()))
+    values.update(_claim_list(payload, "realm_access.roles"))
+    values.update(_claim_list(payload, "groups"))
+    matched = [mapping[value] for value in values if value in mapping]
     if not matched:
-        # No recognized role claim: least privilege rather than fail-open.
+        # No mapped role: least privilege rather than fail-open.
         return "VIEWER"
-    rank = ["VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN"]
-    return max(matched, key=rank.index)
+    return max(matched, key=MAPPABLE_ROLES.index)
+
+
+def _mapped_scopes(payload: dict) -> tuple[str, ...]:
+    """Data scopes from the group map, and from a scope claim only when one is configured.
+
+    A token never grants ``*`` or an explicit permission (``PERM:``): those are given by an
+    administrator in the application (security review M3).
+    """
+
+    groups = set(_claim_list(payload, "groups")) | set(_claim_list(payload, _role_claim()))
+    scopes: list[str] = []
+    for group, items in _groups_scope_map().items():
+        if group in groups:
+            scopes.extend(items)
+    claim = os.environ.get(OIDC_SCOPE_CLAIM_ENV, "").strip()
+    if claim:
+        scopes.extend(_claim_list(payload, claim))
+    clean = [
+        value.strip()
+        for value in scopes
+        if value.strip() and value.strip() != "*" and not value.strip().upper().startswith("PERM:")
+    ]
+    return tuple(dict.fromkeys(clean))
 
 
 def _display_name(payload: dict) -> str:
@@ -325,12 +340,6 @@ def _claim_list(payload: dict, claim: str) -> list[str]:
     if isinstance(value, list):
         return [str(item) for item in value if isinstance(item, str)]
     return []
-
-
-def _scope_roles(value: Any) -> list[str]:
-    if not isinstance(value, str):
-        return []
-    return [token for token in value.split() if token.strip().lower() in _ROLE_ALIASES]
 
 
 def _select_signing_key(jwks: dict, kid: str | None) -> dict:
@@ -652,7 +661,7 @@ def _groups_role_map() -> dict[str, str]:
     return {
         str(key): str(item).upper()
         for key, item in value.items()
-        if str(item).upper() in {"VIEWER", "REVIEWER", "ANALYST", "OPERATOR", "ADMIN"}
+        if str(item).upper() in MAPPABLE_ROLES
     }
 
 
@@ -713,7 +722,8 @@ def _role_claim() -> str:
 
 
 def _scope_claim() -> str:
-    return os.environ.get(OIDC_SCOPE_CLAIM_ENV, "entitlements").strip() or "entitlements"
+    # No default (security review M3): a scope claim is read only when one is configured.
+    return os.environ.get(OIDC_SCOPE_CLAIM_ENV, "").strip()
 
 
 def _allow_insecure() -> bool:

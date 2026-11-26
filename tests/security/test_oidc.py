@@ -108,6 +108,9 @@ def test_oidc_configured_flag(monkeypatch) -> None:
 
 def test_valid_rs256_token_maps_subject_role_and_scopes(monkeypatch, signing_key) -> None:
     _configure_env(monkeypatch)
+    # Roles and scopes come from explicitly configured mappings only (security review M3).
+    monkeypatch.setenv("EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP", '{"analyst": "ANALYST"}')
+    monkeypatch.setenv("EUROGAS_NEXUS_OIDC_SCOPE_CLAIM", "entitlements")
     private_key, jwk, discovery, jwks = signing_key
     claims = {
         **_base_claims(),
@@ -130,18 +133,45 @@ def test_valid_rs256_token_maps_subject_role_and_scopes(monkeypatch, signing_key
 
 def test_operator_role_from_realm_access_claim(monkeypatch, signing_key) -> None:
     _configure_env(monkeypatch)
+    monkeypatch.setenv(
+        "EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP", '{"eurogas-nexus-ops": "OPERATOR"}'
+    )
+    monkeypatch.setenv("EUROGAS_NEXUS_OIDC_SCOPE_CLAIM", "entitlements")
     private_key, jwk, discovery, jwks = signing_key
     claims = {
         **_base_claims(),
-        "realm_access": {"roles": ["ops"]},
-        "entitlements": ["*"],
+        "realm_access": {"roles": ["eurogas-nexus-ops"]},
+        "entitlements": ["*", "EEX", "PERM:portfolio.read"],
     }
     token = _sign(private_key, {"alg": "RS256", "kid": "test-key-1"}, claims)
 
     identity = validate_oidc_access_token(token, http_get=_fake_get(discovery, jwks))
 
     assert identity.role == "OPERATOR"
-    assert identity.data_scopes == ("*",)
+    # A token never grants '*' or an explicit permission (M3).
+    assert identity.data_scopes == ("EEX",)
+
+
+def test_generic_role_names_and_the_scope_string_grant_nothing(monkeypatch, signing_key) -> None:
+    """A realm-wide 'admin' role of another application, or a client scope named 'admin',
+    does not make anyone an administrator here (security review M3)."""
+
+    _configure_env(monkeypatch)
+    monkeypatch.delenv("EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP", raising=False)
+    private_key, jwk, discovery, jwks = signing_key
+    claims = {
+        **_base_claims(),
+        "roles": ["admin"],
+        "realm_access": {"roles": ["operator"]},
+        "scope": "openid admin ops",
+        "entitlements": ["*"],
+    }
+    token = _sign(private_key, {"alg": "RS256", "kid": "test-key-1"}, claims)
+
+    identity = validate_oidc_access_token(token, http_get=_fake_get(discovery, jwks))
+
+    assert identity.role == "VIEWER"
+    assert identity.data_scopes == ()
 
 
 def test_wrong_signature_is_rejected(monkeypatch, signing_key) -> None:
