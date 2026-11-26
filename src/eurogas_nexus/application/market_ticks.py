@@ -79,30 +79,46 @@ def check_source(source_system: str, *, simulated_allowed: bool) -> bool:
     )
 
 
+#: Data-scope prefix that lets a connector's service key publish a venue's prices.
+PUBLISH_PREFIX = "PUBLISH:"
+
+
 def publisher_refusal(principal: Any, source_system: str) -> str | None:
     """Why ``principal`` may not deliver ticks under ``source_system``, or ``None``.
 
     A licensed label (``EEX``, ``ICE_OCM``, ``Trayport``) tells every reader the price came
-    from that venue under the firm's licence, so only a key whose data scopes name that
-    family explicitly may deliver it: the feed connector's service key, not any operator. A
-    ``*`` scope grants reading everything; it is not a licence to publish as a venue (persona
-    review P-03). Simulated sources are labelled simulated wherever they travel and need no
-    grant.
+    from that venue under the firm's licence. Only the venue's connector may write it
+    (security review H4): a **service** identity, authenticated by its own **identity key**,
+    whose data scopes name ``PUBLISH:<family>``. Reading a family (``EEX``) or everything
+    (``*``) is not a licence to publish as the venue; a person, a browser session and the
+    deployment token never publish one. A person who holds a screen export imports it as a
+    file, which is labelled as a file import by that person. Simulated sources are labelled
+    simulated wherever they travel and need no grant.
     """
 
     from eurogas_nexus.security.identity import normalize_data_scope
 
     if source_system not in LICENSED_QUOTE_SOURCES:
         return None
+    if getattr(principal, "auth_method", None) != "identity_key":
+        return (
+            f"{source_system} prices are delivered only by the venue's connector with its own "
+            "service key; import a screen export as a file instead"
+        )
+    if str(getattr(principal, "principal_type", "")).upper() != "SERVICE":
+        return (
+            f"a person may not publish {source_system} prices; the venue's connector does, "
+            "and a screen export is imported as a file labelled with who imported it"
+        )
     scopes = {
         normalize_data_scope(scope).casefold()
         for scope in getattr(principal, "data_scopes", ()) or ()
     }
-    if source_system.casefold() in scopes:
+    if f"{PUBLISH_PREFIX}{source_system}".casefold() in scopes:
         return None
     return (
         f"this key may not deliver {source_system} prices: its data scopes must name "
-        f"{source_system} (a '*' scope reads everything but publishes nothing)"
+        f"{PUBLISH_PREFIX}{source_system} (reading a family, or '*', publishes nothing)"
     )
 
 

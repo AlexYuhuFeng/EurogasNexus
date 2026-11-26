@@ -98,10 +98,21 @@ def test_trade_prints_are_held_to_the_same_bands(session):
 
 
 def test_a_licensed_label_needs_its_own_grant():
-    star = SimpleNamespace(data_scopes=("*",))
-    feed = SimpleNamespace(data_scopes=("EEX",))
+    """Only a connector's service key with PUBLISH:<family> writes a venue's label (H4)."""
+
+    def key(*scopes, kind="SERVICE", auth="identity_key"):
+        return SimpleNamespace(data_scopes=scopes, principal_type=kind, auth_method=auth)
+
+    star = key("*")
+    reader = key("EEX")
+    feed = key("PUBLISH:EEX")
     assert "may not deliver EEX" in publisher_refusal(star, "EEX")
+    assert "may not deliver EEX" in publisher_refusal(reader, "EEX")
     assert publisher_refusal(feed, "EEX") is None
     assert publisher_refusal(feed, "ICE_OCM") is not None
+    # A person, a browser session and the deployment token never publish a venue's price.
+    assert "a person" in publisher_refusal(key("PUBLISH:EEX", kind="USER"), "EEX")
+    assert publisher_refusal(key("PUBLISH:EEX", auth="session"), "EEX") is not None
+    assert publisher_refusal(key("PUBLISH:EEX", auth="legacy_public_token"), "EEX") is not None
     # Simulated prices carry their label everywhere and need no licence.
     assert publisher_refusal(star, "EEX_Sim") is None

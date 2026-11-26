@@ -57,13 +57,17 @@ def clients(tmp_path, monkeypatch):
                                       ("ops_any", "OPERATOR", ["DATA_OPERATOR"]),
                                       ("viewer", "VIEWER", [])):
             principal = create_identity_principal(
-                session, name=f"track-{name}", display_name=name, role=role, data_scopes=["*"],
+                session, name=f"track-{name}", display_name=name, role=role,
+                data_scopes=["*", "PUBLISH:EEX"] if name == "ops" else ["*"],
+                # The feed connector is a service identity, not a person (H4).
+                principal_type="SERVICE" if name == "ops" else "USER",
             )
             principal.job_functions = functions
-            # The feed's service key is scoped to the licensed family it delivers; a '*'
+            # The feed's service key is scoped to the licensed family it publishes; a '*'
             # key reads everything but may not label prices as that venue's.
             _, keys[name] = create_identity_api_key(
-                session, principal.principal_id, scopes=["EEX"] if name == "ops" else ["*"]
+                session, principal.principal_id,
+                scopes=["EEX", "PUBLISH:EEX"] if name == "ops" else ["*"],
             )
         session.commit()
     app = create_app()

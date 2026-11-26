@@ -9,12 +9,14 @@ import it once, or let ``--watch`` re-import whenever the file changes:
     python scripts/ops/import_market_quotes.py --source ICE_OCM --file ice.csv --nbp-unit GBP/MWh
 
 Rows land in ``market_quotes`` under the licensed source family (entitlement applies),
-not marked simulated, and the intraday spread scan runs on them.
+not marked simulated, labelled ``<venue> (file import)`` with the importing person, and
+audited; the intraday spread scan runs on them.
 """
 
 from __future__ import annotations
 
 import argparse
+import getpass
 import time
 from datetime import UTC, datetime
 from pathlib import Path
@@ -53,6 +55,7 @@ def import_once(session_factory, path: Path, args: argparse.Namespace) -> int:
             received_at_utc=now,
             default_units={"NBP": args.nbp_unit} if args.nbp_unit else None,
             quantity_unit_override=args.quantity_unit,
+            imported_by=args.imported_by,
         )
     except QuoteImportError as exc:
         print(f"Refused: {exc}")
@@ -61,7 +64,22 @@ def import_once(session_factory, path: Path, args: argparse.Namespace) -> int:
         print(f"{len(result.rows)} quotes ok: hubs={result.hubs} products={result.products}")
         return len(result.rows)
     with session_factory() as session:
+        from eurogas_nexus.db.repositories.audit import record_governed_audit
+
         upsert_market_quotes(session, result.rows)
+        # Every price written outside a connector is audited with who wrote it (H4).
+        record_governed_audit(
+            session,
+            event_type="governance.market_data",
+            principal=args.imported_by[:64],
+            action="market.quotes.file_import",
+            resource=f"market_quotes:{args.source}",
+            outcome="imported",
+            severity="warning",
+            detail=f"file={path.name}; rows={len(result.rows)}; hubs={','.join(result.hubs)}",
+            source_system="quote-file-import",
+            now_utc=now,
+        )
         scan = scan_and_persist_intraday_opportunities(session, detected_at_utc=now)
         session.commit()
     print(
@@ -109,6 +127,11 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
         help="screen volume unit; default MW for MWh-priced rows, th/d for p/th rows",
     )
     parser.add_argument("--watch", type=float, default=0, help="poll seconds; 0 imports once")
+    parser.add_argument(
+        "--imported-by",
+        default=getpass.getuser(),
+        help="who imports the file; shown with every price and audited (default: OS user)",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     if args.watch and not 1 <= args.watch <= 3600:
