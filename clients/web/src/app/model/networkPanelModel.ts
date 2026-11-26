@@ -60,6 +60,25 @@ export function networkOutageFromSearch(search: string): string | null {
   return new URLSearchParams(search).get(NETWORK_OUTAGE_PARAM) || null;
 }
 
+/**
+ * The network point, hub or site an address selects on the map (`place=<node id>`): another
+ * page (the glossary, a search result) links to `?workspace=market&task=network&place=<id>` and
+ * the map flies there with the point's card open. The id is the network node's `id` (a hub's
+ * node, an LNG terminal's or storage site's node, an interconnection or entry point).
+ */
+export const NETWORK_PLACE_PARAM = "place";
+
+export function networkPlaceFromSearch(search: string): string | null {
+  return new URLSearchParams(search).get(NETWORK_PLACE_PARAM) || null;
+}
+
+/** The address that opens the map on one network point (see NETWORK_PLACE_PARAM). */
+export function networkPlaceSearch(nodeId: string): string {
+  const params = new URLSearchParams({ workspace: "market", task: "network" });
+  params.set(NETWORK_PLACE_PARAM, nodeId);
+  return params.toString();
+}
+
 /* ------------------------------------------------------------------ view and placement */
 
 export interface MapBounds {

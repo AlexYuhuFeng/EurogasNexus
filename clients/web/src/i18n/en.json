@@ -6530,6 +6530,8 @@
   "map.scene.legend.flow": "Moving line: physical flow, moving in the gas's direction, width by GWh/d (static with an arrowhead under reduced motion)",
   "map.scene.legend.estimate": "Hollow ring on a dashed leg: estimated position, interpolated to the ETA, not observed",
   "map.scene.legend.voyage": "Dotted arc: load port to terminal, not the vessel's route",
+  "map.scene.legend.pillar": "Hexagonal pillar: a hub (tall) or an entry, exit or interconnection point (short, from regional zoom); a marker, not a capacity",
+  "map.scene.legend.hull": "Low hull: an LNG carrier pointing where it sails, lower and grey where the position is estimated; a marker, not to scale",
   "map.scene.flow_counts": "{{oriented}} flows drawn with a direction; {{unoriented}} left as points because the network gives no side for their operator",
   "map.scene.sites": "Sites with published figures",
   "map.scene.site_capacity": "{{value}} GWh/d capacity",
@@ -6932,5 +6934,7 @@
   "answer.portfolio.flagged_one": "{{count}} credit line on watch or in breach",
   "answer.portfolio.flagged_other": "{{count}} credit lines on watch or in breach",
   "view.refreshing": "Figures from {{time}}, updating",
-  "view.refreshing.detail": "Some figures on this page are the last ones computed, at {{time}}. Newer data has arrived and they are being recomputed; the page updates when they are ready."
+  "view.refreshing.detail": "Some figures on this page are the last ones computed, at {{time}}. Newer data has arrived and they are being recomputed; the page updates when they are ready.",
+  "map.start_failed.title": "The map can't start in this browser",
+  "map.start_failed.body": "It needs WebGL, which this browser or machine has switched off. The network lists and figures on this page still work; try another browser or turn on hardware acceleration to see the map."
 }

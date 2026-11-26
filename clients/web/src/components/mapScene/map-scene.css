@@ -141,6 +141,19 @@
     border-top: 2px dotted var(--ds-text-2);
   }
 
+  /* 3D solids: a hexagonal pillar and a hull pointing right (the map draws them lit and shaded). */
+  .map-scene-swatch.is-pillar {
+    background: linear-gradient(to right, var(--ds-text-2) 50%, var(--ds-text-3) 50%);
+    clip-path: polygon(25% 0, 75% 0, 100% 50%, 75% 100%, 25% 100%, 0 50%);
+  }
+
+  .map-scene-swatch.is-hull {
+    height: var(--ds-space-2);
+    margin-top: var(--ds-space-1);
+    background: var(--ds-text-2);
+    clip-path: polygon(0 0, 70% 0, 100% 50%, 70% 100%, 0 100%);
+  }
+
   .map-scene-card small.muted {
     color: var(--ds-text-2);
   }

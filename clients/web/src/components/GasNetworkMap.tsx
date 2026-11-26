@@ -80,7 +80,7 @@ import { useInstantFormatter } from "@/app/time/useInstant";
 import { Icon } from "@/components/ui/Icon";
 import { useMapScene } from "@/components/mapScene/useMapScene";
 import { MapSceneControls } from "@/components/mapScene/MapSceneControls";
-import { flowDayOptions, type SceneDimension } from "@/app/mapScene";
+import { flowDayOptions, pointIndex, tweenPoints, type FC, type SceneDimension } from "@/app/mapScene";
 
 // Let Vite resolve and bundle the module worker and its shared imports in both dev and build.
 // MapLibre's default relative URL otherwise points inside Vite's optimized dependency cache.
@@ -431,6 +431,10 @@ export function GasNetworkMap({
   const mapRef = useRef<MapLibreMap | null>(null);
   const labelMarkersRef = useRef<Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
+  // MapLibre needs WebGL. On a machine without it (remote desktop, locked-down browser, old
+  // GPU driver) the constructor throws; without this the throw took the whole page down to a
+  // white screen. The page now says why the map is missing and keeps the network lists.
+  const [mapStartError, setMapStartError] = useState<string | null>(null);
   const [tier, setTier] = useState<ZoomTier>("overview");
   // The "control tower" selection: one object at a time, its card docked on the right, the
   // object and what it relates to highlighted and the rest dimmed.
@@ -721,28 +725,36 @@ export function GasNetworkMap({
     // Each MapLibre instance is numbered, so a measurement can tell a kept map from a rebuilt one.
     MAP_INSTANCES += 1;
     containerRef.current.dataset.mapInstance = String(MAP_INSTANCES);
-    const map = new MapLibreMap({
-      container: containerRef.current,
-      // North-west Europe with the Norwegian shelf below the toolbar.
-      center: view?.center ?? toMapCoordinates(6.5, 55.2),
-      zoom: view?.zoom ?? 3.65,
-      ...mapZoomRange(mapTileProvider.id),
-      attributionControl: false,
-      style: buildMapStyle(
-        mapTileProvider.id,
-        mapTileToken,
-        {
-          background: mapColors.background,
-          rasterOpacity: effectiveTheme === "dark" ? 0.56 : 0.72,
-          rasterSaturation: -1,
-          rasterContrast: effectiveTheme === "dark" ? 0.2 : 0.28,
-          rasterBrightnessMin: effectiveTheme === "dark" ? 0.12 : 0.2,
-          rasterBrightnessMax: effectiveTheme === "dark" ? 0.76 : 0.96,
-          language: i18n.language,
-        },
-        effectiveTheme === "dark" ? "dark" : "light",
-      ),
-    });
+    let map: MapLibreMap;
+    try {
+      map = new MapLibreMap({
+        container: containerRef.current,
+        // North-west Europe with the Norwegian shelf below the toolbar.
+        center: view?.center ?? toMapCoordinates(6.5, 55.2),
+        zoom: view?.zoom ?? 3.65,
+        ...mapZoomRange(mapTileProvider.id),
+        attributionControl: false,
+        style: buildMapStyle(
+          mapTileProvider.id,
+          mapTileToken,
+          {
+            background: mapColors.background,
+            rasterOpacity: effectiveTheme === "dark" ? 0.56 : 0.72,
+            rasterSaturation: -1,
+            rasterContrast: effectiveTheme === "dark" ? 0.2 : 0.28,
+            rasterBrightnessMin: effectiveTheme === "dark" ? 0.12 : 0.2,
+            rasterBrightnessMax: effectiveTheme === "dark" ? 0.76 : 0.96,
+            language: i18n.language,
+          },
+          effectiveTheme === "dark" ? "dark" : "light",
+        ),
+      });
+    } catch (error) {
+      console.error("The network map could not start", error);
+      setMapStartError(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    setMapStartError(null);
 
     // Zoom sits bottom-right: the top of the map belongs to the finder, the bar above to the
     // toolbar, so no two control groups can meet at any width.
@@ -1239,7 +1251,7 @@ export function GasNetworkMap({
         if (!coordinates) return;
         const source = map.getSource("nodes") as GeoJSONSource;
         void source.getClusterExpansionZoom(clusterId).then((zoom) => {
-          map.easeTo({ center: coordinates, zoom });
+          focusOn(map, coordinates, zoom);
         });
       });
       map.on("mouseenter", "node-clusters", () => {
@@ -1728,6 +1740,10 @@ export function GasNetworkMap({
   // Live situation layers. Added once, then fed with setData; visibility follows the
   // layer chips. Hover shows a compact card; nothing here opens a second detail pane.
   const situationRef = useRef<MapSituationDTO | null>(situation);
+  // Vessel dots that moved between two reads ease to their new place (none under reduced motion).
+  const cargoDrawnRef = useRef<FC<{ type: "Point"; coordinates: [number, number] }> | null>(null);
+  const cargoTweenRef = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(cargoTweenRef.current), []);
   situationRef.current = situation;
   useEffect(() => {
     const map = mapRef.current;
@@ -1868,7 +1884,30 @@ export function GasNetworkMap({
         },
       });
     }
-    if (upsertSource(map, "situation-cargo-positions", cargo?.positions ?? empty)) {
+    const cargoPositions = (cargo?.positions ?? empty) as FC<{ type: "Point"; coordinates: [number, number] }>;
+    const cargoBefore = cargoDrawnRef.current;
+    cargoDrawnRef.current = cargoPositions;
+    const cargoCreated = upsertSource(map, "situation-cargo-positions", cargoPositions as FeatureCollectionData);
+    if (!cargoCreated && cargoBefore && cargoBefore !== cargoPositions) {
+      const was = pointIndex(cargoBefore);
+      const moved = cargoPositions.features.some((feature) => {
+        const at = was.get(`${String(feature.properties.id)}|${String(feature.properties.basis)}`);
+        return at !== undefined && (at[0] !== feature.geometry.coordinates[0] || at[1] !== feature.geometry.coordinates[1]);
+      });
+      const duration = cameraMotion().duration;
+      const source = map.getSource("situation-cargo-positions") as GeoJSONSource | undefined;
+      if (moved && duration > 0 && source) {
+        cancelAnimationFrame(cargoTweenRef.current);
+        const start = performance.now();
+        const step = (time: number) => {
+          const k = Math.min(1, (time - start) / duration);
+          source.setData(tweenPoints(was, cargoPositions, easeOut(k)) as FeatureCollectionData);
+          if (k < 1) cargoTweenRef.current = requestAnimationFrame(step);
+        };
+        step(start);
+      }
+    }
+    if (cargoCreated) {
       map.addLayer({
         id: "situation-cargo-positions",
         type: "circle",
@@ -2573,10 +2612,18 @@ export function GasNetworkMap({
     activeLayers,
     t: t as (key: string, options?: Record<string, unknown>) => string,
     when: sceneWhen,
+    pillarNodes: filteredNodes,
+    pointColours: { hub: mapColors.hub, point: mapColors.interconnection },
+    shipColours: { own: SITUATION_COLOURS[effectiveTheme].own, market: SITUATION_COLOURS[effectiveTheme].market },
     onSelectRef: (refId) => {
       const next = selectForRef.current(refId);
       if (next) setSelection(next);
+      // A clicked column or pillar brings its site in, as a clicked dot does.
+      const map = mapRef.current;
+      const node = nodes.find((item) => item.id === refId);
+      if (map && node) focusOn(map, toMapCoordinates(node.lon, node.lat), Math.max(map.getZoom(), 7));
     },
+    onSelectCargo: (cargoId) => setSelection({ kind: "cargo", id: cargoId }),
   });
 
   // Everything the map can locate, for the finder. Positions come from the same sources
@@ -2700,7 +2747,13 @@ export function GasNetworkMap({
         choice, "cannot be drawn" a configuration fault, and "fallback" a basemap the network
         could not reach, replaced by the outline. A blank map would look like a data failure.
       */}
-      {basemapState !== "configured" && (
+      {mapStartError && (
+        <p className="map-basemap-state is-unavailable" role="alert">
+          <strong>{t("map.start_failed.title")}</strong>
+          <small>{t("map.start_failed.body")}</small>
+        </p>
+      )}
+      {!mapStartError && basemapState !== "configured" && (
         <p className={`map-basemap-state is-${basemapState}`} role="status">
           <strong>
             {t(
