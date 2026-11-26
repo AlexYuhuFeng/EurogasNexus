@@ -113,6 +113,10 @@ class JobProgress:
     job_id: str
     total: int
     output_refs: list[str] = field(default_factory=list)
+    #: The work's own session, set by the runner (see :meth:`_store_is_locked_by_work`).
+    work_session: Session | None = None
+    #: The last step reported, written with the result when it could not be written live.
+    last_step: tuple[int, str] | None = None
 
     def step(self, index: int, label: str) -> None:
         """Record that the work is on step ``index`` of ``total``; stop if cancelled.
@@ -122,10 +126,14 @@ class JobProgress:
                 the orphan sweep), so the work must stop and publish nothing.
         """
 
+        self.last_step = (min(index, self.total), label)
         with self.factory() as session:
             row = session.get(JobRecord, self.job_id, populate_existing=True)
             if row is None or row.status != JobState.RUNNING.value:
                 raise JobCancelled(self.job_id)
+            if self._store_is_locked_by_work():
+                # The runner writes this step with the result instead.
+                return
             try:
                 record_job_step(session, self.job_id, min(index, self.total), self.total, label)
                 session.commit()
@@ -140,6 +148,23 @@ class JobProgress:
 
         if reference and reference not in self.output_refs:
             self.output_refs.append(reference)
+
+    def _store_is_locked_by_work(self) -> bool:
+        """Whether the work's own uncommitted writes hold the store's only write lock.
+
+        SQLite (tests, a local single-user store) has one writer at a time: once the work has
+        written, a second connection's progress write would wait for the whole job and then
+        fail it. The step is then only checked for cancellation, and recorded with the result.
+        PostgreSQL locks rows, so its progress is always written as it happens.
+        """
+
+        session = self.work_session
+        if session is None or not session.in_transaction():
+            return False
+        connection = session.connection()
+        if connection.dialect.name != "sqlite":
+            return False
+        return bool(getattr(connection.connection.dbapi_connection, "in_transaction", False))
 
 
 #: The work: given its own session (never committed by the work) and its progress handle.
@@ -224,6 +249,7 @@ def run_background_job(
     progress = JobProgress(factory=factory, job_id=job_id, total=max(1, steps_total))
     try:
         with factory() as work_session:
+            progress.work_session = work_session
             try:
                 work(work_session, progress)
                 locked = work_session.get(
@@ -233,6 +259,9 @@ def run_background_job(
                     # Cancelled (or swept) while the last step ran: publish nothing.
                     work_session.rollback()
                     return
+                if progress.last_step and (locked.progress_step or 0) < progress.last_step[0]:
+                    step, label = progress.last_step
+                    record_job_step(work_session, job_id, step, progress.total, label)
                 finish_job(work_session, job_id, output_refs=tuple(progress.output_refs))
                 work_session.commit()
             except JobCancelled:
