@@ -13,6 +13,7 @@ test("the server's English notes on the book are said in Chinese, contracts by n
   const names = new Map([["demo-tender-skarv", "Skarv West tender"]]);
   const samples = [
     "contract demo-tender-skarv: price floats with NBP day-ahead; volume only on the ladder",
+    "contract demo-tender-skarv: price floats with TTF month-ahead; volume on the ladder, its price exposure on that index",
     "contract demo-mspa-atlantic-cn07: an FOB cargo is not on a European hub until it is sold or discharged",
     "DEMO: marks are simulated demo prices, not market prices.",
     "Marks are simulated prices, not market prices.",

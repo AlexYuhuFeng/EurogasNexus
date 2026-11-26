@@ -3,7 +3,8 @@
 The arithmetic pinned here is the one the independent recomputation used: the signal at a
 close is traded at the next close; a month contract's move across its roll is not P&L; the
 currency P&L is the size per gas day times the gas days the held contract delivers; a cost per
-MWh is charged on entry and exit.
+MWh is charged on entry and exit, and twice on each roll the position is held through (quant
+review 2026-11-26: costs were charged only on position changes).
 """
 
 from datetime import date, timedelta
@@ -43,24 +44,27 @@ def test_golden_roll_sizing_cost_and_next_close():
     assert by_day[day[7]].pnl == pytest.approx(124.0)
     assert by_day[day[8]].pnl == pytest.approx(93.0)
     assert by_day[day[9]].pnl == pytest.approx(62.0)
-    assert by_day[day[10]].roll is True and by_day[day[10]].pnl == 0.0  # the +1.7 roll jump
+    # The +1.7 roll jump is not P&L; rolling the short out and in costs 2 x 0.05 x 10 x 31.
+    assert by_day[day[10]].roll is True and by_day[day[10]].pnl == pytest.approx(-31.0)
     assert by_day[day[11]].pnl == pytest.approx(310.0)
     assert by_day[day[12]].pnl == pytest.approx(372.0)
     assert by_day[day[13]].pnl == pytest.approx(-31.0 - 15.5)
-    assert result.metrics["total_pnl"] == pytest.approx(899.0)
+    assert result.metrics["total_pnl"] == pytest.approx(868.0)  # 899.0 before roll costs
     assert result.metrics["roll_days_excluded"] == 1
-    assert result.metrics["pnl_per_mwh"] == pytest.approx(2.9)
+    assert result.metrics["pnl_per_mwh"] == pytest.approx(2.8)
+    assert result.metrics["pnl_basis"] == "traded_closes"
     [trade] = result.trades
     assert (trade.opened, trade.closed, trade.direction) == (day[6], day[13], "short")
     assert (trade.entry_spread, trade.exit_spread) == (1.2, -0.1)
-    assert trade.pnl == pytest.approx(899.0)
-    assert trade.pnl_per_mwh == pytest.approx(2.9)
+    assert trade.pnl == pytest.approx(868.0)
+    assert trade.pnl_per_mwh == pytest.approx(2.8)
     assert trade.holding_days == 7
-    assert result.metrics["worst_trade"] == pytest.approx(899.0)
+    assert result.metrics["worst_trade"] == pytest.approx(868.0)
     assert result.metrics["too_few_trades"] is True
     assert "too few" in result.limitations[0]
     assert result.metrics["max_drawdown"] == pytest.approx(-46.5)  # day 13 from the peak
     assert "roll is not counted" in result.assumptions
+    assert "pays the cost of rolling it" in result.assumptions
 
 
 def test_without_contracts_the_roll_jump_would_be_counted():
@@ -105,3 +109,27 @@ def test_out_of_sample_period_is_the_later_share():
     assert result.periods["out_of_sample"]["from"] == _days()[10].isoformat()
     total = result.periods["in_sample"]["pnl"] + result.periods["out_of_sample"]["pnl"]
     assert total == pytest.approx(result.metrics["total_pnl"])
+
+
+def test_a_day_ahead_spread_is_a_signal_study_without_money_pnl():
+    """Quant review 3.5: DA(t) - DA(t-1) is not a P&L anyone could earn."""
+
+    days = _days()
+    nbp = {day: 30.0 + value for day, value in zip(days, VALUES, strict=True)}
+    ttf = dict.fromkeys(days, 30.0)
+
+    def day_ahead(series):
+        return {day: ((day + timedelta(days=1)).isoformat(), 1) for day in series}
+
+    legs = [SpreadLeg("NBP DA", 1.0, nbp, day_ahead(nbp)),
+            SpreadLeg("TTF DA", -1.0, ttf, day_ahead(ttf))]
+    result = analyse_spread(legs, RULE)
+    assert result.metrics["pnl_basis"] == "not_computed_day_ahead_leg"
+    assert result.metrics["total_pnl"] is None and result.metrics["hit_rate"] is None
+    assert all(point.pnl is None and point.cumulative_pnl is None for point in result.points)
+    assert [trade.direction for trade in result.trades] == ["short"]  # the signals stand
+    assert result.trades[0].pnl is None
+    assert result.limitations[0].startswith("Signal study, not a backtest: NBP DA and TTF DA")
+    assert result.periods["in_sample"]["pnl"] is None
+    payload = result.as_dict()
+    assert payload["metrics"]["total_pnl"] is None

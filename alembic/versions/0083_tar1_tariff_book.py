@@ -21,6 +21,8 @@ revision = "0083_tar1_tariff_book"
 down_revision = "0082_data1_integration"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

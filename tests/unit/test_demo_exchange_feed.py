@@ -112,6 +112,15 @@ def test_the_feed_can_be_switched_off():
     assert feed.feed_enabled({"EUROGAS_NEXUS_DEMO_EXCHANGE_FEED": "off"}) is False
 
 
+def test_the_feed_pauses_for_the_seed_clear_lock():
+    """The seed and the feed use one lock key; without a PostgreSQL connection the feed runs."""
+
+    feed = _feed()
+    seed = _seed()
+    assert feed.SEED_LOCK == seed.SEED_CLEAR_LOCK
+    assert feed.seed_clear_in_progress(None) is False
+
+
 # ---------------------------------------------------------------------------------------------
 # The live screen (the continuous feed): cadence, coverage, coherence, session and notices
 # ---------------------------------------------------------------------------------------------

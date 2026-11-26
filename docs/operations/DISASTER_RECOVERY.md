@@ -58,7 +58,8 @@ Verification: previous smoke suite passes; no data writes attempted.
 
 ### Bad migration
 
-Detection: migration preflight fails or `alembic upgrade head` exits non-zero.
+Detection: migration preflight fails or `upgrade_database.py upgrade` exits non-zero (the
+run and its outcome are in the audit trail as `database.upgrade`).
 Impact: no partial revision is marked in the tested PostgreSQL transaction
 path; API stays on previous head if migrate service is one-shot and fails.
 Recovery: fix migration, rerun preflight, re-run upgrade.

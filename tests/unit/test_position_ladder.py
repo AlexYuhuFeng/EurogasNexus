@@ -47,10 +47,11 @@ def test_mark_to_market_and_unpriced_legs():
 
 def test_historical_var_needs_history_and_scales_with_position():
     closes = {date(2026, 9, 1) + timedelta(days=i): 30 + (i % 5) * 0.5 for i in range(41)}
-    var, n = historical_var({"TTF": 100_000}, {"TTF": closes})
+    var, n = historical_var({"TTF": 100_000}, {"TTF": closes}, min_observations=20)
     assert n == 40
     assert var == pytest.approx(200_000)  # worst daily move is -2.0 EUR/MWh on 100,000 MWh
-    assert historical_var({"TTF": 100_000}, {"TTF": dict(list(closes.items())[:5])})[0] is None
+    assert historical_var({"TTF": 100_000}, {"TTF": dict(list(closes.items())[:5])},
+                          min_observations=20)[0] is None
     flat, _ = historical_var({"TTF": 0.0}, {"TTF": closes})
     assert flat == 0.0
 
@@ -80,7 +81,7 @@ def test_a_gap_in_the_closes_is_not_a_one_day_move():
     closes = {date(2026, 9, 1) + timedelta(days=i): 30.0 + (i % 5) * 0.5 for i in range(30)}
     # Ten days missing, then a price 8 higher: a data gap, not a one-day scenario.
     closes[date(2026, 10, 11)] = 46.0
-    var, n = historical_var({"TTF": 100_000}, {"TTF": closes})
+    var, n = historical_var({"TTF": 100_000}, {"TTF": closes}, min_observations=20)
     assert n == 29
     assert var == pytest.approx(200_000)
 
@@ -150,3 +151,12 @@ def test_a_tenor_shock_without_an_fx_rate_is_excluded_and_named() -> None:
     )
     assert result["pnl"] == 50.0
     assert result["excluded_no_fx"] == ["NBP"]
+
+
+def test_the_horizon_counts_whole_calendar_months_without_drift():
+    from eurogas_nexus.domain.portfolio.position_ladder import ladder_horizon
+
+    assert ladder_horizon(date(2026, 11, 26), 12) == (date(2026, 11, 26), date(2027, 10, 31))
+    # ``today + 32 x 36 days`` reached a 37th month; 36 months end in October 2029.
+    assert ladder_horizon(date(2026, 11, 26), 36)[1] == date(2029, 10, 31)
+    assert ladder_horizon(date(2026, 12, 31), 1)[1] == date(2026, 12, 31)

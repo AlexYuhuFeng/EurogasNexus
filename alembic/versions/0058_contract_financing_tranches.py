@@ -8,6 +8,8 @@ revision = "0058_contract_financing_tranches"
 down_revision = "0057_contract_price_currency"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

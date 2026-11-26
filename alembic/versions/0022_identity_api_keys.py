@@ -8,6 +8,8 @@ revision = "0022_identity_api_keys"
 down_revision = "0021_raw_payload_archives"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

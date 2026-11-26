@@ -19,7 +19,13 @@ def _get_context_config():
 
 config = _get_context_config()
 
-if config is not None and config.config_file_name is not None:
+# The gated upgrade (scripts/ops/upgrade_database.py) runs Alembic in-process with its own
+# logging; fileConfig would replace it (and disable the loggers that exist).
+if (
+    config is not None
+    and config.config_file_name is not None
+    and config.attributes.get("configure_logger", True)
+):
     fileConfig(config.config_file_name)
 
 target_metadata = get_metadata()
@@ -65,6 +71,16 @@ def run_migrations_online() -> None:
     )
 
     with connectable.connect() as connection:
+        if connection.dialect.name == "postgresql":
+            # A migration waits at most lock_timeout for a lock (then fails and rolls back,
+            # instead of queueing every reader and writer behind it) and runs each statement
+            # at most statement_timeout (docs/operations/DATABASE_UPGRADE.md).
+            from eurogas_nexus.db.migration_rules import migration_timeouts
+
+            lock_timeout, statement_timeout = migration_timeouts(config.attributes)
+            connection.exec_driver_sql(f"SET lock_timeout = '{lock_timeout}'")
+            connection.exec_driver_sql(f"SET statement_timeout = '{statement_timeout}'")
+            connection.commit()
         context.configure(connection=connection, target_metadata=target_metadata)
 
         with context.begin_transaction():

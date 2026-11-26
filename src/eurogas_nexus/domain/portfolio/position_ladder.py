@@ -6,6 +6,17 @@ hedged". Physical legs (contracted daily quantities) and financial legs (filled 
 trades) are spread over the gas days they deliver and summed per hub and calendar month
 of the gas day. Long is positive.
 
+Volume and price exposure are kept apart. A contract priced at a hub index (TTF month-ahead
+plus a premium) delivers its volume, but its flat-price exposure is handed to the index: the
+leg sits on the ladder as physical volume and as an equal and opposite ``index_mwh`` at the
+index's hub and month. ``price_exposure_mwh`` (physical + index + financial) is what moves
+with the flat price; it is what the hedge ratio, the tenor exposure, the shock scenario and
+VaR act on. An index on the delivery hub leaves no flat-price exposure (its premium is fixed
+and is valued in the mark-to-market); an index on another hub leaves the basis between the
+two hubs. Averaging and fixing-lag risk of the index (the month before delivery against the
+delivery month) is not decomposed, and a formula on oil or Henry Hub stays flat-price
+exposure at the delivery hub (its other leg is not a European hub price).
+
 Mark-to-market uses one price per hub and month when given. Value at risk is historical
 simulation: the net position per hub times each observed daily change of that hub's price,
 summed across hubs per day, and the loss at the chosen percentile. It is an indicator of
@@ -20,8 +31,10 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
+from eurogas_nexus.domain.market.returns import Contract, contract_move
 from eurogas_nexus.domain.ontology.markets import quote_currency
 from eurogas_nexus.domain.ontology.notes import declare, note
+from eurogas_nexus.domain.portfolio.mtm_valuation import ForwardValuation
 
 INDICATIVE_PRICE_RISK_ONLY = declare(
     "INDICATIVE_PRICE_RISK_ONLY",
@@ -38,8 +51,14 @@ VAR_OFFSETTING_MONTHS = declare(
 )
 VAR_SHORT_HISTORY = declare(
     "VAR_SHORT_HISTORY",
-    "VaR needs at least 20 daily price changes on every hub held; {count} available.",
+    "VaR needs at least {minimum} daily price changes on every hub held; {count} available: "
+    "not enough history.",
 )
+
+#: The fewest one-day scenarios a 95 % historical VaR is given on: one year of trading days.
+#: Below it the 5 % tail holds too few days to be a quantile (with 20-39 days the "95 % VaR"
+#: was the single worst day), so the read says "not enough history" instead of a number.
+VAR_MIN_OBSERVATIONS = 250
 
 #: Leg sources that come from the firm's cargoes in transit, not from a contract or a trade.
 CARGO_SOURCES = frozenset({"cargo_plan", "cargo_hedge"})
@@ -82,6 +101,17 @@ class PositionLeg:
     #: The leg as a person names it (a contract's name, a trade's venue, side and hub), so a
     #: breach or a warning about it never has to show ``reference``.
     label: str = ""
+    #: For a contract priced at a European hub index: the index's hub. Its flat-price
+    #: exposure is on that index (``index_mwh``), not on the delivery hub's flat price.
+    index_hub: str | None = None
+    #: The fixed premium (+) or discount (-) over the index, in the hub's currency per MWh;
+    #: ``None`` when not known in that currency (the leg is then not valued).
+    index_differential: float | None = None
+    #: A fixed price agreed in another currency than the hub's: the price as agreed and its
+    #: currency. ``price`` holds it at the spot rate; a forward valuation converts it at the
+    #: forward for each delivery month instead.
+    price_native: float | None = None
+    price_currency: str | None = None
 
     @property
     def from_cargo(self) -> bool:
@@ -92,20 +122,41 @@ class PositionLeg:
 class LadderRow:
     hub: str
     month: str  # "2026-11"
-    physical_mwh: float
+    physical_mwh: float  # physical volume delivered at the hub
     financial_mwh: float
+    #: Flat-price exposure index-priced contracts hand to this hub's index (opposite sign to
+    #: their volume); zero when no contract is priced at this hub's index.
+    index_mwh: float = 0.0
 
     @property
     def net_mwh(self) -> float:
+        """Net volume: physical plus financial MWh (an index-priced contract included)."""
+
         return self.physical_mwh + self.financial_mwh
 
     @property
-    def hedge_ratio(self) -> float | None:
-        """Share of the physical position offset by financial trades (1.0 = fully hedged)."""
+    def physical_price_mwh(self) -> float:
+        """The physical legs' flat-price exposure: their volume less what is index-priced."""
 
-        if abs(self.physical_mwh) < 1e-9:
+        return self.physical_mwh + self.index_mwh
+
+    @property
+    def price_exposure_mwh(self) -> float:
+        """Net flat-price exposure: what moves with this hub-month's price."""
+
+        return self.physical_price_mwh + self.financial_mwh
+
+    @property
+    def hedge_ratio(self) -> float | None:
+        """Share of the physical price exposure offset by financial trades (1.0 = fully hedged).
+
+        An index-priced contract has no flat-price exposure to hedge, so it is not counted:
+        a month whose physical legs are all index-priced at this hub has no ratio.
+        """
+
+        if abs(self.physical_price_mwh) < 1e-9:
             return None
-        return -self.financial_mwh / self.physical_mwh
+        return -self.financial_mwh / self.physical_price_mwh
 
 
 @dataclass
@@ -159,6 +210,9 @@ class LadderResult:
                     "physical_mwh": round(row.physical_mwh, 1),
                     "financial_mwh": round(row.financial_mwh, 1),
                     "net_mwh": round(row.net_mwh, 1),
+                    "index_mwh": round(row.index_mwh, 1),
+                    "physical_price_mwh": round(row.physical_price_mwh, 1),
+                    "price_exposure_mwh": round(row.price_exposure_mwh, 1),
                     "hedge_ratio": None if row.hedge_ratio is None else round(row.hedge_ratio, 3),
                     **self._marks(row.hub),
                 }
@@ -169,9 +223,12 @@ class LadderResult:
                 "physical_mwh": round(sum(r.physical_mwh for r in self.rows), 1),
                 "financial_mwh": round(sum(r.financial_mwh for r in self.rows), 1),
                 "net_mwh": round(sum(r.net_mwh for r in self.rows), 1),
-                # Gross tenor exposure (#53): what a curve shock acts on. A hub-flat calendar
-                # spread has net 0 and gross 2x its size; neither is zero risk.
-                "gross_tenor_mwh": round(sum(abs(r.net_mwh) for r in self.rows), 1),
+                "index_mwh": round(sum(r.index_mwh for r in self.rows), 1),
+                "price_exposure_mwh": round(sum(r.price_exposure_mwh for r in self.rows), 1),
+                # Gross tenor exposure (#53): what a curve shock acts on, so the price
+                # exposure. A hub-flat calendar spread has net 0 and gross 2x its size;
+                # neither is zero risk.
+                "gross_tenor_mwh": round(sum(abs(r.price_exposure_mwh) for r in self.rows), 1),
             },
             "tenor_exposure": tenor_exposure(self.rows),
             "offsetting_hubs": list(self.offsetting_hubs),
@@ -188,15 +245,51 @@ class LadderResult:
         }
 
 
+#: The ladder's default horizon, in months counting the current one; Today's book reads it.
+DEFAULT_HORIZON_MONTHS = 12
+
+
+def ladder_horizon(today: date, months: int = DEFAULT_HORIZON_MONTHS) -> tuple[date, date]:
+    """Today to the last day of the ``months``-th calendar month counting the current one.
+
+    The one horizon every "net position over the next N months" reads (the ladder, Today's
+    book, the reports). It replaced ``today + 32 x months days`` (which reached a 37th month
+    at 36) and Today's own "current month plus 12", which made Today's NBP net 0.72 TWh larger
+    than the ladder's on the demo (one more month).
+    """
+
+    if months < 1:
+        raise ValueError("months must be at least 1")
+    index = today.year * 12 + today.month - 1 + months
+    first_after = date(index // 12, index % 12 + 1, 1)
+    return today, first_after - timedelta(days=1)
+
+
+def net_position_by_hub(rows: Sequence[LadderRow]) -> dict[str, float]:
+    """Per hub, the net flat-price exposure summed over the delivery months (long positive).
+
+    The one net position per hub: the ladder's ``tenor_exposure`` and Today's book both read
+    it, so the two screens cannot disagree for the same legs and horizon.
+    """
+
+    out: dict[str, float] = {}
+    for row in rows:
+        out[row.hub] = out.get(row.hub, 0.0) + row.price_exposure_mwh
+    return out
+
+
 def tenor_exposure(rows: Sequence[LadderRow]) -> list[dict[str, object]]:
-    """Per hub: the net and the gross (sum of |net| over delivery months) position (#53)."""
+    """Per hub: the net and the gross (sum of |net| over delivery months) position (#53).
+
+    Both are price exposure (``LadderRow.price_exposure_mwh``): what a curve shock acts on.
+    """
 
     by_hub: dict[str, dict[str, float]] = {}
+    net = net_position_by_hub(rows)
     for row in rows:
-        entry = by_hub.setdefault(row.hub, {"net": 0.0, "gross": 0.0, "months": 0.0})
-        entry["net"] += row.net_mwh
-        entry["gross"] += abs(row.net_mwh)
-        entry["months"] += 1 if abs(row.net_mwh) > 1e-9 else 0
+        entry = by_hub.setdefault(row.hub, {"net": net[row.hub], "gross": 0.0, "months": 0.0})
+        entry["gross"] += abs(row.price_exposure_mwh)
+        entry["months"] += 1 if abs(row.price_exposure_mwh) > 1e-9 else 0
     return [
         {
             "hub": hub,
@@ -227,7 +320,8 @@ def tenor_scenario(
     no_fx: set[str] = set()
     total = 0.0
     for row in rows:
-        if abs(row.net_mwh) < 1e-9:
+        exposure = row.price_exposure_mwh
+        if abs(exposure) < 1e-9:
             continue
         key = (row.hub, row.month)
         if key not in shocks:
@@ -237,13 +331,13 @@ def tenor_scenario(
         if rate is None:
             no_fx.add(row.hub)
             continue
-        pnl = row.net_mwh * shocks[key] * rate
+        pnl = exposure * shocks[key] * rate
         total += pnl
         contributions.append(
             {
                 "hub": row.hub,
                 "month": row.month,
-                "net_mwh": round(row.net_mwh, 1),
+                "net_mwh": round(exposure, 1),
                 "shock_per_mwh": shocks[key],
                 "pnl": round(pnl, 2),
             }
@@ -287,11 +381,18 @@ def build_ladder(
     buckets: dict[tuple[str, str], list[float]] = {}
     for leg in legs:
         hub, side = leg.hub.upper(), 0 if leg.kind == "physical" else 1
+        index = leg.index_hub.upper() if leg.index_hub else None
         for month, mwh in _leg_months(leg, horizon_start, horizon_end):
-            bucket = buckets.setdefault((hub, month), [0.0, 0.0])
+            bucket = buckets.setdefault((hub, month), [0.0, 0.0, 0.0])
             bucket[side] += mwh
+            if index:
+                # The flat-price exposure goes to the index: equal and opposite.
+                buckets.setdefault((index, month), [0.0, 0.0, 0.0])[2] -= mwh
     return [
-        LadderRow(hub=hub, month=month, physical_mwh=values[0], financial_mwh=values[1])
+        LadderRow(
+            hub=hub, month=month, physical_mwh=values[0], financial_mwh=values[1],
+            index_mwh=values[2],
+        )
         for (hub, month), values in sorted(
             buckets.items(), key=lambda item: (item[0][1], item[0][0])
         )
@@ -305,14 +406,23 @@ def mark_to_market(
     horizon_start: date,
     horizon_end: date,
     fx_by_hub: Mapping[str, float] | None = None,
+    valuation: ForwardValuation | None = None,
 ) -> tuple[float | None, int]:
     """Value of each leg against the mark for its hub and month: (mark − price) × MWh.
+
+    An index-priced leg's price is the index hub's mark plus its differential, so it is
+    valued at ``(mark − index mark − differential) × MWh``: its premium, and the basis when
+    the index is another hub's (in the same currency; otherwise not valued).
 
     Hubs quote in different currencies (NBP in GBP, continental hubs in EUR). With
     ``fx_by_hub`` each hub's value is multiplied into one reporting currency, and a hub
     without a rate is left unvalued; without it all hubs must share one currency.
     Returns the total (``None`` when no leg-month could be valued) and the number of
     leg-months without a mark, a leg price or an FX rate.
+
+    With ``valuation`` (``domain.portfolio.mtm_valuation``) each month's value is a present
+    value in its reporting currency: converted at the forward FX for the delivery month (a
+    price agreed in a third currency too) and discounted to the month's payment date.
     """
 
     if horizon_end < horizon_start:
@@ -322,15 +432,33 @@ def mark_to_market(
     for leg in legs:
         hub = leg.hub.upper()
         fx = 1.0 if fx_by_hub is None else fx_by_hub.get(hub)
+        hub_currency = quote_currency(hub)
         for month, mwh in _leg_months(leg, horizon_start, horizon_end):
             mark = marks.get((hub, month))
-            if mark is None or leg.price is None or fx is None:
+            price = leg.price
+            if valuation is not None:
+                to_reporting = valuation.fx(hub_currency, valuation.reporting_currency, month)
+                fx = None if to_reporting is None else to_reporting * valuation.discount(month)
+                if leg.price_native is not None and leg.price_currency:
+                    rate = valuation.fx(leg.price_currency, hub_currency, month)
+                    price = None if rate is None else leg.price_native * rate
+            if leg.index_hub:
+                index_mark = marks.get((leg.index_hub.upper(), month))
+                same_currency = quote_currency(leg.index_hub.upper()) == quote_currency(hub)
+                price = (
+                    index_mark + leg.index_differential
+                    if index_mark is not None
+                    and leg.index_differential is not None
+                    and same_currency
+                    else None
+                )
+            if mark is None or price is None or fx is None:
                 missing += 1
                 continue
-            total += (mark - leg.price) * mwh * fx
+            total += (mark - price) * mwh * fx
             valued += 1
             valued_hubs.add(hub)
-    if fx_by_hub is None:
+    if fx_by_hub is None and valuation is None:
         # Without FX the hubs that were valued must share one currency (GBP + EUR is no sum).
         _single_currency(valued_hubs)
     # Nothing valued is unknown, not zero.
@@ -342,14 +470,18 @@ def historical_var(
     daily_closes_by_hub: Mapping[str, Mapping[date, float]],
     *,
     confidence: float = 0.95,
-    min_observations: int = 20,
+    min_observations: int = VAR_MIN_OBSERVATIONS,
     fx_by_hub: Mapping[str, float] | None = None,
+    contracts_by_hub: Mapping[str, Mapping[date, Contract]] | None = None,
 ) -> tuple[float | None, int]:
     """One-day historical-simulation VaR of the open position (a positive loss figure).
 
+    Each hub's closes are one product from one source (``position_inputs.hub_close_series``).
     Uses the days on which every hub with a position has a close on that day and the day
     before. Two closes more than ``MAX_VAR_GAP_DAYS`` apart are not a one-day move (missing
-    data), so that pair is not a scenario. Without ``fx_by_hub`` the hubs must quote in one
+    data), and with ``contracts_by_hub`` two closes of different contracts of a rolling
+    product are not one either (``domain.market.returns.contract_move``, the spread lab's
+    roll rule): neither pair is a scenario. Without ``fx_by_hub`` the hubs must quote in one
     currency. Returns ``(None, n)`` with fewer than ``min_observations`` scenarios.
     """
 
@@ -367,16 +499,25 @@ def historical_var(
         common = days if common is None else common & days
     ordered = sorted(common or ())
     scenarios: list[float] = []
+    contracts = contracts_by_hub or {}
     for previous, current in zip(ordered, ordered[1:], strict=False):
         if (current - previous).days > MAX_VAR_GAP_DAYS:
             continue
-        scenarios.append(
-            sum(
-                net_mwh_by_hub[hub]
-                * (daily_closes_by_hub[hub][current] - daily_closes_by_hub[hub][previous])
-                * fx[hub]
-                for hub in hubs
+        moves = []
+        for hub in hubs:
+            held = contracts.get(hub) or {}
+            moves.append(
+                contract_move(
+                    daily_closes_by_hub[hub][previous],
+                    daily_closes_by_hub[hub][current],
+                    held.get(previous),
+                    held.get(current),
+                )
             )
+        if any(move is None for move in moves):
+            continue  # a roll on a hub held: not a one-day move of the position
+        scenarios.append(
+            sum(net_mwh_by_hub[hub] * move * fx[hub] for hub, move in zip(hubs, moves, strict=True))
         )
     if len(scenarios) < min_observations:
         return None, len(scenarios)
@@ -396,6 +537,8 @@ def ladder_report(
     reporting_currency: str | None = None,
     tenor_shocks: Mapping[tuple[str, str], float] | None = None,
     today: date | None = None,
+    close_contracts_by_hub: Mapping[str, Mapping[date, Contract]] | None = None,
+    valuation: ForwardValuation | None = None,
 ) -> LadderResult:
     """The ladder, its mark-to-market and VaR, with each row's marks date and state.
 
@@ -414,15 +557,16 @@ def ladder_report(
         for hub in {row.hub for row in rows}:
             day = marks_as_of([hub], daily_closes_by_hub)
             result.marks_by_hub[hub] = (day, close_state(day, today))
-    long_by_hub = {row.hub for row in rows if row.net_mwh > 1e-9}
-    short_by_hub = {row.hub for row in rows if row.net_mwh < -1e-9}
+    long_by_hub = {row.hub for row in rows if row.price_exposure_mwh > 1e-9}
+    short_by_hub = {row.hub for row in rows if row.price_exposure_mwh < -1e-9}
     result.offsetting_hubs = sorted(long_by_hub & short_by_hub)
     if tenor_shocks:
         result.scenario = tenor_scenario(rows, tenor_shocks, fx_by_hub=fx_by_hub)
     result.note(INDICATIVE_PRICE_RISK_ONLY)
     if marks is not None:
         value, missing = mark_to_market(
-            legs, marks, horizon_start=horizon_start, horizon_end=horizon_end, fx_by_hub=fx_by_hub
+            legs, marks, horizon_start=horizon_start, horizon_end=horizon_end,
+            fx_by_hub=fx_by_hub, valuation=valuation,
         )
         result.mark_to_market, result.unpriced_rows = value, missing
         if missing:
@@ -432,10 +576,11 @@ def ladder_report(
         long_hubs: set[str] = set()
         short_hubs: set[str] = set()
         for row in rows:
-            net_by_hub[row.hub] = net_by_hub.get(row.hub, 0.0) + row.net_mwh
-            if row.net_mwh > 1e-9:
+            exposure = row.price_exposure_mwh
+            net_by_hub[row.hub] = net_by_hub.get(row.hub, 0.0) + exposure
+            if exposure > 1e-9:
                 long_hubs.add(row.hub)
-            elif row.net_mwh < -1e-9:
+            elif exposure < -1e-9:
                 short_hubs.add(row.hub)
         offsetting_hubs = long_hubs & short_hubs
         if offsetting_hubs:
@@ -443,8 +588,15 @@ def ladder_report(
             result.note(VAR_OFFSETTING_MONTHS, hubs=hubs)
             return result
         result.var_95_1d, result.var_observations = historical_var(
-            net_by_hub, daily_closes_by_hub, fx_by_hub=fx_by_hub
+            net_by_hub,
+            daily_closes_by_hub,
+            fx_by_hub=fx_by_hub,
+            contracts_by_hub=close_contracts_by_hub,
         )
         if result.var_95_1d is None:
-            result.note(VAR_SHORT_HISTORY, count=result.var_observations)
+            result.note(
+                VAR_SHORT_HISTORY,
+                count=result.var_observations,
+                minimum=VAR_MIN_OBSERVATIONS,
+            )
     return result

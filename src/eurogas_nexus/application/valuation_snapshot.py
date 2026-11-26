@@ -970,7 +970,8 @@ def hedge_cover_rows(caller: Caller, today: date) -> list[dict]:
     names = {contract.contract_id: contract.contract_name for contract in inputs.contracts}
 
     def volume(leg) -> VolumeLeg:
-        return VolumeLeg(leg.reference, leg.first_gas_day, leg.last_gas_day, leg.mwh_per_day)
+        return VolumeLeg(leg.reference, leg.first_gas_day, leg.last_gas_day, leg.mwh_per_day,
+                         floating=getattr(leg, "index_hub", None) is not None)
 
     rows: list[dict] = []
     for approval in approvals:
@@ -1001,6 +1002,9 @@ def hedge_cover_rows(caller: Caller, today: date) -> list[dict]:
                     "hub": contract.hub,
                     "month": month["month"],
                     "contract_mwh": float(month["contract_mwh"]),
+                    # Flat-price exposure: 0 for an index-priced contract (nothing to hedge).
+                    "price_exposure_mwh": float(month.get("price_exposure_mwh",
+                                                          month["contract_mwh"])),
                     "hedged_mwh": float(month["hedged_mwh"]),
                     "band_low_pct": approval.min_hedge_ratio_pct,
                     "band_high_pct": approval.max_hedge_ratio_pct,

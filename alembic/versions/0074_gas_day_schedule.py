@@ -16,6 +16,8 @@ revision = "0074_gas_day_schedule"
 down_revision = "0073_contract_kinds"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

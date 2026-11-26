@@ -99,7 +99,11 @@ try {{ $report=Install-OrRepairRuntime }} catch {{ $failure=$_.Exception.Message
         assert result["report"] is None
     else:
         assert calls[3:5] == [
-            ["run", "--rm", "--no-deps", "migrate"],
+            [
+                "run", "--rm", "--no-deps", "migrate",
+                "python", "scripts/ops/upgrade_database.py", "upgrade",
+                "--operator", f"windows-installer:{os.environ.get('USERNAME', '')}", "--yes",
+            ],
             ["up", "-d", "--no-deps", "api"],
         ]
         assert result["failure"] is None

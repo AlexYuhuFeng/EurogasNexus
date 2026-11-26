@@ -11,6 +11,12 @@ revision = "0040_strategy_owner_sharing"
 down_revision = "0039_identity_api_key_hash_width"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "irreversible"
+reversibility_note = (
+    'Strategy privacy migration cannot be downgraded; restore an approved pre-migration '
+    'backup instead.'
+)
 
 
 def upgrade():

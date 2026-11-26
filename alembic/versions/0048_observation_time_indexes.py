@@ -18,6 +18,8 @@ revision = "0048_observation_time_indexes"
 down_revision = "0047_user_preferences"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 TABLES = ("flow_observations", "capacity_observations", "storage_observations", "lng_observations")
 

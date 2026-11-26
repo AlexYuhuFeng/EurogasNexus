@@ -28,6 +28,8 @@ revision = "0082_data1_integration"
 down_revision = "0081_change_requests"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 _DEFAULT = "(pg_current_xact_id()::text::bigint)"
 

@@ -289,6 +289,9 @@ Operational procedures and operator-facing guides:
 - [Live PostgreSQL](operations/LIVE_POSTGRESQL.md)
 
 - [DB migrations](operations/DB_MIGRATIONS.md)
+- [Upgrading the database (gated upgrade)](operations/DATABASE_UPGRADE.md)
+- [Monitoring: metrics, alerts, logs, traces](operations/MONITORING.md)
+- [Alert responses](operations/ALERT_RESPONSES.md)
 - [DB runtime hardening](operations/DB_RUNTIME_HARDENING.md)
 - [Production reliability](operations/PRODUCTION_RELIABILITY_SPEC.md)
 - [Performance baseline](operations/PERFORMANCE_BASELINE.md)

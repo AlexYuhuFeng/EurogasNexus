@@ -20,6 +20,9 @@ revision = "0095_security_hardening"
 down_revision = "0094_option_settlements"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py). The downgrade
+# drops the audit chain links and anchors with the tables: the audit rows themselves stay.
+reversibility = "reversible"
 
 _GUARD_FUNCTION = """
 CREATE OR REPLACE FUNCTION eurogas_audit_guard() RETURNS trigger AS $$

@@ -145,6 +145,12 @@ def _cached_session_factory(database_url: str) -> sessionmaker[Session]:
     return create_session_factory(engine)
 
 
+def cached_engine_pools() -> list:
+    """The connection pools this process's cached engines hold (for the pool metrics)."""
+
+    return [engine.pool for engine in list(_CACHED_ENGINES)]
+
+
 def dispose_cached_engines() -> int:
     """Close every pooled connection the cached session factories hold.
 

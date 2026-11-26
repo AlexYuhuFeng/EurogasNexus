@@ -99,6 +99,23 @@ export function routeGap(tenor: BoardTenorDTO): string | null {
   return route.issues.join("; ") || null;
 }
 
+/**
+ * Which capacity product priced a spread's transport cost, its flow charges and the yearly
+ * capacity a holder has sunk (quant review 2026-11-26), as provenance on demand.
+ */
+export function pricedOn(tenor: BoardTenorDTO, t: (key: string, options?: Record<string, unknown>) => string): string {
+  const marginal = tenor.route?.marginal;
+  if (!marginal) return "";
+  const product = t(`route.product.${marginal.product}`, { defaultValue: marginal.product });
+  const sunk = marginal.sunk_capacity?.value;
+  return ` · ${t("spreads.board.priced_on", {
+    product,
+    capacity: marginal.capacity == null ? "–" : marginal.capacity.toFixed(3),
+    flow: marginal.holder == null ? "–" : marginal.holder.toFixed(3),
+    sunk: sunk == null ? "–" : sunk.toFixed(3),
+  })}`;
+}
+
 /** The storage line on Fundamentals: EU fill against the 5-yr mean, and the Win–Sum link. */
 export function storageStep(diffPts: number | null | undefined): { tone: "below" | "above" | "near"; pts: number } | null {
   if (diffPts == null || !Number.isFinite(diffPts)) return null;

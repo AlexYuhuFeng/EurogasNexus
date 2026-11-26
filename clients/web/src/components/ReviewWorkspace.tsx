@@ -120,7 +120,8 @@ export function ReviewWorkspace({
       return runs.map((run) => ({
         id: run.run_id,
         label: run.strategy_name || run.strategy_id,
-        detail: [run.run_mode, displayTime(run.finished_at_utc ?? run.started_at_utc, "")].filter(Boolean).join(" · "),
+        // A strategy-lab history run is a signal study (its P&L is the decision-time margin).
+        detail: [run.run_mode === "BACKTEST" ? t("job.kind.BACKTEST") : run.run_mode, displayTime(run.finished_at_utc ?? run.started_at_utc, "")].filter(Boolean).join(" · "),
         keywords: [run.strategy_id],
       }));
     }

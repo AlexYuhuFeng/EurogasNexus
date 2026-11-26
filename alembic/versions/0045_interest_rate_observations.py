@@ -13,6 +13,8 @@ revision = "0045_interest_rate_observations"
 down_revision = "0044_entsog_native_rates"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

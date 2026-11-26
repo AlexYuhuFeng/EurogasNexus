@@ -88,20 +88,65 @@ class StorageDispatchResult:
     human_review_required: bool = True
 
 
+#: Inventory levels of the default grid: the step is the working range over this number, so a
+#: 1 TWh facility is stepped in 5 GWh, not 1 MWh (10^6 levels, quant review 2026-11-26).
+DEFAULT_INVENTORY_LEVELS = 200
+#: The finest grid accepted, in inventory levels.
+MAX_INVENTORY_LEVELS = 1_000
+#: The most periods one dispatch is computed over.
+MAX_STORAGE_PERIODS = 400
+#: The most level-to-level transitions computed (periods x levels^2): about two seconds of
+#: this pure-Python grid on one core; beyond it the request is refused, not queued.
+MAX_STORAGE_TRANSITIONS = 6_000_000
+
+
+def default_inventory_step(facility: StorageFacility) -> float:
+    """The grid step scaled to the facility: its working range over the default level count."""
+
+    working = facility.maximum_inventory_mwh - facility.minimum_inventory_mwh
+    return max(working / DEFAULT_INVENTORY_LEVELS, 1e-6) if working > 0 else 1.0
+
+
 def optimize_storage_dispatch(
     facility: StorageFacility,
     periods: list[StoragePeriod],
     *,
-    inventory_step_mwh: float = 1.0,
+    inventory_step_mwh: float | None = None,
 ) -> StorageDispatchResult:
-    """Optimize inject/withdraw/hold decisions with inventory-grid dynamic programming."""
+    """Optimize inject/withdraw/hold decisions with inventory-grid dynamic programming.
 
+    ``inventory_step_mwh`` defaults to the facility's working range over
+    ``DEFAULT_INVENTORY_LEVELS``. A grid finer than ``MAX_INVENTORY_LEVELS``, more than
+    ``MAX_STORAGE_PERIODS`` periods, or more than ``MAX_STORAGE_TRANSITIONS`` transitions in
+    all is refused with the bound it breaks: an intrinsic value on a coarser grid is the
+    honest answer, an unbounded computation is not.
+    """
+
+    _validate_facility(facility)
+    if inventory_step_mwh is None:
+        inventory_step_mwh = default_inventory_step(facility)
     if inventory_step_mwh <= 0:
         raise ValueError("inventory_step_mwh must be positive")
     if not math.isfinite(inventory_step_mwh):
         raise ValueError("inventory_step_mwh must be finite")
-    _validate_facility(facility)
     _validate_periods(periods)
+    if len(periods) > MAX_STORAGE_PERIODS:
+        raise ValueError(
+            f"{len(periods)} periods; at most {MAX_STORAGE_PERIODS} are computed in one dispatch"
+        )
+    working = facility.maximum_inventory_mwh - facility.minimum_inventory_mwh
+    grid = math.floor(working / inventory_step_mwh) + 1
+    coarsest = working / MAX_INVENTORY_LEVELS
+    if grid > MAX_INVENTORY_LEVELS:
+        raise ValueError(
+            f"inventory step {inventory_step_mwh:g} MWh gives {grid:,} inventory levels; at most "
+            f"{MAX_INVENTORY_LEVELS:,} (a step of at least {coarsest:,.3f} MWh for this facility)"
+        )
+    if len(periods) * grid * grid > MAX_STORAGE_TRANSITIONS:
+        raise ValueError(
+            f"{len(periods)} periods on {grid:,} inventory levels is more than "
+            f"{MAX_STORAGE_TRANSITIONS:,} transitions; use a coarser step or fewer periods"
+        )
     required_levels = [facility.initial_inventory_mwh]
     if facility.terminal_inventory_mwh is not None:
         required_levels.append(facility.terminal_inventory_mwh)

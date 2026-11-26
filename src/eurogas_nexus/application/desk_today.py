@@ -39,7 +39,16 @@ from eurogas_nexus.domain.ontology.notes import declare, split_notes
 
 MAX_ITEMS = 6
 #: The position ladder's default horizon: the day P&L change uses the same open position.
+#: Today's book horizon: the ladder's default, through the one ``ladder_horizon``.
 BOOK_HORIZON_MONTHS = 12
+
+
+def book_horizon(today: date) -> tuple[date, date]:
+    """The horizon of Today's book: the position ladder's default (``ladder_horizon``)."""
+
+    from eurogas_nexus.domain.portfolio.position_ladder import ladder_horizon
+
+    return ladder_horizon(today, BOOK_HORIZON_MONTHS)
 #: The ticker's and the map's outage horizon (``ShellTicker``: ``api.outages(14)``).
 OUTAGE_HORIZON_DAYS = 14
 STORAGE_DAYS = 30
@@ -324,7 +333,7 @@ def _book(caller: Caller, today: date, read: _Read, *, now: datetime | None = No
           price_book=None) -> _Book:
     from eurogas_nexus.application.position_inputs import ladder_inputs
 
-    end = _month_start(today, BOOK_HORIZON_MONTHS + 1) - timedelta(days=1)
+    _start, end = book_horizon(today)
     try:
         inputs = ladder_inputs(caller, today, today, end, now=now, price_book=price_book)
     except Exception as exc:  # noqa: BLE001 - the other rows stand without the book
@@ -796,8 +805,13 @@ def _same_price(price: dict, mark_mwh: float, mark_unit: str) -> bool:
 def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, Any]:
     from eurogas_nexus.application.freshness_contract import close_state
     from eurogas_nexus.application.projections.daily_closes import in_native_unit
+    from eurogas_nexus.domain.market.returns import contract_move
     from eurogas_nexus.domain.ontology.markets import quote_currency
-    from eurogas_nexus.domain.portfolio.position_ladder import MAX_VAR_GAP_DAYS, build_ladder
+    from eurogas_nexus.domain.portfolio.position_ladder import (
+        MAX_VAR_GAP_DAYS,
+        build_ladder,
+        net_position_by_hub,
+    )
     from eurogas_nexus.domain.risk.method_notes import method_note
 
     if not book.positions:
@@ -810,15 +824,16 @@ def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, 
                            "Open Position"),
         }
     inputs = book.inputs
-    end = _month_start(today, BOOK_HORIZON_MONTHS + 1) - timedelta(days=1)
+    _start, end = book_horizon(today)
     ladder = build_ladder(inputs.legs, horizon_start=today, horizon_end=end)
-    net_open: dict[str, float] = {}
+    # The ladder's own net position per hub (flat-price exposure), not a second sum.
+    net_open = net_position_by_hub(ladder)
     long_hubs, short_hubs = set(), set()
     for row in ladder:
-        net_open[row.hub] = net_open.get(row.hub, 0.0) + row.net_mwh
-        if row.net_mwh > 1e-9:
+        exposure = row.price_exposure_mwh
+        if exposure > 1e-9:
             long_hubs.add(row.hub)
-        elif row.net_mwh < -1e-9:
+        elif exposure < -1e-9:
             short_hubs.add(row.hub)
     offsetting = long_hubs & short_hubs
     as_of = datetime.combine(today, datetime.min.time(), tzinfo=UTC).isoformat()
@@ -929,8 +944,15 @@ def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, 
         elif len(days) < 2 or (days[-1] - days[-2]).days > MAX_VAR_GAP_DAYS:
             pnl = {"empty": empty("no_previous_close", f"No previous {hub} close",
                                   "Import settlements")}
+        elif (moved := contract_move(
+            closes[days[-2]], closes[days[-1]],
+            *(getattr(inputs, "close_contracts", {}).get(hub, {}).get(day) for day in days[-2:]),
+        )) is None:
+            # The series rolled to the next contract: the difference is a spread, not a move.
+            pnl = {"empty": empty("no_previous_close", f"No previous {hub} close of the same "
+                                  "contract (the series rolled)", "Import settlements")}
         else:
-            change = net_open.get(hub, 0.0) * (closes[days[-1]] - closes[days[-2]])
+            change = net_open.get(hub, 0.0) * moved
             pnl = read.add(
                 figure(
                     f"pnl.day_change.{hub}",
@@ -1462,7 +1484,7 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
     from eurogas_nexus.application.route_tariff_cost import (
         load_route_capacity,
         load_tariff_rows,
-        route_cost,
+        marginal_route_cost,
     )
     from eurogas_nexus.application.spreads_board import spread_direction
     from eurogas_nexus.domain.market.fx_forward import Delivery
@@ -1470,7 +1492,7 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
     today = now.date()
     out: list[dict[str, Any]] = []
     holdings = None
-    tariffs: list | None = None
+    tariffs: dict | None = None
     bookings: list = []
     orders: dict = {}
     for hub, reference in SPREAD_PAIRS:
@@ -1526,28 +1548,45 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
             values[hub].get("normalisation"), dict) else None
         if tariffs is None:
             try:
-                tariffs = load_tariff_rows()
+                tariffs = {"ANNUAL": load_tariff_rows()}
                 # TAR-2: the firm's booked capacity prices its part of a leg first.
                 bookings, orders = load_route_capacity()
             except Exception as exc:  # noqa: BLE001
                 read.warnings.append(f"tariffs: not available ({exc.__class__.__name__})")
-                tariffs, bookings, orders = [], [], {}
+                tariffs, bookings, orders = {}, [], {}
+
+        def rows_for(product: str, held=tariffs) -> list:
+            if product not in held:
+                try:
+                    held[product] = load_tariff_rows(product=product)
+                except Exception:  # noqa: BLE001 - not held: the route says which product
+                    held[product] = []
+            return held[product]
+
         # The route runs from the cheaper hub to the dearer one, the rule Research > Spreads
-        # uses, and the spread earns its absolute value less that cost (QA-R-06).
+        # uses, and the spread earns its absolute value less that cost (QA-R-06). The cost is
+        # the marginal one (quant review 3.7): the monthly capacity product for the front
+        # month, plus commodity charges and fuel gas; yearly capacity is sunk, shown beside.
         start, end = spread_direction(spread, hub, reference)
-        route = route_cost(start, end, delivery, tariffs, bookings=bookings, orders=orders)
-        cost = route.total if route.currency == "EUR" else None
+        marginal = marginal_route_cost(
+            start, end, delivery, rows_for, bookings=bookings, orders=orders,
+            gas_price=values[start]["value"],
+        )
+        route = marginal.choice.chosen
+        cost = marginal.total if route.currency == "EUR" else None
         if cost is not None:
             net = abs(spread) - cost
             verdict = "in_the_money" if net > 0 else "out_of_the_money"
             route_view = {"value": round(cost, 3), "unit": "EUR/MWh", "verdict": verdict,
                           "from": start, "to": end, "net": round(net, 3),
-                          "via": list(route.via), "input_class": route.input_class}
+                          "via": list(route.via), "input_class": route.input_class,
+                          "product": marginal.product, "marginal": marginal.as_dict()}
         else:
             reason = ("legs not held: " + ", ".join(route.missing_legs())) if route.legs and not \
                 route.complete else ("legs in more than one currency" if route.legs else
                                      "; ".join(route.issues) or "no route priced")
-            route_view = {"value": None, "unit": "EUR/MWh", "verdict": None, "reason": reason}
+            route_view = {"value": None, "unit": "EUR/MWh", "verdict": None, "reason": reason,
+                          "product": marginal.product, "marginal": marginal.as_dict()}
         simulated = bool(values[hub]["simulated"] or values[reference]["simulated"])
         out.append(read.add(figure(
             f"spread.{hub}.{reference}",

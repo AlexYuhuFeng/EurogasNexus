@@ -8,6 +8,8 @@ revision = "0055_desk_operations"
 down_revision = "0054_risk_controls"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 #: Columns whose models had grown wider than the deployed schema (found by comparing the

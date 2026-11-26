@@ -513,6 +513,7 @@ Package counts and the SHA-256 of every lock input are recorded in
 - mako 1.4.1 (NOASSERTION)
 - markupsafe 3.0.3 (NOASSERTION)
 - pg8000 1.31.5 (NOASSERTION)
+- prometheus-client 0.26.0 (NOASSERTION)
 - pycparser 3.0 (NOASSERTION)
 - pydantic 2.13.5 (NOASSERTION)
 - pydantic-core 2.46.5 (NOASSERTION)

@@ -8,6 +8,8 @@ revision = "0041_job_owner_identity"
 down_revision = "0040_strategy_owner_sharing"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade():

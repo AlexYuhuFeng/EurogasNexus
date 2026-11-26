@@ -15,6 +15,7 @@ from eurogas_nexus.api.error_handlers import register_error_handlers
 from eurogas_nexus.api.middleware.compression import ApiReadCompressionMiddleware
 from eurogas_nexus.api.middleware.conditional import ConditionalReadMiddleware
 from eurogas_nexus.api.middleware.licensed_use import LicensedUseMiddleware
+from eurogas_nexus.api.middleware.metrics_endpoint import MetricsEndpointMiddleware
 from eurogas_nexus.api.middleware.observability import HttpObservabilityMiddleware
 from eurogas_nexus.api.middleware.origin_csrf import OriginCsrfGuardMiddleware
 from eurogas_nexus.api.middleware.request_id import RequestIdMiddleware
@@ -43,6 +44,13 @@ async def _application_lifespan(_app: FastAPI) -> AsyncIterator[None]:
     accepts work, so no request thread is ever the first importer.
     """
 
+    # Logs, traces and this worker's metric files before any request (each worker runs this).
+    from eurogas_nexus.application import process_metrics
+    from eurogas_nexus.core import structured_logging, tracing
+
+    structured_logging.configure_logging(service="eurogas-nexus-api")
+    tracing.initialise("eurogas-nexus-api")
+    process_metrics.prepare_process()
     runtime_dependencies.initialize_runtime_dependencies()
     # Background jobs run in this process: one that was running when the server last
     # stopped can never finish, so it is failed with a reason now (best effort, never fatal).
@@ -125,8 +133,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Inside the compression: the ETag is a hash of the uncompressed answer.
     app.add_middleware(ConditionalReadMiddleware)
     app.add_middleware(ApiReadCompressionMiddleware)
-    app.add_middleware(RequestIdMiddleware)
+    # The request id is outside the observability layer, so the access record, the span
+    # and every log line of the request carry it.
     app.add_middleware(HttpObservabilityMiddleware)
+    app.add_middleware(RequestIdMiddleware)
     app.add_middleware(OriginCsrfGuardMiddleware)
 
     app.add_middleware(
@@ -160,6 +170,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         app.add_middleware(WebClientMiddleware, directory=web_client_dir)
     # Security headers on every answer in every deployment (security review M5).
     app.add_middleware(SecurityHeadersMiddleware, serves_pages=web_client_dir is not None)
+
+    # Outermost: ``GET /metrics`` for the configured scrape identity only (404 otherwise),
+    # before the sign-in dependencies and the web client's page fallback.
+    app.add_middleware(MetricsEndpointMiddleware)
 
     return app
 

@@ -14,6 +14,8 @@ revision = "0094_option_settlements"
 down_revision = "0093_timescale_optional"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

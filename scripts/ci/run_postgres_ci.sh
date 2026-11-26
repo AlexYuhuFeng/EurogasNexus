@@ -82,4 +82,5 @@ python -m pytest -q \
   tests/integration/test_weather_demand_prediction_runtime_postgres.py \
   tests/integration/test_weather_archive_persistence_postgres.py \
   tests/integration/test_schema_matches_models_postgres.py \
-  tests/integration/test_demo_seed_postgres.py
+  tests/integration/test_demo_seed_postgres.py \
+  tests/integration/test_demo_seed_clear_postgres.py

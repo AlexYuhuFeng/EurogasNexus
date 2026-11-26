@@ -24,6 +24,9 @@ dependencies = [
     # PDF text extraction for contract intake (BSD-3-Clause, pure Python).
     "pypdf>=6.21,<7",
     "tzdata>=2025.2",
+    # Prometheus exposition and multi-process metric files (Apache-2.0 / BSD-2-Clause,
+    # pure Python, no dependencies); see docs/operations/MONITORING.md.
+    "prometheus-client>=0.21,<1.0",
 ]
 
 [project.optional-dependencies]

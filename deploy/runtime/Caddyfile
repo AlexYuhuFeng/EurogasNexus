@@ -14,5 +14,7 @@
     request_body {
         max_size 25MB
     }
+    # The metrics endpoint is scraped on the internal network, never through this gateway.
+    respond /metrics 404
     reverse_proxy api:8000
 }

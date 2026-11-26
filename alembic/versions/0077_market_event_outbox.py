@@ -18,6 +18,8 @@ revision = "0077_market_event_outbox"
 down_revision = "0076_gas_day_nominations"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 SEQ = sa.BigInteger().with_variant(sa.Integer(), "sqlite")
 

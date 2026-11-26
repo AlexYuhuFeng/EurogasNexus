@@ -27,6 +27,8 @@ revision = "0085_sched1_nomination_matching"
 down_revision = "0083_tar1_tariff_book"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 _COLUMNS = (
     ("counterparty", sa.String(160)),

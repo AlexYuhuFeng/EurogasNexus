@@ -8,6 +8,8 @@ revision = "0005_public_source_credentials"
 down_revision = "0004_r16_observation_tables"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

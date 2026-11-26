@@ -1,0 +1,190 @@
+# Eurogas Nexus alert rules for Prometheus (load with `rule_files:`; route with Alertmanager).
+#
+# What each alert means and what to do: docs/operations/ALERT_RESPONSES.md (the
+# runbook_url of every alert points at its section). Setup: docs/operations/MONITORING.md.
+#
+# The database-derived series (sources, scheduler, jobs, feed, outbox) are the same from
+# every API instance, so each rule takes max by its own key: with two API servers scraped,
+# a rule fires once, not twice.
+#
+# Labels: severity = critical (act now, the desk is affected or will be) | warning (act
+# today). team = the routing key; change it to your own receiver names.
+
+groups:
+  - name: eurogas-nexus-scheduler
+    rules:
+      - alert: EurogasSchedulerHeartbeatMissing
+        # The active scheduler beats every 30 s; +Inf means no scheduler ever ran here.
+        expr: max(eurogas_scheduler_heartbeat_age_seconds{scheduler="dataops"}) > 300
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Data-operations scheduler has not reported for over 5 minutes"
+          description: >-
+            The last scheduler heartbeat is {{ $value | humanizeDuration }} old. No source is
+            read on its schedule while this lasts, so prices, flows and storage go stale.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasschedulerheartbeatmissing"
+
+  - name: eurogas-nexus-sources
+    rules:
+      - alert: EurogasSourceStale
+        # Age since the last success beyond the source's own stale rule (its manifest).
+        expr: >-
+          max by (source_id) (eurogas_source_freshness_seconds)
+          > on (source_id) max by (source_id) (eurogas_source_stale_after_seconds)
+        for: 10m
+        labels:
+          severity: warning
+          team: data
+        annotations:
+          summary: "Source {{ $labels.source_id }} is older than its freshness rule"
+          description: >-
+            {{ $labels.source_id }} last succeeded {{ $value | humanizeDuration }} ago, beyond
+            the stale threshold its definition sets. Screens built on it show stale data.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogassourcestale"
+
+      - alert: EurogasSourceFailing
+        expr: max by (source_id) (eurogas_source_consecutive_failures) >= 3
+        for: 5m
+        labels:
+          severity: warning
+          team: data
+        annotations:
+          summary: "Source {{ $labels.source_id }} failed {{ $value }} times in a row"
+          description: >-
+            The scheduler's last {{ $value }} attempts for {{ $labels.source_id }} failed.
+            The circuit opens and retries slow down after repeated failures.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogassourcefailing"
+
+      - alert: EurogasFeedLagging
+        # Newest receipt minus newest quote time, per price feed.
+        expr: max by (source_system) (eurogas_feed_receive_lag_seconds) > 30
+        for: 5m
+        labels:
+          severity: warning
+          team: data
+        annotations:
+          summary: "Price feed {{ $labels.source_system }} is {{ $value }} s behind the venue"
+          description: >-
+            Quotes from {{ $labels.source_system }} arrive more than 30 seconds after the venue
+            time. Live prices on the desk lag the screen.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasfeedlagging"
+
+  - name: eurogas-nexus-jobs
+    rules:
+      - alert: EurogasJobFailures
+        expr: max by (kind) (eurogas_jobs_finished_last_hour{status="FAILED"}) > 0
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "{{ $value }} {{ $labels.kind }} job(s) failed in the last hour"
+          description: >-
+            Jobs of kind {{ $labels.kind }} failed in the last hour (reports, optimisations,
+            backtests, ingestion). The Activity page lists them with their error codes.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasjobfailures"
+
+      - alert: EurogasMarketEventsBacklog
+        expr: max by (consumer) (eurogas_market_events_oldest_due_age_seconds) > 600
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Market-event consumer {{ $labels.consumer }} is over 10 minutes behind"
+          description: >-
+            The oldest event waiting for {{ $labels.consumer }} is
+            {{ $value | humanizeDuration }} old: re-evaluations and live notices lag.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasmarketeventsbacklog"
+
+  - name: eurogas-nexus-api
+    rules:
+      - alert: EurogasApiDown
+        expr: up{job="eurogas-nexus-api"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "Prometheus cannot scrape the API on {{ $labels.instance }}"
+          description: >-
+            The scrape of {{ $labels.instance }} fails: the API is down, unreachable from the
+            monitoring network, or the scrape token or allowed networks changed.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasapidown"
+
+      - alert: EurogasMetricsDatabaseUnavailable
+        expr: max by (instance) (eurogas_metrics_database_up) == 0
+        for: 5m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "The API on {{ $labels.instance }} cannot read the database"
+          description: >-
+            The metrics endpoint answered without database metrics: the database is down or
+            unreachable, or the API's connection pool cannot get a connection.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasmetricsdatabaseunavailable"
+
+      - alert: EurogasDbPoolNearlyExhausted
+        expr: >-
+          sum by (instance) (eurogas_db_pool_checked_out)
+          / sum by (instance) (eurogas_db_pool_size + eurogas_db_pool_overflow) > 0.9
+        for: 5m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Database pool on {{ $labels.instance }} is over 90 % in use"
+          description: >-
+            {{ $value | humanizePercentage }} of the API's database connections are checked
+            out. When none is left, requests wait and then fail with 503.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasdbpoolnearlyexhausted"
+
+      - alert: EurogasApiErrorRate
+        expr: >-
+          sum by (instance) (rate(eurogas_http_requests_total{status_class="5xx"}[5m]))
+          / sum by (instance) (rate(eurogas_http_requests_total[5m])) > 0.05
+        for: 10m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "More than 5 % of API requests on {{ $labels.instance }} fail"
+          description: >-
+            {{ $value | humanizePercentage }} of requests returned a server error over the
+            last 5 minutes.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasapierrorrate"
+
+      - alert: EurogasApiSlowP95
+        # The phase-1 budget: p95 under 1 s on the desk reads. Long-lived streams and the
+        # health probes are not requests a user waits for.
+        expr: >-
+          histogram_quantile(0.95, sum by (le, route_group) (
+            rate(eurogas_http_request_duration_seconds_bucket{route_group!~"/api/stream|/api/health"}[5m])
+          )) > 1
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "p95 latency of {{ $labels.route_group }} is above 1 s"
+          description: >-
+            95 % of {{ $labels.route_group }} requests take up to {{ $value }} s, above the
+            1-second budget.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasapislowp95"
+
+      - alert: EurogasMetricsCollectorFailing
+        expr: min by (collector) (eurogas_metrics_collector_up) == 0
+        for: 15m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "Metric collector {{ $labels.collector }} fails at every scrape"
+          description: >-
+            The {{ $labels.collector }} metrics are missing, so the alerts built on them
+            cannot fire.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasmetricscollectorfailing"

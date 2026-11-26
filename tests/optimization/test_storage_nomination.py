@@ -93,3 +93,38 @@ def test_nomination_rejects_negative_quantity_and_duplicate_windows() -> None:
     ]
     with pytest.raises(ValueError, match="duplicate window_id"):
         optimize_nomination_schedule(0.0, [], duplicate_windows)
+
+
+def _twh_facility() -> StorageFacility:
+    return StorageFacility(
+        initial_inventory_mwh=500_000.0,
+        minimum_inventory_mwh=0.0,
+        maximum_inventory_mwh=1_000_000.0,
+        maximum_injection_mwh=200_000.0,
+        maximum_withdrawal_mwh=200_000.0,
+    )
+
+
+def test_the_default_grid_scales_to_the_facility() -> None:
+    """Quant review 3.9: a 1 MWh default made a 1 TWh facility a 10^6-level grid."""
+
+    from eurogas_nexus.optimization.storage import default_inventory_step
+
+    assert default_inventory_step(_twh_facility()) == 5_000.0
+    periods = [StoragePeriod(f"m{index}", 30.0 + (5.0 if index % 2 else 0.0))
+               for index in range(12)]
+    result = optimize_storage_dispatch(_twh_facility(), periods)
+    assert result.status == "optimal" and result.objective_value_gbp > 0
+
+
+def test_a_grid_too_fine_or_too_many_periods_is_refused_with_the_bound() -> None:
+    with pytest.raises(ValueError, match=r"1,000,001 inventory levels; at most 1,000"):
+        optimize_storage_dispatch(_twh_facility(), [StoragePeriod("d", 30.0)],
+                                  inventory_step_mwh=1.0)
+    with pytest.raises(ValueError, match="at most 400 are computed"):
+        optimize_storage_dispatch(_twh_facility(),
+                                  [StoragePeriod(f"d{i}", 30.0) for i in range(401)])
+    with pytest.raises(ValueError, match="transitions"):
+        optimize_storage_dispatch(_twh_facility(),
+                                  [StoragePeriod(f"d{i}", 30.0) for i in range(30)],
+                                  inventory_step_mwh=2_000.0)

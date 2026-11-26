@@ -42,6 +42,7 @@ from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from typing import Any
 
 from eurogas_nexus.domain.ontology.notes import Note, declare, note
 
@@ -68,6 +69,11 @@ APPROVAL_HEDGED_OVER = declare(
 )
 APPROVAL_HEDGED_UNDER = declare(
     "APPROVAL_HEDGED_UNDER", "{at} hedged {pct}%, under the approved {limit}%"
+)
+APPROVAL_INDEXED_HEDGE_OPEN = declare(
+    "APPROVAL_INDEXED_HEDGE_OPEN",
+    "{at}: the contract is index-priced, so it has no flat-price exposure to hedge; "
+    "{mwh} MWh of linked trades is an open position",
 )
 
 WATCH_AT = 0.75
@@ -193,8 +199,15 @@ def credit_exposure(
     today: date,
     mark: Callable[[str, str], float | None],
     fx: Callable[[str, str], float | None],
+    valuation: Any = None,
 ) -> CreditExposure:
-    """Exposure to one counterparty. ``mark(hub, month)``; ``fx(from, to)`` multiplier."""
+    """Exposure to one counterparty. ``mark(hub, month)``; ``fx(from, to)`` multiplier.
+
+    With ``valuation`` (``domain.portfolio.mtm_valuation.ForwardValuation`` in the line's
+    currency) each month's replacement value is converted at the forward FX for the delivery
+    month and discounted to its payment date, as the ladder's mark-to-market (quant review
+    2026-11-26); receivables (gas already delivered) stay at the spot rate.
+    """
 
     result = CreditExposure(
         counterparty_id=line.counterparty_id,
@@ -215,7 +228,8 @@ def credit_exposure(
             result.unvalued_legs += 1
             continue
         valued = True
-        replacement = 0.0
+        replacement = 0.0  # in the leg's currency, converted at spot below
+        in_line = 0.0  # already in the line's currency (forward valuation)
         start = max(leg.first_gas_day, today)
         committed_last = leg.last_gas_day
         if leg.open_ended:
@@ -229,6 +243,16 @@ def credit_exposure(
                     break
                 volume = leg.mwh_per_day * days
                 result.remaining_mwh += abs(volume)
+                if valuation is not None:
+                    forward = valuation.fx(leg.currency, line.currency, month)
+                    if forward is None:
+                        valued = False
+                        break
+                    # Present value in the line's currency at the month's forward.
+                    in_line += (
+                        volume * (price - leg.price) * forward * valuation.discount(month)
+                    )
+                    continue
                 replacement += volume * (price - leg.price)
         receivable = 0.0
         if leg.mwh_per_day < 0:  # sold to the counterparty: delivered, unpaid gas
@@ -239,7 +263,7 @@ def credit_exposure(
         if not valued:
             result.unvalued_legs += 1
             continue
-        net_replacement += replacement * rate
+        net_replacement += replacement * rate + in_line
         result.receivable_exposure += receivable * rate
     result.replacement_exposure = max(0.0, net_replacement)
     expired = line.valid_until is not None and line.valid_until < today
@@ -269,6 +293,9 @@ class MandateLeg:
     instrument: str = ""  # physical, future, forward, swap, option
     #: The leg as a person names it; a breach names it by this, never by ``reference`` alone.
     label: str = ""
+    #: For a contract priced at a European hub index: the index's hub, which carries the
+    #: leg's flat-price exposure (``position_ladder.PositionLeg.index_hub``).
+    index_hub: str | None = None
 
 
 @dataclass(frozen=True)
@@ -429,10 +456,17 @@ def mandate_usage(
                 ),
             )
         months = _days_by_month(max(leg.first_gas_day, today), leg.last_gas_day)
+        # Net size and hedge cover are measured in flat-price exposure: an index-priced
+        # contract's exposure is on its index, equal and opposite to its volume.
+        index = leg.index_hub.upper() if leg.index_hub else None
         for month, days in months.items():
-            net[(hub, month)] += leg.mwh_per_day * days
+            mwh = leg.mwh_per_day * days
+            net[(hub, month)] += mwh
             side = physical if leg.kind == "physical" else financial
-            side[(hub, month)] += leg.mwh_per_day * days
+            side[(hub, month)] += mwh
+            if index:
+                net[(index, month)] -= mwh
+                side[(index, month)] -= mwh
             usage.furthest_month = max(usage.furthest_month, month)
     if net:
         (hub, month), value = max(net.items(), key=lambda item: abs(item[1]))
@@ -526,6 +560,8 @@ class VolumeLeg:
     first_gas_day: date
     last_gas_day: date
     mwh_per_day: float
+    #: Priced at a hub index: the volume has no flat-price exposure to hedge.
+    floating: bool = False
 
 
 def _monthly(legs: Iterable[VolumeLeg], today: date) -> dict[str, float]:
@@ -548,12 +584,17 @@ def deal_hedge_usage(
 ) -> dict:
     """How far each remaining month of a contract is hedged against its approved band.
 
-    The hedge ratio of a month is the linked trades' volume offsetting the contract's,
-    as a share of the contract's: selling forward 80 % of a long supply contract is 80 %.
-    A trade pointing the same way adds to the position and counts as negative cover.
+    The hedge ratio of a month is the linked trades' volume offsetting the contract's
+    flat-price exposure, as a share of it: selling forward 80 % of a long fixed-price supply
+    contract is 80 %. A trade pointing the same way adds to the position and counts as
+    negative cover. An index-priced contract (``VolumeLeg.floating``) has no flat-price
+    exposure: its months show the volume with ``price_exposure_mwh`` 0 and no ratio, and any
+    linked trade is an open position, said as a breach.
     """
 
+    physical = list(physical)
     supply = _monthly(physical, today)
+    exposed = _monthly([leg for leg in physical if not leg.floating], today)
     cover = _monthly(hedges, today)
     months = []
     breach_notes: list[Note] = []
@@ -562,12 +603,33 @@ def deal_hedge_usage(
         volume = supply[month]
         if abs(volume) < 1e-9:
             continue
-        pct = 100.0 * -cover.get(month, 0.0) / volume
-        room = None if high is None else high / 100.0 * abs(volume) - abs(cover.get(month, 0.0))
+        exposure = exposed.get(month, 0.0)
+        if abs(exposure) < 1e-9:
+            held = -cover.get(month, 0.0)
+            months.append(
+                {
+                    "month": month,
+                    "contract_mwh": round(volume, 1),
+                    "price_exposure_mwh": 0.0,
+                    "hedged_mwh": round(held, 1),
+                    "hedge_pct": None,
+                    "room_mwh": None,
+                }
+            )
+            if abs(held) > 1e-6:
+                breach_notes.append(
+                    note(APPROVAL_INDEXED_HEDGE_OPEN, at=month, mwh=f"{abs(held):,.0f}")
+                )
+            continue
+        pct = 100.0 * -cover.get(month, 0.0) / exposure
+        room = (
+            None if high is None else high / 100.0 * abs(exposure) - abs(cover.get(month, 0.0))
+        )
         months.append(
             {
                 "month": month,
                 "contract_mwh": round(volume, 1),
+                "price_exposure_mwh": round(exposure, 1),
                 "hedged_mwh": round(-cover.get(month, 0.0), 1),
                 "hedge_pct": round(pct, 1) + 0.0,  # + 0.0 turns -0.0 into 0.0
                 "room_mwh": None if room is None else round(room, 1),
@@ -583,7 +645,7 @@ def deal_hedge_usage(
             )
     breaches = [item.text for item in breach_notes]
     expired = approval.valid_until is not None and approval.valid_until < today
-    pcts = [row["hedge_pct"] for row in months]
+    pcts = [row["hedge_pct"] for row in months if row["hedge_pct"] is not None]
     return {
         "contract_id": approval.contract_id,
         "min_hedge_ratio_pct": low,

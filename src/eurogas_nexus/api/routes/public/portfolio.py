@@ -191,16 +191,14 @@ def get_position_ladder(
     currency other than the hub's mark are left unvalued.
     """
 
-    from datetime import UTC, datetime, timedelta
+    from datetime import UTC, datetime
 
     from eurogas_nexus.application.projections.daily_closes import in_native_unit
-    from eurogas_nexus.domain.portfolio.position_ladder import ladder_report
+    from eurogas_nexus.domain.portfolio.position_ladder import ladder_horizon, ladder_report
 
     today = datetime.now(UTC).date()
-    horizon_start = today
-    horizon_end = (today.replace(day=1) + timedelta(days=32 * months)).replace(day=1) - timedelta(
-        days=1
-    )
+    # The one horizon (``ladder_horizon``) Today's book and the reports read too.
+    horizon_start, horizon_end = ladder_horizon(today, months)
     if not _db_is_configured():
         return _env(
             {"rows": [], "warnings": ["RUNTIME_DB_NOT_CONFIGURED"]},
@@ -224,6 +222,9 @@ def get_position_ladder(
             "positions in those currencies are not valued."
         )
     tenor_shocks = _parse_tenor_shocks(shock)
+    # Quant review 2026-11-26: each month's value at the forward FX for its delivery month,
+    # discounted to its payment date (``domain.portfolio.mtm_valuation``).
+    valuation = inputs.valuation(reporting_currency, today)
     report = ladder_report(
         legs,
         horizon_start=horizon_start,
@@ -234,6 +235,8 @@ def get_position_ladder(
         reporting_currency=reporting_currency,
         tenor_shocks=tenor_shocks or None,
         today=today,
+        close_contracts_by_hub=inputs.close_contracts,
+        valuation=valuation,
     )
     if flat_months:
         warnings.append(
@@ -263,7 +266,16 @@ def get_position_ladder(
         {**point, "unit": f"{quote_currency(point['hub'])}/MWh"}
         for point in curve.as_dict()["points"]
     ]
+    if valuation is not None:
+        warnings += valuation.notes()
+    else:
+        warnings.append(
+            "Mark-to-market at the spot reference rate and undiscounted: no FX or benchmark "
+            "rates could be read."
+        )
     payload["horizon"] = {"start": horizon_start.isoformat(), "end": horizon_end.isoformat()}
+    # Which product and source each hub's VaR and freshness read (one series per hub).
+    payload["close_series"] = inputs.close_series
     payload["methods"] = _ladder_methods(payload, closes, today)
     payload["legs"] = {
         "physical": sum(1 for leg in legs if leg.kind == "physical"),
@@ -287,6 +299,7 @@ def get_position_ladder(
             horizon_end=horizon_end,
             marks=marks,
             fx_by_hub=fx_by_hub,
+            valuation=valuation,
         )
         payload["group_by"] = group_by
     if format != "json":

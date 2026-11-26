@@ -18,10 +18,18 @@ from eurogas_nexus.db.models import IdentityPrincipalRecord
 from eurogas_nexus.db.models.observation import AuditEventRecord
 
 SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "demo" / "start_public_demo.py"
+SEED_SCRIPT = Path(__file__).resolve().parents[2] / "scripts" / "demo" / "seed_demo_desk.py"
 
 
 def _load():
     spec = importlib.util.spec_from_file_location("start_public_demo", SCRIPT)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _seed_module():
+    spec = importlib.util.spec_from_file_location("seed_demo_desk_for_start", SEED_SCRIPT)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -137,6 +145,85 @@ def test_seed_marker_drives_seed_once_and_reset(session):
     start.record_seed(session, "2026-11-16", "reset token changed")
     session.commit()
     assert start.last_seed_token(session) in {"", "2026-11-16"}  # same-second ordering
+
+
+def test_a_second_start_completes_after_a_seed_failed_mid_clear(tmp_path, monkeypatch):
+    """A failed clear leaves the old seed marker; the next start re-seeds and completes.
+
+    The 2026-11-26 demo incident: the first DELETE outlived the pg8000 socket timeout, the
+    seed process exited, and the container restarted. Nothing is served between the failed
+    step and the FATAL exit, and the clear is idempotent, so the retry must complete.
+    """
+
+    from sqlalchemy import create_engine
+
+    from eurogas_nexus.db.base import Base
+    from eurogas_nexus.db.models import CreditLineRecord, MarketQuoteRecord
+    from eurogas_nexus.db.session import dispose_cached_engines, get_session_factory
+
+    start = _load()
+    seed = _seed_module()
+    url = f"sqlite+pysqlite:///{(tmp_path / 'demo.sqlite').as_posix()}"
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", url)
+    monkeypatch.setenv("EUROGAS_NEXUS_DEMO_RESET_TOKEN", "2026-11-26")
+    now = datetime(2026, 11, 7, 9, tzinfo=UTC)
+    engine = create_engine(url, future=True)
+    Base.metadata.create_all(engine)
+    try:
+        with Session(engine) as session:
+            # The successful earlier start (shorter history keeps the test quick) and its mark.
+            seed.seed(session, now, history_days=5)
+            start.record_seed(session, "2026-11-01", "empty store")
+            session.commit()
+
+        calls = {"seed": 0}
+
+        def fake_run_step(name, command):
+            if name != "demo desk seed":
+                return  # alembic/reference are not this test's subject
+            calls["seed"] += 1
+            if calls["seed"] == 1:
+                # What the timeout left behind: one committed batch of the clear, then exit.
+                with get_session_factory()() as session:
+                    ids = [
+                        row[0]
+                        for row in session.query(MarketQuoteRecord.quote_id)
+                        .filter(MarketQuoteRecord.source_system == seed.SOURCE)
+                        .order_by(MarketQuoteRecord.quote_id)
+                        .limit(25)
+                    ]
+                    session.query(MarketQuoteRecord).filter(
+                        MarketQuoteRecord.quote_id.in_(ids)
+                    ).delete(synchronize_session=False)
+                    session.commit()
+                raise start.StartupError("demo desk seed failed (exit 1); see the lines above")
+            with get_session_factory()() as session:
+                seed.seed(session, now, history_days=5)
+                seed.retire_simulated_series(session)
+                session.commit()
+
+        monkeypatch.setattr(start, "run_step", fake_run_step)
+
+        with pytest.raises(start.StartupError):
+            start.prepare_database()
+        with get_session_factory()() as session:
+            # The failed start recorded no new marker; the previous one still drives a re-seed.
+            assert start.last_seed_token(session) == "2026-11-01"
+            assert session.query(CreditLineRecord).count() == 3  # only quotes were cleared
+
+        start.prepare_database()  # the retry: idempotent clear, full seed, marker recorded
+        with get_session_factory()() as session:
+            assert start.last_seed_token(session) == "2026-11-26"
+            assert session.query(CreditLineRecord).count() == 3
+            assert (
+                session.query(MarketQuoteRecord)
+                .filter(MarketQuoteRecord.source_system == seed.SOURCE)
+                .count()
+                > 0
+            )
+    finally:
+        engine.dispose()
+        dispose_cached_engines()
 
 
 def test_catch_up_window_is_the_gap_since_the_last_good_round_bounded(session):
@@ -428,3 +515,16 @@ def test_a_partial_read_counts_as_the_steps_round_and_says_what_it_missed(monkey
     report["sources"]["gie_iip"]["inserted"] = 0
     report["sources"]["gie_iip"]["records"] = 0
     assert module.run_catch_up_step(step) is False
+
+
+def test_demo_runs_the_products_scheduler_by_default() -> None:
+    """P1-C: the demo showed "no heartbeat, 0/42 scheduled" because no scheduler ran there."""
+
+    import importlib
+
+    demo = importlib.import_module("scripts.demo.start_public_demo")
+    assert demo.demo_scheduler_enabled({}) is True
+    assert demo.demo_scheduler_enabled({"EUROGAS_NEXUS_DEMO_SCHEDULER": "off"}) is False
+    command = demo.scheduler_command()
+    assert command[1] == "scripts/ops/run_dataops_scheduler.py"
+    assert "--entsog-lookback-gas-days" in command

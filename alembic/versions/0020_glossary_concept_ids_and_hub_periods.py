@@ -8,6 +8,8 @@ revision = "0020_concept_ids_hub_periods"
 down_revision = "0019_ontology_slots_optimization"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

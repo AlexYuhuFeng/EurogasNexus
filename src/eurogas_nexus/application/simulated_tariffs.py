@@ -81,15 +81,25 @@ def _gas_year_start(today: date) -> date:
     return date(today.year if today.month >= 10 else today.year - 1, 10, 1)
 
 
+#: Short-term products the demo also publishes, at a multiplier on the yearly price within the
+#: NC TAR Art. 13 ranges (monthly 1-1.5, daily 1-3): a prompt spread is priced on them at the
+#: margin (quant review 2026-11-26). Invented, labelled simulated like the yearly rows.
+SIMULATED_PRODUCT_MULTIPLIERS: tuple[tuple[str, float], ...] = (
+    ("ANNUAL", 1.0), ("MONTHLY", 1.25), ("DAILY", 1.5),
+)
+
+
 def simulated_tariff_records(
     *, today: date, now: datetime, gas_year: str, source_ref: str
 ) -> list[dict[str, Any]]:
-    """``tso_tariffs`` rows for every simulated leg, in force from this gas year's start."""
+    """``tso_tariffs`` rows for every simulated leg and product, in force from this gas year's
+    start (the yearly row keeps its id; a short-term row's id names its product)."""
 
     start = datetime.combine(_gas_year_start(today), datetime.min.time(), tzinfo=UTC)
     return [
         {
-            "tariff_id": f"demo-sim-{tso}-{point}-{direction}".lower().replace(" ", "-"),
+            "tariff_id": f"demo-sim-{tso}-{point}-{direction}".lower().replace(" ", "-")
+            + ("" if product == "ANNUAL" else f"-{product.lower()}"),
             "document_id": SIMULATED_TARIFF_DOCUMENT,
             "country": country,
             "tso": tso,
@@ -98,9 +108,9 @@ def simulated_tariff_records(
             "point_id": point,
             "source_point_name": name,
             "direction": direction,
-            "capacity_product": "ANNUAL",
+            "capacity_product": product,
             "firmness": "FIRM",
-            "tariff_value": value,
+            "tariff_value": round(value * multiplier, 4),
             "currency": "EUR",
             "unit": "EUR/MWh",
             "effective_from": start,
@@ -113,6 +123,7 @@ def simulated_tariff_records(
             "created_at_utc": now,
         }
         for country, tso, point, name, direction, value in SIMULATED_TARIFF_LEGS
+        for product, multiplier in SIMULATED_PRODUCT_MULTIPLIERS
     ]
 
 

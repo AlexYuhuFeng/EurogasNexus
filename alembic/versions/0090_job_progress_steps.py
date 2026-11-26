@@ -21,6 +21,8 @@ revision = "0090_job_progress_steps"
 down_revision = "0089_alert_reader_state"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

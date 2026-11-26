@@ -69,6 +69,7 @@ def test_the_sentences_the_client_recognises_are_still_written() -> None:
         ),
         "application/position_inputs.py": (
             "price floats with ", "; volume only on the ladder",
+            "; volume on the ladder, its price exposure on that index",
             "an FOB cargo is not on a European hub until it is sold or ",
             "Marks are simulated prices, not market prices.",
             "cargo(es) on the ladder from their plans and recorded ",

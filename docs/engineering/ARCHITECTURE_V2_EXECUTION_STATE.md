@@ -21,6 +21,116 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
 - Open: PostgreSQL row-level security, WebAuthn, an approval screen in Admin, KMS/Vault, image
   digests for PostgreSQL and Caddy, a query outside a request still sees every book.
 
+## 2026-11-26 — Demo re-seed clear survives a feed-sized quote table (branch `seedfix`)
+
+- Cause: `_clear` deleted `market_quotes` in one statement. `get_engine` passes its
+  `connect_timeout_seconds` (5 s) to pg8000 as `timeout`, which pg8000 applies with
+  `settimeout` to the whole socket, so it bounds every statement rather than only the
+  connect. The continuous feed leaves the table feed-sized and `market_quotes` has no index
+  leading with `source_system` (the lookup index leads with `hub`), so the DELETE is a
+  sequential scan: 1,000,000 rows measured 0.73 s (Seq Scan, cost 0..35,756); at 5,000,000
+  rows the seed's own engine raised `TimeoutError: timed out` after exactly 5.0 s.
+- Fix: `_delete_in_batches` removes at most 5,000 rows per statement, commits per batch
+  and logs progress (PostgreSQL by `ctid`, SQLite by primary-key range); `_clear` uses it
+  for the quotes, prints/trades, market observations and the flow, storage, LNG, power, FX
+  and rate series, still filtering on the simulated source only. The seed holds
+  `SEED_CLEAR_LOCK` while clearing; the exchange feed checks it each loop and takes it in
+  shared mode around each write, so a feed from a previous start (or a re-seed of a serving
+  demo) pauses. The start already ran the seed before the feed. The FATAL exit is kept and
+  the seed marker is written only after success, so the next start re-seeds (test).
+- Measured on scratch PostgreSQL 16: a re-seed over 1,000,000 simulated quotes clears the
+  table in 15.5 s over 201 batches (each statement well inside the 2 s socket timeout the
+  test uses); the whole re-seed takes 26 s. With 200,000 quotes: 0.7 s clear, 12 s seed.
+- Tests: batching helper (SQLite), the retry after a failed clear, the feed/seed lock, and
+  `tests/integration/test_demo_seed_clear_postgres.py` (added to
+  `scripts/ci/run_postgres_ci.sh`). Two stale tariff expectations (34; the quantfix merge
+  made 34 legs x 3 capacity products) were corrected in the demo seed tests.
+
+## 2026-11-26 — Quant review fixes (branch `quantfix`)
+
+- Confirmed errors of the quant review fixed, each with a failing test first: VaR on one
+  product and one source per hub (no day-ahead filling month-ahead gaps), moves within one
+  contract (`domain/market/returns`, shared with the spread lab), 250-change minimum ("not
+  enough history" below); index-priced legs carry their flat-price exposure on the index
+  (`index_mwh`, `price_exposure_mwh`; `net_mwh` keeps its meaning) through hedge ratio, hedge
+  bands, mandates, tenor exposure, shocks and VaR; the forward curve from one snapshot per hub
+  (one as-of, settlements then the primary source, staleness per tenor, quoted-quarter shape,
+  no flat fill, basis and age per point); spread-lab day-ahead legs are a signal study and held
+  rolls pay costs; the strategy-lab run is labelled a signal study of decision-time margin;
+  prompt-spread transport at the marginal (daily/monthly) product plus commodity and fuel, the
+  yearly route kept as sunk capacity (demo tariffs gain simulated monthly/daily rows);
+  network flow tells infeasible from uneconomic; storage dispatch grid scaled and bounded;
+  MtM and credit replacement at forward FX per delivery month, discounted to the payment date;
+  Today and the ladder read one horizon (`ladder_horizon`) and one net position
+  (`net_position_by_hub`).
+- Demo (seeded 2026-11-26T09:00Z): ladder MtM 84,903,959 -> 83,842,383 EUR; VaR 8,685,763 ->
+  7,725,338 EUR (399 -> 386 scenarios); net 18,356,399 MWh, price exposure 17,908,000 MWh;
+  NBP Dec-26 hedge 39.7 % -> 45.5 %; NBP-TTF transport 1.80 -> 2.25 (MA, monthly) / 2.70 (DA,
+  daily) EUR/MWh with 1.80 sunk; Rhinmark replacement 19,377,360 -> 19,228,594 EUR.
+- Not built (plan work, `ARCHITECTURE_V3_PLAN.md`): storage extrinsic value, swing/ToP,
+  options, PFE, P&L attribution, power, the stored EOD ladder/VaR run.
+## 2026-11-26 — P1-C: observability, scheduler safety, gated upgrades (branch `p1-C`, not pushed)
+
+Plan v3 section 3.10 (and 3.2 for migrations), phase 1. Built:
+
+- **Metrics.** `GET /metrics` (plain Prometheus text) for a scrape token
+  (`EUROGAS_NEXUS_METRICS_SCRAPE_TOKEN`) and/or allowed networks
+  (`EUROGAS_NEXUS_METRICS_ALLOWED_NETWORKS`); 404 with neither, served outside the route table,
+  404 at both gateways. `prometheus_client` multi-process mode (`PROMETHEUS_MULTIPROC_DIR`,
+  tmpfs in the runtime compose): latency histograms and counters by route group, method and
+  status class; pool gauges and open streams summed over live workers. Database metrics at
+  scrape time with aggregates (the old exporter loaded all of `ingestion_runs` per scrape):
+  freshness aged by the clock against each source's stale rule, heartbeat age (+Inf when
+  never), jobs, feed lag, outbox lag. `/api/runtime/metrics` keeps its JSON for the UI.
+- **Logs and traces.** JSON lines (default in trial/release) with `request_id` and
+  `principal_id`, redaction, one access record per request (route template, no address or
+  query); Docker rotation in the runtime compose. OpenTelemetry seam, off by default.
+- **Alerts.** `deploy/monitoring/prometheus/`: 12 rules, promtool unit tests (stopped
+  scheduler fires), example scrape config; responses in `docs/operations/ALERT_RESPONSES.md`.
+- **Scheduler.** PostgreSQL advisory lock (standby exits 3 with `--once`, takes over when the
+  lock frees, notices a lost lock connection); heartbeat every 30 s while active. The demo's
+  "no heartbeat, 0/42 scheduled" was real, not only a display fault: no scheduler process ran on
+  the demo (its refresh loop called the ingest scripts directly), and the Runtime page counted
+  schedules in source rows that only a scheduler scan creates. The demo now starts the product
+  scheduler after its first catch-up (`EUROGAS_NEXUS_DEMO_SCHEDULER`, default on); the Runtime
+  row reads the heartbeat (not running / stopped / the scheduler's own count and age).
+- **Gated upgrades.** `scripts/ops/upgrade_database.py` (plan, check, upgrade, record-backup,
+  on-start): backup marker within 24 h or an audited override; `lock_timeout` 10s and
+  `statement_timeout` 1h in `alembic/env.py`; pending revisions with their reversibility;
+  `database.upgrade` audit rows. Release compose `migrate` only checks; development and demo
+  auto-upgrade through the same command (`EUROGAS_NEXUS_AUTO_MIGRATE`, ignored in trial and
+  release). All 94 migrations declare `reversibility` (scripted,
+  `scripts/dev/declare_migration_reversibility.py`); contract test for the declaration and for
+  non-blocking index builds on large tables after 0094 (seven older blocking builds listed).
+
+Decisions (P1-C):
+
+1. **P1-C-1 `prometheus-client` added** (Apache-2.0 AND BSD-2-Clause, no dependencies; the gate
+   passes). Locks updated with `uv pip compile` without `--upgrade`: only this pin moved.
+2. **P1-C-2 `/metrics` outside the route table** (an outermost ASGI middleware), so the sign-in,
+   permission and CSRF dependencies a scraper cannot satisfy are not bypassed per route, and
+   the endpoint is not public API surface. Network binding is by allowed ranges, not a second
+   listener (a second port cannot be shared by N workers).
+3. **P1-C-3 OpenTelemetry not added to the locks.** Its licences pass the gate, but SDK plus
+   OTLP exporter add about a dozen packages to every install for a setting that is off by
+   default; the seam activates when a deployment installs them (MONITORING.md, Tracing).
+4. **P1-C-4 Advisory lock, not a lease row**: no migration, released by PostgreSQL when the
+   holder dies. SQLite (single process) uses a no-op lease.
+5. **P1-C-5 Backup marker is an audit event** (`database.backup.recorded`), not a file: it
+   lives in the database the upgrade runs against, works for pgBackRest or managed snapshots
+   (`record-backup`), and auditors see it.
+6. **P1-C-6 Auto-migrate refused in trial and release even when set**: plan 3.10 says never on
+   start in production.
+7. **P1-C-7 Job and failure alerts read last-hour gauges, not all-time counters**: pruning
+   `job_records` would read as a counter reset and fire a false alert.
+8. **P1-C-8 `create_index_nonblocking` ends a leftover transaction** in Alembic's autocommit
+   block: under pg8000 Alembic's isolation-level read opens one, and `CONCURRENTLY` then fails.
+
+No migration added; `DB_SCHEMA_REVISION` unchanged (0094). Verified on PostgreSQL 16
+(scratch container): lock and takeover, upgrade gate, lock-timeout rollback, concurrent
+index; end-to-end: 2 uvicorn workers summed in one scrape, a real Prometheus scraping with
+the token, EurogasSchedulerHeartbeatMissing firing and clearing when a heartbeat started.
+
 ## 2026-11-26 — Architecture plan version 3 proposed (branch `archplan`, docs only, not pushed)
 
 - Seven professional reviews (front office, middle and back office, technology, multinational,

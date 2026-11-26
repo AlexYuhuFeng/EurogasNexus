@@ -336,6 +336,9 @@ def evaluate_strategy_lab(scenario: StrategyLabScenario) -> StrategyLabResult:
         warnings.append("NO_POSITIVE_STRATEGY_ALLOCATION_TARGET")
 
     # 纸面 PnL：目标量 × 预期边际之和（纯纸面，不触发任何执行）。
+    # The paper P&L is the margin at the decision's own reference price: known when the
+    # decision is made, not realised against any later price. A run over history is therefore
+    # a signal study of the decision-time margin (``backtest.contracts.STRATEGY_LAB_*``).
     paper_pnl_gbp = round(
         sum(
             (target.expected_margin_gbp_mwh or 0.0) * target.target_quantity_mwh_per_day

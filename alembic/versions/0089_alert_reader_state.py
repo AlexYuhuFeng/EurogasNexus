@@ -15,6 +15,8 @@ revision = "0089_alert_reader_state"
 down_revision = "0087_lng4_options_demurrage"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

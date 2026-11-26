@@ -34,6 +34,12 @@ revision = "0091_hub_one_identity"
 down_revision = "0090_job_progress_steps"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "no-op"
+reversibility_note = (
+    'Data correction: which rows were written GTF or VTP is not kept, and the previous code '
+    'reads the hub codes the rows now carry.'
+)
 
 #: A hub's other name -> its registry code (frozen here: a migration does not read the model).
 RENAMED = {"GTF": "ETF", "GASPOINT": "ETF", "VTP": "CEGH"}

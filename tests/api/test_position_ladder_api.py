@@ -166,7 +166,12 @@ def test_ladder_combines_physical_supply_and_financial_hedge(tmp_path, monkeypat
     assert row["hedge_ratio"] is not None and 0 < row["hedge_ratio"] < 1
     assert data["legs"] == {"physical": 1, "financial": 1, "cargoes": 0}
     assert data["mark_to_market"] is not None
-    assert data["var_95_1d"] is not None and data["var_95_1d"] > 0
+    # 29 one-day changes are not enough for a 95 % VaR: it says so instead of a number.
+    assert data["var_95_1d"] is None and data["var_observations"] == 29
+    assert any(
+        "not enough history" in w for w in response.json()["meta"]["warnings"]
+    )
+    assert data["close_series"]["NBP"]["tenor"] == "month-ahead"
     assert any(
         "Not a substitute for the risk system" in w for w in response.json()["meta"]["warnings"]
     )

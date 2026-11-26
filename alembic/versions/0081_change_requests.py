@@ -18,6 +18,8 @@ revision = "0081_change_requests"
 down_revision = "0080_lng_eta_basis"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 PROVENANCE_TABLES = (
     "credit_lines",

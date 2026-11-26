@@ -37,10 +37,37 @@ def is_simulated_marks_warning(text: str) -> bool:
 
 #: Endings of the notes that say how a contract is shown on the ladder (a floating price, an
 #: FOB cargo off the hubs): normal method, not a problem with the book.
+#: How an index-priced contract is shown: its volume, with its flat-price exposure on the index.
+INDEXED_NOTE_ENDING = "; volume on the ladder, its price exposure on that index"
+
 METHOD_NOTE_ENDINGS = (
     "; volume only on the ladder",
+    INDEXED_NOTE_ENDING,
     ": an FOB cargo is not on a European hub until it is sold or discharged",
 )
+
+
+def index_exposure(basis: dict, hub: str, eur_rates: dict[str, float]):
+    """``(index hub, differential in the hub's currency)`` of an index-priced contract.
+
+    The index hub is the European gas hub the index names (``TTF month-ahead`` -> TTF);
+    ``(None, None)`` for a formula or an index that is not a European hub price (Henry Hub,
+    Brent, JKM), whose flat-price exposure stays at the delivery hub. The differential is
+    ``None`` when it cannot be put in the hub's currency (the leg is then not valued).
+    """
+
+    if basis.get("basis") != "index" or not basis.get("index"):
+        return None, None
+    index_hub = resolve_hub(str(basis["index"])).hub
+    if index_hub is None or index_hub not in HUB_CURRENCY:
+        return None, None
+    differential, _warning = contract_price_in_hub_currency(
+        float(basis.get("differential_mwh") or 0.0),
+        basis.get("currency") or HUB_CURRENCY.get(hub, "EUR"),
+        HUB_CURRENCY.get(hub),
+        eur_rates,
+    )
+    return index_hub, differential
 
 
 def is_method_note(text: str) -> bool:
@@ -49,14 +76,112 @@ def is_method_note(text: str) -> bool:
     return text.endswith(METHOD_NOTE_ENDINGS)
 
 
-def curve_quotes(who: Any, date_from, date_to) -> list:
-    """Latest entitled, non-simulated quote per hub and delivery window, for the curve.
+#: Curve snapshot (quant review 2026-11-26): how much older than the hub's curve as-of a quote
+#: may be, per tenor, in calendar days (a Friday close still prices Monday's months).
+CURVE_STALENESS_DAYS = {"month": 3, "quarter": 3, "season": 5, "year": 7}
+#: Price types that are not a price on their own: one side of the market.
+ONE_SIDED_PRICE_TYPES = frozenset({"bid", "ask", "offer"})
+
+
+def _curve_tenor(days: int) -> str | None:
+    """The staleness class of a delivery window: month (or balance of month), quarter, ..."""
+
+    if days <= 2:
+        return None  # day-ahead and weekend: never on the forward curve
+    if days <= 31:
+        return "month"
+    if days <= 92:
+        return "quarter"
+    if days <= 184:
+        return "season"
+    return "year"
+
+
+def curve_snapshot(rows: list[dict]) -> tuple[list, list[str]]:
+    """One consistent snapshot of quotes per hub for the forward curve, and what it left out.
+
+    ``rows`` are entitled quotes in the hub's currency per MWh (``hub``, ``label``, ``first``,
+    ``end``, ``price``, ``source_system``, ``observed_at``, ``settlement``, ``price_type``),
+    time-ordered. The rule, per hub:
+
+    - **as-of**: the newest trade date among the hub's usable quotes;
+    - **price type**: a settlement or a mid/last/close price; a bid or an ask alone is not a
+      price and is left out;
+    - **products**: day-ahead and weekend windows are not curve products and are left out;
+    - **source precedence**, per delivery window: settlements before other quotes; then the
+      hub's primary source (the one quoting the most windows on the as-of day), then the
+      others by name; then the newest;
+    - **staleness**: a quote older than its tenor's limit (``CURVE_STALENESS_DAYS``) against
+      the as-of is left out, so a nine-day-old quarter never meets today's month.
+    """
+
+    from collections import Counter
+    from datetime import timedelta
+
+    from eurogas_nexus.domain.market.forward_curve import CurveQuote
+
+    usable: dict[str, list[dict]] = {}
+    for row in rows:
+        if str(row.get("price_type") or "").lower() in ONE_SIDED_PRICE_TYPES:
+            continue
+        first, end = row["first"], row["end"]
+        if first.day == 1 and 28 <= (end - first).days <= 31:
+            end = (first.replace(day=28) + timedelta(days=4)).replace(day=1)
+        tenor = _curve_tenor((end - first).days)
+        if tenor is None:
+            continue
+        usable.setdefault(row["hub"], []).append(
+            {**row, "end": end, "tenor": tenor, "day": row["observed_at"].date()}
+        )
+    quotes, left_out = [], []
+    for hub, hub_rows in sorted(usable.items()):
+        as_of = max(row["day"] for row in hub_rows)
+        on_day = Counter(
+            row["source_system"] for row in hub_rows if row["day"] == as_of
+        )
+        primary = max(sorted(on_day), key=lambda source: on_day[source])
+        stale: set[tuple] = set()
+        chosen: dict[tuple, dict] = {}
+        for row in hub_rows:
+            if (as_of - row["day"]).days > CURVE_STALENESS_DAYS[row["tenor"]]:
+                stale.add((row["first"], row["end"]))
+                continue
+            rank = (
+                bool(row.get("settlement")),
+                row["source_system"] == primary,
+                _desc(row["source_system"]),
+                row["observed_at"],
+            )
+            key = (row["first"], row["end"])
+            if key not in chosen or rank > chosen[key]["_rank"]:
+                chosen[key] = {**row, "_rank": rank}
+        # A window with a quote in date is priced, not left out; a window whose delivery has
+        # begun (yesterday's balance of month) is superseded, not missing.
+        stale = {key for key in stale - set(chosen) if key[0] > as_of}
+        if stale:
+            left_out.append(
+                f"{hub}: {len(stale)} product(s) quoted only longer ago than their tenor allows "
+                f"against the curve's as-of {as_of.isoformat()}; left out of the curve"
+            )
+        quotes.extend(
+            CurveQuote(
+                hub, first, end, row["price"], label=row["label"],
+                reference=row["source_system"], as_of=row["day"],
+            )
+            for (first, end), row in sorted(chosen.items())
+        )
+    return quotes, left_out
+
+
+def curve_quotes(who: Any, date_from, date_to, *, left_out: list | None = None) -> list:
+    """Entitled, non-simulated quotes for the curve, as one snapshot per hub (``curve_snapshot``).
 
     Only quotes in the hub's own currency are used (NBP in GBP, continental hubs in EUR),
     in that currency per MWh: a quote stored in pence per therm is converted through the
     unit authority (``domain.market.units``), never assumed.
     A window that starts on the 1st and lasts 28 to 31 days is read as that whole month,
-    so a month-ahead quote with a gas-day-aligned end prices its month.
+    so a month-ahead quote with a gas-day-aligned end prices its month. ``left_out``, when
+    given, receives the snapshot's sentences about the quotes it left out.
     """
 
     from datetime import UTC, datetime, time, timedelta
@@ -67,7 +192,6 @@ def curve_quotes(who: Any, date_from, date_to) -> list:
     from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
     from eurogas_nexus.db.models import MarketObservationRecord
     from eurogas_nexus.db.session import get_session_factory
-    from eurogas_nexus.domain.market.forward_curve import CurveQuote
 
     with get_session_factory()() as session:
         naive = session.get_bind().dialect.name == "sqlite"
@@ -116,6 +240,7 @@ def curve_quotes(who: Any, date_from, date_to) -> list:
         converted = per_mwh(float(record.price), _price_unit(record.currency, record.unit))
         if converted is None or converted[1].split("/")[0].upper() != HUB_CURRENCY.get(hub):
             continue
+        observed = record.observed_at_utc
         rows.append(
             {
                 "hub": hub,
@@ -124,20 +249,17 @@ def curve_quotes(who: Any, date_from, date_to) -> list:
                 "end": record.period_end_utc.date(),
                 "price": converted[0],
                 "source_system": record.source_system,
+                "observed_at": observed if observed.tzinfo else observed.replace(tzinfo=UTC),
+                "settlement": bool(metadata.get("settlement"))
+                or str(metadata.get("price_type") or "").lower() == "settlement",
+                "price_type": metadata.get("price_type") or metadata.get("side"),
             }
         )
-    latest: dict[tuple, dict] = {}
-    for row in filter_entitled_rows(caller_of(who).principal, rows, source_key="source_system"):
-        first, end = row["first"], row["end"]
-        if first.day == 1 and 28 <= (end - first).days <= 31:
-            end = (first.replace(day=28) + timedelta(days=4)).replace(day=1)
-        latest[(row["hub"], first, end)] = row  # ordered by time: the last one wins
-    return [
-        CurveQuote(
-            hub, first, end, row["price"], label=row["label"], reference=row["source_system"]
-        )
-        for (hub, first, end), row in latest.items()
-    ]
+    entitled = filter_entitled_rows(caller_of(who).principal, rows, source_key="source_system")
+    quotes, dropped = curve_snapshot(entitled)
+    if left_out is not None:
+        left_out.extend(dropped)
+    return quotes
 
 
 def hub_from_text(
@@ -287,7 +409,9 @@ def fx_by_hub_for(hubs, reporting_currency: str, eur_rates: dict[str, float]):
     return fx, missing
 
 
-def rollup(legs, books, level, *, horizon_start, horizon_end, marks, fx_by_hub) -> list[dict]:
+def rollup(
+    legs, books, level, *, horizon_start, horizon_end, marks, fx_by_hub, valuation=None
+) -> list[dict]:
     """Totals per group at ``level`` (firm, legal entity, region, business or book)."""
 
     from eurogas_nexus.domain.portfolio.books import group_key
@@ -301,12 +425,15 @@ def rollup(legs, books, level, *, horizon_start, horizon_end, marks, fx_by_hub) 
         rows = build_ladder(members, horizon_start=horizon_start, horizon_end=horizon_end)
         physical = sum(row.physical_mwh for row in rows)
         financial = sum(row.financial_mwh for row in rows)
+        # Flat-price exposure of the physical legs: index-priced contracts carry none.
+        physical_price = sum(row.physical_price_mwh for row in rows)
         value, _missing = mark_to_market(
             members,
             marks,
             horizon_start=horizon_start,
             horizon_end=horizon_end,
             fx_by_hub=fx_by_hub,
+            valuation=valuation,
         )
         rollup.append(
             {
@@ -315,7 +442,10 @@ def rollup(legs, books, level, *, horizon_start, horizon_end, marks, fx_by_hub) 
                 "physical_mwh": round(physical, 1),
                 "financial_mwh": round(financial, 1),
                 "net_mwh": round(physical + financial, 1),
-                "hedge_ratio": None if abs(physical) < 1e-9 else round(-financial / physical, 4),
+                "price_exposure_mwh": round(physical_price + financial, 1),
+                "hedge_ratio": None
+                if abs(physical_price) < 1e-9
+                else round(-financial / physical_price, 4),
                 "mark_to_market": None if value is None else round(value, 2),
                 "legs": len(members),
             }
@@ -471,6 +601,110 @@ class LadderInputs:
     simulated_skipped: int
     #: Per (hub, month) the resolved price behind the mark (``price_resolver.price_payload``).
     resolved: dict = field(default_factory=dict)
+    #: Per hub, per close day: the contract the close prices (first gas day, gas days), so a
+    #: move is taken within one contract (``domain.market.returns``).
+    close_contracts: dict = field(default_factory=dict)
+    #: Per hub: which product and source ``closes`` is (``HubCloseSeries.describe``).
+    close_series: dict = field(default_factory=dict)
+    #: Per hub: (day, price per MWh) of the latest day-ahead close (the spot price).
+    day_ahead: dict = field(default_factory=dict)
+    #: The FX reference rates, licensed forwards and benchmark fixings the caller may read
+    #: (``market_normalisation.load_holdings``), for a forward, discounted valuation.
+    fx_holdings: Any = None
+
+    def valuation(self, reporting_currency: str, as_of):
+        """Forward FX and discounting for a mark-to-market in ``reporting_currency``
+        (``domain.portfolio.mtm_valuation``); ``None`` when no FX facts could be read."""
+
+        from eurogas_nexus.domain.portfolio.mtm_valuation import ForwardValuation
+
+        if self.fx_holdings is None:
+            return None
+        return ForwardValuation(self.fx_holdings, reporting_currency.upper(), as_of)
+
+
+#: The product a hub's risk series is read from, in order of preference: the month-ahead
+#: series prices the forward months the ladder holds; day-ahead only where no month-ahead
+#: series is held, as one whole series, never day by day.
+RISK_SERIES_TENORS = ("month-ahead", "day-ahead")
+
+
+@dataclass
+class HubCloseSeries:
+    """One hub's daily closes for risk: one product (tenor) from one source."""
+
+    tenor: str
+    source_system: str
+    closes: dict = field(default_factory=dict)
+    contracts: dict = field(default_factory=dict)
+    as_of: Any = None
+    simulated: bool = False
+
+    def describe(self) -> dict[str, Any]:
+        return {
+            "tenor": self.tenor,
+            "source_system": self.source_system,
+            "closes": len(self.closes),
+            "first": min(self.closes).isoformat() if self.closes else None,
+            "last": max(self.closes).isoformat() if self.closes else None,
+        }
+
+
+def hub_close_series(rows) -> dict[str, HubCloseSeries]:
+    """Per hub, the daily close series VaR, freshness and the day P&L read: one product.
+
+    ``rows`` are ``daily_rows`` closes (time-ordered; the caller has already applied the
+    simulated-price policy). The product is the month-ahead series when the hub has one, else
+    its day-ahead series (``RISK_SERIES_TENORS``); the source is the one holding the most
+    closes of that product (a licensed source before a simulated one, then the newest close,
+    then the name), so two sources never overwrite each other day by day. A day that series
+    does not hold is missing: the VaR gap rule handles it. Each close carries the contract it
+    prices (first gas day, gas days delivered) for the roll rule.
+    """
+
+    from collections import defaultdict
+
+    grouped: dict[tuple[str, str, str], HubCloseSeries] = {}
+    for row in rows:
+        tenor = row.get("tenor")
+        if tenor not in RISK_SERIES_TENORS:
+            continue
+        key = (row["hub"], tenor, row["source_system"])
+        series = grouped.get(key)
+        if series is None:
+            series = grouped[key] = HubCloseSeries(tenor=tenor, source_system=key[2])
+        day = row["day"]
+        series.closes[day] = row["price_mwh"]  # time-ordered: the day's last close wins
+        start, end = row.get("period_start_utc"), row.get("period_end_utc")
+        if start is not None and end is not None:
+            series.contracts[day] = (
+                start.date().isoformat(),
+                max(1, round((end - start).total_seconds() / 86_400)),
+            )
+        else:
+            series.contracts.pop(day, None)
+        series.simulated = series.simulated or bool(row.get("simulated"))
+        if series.as_of is None or row["observed_at_utc"] >= series.as_of:
+            series.as_of = row["observed_at_utc"]
+    by_hub: dict[str, list[HubCloseSeries]] = defaultdict(list)
+    for (hub, _tenor, _source), series in grouped.items():
+        by_hub[hub].append(series)
+    chosen: dict[str, HubCloseSeries] = {}
+    for hub, candidates in by_hub.items():
+        tenor = next(
+            t for t in RISK_SERIES_TENORS if any(c.tenor == t for c in candidates)
+        )
+        chosen[hub] = max(
+            (c for c in candidates if c.tenor == tenor),
+            key=lambda c: (not c.simulated, len(c.closes), max(c.closes), _desc(c.source_system)),
+        )
+    return chosen
+
+
+def _desc(text: str) -> tuple[int, ...]:
+    """A key that orders names A before B under ``max``."""
+
+    return tuple(-ord(char) for char in text)
 
 
 def ladder_inputs(
@@ -486,7 +720,7 @@ def ladder_inputs(
     instant (default: now, or the end of ``today`` for a past day).
     """
 
-    from datetime import date, datetime, timedelta
+    from datetime import UTC, date, datetime, timedelta
 
     from eurogas_nexus.application.projections.daily_closes import daily_rows
     from eurogas_nexus.application.projections.portfolio_reads import screen_orders
@@ -557,17 +791,23 @@ def ladder_inputs(
             HUB_CURRENCY.get(hub),
             eur_rates,
         )
+        agreed_currency = (contract.contract_price_currency or "GBP").upper()
+        # A price agreed in another currency is converted at each month's forward when the
+        # valuation is forward (``mtm_valuation``); ``price`` holds it at spot for the rest.
+        foreign = agreed_currency != HUB_CURRENCY.get(hub)
         if price_warning:
             warnings.append(f"contract {contract.contract_id}: {price_warning}")
         basis = kinds.price_basis(contract.contract_kind, terms)
+        index_hub, differential = None, None
         if basis["basis"] in {"index", "formula"}:
-            # A floating price has no fixed figure to mark against: the volume is on the
-            # ladder, its price follows the index (or formula) it names.
+            # A floating price has no fixed figure to mark against. An index on a European
+            # hub carries the leg's flat-price exposure (quant review 2026-11-26): the volume
+            # is on the ladder, its price exposure on the index, valued on its premium.
             price = None
-            warnings.append(
-                f"contract {contract.contract_id}: price floats with "
-                f"{basis.get('index') or basis.get('label')}; volume only on the ladder"
-            )
+            index_hub, differential = index_exposure(basis, hub, eur_rates)
+            named = basis.get("index") or basis.get("label")
+            shown = INDEXED_NOTE_ENDING if index_hub else "; volume only on the ladder"
+            warnings.append(f"contract {contract.contract_id}: price floats with {named}{shown}")
         legs.append(
             PositionLeg(
                 kind="physical",
@@ -581,6 +821,11 @@ def ladder_inputs(
                 open_ended=(contract.gas_year or "").strip().endswith("+"),
                 source="contract",
                 label=contract.contract_name or contract.contract_id,
+                index_hub=index_hub,
+                index_differential=differential,
+                price_native=float(contract.contract_price_gbp_mwh)
+                if foreign and price is not None else None,
+                price_currency=agreed_currency if foreign and price is not None else None,
             )
         )
         if _cargo_of(terms):
@@ -611,6 +856,9 @@ def ladder_inputs(
                 last_gas_day=last,
                 mwh_per_day=sign * filled / days,
                 price=float(order.price) if currency_matches else None,
+                # A trade in another currency is valued only by a forward valuation.
+                price_native=None if currency_matches else float(order.price),
+                price_currency=None if currency_matches else (order.currency or "").upper(),
                 reference=order.order_observation_id,
                 book_id=order_books.get(order.order_observation_id, ""),
                 source="trade",
@@ -635,10 +883,9 @@ def ladder_inputs(
     ]
     legs += cargo
     warnings += cargo_warnings
-    closes: dict[str, dict] = {}
-    closes_as_of: dict[str, datetime] = {}
     simulated_skipped = 0
     demo_marks_used = demo_marks_allowed()
+    usable_rows = []
     for row in daily_rows(
         caller, today - timedelta(days=400), today, tenors=("month-ahead", "day-ahead")
     ):
@@ -651,40 +898,52 @@ def ladder_inputs(
                 simulated_skipped += 1
                 continue
             demo_marks_used = True
-        tenor = row["tenor"]
-        if tenor not in {"month-ahead", "day-ahead"}:
-            continue
-        # Prefer month-ahead closes; day-ahead fills hubs without a month-ahead series.
-        series = closes.setdefault(row["hub"], {})
-        if tenor == "month-ahead" or row["day"] not in series:
-            # Marks are money per MWh (positions are MWh): NBP's p/th through the authority.
-            series[row["day"]] = row["price_mwh"]
-            observed = closes_as_of.get(row["hub"])
-            if observed is None or row["observed_at_utc"] >= observed:
-                closes_as_of[row["hub"]] = row["observed_at_utc"]
+        usable_rows.append(row)
+    # One product from one source per hub (quant review 2026-11-26): a day the month-ahead
+    # series does not hold is a gap, never filled with a day-ahead close or another source's.
+    series_by_hub = hub_close_series(usable_rows)
+    closes = {hub: series.closes for hub, series in series_by_hub.items()}
+    close_contracts = {hub: series.contracts for hub, series in series_by_hub.items()}
+    closes_as_of = {hub: series.as_of for hub, series in series_by_hub.items()}
+    # The latest day-ahead close per hub: the spot price where a screen shows one, as the
+    # day-ahead product it is (never a month-ahead close called spot).
+    day_ahead: dict[str, tuple] = {}
+    for row in usable_rows:
+        if row.get("tenor") == "day-ahead":
+            held = day_ahead.get(row["hub"])
+            if held is None or row["observed_at_utc"] >= held[2]:
+                day_ahead[row["hub"]] = (row["day"], row["price_mwh"], row["observed_at_utc"])
+    for hub, series in sorted(series_by_hub.items()):
+        if series.tenor != "month-ahead":
+            warnings.append(
+                f"{hub}: no month-ahead history held; its day-ahead series stands in for the "
+                "forward months in VaR and the day P&L"
+            )
+    # One snapshot of quotes per hub (``curve_snapshot``); a month no quote prices is not
+    # available, never filled flat with the latest close (which can be a day-ahead price).
+    left_out: list[str] = []
     curve = build_forward_curve(
-        curve_quotes(caller, today - timedelta(days=CURVE_QUOTE_LOOKBACK_DAYS), today),
+        curve_quotes(
+            caller, today - timedelta(days=CURVE_QUOTE_LOOKBACK_DAYS), today, left_out=left_out
+        ),
         first_month=horizon_start,
+        last_month=horizon_end,
     )
+    curve.warnings.extend(left_out)
     marks = curve.marks()
-    mark_method = {(point.hub, point.month): point.method for point in curve.points}
-    flat_months = 0
-    for hub, series in closes.items():
-        if series:
-            latest = series[max(series)]
-            month = horizon_start
-            while month <= horizon_end:
-                key = (hub, f"{month.year:04d}-{month.month:02d}")
-                if key not in marks:
-                    marks[key] = latest
-                    mark_method[key] = "flat"
-                    flat_months += 1
-                month = (month.replace(day=1) + timedelta(days=32)).replace(day=1)
+    mark_method = {
+        (point.hub, point.month): point.method for point in curve.points if point.price is not None
+    }
+    # A curve month enters the resolver as of its snapshot's trade date, not the close's.
+    curve_as_of = {
+        hub: datetime.combine(day, datetime.min.time(), tzinfo=UTC)
+        for hub, day in curve.as_of.items()
+    }
     resolved, demo_resolved = _resolve_marks(
         caller,
         marks,
         mark_method,
-        closes_as_of,
+        {**closes_as_of, **curve_as_of},
         horizon_start=horizon_start,
         horizon_end=horizon_end,
         today=today,
@@ -699,7 +958,14 @@ def ladder_inputs(
             # desk, explain, alerts and reports find it with ``is_simulated_marks_warning``.
             SIMULATED_MARKS_WARNING
         )
+    try:
+        from eurogas_nexus.application.market_normalisation import load_holdings
+
+        fx_holdings = load_holdings(caller)
+    except Exception:  # noqa: BLE001 - the valuation then says it is spot and undiscounted
+        fx_holdings = None
     return LadderInputs(
+        fx_holdings=fx_holdings,
         legs=legs,
         warnings=warnings,
         books=books,
@@ -708,6 +974,9 @@ def ladder_inputs(
         marks=marks,
         mark_method=mark_method,
         closes=closes,
+        close_contracts=close_contracts,
+        day_ahead={hub: (day, price) for hub, (day, price, _at) in day_ahead.items()},
+        close_series={hub: series.describe() for hub, series in series_by_hub.items()},
         curve=curve,
         eur_rates=eur_rates,
         flat_months=flat_months,

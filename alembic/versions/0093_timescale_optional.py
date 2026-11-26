@@ -25,6 +25,12 @@ revision = "0093_timescale_optional"
 down_revision = "0092_lng_berth_rules"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "no-op"
+reversibility_note = (
+    'Converted hypertables stay hypertables; returning them to plain tables is an operator '
+    'task (docs/deployment/TIMESCALEDB.md), not a migration step.'
+)
 
 
 def upgrade() -> None:

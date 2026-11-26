@@ -143,9 +143,9 @@ the parent review; this file does not claim a live figure.
   change: `monitoring_service._source_failure_candidates` and
   `pipeline_health` still read the newest 500 persisted runs **globally**
   (per-source streaks are lower bounds when history exceeds the window), and
-  `application/dataops_observability.prometheus_metrics` still loads the full
-  persisted run table per scrape for exact unlabelled totals. Both are
-  documented limitations, not measurements; a bounded per-source streak query
+  `application/dataops_observability.prometheus_metrics` loaded the full
+  persisted run table per scrape (since 2026-11-26, P1-C, it reads grouped
+  aggregates instead). The first is a documented limitation, not measurements; a bounded per-source streak query
   or an indexed `COUNT(*)` for the failure counter would be the next
   optimisation candidates if profiling justifies them.
 

@@ -24,6 +24,8 @@ revision = "0086_lng_disruption"
 down_revision = "0084_news_items"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 _TS = sa.DateTime(timezone=True)
 

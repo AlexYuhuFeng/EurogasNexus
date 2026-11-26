@@ -582,7 +582,9 @@ def evaluate_daily(session: Session, record: StrategyTrackRecord,
     decided = int(last.get("signal", position)) if last else 0
     signal = {1: "long", -1: "short", 0: "flat"}[decided]
     previous = (record.snapshot or {}).get("signal")
-    pnl = round(sum(p["pnl"] for p in since), 2)
+    # A spread with a day-ahead leg is a signal study: its closes give no tradable P&L.
+    tradable = all(p.get("pnl") is not None for p in since)
+    pnl = round(sum(p["pnl"] for p in since), 2) if tradable else None
     snapshot = {
         "at": now.isoformat(), "signal": signal, "position": position,
         "trade_at": "next close" if (record.rule_json or {}).get("execution", "next_close")

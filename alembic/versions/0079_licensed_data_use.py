@@ -14,6 +14,8 @@ revision = "0079_licensed_data_use"
 down_revision = "0078_lng_cargo_hedges"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

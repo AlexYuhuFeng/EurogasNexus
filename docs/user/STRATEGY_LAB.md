@@ -24,7 +24,13 @@ have paid?*
    *t+1*, so there is no look-ahead. You get rule P&L, trades, hit rate, maximum
    drawdown, annualised Sharpe, three charts (spread, z-score, cumulative P&L) and
    the trades table. The analysis id is a hash of inputs and result, so the same
-   question gives the same answer.
+   question gives the same answer. Costs are charged on each position change and twice
+   on each contract roll a position is held through (out of the old month, into the new).
+   A spread with a **day-ahead leg is a signal study**: a day-ahead position delivers the
+   next gas day and settles against that day's within-day or cash-out price, which daily
+   closes do not hold, so the change between two day-ahead closes is not a P&L anyone
+   could earn. Its statistics, signals, positions and entry and exit levels are shown; its
+   money P&L is not (`metrics.pnl_basis` = `not_computed_day_ahead_leg`).
 
 Why rules and not user code: a declared rule can be validated, reproduced, reviewed
 by risk and explained to a trader in one sentence; arbitrary code in a shared server
@@ -40,8 +46,14 @@ rule worth keeping back as a Design version so it is frozen, backtested and shad
    BLOCKER before saving.
 2. **Freeze**: freezing makes the version immutable. To change it, fork a new
    draft; you cannot edit a frozen version.
-3. **Backtest**: configure period and policies, run the evaluation, and
-   inspect PnL, drawdown, events, attribution, provenance, and data quality.
+3. **Signal study over history** (the "backtest" run): configure period and policies, run
+   the evaluation, and inspect the decision-time margin, drawdown, events, attribution,
+   provenance, and data quality. The margin is the reference price *at the decision* less
+   the resource cost: it is known when the decision is made and is not realised against
+   any later price, so the run is a signal study, not a backtest of P&L
+   (`evaluation_kind` = `signal_study`, `pnl_basis` = `decision_time_margin`). Realising
+   it against the next tradable price needs fills or a price after the decision for the
+   allocated volume, which the evidence does not hold.
 4. **Compare**: select two or more runs and read the compatibility
    classification and caveats.
 5. **Shadow**: start monitoring on a frozen version with an explicit baseline.

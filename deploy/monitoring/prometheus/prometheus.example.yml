@@ -1,0 +1,33 @@
+# Example Prometheus configuration for Eurogas Nexus (adapt to your monitoring stack).
+# Guide: docs/operations/MONITORING.md
+#
+# The API serves GET /metrics on its own port (8000 in the runtime compose file) to the
+# scraper only: with a bearer token (EUROGAS_NEXUS_METRICS_SCRAPE_TOKEN), from an allowed
+# network (EUROGAS_NEXUS_METRICS_ALLOWED_NETWORKS), or both. Scrape each API server
+# directly on the internal network, never through the public HTTPS gateway (which answers
+# /metrics with 404).
+
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+rule_files:
+  - /etc/prometheus/rules/eurogas-nexus-alerts.yml
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ["alertmanager:9093"]
+
+scrape_configs:
+  - job_name: eurogas-nexus-api
+    metrics_path: /metrics
+    scheme: http
+    authorization:
+      type: Bearer
+      # A file holding only the token, readable by Prometheus alone.
+      credentials_file: /etc/prometheus/secrets/eurogas-nexus-scrape-token
+    static_configs:
+      - targets:
+          - "api-1.internal.example:8000"
+          # - "api-2.internal.example:8000"

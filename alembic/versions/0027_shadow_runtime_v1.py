@@ -14,6 +14,8 @@ revision: str = "0027_shadow_runtime_v1"
 down_revision: str | None = "0026_backtest_engine_v1"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def _shadow_monitors() -> None:

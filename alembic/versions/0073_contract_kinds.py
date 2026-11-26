@@ -15,6 +15,8 @@ revision = "0073_contract_kinds"
 down_revision = "0072_strategy_tracks_and_trades"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 TABLE = "upstream_resource_contracts"
 

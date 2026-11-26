@@ -135,14 +135,13 @@ No existing file was modified by this task. The only new files are the two above
 ### FF7-G1 — `application` imports `api` (reverse edge)
 
 - Evidence: `src/eurogas_nexus/application/agents/research_handlers.py:184` imports
-  `eurogas_nexus.api.routes.public.research_data`;
-  `src/eurogas_nexus/application/dataops_observability.py:108` imports
-  `eurogas_nexus.api.middleware.observability`.
+  `eurogas_nexus.api.routes.public.research_data`. (The second edge,
+  `application/dataops_observability.py` importing `api.middleware.observability`, was removed
+  on 2026-11-26 by P1-C: both now use `application/process_metrics.py`.)
 - Effect: an application module depends on a transport module; the target direction is
   api → application, never the reverse.
-- Remediation: move `http_metric_lines` into an application/observability owner and pass the series
-  into the route; have the research handler depend on an application-level service instead of the
-  route module’s helper. Both modules are frozen as the only permitted exceptions in
+- Remediation: have the research handler depend on an application-level service instead of the
+  route module’s helper. The module is frozen as the only permitted exception in
   `tests/contract/test_architecture_v2_fitness.py`, so a new reverse edge fails immediately.
 
 ### FF7-G2 — `domain` imports `db`

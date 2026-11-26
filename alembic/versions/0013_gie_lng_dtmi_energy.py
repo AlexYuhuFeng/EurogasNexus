@@ -14,6 +14,8 @@ revision: str = "0013_gie_lng_dtmi_energy"
 down_revision: str | None = "0012_entsog_capacity"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:
