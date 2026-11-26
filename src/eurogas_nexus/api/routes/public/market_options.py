@@ -17,7 +17,12 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from eurogas_nexus.api.dependencies.row_entitlement import current_principal
-from eurogas_nexus.application.option_surface import metric_series, option_rows, summaries_by_day
+from eurogas_nexus.application.option_surface import (
+    OptionHistoryTooLarge,
+    metric_series,
+    option_rows,
+    summaries_by_day,
+)
 from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
 from eurogas_nexus.domain.market.units import HUB_NATIVE_PRICE_UNIT
 
@@ -69,6 +74,11 @@ def _entitled_rows(request: Request, hub: str, first: date, last: date) -> list[
 
         with get_session_factory()() as session:
             rows = option_rows(session, hubs=[hub], first=first, last=last)
+    except OptionHistoryTooLarge as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
     except SQLAlchemyError as exc:
         raise HTTPException(
             status_code=503,

@@ -1295,6 +1295,7 @@ def _option_evidence(
 
     from eurogas_nexus.application.option_surface import (
         OPTION_SERIES_METRICS,
+        OptionHistoryTooLarge,
         option_rows,
         summaries_by_day,
     )
@@ -1309,13 +1310,19 @@ def _option_evidence(
     systems = {definition.provider for definition in source_by_system.values()}
     first = history_start.date() if hasattr(history_start, "date") else history_start
     last = end.date() if hasattr(end, "date") else end
-    rows = option_rows(
-        session,
-        hubs={hub for _, hub, _ in wanted},
-        first=first,
-        last=last,
-        source_systems=systems,
-    )
+    try:
+        rows = option_rows(
+            session,
+            hubs={hub for _, hub, _ in wanted},
+            first=first,
+            last=last,
+            source_systems=systems,
+        )
+    except OptionHistoryTooLarge as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
     records: list[DatasetEvidenceRecord] = []
     sources: set[str] = set()
     for (hub, trade_day), summaries in summaries_by_day(rows).items():
