@@ -46,6 +46,12 @@ interface PortfolioDecisionModelParams {
   selectedResourceId: string | null;
   selectedRouteId: string | null;
   t: TFunction;
+  /**
+   * Whether a page that shows the pool's result is open (Position, Deals, Review). The
+   * automatic run is a heavy computation (`POST /api/route-cost/resource-pool/optimize`,
+   * counted against the per-person heavy quota): it runs only there, not on every page load.
+   */
+  autoOptimize?: boolean;
 }
 
 export function usePortfolioDecisionModel({
@@ -57,6 +63,7 @@ export function usePortfolioDecisionModel({
   selectedResourceId,
   selectedRouteId,
   t,
+  autoOptimize = true,
 }: PortfolioDecisionModelParams) {
   const lastAutoOptimizerSignatureRef = useRef<string | null>(null);
   const [strategyResultContextKey, setStrategyResultContextKey] = useState<string | null>(null);
@@ -411,6 +418,7 @@ export function usePortfolioDecisionModel({
     // identity's declared capability and the pool's inputs allow it. An identity the backend
     // refuses for commercial data is never sent a request on the user's behalf, so it never
     // logs a 403 for an action nobody chose.
+    if (!autoOptimize) return;
     if (!canRunPoolOptimizer || api.loading || resourcePoolOptimizationRequest === null) return;
     // The key the run is requested under, not the trading context alone: if this changes while
     // the run is in flight, the answer is committed with the old key and reads stale.
@@ -421,6 +429,7 @@ export function usePortfolioDecisionModel({
   }, [
     api.loading,
     api.optimizeResourcePool,
+    autoOptimize,
     autoOptimizerSignature,
     canRunPoolOptimizer,
     optimizerProvenanceKey,

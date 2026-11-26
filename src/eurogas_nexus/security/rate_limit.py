@@ -59,7 +59,16 @@ async def require_auth_rate_limit(request: Request) -> None:
 
 
 async def require_admin_rate_limit(request: Request) -> None:
-    key = f"admin:{request.client.host if request.client else 'unknown'}"
+    # Per person once signed in (the app's identity check runs first), per address before:
+    # behind a gateway every user shares the gateway's address, and one administrator
+    # browsing must not spend the others' allowance.
+    identity = getattr(request.state, "identity", None)
+    principal = getattr(identity, "principal_id", None)
+    key = (
+        f"admin:principal:{principal}"
+        if principal
+        else f"admin:{request.client.host if request.client else 'unknown'}"
+    )
     if not rate_limit(key, limit=120):
         raise HTTPException(
             status_code=429,
