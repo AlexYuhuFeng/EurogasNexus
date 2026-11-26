@@ -34,6 +34,7 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "answer.tag.lng": "an acronym",
   "app.title": "the product's own name",
   "capacity.view_lng": "an acronym",
+  "glossary.cat.lng": "an acronym",
   "chart.csv": "a file format's name",
   "contracts.kind.slope_price": "a price formula of figures and unit codes, no words",
   "evidence.utc": "a time-basis token, the same in both locales",
