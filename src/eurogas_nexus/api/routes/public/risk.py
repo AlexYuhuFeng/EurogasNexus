@@ -23,6 +23,7 @@ from eurogas_nexus.api.routes.public.portfolio_common import (
     sqlalchemy_error_type as _sqlalchemy_error_type,
 )
 from eurogas_nexus.application.warm_views import ViewSpec, not_json, warm_view
+from eurogas_nexus.domain.notices import Notice, notice
 from eurogas_nexus.domain.ontology.markets import quote_currency
 
 router = APIRouter(tags=["portfolio"])
@@ -887,7 +888,7 @@ def get_daily_balance(
     today = date.fromisoformat(gas_day_label(now))
     gas_days = [today + timedelta(days=offset) for offset in range(days)]
     inputs = ladder_inputs(request, today, today, gas_days[-1])
-    warnings = list(inputs.warnings)
+    warnings: list[str | Notice] = list(inputs.warnings)
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
         from eurogas_nexus.db.models import ContractDeliveryRecord
@@ -919,10 +920,11 @@ def get_daily_balance(
     allocated = sum(r.allocated_mwh or 0.0 for r in records if r.nominated_mwh is not None)
     ratio = allocated / nominated if nominated > 0 else 1.0
     if any(row["cash_out"].get("basis") == "missing" for row in rows):
-        warnings.append(
+        warnings.append(notice(
+            "no_cash_out_assumption",
             "No approved cash-out premium or discount for this hub's books: the cost is not "
-            "estimated on the days marked."
-        )
+            "estimated on the days marked.",
+        ))
     payload = {
         "hub": hub,
         "currency": quote_currency(hub),
@@ -1011,7 +1013,7 @@ def post_sell_down_plan(body: SellDownBody, request: Request) -> dict:
             status_code=422,
             detail={"code": "no_supply_at_hub", "message": f"No active supply contracts at {hub}."},
         )
-    warnings: list[str] = []
+    warnings: list[str | Notice] = []
     dcq = sum(float(c.delivery_quantity_mwh_per_day) for c in contracts)
     daily: dict = {}
     ratios = []
@@ -1033,10 +1035,11 @@ def post_sell_down_plan(body: SellDownBody, request: Request) -> dict:
         expected = dcq
         sigma = dcq * tolerance / 1.645  # the tolerance taken as a 90 % two-sided band
         basis = "contract nomination tolerance (no delivery history)"
-        warnings.append(
+        warnings.append(notice(
+            "no_delivery_history",
             "No delivery history for these contracts; the nomination tolerance stands in for "
-            "the measured volatility. Load allocations to sharpen the plan."
-        )
+            "the measured volatility. Load allocations to sharpen the plan.",
+        ))
     plan = plan_sell_down(
         SellDownInputs(
             expected_supply_mwh=expected,

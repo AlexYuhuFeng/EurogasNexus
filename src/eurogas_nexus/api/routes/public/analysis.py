@@ -26,6 +26,7 @@ from eurogas_nexus.domain.analysis import (
     business_logic_ontology,
 )
 from eurogas_nexus.domain.glossary import baseline_glossary_terms
+from eurogas_nexus.domain.notices import split_warnings
 from eurogas_nexus.llm import invoke_deepseek
 from eurogas_nexus.security.provider_keys import load_provider_api_key
 
@@ -1277,13 +1278,15 @@ def _env(
     source: str,
     warnings: list[str] | None = None,
 ) -> dict:
+    lines, notices = split_warnings(warnings or [])
     return {
         "data": data,
         "meta": {
             "research_only": True,
             "human_review_required": True,
             "source_references": [source],
-            "warnings": list(dict.fromkeys(warnings or [])),
+            "warnings": lines,
+            "notices": notices,
         },
     }
 

@@ -10,6 +10,7 @@ import type {
 import type { EvaluationDTO, InterpretationDTO, SpreadBoardDTO, StrategySpecDTO } from "./spreads";
 import type { PromptMarketDTO, StrategyTrackDTO } from "./strategyTracks";
 import type { ViewMetaDTO } from "@/app/data/viewFreshness";
+import type { ServerNotice } from "@/app/warningLabel";
 
 const DEFAULT_BROWSER_BASE = "/api";
 const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";
@@ -326,6 +327,9 @@ export interface ApiMeta {
    */
   source_references?: string[];
   warnings?: string[];
+  /** The same warnings as data, `{code, params, text}` (`domain/notices.py`): render these
+   * through `serverWarningText` when present. */
+  notices?: ServerNotice[];
   /**
    * Inputs the read needed and did not have - a missing runtime DB URL, a missing table. A surface
    * uses this to keep two statements apart: the read established nothing, and the read established
@@ -7722,6 +7726,8 @@ interface DisruptionResultDTO {
   costs: Record<string, number>;
   inputs: { input: string; source: string }[];
   warnings: string[];
+  /** The warnings as data (`domain/notices.py`), when the server sends them. */
+  notices?: ServerNotice[];
   timeline: DisruptionRunDTO[];
   advisory: string;
 }

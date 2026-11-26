@@ -34,7 +34,7 @@ import {
 } from "@/app/model/disruptionOptionsModel";
 import { formatAmount } from "@/app/time/valueFormat";
 import { Button, Field, Instant, PeriodPicker, Skeleton, StatusBadge, type StatusTone } from "@/components/ui";
-import { serverWarningText } from "@/app/warningLabel";
+import { serverNotices, serverWarningText, warningKey } from "@/app/warningLabel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -394,7 +394,7 @@ function OptionsBody({ data, fx, t, language, canChooseOptions, onChosen }: { da
         <section className="cargo-plan-section" aria-labelledby="cargo-options-warnings">
           <h3 id="cargo-options-warnings">{t("lng.cargo.options.warnings")}</h3>
           <ul className="cargo-option-notes">
-            {data.warnings.map((text) => <li key={text}>{serverWarningText(text, t)}</li>)}
+            {serverNotices(data).map((item) => <li key={warningKey(item)} title={warningKey(item)}>{serverWarningText(item, t)}</li>)}
           </ul>
         </section>
       )}

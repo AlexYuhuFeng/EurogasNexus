@@ -6,6 +6,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
 from eurogas_nexus.api.routes.public import observation_window
+from eurogas_nexus.domain.notices import split_warnings
 
 router = APIRouter(tags=["lng"])
 
@@ -20,6 +21,14 @@ def _env(data: object, _request: Request) -> dict:
             "warnings": ["Runtime DB is not configured; GIE ALSI data is unavailable."],
         },
     }
+
+
+def _with_notices(result: dict) -> dict:
+    """A result's own warnings as notices too (``domain/notices.py``), the English kept."""
+
+    if isinstance(result, dict) and isinstance(result.get("warnings"), list):
+        result["warnings"], result["notices"] = split_warnings(result["warnings"])
+    return result
 
 
 def _runtime_env(data: object) -> dict:
@@ -778,7 +787,7 @@ def cargo_disruption_options(
             result = disruption.disruption_options(session, cargo_id, fx=choice, fx_rows=rows)
         except CargoPlanError as exc:
             raise _plan_error(exc) from exc
-        return _runtime_env(result)
+        return _runtime_env(_with_notices(result))
 
 
 @router.get("/api/lng/cargoes/{cargo_id}/disruption-options/{option_id}")
@@ -819,7 +828,7 @@ def cargo_disruption_option(
             )
         except CargoPlanError as exc:
             raise _plan_error(exc) from exc
-        return _runtime_env(result)
+        return _runtime_env(_with_notices(result))
 
 
 @router.post("/api/lng/cargoes/{cargo_id}/disruption-options/{option_id}/choose")

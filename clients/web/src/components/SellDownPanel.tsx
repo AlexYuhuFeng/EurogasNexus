@@ -1,3 +1,4 @@
+import { serverNotices, serverWarningText, warningKey, type ServerNotice } from "@/app/warningLabel";
 import { useEffect, useState } from "react";
 
 import { api, type SellDownPlanDTO, type TodayKeyFiguresRowDTO } from "@/api/client";
@@ -30,7 +31,7 @@ export function SellDownPanel({ t }: { t: Translate }) {
   const [longDiscount, setLongDiscount] = useState("0.3");
   const [lot, setLot] = useState("24");
   const [plan, setPlan] = useState<SellDownPlanDTO | null>(null);
-  const [warnings, setWarnings] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<Array<string | ServerNotice>>([]);
   const [message, setMessage] = useState<string | null>(null);
   const currency = hub === "NBP" ? "GBP" : "EUR";
   const { i18n } = useTranslation();
@@ -83,7 +84,7 @@ export function SellDownPanel({ t }: { t: Translate }) {
     })
       .then((response) => {
         setPlan(response.data);
-        setWarnings(response.meta?.warnings ?? []);
+        setWarnings(serverNotices(response.meta));
       })
       .catch((caught: unknown) => setMessage(caught instanceof Error ? caught.message : String(caught)));
   };
@@ -131,7 +132,7 @@ export function SellDownPanel({ t }: { t: Translate }) {
           <ul className="panel-copy">{plan.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
         </div>
       )}
-      {warnings.length > 0 && <ul className="contract-intake-warnings">{warnings.map((w) => <li key={w}>{w}</li>)}</ul>}
+      {warnings.length > 0 && <ul className="contract-intake-warnings">{warnings.map((w) => <li key={warningKey(w)} title={warningKey(w)}>{serverWarningText(w, t)}</li>)}</ul>}
       {message && <p role="status">{message}</p>}
     </section>
   );
