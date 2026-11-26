@@ -30,6 +30,18 @@ tables:
 * ``lng_berth_calls``: other users' ships due at a terminal's berth (the line-up, where the
   firm holds it), so an option that takes the berth carries the knock-on it causes.
 
+Migration ``0091_lng_berth_rules`` (ADR Decision 37, addendum of 2026-11-26, the owner's berth
+priority and third-party demurrage decisions) adds:
+
+* ``lng_terminal_berth_rules``: a terminal's berth access rule where the firm records one (the
+  arrival window, where a late ship's laytime starts, whether a swap of berth turn needs the
+  terminal's approval), with its citation and basis (``terminal_code``, ``example`` or
+  ``assumption``); without a row the engine's default rule applies and says so;
+* on ``lng_berth_calls``: the company whose ship it is and its negotiated quote to give up its
+  berth turn (amount, currency, reference), one total. The call's own laytime, demurrage and
+  boil-off columns stay but are no longer read: another company's demurrage is never counted
+  in the book's P&L.
+
 Every figure here is the firm's own entry or import; nothing is a terminal's tariff copied
 into the product.
 """
@@ -259,9 +271,12 @@ class PipelineOutageLinkRecord(Base):
 
 
 class LngBerthCallRecord(Base):
-    """Another user's ship due at a terminal's berth (LNG-4), from the terminal's line-up as
-    the firm holds it. Its demurrage is in the currency the data states and is converted with
-    the reader's FX choice; a call without a rate is costed at boil-off only, said so."""
+    """Another company's ship due at a terminal's berth (LNG-4), from the terminal's line-up
+    as the firm holds it. It is an on-time slot holder: a late cargo of the book never
+    displaces it. Its laytime, demurrage and boil-off (LNG-4 columns) are kept as recorded but
+    not read since 2026-11-26: an option that takes its berth turn is a negotiated swap, costed
+    at the company's quote (``quote_amount`` in ``quote_currency``, converted with the reader's
+    FX choice), or pending when no quote is entered."""
 
     __tablename__ = "lng_berth_calls"
     __table_args__ = (Index("ix_lng_berth_calls_terminal", "terminal_name", "berth_gas_day"),)
@@ -275,5 +290,38 @@ class LngBerthCallRecord(Base):
     demurrage_rate_per_day: Mapped[float | None] = mapped_column(Float, nullable=True)
     demurrage_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
     boil_off_mwh_per_day: Mapped[float | None] = mapped_column(Float, nullable=True)
+    source_reference: Mapped[str] = mapped_column(String(160), nullable=False)
+    updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    #: 0091: the company whose ship it is, the party a swap of berth turn is negotiated with.
+    counterparty: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    #: 0091: its quote to give up its berth turn, one total (its demurrage and margin
+    #: together); ``None``: no quote entered, the swap's cost is pending.
+    quote_amount: Mapped[float | None] = mapped_column(Float, nullable=True)
+    quote_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    quote_reference: Mapped[str | None] = mapped_column(String(160), nullable=True)
+
+
+class LngTerminalBerthRuleRecord(Base):
+    """A terminal's berth access rule as the firm records it (0091). Without a row the engine's
+    default applies: a ship within its arrival window (one gas day from its slot's first gas
+    day) is berthed in turn, a late ship takes the next free gap without displacing on-time
+    slot holders and its laytime starts at berthing, and a swap of berth turn needs the
+    terminal's approval. ``basis`` says where a row comes from: ``terminal_code`` (the
+    terminal's access code, cited), ``example`` (illustrative, never a terminal's published
+    rule) or ``assumption`` (the desk's)."""
+
+    __tablename__ = "lng_terminal_berth_rules"
+
+    terminal_name: Mapped[str] = mapped_column(String(128), primary_key=True)
+    #: Gas days from a slot's first gas day within which an arriving ship is on time.
+    arrival_window_days: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: ``berthing`` or ``arrival``: where a late ship's laytime starts.
+    late_laytime_from: Mapped[str] = mapped_column(String(16), nullable=False)
+    swap_needs_terminal_approval: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    basis: Mapped[str] = mapped_column(String(16), nullable=False)
+    #: The clause or document the rule is read from.
+    citation: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    #: The rule as the code words it, where held.
+    rule_text: Mapped[str | None] = mapped_column(Text, nullable=True)
     source_reference: Mapped[str] = mapped_column(String(160), nullable=False)
     updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
