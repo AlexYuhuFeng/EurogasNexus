@@ -154,7 +154,11 @@ test("Norway and storage come from the Today read with their as-of and the week-
   const norway = await answerFor("Norway");
   assert.equal(norway.value, "4,388");
   assert.equal(norway.delta?.text, "−30");
-  assert.deepEqual(norway.lines[0], { key: "answer.vs_day", values: { day: "8 Nov" } });
+  // The day travels as an ISO date; answerText writes it in the reader's language.
+  assert.deepEqual(norway.lines[0], { key: "answer.vs_day", values: { day: "2026-11-08" } });
+  const harness = await loadApiStore();
+  const { answerText } = await harness.load<typeof import("../src/components/AnswerBar.tsx")>("/src/components/AnswerBar.tsx");
+  assert.equal(answerText(norway.lines[0], (key, values) => `${key}:${values?.day}`), "answer.vs_day:8 Nov");
   const storage = await answerFor("storage");
   assert.equal(storage.value, "72.6");
   const none = await answerFor("storage DE");

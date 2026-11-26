@@ -1834,7 +1834,7 @@
   "experience.mode.administration": "管理",
   "experience.inspector.title": "明细",
   "experience.inspector.empty": "选择一个对象以查看其明细、来源与限制。",
-  "experience.palette.keyboard_help": "Ctrl+K：命令 · ↑ ↓：选择 · Enter：打开 · Esc：关闭 · =：计算 · 问号：提问 · Tab：采用答案 · Ctrl+C：复制答案。Ctrl+Shift+1–6：市场、组合、策略、决策、系统、管理（文本编辑时不切换）。",
+  "experience.palette.keyboard_help": "Ctrl+K：命令 · ↑ ↓：选择 · Enter：打开 · Esc：关闭 · =：计算 · 问号：提问 · Tab：采用答案 · Ctrl+C：复制答案。Ctrl+Shift+1–6：交易台、交易项目、交易账簿、研究、帮助与设置、管理（文本编辑时不切换）。",
   "experience.palette.title": "命令",
   "experience.palette.placeholder": "搜索、计算、换算或提问",
   "experience.palette.empty": "没有匹配的命令。",
@@ -5937,5 +5937,6 @@
   "reports.section_desc.book_position": "按枢纽的当日净头寸及按交割月份的净头寸。",
   "reports.section_desc.book_pnl": "按枢纽的当日损益变化及最新指示性损益。",
   "reports.section_desc.book_limits": "额度使用率与剩余空间；超限与关注项优先。",
-  "reports.section_desc.book_contracts": "每份生效合同的交割点、气年、数量与价格。"
+  "reports.section_desc.book_contracts": "每份生效合同的交割点、气年、数量与价格。",
+  "answer.price.close_simulated": "收盘 {{day}} · 模拟价格"
 }
