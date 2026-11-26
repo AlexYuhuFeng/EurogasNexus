@@ -48,7 +48,11 @@ test("the flash is neutral, uses the duration token, and the dead green ticker r
 test("the grid keys the flash to row, column and instrument, and the board passes the tenor", () => {
   const grid = readFileSync(new URL("../src/components/ui/DataGrid.tsx", import.meta.url), "utf8");
   assert.match(grid, /identity=\{`\$\{rowId\}\|\$\{column\.id\}\|\$\{column\.flashIdentity\?\.\(row\) \?\? ""\}`\}/);
-  assert.match(grid, /<DirectionMark direction=\{state\.direction\} announce \/>/);
+  assert.match(grid, /<LiveValue watch=\{column\.value\?\.\(row\)\}/);
+  // The live value (shared with key figures) keeps the glyph's place before the first tick.
+  const live = readFileSync(new URL("../src/components/ui/LiveValue.tsx", import.meta.url), "utf8");
+  assert.match(live, /<DirectionMark direction=\{state\.direction\} announce \/>/);
+  assert.match(live, /data-direction="none" aria-hidden="true"/);
   const board = readFileSync(new URL("../src/components/MarketTerminal.tsx", import.meta.url), "utf8");
   assert.match(board, /flash: true,[\s\S]{0,200}flashIdentity: \(row\) => row\.tenor,/);
 });

@@ -151,6 +151,7 @@ function Figure({
   wide = false,
   converted,
   convertedMode,
+  live = false,
 }: {
   figure: TodayFigureDTO;
   label: ReactNode;
@@ -169,6 +170,8 @@ function Figure({
   /** The value in the reader's reporting currency / energy unit (design basis G3). */
   converted?: ConvertedText | null;
   convertedMode?: "hover" | "line";
+  /** Flash when the value moves (a price, a position: they update while Today is open). */
+  live?: boolean;
 }) {
   const words = stateWords(figure, nowMs, t);
   return (
@@ -190,6 +193,7 @@ function Figure({
         title={figure.source ?? undefined}
         converted={converted}
         convertedMode={convertedMode}
+        live={live ? { watch: figure.value, identity: `${figure.key}|${figure.unit}` } : undefined}
       />
     </div>
   );
@@ -222,7 +226,7 @@ function RowSection({ id, title, meta, actions, children }: { id: string; title:
 /** A net position: signed, native MWh/d first, the reader's energy unit on hover (G10). */
 function PositionFigure(props: { figure: TodayFigureDTO; label: ReactNode; t: Translate; nowMs: number; notes?: ReactNode }) {
   const converted = useConvertedQuantity({ value: props.figure.value, unit: props.figure.unit, simulated: props.figure.simulated });
-  return <Figure {...props} signed converted={converted} />;
+  return <Figure {...props} signed converted={converted} live />;
 }
 
 /** A day P&L in another currency than the reader reports in: the converted figure under it, at
@@ -250,6 +254,7 @@ function MarketFigure({ figure, t, nowMs, onInspect }: { figure: TodayMarketFigu
       t={t}
       nowMs={nowMs}
       size="md"
+      live
       delta={figure.day_change == null ? undefined : { text: formatChange(figure.day_change, figure.unit), value: figure.day_change }}
       detail={t("today.close_of", { day: shortDay(figure.close_day) })}
     />
@@ -492,6 +497,7 @@ function BookRow({ row, frontMonth, t, nowMs, keyFigures, language, onOpenLimits
         sortable: true,
         value: (hub) => hub.position_today.value,
         format: (value) => formatValue(value as number, "MWh/d", true),
+        flash: true,
       },
       {
         id: "front",
@@ -501,6 +507,7 @@ function BookRow({ row, frontMonth, t, nowMs, keyFigures, language, onOpenLimits
         sortable: true,
         value: (hub) => hub.position_front_month.value,
         format: (value) => formatValue(value as number, "MWh/d", true),
+        flash: true,
       },
       {
         id: "open",
@@ -510,6 +517,7 @@ function BookRow({ row, frontMonth, t, nowMs, keyFigures, language, onOpenLimits
         sortable: true,
         value: (hub) => hub.net_open_mwh,
         format: (value) => formatValue(value as number, "MWh", true),
+        flash: true,
       },
       {
         id: "mark",
@@ -523,6 +531,8 @@ function BookRow({ row, frontMonth, t, nowMs, keyFigures, language, onOpenLimits
               {formatValue(hub.mark.value, hub.mark.unit)} <small className="ds-grid-unit">{unitLabel(hub.mark.unit)}</small>
             </>
           ) : "–",
+        flash: true,
+        flashIdentity: (hub) => hub.mark?.unit ?? "",
         state: (hub) => stateCell(hub.mark, t, nowMs, pills),
         cellTitle: (hub) => (hub.mark?.as_of ? markTitle(hub.mark, labels, t) : undefined),
       },
@@ -542,6 +552,8 @@ function BookRow({ row, frontMonth, t, nowMs, keyFigures, language, onOpenLimits
             </>
           );
         },
+        flash: true,
+        flashIdentity: (hub) => ("empty" in hub.day_pnl_change ? "" : hub.day_pnl_change.unit),
         state: (hub) => (isEmptyEntry(hub.day_pnl_change) ? null : stateCell(hub.day_pnl_change as TodayFigureDTO, t, nowMs, pills)),
         cellAttributes: (hub) => ({ id: figureAnchorId(`pnl.day_change.${hub.hub}`) }),
       },
