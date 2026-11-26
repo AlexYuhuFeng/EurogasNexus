@@ -1,7 +1,8 @@
 {
   "permissions": {
-    "allow": [
+    "allow": [ 
       "Bash(scripts/dev/deepseek_implementer.sh:*)"
+      "Bash(scripts/dev/claude_implementer.sh:*)"
     ]
   }
 }
