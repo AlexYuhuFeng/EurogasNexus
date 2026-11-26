@@ -49,6 +49,7 @@ from eurogas_nexus.application.reports.lang import T, writing, zh
 from eurogas_nexus.application.reports.tokens import FONT, LIGHT
 
 PUBLICATION = "Eurogas Nexus · Gas Markets"
+PUBLICATION_ZH = "Eurogas Nexus · 天然气市场"
 SERIF = ('Charter, "Bitstream Charter", "Sitka Text", Cambria, Georgia, "Noto Serif", '
          '"DejaVu Serif", "Liberation Serif", "Times New Roman", "Songti SC", "SimSun", serif')
 DAGGER = "†"
@@ -383,11 +384,16 @@ def _css_string(text: str) -> str:
     return text.replace("\\", "\\\\").replace('"', '\\"')
 
 
+def _publication() -> str:
+    """The publication line in the report's language (a Chinese report reads Chinese throughout)."""
+    return PUBLICATION_ZH if zh() else PUBLICATION
+
+
 def _css(snapshot: dict) -> str:
     lang = _lang(snapshot)
     classification = (CLASSIFICATION_ZH if zh() else CLASSIFICATION).get(
         snapshot["audience"], T("INTERNAL", "内部"))
-    header = f"{PUBLICATION} · {snapshot['title']}"
+    header = f"{_publication()} · {snapshot['title']}"
     foot = _w(lang, "simulated_foot") if snapshot.get("simulated") else ""
     if lang == "en":
         page_of = '"Page " counter(page) " of " counter(pages)'
@@ -617,7 +623,7 @@ def _masthead(snapshot: dict) -> str:
     brand = mark_svg("colour", size=20, title=None)
     return (
         '<header class="r-masthead"><div><p class="r-brand">'
-        f'{brand}<span class="r-pub">{_e(PUBLICATION)}</span></p><div>{line}</div></div>'
+        f'{brand}<span class="r-pub">{_e(_publication())}</span></p><div>{line}</div></div>'
         f'<div class="r-mast-right"><div class="r-class">{_e(classification)}</div>'
         f"<div>{_e(issue_text)} · {_e(fmt_date(snapshot['as_of']))}{_e(span)}</div>"
         f"<div>{_w(lang, 'data_as_of')} {_e(fmt_datetime(snapshot['as_of']))} UTC{demo}</div>"
@@ -1192,7 +1198,8 @@ def _render_report(snapshot: dict) -> str:
     back = _back(snapshot, numbers, "".join(front + body)) + _annex(snapshot, numbers)
     title = snapshot["title"]
     demo_class = ' class="r-demo"' if snapshot.get("simulated") else ""
-    mark = ('<div class="r-mark" aria-hidden="true">Demonstration · simulated data</div>'
+    mark = ('<div class="r-mark" aria-hidden="true">'
+            f'{T("Demonstration · simulated data", "演示 · 模拟数据")}</div>'
             if snapshot.get("simulated") else "")
     html_lang = "zh-CN" if lang != "en" else "en"
     return (
