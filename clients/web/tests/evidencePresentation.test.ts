@@ -42,8 +42,9 @@ test("evidence-heavy workspaces use the shared block and explicit time basis", (
   assert.doesNotMatch(capacity, /selected\.sourceReference \?\? "ENTSOG"/);
   assert.match(review, /<EvidenceBlock/);
   assert.match(review, /displayTime\(value, value\)/);
-  assert.match(glossary, /t\("evidence\.time_basis"\)/);
-  assert.match(glossary, /t\("evidence\.utc"\)/);
+  // The glossary dates each figure itself, in the reader's zone, and reads one gas day.
+  assert.match(glossary, /<Instant value=\{figure\.asOf\} \/>/);
+  assert.match(glossary, /t\("glossary\.gas_day"\)/);
   assert.match(market, /displayTime\(value\)/);
   assert.match(runtime, /displayTime\(value\)/);
   assert.match(topbar, /<Instant value=\{marketLastUpdatedAtUtc\} \/>/);
