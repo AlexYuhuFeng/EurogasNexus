@@ -127,10 +127,13 @@ def cmd_ingestion_runs(base_url: str, *, source_id: str | None = None) -> list:
 
 # --- Market ---
 
-def cmd_market(base_url: str) -> list:
-    """List market observations."""
+def cmd_market(base_url: str, *, days: int = 7) -> list:
+    """List market observations of the last ``days`` days (the read is paged by range)."""
 
-    return fetch_market_observations(base_url)
+    from datetime import UTC, datetime, timedelta
+
+    since = (datetime.now(UTC) - timedelta(days=days)).isoformat()
+    return fetch_market_observations(base_url, from_utc=since)
 
 def cmd_fx(base_url: str) -> list:
     """List FX observations."""

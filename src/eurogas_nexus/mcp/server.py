@@ -183,9 +183,13 @@ def _tool_list_sources(arguments: dict[str, Any]) -> Any:
 
 
 def _tool_market_observations(arguments: dict[str, Any]) -> Any:
+    from datetime import UTC, datetime, timedelta
+
     from eurogas_nexus_sdk.market import fetch_market_observations
 
-    return fetch_market_observations(_base_url())
+    # The read is paged by range: the last seven days, not the whole table.
+    since = (datetime.now(UTC) - timedelta(days=7)).isoformat()
+    return fetch_market_observations(_base_url(), from_utc=since)
 
 
 def _tool_fx_rates(arguments: dict[str, Any]) -> Any:

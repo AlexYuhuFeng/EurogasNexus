@@ -56,3 +56,37 @@ def api_url(base_url: str, path: str) -> str:
     """Join an operator-provided server URL with one canonical `/api` path."""
 
     return f"{base_url.rstrip('/')}/api/{path.lstrip('/')}"
+
+
+class SdkPageLimitError(RuntimeError):
+    """A paged read had more pages than the caller allowed; narrow the range."""
+
+
+def get_pages(
+    url: str,
+    *,
+    params: dict[str, Any] | None = None,
+    max_pages: int = 100,
+    timeout_seconds: float = 10.0,
+) -> tuple[list[Any], ResponseMeta]:
+    """GET every page of a keyset-paged read (``meta.continuation``), in order.
+
+    Follows ``meta.continuation.cursor`` until ``has_more`` is false. Raises
+    :class:`SdkPageLimitError` rather than return part of the range when more than
+    ``max_pages`` pages would be needed. Returns the rows and the first page's meta.
+    """
+
+    rows: list[Any] = []
+    first_meta: ResponseMeta | None = None
+    query = dict(params or {})
+    for _page in range(max_pages):
+        data, meta = get_envelope(url, params=query, timeout_seconds=timeout_seconds)
+        first_meta = first_meta or meta
+        rows.extend(data)
+        continuation = (meta.model_extra or {}).get("continuation") or {}
+        if not continuation.get("has_more") or not continuation.get("cursor"):
+            return rows, first_meta
+        query = {**(params or {}), "cursor": continuation["cursor"]}
+    raise SdkPageLimitError(
+        f"more than {max_pages} pages; ask for a narrower from_utc/to_utc range"
+    )

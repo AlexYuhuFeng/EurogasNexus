@@ -71,7 +71,10 @@ def test_cmd_sources_returns_list(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_cmd_market_returns_list(monkeypatch: pytest.MonkeyPatch) -> None:
     from eurogas_nexus.cli.commands import cmd_market
 
-    def fake_fetch(base_url):
+    asked = {}
+
+    def fake_fetch(base_url, **kwargs):
+        asked.update(kwargs)
         return [MarketObservation(
             observation_id="m1", market_venue="TTF", product="month-ahead",
             price=42.5, unit="EUR/MWh", currency="EUR",
@@ -81,6 +84,8 @@ def test_cmd_market_returns_list(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("eurogas_nexus.cli.commands.fetch_market_observations", fake_fetch)
     result = cmd_market("http://localhost:8000")
     assert len(result) == 1
+    # A range, never the whole table (the read is paged by range).
+    assert asked["from_utc"]
 
 
 def test_cmd_flows_returns_list(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -151,10 +151,10 @@ answer whose `recoverability` is `retry`, and never retry a call that records so
 [Example 10](../../examples/sdk/10_errors_and_retries.py) has a small wrapper, and
 [Troubleshooting](../../docs/sdk/TROUBLESHOOTING.md) lists the error codes.
 
-List reads take an optional `limit` where the endpoint supports one; there is no offset or
-cursor paging. Some reads return the whole table (for example
-`market.fetch_market_observations`), so filter on the server where a function offers
-parameters.
+List reads take an optional `limit` where the endpoint supports one. Market observations and
+FX are paged by range (`meta.continuation`, 1,000 rows a page): `market.fetch_market_observations`
+takes `from_utc`/`to_utc` and `product`, reads every page of the range, and raises
+`SdkPageLimitError` rather than return part of it.
 
 ## Versions and compatibility
 

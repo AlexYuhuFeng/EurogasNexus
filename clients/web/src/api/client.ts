@@ -5790,7 +5790,18 @@ export const api = {
 
   sources: (options?: ApiRequestOptions) => get<SourceSystemWire[]>("/sources", undefined, options).then(normalizeSourcesResponse),
 
-  marketObservations: () => get<MarketObsDTO[]>("/market/observations"),
+  /**
+   * One page of observations, newest first (`meta.continuation` says whether more follow and
+   * carries the cursor). The read is paged by range: ask for the range you need.
+   */
+  marketObservations: (range: { from_utc: string; to_utc?: string; product?: string; cursor?: string; limit?: number }) =>
+    get<MarketObsDTO[]>("/market/observations", {
+      from_utc: range.from_utc,
+      ...(range.to_utc ? { to_utc: range.to_utc } : {}),
+      ...(range.product ? { product: range.product } : {}),
+      ...(range.cursor ? { cursor: range.cursor } : {}),
+      ...(range.limit ? { limit: String(range.limit) } : {}),
+    }),
 
   normalizedMarketObservations: (options?: ApiRequestOptions, limit = 500) =>
     get<NormalizedMarketObsDTO[]>("/market/normalized", { limit: String(limit) }, options),
@@ -5999,7 +6010,15 @@ export const api = {
 
   lngObservations: (options?: ApiRequestOptions) => get<LngObsDTO[]>("/lng/observations", undefined, options),
 
-  fxRates: (options?: ApiRequestOptions) => get<FxRateDTO[]>("/market/fx", undefined, options),
+  /** The last ten days of fixings (the latest per pair is what the screens show); the read is
+   * paged by range, so the whole history is never fetched. */
+  fxRates: (options?: ApiRequestOptions) =>
+    get<FxRateDTO[]>(
+      "/market/fx",
+      // A whole UTC day, so the address (and its conditional-read cache) holds for the day.
+      { from_utc: `${new Date(Date.now() - 10 * 86_400_000).toISOString().slice(0, 10)}T00:00:00Z` },
+      options,
+    ),
 
   credentialProviders: (options?: ApiRequestOptions) => get<CredentialProviderDTO[]>("/credentials/providers", undefined, options),
 
