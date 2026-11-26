@@ -159,6 +159,9 @@ Architecture V2 是绑定的目标架构与产品体验交互权威（ADR-0016�
 - [成本观测来源](operations/COST_OBSERVATION_SOURCES.md)
 
 - [数据库迁移](operations/DB_MIGRATIONS.md)
+- [数据库受控升级](operations/DATABASE_UPGRADE.md)
+- [监控：指标、告警、日志、追踪](operations/MONITORING.md)
+- [告警处置](operations/ALERT_RESPONSES.md)
 - [数据库运行加固](operations/DB_RUNTIME_HARDENING.md)
 - [备份与恢复](operations/BACKUP_RESTORE.md)
 - [SLO](operations/SLO.md)

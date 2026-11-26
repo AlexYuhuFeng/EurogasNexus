@@ -4,8 +4,9 @@ This directory is the committed server-runtime definition used by `Server` and
 `Server` deployments. Operators should use `Deploy-EurogasNexus.ps1`; they
 should not edit or invoke individual Compose services during normal install.
 
-Services: PostgreSQL 16, a one-shot configuration preflight, one-shot Alembic
-migration, a one-shot reference network seed (`reference-seed`: the shipped NWE network
+Services: PostgreSQL 16, a one-shot configuration preflight, a one-shot schema check
+(`migrate`: it never upgrades here; it stops the start when the database needs the gated
+upgrade, `docs/operations/DATABASE_UPGRADE.md`), a one-shot reference network seed (`reference-seed`: the shipped NWE network
 bundle, offline, skipped when a live ENTSOG read is present), FastAPI, Caddy HTTPS gateway and opt-in public ingestion tools.
 Simulation and preview seed services are absent from customer delivery.
 PostgreSQL and the API are loopback-bound;
@@ -60,3 +61,15 @@ installed image content are checked during build; container acceptance reruns
 digest. Local `.dnx*` working data is excluded from the Docker context.
 These content checks do not certify an existing database as simulation-free;
 customer data acceptance must inspect database provenance separately.
+
+## Upgrades and monitoring
+
+- **Database upgrades** are a gated operator step, never automatic in this stack:
+  `docker compose run --rm migrate python scripts/ops/upgrade_database.py upgrade --operator
+  "<name>"` after a recorded backup (`docs/operations/DATABASE_UPGRADE.md`).
+- **Metrics**: set `EUROGAS_NEXUS_METRICS_SCRAPE_TOKEN` and/or
+  `EUROGAS_NEXUS_METRICS_ALLOWED_NETWORKS` and scrape `http://<api>:8000/metrics` from the
+  monitoring network; the gateway answers `/metrics` with 404. Alert rules ship in
+  `deploy/monitoring/prometheus/` (`docs/operations/MONITORING.md`,
+  `docs/operations/ALERT_RESPONSES.md`).
+- **Logs** are JSON lines on standard output, rotated by Docker (5 x 20 MB per container).

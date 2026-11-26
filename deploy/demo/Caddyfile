@@ -4,5 +4,7 @@
 {$DEMO_SERVER_NAME}:443 {
     tls {$DEMO_TLS}
     encode gzip
+    # The metrics endpoint is scraped on the internal network, never through this gateway.
+    respond /metrics 404
     reverse_proxy demo:8080
 }

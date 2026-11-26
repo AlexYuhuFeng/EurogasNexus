@@ -1,4 +1,6 @@
 {$SERVER_NAME}:443 {
     tls /etc/caddy/tls/server.crt /etc/caddy/tls/server.key
+    # The metrics endpoint is scraped on the internal network, never through this gateway.
+    respond /metrics 404
     reverse_proxy api:8000
 }

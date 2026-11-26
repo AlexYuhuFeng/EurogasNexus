@@ -50,3 +50,15 @@ API wheel 排除可执行市场模拟器；镜像只复制
 `python scripts/release/verify_customer_artifact.py`。Docker 构建上下文排除本地
 `.dnx*` 工作数据。这些内容检查不证明已有数据库没有模拟行；客户数据验收
 仍需单独核查数据库来源信息。
+
+## 升级与监控
+
+- **数据库升级**是受控的运维步骤，本栈启动时绝不自动升级：登记备份后执行
+  `docker compose run --rm migrate python scripts/ops/upgrade_database.py upgrade --operator
+  "<姓名>"`（见 `docs/operations/DATABASE_UPGRADE.md`）。`migrate` 服务在本栈只做检查：
+  数据库需要升级时阻止 API 启动。
+- **指标**：设置 `EUROGAS_NEXUS_METRICS_SCRAPE_TOKEN` 和/或
+  `EUROGAS_NEXUS_METRICS_ALLOWED_NETWORKS`，从监控网络抓取 `http://<api>:8000/metrics`；
+  网关对 `/metrics` 返回 404。告警规则位于 `deploy/monitoring/prometheus/`
+  （见 `docs/operations/MONITORING.md`、`docs/operations/ALERT_RESPONSES.md`）。
+- **日志**为标准输出上的 JSON 行，由 Docker 轮转（每个容器 5 x 20 MB）。

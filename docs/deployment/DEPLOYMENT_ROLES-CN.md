@@ -124,7 +124,7 @@ Eurogas Nexus **不会静默下载或安装** Docker Desktop、WSL、PostgreSQL�
 2. 生成随机数据库密码和后端密钥；
 3. 将受限配置写入 `%ProgramData%\Eurogas Nexus`；
 4. 启动 PostgreSQL 并执行健康检查；
-5. 在一次性容器中显式执行 `alembic upgrade head`；
+5. 在一次性容器中执行受控数据库升级（`upgrade_database.py upgrade`：新库无需备份，已安装的库需要最近 24 小时内登记的备份；见 `docs/operations/DATABASE_UPGRADE.md`）；
 6. 启动 API 和 HTTPS 网关；
 7. 除非指定 `-SkipPublicData`，否则采集 ECB 和 ENTSOG；
 8. 验证 API、数据库连接和迁移版本。

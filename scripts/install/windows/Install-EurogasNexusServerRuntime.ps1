@@ -430,7 +430,15 @@ function Install-OrRepairRuntime {
     Invoke-Compose @("up", "-d", "postgres")
     # --no-deps skips Compose's migration dependency, so run the gate explicitly.
     Invoke-Compose @("run", "--rm", "--no-deps", "config-check")
-    Invoke-Compose @("run", "--rm", "--no-deps", "migrate")
+    # The gated database upgrade (docs/operations/DATABASE_UPGRADE.md); the migrate service's
+    # own start-up step only checks in this release stack. A new store needs no backup; an
+    # installed one with pending revisions needs a backup recorded in the last 24 hours
+    # (backup_runtime.py, or upgrade_database.py record-backup), or the repair stops here.
+    Invoke-Compose @(
+        "run", "--rm", "--no-deps", "migrate",
+        "python", "scripts/ops/upgrade_database.py", "upgrade",
+        "--operator", "windows-installer:$env:USERNAME", "--yes"
+    )
     # The shipped reference network, so the map shows NW Europe with no outbound network;
     # a store that already holds a live ENTSOG read is left unchanged.
     Invoke-Compose @("run", "--rm", "--no-deps", "reference-seed")

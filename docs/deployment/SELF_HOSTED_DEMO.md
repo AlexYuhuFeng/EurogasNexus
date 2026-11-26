@@ -14,7 +14,7 @@ image built from `deploy/runtime/Dockerfile.api`, no demo data), delivered as de
 | Port | `8080` in the container; published on `127.0.0.1:8080` by default |
 | Health | `/api/health/live` (process), `/api/health/ready` (database reachable, schema current) |
 | Version | `GET /api/runtime/release` (`git_sha`, `git_ref`; sign-in required) |
-| Start-up | `scripts/demo/start_public_demo.py`: wait for PostgreSQL, `alembic upgrade head`, reference network, demo desk (seeded once, then rolled forward to the current gas day), tester identities, serve |
+| Start-up | `scripts/demo/start_public_demo.py`: wait for PostgreSQL, the database upgrade (`upgrade_database.py on-start`: automatic on the demo, with lock and statement timeouts, audited as `auto-migrate`), reference network, demo desk (seeded once, then rolled forward to the current gas day), tester identities, serve |
 
 The root location is deliberate: the standard file is what `docker build .` and most tools
 pick up, its header says it is the demo image and points to the customer one, and the
@@ -350,7 +350,7 @@ browser shows, for example `https://demo.lan`.
 - Update to a new version: `git pull`, then
   `DEMO_GIT_SHA=$(git rev-parse HEAD) docker compose up -d --build`. Migrations run forward on
   start; the demo desk is not re-seeded and testers' work is kept. A failed migration stops
-  the start (`alembic upgrade head failed (exit 1)`) and the server does not serve. Going back
+  the start (`database upgrade (auto-migrate) failed (exit 1)`) and the server does not serve. Going back
   to an older commit after a newer migration ran fails with `Can't locate revision`: restore
   the backup taken before the update.
 - Operator tools inside the container: run them through the start script so the database
