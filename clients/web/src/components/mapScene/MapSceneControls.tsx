@@ -104,6 +104,12 @@ export function MapSceneControls({
             <li><span className="map-scene-swatch is-flow" aria-hidden="true" />{t("map.scene.legend.flow")}</li>
             <li><span className="map-scene-swatch is-estimate" aria-hidden="true" />{t("map.scene.legend.estimate")}</li>
             <li><span className="map-scene-swatch is-voyage" aria-hidden="true" />{t("map.scene.legend.voyage")}</li>
+            {dimension === "3d" && (
+              <>
+                <li><span className="map-scene-swatch is-pillar" aria-hidden="true" />{t("map.scene.legend.pillar")}</li>
+                <li><span className="map-scene-swatch is-hull" aria-hidden="true" />{t("map.scene.legend.hull")}</li>
+              </>
+            )}
           </ul>
           <p className="map-scene-note">
             {t("map.scene.flow_counts", { oriented: flowCounts.oriented, unoriented: flowCounts.unoriented })}

@@ -81,7 +81,7 @@ import { useInstantFormatter } from "@/app/time/useInstant";
 import { Icon } from "@/components/ui/Icon";
 import { useMapScene } from "@/components/mapScene/useMapScene";
 import { MapSceneControls } from "@/components/mapScene/MapSceneControls";
-import { flowDayOptions, type SceneDimension } from "@/app/mapScene";
+import { flowDayOptions, pointIndex, tweenPoints, type FC, type SceneDimension } from "@/app/mapScene";
 
 // Let Vite resolve and bundle the module worker and its shared imports in both dev and build.
 // MapLibre's default relative URL otherwise points inside Vite's optimized dependency cache.
@@ -1258,7 +1258,7 @@ export function GasNetworkMap({
         if (!coordinates) return;
         const source = map.getSource("nodes") as GeoJSONSource;
         void source.getClusterExpansionZoom(clusterId).then((zoom) => {
-          map.easeTo({ center: coordinates, zoom });
+          focusOn(map, coordinates, zoom);
         });
       });
       map.on("mouseenter", "node-clusters", () => {
@@ -1747,6 +1747,10 @@ export function GasNetworkMap({
   // Live situation layers. Added once, then fed with setData; visibility follows the
   // layer chips. Hover shows a compact card; nothing here opens a second detail pane.
   const situationRef = useRef<MapSituationDTO | null>(situation);
+  // Vessel dots that moved between two reads ease to their new place (none under reduced motion).
+  const cargoDrawnRef = useRef<FC<{ type: "Point"; coordinates: [number, number] }> | null>(null);
+  const cargoTweenRef = useRef(0);
+  useEffect(() => () => cancelAnimationFrame(cargoTweenRef.current), []);
   situationRef.current = situation;
   useEffect(() => {
     const map = mapRef.current;
@@ -1885,7 +1889,30 @@ export function GasNetworkMap({
         },
       });
     }
-    if (upsertSource(map, "situation-cargo-positions", cargo?.positions ?? empty)) {
+    const cargoPositions = (cargo?.positions ?? empty) as FC<{ type: "Point"; coordinates: [number, number] }>;
+    const cargoBefore = cargoDrawnRef.current;
+    cargoDrawnRef.current = cargoPositions;
+    const cargoCreated = upsertSource(map, "situation-cargo-positions", cargoPositions as FeatureCollectionData);
+    if (!cargoCreated && cargoBefore && cargoBefore !== cargoPositions) {
+      const was = pointIndex(cargoBefore);
+      const moved = cargoPositions.features.some((feature) => {
+        const at = was.get(`${String(feature.properties.id)}|${String(feature.properties.basis)}`);
+        return at !== undefined && (at[0] !== feature.geometry.coordinates[0] || at[1] !== feature.geometry.coordinates[1]);
+      });
+      const duration = cameraMotion().duration;
+      const source = map.getSource("situation-cargo-positions") as GeoJSONSource | undefined;
+      if (moved && duration > 0 && source) {
+        cancelAnimationFrame(cargoTweenRef.current);
+        const start = performance.now();
+        const step = (time: number) => {
+          const k = Math.min(1, (time - start) / duration);
+          source.setData(tweenPoints(was, cargoPositions, easeOut(k)) as FeatureCollectionData);
+          if (k < 1) cargoTweenRef.current = requestAnimationFrame(step);
+        };
+        step(start);
+      }
+    }
+    if (cargoCreated) {
       map.addLayer({
         id: "situation-cargo-positions",
         type: "circle",
@@ -2657,10 +2684,18 @@ export function GasNetworkMap({
     activeLayers,
     t: t as (key: string, options?: Record<string, unknown>) => string,
     when: sceneWhen,
+    pillarNodes: filteredNodes,
+    pointColours: { hub: mapColors.hub, point: mapColors.interconnection },
+    shipColours: { own: SITUATION_COLOURS[effectiveTheme].own, market: SITUATION_COLOURS[effectiveTheme].market },
     onSelectRef: (refId) => {
       const next = selectForRef.current(refId);
       if (next) setSelection(next);
+      // A clicked column or pillar brings its site in, as a clicked dot does.
+      const map = mapRef.current;
+      const node = nodes.find((item) => item.id === refId);
+      if (map && node) focusOn(map, toMapCoordinates(node.lon, node.lat), Math.max(map.getZoom(), 7));
     },
+    onSelectCargo: (cargoId) => setSelection({ kind: "cargo", id: cargoId }),
   });
 
   // Everything the map can locate, for the finder. Positions come from the same sources

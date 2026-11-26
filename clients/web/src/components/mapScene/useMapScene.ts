@@ -35,6 +35,7 @@ import {
 import { assetCard, estimateCard, flowCard, voyageCard, type CardText, type FormatInstant, type Translate } from "@/app/mapSceneCards";
 import { durationToken, easeOut, prefersReducedMotion } from "@/app/mapMotion";
 import { frameSummary } from "@/app/mapSceneFrames";
+import { SCENE_LIGHT, shipMarks, shipSolids, siteSolids, tweenShips, type ShipMark } from "@/app/mapSceneSolids";
 
 type GeoData = Parameters<GeoJSONSource["setData"]>[0];
 
@@ -56,8 +57,16 @@ export interface MapSceneOptions {
   t: Translate;
   /** Writes an instant in the reader's zone and language (app/time/useInstant.ts). */
   when: FormatInstant;
-  /** Select the site under a clicked column (the map's own selection). */
+  /** Select the site under a clicked column or pillar (the map's own selection). */
   onSelectRef?: (refId: string) => void;
+  /** Select the cargo under a clicked hull. */
+  onSelectCargo?: (cargoId: string) => void;
+  /** The network points shown (the map's own filter): hubs and points stand as pillars in 3D. */
+  pillarNodes?: NodeDTO[];
+  /** Pillar colours: the map's own hub and point colours. */
+  pointColours?: { hub: string; point: string };
+  /** Hull colours: our positions and market vessels, as the map's dots. */
+  shipColours?: { own: string; market: string };
 }
 
 const SOURCES = [
@@ -69,13 +78,18 @@ const SOURCES = [
   "scene-voyage-arcs",
   "scene-estimate-legs",
   "scene-voyage-estimated",
+  "scene-site-solids",
+  "scene-ship-solids",
 ] as const;
+/** The 3D solids' layers (hidden in 2D): two ground-shadow fills and two extrusions. */
+const SOLID_LAYERS = ["scene-site-shadows", "scene-ship-shadows", "scene-site-solids", "scene-ship-solids"] as const;
 const HOVER_LAYERS = [
   "scene-asset-columns",
   "scene-asset-points",
   "scene-flow-lines",
   "scene-voyage-estimated",
   "scene-voyage-arcs",
+  "scene-ship-solids",
 ] as const;
 const EMPTY: GeoData = { type: "FeatureCollection", features: [] };
 
@@ -96,6 +110,25 @@ export function cardHtml(card: CardText): string {
     + "</div>";
 }
 
+/** Ground shadows: --ds-text-1 (light) and --ds-on-ink (dark), kept faint. */
+const SHADOW = {
+  light: { colour: "#18181b", opacity: 0.12 },
+  dark: { colour: "#131316", opacity: 0.32 },
+} as const;
+
+/** A height that rises from regional zoom for points; hubs and sites stand at every zoom. */
+const RISING_HEIGHT = ["interpolate", ["linear"], ["zoom"], 4.5, ["*", ["get", "height"], ["get", "overview"]], 6, ["get", "height"]];
+const risingOpacity = (opacity: number) => ["interpolate", ["linear"], ["zoom"], 4.5, ["*", opacity, ["get", "overview"]], 6, opacity];
+
+function shipColour(options: MapSceneOptions, colours: (typeof SCENE_COLOURS)["light" | "dark"]) {
+  const own = options.shipColours?.own ?? colours.lng;
+  const market = options.shipColours?.market ?? colours.estimate;
+  return ["case", ["==", ["get", "basis"], "estimated"], colours.estimate, ["get", "own"], own, market];
+}
+function pillarColour(options: MapSceneOptions, colours: (typeof SCENE_COLOURS)["light" | "dark"]) {
+  return ["match", ["get", "node_type"], "hub", options.pointColours?.hub ?? colours.lng, options.pointColours?.point ?? colours.estimate];
+}
+
 export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers, "oriented" | "unoriented">; now: Date } {
   const { map, ready, enabled, situation, nodes, edges, theme, flowColour, project, dimension, flowDay, activeLayers, t } = options;
   const live = Boolean(map && ready && enabled);
@@ -113,6 +146,9 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
     [edges, flowDay, nodes, project, situation],
   );
   const voyages = useMemo(() => voyageLayers(situation?.cargoes, now, project), [now, project, situation?.cargoes]);
+  const pillarNodes = options.pillarNodes ?? nodes;
+  const sites = useMemo(() => siteSolids(pillarNodes, situation?.assets, project), [pillarNodes, project, situation?.assets]);
+  const ships = useMemo(() => shipMarks(situation?.cargoes, now), [now, situation?.cargoes]);
 
   const optionsRef = useRef(options);
   optionsRef.current = options;
@@ -140,6 +176,20 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
     add({ id: "scene-asset-points", type: "circle", source: "scene-asset-points", paint: { "circle-radius": ["get", "radius"], "circle-color": kindColour as never, "circle-opacity": 0.28, "circle-stroke-color": kindColour as never, "circle-stroke-width": 1.4 } });
     add({ id: "scene-asset-columns", type: "fill-extrusion", source: "scene-asset-columns", paint: { "fill-extrusion-color": kindColour as never, "fill-extrusion-height": ["get", "height"], "fill-extrusion-base": 0, "fill-extrusion-opacity": 0.38 } });
     add({ id: "scene-asset-fills", type: "fill-extrusion", source: "scene-asset-fills", paint: { "fill-extrusion-color": kindColour as never, "fill-extrusion-height": ["get", "height"], "fill-extrusion-base": 0, "fill-extrusion-opacity": 0.9 } });
+    // 3D solids: ground shadows under the flows, then pillars and hulls over the columns.
+    const shadow = SHADOW[theme];
+    const under = map.getLayer("scene-flow-lines") ? "scene-flow-lines" : undefined;
+    if (!map.getLayer("scene-site-shadows")) {
+      map.addLayer({ id: "scene-site-shadows", type: "fill", source: "scene-site-solids", filter: ["==", ["get", "part"], "shadow"], layout: { visibility: "none" }, paint: { "fill-color": shadow.colour, "fill-opacity": risingOpacity(shadow.opacity) as never, "fill-antialias": false } }, under);
+    }
+    if (!map.getLayer("scene-ship-shadows")) {
+      map.addLayer({ id: "scene-ship-shadows", type: "fill", source: "scene-ship-solids", maxzoom: 8.5, filter: ["==", ["get", "part"], "shadow"], layout: { visibility: "none" }, paint: { "fill-color": shadow.colour, "fill-opacity": shadow.opacity, "fill-antialias": false } }, under);
+    }
+    const current = optionsRef.current;
+    add({ id: "scene-site-solids", type: "fill-extrusion", source: "scene-site-solids", filter: ["==", ["get", "part"], "solid"], layout: { visibility: "none" }, paint: { "fill-extrusion-color": pillarColour(current, colours) as never, "fill-extrusion-height": RISING_HEIGHT as never, "fill-extrusion-base": 0, "fill-extrusion-opacity": 0.85 } });
+    add({ id: "scene-ship-solids", type: "fill-extrusion", source: "scene-ship-solids", maxzoom: 8.5, filter: ["==", ["get", "part"], "solid"], layout: { visibility: "none" }, paint: { "fill-extrusion-color": shipColour(current, colours) as never, "fill-extrusion-height": ["get", "height"], "fill-extrusion-base": 0, "fill-extrusion-opacity": 0.92 } });
+    // One light for every extrusion, fixed to the map so lit faces agree with the shadows.
+    map.setLight(SCENE_LIGHT);
 
     // Hover cards, and a column or site point selects its site.
     const popup = new Popup({ closeButton: false, closeOnClick: false, maxWidth: "320px", className: "map-scene-popup" });
@@ -153,6 +203,10 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
       const cargo = current?.cargoes.find((item) => item.cargo_id === props.id);
       if (layer === "scene-voyage-estimated") return cargo ? estimateCard(cargo, nowRef.current, tr, when) : null;
       if (layer === "scene-voyage-arcs") return cargo ? voyageCard(cargo, tr, when) : null;
+      if (layer === "scene-ship-solids") {
+        if (!cargo) return null;
+        return props.basis === "estimated" ? estimateCard(cargo, nowRef.current, tr, when) : voyageCard(cargo, tr, when);
+      }
       if (layer === "scene-flow-lines") {
         return flowCard({ name: String(props.name ?? ""), direction: String(props.direction ?? ""), gwh_d: Number(props.gwh_d ?? 0), gas_day: props.gas_day ? String(props.gas_day) : null }, tr);
       }
@@ -174,12 +228,18 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
       const id = event.features?.[0]?.properties?.id;
       if (id) optionsRef.current.onSelectRef?.(String(id));
     };
+    const onShipClick = (event: MapLayerMouseEvent) => {
+      const id = event.features?.[0]?.properties?.id;
+      if (id) optionsRef.current.onSelectCargo?.(String(id));
+    };
     for (const layer of HOVER_LAYERS) {
       map.on("mousemove", layer, onMove);
       map.on("mouseleave", layer, onLeave);
     }
     map.on("click", "scene-asset-columns", onClick);
     map.on("click", "scene-asset-points", onClick);
+    map.on("click", "scene-site-solids", onClick);
+    map.on("click", "scene-ship-solids", onShipClick);
     return () => {
       for (const layer of HOVER_LAYERS) {
         map.off("mousemove", layer, onMove);
@@ -187,6 +247,8 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
       }
       map.off("click", "scene-asset-columns", onClick);
       map.off("click", "scene-asset-points", onClick);
+      map.off("click", "scene-site-solids", onClick);
+      map.off("click", "scene-ship-solids", onShipClick);
       popup.remove();
     };
   }, [live, map]);
@@ -206,10 +268,16 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
       ["scene-voyage-estimated", "circle-stroke-color", colours.estimate],
       ["scene-flow-lines", "line-color", flowColour],
       ["scene-flow-chevrons", "line-color", flowColour],
+      ["scene-site-solids", "fill-extrusion-color", pillarColour(optionsRef.current, colours)],
+      ["scene-ship-solids", "fill-extrusion-color", shipColour(optionsRef.current, colours)],
+      ["scene-site-shadows", "fill-color", SHADOW[theme].colour],
+      ["scene-ship-shadows", "fill-color", SHADOW[theme].colour],
+      ["scene-site-shadows", "fill-opacity", risingOpacity(SHADOW[theme].opacity)],
+      ["scene-ship-shadows", "fill-opacity", SHADOW[theme].opacity],
     ] as const) {
       map.setPaintProperty(layer, property, value as never);
     }
-  }, [flowColour, live, map, theme]);
+  }, [flowColour, live, map, theme, options.pointColours?.hub, options.pointColours?.point, options.shipColours?.own, options.shipColours?.market]);
 
   // Data: sites and flows replace in place; vessels and estimates ease to their new place.
   const drawnVoyages = useRef<FC<{ type: "Point"; coordinates: [number, number] }> | null>(null);
@@ -240,6 +308,38 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
     return () => cancelAnimationFrame(frame);
   }, [assets, flows, live, map, voyages]);
 
+  // Pillars and site shadows replace in place.
+  useEffect(() => {
+    if (!live || !map) return;
+    setData(map, "scene-site-solids", sites as GeoData);
+  }, [live, map, sites]);
+
+  // Hulls ease to their new place and heading with the dots (none under reduced motion).
+  const drawnShips = useRef<Map<string, ShipMark> | null>(null);
+  useEffect(() => {
+    if (!live || !map) return undefined;
+    const before = drawnShips.current;
+    drawnShips.current = new Map(ships.map((mark) => [mark.key, mark]));
+    const duration = prefersReducedMotion() ? 0 : durationToken("--ds-duration-map", 400);
+    const moved = before !== null && ships.some((mark) => {
+      const was = before.get(mark.key);
+      return was !== undefined && (was.at[0] !== mark.at[0] || was.at[1] !== mark.at[1] || was.headingDeg !== mark.headingDeg);
+    });
+    if (duration <= 0 || !moved || !before) {
+      setData(map, "scene-ship-solids", shipSolids(ships, project) as GeoData);
+      return undefined;
+    }
+    const start = performance.now();
+    let frame = 0;
+    const step = (time: number) => {
+      const k = Math.min(1, (time - start) / duration);
+      setData(map, "scene-ship-solids", shipSolids(tweenShips(before, ships, easeOut(k)), project) as GeoData);
+      if (k < 1) frame = requestAnimationFrame(step);
+    };
+    step(start);
+    return () => cancelAnimationFrame(frame);
+  }, [live, map, project, ships]);
+
   // What shows: 2D points or 3D columns; terminals with "LNG", storage with "Other points";
   // flows with "Flows"; our voyages with "Our positions", market ones with "LNG vessels".
   useEffect(() => {
@@ -262,6 +362,14 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
     show("scene-flow-lines", activeLayers.includes("flows"));
     show("scene-flow-chevrons", activeLayers.includes("flows"));
     for (const layer of ["scene-voyage-arcs", "scene-estimate-legs", "scene-voyage-estimated"]) map.setFilter(layer, voyageFilter as never);
+    // 3D solids: pillars follow the map's own point filter; site shadows follow the columns'.
+    const siteFilter = ["any", ["==", ["get", "kind"], "pillar"], ["in", ["get", "asset_kind"], ["literal", kinds]]];
+    map.setFilter("scene-site-shadows", ["all", ["==", ["get", "part"], "shadow"], siteFilter] as never);
+    map.setFilter("scene-site-solids", ["==", ["get", "part"], "solid"] as never);
+    for (const part of ["shadow", "solid"] as const) {
+      map.setFilter(part === "shadow" ? "scene-ship-shadows" : "scene-ship-solids", ["all", ["==", ["get", "part"], part], voyageFilter] as never);
+    }
+    for (const layer of SOLID_LAYERS) show(layer, dimension === "3d");
   }, [activeLayers, dimension, live, map]);
 
   // The camera between 2D and 3D, eased with the map token (a jump under reduced motion).

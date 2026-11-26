@@ -6370,6 +6370,8 @@
   "map.scene.legend.flow": "流动线：实际物理流量，沿天然气方向移动，宽度按 GWh/d（减少动态效果时为带箭头的静态线）",
   "map.scene.legend.estimate": "虚线末端的空心圆：按 ETA 插值的估计位置，并非观测位置",
   "map.scene.legend.voyage": "点线弧：装货港至接收站，并非船舶实际航线",
+  "map.scene.legend.pillar": "六棱柱：交易枢纽（较高）或入口、出口、互联点（较矮，区域缩放级别起显示）；仅为标记，不代表容量",
+  "map.scene.legend.hull": "低矮船体：LNG 船，船首指向航行方向；位置为估计时更矮并显示为灰色；仅为标记，非实际比例",
   "map.scene.flow_counts": "{{oriented}} 条流量按方向绘制；{{unoriented}} 条以点显示，因为管网未列出其运营商所在一侧",
   "map.scene.sites": "有公布数据的站点",
   "map.scene.site_capacity": "容量 {{value}} GWh/d",
