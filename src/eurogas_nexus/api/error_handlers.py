@@ -232,6 +232,25 @@ def register_error_handlers(app: FastAPI) -> None:
 
         correlation_id = getattr(request.state, "request_id", None) or uuid4().hex
         operator = _is_operator_request(request)
+        database_failure = _database_failure(exc)
+        if database_failure is not None:
+            code, message = database_failure
+            payload = error_payload(
+                code,
+                correlation_id=correlation_id,
+                operator=operator,
+                operator_detail=_unhandled_detail(exc, operator=operator),
+            )
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "detail": {"code": code, "message": message},
+                    **payload,
+                    "params": {},
+                    "fallback_message": message,
+                },
+                headers={"X-Request-Id": correlation_id, "Retry-After": "5"},
+            )
         payload = error_payload(
             UNHANDLED_ERROR_CODE,
             correlation_id=correlation_id,
@@ -243,6 +262,35 @@ def register_error_handlers(app: FastAPI) -> None:
             content={"detail": _SERVER_ERROR_DETAIL, **payload, "params": {}},
             headers={"X-Request-Id": correlation_id},
         )
+
+
+#: What the caller is told when the database fails over under a request (db/resilience.py).
+_COMMIT_UNCONFIRMED_MESSAGE = (
+    "The database connection was lost while saving; the change may or may not have been "
+    "saved. Check before trying again."
+)
+_DB_UNAVAILABLE_MESSAGE = (
+    "Runtime PostgreSQL is unreachable or read-only; nothing was saved. Retry shortly."
+)
+
+
+def _database_failure(exc: Exception) -> tuple[str, str] | None:
+    """``(code, message)`` for a lost database or an interrupted commit, else ``None``.
+
+    Resolved lazily: importing the API must not load the database layer, and an exception
+    from the database layer means that layer is already loaded.
+    """
+
+    module = type(exc).__module__ or ""
+    if not module.startswith(("sqlalchemy", "pg8000", "eurogas_nexus.db")):
+        return None
+    from eurogas_nexus.db import resilience
+
+    if isinstance(exc, resilience.CommitOutcomeUnknown):
+        return resilience.CommitOutcomeUnknown.code, _COMMIT_UNCONFIRMED_MESSAGE
+    if resilience.is_connection_error(exc) or resilience.is_read_only_error(exc):
+        return "runtime_db_unavailable", _DB_UNAVAILABLE_MESSAGE
+    return None
 
 
 def _unhandled_detail(exc: Exception, *, operator: bool) -> str | None:

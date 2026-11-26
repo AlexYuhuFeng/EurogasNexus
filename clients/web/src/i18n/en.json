@@ -2002,6 +2002,8 @@
   "errors.audit_unavailable.action": "Nothing changed. Retry shortly; if it persists, quote the correlation id to an operator.",
   "errors.runtime_db_unavailable.message": "The runtime database could not be reached.",
   "errors.runtime_db_unavailable.action": "Retry shortly; if it persists, quote the correlation id to an operator.",
+  "errors.runtime_db_commit_unconfirmed.message": "The connection to the database was lost while saving, so the change may or may not have been saved.",
+  "errors.runtime_db_commit_unconfirmed.action": "Reload and check whether your change is there before trying again; if unsure, quote the correlation id to an operator.",
   "errors.service_unavailable.message": "A required service is unavailable.",
   "errors.service_unavailable.action": "Retry shortly; if it persists, quote the correlation id to an operator.",
   "errors.session_invalid.message": "The session ended or was revoked.",

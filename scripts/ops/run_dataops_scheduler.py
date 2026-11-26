@@ -726,6 +726,9 @@ def run_loop(
         emit(json.dumps({"status": "blocked", "reason": "database_url_missing"}))
         return 2
 
+    from eurogas_nexus.db.resilience import wait_for_database_at_startup
+
+    wait_for_database_at_startup(component="scheduler", emit=emit)
     session_factory = get_session_factory()
     configuration_blocks = {}
     try:

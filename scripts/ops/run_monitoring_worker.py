@@ -37,6 +37,9 @@ def main() -> int:
         return 2
 
     interval_seconds = max(2.0, args.interval_seconds)
+    from eurogas_nexus.db.resilience import wait_for_database_at_startup
+
+    wait_for_database_at_startup(component="monitoring-worker")
     session_factory = get_session_factory()
     # Owner decision D7: enrichment runs under a named service identity, resolved once at start-up
     # and reported in every status line. Without one the worker still scans and persists alerts - it

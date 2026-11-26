@@ -2002,6 +2002,8 @@
   "errors.audit_unavailable.action": "未做任何更改。请稍后重试；若持续出现，请将关联 ID 提供给运维人员。",
   "errors.runtime_db_unavailable.message": "无法连接运行时数据库。",
   "errors.runtime_db_unavailable.action": "请稍后重试；若持续出现，请将关联 ID 提供给运维人员。",
+  "errors.runtime_db_commit_unconfirmed.message": "保存时与数据库的连接中断，更改可能已保存，也可能未保存。",
+  "errors.runtime_db_commit_unconfirmed.action": "请先刷新并确认更改是否已存在，再决定是否重试；如不确定，请将关联 ID 提供给运维人员。",
   "errors.service_unavailable.message": "所需服务不可用。",
   "errors.service_unavailable.action": "请稍后重试；若持续出现，请将关联 ID 提供给运维人员。",
   "errors.session_invalid.message": "会话已结束或被撤销。",
