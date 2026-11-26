@@ -26,7 +26,7 @@ import { useTranslation } from "react-i18next";
 
 import "@/styles/spreads.css";
 import "@/styles/cargo.css";
-import { api, type AssumptionSetSummaryDTO, type CargoEconomicsDTO, type CargoResultDTO, type CargoTerminalDTO, type FreightRouteDTO } from "@/api/client";
+import { api, type AssumptionSetSummaryDTO, type CargoEconomicsDTO, type CargoResultDTO, type CargoStackItemDTO, type CargoTerminalDTO, type FreightRouteDTO } from "@/api/client";
 import {
   HISTORY_DAYS,
   arrivalMonths,
@@ -43,7 +43,11 @@ import {
   seriesChart,
   withSet,
   formFromConfirmation,
+  desUnitLabel,
+  stackRows,
+  stackVersion,
   type CargoForm,
+  type DesPriceUnit,
   type VoyageMode,
 } from "@/app/model/cargoStudy";
 import { unitLabel } from "@/app/model/instrumentPicker";
@@ -181,11 +185,12 @@ export function CargoStudy() {
           <>
             <Headline cargo={cargo} best={priced[0] ?? null} />
             <TerminalTable cargo={cargo} priced={priced} leftOut={leftOut} selected={selected?.terminal_id ?? null} onSelect={setChosen} reportingCurrency={result?.reporting_currency ?? "EUR"} />
+            {selected?.cost_stack && <CostStack cargo={cargo} row={selected} />}
             {selected && <MarginWaterfall row={selected} />}
             {selected?.delivered_spread && <DeliveredSpread cargo={cargo} row={selected} />}
             {result?.delivered_spread_history && cargo.term === "FOB" && <HistoryLine result={result} cargo={cargo} />}
             {result?.delivered_spread_series && cargo.term === "FOB" && <SpreadLine result={result} cargo={cargo} />}
-            {(cargo.sensitivity?.length ?? 0) > 0 && priced[0] && <Sensitivity cargo={cargo} row={priced[0]} />}
+            {(cargo.sensitivity?.length ?? 0) > 0 && priced[0] && <Sensitivity cargo={cargo} row={priced[0]} names={new Map(priced.map((row) => [row.terminal_id, row.name]))} />}
             <InputsFold cargo={cargo} fxMethod={result?.fx_method ?? ""} />
             <CargoNextSteps cargo={cargo} row={selected} arrival={form.arrivalMonth} />
           </>
@@ -213,6 +218,18 @@ function Field({ id, label, value, onChange, unit, step = "any", width = "s", hi
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
+  );
+}
+
+/** A segmented choice with a visible caption, so it lines up with the fields beside it. */
+function Choice<T extends string>({ label, options, value, onChange }: {
+  label: string; options: { value: T; label: string }[]; value: T; onChange: (value: T) => void;
+}) {
+  return (
+    <div className="cargo-field" data-choice="true">
+      <span className="cargo-field-label" aria-hidden="true">{label}</span>
+      <Segmented label={label} options={options} value={value} onChange={onChange} />
+    </div>
   );
 }
 
@@ -302,9 +319,9 @@ function CargoFormView({ form, routes, sets, terminals, confirmations, busy, onC
 
       <fieldset className="cargo-group">
         <legend>{t("cargo.form.cargo")}</legend>
-        <Segmented
+        <Choice
           label={t("cargo.form.term")}
-          options={[{ value: "FOB", label: t("cargo.term.fob") }, { value: "DES", label: t("cargo.term.des") }]}
+          options={[{ value: "FOB" as const, label: t("cargo.term.fob") }, { value: "DES" as const, label: t("cargo.term.des") }]}
           value={form.term}
           onChange={(term) => onChange({ term }, true)}
         />
@@ -319,13 +336,23 @@ function CargoFormView({ form, routes, sets, terminals, confirmations, busy, onC
         <Field id="cargo-size" hint={setHint} label={t("cargo.form.size")} unit="MMBtu" value={form.cargoSize} onChange={(cargoSize) => onChange({ cargoSize })} width="m" />
         {form.term === "DES" && (
           <>
-            <Field id="cargo-des-price" label={t("cargo.form.des_price")} unit={perMwh(form.desCurrency)} value={form.desPrice} onChange={(desPrice) => onChange({ desPrice })} />
+            <Field id="cargo-des-price" label={t("cargo.form.des_price")} unit={unitLabel(desUnitLabel(form.desPriceUnit, form.desCurrency))} value={form.desPrice} onChange={(desPrice) => onChange({ desPrice })} />
+            <label className="cargo-field">
+              <span className="cargo-field-label">{t("cargo.form.des_unit")}</span>
+              <Select<DesPriceUnit>
+                value={form.desPriceUnit}
+                options={(["per_mwh", "per_mmbtu", "p_th"] as const).map((value) => ({ value, label: t(`cargo.des_unit.${value}`) }))}
+                onChange={(desPriceUnit) => onChange({ desPriceUnit, ...(desPriceUnit === "p_th" ? { desCurrency: "GBP" as const } : {}) }, true)}
+              />
+            </label>
             <label className="cargo-field">
               <span className="cargo-field-label">{t("cargo.form.des_currency")}</span>
-              <Select value={form.desCurrency} options={(["EUR", "GBP", "USD"] as const).map((value) => ({ value, label: value }))} onChange={(desCurrency) => onChange({ desCurrency }, true)} />
+              <Select disabled={form.desPriceUnit === "p_th"} value={form.desCurrency} options={(["EUR", "GBP", "USD"] as const).map((value) => ({ value, label: value }))} onChange={(desCurrency) => onChange({ desCurrency }, true)} />
             </label>
+            <Field id="cargo-des-port" label={t("cargo.form.des_port")} unit={t("cargo.unit.per_call", { currency: form.desPriceUnit === "p_th" ? "GBP" : form.desCurrency })} value={form.dischargePortCost} onChange={(dischargePortCost) => onChange({ dischargePortCost })} hint={t("cargo.form.des_port_hint")} width="m" />
           </>
         )}
+        <Field id="cargo-eua" label={t("cargo.form.eua")} unit="EUR/t" value={form.eua} onChange={(eua) => onChange({ eua })} hint={t("cargo.form.eua_hint")} />
       </fieldset>
 
       {form.term === "FOB" && (
@@ -352,7 +379,7 @@ function CargoFormView({ form, routes, sets, terminals, confirmations, busy, onC
 
           <fieldset className="cargo-group" data-voyage={form.voyageMode}>
             <legend>{t("cargo.form.voyage")}</legend>
-            <Segmented label={t("cargo.form.voyage_as")} options={voyageOptions} value={form.voyageMode} onChange={(voyageMode) => onChange({ voyageMode }, true)} />
+            <Choice label={t("cargo.form.voyage_as")} options={voyageOptions} value={form.voyageMode} onChange={(voyageMode) => onChange({ voyageMode }, true)} />
             {form.voyageMode === "route" && (
               <label className="cargo-field" data-width="m">
                 <span className="cargo-field-label">{t("cargo.voyage.saved")}</span>
@@ -375,9 +402,9 @@ function CargoFormView({ form, routes, sets, terminals, confirmations, busy, onC
             {form.voyageMode === "days" && (
               <Field id="cargo-days" label={t("cargo.form.laden_days")} unit={t("cargo.unit.days")} value={form.ladenDays} onChange={(ladenDays) => onChange({ ladenDays })} />
             )}
-            <Segmented
+            <Choice
               label={t("cargo.form.ballast")}
-              options={[{ value: "round", label: t("cargo.ballast.round") }, { value: "one_way", label: t("cargo.ballast.one_way") }]}
+              options={[{ value: "round" as const, label: t("cargo.ballast.round") }, { value: "one_way" as const, label: t("cargo.ballast.one_way") }]}
               value={form.ballast}
               onChange={(ballast) => onChange({ ballast }, true)}
             />
@@ -450,6 +477,79 @@ function hhBasisText(t: (key: string, options?: Record<string, unknown>) => stri
 // Days through the shell's formatter, in the interface language (18 Nov, 11月18日).
 const shortDay = (iso: string) => formatGasDay(iso, i18n.language);
 
+/** The answer in one sentence: best terminal and its lead, or that every terminal loses and
+ * which loses least, with the break-even purchase price; and what is not like-for-like. */
+function VerdictLine({ cargo }: { cargo: CargoResultDTO }) {
+  const { t } = useTranslation();
+  const verdict = cargo.verdict!;
+  if (verdict.state === "none_priced") {
+    return <p className="cargo-verdict" data-verdict="none_priced" role="status">{t("cargo.verdict.none_priced")}</p>;
+  }
+  const unit = perMwh(verdict.currency ?? "EUR");
+  const breakeven = verdict.breakeven;
+  const args = {
+    name: verdict.best_name,
+    margin: signed(verdict.margin_per_mwh),
+    unit,
+    total: millions(verdict.margin_total),
+    currency: verdict.currency,
+    runner: verdict.runner_up_name ?? "",
+    lead: fixed(verdict.lead_per_mwh),
+    breakeven: fixed(breakeven?.value ?? null, breakeven?.basis === "fob" ? 3 : 2),
+    bunit: breakeven ? unitLabel(breakeven.unit) : "",
+    n: verdict.priced ?? 0,
+  };
+  const key = verdict.state === "all_negative"
+    ? (cargo.term === "DES" ? "cargo.verdict.all_negative_des" : "cargo.verdict.all_negative_fob")
+    : "cargo.verdict.positive";
+  const partial = verdict.partial ?? [];
+  return (
+    <div className="cargo-verdict" data-verdict={verdict.state} role="status">
+      <p>
+        <strong>{t(key, args)}</strong>{" "}
+        {verdict.runner_up_name && (verdict.no_winner ? t("cargo.verdict.tie", args) : t("cargo.verdict.lead", args))}{" "}
+        {t(breakeven?.basis === "fob" ? "cargo.verdict.breakeven_fob" : "cargo.verdict.breakeven_des", args)}
+      </p>
+      {partial.length > 0 && (
+        <p className="cargo-note" data-partial="true">
+          {t("cargo.verdict.partial", {
+            items: [...new Set(partial.flatMap((row) => row.excluded))].map((item) => t(`cargo.stack.${item}`)).join(t("cargo.and")),
+            n: partial.length,
+          })}
+        </p>
+      )}
+    </div>
+  );
+}
+
+/** The cargo in MMBtu, MWh and therm, and how a DES price was converted. */
+function UnitsLine({ cargo }: { cargo: CargoResultDTO }) {
+  const { t } = useTranslation();
+  const units = cargo.units!;
+  const whole = (value: number | null | undefined) => (value === null || value === undefined ? "–" : Math.round(value).toLocaleString("en-GB"));
+  const des = units.des;
+  return (
+    <p className="cargo-headline-basis" data-units="true">
+      {t("cargo.units.cargo", {
+        mmbtu: whole(units.loaded?.mmbtu),
+        mwh: whole(units.loaded?.mwh),
+        therm: whole(units.loaded?.therm),
+        factor: fixed(units.mwh_per_mmbtu, 6),
+      })}
+      {cargo.term === "FOB" && units.delivered && <> · {t("cargo.units.delivered", { mmbtu: whole(units.delivered.mmbtu), mwh: whole(units.delivered.mwh) })}</>}
+      {des && des.unit !== "per_mwh" && (
+        <> · <span data-des-conversion="true">{t("cargo.units.des", {
+          entered: fixed(des.entered, 3),
+          unit: unitLabel(desUnitLabel(des.unit, des.currency)),
+          perMwh: fixed(des.per_mwh, 4),
+          currency: des.currency,
+          factor: des.factor,
+        })}</span></>
+      )}
+    </p>
+  );
+}
+
 function Headline({ cargo, best }: { cargo: CargoResultDTO; best: CargoTerminalDTO | null }) {
   const { t } = useTranslation();
   const hh = henryHub(cargo);
@@ -479,8 +579,11 @@ function Headline({ cargo, best }: { cargo: CargoResultDTO; best: CargoTerminalD
       </span>,
     );
   }
+  const verdict = cargo.verdict;
+  const losing = verdict?.state === "all_negative";
   return (
     <section className="cargo-headline" aria-label={t("cargo.headline.title")} data-headline="true">
+      {verdict && <VerdictLine cargo={cargo} />}
       <div className="cargo-key-figures">
         <div>
           <span>{t("cargo.headline.cost")}</span>
@@ -488,7 +591,7 @@ function Headline({ cargo, best }: { cargo: CargoResultDTO; best: CargoTerminalD
           {best && cargo.term === "FOB" && <small>= {fixed(best.cost_per_mwh)} {perMwh(best.currency)}</small>}
         </div>
         <div>
-          <span>{t("cargo.headline.best")}</span>
+          <span>{t(losing ? "cargo.headline.least_bad" : "cargo.headline.best")}</span>
           <strong data-figure="best">{best ? `${best.name} → ${best.hub}` : "–"}</strong>
           {cargo.no_winner && <small data-no-winner="true">{t("cargo.headline.no_winner")}</small>}
         </div>
@@ -505,6 +608,7 @@ function Headline({ cargo, best }: { cargo: CargoResultDTO; best: CargoTerminalD
           </div>
         )}
       </div>
+      {cargo.units && <UnitsLine cargo={cargo} />}
       {parts.length > 0 && <p className="cargo-headline-basis">{parts.reduce<ReactNode[]>((all, part, index) => (index ? [...all, " · ", part] : [part]), [])}</p>}
       <p className="cargo-headline-basis">
         {t("cargo.headline.assumptions", { count: cargo.assumptions })}
@@ -559,6 +663,8 @@ function TerminalTable({ cargo, priced, leftOut, selected, onSelect, reportingCu
                     <button type="button" className="cargo-row-button" onClick={() => onSelect(row.terminal_id)} aria-pressed={row.terminal_id === selected}>
                       {row.name} → {row.hub}
                     </button>
+                    {row.demo && <span className="spreads-class" data-class="simulated">{t("cargo.table.demo_terms")}</span>}
+                    {row.why && <span className="cargo-why" data-why={row.why.kind}>{whyText(t, row)}</span>}
                   </th>
                   <td className="num" title={hub?.source}>
                     <HubPrice row={row} amount={hub?.amount ?? null} /> {hub && <ClassMark inputClass={hub.input_class} />}
@@ -584,12 +690,33 @@ function TerminalTable({ cargo, priced, leftOut, selected, onSelect, reportingCu
       {leftOut.length > 0 && (
         <ul className="cargo-left-out" data-left-out="true">
           {leftOut.map((row) => (
-            <li key={row.terminal_id}>{row.name} → {row.hub}: {t(`cargo.reason.${row.reason}`, { defaultValue: row.reason ?? "" })}</li>
+            <li key={row.terminal_id} data-left-out-reason={row.reason ?? ""}>
+              {row.name} → {row.hub}: {row.regas_basis === "needs_firm_terms"
+                ? t("cargo.reason.needs_firm_terms", { operator: row.published?.operator ?? "" })
+                : t(`cargo.reason.${row.reason}`, { defaultValue: row.reason ?? "" })}
+              {row.reason === "no_regas_tariff" && row.published?.not_published && row.regas_basis !== "needs_firm_terms" && (
+                <span className="cargo-source"> ({row.published.not_published})</span>
+              )}
+            </li>
           ))}
         </ul>
       )}
     </section>
   );
+}
+
+/** One line on why a terminal ranks where it does: best, or how far behind and the main reason. */
+function whyText(t: (key: string, options?: Record<string, unknown>) => string, row: CargoTerminalDTO): string {
+  const why = row.why!;
+  const excluded = why.excluded.length > 0
+    ? t("cargo.why.excluded", { items: why.excluded.map((item) => t(`cargo.stack.${item}`)).join(t("cargo.and")) })
+    : "";
+  if (why.kind === "best") return [t("cargo.why.best"), excluded].filter(Boolean).join(" · ");
+  const driver = why.driver ? t(`cargo.stack.${why.driver}`, { defaultValue: why.driver }) : "";
+  return [
+    t("cargo.why.behind", { gap: fixed(why.behind_per_mwh), driver, driverGap: fixed(why.driver_per_mwh) }),
+    excluded,
+  ].filter(Boolean).join(" · ");
 }
 
 /** The hub price as the desk quotes it (NBP in p/th), the per-MWh figure compared beside it. */
@@ -642,6 +769,103 @@ function HistoryLine({ result, cargo }: { result: CargoEconomicsDTO; cargo: Carg
     </section>
   );
 }
+
+/** Every item of one terminal: per MWh delivered and per cargo, its class, source, as-of and the
+ * published tariff version used; from the hub price to the netback, the purchase to its cost,
+ * then the net value against the purchase. */
+function CostStack({ cargo, row }: { cargo: CargoResultDTO; row: CargoTerminalDTO }) {
+  const { t } = useTranslation();
+  const rows = stackRows(row);
+  const stack = row.cost_stack!;
+  const unit = perMwh(stack.currency);
+  const label = (item: CargoStackItemDTO) => {
+    if (item.key === "hub") return `${row.hub} ${monthLabel(row.arrival_month)}`;
+    if (item.key === "des" && item.des_currency && item.des_currency !== stack.currency) return t("cargo.stack.des_converted", { currency: item.des_currency });
+    return t(`cargo.stack.${item.key}`, { defaultValue: item.key });
+  };
+  const detail = (item: CargoStackItemDTO): ReactNode => {
+    const version = stackVersion(item);
+    const bits: ReactNode[] = [];
+    if (item.excluded) bits.push(<strong key="x">{t("cargo.stack.not_held")}</strong>);
+    if (version) {
+      bits.push(
+        <span key="v" data-tariff-status={version.status}>
+          {t("cargo.stack.version", {
+            period: version.period,
+            status: t(`cargo.stack.status.${version.status}`),
+            published: version.publishedOn ?? "–",
+          })}
+          {version.carriedForward && ` ${t("cargo.stack.carried_forward")}`}
+          {" · "}
+          <a href={version.url} target="_blank" rel="noreferrer noopener">{version.source}</a>
+          {` (${version.figures.join("; ")})`}
+        </span>,
+      );
+    } else if (item.source) {
+      bits.push(<span key="s">{item.source}</span>);
+    }
+    if (item.as_of) bits.push(<span key="a">{t("cargo.stack.as_of", { at: item.as_of.slice(0, 16).replace("T", " ") })}</span>);
+    if (item.licence_needed) bits.push(<span key="l" data-licence-needed="true">{t("cargo.stack.licence_needed")}</span>);
+    if (item.tonnes) bits.push(<span key="c">{t("cargo.stack.tonnes", { tonnes: Math.round(item.tonnes).toLocaleString("en-GB") })}</span>);
+    if (item.usd !== undefined && item.usd !== null) bits.push(<span key="u">{`${Math.round(item.usd).toLocaleString("en-GB")} USD`}</span>);
+    return bits.reduce<ReactNode[]>((all, bit, index) => (index ? [...all, " · ", bit] : [bit]), []);
+  };
+  const heads: Record<StackSection, string> = {
+    value: t("cargo.stack.value_side", { hub: row.hub }),
+    cost: t(cargo.term === "FOB" ? "cargo.stack.cost_side_fob" : "cargo.stack.cost_side_des"),
+    net: t("cargo.stack.net_side"),
+  };
+  let section: StackSection | null = null;
+  return (
+    <section className="spreads-result" data-cost-stack={row.terminal_id} aria-label={t("cargo.stack.title", { terminal: row.name })}>
+      <h2 className="spreads-section-title">{t("cargo.stack.title", { terminal: row.name })}</h2>
+      <div className="spreads-table-wrap">
+        <table className="spreads-table cargo-stack">
+          <caption>{t("cargo.stack.caption", { unit, currency: stack.currency, mwh: Math.round(stack.q_del_mwh ?? 0).toLocaleString("en-GB") })}</caption>
+          <thead>
+            <tr>
+              <th scope="col">{t("cargo.stack.item")}</th>
+              <th scope="col" className="num">{unit}</th>
+              <th scope="col" className="num">{t("cargo.stack.per_cargo", { currency: stack.currency })}</th>
+              <th scope="col">{t("cargo.inputs.class")}</th>
+              <th scope="col">{t("cargo.stack.source")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.flatMap((line) => {
+              const out: ReactNode[] = [];
+              if (line.section !== section) {
+                section = line.section;
+                out.push(<tr key={`h-${line.section}`} className="cargo-stack-head"><th scope="rowgroup" colSpan={5}>{heads[line.section]}</th></tr>);
+              }
+              out.push(
+                <tr key={`${line.section}-${line.key}`} data-stack-item={line.key} data-total={line.total || undefined}>
+                  <th scope="row">{line.total ? <strong>{label(line.item)}</strong> : label(line.item)}</th>
+                  <td className="num">{line.total ? <strong>{line.section === "net" ? signed(line.item.per_mwh, 4) : fixed(line.item.per_mwh, 4)}</strong> : line.section === "value" && line.key !== "hub" ? signed(line.item.per_mwh, 4) : fixed(line.item.per_mwh, 4)}</td>
+                  <td className="num">{Math.round(line.item.total ?? 0).toLocaleString("en-GB")}</td>
+                  <td>{line.total ? null : <ClassMark inputClass={line.item.input_class} />}</td>
+                  <td className="cargo-source">{line.total ? null : detail(line.item)}</td>
+                </tr>,
+              );
+              return out;
+            })}
+          </tbody>
+        </table>
+      </div>
+      {stack.fx && (
+        <p className="cargo-note" data-stack-fx="true">
+          {t("cargo.stack.fx", {
+            pair: stack.fx.pair,
+            rate: fixed(stack.fx.usd_per_unit ?? stack.fx.rate ?? null, 4),
+            source: stack.fx.source,
+          })}
+        </p>
+      )}
+    </section>
+  );
+}
+
+type StackSection = "value" | "cost" | "net";
 
 function MarginWaterfall({ row }: { row: CargoTerminalDTO }) {
   const { t } = useTranslation();
@@ -729,27 +953,57 @@ function SpreadLine({ result, cargo }: { result: CargoEconomicsDTO; cargo: Cargo
   );
 }
 
-function Sensitivity({ cargo, row }: { cargo: CargoResultDTO; row: CargoTerminalDTO }) {
+function Sensitivity({ cargo, row, names }: { cargo: CargoResultDTO; row: CargoTerminalDTO; names: Map<string, string> }) {
   const { t } = useTranslation();
   const unit = perMwh(row.currency);
+  const move = (item: NonNullable<CargoResultDTO["sensitivity"]>[number]) => {
+    switch (item.key) {
+      case "hire": return `± ${item.bump.toLocaleString("en-GB")} USD/d`;
+      case "hub":
+      case "des": return `± ${fixed(item.bump)} ${unit}`;
+      case "fx": return `± ${fixed(item.bump, 0)} %`;
+      case "boil_off": return `± ${fixed(item.bump)} %/d`;
+      case "eua": return `± ${fixed(item.bump, 0)} EUR/t`;
+      default: return `± ${fixed(item.bump)} USD/MMBtu`;
+    }
+  };
+  const side = (value: { margin_change_per_mwh: number | null; best_terminal_id: string | null; flips: boolean } | undefined, fallback?: number) => {
+    const change = value ? value.margin_change_per_mwh : fallback ?? null;
+    return (
+      <>
+        {signed(change, 3)}
+        {value?.flips && value.best_terminal_id && (
+          <span className="cargo-why" data-flip="true">{t("cargo.sens.flips", { terminal: names.get(value.best_terminal_id) ?? value.best_terminal_id })}</span>
+        )}
+      </>
+    );
+  };
+  const inputName = (key: string) => {
+    if (key === "hub") return t("cargo.sens.hub", { hub: row.hub });
+    if (key === "fx") return cargo.term === "DES" ? t("cargo.sens.fx_des") : t("cargo.sens.fx", { pair: `${row.currency}/USD` });
+    return t(`cargo.sens.${key}`);
+  };
   return (
     <section className="spreads-result" data-sensitivity="true" aria-label={t("cargo.sens.title", { terminal: row.name })}>
       <h2 className="spreads-section-title">{t("cargo.sens.title", { terminal: row.name })}</h2>
       <div className="spreads-table-wrap">
       <table className="spreads-table cargo-sens">
+        <caption>{t("cargo.sens.caption", { unit })}</caption>
         <thead>
           <tr>
             <th scope="col">{t("cargo.sens.input")}</th>
             <th scope="col" className="num">{t("cargo.sens.move")}</th>
-            <th scope="col" className="num">{t("cargo.sens.change", { unit })}</th>
+            <th scope="col" className="num">{t("cargo.sens.down")}</th>
+            <th scope="col" className="num">{t("cargo.sens.up")}</th>
           </tr>
         </thead>
         <tbody>
           {(cargo.sensitivity ?? []).map((item) => (
             <tr key={item.key} data-sens={item.key}>
-              <th scope="row">{item.key === "hub" ? t("cargo.sens.hub", { hub: row.hub }) : item.key === "fx" ? t("cargo.sens.fx", { pair: `${row.currency}/USD` }) : t(`cargo.sens.${item.key}`)}</th>
-              <td className="num">{item.key === "hire" ? `+${item.bump.toLocaleString("en-GB")} USD/d` : item.key === "hub" ? `+${fixed(item.bump)} ${unit}` : item.key === "fx" ? `+${fixed(item.bump, 0)} %` : `+${fixed(item.bump)} USD/MMBtu`}</td>
-              <td className="num">{signed(item.margin_change_per_mwh, 3)}</td>
+              <th scope="row">{inputName(item.key)}</th>
+              <td className="num">{move(item)}</td>
+              <td className="num" data-side="down">{side(item.down)}</td>
+              <td className="num" data-side="up">{side(item.up, item.margin_change_per_mwh)}</td>
             </tr>
           ))}
         </tbody>

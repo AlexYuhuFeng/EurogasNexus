@@ -3,8 +3,9 @@
 ``GET /api/pricing/fx-rate``: an FX rate as of an instant by the firm's source order (its
 contracted bank's rate, a published reference fixing, the ECB), with every tier tried and why
 it was used or skipped. ``GET /api/pricing/source-precedence``: the order in force for each
-quantity kind (and a calculation context), the configured financial institutions and the
-terms of a live bank feed. Reads only; nothing is fetched from a bank.
+quantity kind (and a calculation context), the configured financial institutions (each with
+its live feed's connection state, ``live_feed_status``, worked out without a network call)
+and the terms of a live bank feed. Reads only; nothing is fetched from a bank.
 
 TAR-2：数据来源优先级只读接口：按企业配置顺序给出汇率及逐层说明，并列出当前生效顺序与银行配置。
 """
@@ -123,6 +124,7 @@ def read_source_precedence(
         )
     from sqlalchemy.exc import SQLAlchemyError
 
+    from eurogas_nexus.application.bank_feeds import feed_status
     from eurogas_nexus.application.source_precedence import (
         configured_institutions,
         order_in_force,
@@ -132,7 +134,10 @@ def read_source_precedence(
     try:
         with get_session_factory()() as session:
             kinds = [order_in_force(session, kind, context) for kind in sp.DEFAULT_ORDERS]
-            banks = [bank.as_dict() for bank in configured_institutions(session)]
+            banks = [
+                bank.as_dict() | {"live_feed_status": feed_status(bank)}
+                for bank in configured_institutions(session)
+            ]
     except SQLAlchemyError as exc:
         raise _db_unavailable(exc) from exc
     return _env(

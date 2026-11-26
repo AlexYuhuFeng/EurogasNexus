@@ -6263,7 +6263,9 @@ export const api = {
     product?: "spot" | "term" | "prompt" | "annual";
     cargoes: CargoInput[];
     terminal_ids?: string[];
-    terminal_inputs?: Record<string, { entry_per_mwh?: number; gas_in_kind_pct?: number }>;
+    terminal_inputs?: Record<string, { entry_per_mwh?: number; gas_in_kind_pct?: number; regas_per_mwh?: number }>;
+    /** EUA in EUR/t for the carbon items; default the snapshot's, else the desk standard. */
+    eua_eur_t?: number;
     /** The delivered spread by arrival month for the first FOB cargo (design C.4); 0 for none. */
     series_months?: number;
     series_terminal_id?: string;
@@ -7099,6 +7101,112 @@ export interface CargoTerminalDTO {
   steps?: { key: string; amount: number | null; kind: "total" | "delta" }[];
   /** Henry Hub versus the hub (design C.4), FOB rows only: the delivered and netback views. */
   delivered_spread?: CargoDeliveredSpreadDTO | null;
+  /** Every item, hub currency per MWh delivered and per cargo, with source, as-of and version. */
+  cost_stack?: CargoCostStackDTO | null;
+  /** Best, or how far behind the best and the item that explains most of it. */
+  why?: CargoWhyDTO | null;
+  /** When the hub price was read, and whether it is simulated (a forward needs a licence). */
+  hub_as_of?: string | null;
+  hub_licence_needed?: boolean;
+  /** Items not held and so left out of this row's netback (entry, gas_in_kind). */
+  excluded?: string[];
+  /** Terms the demo desk seeded: fictional. */
+  demo?: boolean;
+  /** What the published reference says of the terminal (operator, regime, why no price). */
+  published?: {
+    operator: string;
+    country: string;
+    regime: string;
+    entry_tso: string;
+    entry_point: string;
+    not_published: string;
+    permission_operator: string | null;
+  } | null;
+}
+
+/** One published tariff figure as used: period, status, dates, source and terms. */
+export interface CargoTariffVersionDTO {
+  charge_id: string;
+  period: string;
+  valid_from: string | null;
+  valid_to: string | null;
+  status: "FINAL" | "INDICATIVE";
+  published_on: string | null;
+  read_on: string;
+  source_title: string;
+  source_url: string;
+  terms: string;
+  published_unit: string;
+  published_value: number;
+  carried_forward: boolean;
+  note: string;
+}
+
+export interface CargoStackItemDTO {
+  key: string;
+  per_mwh: number | null;
+  total: number | null;
+  input_class: string;
+  source: string;
+  as_of?: string | null;
+  licence_needed?: boolean;
+  rate?: number | null;
+  basis?: string;
+  versions?: CargoTariffVersionDTO[] | null;
+  excluded?: boolean;
+  tonnes?: number | null;
+  usd?: number | null;
+  usd_mmbtu?: number | null;
+  mmbtu?: number | null;
+  des_currency?: string;
+  des_per_mwh?: number | null;
+}
+
+export interface CargoCostStackDTO {
+  currency: string;
+  q_del_mwh: number | null;
+  value: CargoStackItemDTO[];
+  cost: CargoStackItemDTO[];
+  fx: { pair: string; usd_per_unit?: number | null; rate?: number | null; source: string; input_class: string } | null;
+  net: CargoStackItemDTO;
+  excluded: string[];
+}
+
+export type CargoWhyDTO =
+  | { kind: "best"; excluded: string[] }
+  | { kind: "behind"; behind_per_mwh: number | null; driver: string | null; driver_per_mwh: number | null; excluded: string[] };
+
+export interface CargoVerdictDTO {
+  state: "positive" | "all_negative" | "none_priced";
+  blocked?: string | null;
+  best_terminal_id?: string;
+  best_name?: string;
+  margin_per_mwh?: number | null;
+  margin_total?: number | null;
+  currency?: string;
+  runner_up_id?: string | null;
+  runner_up_name?: string | null;
+  lead_per_mwh?: number | null;
+  no_winner?: boolean;
+  breakeven?: { basis: "des" | "fob"; value: number | null; unit: string };
+  priced?: number;
+  partial?: { terminal_id: string; name: string; excluded: string[] }[];
+  left_out: { terminal_id: string; name: string; reason: string | null }[];
+}
+
+export interface CargoUnitsDTO {
+  mmbtu_per_mwh: number;
+  mwh_per_mmbtu: number;
+  therm_per_mmbtu: number;
+  loaded: { mmbtu: number | null; mwh: number | null; therm: number | null } | null;
+  delivered: { mmbtu: number | null; mwh: number | null; therm: number | null } | null;
+  des: { entered: number; unit: "per_mwh" | "per_mmbtu" | "p_th"; currency: string; per_mwh: number | null; factor: string } | null;
+}
+
+export interface CargoSensitivitySideDTO {
+  margin_change_per_mwh: number | null;
+  best_terminal_id: string | null;
+  flips: boolean;
 }
 
 export interface CargoDeliveredSpreadDTO {
@@ -7147,8 +7255,20 @@ export interface CargoResultDTO {
   grade: string;
   assumptions: number;
   voyage?: CargoVoyageDTO | null;
-  /** Margin change per MWh for one input moved on its own (HH, hire, hub, FX). */
-  sensitivity?: { key: "hh" | "hire" | "hub" | "fx"; bump: number; unit: string; margin_change_per_mwh: number }[];
+  /** Margin change per MWh for one input moved on its own, down and up; the old one-sided
+   * figure is the upward move. A flip is a change of best terminal. */
+  sensitivity?: {
+    key: "hh" | "hire" | "hub" | "fx" | "boil_off" | "des" | "eua";
+    bump: number;
+    unit: string;
+    margin_change_per_mwh: number;
+    down?: CargoSensitivitySideDTO;
+    up?: CargoSensitivitySideDTO;
+    currency?: string;
+  }[];
+  verdict?: CargoVerdictDTO;
+  units?: CargoUnitsDTO;
+  eua?: { eur_t: number; input_class: string; source: string } | null;
 }
 
 /** A cargo to price; omitted figures come from the firm's approved assumption set. */
@@ -7164,6 +7284,10 @@ export interface CargoInput {
   fob_price?: number;
   des_price?: number;
   des_currency?: "EUR" | "GBP" | "USD";
+  /** The unit the DES price is in: per MWh, per MMBtu, or pence per therm (GBP). */
+  des_price_unit?: "per_mwh" | "per_mmbtu" | "p_th";
+  /** DES: discharge port costs for the buyer's account, per call, in the DES currency. */
+  discharge_port_cost?: number;
   route_id?: string;
   /** Fill what neither the request nor the assumption set holds with the desk standard (labelled). */
   standard?: boolean;

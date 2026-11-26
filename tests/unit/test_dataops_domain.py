@@ -56,8 +56,9 @@ NOW = datetime(2026, 7, 1, 12, 0, tzinfo=UTC)
 def test_registry_is_canonical_and_classified() -> None:
     definitions = source_definitions()
 
-    # 43 with the financial-institution connector type (TAR-2, src-bank-rates).
-    assert len(definitions) == 43
+    # 44 with the financial-institution connector type and the Societe Generale connector
+    # (TAR-2, src-bank-rates and src-bank-socgen).
+    assert len(definitions) == 44
     assert definition_for_source("src-entsoe").source_class == SourceClass.PUBLIC
     assert definition_for_source("src-eex") is not None
     assert definition_for_provider("ENTSOG") is not None
@@ -79,6 +80,7 @@ def test_registry_is_canonical_and_classified() -> None:
         "src-ecb-estr",
         "src-nyfed",
         "src-eia",
+        "src-bank-socgen",  # schedulable but off by default (enabled_default False)
     }
 
 

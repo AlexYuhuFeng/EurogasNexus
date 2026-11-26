@@ -153,9 +153,8 @@ by hand. The sending system (`--system`) is the institution's key in the organis
 rows land in `fx_observations` and `interest_rate_observations` with source `BANK:<key>`. They
 are the `contracted_bank` tier of the source-precedence resolver, used before a licensed
 fixing (WM/Reuters, BFIX) and the ECB unless the firm sets another order; rows of a key that is
-not configured are stored but not used. A re-sent rate replaces the earlier one. No bank is
-connected live: a feed needs the firm's own agreement and credentials, and stays outside this
-product.
+not configured are stored but not used. A re-sent rate replaces the earlier one. One bank can
+also be read live, Société Générale (next section); every other bank comes in by file.
 
 | Contract | Column | Required | Content |
 |---|---|---|---|
@@ -163,6 +162,48 @@ product.
 | | `rate_type`, `published_at`, `rate_id` | no | `mid` (default), `buy` or `sell` (`rate_type_unknown`); when the bank published it (default: the end of the value date); the bank's own reference |
 | `bank.interest_rates.v1` | `rate_id`, `currency`, `rate_pct`, `value_date` | yes | The bank's name for the rate, up to 9 characters (`EUR-ON`, `USD-1M`); percent a year, -5 to 50 |
 | | `day_count` | no | `ACT/360` (default) or `ACT/365F` |
+
+#### Société Générale over its API (`src-bank-socgen`, TAR-2)
+
+For the institution key `SOCGEN` the rates can be fetched from the bank's API instead of a
+file (`ingestion/connectors/socgen.py`, written by `application/bank_feeds.py`). The fetched
+records are mapped to the columns above and stored through these same two contracts with the
+system `SOCGEN`, so they are the same `BANK:SOCGEN` rows a file makes: the same keys, row checks
+and refusal codes, `source_reference` (`import:bank.fx_rates.v1:socgen:api-...`) and audit
+event, and the resolver's order is unchanged (the contracted bank, then a published reference,
+then the ECB). With `reject_file` (the default) one refused row stores nothing of that feed.
+
+It fetches only when all three of these hold; otherwise it makes no network call and reports
+"not connected" with the reason (`institution_not_configured`, `access_not_api`,
+`agreement_not_recorded`, `endpoint_not_configured`, `endpoint_config_invalid`,
+`credential_missing`):
+
+| What | Where |
+|---|---|
+| `SOCGEN` with `"access": "api"` and `"agreement_recorded": true` (the firm's own agreement with the bank) | organisation setting `financial_institutions` |
+| The endpoint configuration: base URL, auth scheme (`oauth2_client_credentials` with token URL and client id, or `api_key` with its header), the FX and interest-rate paths and query parameters, and the field mapping | a JSON file outside the repository named by `EUROGAS_NEXUS_SOCGEN_API_CONFIG_FILE` (a secret in it is refused) |
+| The firm's own secret (the OAuth client secret or the API key) | `EUROGAS_NEXUS_SOCGEN_API_SECRET`, the file named by `EUROGAS_NEXUS_SOCGEN_API_SECRET_FILE`, or the encrypted credential store (provider `SOCGEN`) |
+
+The mapping names, for each contract column, the response field that holds it (a dotted path),
+the list of records in the response, bank values to translate (`{"rate_type": {"MID":
+"mid"}}`), a scale for a rate the bank sends as a fraction (`{"rate_pct": 100}`) and, for FX,
+the local time and time zone the bank publishes its fixing at, used as `published_at` when a
+record carries none. Only `https` addresses are taken, redirects are not followed, and an error
+names the HTTP status, never the response text or the secret. A feed whose newest value date is
+older than the institution's `max_age_days` is reported `stale` (the resolver then skips the
+bank tier, as for a stale file).
+
+`python scripts/ops/fetch_bank_rates.py --institution SOCGEN --status` shows the connection
+state without a network call; without `--commit` a run is a dry run. The data-ops scheduler
+runs it once a business day (18:30 Paris) only after an administrator enables `src-bank-socgen`;
+it is off by default, and a run that is not connected is recorded as a `CONFIGURATION` refusal,
+not retried.
+
+Nothing in this build is known about Société Générale's real API. The base URL, token URL, auth
+scheme, client authentication (basic or in the body), scope, paths, query parameters, field
+names, rate-type values, whether interest rates come as a percent or a fraction, the day-count
+names, the publication time and whether a client certificate (mutual TLS) is required are all
+to be confirmed with the bank and set in the configuration file.
 
 ### `erp.counterparties.v1`: counterparties
 
@@ -200,7 +241,8 @@ counterparty must already be known from the same system's counterparty file
 
 ## Mapping from common systems
 
-These contracts are vendor-neutral, and no vendor-specific connector is supplied. An ETRM or
+These contracts are vendor-neutral, and no vendor-specific connector is supplied (the one bank
+connector above, for Société Générale, writes through the bank contracts). An ETRM or
 ERP extract is mapped to them in the system's own reporting layer or in the middleware. The
 notes below describe the kind of fields such systems typically hold, as general industry
 knowledge. Field names, tables and extract tools differ by product version and by each firm's

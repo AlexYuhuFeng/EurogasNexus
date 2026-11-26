@@ -9,9 +9,10 @@
  */
 import { inQuoteUnit, quoteUnit } from "./priceCharts.ts";
 import { formatDeliveryMonth } from "../time/timeFormat.ts";
-import type { CargoEconomicsDTO, CargoInput, CargoResultDTO, CargoTerminalDTO, FreightRouteDTO } from "@/api/client";
+import type { CargoEconomicsDTO, CargoInput, CargoResultDTO, CargoStackItemDTO, CargoTerminalDTO, FreightRouteDTO } from "@/api/client";
 
 export type VoyageMode = "route" | "distance" | "days";
+export type DesPriceUnit = "per_mwh" | "per_mmbtu" | "p_th";
 
 /** The form as typed: text, so a cleared field stays cleared (empty = use the assumption set). */
 export interface CargoForm {
@@ -36,6 +37,12 @@ export interface CargoForm {
   canalCost: string;
   desPrice: string;
   desCurrency: "EUR" | "GBP" | "USD";
+  /** The unit the DES price is typed in (p/th is GBP pence per therm). */
+  desPriceUnit: DesPriceUnit;
+  /** DES: discharge port costs for the buyer's account, per call, in the DES currency. */
+  dischargePortCost: string;
+  /** EUA, EUR/t, for the carbon items (empty = the snapshot's, else the desk standard). */
+  eua: string;
   /** The firm's assumption set chosen ("" = the organisation's approved set, if any). */
   assumptionSetId: string;
   /** Terminals to compare (empty = every terminal with terms or a tariff). */
@@ -93,6 +100,9 @@ export function exampleForm(today: Date, routes: readonly FreightRouteDTO[] = []
     canalCost: "",
     desPrice: "",
     desCurrency: "EUR",
+    desPriceUnit: "per_mwh",
+    dischargePortCost: "",
+    eua: "",
     assumptionSetId: "",
     terminalIds: [],
   };
@@ -127,12 +137,16 @@ export function cargoRequest(form: CargoForm, seriesMonths = 12): {
   history_days: number;
   assumption_set_id?: string;
   terminal_ids?: string[];
+  eua_eur_t?: number;
 } {
   // `standard`: what neither the form nor the firm's records hold is the desk standard (labelled).
   const cargo: CargoInput = { cargo_id: "study", term: form.term, q_load_mmbtu: num(form.cargoSize), standard: true };
   if (form.term === "DES") {
     cargo.des_price = num(form.desPrice);
-    cargo.des_currency = form.desCurrency;
+    // Pence per therm is a GBP quote: the currency follows the unit.
+    cargo.des_currency = form.desPriceUnit === "p_th" ? "GBP" : form.desCurrency;
+    cargo.des_price_unit = form.desPriceUnit;
+    cargo.discharge_port_cost = num(form.dischargePortCost);
   } else {
     Object.assign(cargo, {
       pricing_month: form.pricingMonth || undefined,
@@ -165,6 +179,54 @@ export function cargoRequest(form: CargoForm, seriesMonths = 12): {
     history_days: form.term === "FOB" ? HISTORY_DAYS : 0,
     ...(form.assumptionSetId ? { assumption_set_id: form.assumptionSetId } : {}),
     ...(form.terminalIds.length > 0 ? { terminal_ids: form.terminalIds } : {}),
+    ...(num(form.eua) !== undefined ? { eua_eur_t: num(form.eua) } : {}),
+  };
+}
+
+/** The DES price's unit as the desk writes it. */
+export function desUnitLabel(unit: DesPriceUnit, currency: string): string {
+  if (unit === "p_th") return "p/th";
+  return unit === "per_mmbtu" ? `${currency}/MMBtu` : `${currency}/MWh`;
+}
+
+/** One line of a terminal's cost stack, ready to show: its section, sign and figures. */
+export interface StackRow {
+  key: string;
+  section: "value" | "cost" | "net";
+  /** A subtotal (netback, cost at the ship's rail, net value): shown in bold, no sign. */
+  total: boolean;
+  item: CargoStackItemDTO;
+}
+
+/**
+ * A priced terminal's cost stack as rows: the value at the hub down to the netback, the purchase
+ * up to its cost, then the net value against the purchase. Per MWh delivered and per cargo, in
+ * the hub's currency; value items carry their sign (a cost is negative), cost items are positive.
+ */
+export function stackRows(row: CargoTerminalDTO): StackRow[] {
+  const stack = row.cost_stack;
+  if (!stack) return [];
+  return [
+    ...stack.value.map((item) => ({ key: item.key, section: "value" as const, total: item.key === "netback", item })),
+    ...stack.cost.map((item) => ({ key: item.key, section: "cost" as const, total: item.key === "cost", item })),
+    { key: "margin", section: "net" as const, total: true, item: stack.net },
+  ];
+}
+
+/** The latest published-tariff version behind a stack item, for its period/status note. */
+export function stackVersion(item: CargoStackItemDTO) {
+  const versions = item.versions ?? [];
+  if (versions.length === 0) return null;
+  const first = versions[0];
+  return {
+    period: first.period,
+    status: versions.some((v) => v.status !== "FINAL" || v.carried_forward) ? "INDICATIVE" : "FINAL",
+    carriedForward: versions.some((v) => v.carried_forward),
+    publishedOn: first.published_on,
+    source: first.source_title,
+    url: first.source_url,
+    readOn: first.read_on,
+    figures: versions.map((v) => `${v.published_value} ${v.published_unit}`),
   };
 }
 
