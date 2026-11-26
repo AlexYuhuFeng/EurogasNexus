@@ -3252,6 +3252,20 @@
   }
 }
 
+/* ------------------------------------------------------------ top-bar kept-figures note */
+@layer ds-components {
+  /* "Figures from 09:41, updating" (components/ViewFreshnessNote.tsx). */
+  .view-refreshing-note {
+    flex: 0 1 auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+  }
+}
+
 /* ------------------------------------------------------------ top-bar data status */
 @layer ds-components {
   .topbar-status {

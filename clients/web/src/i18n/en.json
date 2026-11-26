@@ -6561,5 +6561,7 @@
   "news.note.status.refused": "The AI note did not pass the grounding check, so the rule note is shown.",
   "news.note.status.unavailable": "The AI note is not available now, so the rule note is shown.",
   "news.note.status.rule": "Rule note, built from the cited lines without a model.",
-  "news.advisory": "Decision support: a person decides. Nothing is traded, nominated or sent."
+  "news.advisory": "Decision support: a person decides. Nothing is traded, nominated or sent.",
+  "view.refreshing": "Figures from {{time}}, updating",
+  "view.refreshing.detail": "Some figures on this page are the last ones computed, at {{time}}. Newer data has arrived and they are being recomputed; the page updates when they are ready."
 }

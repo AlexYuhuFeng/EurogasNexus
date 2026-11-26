@@ -29,6 +29,7 @@ import { heldApprovalSources } from "./PublicSourceApprovals";
 import { HeaderPreferencesMenu } from "./HeaderPreferencesMenu";
 import { ReportProblemDialog } from "./ReportProblemDialog";
 import { TopBarStatus, dataHealth } from "./TopBarStatus";
+import { ViewFreshnessNote } from "./ViewFreshnessNote";
 import { requestFeedback, requestProblemReport } from "@/app/model/supportReport";
 import { resolveComposition } from "@/app/experience/roleComposition";
 import { useDeskToday } from "@/app/hooks/useDeskToday";
@@ -333,6 +334,8 @@ export function WorkspaceTopBar({
             onAcknowledge={monitoring.acknowledgeMonitoringAlert}
             onAnalyze={monitoring.analyzeMonitoringAlert}
           />
+          {/* Said while figures on screen are a kept result being recomputed (meta.view). */}
+          <ViewFreshnessNote t={t} />
           {/* One data-status chip; the store, the push connection and the source counts
               are in the panel it opens, not on the bar a trader reads all day. */}
           <TopBarStatus

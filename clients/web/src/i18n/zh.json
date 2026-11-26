@@ -6561,5 +6561,7 @@
   "news.note.status.refused": "AI 说明未通过依据校验，因此显示规则说明。",
   "news.note.status.unavailable": "AI 说明暂不可用，因此显示规则说明。",
   "news.note.status.rule": "规则说明：由所引条目生成，未使用模型。",
-  "news.advisory": "决策支持：由人决定。不进行任何交易、提名或发送。"
+  "news.advisory": "决策支持：由人决定。不进行任何交易、提名或发送。",
+  "view.refreshing": "数据截至 {{time}}，正在更新",
+  "view.refreshing.detail": "本页部分数据为 {{time}} 计算的最近结果。已有新数据到达，正在重新计算，完成后页面会更新。"
 }

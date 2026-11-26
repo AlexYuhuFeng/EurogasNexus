@@ -9,6 +9,7 @@ import type {
 } from "./comparablePrices";
 import type { EvaluationDTO, InterpretationDTO, SpreadBoardDTO, StrategySpecDTO } from "./spreads";
 import type { PromptMarketDTO, StrategyTrackDTO } from "./strategyTracks";
+import type { ViewMetaDTO } from "@/app/data/viewFreshness";
 
 const DEFAULT_BROWSER_BASE = "/api";
 const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";
@@ -332,6 +333,9 @@ export interface ApiMeta {
    */
   missing_inputs?: string[];
   source_posture_summary?: SourcePostureSummaryDTO;
+  /** A heavy read answered from the server's kept result: when it was computed, and whether it
+   * is being recomputed (application/warm_views.py; app/data/viewFreshness.ts). */
+  view?: ViewMetaDTO;
 }
 
 export interface ApiResponse<T, M = ApiMeta> {
@@ -507,7 +511,16 @@ async function get<T, M = ApiMeta>(
     Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
   }
   const res = await fetch(url.toString(), requestInit({ signal: options.signal }));
-  return parseResponse<ApiResponse<T, M>>(res);
+  const parsed = await parseResponse<ApiResponse<T, M>>(res);
+  responseMetaObserver?.(path, (parsed as { meta?: unknown } | null)?.meta);
+  return parsed;
+}
+
+let responseMetaObserver: ((path: string, meta: unknown) => void) | null = null;
+
+/** Hear every GET answer's meta (app/data/viewFreshness.ts names kept answers being recomputed). */
+export function observeResponseMeta(observer: ((path: string, meta: unknown) => void) | null): void {
+  responseMetaObserver = observer;
 }
 
 export type ReportFormat = "csv" | "xlsx" | "pdf";
