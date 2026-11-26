@@ -45,6 +45,7 @@ from eurogas_nexus.db.models import (
     AuditEventRecord,
     LngObservationRecord,
     RawPayloadArchiveRecord,
+    RawPayloadContentRecord,
     StorageObservationRecord,
 )
 from eurogas_nexus.db.repositories.public_ingestion_upsert import (
@@ -171,6 +172,7 @@ def _isolated_session() -> Iterator[Session]:
             StorageObservationRecord.__table__.create(bind=connection)
             LngObservationRecord.__table__.create(bind=connection)
             RawPayloadArchiveRecord.__table__.create(bind=connection)
+            RawPayloadContentRecord.__table__.create(bind=connection)
             AuditEventRecord.__table__.create(bind=connection)
             with Session(bind=connection) as session:
                 yield session

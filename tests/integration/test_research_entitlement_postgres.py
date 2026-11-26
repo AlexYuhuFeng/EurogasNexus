@@ -437,7 +437,10 @@ def test_snapshot_reads_are_filtered_by_source_grants(route_engine: Engine) -> N
     eex_only = _principal("eex", "EEX")
     icis_only = _principal("icis", "ICIS")
     legacy = legacy_public_token_principal()
-    assert legacy.data_scopes == ("*",)
+    # The wildcard data grant; since security review H1 the compatibility caller also carries
+    # explicit permission grants (PERM:...), which widen no source family.
+    assert "*" in legacy.data_scopes
+    assert all(scope == "*" or scope.startswith("PERM:") for scope in legacy.data_scopes)
 
     # A principal granted only ENTSOG sees the public-baseline snapshot and
     # none of the commercial ones, even though every row really exists.

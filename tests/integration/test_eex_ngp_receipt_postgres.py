@@ -30,6 +30,7 @@ from sqlalchemy.orm import Session
 from eurogas_nexus.db.models import (
     MarketObservationRecord,
     RawPayloadArchiveRecord,
+    RawPayloadContentRecord,
 )
 from eurogas_nexus.db.repositories.eex_ngp_persistence import (
     EexNgpInvalidObservationError,
@@ -134,6 +135,8 @@ def _session():
             for model in (
                 MarketObservationRecord,
                 RawPayloadArchiveRecord,
+                # Each distinct page is stored once under its digest (migration 0095).
+                RawPayloadContentRecord,
             ):
                 model.__table__.create(bind=connection)
             with Session(bind=connection) as session:

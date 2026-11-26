@@ -24,6 +24,7 @@ from eurogas_nexus.db.models import (
     IngestionRunRecord,
     ObservationRevisionRecord,
     RawPayloadArchiveRecord,
+    RawPayloadContentRecord,
     ReferenceFacility,
     ReferenceMarketHub,
     ReferenceNode,
@@ -74,6 +75,8 @@ def _session():
                 FlowObservationRecord,
                 CapacityObservationRecord,
                 RawPayloadArchiveRecord,
+                # Each distinct page is stored once under its digest (migration 0095).
+                RawPayloadContentRecord,
                 ReferenceNode,
                 ReferenceFacility,
                 ReferenceMarketHub,
