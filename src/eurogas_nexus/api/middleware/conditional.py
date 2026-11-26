@@ -55,16 +55,27 @@ def _without_clock(value: Any) -> Any:
     return value
 
 
-def content_etag(body: bytes) -> str:
-    """The tag of a JSON answer's content: its bytes without the clock keys."""
+def _without_view_meta(value: Any) -> Any:
+    """Drop ``meta.view`` (application/warm_views.py): when a kept answer was computed and
+    whether it is being recomputed say nothing about what it says."""
 
-    if not any(key.encode() in body for key in CLOCK_KEYS):
+    if isinstance(value, dict) and isinstance(value.get("meta"), dict) and "view" in value["meta"]:
+        return {**value, "meta": {k: v for k, v in value["meta"].items() if k != "view"}}
+    return value
+
+
+def content_etag(body: bytes) -> str:
+    """The tag of a JSON answer's content: its bytes without the clock keys or view meta."""
+
+    if b'"view"' not in body and not any(key.encode() in body for key in CLOCK_KEYS):
         return weak_etag(body)
     try:
         parsed = json.loads(body)
     except ValueError:
         return weak_etag(body)
-    stable = json.dumps(_without_clock(parsed), sort_keys=True, separators=(",", ":"))
+    stable = json.dumps(
+        _without_clock(_without_view_meta(parsed)), sort_keys=True, separators=(",", ":")
+    )
     return weak_etag(stable.encode())
 
 

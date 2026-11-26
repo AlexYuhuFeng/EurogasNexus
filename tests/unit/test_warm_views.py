@@ -332,3 +332,19 @@ def test_a_background_refresh_reads_as_the_reader_of_the_first_request(store):
     assert request_principal() is None  # this thread holds no reader
     store.executor.run()
     assert seen == ["reader-alice", "reader-alice"]
+
+
+def test_view_meta_does_not_change_a_conditional_reads_tag() -> None:
+    # A kept answer recomputed to the same content keeps its ETag, so a page revalidating it
+    # still gets 304 (api/middleware/conditional.py).
+    import json
+
+    from eurogas_nexus.api.middleware.conditional import content_etag
+
+    def body(state: str, at: str, value: int = 1) -> bytes:
+        meta = {"view": {"state": state, "computed_at_utc": at, "max_age_seconds": 60}}
+        return json.dumps({"data": {"x": value}, "meta": meta}).encode()
+
+    kept = content_etag(body("refreshing", "2026-11-26T09:41:00Z"))
+    assert kept == content_etag(body("fresh", "2026-11-26T09:42:00Z"))
+    assert kept != content_etag(body("fresh", "2026-11-26T09:42:00Z", value=2))
