@@ -117,7 +117,8 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
             <RecordPicker
               id="nomination-contract"
               label={t("decision.planning.contract")}
-              options={planningContractOptions(inputs)}
+              // A read that failed (an older server) offers nothing to choose, never "loading" forever.
+              options={planning.error ? [] : planningContractOptions(inputs)}
               value={contractId}
               emptyText={t("decision.planning.no_contracts")}
               onChange={(choice) => choice && choose(choice.id)}

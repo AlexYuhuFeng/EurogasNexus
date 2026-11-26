@@ -973,6 +973,14 @@
     width: 100%;
   }
 
+  /* One label size per form: the plain labels match the pickers' (controls.css .ds-field-label). */
+  .decision-assessment-field > .field-label {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
+  }
+
   /* The add / remove row under each assessment table: one gap between buttons and room before
      the next section (the buttons used to touch each other and the heading below). */
   .decision-assessment-actions {
