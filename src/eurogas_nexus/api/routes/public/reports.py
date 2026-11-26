@@ -17,6 +17,7 @@ books. Nothing here trades, nominates or settles.
 
 from __future__ import annotations
 
+import threading
 from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -122,47 +123,129 @@ def _unavailable(exc: Exception) -> HTTPException:
     )
 
 
+#: How long the catalogue waits for its availability probe (every section read for today, as a
+#: report would read it) before it answers without it: the form opens at once and says the
+#: offer is still being read; the probe goes on and the next open finds it ready.
+CATALOGUE_PROBE_SECONDS = 4.0
+_PROBES: dict[tuple, object] = {}
+_PROBE_LOCK = threading.RLock()  # the pool is made under it too
+_PROBE_POOL = None
+
+
+def _probe_pool():
+    global _PROBE_POOL
+    with _PROBE_LOCK:
+        if _PROBE_POOL is None:
+            from concurrent.futures import ThreadPoolExecutor
+
+            _PROBE_POOL = ThreadPoolExecutor(max_workers=2, thread_name_prefix="report-probe")
+        return _PROBE_POOL
+
+
+def _read_availability(principal, language: str):
+    from eurogas_nexus.application.caller import Caller
+    from eurogas_nexus.application.reports.availability import availability
+
+    with _db() as session:
+        return availability(session, Caller(principal), ai=_ai_state(principal),
+                            balance_reader=balance_reader, language=language)
+
+
+def _availability_within_budget(principal, language: str):
+    """The probe's answer, or raise ``TimeoutError`` once the budget passed (it goes on).
+
+    One probe per caller and language at a time: a second open while one runs waits on it."""
+
+    import contextvars
+    from concurrent.futures import TimeoutError as FutureTimeout
+
+    key = (getattr(principal, "principal_id", None), language)
+    with _PROBE_LOCK:
+        future = _PROBES.get(key)
+        if future is None or future.done():
+            # The caller's scope (books, entitlements) travels with the probe's thread.
+            context = contextvars.copy_context()
+            future = _probe_pool().submit(context.run, _read_availability, principal, language)
+            _PROBES[key] = future
+    try:
+        return future.result(timeout=CATALOGUE_PROBE_SECONDS)
+    except FutureTimeout as exc:
+        raise TimeoutError("report availability probe still running") from exc
+    finally:
+        with _PROBE_LOCK:
+            if future.done() and _PROBES.get(key) is future:
+                _PROBES.pop(key, None)
+
+
 @router.get("/api/reports/catalogue")
 @warm_view(ViewSpec("reports.catalogue", max_age_seconds=120))
 def get_report_catalogue(request: Request, language: str = "en") -> dict:
     """The report kinds and the sections a report is assembled from.
+
+    Always answers 200 with the catalogue. ``availability`` (what the form may offer this
+    caller) is ``null`` when it could not be read, with ``availability_state.code``:
+    ``report_availability_pending`` (the probe is still reading; open again shortly) or
+    ``report_availability_unavailable`` (the store or a section could not be read). Neither
+    depends on an AI provider: AI editing is reported as not available when none is set up.
 
     报告目录：报告类型、可选章节、各章节的数据来源与图表类型。
     """
 
     from sqlalchemy.exc import SQLAlchemyError
 
-    from eurogas_nexus.application.caller import Caller
-    from eurogas_nexus.application.reports.availability import availability
     from eurogas_nexus.application.reports.catalogue import catalogue_payload
 
     principal = ai_caller(request)
     warnings: list[str] = []
+    state = {"code": "report_availability_ready"}
     try:
-        with _db() as session:
-            offer = availability(session, Caller(principal), ai=_ai_state(principal),
-                                 balance_reader=balance_reader, language=language)
+        offer = _availability_within_budget(principal, language)
+    except TimeoutError:
+        offer = None
+        state = {"code": "report_availability_pending", "retry_after_seconds": 10}
+        warnings.append("report availability still being read")
     except (SQLAlchemyError, HTTPException) as exc:
         # The form still opens: it says the store cannot be read instead of failing later.
         offer = None
+        state = {"code": "report_availability_unavailable", "error_class": exc.__class__.__name__}
         warnings.append(f"report availability not read ({exc.__class__.__name__})")
-    return _env({**catalogue_payload(), "pdf": PDF_NOTE, "availability": offer}, request,
-                "report-catalogue", warnings)
+    except Exception as exc:  # a section that failed to read must not fail the catalogue
+        import logging
+
+        logging.getLogger(__name__).exception("report availability probe failed")
+        offer = None
+        state = {"code": "report_availability_unavailable", "error_class": exc.__class__.__name__}
+        warnings.append(f"report availability not read ({exc.__class__.__name__})")
+    payload = _env({**catalogue_payload(), "pdf": PDF_NOTE, "availability": offer,
+                    "availability_state": state}, request, "report-catalogue", warnings)
+    if offer is None:
+        # Not kept as the warm view's answer: the next open asks the probe again.
+        from fastapi.encoders import jsonable_encoder
+        from fastapi.responses import JSONResponse
+
+        return JSONResponse(jsonable_encoder(payload))  # type: ignore[return-value]
+    return payload
 
 
 def _ai_state(principal) -> tuple[bool, str]:
-    """Whether the model may edit this caller's reports, and why not."""
+    """Whether the model may edit this caller's reports, and why not.
+
+    Never raises: there is no default model provider (security review M10), so a deployment
+    with AI on but no provider or key set up reads as "no key", not as an error."""
 
     from eurogas_nexus.api.dependencies.ai_authority import ai_authority_denial
     from eurogas_nexus.core.config import get_settings
     from eurogas_nexus.security.provider_keys import load_provider_api_key
 
-    if not get_settings().llm_external_provider_enabled:
-        return False, "switched_off"
-    denial = ai_authority_denial(principal)
-    if denial:
-        return False, "role"
-    if not (load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")):
+    try:
+        if not get_settings().llm_external_provider_enabled:
+            return False, "switched_off"
+        denial = ai_authority_denial(principal)
+        if denial:
+            return False, "role"
+        if not (load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")):
+            return False, "no_key"
+    except Exception:  # an incomplete provider set-up is "not available", never a failure
         return False, "no_key"
     return True, ""
 

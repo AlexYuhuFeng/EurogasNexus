@@ -976,10 +976,12 @@ export function SourceCenter({
           <summary>{t("tariffBook.title")}</summary>
           <TariffBookPanel t={t} />
         </details>
-        <details className="source-infrastructure-fold">
+        {/* The firm's capacity bookings and their cost are commercial records: a role without
+            commercial reads (platform administration) does not open it, so it never asks. */}
+        {(canReadMarket || canReadBook) && <details className="source-infrastructure-fold">
           <summary>{t("capacityCost.title")}</summary>
           <CapacityCostPanel t={t} />
-        </details>
+        </details>}
         {canReadMarket && <details className="source-infrastructure-fold">
           <summary>{t("tariffs.title")}</summary>
           <TariffPublicationsPanel t={t} />
