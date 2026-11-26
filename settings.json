@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(scripts/dev/deepseek_implementer.sh:*)"
-    ]
-  }
-}
