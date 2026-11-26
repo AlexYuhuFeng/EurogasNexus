@@ -95,7 +95,7 @@ DEFAULT_TICK = 0.005  # EUR/MWh
 #: Half the bid/offer width at DA, in EUR/MWh (NBP: GBP/MWh), by hub liquidity.
 HALF_WIDTH = {
     "TTF": 0.025, "NBP": 0.03, "THE": 0.04, "PEG": 0.06, "ZTP": 0.06, "PSV": 0.05,
-    "CEGH": 0.075, "PVB": 0.10, "ETF": 0.10, "GTF": 0.125,
+    "CEGH": 0.075, "PVB": 0.10, "ETF": 0.10,
 }
 #: Size shown at the best bid and offer, MWh per gas day of delivery (invented, by liquidity).
 QUOTE_DEPTH_MWH = {"TTF": 24000, "NBP": 14400, "THE": 14400, "PEG": 12000, "ZTP": 12000,

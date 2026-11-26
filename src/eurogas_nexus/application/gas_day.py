@@ -157,13 +157,22 @@ def _aware(moment) -> datetime | None:
     return moment if moment.tzinfo else moment.replace(tzinfo=UTC)
 
 
+def _names_a_hub(word: str) -> bool:
+    """Whether ``word`` is a European gas hub's code or alias (``TTF``, ``GTF``, ``VTP``)."""
+
+    from eurogas_nexus.domain.ontology.markets import Commodity, Region, find_market
+
+    found = find_market(word)
+    return (found is not None and found.commodity is Commodity.NATURAL_GAS
+            and found.region is Region.EUROPE)
+
+
 def _point(contract) -> str | None:
     """The sub-terminal or point the contract delivers at, without the hub's own name."""
 
     text = str(getattr(contract, "delivery_point_name", "") or "").strip()
     words = text.split()
-    if len(words) > 1 and words[0].upper() in {"NBP", "TTF", "THE", "PEG", "ZTP", "CEGH", "PVB",
-                                               "PSV", "ZEE", "ETF"}:
+    if len(words) > 1 and (words[0].upper() == "ZEE" or _names_a_hub(words[0])):
         return " ".join(words[1:])
     return text or None
 

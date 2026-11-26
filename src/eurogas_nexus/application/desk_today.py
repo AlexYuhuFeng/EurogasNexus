@@ -1218,11 +1218,14 @@ def focus_hubs(session, caller: Caller, book: _Book, prices: dict) -> list[str]:
             row = session.get(PrincipalPreferenceRecord, str(principal_id))
             personal = dict(row.preferences_json) if row else {}
             effective = effective_preferences(organisation, personal)
-            own = [
-                part.strip().upper()
+            from eurogas_nexus.domain.ontology.markets import canonical_hub
+
+            # A hub saved under its other name (GTF) is followed as the hub itself (ETF).
+            own = list(dict.fromkeys(
+                canonical_hub(part) or part.strip().upper()
                 for part in str(effective.get("strip_focus_hubs") or "").split(",")
                 if part.strip()
-            ]
+            ))
         except Exception:  # noqa: BLE001 - no preference store: the derived list stands
             own = []
     ordered: list[str] = []

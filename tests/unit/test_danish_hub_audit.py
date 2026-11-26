@@ -64,7 +64,8 @@ def test_the_audit_reports_before_and_after_and_writes_only_on_commit(tmp_path):
         contracts = {item["id"]: item for item in report["tables"]["contracts"]["items"]}
         assert set(contracts) == {"c-etf", "c-gtf"}  # the Dutch contract is not listed
         assert (contracts["c-etf"]["before"], contracts["c-etf"]["after"]) == ("TTF", "ETF")
-        assert (contracts["c-gtf"]["before"], contracts["c-gtf"]["after"]) == (None, "GTF")
+        # GTF is the OTC name of the same hub: it resolves to ETF (2026-11-26).
+        assert (contracts["c-gtf"]["before"], contracts["c-gtf"]["after"]) == (None, "ETF")
         assert report["corrections"] == [
             {"table": "screen_order_observations", "id": "o-1", "column": "hub",
              "from": "TTF", "to": "ETF"}

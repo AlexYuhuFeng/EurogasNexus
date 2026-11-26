@@ -8,18 +8,18 @@ Today, marks and P&L, spreads, the prompt desk, strategy evaluation on arrival) 
 would on a licensed feed, and can be seen and measured without one.
 
 **Continuous (``--continuous``, the demo server's feed, :class:`LiveScreen`).** Every demo hub
-the tick intake accepts (TTF, NBP, THE, PEG, ZTP, PSV, CEGH, PVB, ETF) is quoted on WD, DA, WE
-and the front month, quarter and season, each instrument on its own clock (a fresh draw of
-1-5 seconds after each quote), small moves on the hub's tick, the odd print, with session
-statistics (open/high/low, VWAP, volume, count, prior settlement). The rest of each hub's curve
-(months to M+12, quarters, the next winter, two calendar years) requotes with the front in whole
-curve moves, so a strip stays its months' average: no arbitrage within a hub. The prices start
-on the demo board of the gas day (``seed_demo_desk.demo_board_now``, priced by
-``demo_market.py``) and revert to it, a common factor moves the hubs together and each hub's
-own part is bounded so a locational spread stays inside the demo market's arbitrage band; the
+(TTF, NBP, THE, PEG, ZTP, PSV, CEGH, PVB and the Danish ETF, which OTC calls GTF) is quoted on
+WD, DA, WE and the front month, quarter and season, each instrument on its own clock (a fresh
+draw of 1-5 seconds after each quote), small moves on the hub's tick, the odd print, with
+session statistics (open/high/low, VWAP, volume, count, prior settlement). The rest of each
+hub's curve (months to M+12, quarters, the next winter, two calendar years) requotes with the
+front in whole curve moves, so a strip stays its months' average: no arbitrage within a hub. The
+prices start on the demo board of the gas day (``seed_demo_desk.demo_board_now``, priced by
+``demo_market.py``) and revert to it, a common factor moves the hubs together and each hub's own
+part is bounded so a locational spread stays inside the demo market's arbitrage band; the
 planted P1/P2 prompt cases are laid on the path on their schedule. It writes straight through
-``application.market_ticks.ingest_ticks`` (the path a licensed connector's batches take), so
-the live stream's ``prices`` notices fire as for a real feed.
+``application.market_ticks.ingest_ticks`` (the path a licensed connector's batches take), so the
+live stream's ``prices`` notices fire as for a real feed.
 
 Session (``--session`` or ``EUROGAS_NEXUS_DEMO_FEED_SESSION``): ``exchange`` (default),
 simulated trading hours 07:00-19:00 CET/CEST every day; ``24h``, a demo-only session that never

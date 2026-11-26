@@ -296,8 +296,8 @@ export const WINDOW_CLOSING_MS = 60 * 60 * 1000;
 
 /* ------------------------------------------------------------------ zones and hubs */
 
-const HUB_CODES = ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF", "GTF"];
-const NW_EUROPE_HUBS = new Set(["TTF", "NBP", "THE", "PEG", "ZTP", "ETF", "GTF"]);
+const HUB_CODES = ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF"];
+const NW_EUROPE_HUBS = new Set(["TTF", "NBP", "THE", "PEG", "ZTP", "ETF"]);
 const ZONE_TOKEN_HUBS: Record<string, readonly string[]> = {
   NO: ["NBP", "TTF", "THE", "ZTP"],
   NORWAY: ["NBP", "TTF", "THE", "ZTP"],
@@ -315,6 +315,9 @@ const ZONE_TOKEN_HUBS: Record<string, readonly string[]> = {
   VTP: ["CEGH"],
   ES: ["PVB"],
   DK: ["ETF"],
+  // The Danish hub's OTC/Energinet name and its former exchange: the same hub as ETF.
+  GTF: ["ETF"],
+  GASPOINT: ["ETF"],
   // Balancing-zone and trading-point EIC codes REMIT messages give.
   "21YNL----TTF---1": ["TTF"],
   "37Y005053MH0000R": ["THE"],

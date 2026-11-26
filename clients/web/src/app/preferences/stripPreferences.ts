@@ -10,6 +10,7 @@
 import { useSyncExternalStore } from "react";
 
 import type { PreferencesDTO } from "../../api/client.ts";
+import { canonicalHub } from "../hubAliases.ts";
 import { DEFAULT_STRIP_THRESHOLDS, type StripThresholds } from "../model/tickerItems.ts";
 
 /** Mirrors the vocabularies in `domain/settings/preferences.py`. */
@@ -31,7 +32,7 @@ export const STRIP_BUILT_IN: Record<StripChoiceKey | "strip_focus_hubs", string>
   strip_focus_hubs: "",
 };
 
-export const FOCUS_HUB_CHOICES = ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF", "GTF"] as const;
+export const FOCUS_HUB_CHOICES = ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF"] as const;
 export const MAX_FOCUS_HUBS = 6;
 export const MAX_HIDDEN_ITEMS = 40;
 /** The server's pattern for one hide entry (`id@signature`). */
@@ -49,7 +50,8 @@ export function stripThresholdsFrom(effective: Effective | null | undefined): St
   const values = effective ?? {};
   const hubs = String(values.strip_focus_hubs ?? "")
     .split(",")
-    .map((hub) => hub.trim().toUpperCase())
+    // A preference saved under a hub's other name (GTF) is that hub (ETF).
+    .map((hub) => canonicalHub(hub))
     .filter((hub) => (FOCUS_HUB_CHOICES as readonly string[]).includes(hub));
   return {
     outageGwhD: number(values.strip_outage_gwh_d, DEFAULT_STRIP_THRESHOLDS.outageGwhD),

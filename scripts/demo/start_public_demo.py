@@ -232,7 +232,7 @@ def configure_environment(environ: dict[str, str] | os._Environ) -> list[str]:
         "EUROGAS_NEXUS_DEMO_MARKS": "true",
         # The simulated intraday exchange feed: "on" (default) or "off", one meaning for the
         # start-up, the feed and the roll-forward. While it quotes it owns today's WD/DA quotes
-        # of every hub it quotes (all demo hubs but GTF) and the hourly roll-forward writes the
+        # of every hub it quotes (every demo hub) and the hourly roll-forward writes the
         # rest; outside its session, or when off, the roll-forward writes them all
         # (scripts/demo/seed_demo_desk.py, demo_exchange_feed_running).
         "EUROGAS_NEXUS_DEMO_EXCHANGE_FEED": "on",

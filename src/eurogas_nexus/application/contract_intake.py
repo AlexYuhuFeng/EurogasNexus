@@ -51,9 +51,9 @@ _HUBS = {
     "PSV": ("PSV", "Punto di Scambio Virtuale"),
     "PVB": ("PVB", "Punto Virtual de Balance"),
     "CEGH": ("CEGH", "VTP Austria", "Central European Gas Hub"),
-    # Danish: ETF (exchange, formerly Gaspoint Nordic) and GTF (bilateral) stay distinct.
-    "ETF": ("ETF", "Exchange Transfer Facility", "Gaspoint Nordic"),
-    "GTF": ("GTF", "Gas Transfer Facility"),
+    # Danish: one hub, ETF on EEX (formerly Gaspoint Nordic) and GTF OTC (Energinet).
+    "ETF": ("ETF", "Exchange Transfer Facility", "Gaspoint Nordic", "GTF",
+            "Gas Transfer Facility"),
 }
 
 

@@ -926,12 +926,24 @@ def _entsog_map_to_lon_lat(x_value: object, y_value: object) -> tuple[float | No
 
 
 def _market_hub_code(label: str, fallback: str) -> str:
+    """The hub code of a trading point from its published name (``TTF``, ``THE VTP (DE)``).
+
+    A name the market reference model knows, as a code or an alias, gives the model's code:
+    ENTSOG names the Danish trading point "GTF (Bilateral Trading Point)", the hub the model
+    codes ETF, so the map node, the routes and the prices are one hub.
+    """
+
+    from eurogas_nexus.domain.ontology.markets import Commodity, find_market
+
     cleaned = re.sub(r"[^A-Za-z0-9 -]", " ", label).strip()
     if not cleaned:
         return fallback[:16].upper()
     first = cleaned.split()[0].upper()
     if first in {"VIP", "VIRTUAL"} and len(cleaned.split()) > 1:
         first = cleaned.split()[1].upper()
+    found = find_market(first)
+    if found is not None and found.commodity is Commodity.NATURAL_GAS:
+        return found.code
     return first[:16]
 
 

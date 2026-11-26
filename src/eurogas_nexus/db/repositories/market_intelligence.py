@@ -79,7 +79,10 @@ def list_market_quotes(
 
     query = session.query(MarketQuoteRecord)
     if hub:
-        query = query.filter(MarketQuoteRecord.hub == hub.strip().upper())
+        from eurogas_nexus.domain.ontology.markets import canonical_hub
+
+        # A hub asked for by its other name (GTF, VTP) is read under its registry code.
+        query = query.filter(MarketQuoteRecord.hub == (canonical_hub(hub) or hub.strip().upper()))
     if product:
         query = query.filter(MarketQuoteRecord.product == product.strip().lower())
     if source_system:

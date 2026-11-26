@@ -38,7 +38,7 @@ HUB_WORDS: dict[str, str] = {
     "cegh": "CEGH", "austrian": "CEGH", "austria": "CEGH", "奥地利": "CEGH",
     "pvb": "PVB", "spanish": "PVB", "spain": "PVB", "西班牙": "PVB",
     "etf": "ETF", "danish": "ETF", "denmark": "ETF", "丹麦": "ETF",
-    "gtf": "GTF",
+    "gtf": "ETF",  # the OTC name of the Danish hub
     "hh": "HH", "henry hub": "HH", "亨利港": "HH", "亨利中心": "HH",
     "jkm": "JKM",
 }
