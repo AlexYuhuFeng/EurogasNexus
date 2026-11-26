@@ -344,8 +344,13 @@ def discoveries(
     language: str = "en",
     limit: int = MAX_ITEMS,
     now: datetime | None = None,
+    simulated_marked: bool = False,
 ) -> dict[str, Any]:
-    """The caller's findings ranked for ``function`` (one of their job functions)."""
+    """The caller's findings ranked for ``function`` (one of their job functions).
+
+    ``simulated_marked``: the caller shows each item's simulated mark itself, so the sentences
+    leave out "on simulated prices" (see :func:`phrase`).
+    """
 
     from eurogas_nexus.application.caller import caller_of
     from eurogas_nexus.application.opportunities.listing import latest_evaluation
@@ -400,7 +405,7 @@ def discoveries(
             "kind": item.kind,
             "severity": item.severity,
             "relevance": weight(item.kind, audience),
-            "sentence": phrase(item, audience, language)
+            "sentence": phrase(item, audience, language, simulated_marked=simulated_marked)
             + (
                 ""
                 if not item.facts.get("more")

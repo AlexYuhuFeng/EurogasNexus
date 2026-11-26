@@ -205,7 +205,7 @@ def _blocked(code: str, subject: str, detail: str = "", fix: str = "") -> Assess
     return Assessment(
         OpportunityState.BLOCKED,
         (code,),
-        Blocker(code=code, subject=subject, text=claim, fix=fix),
+        Blocker(code=code, subject=subject, text=claim, fix=fix, detail=detail),
         claim,
     )
 

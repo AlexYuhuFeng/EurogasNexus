@@ -367,11 +367,21 @@ class Blocker:
     subject: str
     text: str
     fix: str = ""
+    #: The template's ``{detail}`` (what is stale, which check failed), so a client renders the
+    #: sentence in its own language from ``code``, ``subject`` and ``detail``; ``text`` is the
+    #: English fallback.
+    detail: str = ""
 
     def to_json(self) -> dict[str, Any]:
         """Serialised form."""
 
-        return {"code": self.code, "subject": self.subject, "text": self.text, "fix": self.fix}
+        return {
+            "code": self.code,
+            "subject": self.subject,
+            "detail": self.detail,
+            "text": self.text,
+            "fix": self.fix,
+        }
 
 
 # --------------------------------------------------------------------------- the candidate

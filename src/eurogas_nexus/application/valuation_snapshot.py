@@ -34,6 +34,7 @@ from typing import Any, Protocol
 from uuid import uuid4
 
 from eurogas_nexus.application.caller import Caller
+from eurogas_nexus.domain.valuation.assumptions import ASSUMPTION_CATALOGUE
 from eurogas_nexus.domain.valuation.periods import DeliveryPeriod
 from eurogas_nexus.domain.valuation.quality import InputClass
 from eurogas_nexus.domain.valuation.snapshot import (
@@ -46,6 +47,15 @@ from eurogas_nexus.domain.valuation.snapshot import (
     SnapshotManifest,
     missing,
 )
+
+
+def assumption_label(catalogue_key: str) -> str:
+    """An assumption as the desk names it ("Cash-out discount when long (under day-ahead)"),
+    never its catalogue key; an unknown key reads as itself."""
+
+    spec = ASSUMPTION_CATALOGUE.get(catalogue_key)
+    return spec.label if spec is not None else catalogue_key
+
 
 #: Decimal places every stored input is held to, so a replay reads the exact same figure.
 _PLACES = Decimal("1E-10")
@@ -718,7 +728,12 @@ class LiveSnapshotReader(RecordingReader):
         resolved = self._book_sets[book_id]
         if resolved is None:
             return missing(
-                key, InputKind.ASSUMPTION, catalogue_key, reason="no book set", book_id=book_id
+                key,
+                InputKind.ASSUMPTION,
+                assumption_label(catalogue_key),
+                reason="no book set",
+                book_id=book_id,
+                catalogue_key=catalogue_key,
             )
         return self._assumption_input(key, catalogue_key, resolved, book_id=book_id)
 
@@ -726,15 +741,22 @@ class LiveSnapshotReader(RecordingReader):
         self, key, catalogue_key, resolved, *, book_id: str | None = None
     ) -> SnapshotInput:
         if resolved is None:
-            return missing(key, InputKind.ASSUMPTION, catalogue_key, reason="no approved set")
+            return missing(
+                key,
+                InputKind.ASSUMPTION,
+                assumption_label(catalogue_key),
+                reason="no approved set",
+                catalogue_key=catalogue_key,
+            )
         version_id, version = resolved
         value = version.value(catalogue_key)
         if value is None:
             return missing(
                 key,
                 InputKind.ASSUMPTION,
-                catalogue_key,
+                assumption_label(catalogue_key),
                 reason="not in the approved set",
+                catalogue_key=catalogue_key,
                 set_id=version.set_id,
                 version=version.version,
                 book_id=book_id,
@@ -749,7 +771,7 @@ class LiveSnapshotReader(RecordingReader):
             as_of_utc=version.approved_at_utc,
             source_family=FIRM_FAMILY,
             source_ref=f"{version_id}:{catalogue_key}",
-            label=f"{version.name} v{version.version}: {catalogue_key}",
+            label=f"{version.name} v{version.version}: {assumption_label(catalogue_key)}",
             detail={
                 "set_id": version.set_id,
                 "set_name": version.name,

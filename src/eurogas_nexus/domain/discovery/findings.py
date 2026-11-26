@@ -220,8 +220,15 @@ TYPE_LABEL = {
 }
 
 
-def phrase(finding: Finding, audience: str, language: str = "en") -> str:
-    """The first sentence for one audience, in ``en`` or ``zh``, from the finding's facts."""
+def phrase(
+    finding: Finding, audience: str, language: str = "en", *, simulated_marked: bool = False
+) -> str:
+    """The first sentence for one audience, in ``en`` or ``zh``, from the finding's facts.
+
+    ``simulated_marked``: the reader shows the item's own "simulated" mark beside it (Today's
+    "What needs me"), so the sentence does not say "on simulated prices" a second time; any
+    other input class is still stated.
+    """
 
     lang = "zh" if str(language).lower().startswith("zh") else "en"
     family = finding.kind.split(".")[0]
@@ -233,7 +240,12 @@ def phrase(finding: Finding, audience: str, language: str = "en") -> str:
     if template is None:
         template = "{claim}"
     facts = dict(finding.facts)
-    facts.setdefault("q", _QUALIFIER[lang].get(finding.input_class, ""))
+    qualifier = (
+        ""
+        if simulated_marked and finding.input_class is InputClass.SIMULATED
+        else _QUALIFIER[lang].get(finding.input_class, "")
+    )
+    facts.setdefault("q", qualifier)
     kind = finding.kind.split(".", 1)[-1]
     facts.setdefault("type_label", TYPE_LABEL[lang].get(kind, kind))
     return template.format(**facts)

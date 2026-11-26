@@ -367,7 +367,9 @@ class _Route:
             per_mwh, how = tariff_per_mwh(item)
             if per_mwh is None:
                 blockers.append(
-                    Blocker("input_missing", spec.point_name, f"Cannot evaluate: {how}.")
+                    # The template's own words ("Cannot evaluate: {subject}."), so a client
+                    # can render it from code and subject.
+                    Blocker("evaluator", how, f"Cannot evaluate: {how}.")
                 )
                 continue
             if item.currency and item.currency != EUR:

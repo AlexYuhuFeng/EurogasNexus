@@ -34,6 +34,20 @@ def is_simulated_marks_warning(text: str) -> bool:
 
     return text == SIMULATED_MARKS_WARNING or text.startswith("DEMO")
 
+#: Endings of the notes that say how a contract is shown on the ladder (a floating price, an
+#: FOB cargo off the hubs): normal method, not a problem with the book.
+METHOD_NOTE_ENDINGS = (
+    "; volume only on the ladder",
+    ": an FOB cargo is not on a European hub until it is sold or discharged",
+)
+
+
+def is_method_note(text: str) -> bool:
+    """Whether a ladder warning only says how a contract is shown (not that something failed)."""
+
+    return text.endswith(METHOD_NOTE_ENDINGS)
+
+
 def curve_quotes(who: Any, date_from, date_to) -> list:
     """Latest entitled, non-simulated quote per hub and delivery window, for the curve.
 
