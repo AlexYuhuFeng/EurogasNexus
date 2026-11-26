@@ -269,3 +269,23 @@ def test_a_swept_job_does_not_publish_when_its_work_comes_back(factory) -> None:
 
     assert _job(factory, job_id)["error_code"] == bg.JOB_INTERRUPTED
     assert _artefacts(factory, "artefact-swept") == 0
+
+
+def test_on_sqlite_a_step_after_the_work_has_written_is_recorded_with_the_result(factory) -> None:
+    """SQLite has one writer: a step reported once the work holds the lock must not fail it."""
+
+    job_id = _submit(factory)
+
+    def work(session, progress) -> None:
+        progress.step(1, "a.one")
+        _artefact(session, "artefact-early")
+        session.flush()  # the work now holds SQLite's write lock until it commits
+        progress.step(2, "a.two")
+        progress.step(3, "a.three")
+
+    bg.run_background_job(factory, job_id, work, steps_total=3)
+
+    done = _job(factory, job_id)
+    assert done["status"] == "SUCCEEDED", done
+    assert (done["step"], done["step_label"]) == (3, "a.three")
+    assert _artefacts(factory, "artefact-early") == 1
