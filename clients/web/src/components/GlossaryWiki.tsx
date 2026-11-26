@@ -1,175 +1,147 @@
-import { PeriodPicker } from "@/components/ui";
-import type { GlossaryContextDTO, GlossaryTermDTO } from "@/api/client";
+import { Button, Instant, KeyFigure, PeriodPicker, Skeleton } from "@/components/ui";
+import type { GlossaryContextDTO, GlossaryTermDTO, NodeDTO, NormalizedMarketObsDTO } from "@/api/client";
+import {
+  contextAnswers,
+  entryCapacity,
+  entryLinks,
+  entryPrices,
+  glossaryHubCode,
+  glossaryMapPlace,
+  isEntityTerm,
+  resolveGlossaryTerm,
+  uniqueSources,
+  type EntryFigure,
+} from "@/app/model/glossaryEntry";
+import { gasDayLabelForUtc } from "@/app/tradingContext";
 
-type Translate = (key: string) => string;
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 interface GlossaryWikiProps {
   terms: GlossaryTermDTO[];
+  /** Every term, so a related term or a link resolves even when the list is filtered. */
+  allTerms: GlossaryTermDTO[];
   context: GlossaryContextDTO | null;
   selectedTerm: GlossaryTermDTO | null;
   categories: string[];
   activeCategory: string;
   query: string;
   language: string;
-  durationStart: string;
-  durationEnd: string;
-  shortcutTerms: string[];
+  /** The gas day the entity's figures are for; empty is the latest held. */
+  gasDay: string;
+  /** The map's reference points and the board's price rows (the map card's own reads). */
+  nodes: readonly NodeDTO[];
+  boardRows: readonly NormalizedMarketObsDTO[];
   loading: boolean;
+  /** The context read failed (the page then says so instead of waiting). */
+  contextError: boolean;
   t: Translate;
   onCategoryChange: (category: string) => void;
   onQueryChange: (query: string) => void;
-  onDurationStartChange: (value: string) => void;
-  onDurationEndChange: (value: string) => void;
+  onGasDayChange: (value: string) => void;
   onSelectTerm: (term: GlossaryTermDTO) => void;
-  onOpenContext: (term: string) => void;
-  formatContextValue: (value: unknown) => string;
+  onOpenTerm: (term: string) => void;
+  /** Open the network map on the place (a network node id). */
+  onShowOnMap: (nodeId: string) => void;
 }
 
 function localizedDefinition(term: GlossaryTermDTO, language: string): string {
-  return language.startsWith("zh") ? term.definition_zh_cn : term.definition_en;
+  return language.startsWith("zh") ? term.definition_zh_cn || term.definition_en : term.definition_en;
 }
 
-function contextMatchesTerm(context: GlossaryContextDTO | null, term: GlossaryTermDTO | null): boolean {
-  if (!context || !term) return false;
-  return context.term.toLowerCase() === term.term.toLowerCase();
+function categoryLabel(category: string, t: Translate): string {
+  return t(`glossary.cat.${category}`, { defaultValue: category });
 }
 
-const contextLabelKeys = [
-  "label",
-  "name",
-  "term",
-  "title",
-  "entity_name",
-  "point_name",
-  "route_name",
-  "contract_name",
-  "source_reference",
-  "source_system",
-  "venue",
-  "hub",
-  "country",
-  "id",
-  "entity_id",
-  "point_id",
-  "section_id",
-];
-
-const contextValueKeys = [
-  "value",
-  "amount",
-  "count",
-  "status",
-  "context_type",
-  "capacity_mcm_d",
-  "capacity_mwh_per_day",
-  "inventory_twh",
-  "price",
-  "price_gbp_mwh",
-  "quantity_mwh",
-  "available_quantity_mwh_per_day",
-];
-
-function objectRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object" && !Array.isArray(value)
-    ? (value as Record<string, unknown>)
-    : null;
+function nextDay(day: string): string {
+  const date = new Date(`${day}T12:00:00Z`);
+  date.setUTCDate(date.getUTCDate() + 1);
+  return date.toISOString().slice(0, 10);
 }
 
-function readablePrimitive(value: unknown): string | null {
-  if (typeof value === "string") {
-    const trimmed = value.trim();
-    return trimmed.length > 0 ? trimmed : null;
-  }
-  if (typeof value === "number" && Number.isFinite(value)) return String(value);
-  if (typeof value === "boolean") return value ? "true" : "false";
-  return null;
+function figureLabel(figure: EntryFigure, t: Translate): string {
+  if (figure.tenor === "day-ahead") return t("map.detail.day_ahead");
+  if (figure.tenor === "month-ahead") return t("map.detail.month_ahead");
+  if (figure.id === "capacity") return figure.label ? `${t("glossary.capacity")} · ${figure.label}` : t("glossary.capacity");
+  if (figure.id === "capacity_used") return t("glossary.capacity_usage");
+  return figure.label;
 }
 
-function firstRecordText(record: Record<string, unknown>, keys: string[]): string | null {
-  for (const key of keys) {
-    const value = readablePrimitive(record[key]);
-    if (value) return value;
-  }
-  return null;
-}
-
-function displayContextObject(value: unknown, formatContextValue: (value: unknown) => string): string {
-  if (value === null || value === undefined || value === "") return "n/a";
-  if (Array.isArray(value)) {
-    const values = value
-      .map((item) => displayContextObject(item, formatContextValue))
-      .filter((item) => item !== "n/a");
-    return values.length > 0 ? values.join(" / ") : "n/a";
-  }
-
-  const record = objectRecord(value);
-  if (record) {
-    const label = firstRecordText(record, contextLabelKeys);
-    const valueText = firstRecordText(record, contextValueKeys);
-    const unit = firstRecordText(record, ["unit", "currency", "original_unit"]);
-    if (label && valueText && label !== valueText) return unit ? `${label}: ${valueText} ${unit}` : `${label}: ${valueText}`;
-    if (label) return label;
-    if (valueText) return unit ? `${valueText} ${unit}` : valueText;
-
-    const compactEntries = Object.entries(record)
-      .map(([key, item]) => {
-        const text = readablePrimitive(item);
-        return text ? `${key.replace(/_/g, " ")}: ${text}` : null;
-      })
-      .filter((item): item is string => Boolean(item))
-      .slice(0, 3);
-    return compactEntries.length > 0 ? compactEntries.join(" / ") : "record";
-  }
-
-  return formatContextValue(value);
-}
-
-function shortValue(value: unknown, formatContextValue: (value: unknown) => string): string {
-  const formatted = displayContextObject(value, formatContextValue);
-  return formatted.length > 96 ? `${formatted.slice(0, 93)}...` : formatted;
+function Figures({ figures, language, t }: { figures: EntryFigure[]; language: string; t: Translate }) {
+  const locale = language.startsWith("zh") ? "zh-CN" : "en-GB";
+  const format = (value: number) => value.toLocaleString(locale, { maximumFractionDigits: 3 });
+  return (
+    <div className="glossary-figures">
+      {figures.map((figure) => (
+        <KeyFigure
+          key={figure.id}
+          label={figureLabel(figure, t)}
+          value={format(figure.value)}
+          unit={figure.unit}
+          delta={figure.change != null ? { text: `${figure.change >= 0 ? "+" : "−"}${format(Math.abs(figure.change))}`, value: figure.change } : undefined}
+          detail={
+            <span className="glossary-figure-source">
+              {figure.detail ? <span>{figure.detail}</span> : null}
+              {figure.source ? <span>{figure.source}</span> : null}
+              {figure.asOf ? <Instant value={figure.asOf} /> : null}
+            </span>
+          }
+        />
+      ))}
+    </div>
+  );
 }
 
 export function GlossaryWiki({
   terms,
+  allTerms,
   context,
   selectedTerm,
   categories,
   activeCategory,
   query,
   language,
-  durationStart,
-  durationEnd,
-  shortcutTerms,
+  gasDay,
+  nodes,
+  boardRows,
   loading,
+  contextError,
   t,
   onCategoryChange,
   onQueryChange,
-  onDurationStartChange,
-  onDurationEndChange,
+  onGasDayChange,
   onSelectTerm,
-  onOpenContext,
-  formatContextValue,
+  onOpenTerm,
+  onShowOnMap,
 }: GlossaryWikiProps) {
-  const matchingContext = contextMatchesTerm(context, selectedTerm) ? context : null;
-  const selectedDefinition = selectedTerm ? localizedDefinition(selectedTerm, language) : t("status.loading");
+  const mapPlace = glossaryMapPlace(selectedTerm, nodes);
+  const hub = glossaryHubCode(selectedTerm, nodes);
+  const answered = contextAnswers(context, selectedTerm, gasDay) ? context : null;
+  const entity = isEntityTerm(selectedTerm, mapPlace, answered) || Boolean(hub);
+  const waiting = entity && !answered && !contextError;
+  const prices = entity
+    ? entryPrices(answered, { hub, gasDay, boardRows })
+    : [];
+  const capacity = entity ? entryCapacity(answered) : [];
+  const links = entity ? entryLinks(answered) : { routes: [], contracts: [] };
+  const figures = [...prices, ...capacity];
+  const sources = selectedTerm ? uniqueSources(selectedTerm.source_refs) : [];
+  const latestDay = nextDay(gasDayLabelForUtc(new Date()));
 
   return (
     <div className="workspace-grid glossary-page glossary-wiki-shell glossary-codex-shell">
       <section className="workspace-panel glossary-left-rail glossary-term-list" aria-label={t("panel.glossary")}>
         <div className="panel-title-row">
-          <div>
-            <span className="eyebrow">{t("glossary.term_count")}</span>
-            <h2>{t("panel.glossary")}</h2>
-          </div>
-          <strong>{terms.length}</strong>
+          <h2>{t("panel.glossary")}</h2>
+          <strong aria-label={t("glossary.term_count")}>{terms.length}</strong>
         </div>
         <div className="glossary-list-toolbar">
           <input
+            type="search"
             value={query}
             onChange={(event) => onQueryChange(event.target.value)}
             placeholder={t("glossary.search")}
+            aria-label={t("glossary.search")}
           />
-          <span className="status-badge">{loading ? t("status.loading") : t("data.ready")}</span>
         </div>
         <div className="glossary-category-tabs" aria-label={t("glossary.category")}>
           <button
@@ -178,22 +150,17 @@ export function GlossaryWiki({
             onClick={() => onCategoryChange("all")}
           >
             <span>{t("glossary.all")}</span>
-            <strong>{terms.length}</strong>
           </button>
-          {categories.map((category) => {
-            const count = terms.filter((term) => term.category === category).length;
-            return (
-              <button
-                key={`glossary-category-${category}`}
-                type="button"
-                className={activeCategory === category ? "active" : ""}
-                onClick={() => onCategoryChange(category)}
-              >
-                <span>{category}</span>
-                <strong>{count}</strong>
-              </button>
-            );
-          })}
+          {categories.map((category) => (
+            <button
+              key={`glossary-category-${category}`}
+              type="button"
+              className={activeCategory === category ? "active" : ""}
+              onClick={() => onCategoryChange(category)}
+            >
+              <span>{categoryLabel(category, t)}</span>
+            </button>
+          ))}
         </div>
 
         <div className="glossary-term-card-list">
@@ -207,20 +174,18 @@ export function GlossaryWiki({
               data-record="glossary-term"
               data-record-id={term.term_id}
               className={`glossary-term-card ${selectedTerm?.term_id === term.term_id ? "active" : ""}`}
+              aria-current={selectedTerm?.term_id === term.term_id ? "true" : undefined}
               onClick={() => onSelectTerm(term)}
             >
-              <span>{term.category}</span>
+              <span>{categoryLabel(term.category, t)}</span>
               <strong>{term.term}</strong>
               <p>{localizedDefinition(term, language)}</p>
-              {term.aliases.length > 0 && (
-                <small>{term.aliases.slice(0, 3).join(" / ")}</small>
-              )}
             </button>
           ))}
-          {terms.length === 0 && (
+          {terms.length === 0 && loading && <Skeleton label={t("status.loading")} rows={6} />}
+          {terms.length === 0 && !loading && (
             <div className="glossary-empty-state" data-empty-state="glossary-terms">
-              <strong>{t("data.unavailable")}</strong>
-              <span>{t("glossary.search")}</span>
+              <strong>{t("glossary.no_match")}</strong>
             </div>
           )}
         </div>
@@ -233,165 +198,107 @@ export function GlossaryWiki({
         // comparing the page's own copy with itself (`browser_workflow_smoke.mjs`).
         data-record="glossary-article"
         data-record-id={selectedTerm?.term_id}
+        // A stable anchor for the entry: `?workspace=glossary&term=<term>` opens it.
+        id={selectedTerm ? `glossary-${selectedTerm.term_id}` : undefined}
       >
-        <div className="panel-title-row">
-          <div>
-            <span className="eyebrow">{t("glossary.term_wiki")}</span>
-            <h2>{selectedTerm?.term ?? t("panel.glossary")}</h2>
-          </div>
-          {selectedTerm && <span className="status-badge">{selectedTerm.category}</span>}
-        </div>
-
-        <p className="glossary-definition">{selectedDefinition}</p>
-        {selectedTerm && (selectedTerm.unit || selectedTerm.formula || selectedTerm.example) && (
-          <dl className="glossary-facts">
-            {selectedTerm.unit && <div><dt>{t("glossary.unit")}</dt><dd>{selectedTerm.unit}</dd></div>}
-            {selectedTerm.formula && <div><dt>{t("glossary.formula")}</dt><dd><code>{selectedTerm.formula}</code></dd></div>}
-            {selectedTerm.example && <div><dt>{t("glossary.example")}</dt><dd>{selectedTerm.example}</dd></div>}
-          </dl>
-        )}
-        {selectedTerm?.where_in_app && selectedTerm.where_in_app.length > 0 && (
-          <p className="glossary-where">
-            <span>{t("glossary.where_in_app")}</span> {selectedTerm.where_in_app.join(" · ")}
-          </p>
-        )}
-        {selectedTerm && selectedTerm.source_refs.length > 0 && (
-          <p className="glossary-where muted"><span>{t("glossary.sources")}</span> {selectedTerm.source_refs.join(" · ")}</p>
-        )}
-
-        {selectedTerm && (
-          <div className="glossary-chip-section">
-            {selectedTerm.aliases.length > 0 && (
+        {!selectedTerm ? (
+          <Skeleton label={t("status.loading")} rows={4} variant="text" />
+        ) : (
+          <>
+            <div className="panel-title-row">
               <div>
-                <span>{t("glossary.aliases")}</span>
-                <div>
-                  {selectedTerm.aliases.map((alias) => (
-                    <strong key={`alias-${selectedTerm.term_id}-${alias}`} className="glossary-related-chip">
-                      {alias}
-                    </strong>
-                  ))}
-                </div>
+                <h2>{selectedTerm.term}</h2>
+                {selectedTerm.aliases.length > 0 && (
+                  <p className="glossary-aliases muted">{selectedTerm.aliases.join(" · ")}</p>
+                )}
               </div>
-            )}
-            {selectedTerm.related_terms.length > 0 && (
-              <div>
-                <span>{t("glossary.related")}</span>
-                <div>
-                  {selectedTerm.related_terms.map((related) => (
-                    <button
-                      key={`related-${selectedTerm.term_id}-${related}`}
-                      type="button"
-                      className="glossary-related-chip"
-                      onClick={() => onOpenContext(related)}
-                    >
-                      {related}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {selectedTerm && selectedTerm.source_refs.length > 0 && (
-          <div className="glossary-source-list">
-            <span>{t("glossary.source_refs")}</span>
-            {selectedTerm.source_refs.map((source) => (
-              <strong key={`source-${selectedTerm.term_id}-${source}`}>{source}</strong>
-            ))}
-          </div>
-        )}
-
-        <div className="glossary-controls">
-          <label>
-            {t("glossary.duration_start")}
-            <PeriodPicker kind="datetime" label={t("glossary.duration_start")} value={durationStart} clearable onChange={onDurationStartChange} />
-          </label>
-          <label>
-            {t("glossary.duration_end")}
-            <PeriodPicker kind="datetime" label={t("glossary.duration_end")} value={durationEnd} clearable onChange={onDurationEndChange} />
-          </label>
-          <small className="glossary-time-basis">
-            {t("evidence.time_basis")}: {t("evidence.utc")}
-          </small>
-        </div>
-        <div className="context-shortcuts">
-          {shortcutTerms.map((term) => (
-            <button key={`glossary-shortcut-${term}`} type="button" onClick={() => onOpenContext(term)}>
-              {term}
-            </button>
-          ))}
-          {selectedTerm && (
-            <button type="button" onClick={() => onOpenContext(selectedTerm.term)}>
-              {t("glossary.context")}
-            </button>
-          )}
-        </div>
-
-        <section className="glossary-wiki-context">
-          <div className="context-heading">
-            <div>
-              <strong>{t("glossary.operational_context")}</strong>
-              <span>{matchingContext?.context_type ?? t("data.partial")}</span>
+              <span className="status-badge">{categoryLabel(selectedTerm.category, t)}</span>
             </div>
-            <span>{matchingContext?.data_quality.runtime_db ? t("data.ready") : t("data.partial")}</span>
-          </div>
 
-          {matchingContext ? (
-            <>
-              <p>{language.startsWith("zh") ? matchingContext.description_zh_cn ?? matchingContext.description : matchingContext.description_en ?? matchingContext.description}</p>
-              {matchingContext.metrics.length > 0 && (
-                <div className="metric-grid glossary-metrics">
-                  {matchingContext.metrics.slice(0, 8).map((metric, index) => (
-                    <div key={`glossary-context-metric-${index}`}>
-                      <span>{shortValue(metric.label, formatContextValue)}</span>
-                      <strong>{shortValue(metric.value, formatContextValue)} {shortValue(metric.unit, formatContextValue)}</strong>
-                    </div>
-                  ))}
-                </div>
-              )}
-              {matchingContext.matched_entities.length > 0 && (
-                <div className="glossary-entity-list">
-                  <span>{t("glossary.matched_entities")}</span>
-                  <div>
-                    {matchingContext.matched_entities.slice(0, 8).map((entity, index) => (
-                      <strong key={`matched-entity-${index}`}>
-                        {shortValue(entity, formatContextValue)}
-                      </strong>
-                    ))}
+            <p className="glossary-definition">{localizedDefinition(selectedTerm, language)}</p>
+            {(selectedTerm.unit || selectedTerm.formula || selectedTerm.example) && (
+              <dl className="glossary-facts">
+                {selectedTerm.unit && <div><dt>{t("glossary.unit")}</dt><dd>{selectedTerm.unit}</dd></div>}
+                {selectedTerm.formula && <div><dt>{t("glossary.formula")}</dt><dd><code>{selectedTerm.formula}</code></dd></div>}
+                {selectedTerm.example && <div><dt>{t("glossary.example")}</dt><dd>{selectedTerm.example}</dd></div>}
+              </dl>
+            )}
+
+            {entity && (
+              <section className="glossary-entity" aria-label={t("glossary.facts_title")} aria-busy={waiting || undefined}>
+                <div className="glossary-entity-head">
+                  <h3>{t("glossary.facts_title")}</h3>
+                  <div className="glossary-entity-controls">
+                    <PeriodPicker
+                      kind="day"
+                      label={t("glossary.gas_day")}
+                      value={gasDay}
+                      placeholder={t("glossary.latest")}
+                      max={latestDay}
+                      clearable
+                      onChange={onGasDayChange}
+                    />
+                    {mapPlace && (
+                      <Button size="sm" variant="secondary" onClick={() => onShowOnMap(mapPlace)}>
+                        {t("glossary.show_on_map")}
+                      </Button>
+                    )}
                   </div>
                 </div>
-              )}
-              {matchingContext.context_sections.length > 0 && (
-                <div className="glossary-context-section-list">
-                  {matchingContext.context_sections.slice(0, 4).map((section) => (
-                    <div key={`glossary-section-${section.section_id}`} className="glossary-context-section">
-                      <strong>{section.title}</strong>
-                      {section.items.slice(0, 5).map((item, index) => (
-                        <span key={`glossary-section-item-${section.section_id}-${index}`}>
-                          {shortValue(item, formatContextValue)}
+                {waiting && figures.length === 0 ? (
+                  <Skeleton label={t("glossary.loading_figures")} rows={2} />
+                ) : figures.length > 0 ? (
+                  <Figures figures={figures} language={language} t={t} />
+                ) : (
+                  <p className="muted glossary-no-figures">
+                    {contextError ? t("data.unavailable") : gasDay ? t("glossary.no_figures_day") : t("glossary.no_figures")}
+                  </p>
+                )}
+                {(links.routes.length > 0 || links.contracts.length > 0) && (
+                  <dl className="glossary-facts glossary-entity-links">
+                    {links.routes.length > 0 && <div><dt>{t("glossary.routes")}</dt><dd>{links.routes.join(" · ")}</dd></div>}
+                    {links.contracts.length > 0 && <div><dt>{t("glossary.contracts")}</dt><dd>{links.contracts.join(" · ")}</dd></div>}
+                  </dl>
+                )}
+              </section>
+            )}
+
+            {selectedTerm.related_terms.length > 0 && (
+              <div className="glossary-chip-section">
+                <div>
+                  <span>{t("glossary.related")}</span>
+                  <div>
+                    {selectedTerm.related_terms.map((related) =>
+                      resolveGlossaryTerm(related, allTerms) ? (
+                        <button
+                          key={`related-${selectedTerm.term_id}-${related}`}
+                          type="button"
+                          className="glossary-related-chip"
+                          onClick={() => onOpenTerm(related)}
+                        >
+                          {related}
+                        </button>
+                      ) : (
+                        <span key={`related-${selectedTerm.term_id}-${related}`} className="glossary-related-chip">
+                          {related}
                         </span>
-                      ))}
-                    </div>
-                  ))}
+                      ),
+                    )}
+                  </div>
                 </div>
-              )}
-              {(matchingContext.related_sources.length > 0 || matchingContext.warnings.length > 0) && (
-                <div className="glossary-source-list">
-                  <span>{t("glossary.data_quality")}</span>
-                  {matchingContext.related_sources.map((source) => (
-                    <strong key={`context-source-${source}`}>{source}</strong>
-                  ))}
-                  {matchingContext.warnings.map((warning) => (
-                    <em key={`context-warning-${warning}`}>{warning}</em>
-                  ))}
-                </div>
-              )}
-            </>
-          ) : (
-            <p>{selectedTerm ? t("glossary.context_empty") : t("status.loading")}</p>
-          )}
-        </section>
+              </div>
+            )}
+
+            {selectedTerm.where_in_app && selectedTerm.where_in_app.length > 0 && (
+              <p className="glossary-where">
+                <span>{t("glossary.where_in_app")}</span> {selectedTerm.where_in_app.join(" · ")}
+              </p>
+            )}
+            {sources.length > 0 && (
+              <p className="glossary-where muted"><span>{t("glossary.sources")}</span> {sources.join(" · ")}</p>
+            )}
+          </>
+        )}
       </article>
     </div>
   );

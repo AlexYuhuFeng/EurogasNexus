@@ -529,9 +529,19 @@ Purpose:
 - cover institutions, entities, venues, business models, contracts, prices,
   hubs, terminals, clearing, finance, and operational concepts;
 - support English and Mandarin Chinese from the same backend term contract;
-- show operational context for high-value terms such as TTF, NBP, ICE OCM, ICIS
-  Heren, GATE LNG, and Zeebrugge Entry Point when PostgreSQL contains matching
-  runtime rows.
+- separate concepts from entities: a concept (bid, gas day, firm capacity) is a
+  definition, unit, formula and example, with no figures and no date choice;
+- give an entity (a hub, a trading venue, a price assessment, a system point or
+  terminal) its figures: the latest price of each venue and product, capacity and
+  its use, each with its source and the time it was read, and the routes and
+  contracts that run through it. One gas-day picker, shown only on an entity,
+  chooses the gas day the figures are for; empty is the latest held. A map hub's
+  prices are the board's own rows, the figures the map's hub card shows;
+- link an entity the map draws to the map (`?workspace=market&task=network&place=<node id>`,
+  the hub's, terminal's or point's network node), and the map's card to the entry
+  (one sentence of the definition and a link);
+- open an entry from a link or the search bar with `?workspace=glossary&term=<term>`
+  (the term, an alias or the term id, any case).
 
 ## Screen: Runtime
 
