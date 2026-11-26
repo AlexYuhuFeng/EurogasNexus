@@ -226,6 +226,7 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/reference-network/market-hubs",
         "/api/reference-network/nodes",
         "/api/reference-network/nodes/{node_id}",
+        "/api/reference-network/supply-corridors",
         "/api/reference-network/tso-access",
         "/api/reports/portfolio",
         "/api/research/allocation",
