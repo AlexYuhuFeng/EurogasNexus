@@ -7791,5 +7791,8 @@
   "map.intensity.ranking": "Ranked by figure",
   "map.intensity.ranking_title": "{{metric}}: largest ten",
   "map.scene.legend.site": "Circle: a terminal or storage site, its area the published firm capacity (square-root scale)",
-  "map.scene.legend.site_none": "Small grey circle: no published capacity held for the site"
+  "map.scene.legend.site_none": "Small grey circle: no published capacity held for the site",
+  "warning.required_demand_not_deliverable": "Required demand the network cannot deliver at any price",
+  "warning.required_demand_uneconomic": "Required demand the network can deliver only at a loss: left unserved by the value-maximising plan",
+  "warning.signal_study_decision_time_margin": "Signal study: the P&L is the margin at the decision price, not a realised P&L"
 }

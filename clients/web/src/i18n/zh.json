@@ -7791,5 +7791,8 @@
   "map.intensity.ranking": "按数值排序",
   "map.intensity.ranking_title": "{{metric}}：前十名",
   "map.scene.legend.site": "圆：接收站或储气库，面积为已公布的固定容量（平方根刻度）",
-  "map.scene.legend.site_none": "灰色小圆：未持有该站点的公布容量"
+  "map.scene.legend.site_none": "灰色小圆：未持有该站点的公布容量",
+  "warning.required_demand_not_deliverable": "网络在任何价格下都无法交付的必需需求",
+  "warning.required_demand_uneconomic": "网络只能亏损交付的必需需求：价值最大化方案未予供应",
+  "warning.signal_study_decision_time_margin": "信号研究：盈亏为决策时价格下的边际，并非已实现盈亏"
 }
