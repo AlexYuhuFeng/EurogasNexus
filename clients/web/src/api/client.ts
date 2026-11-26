@@ -6695,6 +6695,14 @@ export const api = {
       options,
     ),
 
+  /** What Book -> Planning starts from: contracts in execution, the TSO calendar, storage. */
+  planningInputs: (gasDay?: string, options?: ApiRequestOptions) =>
+    get<import("@/app/model/planningPrefill").PlanningInputsDTO>(
+      "/optimization/planning-inputs",
+      gasDay ? { gas_day: gasDay } : undefined,
+      options,
+    ),
+
   me: (options?: ApiRequestOptions) => get<CurrentUserDTO>("/me", undefined, options),
   authStatus: () => get<AuthStatusDTO>("/auth/status"),
   /**
