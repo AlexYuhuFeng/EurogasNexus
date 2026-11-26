@@ -11,6 +11,15 @@ version lives under [docs/release/notes](docs/release/notes).
 
 ## [Unreleased]
 
+### Added
+
+- Gas option settlements for TTF, NBP and THE, as indicative evidence: implied volatility,
+  25-delta risk reversal and butterfly, and the put/call open-interest ratio. They come from a
+  licensed end-of-day file you import (ICE Endex, EEX or CME; there is no free feed), with a
+  clearly flagged simulated demo series. They can be read through an entitlement-gated API and
+  as dataset-builder features. See
+  [docs/data/GAS_OPTION_SETTLEMENTS.md](docs/data/GAS_OPTION_SETTLEMENTS.md).
+
 ## [1.0.0-beta] - 2026-11-20
 
 ### About this release

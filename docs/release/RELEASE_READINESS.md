@@ -61,7 +61,10 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **278 paths / 311 operations**
+- OpenAPI public surface: **280 paths / 313 operations**
+
+  (2026-11-26: gas option settlement reads `GET /api/market/options/surface` and
+  `GET /api/market/options/metrics` (READ); 278 / 311 before)
 
   (2026-11-20: forward balance `GET /api/fundamentals/forward-balance` (READ); 277 / 310
   before)

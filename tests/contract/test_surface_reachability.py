@@ -197,6 +197,10 @@ DELIBERATE: dict[str, str] = {
     "/api/discoveries": "CP-24; Today reads it server-side (desk_today), the strip later",
     "/api/opportunities/settings": "CP-08 backend; the Admin settings view is a later package",
     "/api/opportunities/statistics": "CP-08 backend; the Admin precision view is later",
+    # Gas option settlements (docs/data/GAS_OPTION_SETTLEMENTS.md): the read API is first;
+    # the option-surface view is a later package.
+    "/api/market/options/surface": "option settlements read API; the web view is later",
+    "/api/market/options/metrics": "option smile metric series; the web view is later",
     "/api/market/valuation-snapshots/{snapshot_id}": (
         "CP-07 backend; read from an opportunity's evidence in the later Deals page"
     ),

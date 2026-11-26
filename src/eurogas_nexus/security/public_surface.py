@@ -171,6 +171,9 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/route-cost/tariff-entries/{entry_id}/review",
         "/api/route-cost/tariff-entries/{entry_id}/withdraw",
         "/api/market/gas-for-power",
+        # Gas option settlements: smile per contract and front-month volatility series.
+        "/api/market/options/surface",
+        "/api/market/options/metrics",
         "/api/market/nwe-balance",
         "/api/access/market-data-licences",
         "/api/access/market-data-licences/{licence_id}",

@@ -4,6 +4,15 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-26 (gas option settlements, docs/data/GAS_OPTION_SETTLEMENTS.md): two paths,
+two operations, both READ and entitlement-gated. `GET /api/market/options/surface?hub=&trade_date=
+&lookback_days=` returns `contracts[]` (the chosen `source_system`, `source_tier`, `simulated`,
+`ingested_at_utc`, `alternatives[]`, `metrics` with ATM IV, 25-delta call and put, RR25, BF25 and
+the put/call OI ratio, each `null` with a reason when the strikes cannot support it, and
+`strikes[]`). `GET /api/market/options/metrics?hub=&tenor=M1..M6&days=&end=` returns `units` and
+daily `points[]` for the rolling front months. An unknown hub or tenor is 422. Census: 280 paths /
+313 operations (+2 / +2 on 278 / 311).
+
 Additive 2026-11-20 (forward balance, CP-25): one path, one operation.
 `GET /api/fundamentals/forward-balance` (READ) answers `headline` (tighter/looser/about normal
 by GWh/d over D+1..D+14, `main_driver`, `contributions_gwh_d`), `daily[]` and `monthly[]`

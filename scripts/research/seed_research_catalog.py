@@ -62,7 +62,13 @@ def _feature(feature_id: str, name: str, deps: list[str], unit: str) -> FeatureD
 
 
 def _declared(
-    feature_id: str, name: str, transformation: str, deps: list[str], **metadata: object
+    feature_id: str,
+    name: str,
+    transformation: str,
+    deps: list[str],
+    *,
+    unit: str = "EUR/MWh",
+    **metadata: object,
 ) -> FeatureDefinition:
     """A feature computed from its declaration (see domain/research/feature_transforms.py)."""
 
@@ -72,7 +78,7 @@ def _declared(
         description=f"{name}; every input resolved as of its own earlier cutoff.",
         category="market",
         input_dependencies=deps,
-        output_unit="EUR/MWh",
+        output_unit=unit,
         frequency="1d",
         availability_class="DERIVED_AS_OF",
         transformation=transformation,
@@ -130,6 +136,7 @@ def main() -> int:
             ("EEX_Sim", "EEX"),
             ("ICE_OCM_Sim", "ICE OCM"),
             ("ICIS_Sim", "ICIS Heren"),
+            ("ICE_ENDEX_Sim", "ICE Endex"),
         ):
             for hub in ("TTF", "NBP", "THE", "PEG", "ZTP", "PSV"):
                 upsert_source_entity_mapping(
@@ -240,6 +247,33 @@ def main() -> int:
                     ("day_ahead_price", "day-ahead power price", "EUR/MWh"),
                 )
             ),
+            # Gas option settlements (docs/data/GAS_OPTION_SETTLEMENTS.md): the front-month
+            # TTF option contract's smile metrics, one value per trade date. Licensed
+            # (ICE_ENDEX / EEX / CME) or, in the demo, ICE_ENDEX_Sim (simulated).
+            *(
+                SeriesDefinitionRecord(
+                    series_id=f"options.{metric}.TTF.M1",
+                    name=f"TTF front-month option {label}",
+                    metric_type="option_volatility",
+                    entity_type="market_hub",
+                    entity_id="ent:market_hub:TTF",
+                    product_id="M1",
+                    source_class="ICE_ENDEX",
+                    native_frequency="P1D",
+                    native_unit=unit,
+                    currency=None,
+                    temporal_type="OBSERVED",
+                    availability_semantics="available_at_required",
+                    schema_version="series/v1",
+                    created_at_utc=now,
+                )
+                for metric, label, unit in (
+                    ("atm_iv", "ATM implied volatility", "%"),
+                    ("rr25", "25-delta risk reversal", "vol pts"),
+                    ("bf25", "25-delta butterfly", "vol pts"),
+                    ("pc_oi_ratio", "put/call open-interest ratio", "ratio"),
+                )
+            ),
         ):
             upsert_series_definition(session, series)
 
@@ -283,6 +317,17 @@ def main() -> int:
                       ["power.gas_generation.GB"], lag_steps=24, step="1h"),
             _declared("NBP_DA_MA5", "NBP day-ahead, 5-day mean",
                       "rolling_mean", ["market.price.NBP.DAY_AHEAD"], window=5),
+            _declared("TTF_OPT_ATM_IV_M1", "TTF front-month ATM implied volatility",
+                      "identity", ["options.atm_iv.TTF.M1"], unit="%"),
+            _declared("TTF_OPT_ATM_IV_M1_CHG1", "TTF front-month ATM implied volatility, "
+                      "1-day change", "difference", ["options.atm_iv.TTF.M1"], unit="vol pts",
+                      lag_steps=1),
+            _declared("TTF_OPT_RR25_M1", "TTF front-month 25-delta risk reversal",
+                      "identity", ["options.rr25.TTF.M1"], unit="vol pts"),
+            _declared("TTF_OPT_BF25_M1", "TTF front-month 25-delta butterfly",
+                      "identity", ["options.bf25.TTF.M1"], unit="vol pts"),
+            _declared("TTF_OPT_PC_OI_M1", "TTF front-month put/call open-interest ratio",
+                      "identity", ["options.pc_oi_ratio.TTF.M1"], unit="ratio"),
         ):
             upsert_feature_definition(
                 session,

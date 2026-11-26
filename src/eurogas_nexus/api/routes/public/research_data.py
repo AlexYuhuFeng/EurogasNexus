@@ -6,7 +6,7 @@ licensed data is returned.
 
 from __future__ import annotations
 
-from datetime import UTC
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
@@ -843,6 +843,16 @@ def _build_from_runtime(
     )
     records.extend(physical_records)
     trusted_source_ids.update(physical_sources)
+    option_records, option_sources = _option_evidence(
+        session,
+        needed,
+        source_by_system,
+        history_start=history_start,
+        end=spec.end,
+        requested_entity_ids=requested_entity_ids,
+    )
+    records.extend(option_records)
+    trusted_source_ids.update(option_sources)
     if not records:
         raise HTTPException(
             status_code=422,
@@ -1119,3 +1129,103 @@ def _fundamental_evidence(
                     definition,
                 )
     return records, sources
+
+
+def _option_evidence(
+    session,
+    needed: set[str],
+    source_by_system: dict,
+    *,
+    history_start,
+    end,
+    requested_entity_ids: set[str],
+) -> tuple[list[DatasetEvidenceRecord], set[str]]:
+    """Evidence for ``options.<metric>.<hub>.M<n>`` series (gas option settlements).
+
+    Metrics: ``atm_iv`` (%), ``rr25`` and ``bf25`` (volatility points) and ``pc_oi_ratio``,
+    of the hub's ``n``-th unexpired monthly option contract on each trade date
+    (``application.option_surface``). Only rows of sources the caller is authorised for enter
+    the per-contract source precedence (exchange > licensed vendor > simulated), so an
+    unentitled exchange file never silently gives way to the simulator either: the caller
+    sees what it may see. A value is observed at the settlement (18:00 UTC on the trade date)
+    and available from the receipt of the file, so it is approximate rather than certified;
+    simulated rows enter as ``SIMULATED``.
+    """
+
+    from eurogas_nexus.application.option_surface import (
+        OPTION_SERIES_METRICS,
+        option_rows,
+        summaries_by_day,
+    )
+
+    wanted: set[tuple[str, str, str]] = set()
+    for series_id in needed:
+        parts = tuple(series_id.split("."))
+        if len(parts) == 4 and parts[0] == "options" and parts[1] in OPTION_SERIES_METRICS:
+            wanted.add((parts[1], parts[2].upper(), parts[3].upper()))
+    if not wanted:
+        return [], set()
+    systems = {definition.provider for definition in source_by_system.values()}
+    first = history_start.date() if hasattr(history_start, "date") else history_start
+    last = end.date() if hasattr(end, "date") else end
+    rows = option_rows(
+        session,
+        hubs={hub for _, hub, _ in wanted},
+        first=first,
+        last=last,
+        source_systems=systems,
+    )
+    records: list[DatasetEvidenceRecord] = []
+    sources: set[str] = set()
+    for (hub, trade_day), summaries in summaries_by_day(rows).items():
+        entity_id = canonical_entity_id_for_hub(hub)
+        if requested_entity_ids and entity_id not in requested_entity_ids:
+            continue
+        for summary in summaries:
+            tenor = summary.get("tenor")
+            definition = source_by_system.get(str(summary["source_system"]).casefold())
+            if tenor is None or definition is None:
+                continue
+            observed = datetime(trade_day.year, trade_day.month, trade_day.day, 18, tzinfo=UTC)
+            if not history_start <= observed < end:
+                continue
+            received = summary["ingested_at_utc"]
+            if received is not None and received.tzinfo is None:
+                received = received.replace(tzinfo=UTC)
+            for metric, (key, unit) in OPTION_SERIES_METRICS.items():
+                value = summary["metrics"].get(key)
+                if (metric, hub, tenor) not in wanted or value is None:
+                    continue
+                records.append(
+                    DatasetEvidenceRecord(
+                        record_id=(
+                            f"optm:{summary['source_system']}:{hub}:{tenor}:{metric}:"
+                            f"{trade_day.isoformat()}"
+                        ),
+                        series_id=f"options.{metric}.{hub}.{tenor}",
+                        entity_id=entity_id,
+                        observed_at=observed,
+                        available_at=received,
+                        ingested_at=received,
+                        value=float(value),
+                        unit=unit,
+                        observation_kind=(
+                            ObservationKind.SIMULATED
+                            if summary["simulated"]
+                            else ObservationKind.ACTUAL
+                        ),
+                        temporal_integrity=TemporalIntegrityState.TEMPORAL_APPROXIMATE,
+                        source_reference=summary["source_reference"],
+                        export_policy=row_export_policy(definition),
+                    )
+                )
+                sources.add(definition.source_id)
+    return records, sources
+
+
+def canonical_entity_id_for_hub(hub: str) -> str:
+    """The canonical market-hub entity id (the same one market price series use)."""
+
+    from eurogas_nexus.domain.research.ontology import CanonicalEntityType, canonical_entity_id
+
+    return canonical_entity_id(CanonicalEntityType.MARKET_HUB, hub)
