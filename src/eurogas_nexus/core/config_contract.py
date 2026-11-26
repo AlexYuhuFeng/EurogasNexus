@@ -790,6 +790,14 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         profiles=("development",),
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_SCHEDULER",
+        scope="OPERATOR",
+        purpose="Run the product's data-operations scheduler on the demo server after the "
+        "first catch-up round (on) or repeat catch-up rounds without one (off).",
+        default="on",
+        profiles=("development",),
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_DEFERRED_CAPABILITIES",
         scope="OPERATOR",
         purpose="Serve the deferred capabilities' routes (dataset builder, agents workspace); "

@@ -28,6 +28,12 @@ from eurogas_nexus.application.scheduled_source_keys import (
     activate_keyed_sources,
     key_configured,
 )
+from eurogas_nexus.application.scheduler_lease import (
+    HeartbeatKeeper,
+    holder_label,
+    lease_for,
+    touch_heartbeat,
+)
 from eurogas_nexus.db.session import get_session_factory, resolve_database_url
 from eurogas_nexus.domain.dataops.contracts import FailureCategory, QualityIssue, QualitySeverity
 from eurogas_nexus.domain.dataops.retry import classify_script_failure
@@ -716,8 +722,15 @@ def run_loop(
     entsog_lookback_gas_days: int | None = None,
     entsog_point_directions: Sequence[str] = (),
     clock: Callable[[], datetime] = lambda: datetime.now(UTC),
+    lease_factory: Callable[[object], object] | None = None,
 ) -> int:
-    """Run scheduler scans and run executions on a bounded cadence."""
+    """Run scheduler scans and run executions on a bounded cadence.
+
+    Only the process holding the scheduler lock scans, claims and executes
+    (:mod:`eurogas_nexus.application.scheduler_lease`); another one waits as a standby and
+    takes over within one interval when the active one stops. With ``--once`` a standby
+    process exits 3 without ingesting.
+    """
 
     point_directions = validate_entsog_point_directions(entsog_point_directions)
     if resolve_database_url() is None:
@@ -749,70 +762,142 @@ def run_loop(
     )
     iteration = 0
     failed_iterations = 0
-    while max_iterations is None or iteration < max_iterations:
-        try:
-            now_utc = require_aware_anchor(clock())
-            with session_factory() as session:
-                scan = scan_scheduler(session, limit=scan_limit, now_utc=now_utc)
-                # A keyed source switches on once its key is stored (unless an operator
-                # switched it off); the next scan schedules it.
-                try:
-                    scan["keyed_sources_activated"] = activate_keyed_sources(
-                        session, now_utc=now_utc, session_factory=session_factory
-                    )
-                except Exception:  # noqa: BLE001 - activation never stops the scan
-                    emit_event(
-                        event="scheduler.keyed_activation.failed",
-                        level="warning",
-                        error_category="INTERNAL",
-                    )
-                session.commit()
-            with session_factory() as session:
-                execution = execute_claimed_runs(
-                    session,
-                    runner=attempt_runner,
-                    limit=run_limit,
-                    now_utc=now_utc,
-                )
-                session.commit()
-            # CP-13: ingestions that wrote rows mark their input class pending; a debounced
-            # full opportunity evaluation follows. Never stops the ingestion loop.
-            execution["opportunity_evaluation"] = evaluate_opportunities_if_due(
-                session_factory, execution.get("outcomes", []), now_utc=now_utc
+    lease = (lease_factory or lease_for)(session_factory)
+    keeper = (
+        HeartbeatKeeper(lease, lambda: touch_heartbeat(session_factory))
+        if getattr(lease, "postgresql", False)
+        else None
+    )
+    standby_iterations = 0
+    try:
+        while max_iterations is None or iteration < max_iterations:
+            if not _hold_lease(lease, keeper, emit):
+                standby_iterations += 1
+                iteration += 1
+                if max_iterations is not None and iteration >= max_iterations:
+                    break
+                sleeper(max(1.0, interval_seconds))
+                continue
+            failed_iterations += _iteration(
+                session_factory=session_factory,
+                clock=clock,
+                scan_limit=scan_limit,
+                run_limit=run_limit,
+                attempt_runner=attempt_runner,
+                configuration_blocks=configuration_blocks,
+                emit=emit,
             )
-            # M4: the market event outbox (lineage, staleness, targeted re-evaluation).
-            execution["market_events"] = deliver_market_events(
-                session_factory, execution.get("outcomes", []), now_utc=now_utc
-            )
-            # Tracked strategies with a newer close or tick than their last evaluation.
-            execution["strategy_tracking"] = track_strategies_if_due(
-                session_factory, now_utc=now_utc
-            )
-            failures = [
-                outcome
-                for outcome in execution.get("outcomes", [])
-                if outcome.get("status") == "FAILED"
-            ]
-            failed_iterations += bool(failures)
-            emit(
-                json.dumps(
-                    {
-                        "status": "degraded" if failures or configuration_blocks else "ok",
-                        "configuration_blocks": configuration_blocks,
-                        "scan": scan,
-                        "execution": execution,
-                    }
-                )
-            )
-        except Exception as exc:
-            failed_iterations += 1
-            emit_event(event="scheduler.scan.failed", level="error", error_category="INTERNAL")
-            emit(json.dumps({"status": "failed", "error_type": exc.__class__.__name__}))
-        iteration += 1
-        if max_iterations is not None and iteration >= max_iterations:
-            break
-        sleeper(max(1.0, interval_seconds))
+            iteration += 1
+            if max_iterations is not None and iteration >= max_iterations:
+                break
+            sleeper(max(1.0, interval_seconds))
+    finally:
+        if keeper is not None:
+            keeper.stop()
+        lease.release()
+    if standby_iterations and standby_iterations == iteration:
+        return 3
     return 2 if configuration_blocks else int(failed_iterations > 0)
+
+
+def _hold_lease(lease, keeper, emit: Callable[[str], None]) -> bool:
+    """Take (or keep) the scheduler lock; report a change of role once."""
+
+    if lease.held and not lease.lost.is_set():
+        return True
+    was_lost = lease.lost.is_set()
+    if keeper is not None:
+        keeper.stop()
+    if not lease.acquire():
+        emit_event(
+            event="scheduler.standby",
+            level="info",
+            details={"reason": "another scheduler holds the lock", "holder": holder_label()},
+        )
+        emit(json.dumps({"status": "standby", "reason": "scheduler_lock_held_elsewhere"}))
+        return False
+    emit_event(
+        event="scheduler.lock.reacquired" if was_lost else "scheduler.lock.acquired",
+        level="info",
+        details={"holder": holder_label()},
+    )
+    if keeper is not None:
+        keeper.start()
+    return True
+
+
+def _iteration(
+    *,
+    session_factory,
+    clock,
+    scan_limit: int,
+    run_limit: int,
+    attempt_runner,
+    configuration_blocks: dict,
+    emit: Callable[[str], None],
+) -> int:
+    """One scan and execution; returns 1 when it failed or ran a failed attempt."""
+
+    failed = 0
+    try:
+        now_utc = require_aware_anchor(clock())
+        with session_factory() as session:
+            scan = scan_scheduler(session, limit=scan_limit, now_utc=now_utc)
+            # A keyed source switches on once its key is stored (unless an operator
+            # switched it off); the next scan schedules it.
+            try:
+                scan["keyed_sources_activated"] = activate_keyed_sources(
+                    session, now_utc=now_utc, session_factory=session_factory
+                )
+            except Exception:  # noqa: BLE001 - activation never stops the scan
+                emit_event(
+                    event="scheduler.keyed_activation.failed",
+                    level="warning",
+                    error_category="INTERNAL",
+                )
+            session.commit()
+        with session_factory() as session:
+            execution = execute_claimed_runs(
+                session,
+                runner=attempt_runner,
+                limit=run_limit,
+                now_utc=now_utc,
+            )
+            session.commit()
+        # CP-13: ingestions that wrote rows mark their input class pending; a debounced
+        # full opportunity evaluation follows. Never stops the ingestion loop.
+        execution["opportunity_evaluation"] = evaluate_opportunities_if_due(
+            session_factory, execution.get("outcomes", []), now_utc=now_utc
+        )
+        # M4: the market event outbox (lineage, staleness, targeted re-evaluation).
+        execution["market_events"] = deliver_market_events(
+            session_factory, execution.get("outcomes", []), now_utc=now_utc
+        )
+        # Tracked strategies with a newer close or tick than their last evaluation.
+        execution["strategy_tracking"] = track_strategies_if_due(
+            session_factory, now_utc=now_utc
+        )
+        failures = [
+            outcome
+            for outcome in execution.get("outcomes", [])
+            if outcome.get("status") == "FAILED"
+        ]
+        failed += bool(failures)
+        emit(
+            json.dumps(
+                {
+                    "status": "degraded" if failures or configuration_blocks else "ok",
+                    "configuration_blocks": configuration_blocks,
+                    "scan": scan,
+                    "execution": execution,
+                }
+            )
+        )
+    except Exception as exc:
+        failed += 1
+        emit_event(event="scheduler.scan.failed", level="error", error_category="INTERNAL")
+        emit(json.dumps({"status": "failed", "error_type": exc.__class__.__name__}))
+    return int(failed > 0)
 
 
 def main(argv: Sequence[str] | None = None) -> int:
@@ -837,6 +922,9 @@ def main(argv: Sequence[str] | None = None) -> int:
         ),
     )
     args = parser.parse_args(argv)
+    from eurogas_nexus.core.structured_logging import configure_logging
+
+    configure_logging(service="eurogas-nexus-scheduler")
     if args.interval_seconds < 15:
         parser.error("--interval-seconds must be at least 15")
     try:

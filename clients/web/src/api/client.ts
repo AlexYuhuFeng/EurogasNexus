@@ -8239,6 +8239,8 @@ export interface RuntimeDependencyStateDTO {
   detail_code?: string;
   last_heartbeat_at_utc?: string; age_seconds?: number;
   missing_tables?: string[]; configured?: boolean;
+  /** Data-operations scheduler: what it last reported (absent when it never ran). */
+  sources_scheduled?: number; registered_sources?: number; last_scan_at_utc?: string;
 }
 
 export interface RuntimeReleaseDTO {

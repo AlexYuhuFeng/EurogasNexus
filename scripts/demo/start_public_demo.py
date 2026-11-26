@@ -30,8 +30,13 @@ See ``docs/deployment/SELF_HOSTED_DEMO.md`` for the operator guide.
 8. when live public sources are on (``EUROGAS_NEXUS_DEMO_LIVE_SOURCES``: ``auto`` turns them
    on when a public-source key is set), start a low-priority background process that waits
    until the server answers, catches up the gap since the last successful round (at most
-   ``EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS``, default 45) and then repeats every
-   ``EUROGAS_NEXUS_DEMO_REFRESH_HOURS`` (default 6). It never blocks the health check;
+   ``EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS``, default 45) and then starts the product's
+   scheduler (``scripts/ops/run_dataops_scheduler.py``, the same process the runtime runs,
+   with its lock and heartbeat), which reads each source on its own schedule; every
+   ``EUROGAS_NEXUS_DEMO_REFRESH_HOURS`` (default 6) it renews the public-source approvals
+   and retires the simulated series real data covers. ``EUROGAS_NEXUS_DEMO_SCHEDULER=off``
+   keeps the earlier behaviour (a catch-up round every refresh interval, no scheduler, so
+   the Runtime page says no scheduler runs). It never blocks the health check;
 9. exec ``uvicorn`` with one worker on ``$PORT`` (default 8080).
 
 ``run -- <command>`` runs an operator tool (``docker compose exec demo python
@@ -1118,12 +1123,90 @@ def refresh_loop() -> int:
         except OSError:
             time.sleep(5)
     hours = _int_setting("EUROGAS_NEXUS_DEMO_REFRESH_HOURS", 6, low=1, high=168)
+    if not demo_scheduler_enabled():
+        while True:
+            result = subprocess.run(  # noqa: S603 - fixed command
+                [sys.executable, str(Path(__file__).resolve()), "catch-up"],
+                cwd=ROOT,
+                check=False,
+            )
+            log(f"next catch-up round in {hours}h (exit {result.returncode})")
+            time.sleep(hours * 3600)
+    # One catch-up round for the gap since the last round, then the product's scheduler reads
+    # every source on its own schedule, under its lock and with its heartbeat (the demo had
+    # neither: the Runtime page showed "no heartbeat, 0/42 scheduled", P1-C). Catch-up rounds
+    # do not repeat while it runs: both reading the same sources would read them twice.
+    result = subprocess.run(  # noqa: S603 - fixed command
+        [sys.executable, str(Path(__file__).resolve()), "catch-up"], cwd=ROOT, check=False
+    )
+    log(f"catch-up round finished (exit {result.returncode}); starting the scheduler")
+    scheduler: subprocess.Popen | None = None
     while True:
-        result = subprocess.run(  # noqa: S603 - fixed command
-            [sys.executable, str(Path(__file__).resolve()), "catch-up"], cwd=ROOT, check=False
+        if scheduler is None or scheduler.poll() is not None:
+            if scheduler is not None:
+                log(f"scheduler exited ({scheduler.returncode}); starting it again")
+            scheduler = subprocess.Popen(  # noqa: S603 - fixed command, this interpreter
+                scheduler_command(), cwd=ROOT
+            )
+        time.sleep(min(hours * 3600, 300))
+        if _maintenance_due(hours):
+            subprocess.run(  # noqa: S603 - fixed command
+                [sys.executable, str(Path(__file__).resolve()), "maintain"],
+                cwd=ROOT,
+                check=False,
+            )
+
+
+_LAST_MAINTENANCE = {"at": time.monotonic()}
+
+
+def _maintenance_due(hours: int) -> bool:
+    if time.monotonic() - _LAST_MAINTENANCE["at"] < hours * 3600:
+        return False
+    _LAST_MAINTENANCE["at"] = time.monotonic()
+    return True
+
+
+def demo_scheduler_enabled(environ=None) -> bool:
+    """``EUROGAS_NEXUS_DEMO_SCHEDULER``: ``on`` (default) runs the product's scheduler."""
+
+    raw = (
+        os.environ.get("EUROGAS_NEXUS_DEMO_SCHEDULER")
+        if environ is None
+        else environ.get("EUROGAS_NEXUS_DEMO_SCHEDULER")
+    )
+    setting = (raw or "on").strip().lower()
+    return setting not in {"off", "false", "0", "no"}
+
+
+def scheduler_command() -> list[str]:
+    """The product's scheduler as the runtime compose file runs it (a week of ENTSOG)."""
+
+    return [
+        sys.executable,
+        "scripts/ops/run_dataops_scheduler.py",
+        "--interval-seconds",
+        "60",
+        "--entsog-lookback-gas-days",
+        str(ENTSOG_WEEK),
+    ]
+
+
+def maintain() -> int:
+    """While the scheduler runs: renew the public-source approvals, retire covered series."""
+
+    from eurogas_nexus.db.session import get_session_factory
+
+    configure_environment(os.environ)
+    certify_public_sources(get_session_factory(), datetime.now(UTC))
+    ok = run_catch_up_step(
+        CatchUpStep(
+            "replace-simulated",
+            "simulated series now covered by real data (rows removed)",
+            [sys.executable, "scripts/demo/seed_demo_desk.py", "--retire-simulated"],
         )
-        log(f"next catch-up round in {hours}h (exit {result.returncode})")
-        time.sleep(hours * 3600)
+    )
+    return 0 if ok else 1
 
 
 def run_command(command: list[str]) -> int:
@@ -1155,12 +1238,17 @@ def main(argv: list[str]) -> int:
             return catch_up()
         if mode == "refresh-loop":
             return refresh_loop()
+        if mode == "maintain":
+            return maintain()
         if mode == "demo-events":
             return demo_events_loop()
     except StartupError as exc:
         log(f"FATAL: {exc}")
         return 1
-    log(f"unknown mode {mode!r}; expected serve, catch-up, demo-events or run -- <command>")
+    log(
+        f"unknown mode {mode!r}; "
+        "expected serve, catch-up, maintain, demo-events or run -- <command>"
+    )
     return 2
 
 

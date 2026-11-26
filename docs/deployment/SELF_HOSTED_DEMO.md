@@ -135,6 +135,7 @@ Planted prompt cases (CET/CEST, while the feed quotes), so a test session of any
 | `GIE_API_KEY`, `EIA_API_KEY`, `ENTSOE_SECURITY_TOKEN` | Public-source keys; any one turns live refresh on | no |
 | `EUROGAS_NEXUS_DEMO_LIVE_SOURCES` | `auto` (on when a key is set), `on`, `off` | no |
 | `EUROGAS_NEXUS_DEMO_CATCH_UP_MAX_DAYS`, `EUROGAS_NEXUS_DEMO_REFRESH_HOURS` | Catch-up bound (45 days) and refresh interval (6 h) | no |
+| `EUROGAS_NEXUS_DEMO_SCHEDULER` | `on` (default): after the first catch-up round the product's data-operations scheduler runs (its lock and heartbeat show on the Runtime page) and the refresh interval only renews approvals and retires covered simulated series; `off`: catch-up rounds repeat every refresh interval and the Runtime page says no scheduler runs | no |
 | `EUROGAS_NEXUS_DEMO_EXCHANGE_FEED` | `on` (default) or `off`: the simulated live exchange screen | no |
 | `EUROGAS_NEXUS_DEMO_FEED_SESSION` | `24h` (default here: demo-only, real ICE Endex/EEX sessions differ) or `exchange` (07:00-19:00 CET/CEST) | no |
 | `EUROGAS_NEXUS_CORS_ORIGINS` | Only if saving fails with `origin_not_allowed` | no |
