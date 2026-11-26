@@ -1,8 +1,9 @@
 """One cap on open live streams per person (M7), across API processes when a shared cache exists.
 
-``EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL`` (default 5). With a shared cache each stream holds an
-expiring slot there, so a person cannot hold 5 streams on each of 4 processes; a process that
-dies frees its slots when the leases run out. Without one, each process counts its own.
+``EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL`` (default 8: the web client holds one stream per tab).
+With a shared cache each stream holds an expiring slot there, so a person cannot hold 8 streams on
+each of 4 processes; a process that dies frees its slots when the leases run out. Without one,
+each process counts its own.
 """
 
 from __future__ import annotations
@@ -56,9 +57,10 @@ def _refused(owner="p-trader") -> dict:
     return caught.value.detail
 
 
-def test_the_default_cap_is_five_per_person_in_one_process():
+def test_the_default_cap_is_eight_per_person_in_one_process():
+    assert rate_limit.DEFAULT_STREAM_LIMIT == 8
     cache_module.use_cache(cache_module.MemoryCache())
-    held = [_open() for _ in range(5)]
+    held = [_open() for _ in range(8)]
     detail = _refused()
     assert detail["code"] == "rate_limited" and detail["reason"] == "stream_limit_reached"
     _open("p-other")  # another person is not affected

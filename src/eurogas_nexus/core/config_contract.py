@@ -521,11 +521,12 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         name="EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL",
         scope="OPERATOR",
         purpose=(
-            "Live streams one person may hold open at once; 0 for none. Counted across every "
-            "API process through the shared cache when one is configured, per process otherwise."
+            "Live streams one person may hold open at once; 0 for none. The web client holds one "
+            "per browser tab, so this is tabs and windows per person. Counted across every API "
+            "process through the shared cache when one is configured, per process otherwise."
         ),
-        default="5",
-        example="5",
+        default="8",
+        example="8",
     ),
     ConfigVar(
         name="EUROGAS_NEXUS_PUBLIC_API_TOKEN_PREVIOUS",

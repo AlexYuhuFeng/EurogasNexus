@@ -163,3 +163,37 @@ def test_the_stream_sends_opens_withdrawals_and_evaluations(engine, monkeypatch)
     assert frames[2].startswith("event: opportunity\n")
     assert '"group": "expiry"' in frames[2] and '"status": "withdrawn"' in frames[2]
     assert '"opportunity_id": "o-lapsing"' in frames[2]
+
+
+def test_the_live_stream_carries_the_opportunity_events_without_their_own_ids(
+    engine, monkeypatch
+) -> None:
+    """One connection per browser tab: ``/api/stream/live`` with ``opportunities`` sends what
+    this stream sends (an open, the reason of a withdrawal), each under the live stream's own
+    resume id (never the opportunity cursor, which would break the live stream's resume)."""
+
+    with Session(engine) as session:
+        session.add(_record("o-open", changed=NOW))
+        session.add(_record("o-gone", state="expired", changed=NOW + timedelta(seconds=1)))
+        session.commit()
+    monkeypatch.setattr(db_session, "get_session_factory", lambda: (lambda: Session(engine)))
+    monkeypatch.setattr(streaming, "POLL_SECONDS", 0.05)
+
+    async def drive() -> list[str]:
+        generator = streaming._live_stream(
+            ("opportunities",), NOW - timedelta(seconds=10), True, None
+        )
+        frames: list[str] = []
+        while not any("o-gone" in frame for frame in frames):
+            frames.append(await asyncio.wait_for(generator.__anext__(), timeout=5))
+        await generator.aclose()
+        return frames
+
+    frames = asyncio.run(drive())
+    assert frames[0].startswith("id: live|") and "event: ready" in frames[0]
+    engine_events = [frame for frame in frames if "event: opportunity\n" in frame]
+    assert len(engine_events) == 2
+    assert all(not frame.startswith("id:") for frame in engine_events)
+    assert '"status": "open"' in engine_events[0]
+    assert '"status": "withdrawn"' in engine_events[1]
+    assert '"reason": "expired"' in engine_events[1]
