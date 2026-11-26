@@ -64,6 +64,9 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "setup.item.src-trayport.name": "a provider's own name",
   "setup.step.ai.title": "an acronym",
   "prompt.col.mwh": "a unit symbol",
+  "cargo.form.hh": "a hub's own name, kept in Latin like the hub codes",
+  "cargo.sens.hh": "a hub's own name, kept in Latin like the hub codes",
+  "contracts.price.index_name.HH": "a hub's own name, kept in Latin like the hub codes",
 };
 
 test("the two locales declare exactly the same keys", () => {

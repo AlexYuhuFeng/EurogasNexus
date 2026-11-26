@@ -540,7 +540,7 @@ def situation_outage(stats: dict[str, Any]) -> dict[str, Any]:
             f"Norwegian landings averaged {number(stats['before'], 'GWh/d')} in the seven days "
             f"to {day(stats['before_until'])}{sim}; no complete day since the start yet.",
             f"截至{day(stats['before_until'])}的七天挪威到岸量平均为"
-            f"{number(stats['before'], 'GWh/d')}{sim}；开始以来尚无完整气日。"))
+            f"{number(stats['before'], 'GWh/d')}{sim}；开始以来尚无完整燃气日。"))
     if stats.get("share_pct") is not None:
         bullets.append(T(
             f"The unavailable capacity is {number(stats['share_pct'], '%', 0)} of that seven-day "

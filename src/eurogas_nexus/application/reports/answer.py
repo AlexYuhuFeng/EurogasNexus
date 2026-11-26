@@ -185,7 +185,7 @@ def _outage_supply(results: dict[str, dict], raws: dict[str, Any], today: date
                            f"{fday(latest)}, while Norwegian outages were active, against "
                            f"{number(b, 'GWh/d')} in the seven days before: "
                            f"{move(change, 'GWh/d')}.",
-                           f"{fday(first)}至{fday(latest)}挪威停运期间的{len(since)}个气日内，"
+                           f"{fday(first)}至{fday(latest)}挪威停运期间的{len(since)}个燃气日内，"
                            f"挪威到岸量平均为{number(a, 'GWh/d')}{lsim}，此前七天为"
                            f"{number(b, 'GWh/d')}：{move(change, 'GWh/d')}。"),
                 related=["q.outages.norway"])
@@ -200,7 +200,7 @@ def _outage_supply(results: dict[str, dict], raws: dict[str, Any], today: date
         else:
             cannot.append(T("Fewer than four gas days of landings are held before the first "
                             "Norwegian outage, so no before-and-since comparison is made.",
-                            "首个挪威停运之前持有的到岸量不足四个气日，因此不做前后比较。"))
+                            "首个挪威停运之前持有的到岸量不足四个燃气日，因此不做前后比较。"))
     for index, r in enumerate([r for r in scheduled if r.get("norway")][:2], start=1):
         f = F.fact(f"q.outages.norway.next.{index}", "outages",
                    T(f"Scheduled Norwegian outage: {r['facility']}",
@@ -215,7 +215,7 @@ def _outage_supply(results: dict[str, dict], raws: dict[str, Any], today: date
         cannot.append(T(f"Norwegian landings are {landings['state']}: the newest complete gas "
                         f"day held is {fday(latest)}.",
                         f"挪威到岸量数据{'延迟' if landings['state'] == 'late' else '过期'}："
-                        f"最新完整气日为{fday(latest)}。"))
+                        f"最新完整燃气日为{fday(latest)}。"))
     cannot.append(T("Flows and outages moving over the same days is a coincidence in time; the "
                     "data held does not show how much of any change an outage caused.",
                     "流量与停运在同一时段变动只是时间上的重合；所持数据无法显示停运造成了多少变化。"))

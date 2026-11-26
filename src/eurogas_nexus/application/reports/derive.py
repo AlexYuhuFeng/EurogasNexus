@@ -349,8 +349,9 @@ def derive_pipeline(result, ctx) -> None:
                                  "英国终端接收的天然气多于欧洲大陆终端")
     days = [d for d in sorted(total, reverse=True) if d <= end][:7]
     result.tables = [F.table(
-        T("Landings, last seven complete gas days (GWh/d)", "到岸量，最近七个完整气日（GWh/d）"),
-        [("day", T("Gas day", "气日"), "date"), ("continent", T("Continental", "欧洲大陆"), "num"),
+        T("Landings, last seven complete gas days (GWh/d)", "到岸量，最近七个完整燃气日（GWh/d）"),
+        [("day", T("Gas day", "燃气日"), "date"),
+         ("continent", T("Continental", "欧洲大陆"), "num"),
          ("uk", T("UK terminals", "英国终端"), "num"), ("total", T("Total", "合计"), "num")],
         [{"day": F.iso(d), "continent": round(norway.get(d, 0.0), 1),
           "uk": round(uk.get(d, 0.0), 1), "total": round(total[d], 1), "simulated": sim}
@@ -550,8 +551,8 @@ def derive_storage(result, ctx) -> None:
         notes=T("The prior gas year is placed on this year's dates.", "上一气年按今年日期对齐。"))]
     days = [d for d in sorted(fill, reverse=True) if d <= end][:7]
     result.tables = [F.table(
-        T("Storage fill, last seven gas days (%)", "储气率，最近七个气日（%）"),
-        [("day", T("Gas day", "气日"), "date"), ("fill", T("Fill", "储气率"), "num"),
+        T("Storage fill, last seven gas days (%)", "储气率，最近七个燃气日（%）"),
+        [("day", T("Gas day", "燃气日"), "date"), ("fill", T("Fill", "储气率"), "num"),
          ("prev", T("Year earlier", "一年前"), "num"),
          ("diff", T("Difference (points)", "差值（百分点）"), "signed")],
         [{"day": F.iso(d), "fill": fill[d], "prev": prev.get(d),
@@ -961,7 +962,7 @@ def derive_balance(result, ctx) -> None:
     if forecast:
         result.tables.append(F.table(
             T("Forecast, not a measurement (GWh/d)", "预测，并非实测（GWh/d）"),
-            [("day", T("Gas day", "气日"), "date"), ("call_gwh", T("Call", "需求"), "num"),
+            [("day", T("Gas day", "燃气日"), "date"), ("call_gwh", T("Call", "需求"), "num"),
              ("norway_gwh", T("Norway", "挪威"), "num"), ("lng_gwh", "LNG", "num"),
              ("storage_net_withdrawal_gwh", T("Storage", "储气"), "signed")],
             [{**x, "simulated": sim} for x in forecast[: F.BODY_ROWS]],

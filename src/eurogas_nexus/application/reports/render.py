@@ -101,15 +101,15 @@ GLOSSARY = (
 )
 
 GLOSSARY_ZH = {
-    "DA": ("DA", "日前：次一气日交付的天然气。"),
+    "DA": ("DA", "日前：次一燃气日交付的天然气。"),
     "Front month": ("近月", "最近的可交易日历月；每月月底换月。"),
-    "Gas day": ("气日", "欧洲大陆当地时间06:00至次日06:00（冬季为 UTC 05:00 至 05:00）。"),
+    "Gas day": ("燃气日", "欧洲大陆当地时间06:00至次日06:00（冬季为 UTC 05:00 至 05:00）。"),
     "Gas year": ("气年", "10月1日至次年9月30日。"),
-    "GWh/d": ("GWh/d", "每气日吉瓦时（能量，高位热值）。"),
+    "GWh/d": ("GWh/d", "每燃气日吉瓦时（能量，高位热值）。"),
     "TWh": ("TWh", "太瓦时能量。"),
     "EUR/MWh": ("EUR/MWh", "欧元每兆瓦时；欧洲大陆枢纽价格。"),
     "GBp/th": ("GBp/th", "便士每色姆；NBP 价格。"),
-    "MWh/d": ("MWh/d", "每气日兆瓦时；账簿头寸。"),
+    "MWh/d": ("MWh/d", "每燃气日兆瓦时；账簿头寸。"),
     "Points": ("百分点", "百分点（储气率）。"),
     "Supply call": ("供应需求", "进入西北欧的挪威管道到岸量、LNG 外输与储气净提取之和。"),
     "Net withdrawal": ("净提取", "储气提取减注入；注气时为负。"),
@@ -119,8 +119,8 @@ GLOSSARY_ZH = {
 }
 #: Method notes in Chinese, by key (the sections' ``methods``).
 METHODS_ZH = {
-    "landing_points": ("登陆点与运营方", "每个 ENTSOG 点每个气日采用一个运营方：登陆登记表为该点"
-                       "指定的运营方；否则沿用前一气日为该点选定且当日有报告的运营方；否则取当日有"
+    "landing_points": ("登陆点与运营方", "每个 ENTSOG 点每个燃气日采用一个运营方：登陆登记表为该点"
+                       "指定的运营方；否则沿用前一燃气日为该点选定且当日有报告的运营方；否则取当日有"
                        "报告者中排序最先的运营方。进出两侧均采用该运营方的报告，方向相对于其系统；"
                        "其他运营方的副本不重复计入。"),
     "storage_scope": ("储气范围", "比利时、德国、丹麦、法国、荷兰公布工作容量的设施；某日仅在报告"
@@ -139,7 +139,7 @@ METHODS_ZH = {
     "storage_inventory_basis": ("库存口径", "公布工作容量的设施；英国库存（National Gas）无工作"
                                 "容量，不计入库存与储气率"),
     "outage_adjustment": ("停运调整", "未来不可用容量减最近七次观测的不可用容量"),
-    "net_position": ("净头寸", "每气日净 MWh：多头为正，合同按日量计，屏幕交易按交付日分摊。"),
+    "net_position": ("净头寸", "每燃气日净 MWh：多头为正，合同按日量计，屏幕交易按交付日分摊。"),
     "day_pnl_change": ("当日损益变化", "枢纽未来12个月净未平仓头寸乘以最近两日收盘价之差：头寸阶梯"
                        "的平行移动，并非重估。"),
     "credit_exposure": ("信用敞口", "重置敞口（未交付量按市价减合同价，按交易对手轧差并以零为下限）"
@@ -151,10 +151,10 @@ METHODS_ZH = {
 REASONS_ZH = {
     "No licensed close for": "您的许可下没有该枢纽的收盘价",
     "No REMIT messages are held": "未持有 REMIT 消息",
-    "No complete gas day of Norwegian landings is held": "未持有挪威到岸量的完整气日",
-    "No complete gas day of landings in the period": "期间内没有到岸量的完整气日",
-    "No complete gas day of LNG send-out in the period": "期间内没有 LNG 外输的完整气日",
-    "No complete gas day of LNG send-out": "没有 LNG 外输的完整气日",
+    "No complete gas day of Norwegian landings is held": "未持有挪威到岸量的完整燃气日",
+    "No complete gas day of landings in the period": "期间内没有到岸量的完整燃气日",
+    "No complete gas day of LNG send-out in the period": "期间内没有 LNG 外输的完整燃气日",
+    "No complete gas day of LNG send-out": "没有 LNG 外输的完整燃气日",
     "No LNG send-out is held for the scope": "该范围内未持有 LNG 外输数据",
     "No complete day of gas-fired generation in the period": "期间内没有燃气发电的完整日",
     "No complete day of gas-fired generation": "没有燃气发电的完整日",
@@ -915,8 +915,8 @@ def _back(snapshot: dict, numbers: Numbering, body: str = "") -> str:
         "same day a year earlier; a range or norm is shown only where held, with the number of "
         "years. No change is given across a front-month roll.</p>",
         f"<p>所有数字均通过与平台页面相同的授权读取取自平台自有存储，数据截至"
-        f"{_e(fmt_datetime(snapshot['as_of']))} UTC，读者范围为{audience}。气日为欧洲大陆时间"
-        "06:00至次日06:00。日变化对比前一气日，周变化对比七天前，同比对比一年前同日；仅在持有"
+        f"{_e(fmt_datetime(snapshot['as_of']))} UTC，读者范围为{audience}。燃气日为欧洲大陆时间"
+        "06:00至次日06:00。日变化对比前一燃气日，周变化对比七天前，同比对比一年前同日；仅在持有"
         "数据时给出区间或常态，并注明年数。近月合约换月时不计算跨合约变化。</p>"))
     methods: dict[str, dict] = {}
     for section in shown:
