@@ -363,6 +363,10 @@ def evaluate(
 
     previous = state.get("signal", "flat")
     changed = desired != previous and not gates
+    # A close that did not fill (too little size on the screen) leaves the signal flat with
+    # the position still open; without a retry no later tick would ever close it. Retry the
+    # close on every ungated evaluation until it fills.
+    retry_close = not changed and not gates and desired == "flat" and position != 0
     if gates:
         if gates != state.get("gated"):
             events.append({"kind": "gated", "at": stamp, "reasons": gates})
@@ -382,6 +386,8 @@ def evaluate(
             "expires_at": (now + timedelta(seconds=rule.advice_ttl_seconds)).isoformat(),
             "simulated": simulated,
         })
+    if changed or retry_close:
+        reason = reason or "retry: earlier close did not fill"
         # Paper order intent, then its paper fill (or the reason it did not fill).
         if desired == "flat" and position != 0:
             side = -position
