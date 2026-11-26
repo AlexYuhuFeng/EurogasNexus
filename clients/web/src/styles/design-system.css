@@ -2068,6 +2068,53 @@
 
 }
 
+/* A page that failed to draw (components/PanelErrorBoundary.tsx): a calm, readable notice in
+   the page's place, never a white screen. The top bar stays usable above it. */
+@layer ds-components {
+  .panel-error {
+    display: grid;
+    gap: var(--ds-space-3);
+    max-width: 40rem;
+    margin: var(--ds-space-8) auto;
+    padding: var(--ds-space-6);
+    border: 1px solid var(--ds-border);
+    border-left: 3px solid var(--ds-status-watch);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+  }
+
+  .panel-error__title {
+    margin: 0;
+    font-size: var(--ds-text-md);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .panel-error__body {
+    margin: 0;
+    color: var(--ds-text-2);
+    line-height: var(--ds-leading);
+  }
+
+  .panel-error__actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-2);
+  }
+
+  .panel-error__details {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+  }
+
+  .panel-error__details code {
+    display: block;
+    margin-top: var(--ds-space-2);
+    font-family: var(--ds-font-mono);
+    overflow-wrap: anywhere;
+  }
+}
+
 /* ------------------------------------------------------------------ motion */
 /* The situational strip under the top bar has its own stylesheet (components/situationStrip.css). */
 

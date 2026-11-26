@@ -6986,5 +6986,10 @@
   "reports.section_desc.pf_outlook": "Contracted against open volume by month, hedge bands, sensitivities and value at risk.",
   "reports.section_desc.pf_lng": "LNG cargoes in plan and in transit, master agreements and regas slots.",
   "reports.section_desc.pf_strategies": "Sale routes, hedges linked to supply contracts and cross-border flows.",
-  "reports.pdf_note": "PDF is produced by printing the HTML (Print / Save as PDF in the viewer or any browser); the print stylesheet sets A4 pages, repeated table headers and unclipped charts."
+  "reports.pdf_note": "PDF is produced by printing the HTML (Print / Save as PDF in the viewer or any browser); the print stylesheet sets A4 pages, repeated table headers and unclipped charts.",
+  "panel_error.title": "This page couldn't be shown",
+  "panel_error.body": "Something on this page failed to draw. Your data is safe, and the rest of the app still works: try again, pick another page above, or reload.",
+  "panel_error.retry": "Try again",
+  "panel_error.reload": "Reload",
+  "panel_error.details": "Technical details for support"
 }

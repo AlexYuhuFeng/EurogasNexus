@@ -6986,5 +6986,10 @@
   "reports.section_desc.pf_outlook": "按月份的合同量与敞口、对冲区间、敏感度与风险价值。",
   "reports.section_desc.pf_lng": "计划中与运输中的 LNG 船货、主协议与气化窗口。",
   "reports.section_desc.pf_strategies": "销售路径、与供应合同挂钩的对冲以及跨境流动。",
-  "reports.pdf_note": "PDF 由打印 HTML 生成（在查看器或任意浏览器中选择“打印 / 另存为 PDF”）；打印样式设定 A4 页面、每页重复表头且图表不被截断。"
+  "reports.pdf_note": "PDF 由打印 HTML 生成（在查看器或任意浏览器中选择“打印 / 另存为 PDF”）；打印样式设定 A4 页面、每页重复表头且图表不被截断。",
+  "panel_error.title": "此页面无法显示",
+  "panel_error.body": "页面中的某个部分未能绘制。您的数据不受影响，应用的其他部分仍可使用：可重试、在上方选择其他页面，或重新加载。",
+  "panel_error.retry": "重试",
+  "panel_error.reload": "重新加载",
+  "panel_error.details": "供技术支持使用的详情"
 }
