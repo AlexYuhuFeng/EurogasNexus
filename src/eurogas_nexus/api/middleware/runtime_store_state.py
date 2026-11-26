@@ -26,9 +26,9 @@ RUNTIME_STORE_NOT_CONFIGURED = {"state": "not_configured", "code": "runtime_db_r
 
 
 def _store_configured() -> bool:
-    from eurogas_nexus.db.session import resolve_database_url
+    from eurogas_nexus.core.config import resolve_db_dsn_from_env
 
-    return resolve_database_url() is not None
+    return resolve_db_dsn_from_env() is not None
 
 
 class RuntimeStoreStateMiddleware:
