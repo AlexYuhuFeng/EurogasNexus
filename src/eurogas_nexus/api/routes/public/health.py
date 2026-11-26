@@ -57,6 +57,7 @@ def health_ready(request: Request) -> dict:
     from eurogas_nexus.db.health import get_alembic_revision
     from eurogas_nexus.db.registry import list_missing_required_tables
     from eurogas_nexus.db.session import get_engine, resolve_database_url
+    from eurogas_nexus.db.timescale import engine_state
     from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 
     database_url = resolve_database_url()
@@ -93,6 +94,9 @@ def health_ready(request: Request) -> dict:
                     "missing_tables": sorted(missing),
                 },
             )
+        # Informational, never a readiness failure: TimescaleDB is an optional extension
+        # and plain PostgreSQL is a complete runtime store (ADR Decision 39).
+        timescale = engine_state(engine)
     except HTTPException:
         raise
     except Exception as exc:
@@ -115,6 +119,7 @@ def health_ready(request: Request) -> dict:
             "runtime_db": "ok",
             "required_tables": "ok",
         },
+        "extensions": {"timescaledb": timescale},
         # Informational, never a readiness failure (providers are optional): public sources
         # the ingestion gate holds back until an administrator approves them, so a fresh
         # installation says at its first probe what stands between it and live data.

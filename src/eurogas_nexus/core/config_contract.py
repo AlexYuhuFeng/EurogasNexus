@@ -196,6 +196,21 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         default="true",
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_TIMESCALE",
+        scope="OPERATOR",
+        purpose=(
+            "Use the optional TimescaleDB Community Edition extension for the high-volume "
+            "time-series tables: off, auto or require."
+        ),
+        default="off",
+        notes=(
+            "Read by migration 0092 and scripts/ops/timescale.py. off (default): plain "
+            "PostgreSQL. auto: convert where the server has the Community Edition. require: "
+            "stop if it does not. See docs/deployment/TIMESCALEDB.md (ADR Decision 39).",
+            "A conversion is not reversed by a downgrade.",
+        ),
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_DB_SSL_ROOT_CERT",
         scope="OPERATOR",
         purpose="CA certificate for a verified PostgreSQL TLS connection: a path or the PEM text.",
