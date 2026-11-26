@@ -6,6 +6,30 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — Quant review fixes (branch `quantfix`)
+
+- Confirmed errors of the quant review fixed, each with a failing test first: VaR on one
+  product and one source per hub (no day-ahead filling month-ahead gaps), moves within one
+  contract (`domain/market/returns`, shared with the spread lab), 250-change minimum ("not
+  enough history" below); index-priced legs carry their flat-price exposure on the index
+  (`index_mwh`, `price_exposure_mwh`; `net_mwh` keeps its meaning) through hedge ratio, hedge
+  bands, mandates, tenor exposure, shocks and VaR; the forward curve from one snapshot per hub
+  (one as-of, settlements then the primary source, staleness per tenor, quoted-quarter shape,
+  no flat fill, basis and age per point); spread-lab day-ahead legs are a signal study and held
+  rolls pay costs; the strategy-lab run is labelled a signal study of decision-time margin;
+  prompt-spread transport at the marginal (daily/monthly) product plus commodity and fuel, the
+  yearly route kept as sunk capacity (demo tariffs gain simulated monthly/daily rows);
+  network flow tells infeasible from uneconomic; storage dispatch grid scaled and bounded;
+  MtM and credit replacement at forward FX per delivery month, discounted to the payment date;
+  Today and the ladder read one horizon (`ladder_horizon`) and one net position
+  (`net_position_by_hub`).
+- Demo (seeded 2026-11-26T09:00Z): ladder MtM 84,903,959 -> 83,842,383 EUR; VaR 8,685,763 ->
+  7,725,338 EUR (399 -> 386 scenarios); net 18,356,399 MWh, price exposure 17,908,000 MWh;
+  NBP Dec-26 hedge 39.7 % -> 45.5 %; NBP-TTF transport 1.80 -> 2.25 (MA, monthly) / 2.70 (DA,
+  daily) EUR/MWh with 1.80 sunk; Rhinmark replacement 19,377,360 -> 19,228,594 EUR.
+- Not built (plan work, `ARCHITECTURE_V3_PLAN.md`): storage extrinsic value, swing/ToP,
+  options, PFE, P&L attribution, power, the stored EOD ladder/VaR run.
+
 ## 2026-11-26 — Half-built branches integrated (branch `halfbuilt`)
 
 - LNG berth priority (`wip/berth-rule-on-innovation`): migration renumbered

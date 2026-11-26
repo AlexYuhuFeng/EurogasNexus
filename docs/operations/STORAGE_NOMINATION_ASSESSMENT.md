@@ -44,6 +44,11 @@ window masters are delivered in a later increment.
 }
 ```
 
+`inventory_step_mwh` is optional: without it the grid step is the facility's working range
+(maximum less minimum inventory) over 200 levels. A step finer than 1,000 levels, more than
+400 periods, or more than 6,000,000 level-to-level transitions (periods × levels²) is refused
+with a 422 that names the bound and the coarsest step that fits.
+
 ## Example: nomination assessment
 
 ```json
