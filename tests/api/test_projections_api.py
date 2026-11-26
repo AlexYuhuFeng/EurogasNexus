@@ -319,7 +319,9 @@ def test_projection_envelope_and_slice_shape_without_runtime_db(monkeypatch) -> 
         assert response.status_code == 200, path
         body = response.json()
         assert set(body) == {"data", "meta"}, path
-        assert set(body["meta"]) == META_KEYS, path
+        # Answered without a store: the one no-store marker (backend audit A3) beside the keys.
+        assert set(body["meta"]) == META_KEYS | {"runtime_store"}, path
+        assert body["meta"]["runtime_store"]["state"] == "not_configured", path
         assert body["meta"]["research_only"] is True, path
         assert body["meta"]["human_review_required"] is True, path
         assert body["meta"]["as_of_utc"] == AS_OF_PARAM, path

@@ -153,7 +153,10 @@ def test_a_handled_failure_is_unaffected_by_the_system_fault_handler() -> None:
 
     assert response.status_code == 503
     body = response.json()
-    assert body["error"] == "runtime_db_not_configured"
+    # The route raises runtime_db_not_configured; the envelope reports its catalogued name
+    # (taxonomy CODE_ALIASES, backend audit A2c) and the route's own detail is unchanged.
+    assert body["error"] == "runtime_db_required"
+    assert body["detail"]["code"] == "runtime_db_not_configured"
     assert body["family"] == "CONFIGURATION"
     assert body["error"] != UNHANDLED_ERROR_CODE
     assert body["correlation_id"] or response.headers.get("X-Request-Id")
