@@ -15,6 +15,7 @@ import type {
 } from "@/app/model/useOptimizationAssessment";
 import type { NominationScheduleResultDTO } from "@/api/client";
 import { PanelHelp } from "@/components/ui/PanelHelp";
+import { serverWarningText } from "@/app/warningLabel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -294,7 +295,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
               <strong>{t("strategy.warnings")}</strong>
               <ul>
                 {result.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
+                  <li key={warning} title={warning}>{serverWarningText(warning, t)}</li>
                 ))}
               </ul>
             </div>

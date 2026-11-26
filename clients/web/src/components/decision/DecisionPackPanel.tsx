@@ -4,6 +4,7 @@ import {
   type DecisionPackContextValue,
   type DecisionPackPresentation,
 } from "@/app/model/decisionPackModel";
+import { serverWarningText } from "@/app/warningLabel";
 
 type Translate = (key: string) => string;
 
@@ -195,9 +196,7 @@ export function DecisionPackPanel({ t, model }: DecisionPackPanelProps) {
             ) : (
               <ul className="decision-pack-list">
                 {model.warnings.map((warning) => (
-                  <li key={warning}>
-                    <code>{warning}</code>
-                  </li>
+                  <li key={warning} title={warning}>{serverWarningText(warning, t)}</li>
                 ))}
               </ul>
             )}

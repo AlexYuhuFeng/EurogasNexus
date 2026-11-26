@@ -16,6 +16,7 @@ import type {
 } from "@/app/model/useOptimizationAssessment";
 import type { StorageDispatchResultDTO } from "@/api/client";
 import { PanelHelp } from "@/components/ui/PanelHelp";
+import { serverWarningText } from "@/app/warningLabel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -264,7 +265,7 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
               <strong>{t("strategy.warnings")}</strong>
               <ul>
                 {result.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
+                  <li key={warning} title={warning}>{serverWarningText(warning, t)}</li>
                 ))}
               </ul>
             </div>

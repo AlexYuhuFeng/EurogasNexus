@@ -6,6 +6,7 @@ import { dailyBalanceRateText } from "@/app/model/gasDayModel";
 import { GAS_HUBS } from "@/app/contractChoices";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 import { DataGrid, type DataGridColumn } from "@/components/ui";
+import { serverWarningText } from "@/app/warningLabel";
 
 type BalanceDay = DailyBalanceDTO["days"][number];
 
@@ -117,7 +118,7 @@ export function DailyBalancePanel({ t }: { t: Translate }) {
             density="compact"
             rowAttributes={(day) => ({ "data-status": day.state === "balanced" ? undefined : "watch" })}
           />
-          {warnings.length > 0 && <ul className="muted">{warnings.map((warning) => <li key={warning}><small>{warning}</small></li>)}</ul>}
+          {warnings.length > 0 && <ul className="muted">{warnings.map((warning) => <li key={warning}><small>{serverWarningText(warning, t)}</small></li>)}</ul>}
         </>
       )}
     </section>

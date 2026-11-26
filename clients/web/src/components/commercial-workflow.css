@@ -29,6 +29,26 @@
   border-bottom: 2px solid var(--ds-accent);
 }
 
+/* Position's supply allocation, folded under one line (owner: fold detail). */
+.commercial-overview-fold {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-surface);
+}
+
+.commercial-overview-fold > summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--ds-space-2);
+  padding: var(--ds-space-3) var(--ds-space-4);
+  cursor: pointer;
+}
+
+.commercial-overview-fold > .commercial-overview {
+  padding: 0 var(--ds-space-3) var(--ds-space-3);
+}
+
 .commercial-overview {
   display: flex;
   flex-direction: column;
@@ -127,6 +147,18 @@
 .commercial-diagnostic-level.level-missing_input {
   background: var(--ds-status-watch-soft);
   color: var(--ds-status-watch);
+}
+
+/* A warning's origin and lineage: folded under the warning, opened on demand. */
+.commercial-diagnostic-detail > summary {
+  width: fit-content;
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-xs);
+  cursor: pointer;
+}
+
+.commercial-diagnostic-detail[open] > summary {
+  margin-bottom: var(--ds-space-1);
 }
 
 .commercial-diagnostic-evidence {
