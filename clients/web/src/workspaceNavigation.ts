@@ -75,8 +75,8 @@ export const PAGE_OBJECT_PARAMS: Partial<Record<WorkspacePageId, readonly string
   // The opportunity open beside the list (Deals → Opportunities).
   scenario: ["opportunity"],
   // The board's tenor once the user chose one (Prices); the Network panel's tab and the outage
-  // it selects.
-  market: ["tenor", "panel", "outage"],
+  // it selects; the map place a link opens on (`place=<node id>`).
+  market: ["tenor", "panel", "outage", "place"],
   glossary: ["term"],
   // The alert or outage a situation report is about (Research → Reports).
   research: ["subject"],

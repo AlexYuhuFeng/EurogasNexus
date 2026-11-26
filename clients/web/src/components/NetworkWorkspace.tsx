@@ -27,6 +27,7 @@ import { MapBookRelevance, OpportunityCard, type NeedsYouRow } from "@/component
 import { GasNetworkMap, type MapCallout } from "@/components/GasNetworkMap";
 import { SITUATION_LAYERS, situationSummary } from "@/app/mapSituation";
 import { buildSites, topologyIssues, type MapSelection } from "@/app/mapSelection";
+import { mapPlaceFromSearch } from "@/app/model/glossaryEntry";
 import { MAP_SITUATION_REFRESH_MS, useMapSituation } from "@/app/hooks/useMapSituation";
 import { useFullscreen } from "@/app/hooks/useFullscreen";
 import { bookItems, bookSituation, liveSituation, replayTrack, type BookItem } from "@/app/mapBook";
@@ -459,6 +460,31 @@ export function NetworkWorkspace({
     if (next) setOpenMark(null);
     if (!next) setSelectedRow(null);
   };
+  // An address can open the map on one place (`place=<node id>`, from a glossary entry): when
+  // the page shows with the geometry in, the place is selected, its card opens and the map flies
+  // there. Each address is handled once; Back and Forward to another one move the map again.
+  const [placeLink, setPlaceLink] = useState(() => ({ id: mapPlaceFromSearch(window.location.search), handled: false }));
+  useEffect(() => {
+    const sync = () => setPlaceLink({ id: mapPlaceFromSearch(window.location.search), handled: false });
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
+  useEffect(() => {
+    if (!active || placeLink.handled || !placeLink.id || nodes.length === 0) return;
+    const place = nodes.find((node) => node.id === placeLink.id);
+    if (place?.node_type === "hub") {
+      selectOnMap({ kind: "hub", id: place.name.toUpperCase() });
+      setFocus({ refId: place.id, at: [place.lon, place.lat], nonce: Date.now() });
+    } else {
+      const site = sites.find((item) => item.members.some((member) => member.id === placeLink.id));
+      if (site) {
+        selectOnMap({ kind: "site", id: site.id });
+        setFocus({ refId: placeLink.id, at: [site.lon, site.lat], nonce: Date.now() });
+      }
+    }
+    setPlaceLink((link) => ({ ...link, handled: true }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the page shows, a link arrives or the geometry loads
+  }, [active, nodes, placeLink, sites]);
   const detail = openOpportunity && mapView === "book" ? (
     <OpportunityCard
       item={openOpportunity}
