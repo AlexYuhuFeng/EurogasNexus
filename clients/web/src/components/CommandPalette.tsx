@@ -112,7 +112,13 @@ export function CommandPalette({
     index < leading.length
       ? leading[index] === "answer" ? ANSWER_ROW_ID : ASK_ROW_ID
       : results[index - leading.length] ? `palette-${results[index - leading.length].id}` : undefined;
-  const announcement = copied ?? (answer ? answerAnnouncement(answer, translate) : "");
+  // A live answer is announced once for its query, not again on every tick.
+  const spoken = useRef<{ key: string; text: string } | null>(null);
+  const answerKey = answer ? `${answer.kind}|${answerText(answer.label, translate)}` : "";
+  if (answer && (!answer.live || spoken.current?.key !== answerKey)) {
+    spoken.current = { key: answerKey, text: answerAnnouncement(answer, translate) };
+  }
+  const announcement = copied ?? (answer ? spoken.current?.text ?? "" : "");
   useEffect(() => { setCopied(null); }, [query]);
   const dialogRef = useRef<HTMLDivElement>(null);
   const returnFocus = useRef<HTMLElement | null>(null);
@@ -322,6 +328,12 @@ export function CommandPalette({
               onClose();
             }
           }}
+        />
+        {/* A look-up on its way: a thin moving line under the field, no words. */}
+        <div
+          className="answer-busy"
+          aria-hidden="true"
+          data-busy={!askOpen && !answer && answerBar?.lookup.status === "loading" ? "true" : undefined}
         />
         <div className="answer-live" aria-live="polite" aria-atomic="true">{announcement}</div>
         {ask.status !== "idle" && answerBar ? (

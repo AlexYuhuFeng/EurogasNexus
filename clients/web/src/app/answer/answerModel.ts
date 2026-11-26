@@ -15,7 +15,18 @@ export type AnswerTarget =
 
 export type AnswerKind =
   | "calc" | "convert" | "gasday" | "glossary" | "not-calc" | "spreads"
-  | "price" | "storage" | "lng" | "norway" | "outages" | "position" | "credit" | "contract";
+  | "price" | "storage" | "lng" | "norway" | "outages" | "position" | "credit" | "contract"
+  | "spread" | "portfolio";
+
+/** One figure of a several-part answer (the portfolio at a glance): a hub, cargoes, headroom. */
+export interface AnswerFact {
+  label: string | AnswerText;
+  value: string | AnswerText;
+  /** One quiet line under the value: the nearest months, the counterparty. */
+  detail?: string | AnswerText;
+  /** Sign colour for a figure that has one (long, short, a limit on watch). */
+  tone?: "up" | "down" | "attention";
+}
 
 export interface AnswerView {
   kind: AnswerKind;
@@ -32,6 +43,10 @@ export interface AnswerView {
   sentence?: string | AnswerText | null;
   /** Second-line facts: FX rate, calorific value, as-of and source, the reason for a gap. */
   lines: AnswerText[];
+  /** Several figures under the headline (the portfolio at a glance). */
+  facts?: AnswerFact[];
+  /** A figure that moves while the bar is open (a price, a spread): it is read again. */
+  live?: boolean;
   asOf?: string | null;
   /** The number alone for the clipboard, and with its unit. */
   copy?: { value: string; withUnit: string } | null;

@@ -53,10 +53,17 @@ export type LookupIntent =
   | { kind: "credit"; counterparty: string }
   | { kind: "contract"; name: string }
   /** A price conversion for a future delivery period: the server converts at the forward. */
-  | { kind: "convert"; value: number; from: string; to: string; period: string };
+  | { kind: "convert"; value: number; from: string; to: string; period: string }
+  /** Two hubs' spread, live while the bar is open ("NBP TTF spread"); `text` opens the study. */
+  | { kind: "spread"; a: string; b: string; tenor: "front" | "DA"; text: string }
+  /** The caller's book at a glance ("what's my portfolio"): positions, open P&L, cargoes, credit. */
+  | { kind: "portfolio" };
 
 /** Words that make an outage query a question for Ask rather than a facility name. */
 const QUESTION_WORDS = /^(?:the|all|any|summari[sz]e|summary|what|why|how|which|show|list|explain|recent|current|today'?s|major|big)\b/;
+
+const PORTFOLIO_EN = /^(?:(?:what'?s|whats|what\s+is|how'?s|hows|how\s+is|show(?:\s+me)?|give\s+me|summari[sz]e)\s+)?(?:(?:my|our|the)\s+)?(?:portfolio|book|holdings)(?:\s+(?:like|summary|overview|at\s+a\s+glance|now|today|doing|looking(?:\s+like)?|look(?:\s+like)?))*$/;
+const PORTFOLIO_ZH = /^(?:我的|我们的)?(?:投资组合|组合|持仓|交易簿)(?:概况|情况|总览|摘要|怎么样|如何)?$/;
 
 const MONTH_WORDS = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"];
 
@@ -160,6 +167,9 @@ export function lookupIntent(raw: string, options: { bookAllowed: boolean; now?:
   }
 
   if (!options.bookAllowed) return null;
+
+  // The book at a glance: "portfolio", "what's my portfolio like", "how's my book", "我的投资组合".
+  if (PORTFOLIO_EN.test(text) || PORTFOLIO_ZH.test(text)) return { kind: "portfolio" };
 
   // Book: position, credit, contract.
   const position = /^(?:(?:my|our|net|the)\s+)*(?:position|positions|book|头寸|净头寸)(?:\s+(.+))?$/.exec(text);
