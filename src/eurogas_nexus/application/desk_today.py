@@ -389,6 +389,17 @@ def _prices(
             resolved = resolve_close_series(
                 price_book, hub, closes, max_gap_days=MAX_VAR_GAP_DAYS
             )
+        elif _todays_day_ahead(last, now):
+            # The newest close is for the day-ahead the desk trades now: show that contract's
+            # one price (a live tick when a feed quotes it), as the front month does. A
+            # day-ahead is a new contract every day, so its change stays against the previous
+            # day's close, as the close's own change is.
+            resolved = resolve_close_series(
+                price_book, hub, closes, max_gap_days=MAX_VAR_GAP_DAYS
+            )
+            if resolved is not None:
+                resolved = {**resolved, "change": None if previous is None
+                            else round(resolved["value"] - previous, 4)}
         if resolved is not None:
             one = resolved["resolved"]
             shown, unit = resolved["value"], resolved["unit"]
@@ -1221,6 +1232,23 @@ def focus_hubs(session, caller: Caller, book: _Book, prices: dict) -> list[str]:
     return ordered[:MARKET_HUBS]
 
 
+def _todays_day_ahead(close: dict[str, Any], now: datetime) -> bool:
+    """Whether a day-ahead close is for the day-ahead contract of the gas day at ``now``."""
+
+    from eurogas_nexus.domain.market.gas_day import gas_day_label
+    from eurogas_nexus.domain.market.products import ProductCodeError, resolve_product
+
+    start = close.get("period_start_utc")
+    if not isinstance(start, datetime | date):
+        return False
+    try:
+        prompt = resolve_product("DA", date.fromisoformat(gas_day_label(now)))
+    except ProductCodeError:
+        return False
+    first = start.date() if isinstance(start, datetime) else start
+    return first == prompt.first_gas_day
+
+
 def _market(
     caller: Caller, now: datetime, focus: list[str], read: _Read, price_book=None
 ) -> dict[str, Any]:
@@ -1277,7 +1305,7 @@ def _market(
             product = "DA"
             key = f"market.{hub}.day_ahead"
         shown, unit = in_native_unit(hub, last["price"], last["unit"])
-        change = None
+        change = previous = None
         if len(days) > 1 and (days[-1] - days[-2]).days <= MAX_VAR_GAP_DAYS:
             previous, _ = in_native_unit(hub, closes[days[-2]]["price"], closes[days[-2]]["unit"])
             change = round(shown - previous, 4)
@@ -1295,6 +1323,17 @@ def _market(
             resolved = resolve_close_series(
                 price_book, hub, closes, max_gap_days=MAX_VAR_GAP_DAYS
             )
+        elif _todays_day_ahead(last, now):
+            # The newest close is for the day-ahead the desk trades now: show that contract's
+            # one price (a live tick when a feed quotes it), as the front month does. A
+            # day-ahead is a new contract every day, so its change stays against the previous
+            # day's close, as the close's own change is.
+            resolved = resolve_close_series(
+                price_book, hub, closes, max_gap_days=MAX_VAR_GAP_DAYS
+            )
+            if resolved is not None:
+                resolved = {**resolved, "change": None if previous is None
+                            else round(resolved["value"] - previous, 4)}
         if resolved is not None:
             one = resolved["resolved"]
             shown, unit, change = resolved["value"], resolved["unit"], resolved["change"]

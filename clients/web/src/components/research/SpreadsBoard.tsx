@@ -13,6 +13,7 @@ import { boardReasonText, cargoSearch, fullSpec, rangePosition, routeGap } from 
 import { unitLabel } from "@/app/model/instrumentPicker";
 import { useSimulatedPills } from "@/components/ui/SimulatedScope";
 import { PercentileStrip, Sparkline } from "@/components/ui/charts";
+import { LiveValue } from "@/components/ui/LiveValue";
 import { followLink } from "./NextSteps";
 import { formatMeasure } from "@/app/time/valueFormat";
 
@@ -40,15 +41,20 @@ function TenorCells({ tenor, unit }: { tenor: BoardTenorDTO; unit: string }) {
   const via = tenor.route && tenor.route.through.length > 0 ? ` ${t("spreads.route.via", { hubs: tenor.route.through.join(", ") })}` : "";
   const legs = (tenor.legs ?? []).map((leg) => `${leg.hub} ${fixed(leg.native_value, 3)} ${unitLabel(leg.native_unit)}`).join(" · ");
   const range = rangePosition(tenor);
+  // A tick is a move of the same pair, tenor and delivery; a new delivery is not a tick.
+  const identity = `${(tenor.legs ?? []).map((leg) => leg.hub).join("-")}|${tenor.tenor}|${tenor.delivery ?? ""}`;
   return (
     <>
       <td className="num" data-figure="gross" title={legs}>
-        <strong>{signed(tenor.gross, 3)}</strong> <Sim on={tenor.simulated} />
+        <LiveValue watch={tenor.gross ?? null} identity={`${identity}|gross`}>
+          <strong>{signed(tenor.gross, 3)}</strong>
+        </LiveValue>{" "}
+        <Sim on={tenor.simulated} />
       </td>
       <td className="num" data-figure="net" title={tenor.direction ? `${tenor.direction}${via}` : undefined}>
         {tenor.net != null ? (
           <>
-            {signed(tenor.net, 3)}
+            <LiveValue watch={tenor.net} identity={`${identity}|net`}>{signed(tenor.net, 3)}</LiveValue>
             <span className="board-muted"> {tenor.direction}{via}</span>
           </>
         ) : (

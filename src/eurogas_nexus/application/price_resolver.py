@@ -160,7 +160,7 @@ def quote_candidates(
     receives each candidate tick's version (revision 1, known from its receipt).
     """
 
-    from sqlalchemy import and_, func, or_
+    from sqlalchemy import and_, case, func, or_
 
     from eurogas_nexus.db.models import MarketQuoteRecord
 
@@ -186,50 +186,61 @@ def quote_candidates(
         if not wanted:
             return []
         window.append(q.hub.in_(wanted))
+    sides = {
+        "mid": and_(q.bid_price.isnot(None), q.ask_price.isnot(None)),
+        "bid": q.bid_price.isnot(None),
+        "ask": q.ask_price.isnot(None),
+    }
+    # One pass over the window: per hub, delivery and source the newest time of a two-sided
+    # quote, of a bid and of an ask. A feed that ticks every few seconds holds tens of
+    # thousands of rows here, so the rows themselves are then fetched by those times (the
+    # observed-time index) rather than by one condition per key.
+    latest = (
+        session.query(
+            q.hub,
+            q.delivery_start_utc,
+            q.delivery_end_utc,
+            q.source_system,
+            *[
+                func.max(case((condition, q.observed_at_utc), else_=None)).label(label)
+                for label, condition in sides.items()
+            ],
+        )
+        .filter(*window, or_(q.bid_price.isnot(None), q.ask_price.isnot(None)))
+        .group_by(q.hub, q.delivery_start_utc, q.delivery_end_utc, q.source_system)
+        .all()
+    )
+    wanted_rows: dict[tuple, list[str]] = {}
+    for item in latest:
+        for label in sides:
+            observed = getattr(item, label)
+            if observed is not None:
+                identity = (
+                    item.hub, item.delivery_start_utc, item.delivery_end_utc,
+                    item.source_system, observed,
+                )
+                wanted_rows.setdefault(identity, []).append(label)
+    stamps = sorted({identity[4] for identity in wanted_rows})
     newest: dict[tuple, Any] = {}
-    for label, condition in (
-        ("mid", and_(q.bid_price.isnot(None), q.ask_price.isnot(None))),
-        ("bid", q.bid_price.isnot(None)),
-        ("ask", q.ask_price.isnot(None)),
-    ):
-        latest = (
-            session.query(
-                q.hub,
-                q.delivery_start_utc,
-                q.delivery_end_utc,
-                q.source_system,
-                func.max(q.observed_at_utc).label("observed"),
+    for offset in range(0, len(stamps), 500):
+        chunk = stamps[offset : offset + 500]
+        for row in session.query(q).filter(*window, q.observed_at_utc.in_(chunk)).all():
+            identity = (
+                row.hub, row.delivery_start_utc, row.delivery_end_utc, row.source_system,
+                row.observed_at_utc,
             )
-            .filter(*window, condition)
-            .group_by(q.hub, q.delivery_start_utc, q.delivery_end_utc, q.source_system)
-            .all()
-        )
-        if not latest:
-            continue
-        rows = (
-            session.query(q)
-            .filter(
-                condition,
-                or_(
-                    *[
-                        and_(
-                            q.hub == item.hub,
-                            q.delivery_start_utc == item.delivery_start_utc,
-                            q.delivery_end_utc == item.delivery_end_utc,
-                            q.source_system == item.source_system,
-                            q.observed_at_utc == item.observed,
-                        )
-                        for item in latest
-                    ]
-                ),
-            )
-            .all()
-        )
-        for row in rows:
-            key = (label, row.hub, row.delivery_start_utc, row.delivery_end_utc, row.source_system)
-            held = newest.get(key)
-            if held is None or row.quote_id > held.quote_id:
-                newest[key] = row
+            for label in wanted_rows.get(identity, ()):
+                if (label != "ask" and row.bid_price is None) or (
+                    label != "bid" and row.ask_price is None
+                ):
+                    continue
+                key = (
+                    label, row.hub, row.delivery_start_utc, row.delivery_end_utc,
+                    row.source_system,
+                )
+                held = newest.get(key)
+                if held is None or row.quote_id > held.quote_id:
+                    newest[key] = row
     out: list[PriceCandidate] = []
     seen: set[str] = set()
     for row in newest.values():
