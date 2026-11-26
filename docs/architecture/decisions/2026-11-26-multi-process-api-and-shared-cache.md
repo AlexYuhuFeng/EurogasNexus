@@ -72,7 +72,8 @@ What was built, against the decision's points:
    books are read once per poll per distinct caller. Events reach each connection through an
    in-memory queue owned by its event loop; a stream that falls 200 batches behind is ended
    (it resumes from its last event id). Streams per person: one cap,
-   `EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL` (5, from the security review), counted across
+   `EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL` (from the security review; 8 since the web client
+   holds one stream per tab, 2026-11-26), counted across
    processes through the shared cache (expiring slots), 429 past it. The stream's entitlement now takes the firm-level test and the
    opportunity read rule from the caller's own scopes, not from the request context a poller
    thread does not have. **Not built: the `LISTEN/NOTIFY` early wake.** The driver (pg8000)

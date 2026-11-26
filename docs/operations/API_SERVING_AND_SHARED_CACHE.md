@@ -91,7 +91,7 @@ EurogasDbPoolExhausted reads the waits and timeouts below.
 | `eurogas_stream_connections` (summed over `topic`) | about 1 to 3 per signed-in user | far above: a client reconnecting in a loop |
 | `eurogas_stream_poll_seconds_total` / `eurogas_stream_polls_total` | well under 1.5 s per poll | close to 1.5 s: the poll cannot keep its interval; look for a slow source query |
 | `eurogas_stream_poll_failures_total` | flat | growing: the poller cannot reach the database |
-| `eurogas_stream_refused_total` | 0 | growing: someone opens more than `EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL` (5) streams across all processes |
+| `eurogas_stream_refused_total` | 0 | growing: someone opens more than `EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL` (8: tabs, one stream each) streams across all processes |
 
 ## What happens when Valkey is down
 
@@ -115,10 +115,16 @@ process, in one database session, and hands each stream its own events through a
 queue. Each stream keeps its own cursor and its own user's entitlement (licensed sources, book
 scope, the opportunity and alert read rules). A stream opened with a session ends at the next
 poll after a sign-out on any process. A user may hold `EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL`
-(5, security review M7) open streams in all; one more answers 429 `rate_limited` (reason
-`stream_limit_reached`). With Valkey each stream holds a slot there (a 90-second lease renewed
-while the stream sends), so the cap counts across every process and a process that dies frees
-its slots when the leases run out; without Valkey each process counts its own.
+(8, security review M7; the demo 40) open streams in all; one more answers 429 `rate_limited`
+(reason `stream_limit_reached`, `Retry-After: 30`). The web client holds ONE stream per browser
+tab (`/api/stream/live` with every topic; the opportunity engine's events ride on it), so the cap
+is tabs per person; a tab refused one says "Live updates paused" once and re-reads on a timer.
+A stream's place is freed the moment its connection closes: the response closes its stream
+however it ends (`CountedStreamingResponse`), a quiet stream sends a keepalive comment every
+10 s so a closed connection is noticed at that write, and no error keeps a place. With Valkey
+each stream holds a slot there (a 90-second lease renewed while the stream sends), so the cap
+counts across every process and a process that dies frees its slots when the leases run out;
+without Valkey each process counts its own.
 
 The poller reads for every user it serves, so its own reads run in an explicit system scope
 (`portfolio_scope.system_scope`, every book); nothing reaches a connection before that
