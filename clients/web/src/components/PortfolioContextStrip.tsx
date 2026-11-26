@@ -26,7 +26,7 @@ interface PortfolioContextStripProps {
   t: Translate;
   /** The page\'s gas day, product and hub controls, shown in the context line. */
   controls?: React.ReactNode;
-  /** The page's own freshness line ("Demo data" on the demo desk). */
+  /** The page's own freshness line. */
   freshness?: React.ReactNode;
 }
 

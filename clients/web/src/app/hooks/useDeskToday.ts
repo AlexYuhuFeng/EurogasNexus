@@ -1,8 +1,8 @@
 /**
  * The Today read (`GET /api/desk/today`, UX-05): one request for the whole first screen.
  *
- * Several surfaces read it: the Today screen, the Portfolio desk, the context strip (which says
- * "Demo data" once on the demo desk) and the top bar's status panel (which names the figures
+ * Several surfaces read it: the Today screen, the Portfolio desk, the context strip and the
+ * top bar's status panel (which names the figures
  * that are not current). They share one cache entry keyed by caller and gas day, so a page
  * makes one request per navigation however many components read it, and React's development
  * double effects (StrictMode) join the request already in flight instead of sending another.

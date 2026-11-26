@@ -77,8 +77,8 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
 
   // The Desk mode's task row (WF-05): Today, Prices, Network and Cargoes are this page's tasks.
   const mode = useModeHeader("market", task, navigation.openWorkspace, t);
-  // One read for the first screen; the context line on every market task uses it to say
-  // "Demo data" once on the demo desk instead of counting a static store's feeds as stale.
+  // One read for the first screen; the context line on every market task uses it, so a
+  // simulated desk's static store is not counted stale.
   const desk = useDeskToday();
   const nowMs = useMinuteClock();
   // Selecting a price hands its observation to the inspector (source, time, state), through

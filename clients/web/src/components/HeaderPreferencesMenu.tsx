@@ -36,8 +36,6 @@ interface HeaderPreferencesMenuProps {
   onReportProblem?: () => void;
   /** "Send feedback": an improvement suggestion through the same report dialog. */
   onSendFeedback?: () => void;
-  /** A demo deployment: said here once, quietly, instead of a chip on every page. */
-  demoMode?: boolean;
   onSignOut: () => void;
 }
 
@@ -54,7 +52,6 @@ export function HeaderPreferencesMenu({
   onOpenAdministration,
   onReportProblem,
   onSendFeedback,
-  demoMode = false,
   onSignOut,
 }: HeaderPreferencesMenuProps) {
   const [open, setOpen] = useState(false);
@@ -184,7 +181,6 @@ export function HeaderPreferencesMenu({
               {personFunction(currentUser) ? t(`person.function.${personFunction(currentUser)}`) : ""}
               {currentUser.experience?.office ? ` · ${currentUser.experience.office}` : ""}
             </span>
-            {demoMode ? <span className="topbar-menu-demo" data-demo-mode="true">{t("topbar.demo_mode")}</span> : null}
           </div>
 
           <div className="topbar-menu-group" role="group" aria-label={t("settings.language")}>

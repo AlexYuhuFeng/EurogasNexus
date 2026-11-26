@@ -149,22 +149,6 @@
   margin-bottom: var(--ds-space-2);
 }
 
-.market-simulated-banner {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--ds-space-2);
-  align-items: baseline;
-  margin-bottom: var(--ds-space-2);
-  border: 1px solid var(--ds-status-simulated);
-  border-left-width: 4px;
-  background: var(--ds-status-simulated-soft);
-  padding: var(--ds-space-1) var(--ds-space-2);
-}
-
-.market-simulated-banner strong {
-  letter-spacing: 0.04em;
-}
-
 /* Market ladder (products down, hubs across). */
 .market-ladder-scroll {
   overflow-x: auto;

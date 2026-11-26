@@ -651,16 +651,6 @@ export function MarketTerminal({
   };
 
   const activeQuoteCount = sourceQuoteRows.length;
-  // A simulated price must never be read as a market price: when any priced row on the board
-  // is simulated, the board says so above the numbers, not only in a per-row pill.
-  // The WD/DA/WE/MA columns show every tenor's mid, so every tenor's row counts, not only
-  // the active tenor's: a simulated month-ahead mark next to an empty day-ahead is still a
-  // simulated price on the board.
-  const simulatedOnBoard = [...priceRowsForStrip, ...allTenorRows].some((row) => {
-    const quote = latestQuoteByHubTenor.get(`${row.hub}:${row.tenor}`);
-    return (quote ? quote.simulated : false) || row.simulated;
-  });
-
   // One row per major hub for the active tenor, computed once per read, then the board's columns.
   const boardRows: BoardRow[] = priceRowsForStrip.map((row) => {
     const quote = latestQuoteByHubTenor.get(`${row.hub}:${row.tenor}`);
@@ -1014,14 +1004,8 @@ export function MarketTerminal({
             />
           )}
         </Toolbar>
-        {/* Said once when every priced row is simulated (components/ui/SimulatedScope.tsx, shared
-            with Today and Spreads); a mixed board keeps the banner and the per-row marks. */}
-        {simulatedOnBoard && boardScope !== "all" && (
-          <div className="market-simulated-banner" role="alert" data-simulated-board="true">
-            <strong>{t("market.simulated_banner_title")}</strong>
-            <span>{t("market.simulated_banner_body")}</span>
-          </div>
-        )}
+        {/* A simulated price carries its source mark: one quiet source line when every priced
+            row is simulated (components/ui/SimulatedScope.tsx), otherwise the mark on each row. */}
         <SimulatedScope scope={boardScope} notice={t("market.all_simulated")}>
         {boardView === "prompt" ? (
           <PromptDeskPanel hub={focusedHub && ["TTF", "NBP"].includes(focusedHub) ? focusedHub : "TTF"} />

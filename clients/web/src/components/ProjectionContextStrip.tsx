@@ -44,7 +44,7 @@ interface ProjectionContextStripProps {
   controls?: ReactNode;
   /**
    * The page's own freshness line, in place of the feed count: the Today screen names its late
-   * or stale figures, and the demo desk says "Demo data" once instead of counting feeds of a
+   * or stale figures, and a simulated desk adds no label of its own instead of counting feeds of a
    * deliberately static store as stale (FRESH-02).
    */
   freshness?: ReactNode;

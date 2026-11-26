@@ -15,8 +15,8 @@
  * - the margin's sensitivity to hire, Henry Hub, the hub price and FX.
  *
  * Henry Hub comes from the firm's mark or the customer's licensed data; otherwise the held EIA
- * spot is the form's default, a flat proxy labelled with its day (the demo desk has its own
- * simulated series, labelled); with neither, the page asks for a mark. FX for the arrival month
+ * spot is the form's default, a flat proxy labelled with its day (a simulated series where one
+ * is held, marked as its source); with neither, the page asks for a mark. FX for the arrival month
  * is the CP-01 forward, stated per month, spot only as the labelled fallback. The voyage is the desk's own unless the firm has
  * saved routes: no sea-distance table ships with the product. Research is hypothetical: no
  * book, no checks, nothing offered or nominated.
@@ -344,7 +344,7 @@ function CargoFormView({ form, routes, sets, terminals, confirmations, busy, onC
             <Field id="cargo-slope" hint={setHint} label={t("cargo.form.slope")} unit="× HH" value={form.slope} onChange={(slope) => onChange({ slope })} />
             <Field id="cargo-fee" hint={setHint} label={t("cargo.form.fee")} unit="USD/MMBtu" value={form.fee} onChange={(fee) => onChange({ fee })} />
             {heldHh && heldHh.inputClass !== "assumption" && (
-              <p className="cargo-voyage-note" data-hh-default={heldHh.proxy ? (heldHh.demo ? "demo" : "eia") : heldHh.inputClass}>
+              <p className="cargo-voyage-note" data-hh-default={heldHh.proxy ? (heldHh.simulated ? "simulated" : "eia") : heldHh.inputClass}>
                 {t("cargo.form.hh_using", { value: fixed(heldHh.value, 3), basis: hhBasisText(t, heldHh) })}
               </p>
             )}
@@ -442,7 +442,7 @@ function ClassMark({ inputClass }: { inputClass: string }) {
 
 /** How a Henry Hub figure was obtained, in words (the spot proxy names its day). */
 function hhBasisText(t: (key: string, options?: Record<string, unknown>) => string, hh: NonNullable<ReturnType<typeof henryHub>>): string {
-  if (hh.proxy && hh.day) return t(hh.demo ? "cargo.hh.proxy_demo" : "cargo.hh.proxy_day", { day: shortDay(hh.day) });
+  if (hh.proxy && hh.day) return t(hh.simulated ? "cargo.hh.proxy_demo" : "cargo.hh.proxy_day", { day: shortDay(hh.day) });
   if (hh.proxy) return t("cargo.hh.proxy");
   return t(`cargo.hh.${hh.inputClass}`, { defaultValue: hh.source });
 }
@@ -713,7 +713,7 @@ function SpreadLine({ result, cargo }: { result: CargoEconomicsDTO; cargo: Cargo
     ],
   }), [chart, hub, t, unit]);
   if (chart.priced === 0) return null;
-  const hhBasis = !hh ? "" : hh.inputClass === "assumption" ? t("cargo.series.hh_entered") : hh.proxy ? t(hh.demo ? "cargo.series.hh_demo" : "cargo.series.hh_proxy") : t("cargo.series.hh_held");
+  const hhBasis = !hh ? "" : hh.inputClass === "assumption" ? t("cargo.series.hh_entered") : hh.proxy ? t(hh.simulated ? "cargo.series.hh_demo" : "cargo.series.hh_proxy") : t("cargo.series.hh_held");
   return (
     <section className="spreads-result" data-spread-series="true">
       <Chart
