@@ -750,4 +750,83 @@
       animation: ds-work-pulse var(--ds-duration-pulse) var(--ds-ease-in-out) infinite;
     }
   }
+
+  /* ----------------------------------------------------------------- Spinner */
+  /* The busy ring: a track and an arc that starts at twelve o'clock. Still by default; it turns
+     only when motion is allowed (a still quarter arc still reads as "working"). */
+  .ds-spinner {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: var(--ds-icon-sm);
+    height: var(--ds-icon-sm);
+    vertical-align: middle;
+  }
+
+  .ds-spinner[data-size="xs"] {
+    width: var(--ds-icon-xs);
+    height: var(--ds-icon-xs);
+  }
+
+  .ds-spinner[data-size="md"] {
+    width: var(--ds-icon-md);
+    height: var(--ds-icon-md);
+  }
+
+  .ds-spinner-ring {
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    transform: rotate(-90deg);
+  }
+
+  .ds-spinner-track,
+  .ds-spinner-arc {
+    fill: none;
+    stroke-width: 2;
+  }
+
+  .ds-spinner-track {
+    stroke: var(--ds-border-strong);
+  }
+
+  .ds-spinner-arc {
+    stroke: var(--ds-accent);
+    stroke-linecap: round;
+  }
+
+  .ds-spinner[data-progress="known"] .ds-spinner-arc {
+    transition: stroke-dasharray var(--ds-duration-slow) var(--ds-ease-out);
+  }
+
+  /* A busy button keeps its label (for its width and its accessible name) but shows the ring. */
+  .ds-button[data-loading] {
+    position: relative;
+  }
+
+  .ds-button[data-loading]:disabled {
+    color: transparent;
+  }
+
+  .ds-button[data-loading] > :not(.ds-button-spinner) {
+    opacity: 0;
+  }
+
+  .ds-button-spinner {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .ds-spinner[data-progress="unknown"] .ds-spinner-ring {
+      animation: ds-spin var(--ds-duration-loop) var(--ds-ease-in-out) infinite;
+    }
+  }
+
+  @keyframes ds-spin {
+    from { transform: rotate(-90deg); }
+    to { transform: rotate(270deg); }
+  }
 }
