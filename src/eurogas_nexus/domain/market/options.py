@@ -351,6 +351,27 @@ def _interpolate(xs: Sequence[float], ys: Sequence[float], target: float) -> flo
     return None
 
 
+def put_call_oi_ratio(quotes: Sequence[SmileQuote]) -> tuple[float | None, str | None]:
+    """Put over call open interest, with the reason when it cannot be stated.
+
+    It needs neither an underlying nor a tenor, so it is computed even when the vol metrics
+    are not.
+    """
+
+    call_all = [q.open_interest for q in quotes if q.option_type == CALL]
+    put_all = [q.open_interest for q in quotes if q.option_type == PUT]
+    call_oi = [value for value in call_all if value is not None]
+    put_oi = [value for value in put_all if value is not None]
+    if not call_oi or not put_oi:
+        return None, "open_interest_not_published"
+    if len(call_oi) < len(call_all) or len(put_oi) < len(put_all):
+        # A total with an unpublished strike in it is unknown, not smaller.
+        return None, "open_interest_incomplete"
+    if sum(call_oi) <= 0:
+        return None, "no_call_open_interest"
+    return sum(put_oi) / sum(call_oi), None
+
+
 def smile_metrics(quotes: Sequence[SmileQuote], forward: float, tenor: float) -> SmileMetrics:
     """ATM vol, 25-delta call and put vols, RR25, BF25 and the put/call OI ratio."""
 
@@ -389,20 +410,9 @@ def smile_metrics(quotes: Sequence[SmileQuote], forward: float, tenor: float) ->
         if call25 is not None and put25 is not None and atm is not None
         else None
     )
-    call_all = [q.open_interest for q in quotes if q.option_type == CALL]
-    put_all = [q.open_interest for q in quotes if q.option_type == PUT]
-    call_oi = [value for value in call_all if value is not None]
-    put_oi = [value for value in put_all if value is not None]
-    ratio = None
-    if not call_oi or not put_oi:
-        reasons["put_call_oi_ratio"] = "open_interest_not_published"
-    elif len(call_oi) < len(call_all) or len(put_oi) < len(put_all):
-        # A total with an unpublished strike in it is unknown, not smaller.
-        reasons["put_call_oi_ratio"] = "open_interest_incomplete"
-    elif sum(call_oi) <= 0:
-        reasons["put_call_oi_ratio"] = "no_call_open_interest"
-    else:
-        ratio = sum(put_oi) / sum(call_oi)
+    ratio, ratio_reason = put_call_oi_ratio(quotes)
+    if ratio_reason:
+        reasons["put_call_oi_ratio"] = ratio_reason
     return SmileMetrics(
         atm_vol=atm,
         call_25d_vol=call25,
