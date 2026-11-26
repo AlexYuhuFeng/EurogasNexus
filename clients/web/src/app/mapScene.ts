@@ -1,24 +1,21 @@
 import type {
   EdgeDTO,
   MapAssetDTO,
-  MapCargoDTO,
   MapFlowDayDTO,
   MapSituationDTO,
   NodeDTO,
 } from "@/api/client";
 
 /**
- * The map scene (MAP-1): terminals and storage sites as columns, LNG voyages with what each
- * position rests on, and gas flows moving along the network. Pure functions, no map or DOM, so
- * each rule is tested directly (tests/mapScene.test.ts).
+ * The map scene (MAP-1), flat: terminals and storage sites as points sized by their published
+ * capacity, and gas flows moving along the network. Pure functions, no map or DOM, so each rule
+ * is tested directly (tests/mapScene.test.ts). The map has no 3D (owner, 2026-11-26): a cargo is
+ * drawn once, by the situation layers, at its reported position.
  *
  * Rules:
- * - **Real or labelled.** A site's column stands for a capacity the publisher stated; a site
- *   with none gets a stub marked "no published capacity". A GIE figure read by country is the
- *   country's, and the card says so.
- * - **Estimated is never observed.** A vessel position is `reported` only when the feed reported
- *   it. A position between the last fix and the destination at the ETA is `estimated`: drawn
- *   hollow, on a dashed leg, and its card says it is an interpolation.
+ * - **Real or labelled.** A site's point is sized by a capacity the publisher stated; a site
+ *   with none is the smallest point and its card says "no published capacity". A GIE figure read
+ *   by country is the country's, and the card says so.
  * - **Direction only where the data gives it.** ENTSOG reports a flow relative to the operator's
  *   own system; the operator's side of a border is the market-area link that lists it. A flow
  *   whose side cannot be found is drawn as a point (the map's existing circle), never as an arrow.
@@ -28,7 +25,6 @@ import type {
 
 export type Project = (lon: number, lat: number) => [number, number];
 export type LonLat = [number, number];
-export type SceneDimension = "2d" | "3d";
 
 type Props = Record<string, string | number | boolean | null>;
 interface Feature<G> {
@@ -42,31 +38,19 @@ export interface FC<G> {
 }
 type Point = { type: "Point"; coordinates: LonLat };
 type Line = { type: "LineString"; coordinates: LonLat[] };
-type Polygon = { type: "Polygon"; coordinates: LonLat[][] };
 
 const fc = <G>(features: Array<Feature<G>>): FC<G> => ({ type: "FeatureCollection", features });
-
-/** The camera's pitch per dimension; 3D tilts, 2D is the flat map the desk already knows. */
-export const SCENE_PITCH: Record<SceneDimension, number> = { "2d": 0, "3d": 58 };
-/** 3D also turns the map a little, so the columns read as standing, not as dots. */
-export const SCENE_BEARING: Record<SceneDimension, number> = { "2d": 0, "3d": -17 };
-
-/** The camera move between 2D and 3D: the map duration token, none under reduced motion. */
-export function sceneCamera(dimension: SceneDimension, reducedMotion: boolean, durationMs: number) {
-  return { pitch: SCENE_PITCH[dimension], bearing: SCENE_BEARING[dimension], duration: reducedMotion ? 0 : durationMs };
-}
 
 /**
  * Colours for the scene's own marks: the design system's series tokens (tokens.css; MapLibre
  * cannot read CSS variables, so the values are repeated here and in the key's swatches by
  * token). LNG terminals `--ds-series-5` (violet), storage `--ds-series-6` (olive), apart from the
  * map's existing meanings (blue: our positions, red and amber: outages, teal: flows) and from
- * each other under the common colour-vision deficiencies. Shape carries meaning too (columns,
- * hollow estimates, dashed and dotted legs), so nothing rests on colour alone.
+ * each other under the common colour-vision deficiencies.
  */
 export const SCENE_COLOURS = {
-  light: { lng: "#7c3aed", storage: "#4d7c0f", estimate: "#52525b", noCapacity: "#a1a1aa" },
-  dark: { lng: "#a78bfa", storage: "#a3e635", estimate: "#d4d4d8", noCapacity: "#71717a" },
+  light: { lng: "#7c3aed", storage: "#4d7c0f", noCapacity: "#a1a1aa" },
+  dark: { lng: "#a78bfa", storage: "#a3e635", noCapacity: "#71717a" },
 } as const;
 
 // ---------------------------------------------------------------------------------------------
@@ -98,22 +82,6 @@ export function greatCirclePoint(a: LonLat, b: LonLat, fraction: number): LonLat
   return [Math.atan2(y, x) / RAD, Math.atan2(z, Math.sqrt(x * x + y * y)) / RAD];
 }
 
-/** A great circle sampled into `steps` segments, longitudes kept continuous (no jump at 180°). */
-export function greatCircle(a: LonLat, b: LonLat, steps = 32): LonLat[] {
-  const out: LonLat[] = [];
-  for (let i = 0; i <= steps; i += 1) {
-    const [lon, lat] = greatCirclePoint(a, b, i / steps);
-    const previous = out[out.length - 1];
-    let unwrapped = lon;
-    if (previous) {
-      while (unwrapped - previous[0] > 180) unwrapped -= 360;
-      while (unwrapped - previous[0] < -180) unwrapped += 360;
-    }
-    out.push([unwrapped, lat]);
-  }
-  return out;
-}
-
 /** The first `km` of a path (or all of it when shorter), cut exactly at that length. */
 export function pathPrefix(path: LonLat[], km: number): LonLat[] {
   if (path.length < 2) return [...path];
@@ -137,25 +105,12 @@ export function pathLengthKm(path: LonLat[]): number {
   return total;
 }
 
-/** A square footprint of `halfKm` around a point, closed, as a polygon ring. */
-export function squareAround([lon, lat]: LonLat, halfKm: number): LonLat[] {
-  const dLat = halfKm / 111.32;
-  const dLon = halfKm / (111.32 * Math.max(0.05, Math.cos(lat * RAD)));
-  return [
-    [lon - dLon, lat - dLat],
-    [lon + dLon, lat - dLat],
-    [lon + dLon, lat + dLat],
-    [lon - dLon, lat + dLat],
-    [lon - dLon, lat - dLat],
-  ];
-}
-
 // ---------------------------------------------------------------------------------------------
 // Terminals and storage
 
-/** The figures a site's column and card are drawn from, each with where it came from. */
+/** The figures a site's point and card are drawn from, each with where it came from. */
 export interface AssetFigures {
-  /** Published firm technical capacity used for the column (GWh/d), or null when none held. */
+  /** Published firm technical capacity the point is sized by (GWh/d), or null when none held. */
   capacityGwhD: number | null;
   capacityDirection: string | null;
   capacityGasDay: string | null;
@@ -193,63 +148,29 @@ export function assetFigures(asset: MapAssetDTO): AssetFigures {
   };
 }
 
-/** Column height in metres: square root of capacity against the largest on the map. */
-export const COLUMN_MAX_M = 420_000;
-export const COLUMN_STUB_M = 24_000;
-export function columnHeightM(capacityGwhD: number | null, largestGwhD: number): number {
-  if (capacityGwhD === null || !(largestGwhD > 0)) return COLUMN_STUB_M;
-  return Math.max(COLUMN_STUB_M * 2, Math.round(COLUMN_MAX_M * Math.sqrt(capacityGwhD / largestGwhD)));
-}
-
-export interface AssetLayers {
-  /** The column (published capacity), translucent. */
-  columns: FC<Polygon>;
-  /** The fill inside it: the newest closed day's flow against that capacity. */
-  fills: FC<Polygon>;
-  /** The 2D fallback: one point per site, radius from the same scale. */
-  points: FC<Point>;
-}
-
-/** A column's half-width: wide enough to read at the zoom that shows Europe (about 7 px). */
-export const COLUMN_HALF_KM = 24;
-
-export function assetLayers(assets: MapAssetDTO[] | undefined, project: Project, halfKm = COLUMN_HALF_KM): AssetLayers {
+/** One point per site, its radius on a square-root scale of published capacity (4 to 14 px). */
+export function assetPoints(assets: MapAssetDTO[] | undefined, project: Project): FC<Point> {
   const list = assets ?? [];
   const figures = list.map(assetFigures);
   const largest = Math.max(0, ...figures.map((item) => item.capacityGwhD ?? 0));
-  const columns: Array<Feature<Polygon>> = [];
-  const fills: Array<Feature<Polygon>> = [];
-  const points: Array<Feature<Point>> = [];
-  list.forEach((asset, index) => {
+  return fc(list.map((asset, index) => {
     const figure = figures[index];
-    const at: LonLat = [asset.location.lon, asset.location.lat];
-    const height = columnHeightM(figure.capacityGwhD, largest);
-    const properties: Props = {
-      kind: "asset",
-      id: asset.asset_id,
-      asset_kind: asset.kind,
-      name: asset.name,
-      published: figure.capacityGwhD !== null,
-      capacity_gwh_d: figure.capacityGwhD,
-      flow_gwh_d: figure.flowGwhD,
-      utilisation: figure.utilisation,
-      height,
-      // Radius for the 2D fallback: the same square-root scale, 4 to 14 px.
-      radius: figure.capacityGwhD === null || largest <= 0 ? 4 : 4 + 10 * Math.sqrt(figure.capacityGwhD / largest),
+    return {
+      type: "Feature" as const,
+      properties: {
+        kind: "asset",
+        id: asset.asset_id,
+        asset_kind: asset.kind,
+        name: asset.name,
+        published: figure.capacityGwhD !== null,
+        capacity_gwh_d: figure.capacityGwhD,
+        flow_gwh_d: figure.flowGwhD,
+        utilisation: figure.utilisation,
+        radius: figure.capacityGwhD === null || largest <= 0 ? 4 : 4 + 10 * Math.sqrt(figure.capacityGwhD / largest),
+      },
+      geometry: { type: "Point" as const, coordinates: project(asset.location.lon, asset.location.lat) },
     };
-    const ring = squareAround(at, halfKm).map(([lon, lat]) => project(lon, lat));
-    columns.push({ type: "Feature", properties, geometry: { type: "Polygon", coordinates: [ring] } });
-    if (figure.utilisation !== null && figure.utilisation > 0) {
-      const inner = squareAround(at, halfKm * 0.7).map(([lon, lat]) => project(lon, lat));
-      fills.push({
-        type: "Feature",
-        properties: { ...properties, height: Math.round(height * Math.min(1, figure.utilisation)) },
-        geometry: { type: "Polygon", coordinates: [inner] },
-      });
-    }
-    points.push({ type: "Feature", properties, geometry: { type: "Point", coordinates: project(...at) } });
-  });
-  return { columns: fc(columns), fills: fc(fills), points: fc(points) };
+  }));
 }
 
 /** How old a figure is, in hours, from when the platform received it; null when unknown. */
@@ -262,130 +183,6 @@ export function figureAgeHours(receivedAtUtc: string | null | undefined, now: Da
 
 /** A daily figure older than two gas days is stale: the card says so beside its age. */
 export const STALE_AFTER_HOURS = 48;
-
-// ---------------------------------------------------------------------------------------------
-// LNG carriers
-
-export type PositionBasis = "reported" | "estimated" | "at_port";
-
-export interface ScenePosition {
-  at: LonLat;
-  basis: PositionBasis;
-  /** For an estimate: the fix it starts from ("reported" position, or "departure"). */
-  from?: "reported" | "departure";
-  fromAt?: LonLat;
-  /** For an estimate: the share of the leg from the fix to the ETA already elapsed. */
-  fraction?: number;
-  /** When the position applies: the report's time, or now for an estimate. */
-  atUtc: string | null;
-}
-
-/**
- * Where the map draws a cargo and what that position rests on.
- *
- * - `reported`: the feed's position (`position_basis` "reported"), with its time.
- * - `at_port`: loading at its origin, discharging or delivered at its destination.
- * - `estimated`: laden at sea with no fresh report, interpolated along the great circle from
- *   the last fix (the reported position, else the departure) to the destination at the ETA.
- *   Only when the fix's time and the ETA are both known and now lies between them.
- *
- * Returns the primary position and, for a laden cargo whose report is older than
- * `estimateAfterHours`, an estimate beside it (both are drawn, each labelled).
- */
-export function cargoPositions(
-  cargo: MapCargoDTO,
-  now: Date,
-  estimateAfterHours = 6,
-): { primary: ScenePosition | null; estimate: ScenePosition | null } {
-  const reported = cargo.position && cargo.position_basis !== null
-    ? ({ at: [cargo.position.lon, cargo.position.lat], basis: "reported", atUtc: cargo.position_at_utc } as ScenePosition)
-    : null;
-  let primary: ScenePosition | null = reported;
-  if (!primary && cargo.status === "loading" && cargo.origin) {
-    primary = { at: [cargo.origin.lon, cargo.origin.lat], basis: "at_port", atUtc: null };
-  }
-  if (!primary && (cargo.status === "discharging" || cargo.status === "delivered") && cargo.destination) {
-    primary = { at: [cargo.destination.lon, cargo.destination.lat], basis: "at_port", atUtc: null };
-  }
-  let estimate: ScenePosition | null = null;
-  const eta = cargo.eta_utc ? Date.parse(cargo.eta_utc) : Number.NaN;
-  if (cargo.status === "laden" && cargo.destination && Number.isFinite(eta)) {
-    const fix = reported
-      ? { at: reported.at, time: reported.atUtc ? Date.parse(reported.atUtc) : Number.NaN, from: "reported" as const }
-      : cargo.origin && cargo.departed_at_utc
-        ? { at: [cargo.origin.lon, cargo.origin.lat] as LonLat, time: Date.parse(cargo.departed_at_utc), from: "departure" as const }
-        : null;
-    const stale = !reported || (Number.isFinite(fix?.time) && now.getTime() - (fix?.time ?? 0) > estimateAfterHours * 3_600_000);
-    if (fix && Number.isFinite(fix.time) && stale && now.getTime() > fix.time && now.getTime() < eta) {
-      const fraction = (now.getTime() - fix.time) / (eta - fix.time);
-      estimate = {
-        at: greatCirclePoint(fix.at, [cargo.destination.lon, cargo.destination.lat], fraction),
-        basis: "estimated",
-        from: fix.from,
-        fromAt: fix.at,
-        fraction,
-        atUtc: now.toISOString(),
-      };
-    }
-  }
-  return { primary, estimate };
-}
-
-export interface VoyageLayers {
-  /** Reported or at-port positions: filled markers. */
-  reported: FC<Point>;
-  /** Estimated positions: hollow markers. */
-  estimated: FC<Point>;
-  /** The dashed leg from the last fix to the estimate (an interpolation, not a track). */
-  estimateLegs: FC<Line>;
-  /** Origin to destination as a great circle where no track was reported: the voyage, not a route. */
-  arcs: FC<Line>;
-}
-
-export function voyageLayers(cargoes: MapCargoDTO[] | undefined, now: Date, project: Project): VoyageLayers {
-  const reported: Array<Feature<Point>> = [];
-  const estimated: Array<Feature<Point>> = [];
-  const legs: Array<Feature<Line>> = [];
-  const arcs: Array<Feature<Line>> = [];
-  for (const cargo of cargoes ?? []) {
-    const base: Props = {
-      kind: "voyage",
-      id: cargo.cargo_id,
-      own: cargo.own,
-      status: cargo.status,
-      name: cargo.vessel_name,
-      eta_utc: cargo.eta_utc,
-      eta_basis: cargo.eta?.basis ?? null,
-      eta_confidence: cargo.eta?.confidence ?? null,
-    };
-    const { primary, estimate } = cargoPositions(cargo, now);
-    if (primary) {
-      reported.push({
-        type: "Feature",
-        properties: { ...base, basis: primary.basis, at_utc: primary.atUtc },
-        geometry: { type: "Point", coordinates: project(...primary.at) },
-      });
-    }
-    if (estimate) {
-      estimated.push({
-        type: "Feature",
-        properties: { ...base, basis: "estimated", from: estimate.from ?? null, fraction: estimate.fraction ?? null },
-        geometry: { type: "Point", coordinates: project(...estimate.at) },
-      });
-      if (estimate.fromAt && cargo.destination) {
-        const total = distanceKm(estimate.fromAt, [cargo.destination.lon, cargo.destination.lat]);
-        const steps = Math.max(2, Math.ceil((total * (estimate.fraction ?? 0)) / 100));
-        const leg = greatCircle(estimate.fromAt, estimate.at, steps);
-        legs.push({ type: "Feature", properties: { ...base, basis: "estimated" }, geometry: { type: "LineString", coordinates: leg.map(([lon, lat]) => project(lon, lat)) } });
-      }
-    }
-    if (cargo.track.length < 2 && cargo.origin && cargo.destination && cargo.status !== "delivered") {
-      const arc = greatCircle([cargo.origin.lon, cargo.origin.lat], [cargo.destination.lon, cargo.destination.lat]);
-      arcs.push({ type: "Feature", properties: { ...base, basis: "planned" }, geometry: { type: "LineString", coordinates: arc.map(([lon, lat]) => project(lon, lat)) } });
-    }
-  }
-  return { reported: fc(reported), estimated: fc(estimated), estimateLegs: fc(legs), arcs: fc(arcs) };
-}
 
 // ---------------------------------------------------------------------------------------------
 // Gas flows
@@ -437,13 +234,6 @@ export function flowsForDay(situation: MapSituationDTO | null | undefined, day: 
       gasDay: day,
       sourceSystem: flow.source_system,
     }));
-}
-
-/** The scrubber's positions: each stored day, then "latest" at the right end. A day that has
- * left the stored window reads as latest. */
-export function scrubberIndex(flowDays: string[], flowDay: string | null): number {
-  const index = flowDay === null ? -1 : flowDays.indexOf(flowDay);
-  return index < 0 ? flowDays.length : index;
 }
 
 interface Side {

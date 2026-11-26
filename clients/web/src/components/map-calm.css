@@ -1,10 +1,10 @@
 /*
  * The live map, calm (owner review 2026-11-26: "minimalistic, clean, straightforward").
  *
- * One toolbar row (view, Layers menu, then Expand map at the end), the finder in the map's
- * top-left corner, one control stack in the top-right corner under the zoom (2D/3D, fit our
- * positions, the key), the attribution bottom-left and the flow-day bar only while flows are
- * drawn. No status chip over the map (owner review 2026-11-26: it repeated the outage panel's
+ * One toolbar row (view, Layers menu, the flows' gas day while flows are drawn, then Expand map
+ * at the end), the finder in the map's top-left corner, one control stack in the top-right
+ * corner under the zoom (fit our positions, the key), and the attribution alone in the
+ * bottom-left corner: nothing else shares the bottom band. The map is flat and north-up. No status chip over the map (owner review 2026-11-26: it repeated the outage panel's
  * counts). Names are a decluttered MapLibre symbol layer, not boxes. Nothing on the map overlaps
  * anything else: every overlay has its own corner. Tokens only.
  */
@@ -83,6 +83,7 @@
     background: var(--ds-text-3);
   }
 
+  .map-layer-swatch.layer-corridors { height: var(--ds-space-05); border-radius: var(--ds-radius-pill); background: var(--ds-series-2); }
   .map-layer-swatch.layer-routes { height: var(--ds-space-05); border-radius: var(--ds-radius-pill); background: var(--ds-text-3); }
   .map-layer-swatch.layer-network { background: var(--ds-series-7); }
   .map-layer-swatch.layer-lng { background: var(--ds-series-5); }
@@ -97,20 +98,77 @@
   .map-layer-swatch.layer-infrastructure { background: var(--ds-text-3); }
 
   /* ------------------------------------------------------------------ map notices */
-  /* Only exceptional states are said over the map (the offline outline, a map read that keeps
-     failing): bottom-left, beside the attribution button, never over the finder or the zoom. */
-  .workspace-network .network-map-column .gas-map .map-basemap-state,
-  .workspace-network .network-map-column .map-situation-stale,
-  .gas-map .map-basemap-state {
-    top: auto;
-    right: auto;
-    bottom: var(--ds-space-3);
-    left: calc(var(--ds-space-3) + var(--ds-control-sm) + var(--ds-space-2));
-    max-width: calc(100% - 2 * var(--ds-control-sm) - 4 * var(--ds-space-3));
+  /* Under the finder, one column: the offline notice and the intensity legend (GasNetworkMap).
+     Nothing over the bottom band, which is the attribution's alone. */
+  .gas-map .map-top-left-stack {
+    position: absolute;
+    z-index: 3;
+    top: calc(var(--ds-space-3) + var(--ds-control) + var(--ds-space-2));
+    left: var(--ds-space-3);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--ds-space-2);
+    max-width: min(calc(var(--ds-space-8) * 9), calc(100% - 2 * var(--ds-space-3) - var(--ds-control-touch) - var(--ds-space-6)));
+    pointer-events: none;
+  }
+
+  .gas-map .map-top-left-stack .map-basemap-state {
+    position: static;
+    max-width: 100%;
     padding: var(--ds-space-1) var(--ds-space-2);
     border-left-width: 1px;
     border-radius: var(--ds-radius-pill);
     font-size: var(--ds-text-xs);
+  }
+
+  /* A map read that keeps failing: top-right, under the map's own controls. */
+  .workspace-network .network-map-column .map-basemap-state.map-situation-stale {
+    top: calc(var(--ds-space-2) + 3 * var(--ds-control-sm) + var(--ds-space-4) + 2 * var(--ds-control-sm) + var(--ds-space-3));
+    right: var(--ds-space-2);
+    bottom: auto;
+    left: auto;
+    max-width: calc(var(--ds-space-8) * 7);
+    padding: var(--ds-space-1) var(--ds-space-2);
+    border-left-width: 1px;
+    border-radius: var(--ds-radius-pill);
+    font-size: var(--ds-text-xs);
+  }
+
+  .map-intensity-legend {
+    display: grid;
+    gap: var(--ds-space-1);
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: color-mix(in srgb, var(--ds-surface) 94%, transparent);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    pointer-events: auto;
+  }
+
+  .map-intensity-legend strong {
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .map-intensity-swatches {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-1) var(--ds-space-3);
+  }
+
+  .map-intensity-swatch {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+  }
+
+  .map-intensity-swatch i {
+    width: var(--ds-space-2);
+    height: var(--ds-space-3);
+    border-radius: var(--ds-radius-sm);
   }
 
   .gas-map .map-basemap-state strong,
@@ -249,11 +307,6 @@
     outline-offset: calc(-1 * var(--ds-space-05));
   }
 
-  .map-control-text {
-    font-size: var(--ds-text-xs);
-    font-weight: var(--ds-weight-semibold);
-  }
-
   /* The key opens to the left of the stack, never under it or over the zoom. */
   .gas-map .map-scene-key {
     position: absolute;
@@ -319,35 +372,6 @@
     box-shadow: none;
   }
 
-  /* ------------------------------------------------------------------ flow-day bar */
-  .map-flow-day-bar {
-    position: absolute;
-    z-index: 3;
-    bottom: var(--ds-space-3);
-    left: 50%;
-    display: flex;
-    align-items: center;
-    gap: var(--ds-space-2);
-    max-width: calc(100% - 2 * var(--ds-space-8) - 2 * var(--ds-control-touch));
-    padding: var(--ds-space-1) var(--ds-space-3);
-    border: 1px solid var(--ds-border);
-    border-radius: var(--ds-radius-pill);
-    background: color-mix(in srgb, var(--ds-surface) 94%, transparent);
-    color: var(--ds-text-2);
-    font-size: var(--ds-text-xs);
-    transform: translateX(-50%);
-  }
-
-  .map-flow-day-bar input[type="range"] {
-    width: calc(var(--ds-space-8) * 5);
-  }
-
-  .map-flow-day-bar output {
-    color: var(--ds-text-1);
-    font-variant-numeric: tabular-nums;
-    white-space: nowrap;
-  }
-
   /* ------------------------------------------------------------------ labels */
   /* Hub and point names: text on the map, not boxes on it (a light halo keeps them legible). */
   .gas-map .map-node-label {
@@ -383,8 +407,13 @@
     min-width: 0;
   }
 
+  /* The asset's name is one line (a row name never breaks, the grid's rule) cut with an ellipsis
+     at a fixed width, so the row's figures, period and Why stay inside the panel; the full name
+     is its tooltip. */
   .network-outage-line strong {
+    display: block;
     overflow: hidden;
+    max-width: calc(var(--ds-space-8) * 5);
     font-weight: var(--ds-weight-medium);
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -414,9 +443,18 @@
 }
 
 @layer ds-components {
-  /* The outage row's period: one line of gas days (the exact window is its tooltip). */
-  .network-panel-period {
-    white-space: nowrap;
+  /* The outage row: the asset, and its period under it in quiet small type. */
+  .network-outage-cell {
+    display: grid;
+    gap: var(--ds-space-05);
+  }
+
+  .network-outage-cell .network-panel-period {
+    padding-left: calc(var(--ds-space-2) + var(--ds-space-2));
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-regular);
+    font-variant-numeric: tabular-nums;
   }
 }
 
@@ -458,5 +496,93 @@
     border-top-width: var(--ds-space-05);
     border-top-style: solid;
     border-top-color: var(--ds-text-2);
+  }
+}
+
+@layer ds-components {
+  /* The flows' gas day in the toolbar, shown only while flows are drawn. */
+  .map-flow-day-select {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    white-space: nowrap;
+  }
+
+  .map-flow-day-select select {
+    height: var(--ds-control-sm);
+  }
+}
+
+@layer ds-components {
+  /* A supply corridor's card: its facts as a two-column list. */
+  .map-corridor-facts {
+    display: grid;
+    grid-template-columns: max-content 1fr;
+    gap: var(--ds-space-1) var(--ds-space-3);
+    margin: 0;
+    font-size: var(--ds-text-sm);
+  }
+
+  .map-corridor-facts dt {
+    color: var(--ds-text-3);
+  }
+
+  .map-corridor-facts dd {
+    margin: 0;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .map-corridor-source {
+    margin: var(--ds-space-2) 0 0;
+    font-size: var(--ds-text-xs);
+    overflow-wrap: anywhere;
+  }
+
+  /* The intensity metric's ranked list: the largest ten, a row flies the map there. */
+  .map-intensity-ranking {
+    display: grid;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-2) 0;
+  }
+
+  .map-intensity-ranking h4 {
+    margin: 0;
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .map-intensity-ranking ol {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: rank;
+  }
+
+  .map-intensity-rank-row {
+    display: flex;
+    justify-content: space-between;
+    gap: var(--ds-space-2);
+    width: 100%;
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-1);
+    border: 0;
+    border-bottom: 1px solid var(--ds-border);
+    background: none;
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .map-intensity-rank-row:hover {
+    background: var(--ds-surface-2);
+  }
+
+  .map-intensity-rank-row strong {
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
   }
 }

@@ -1,35 +1,28 @@
 /**
- * MAP-1 map scene: columns from published capacity, estimated positions labelled and never
- * reported, flows oriented only where the network gives a side, static under reduced motion,
- * and a payload without the new fields (an older server, a caller without the scopes) drawing
- * nothing invented.
+ * MAP-1 map scene, flat: site points sized by published capacity, flows oriented only where
+ * the network gives a side, static under reduced motion, and a payload without the new fields
+ * (an older server, a caller without the scopes) drawing nothing invented.
  */
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { EdgeDTO, MapAssetDTO, MapCargoDTO, MapSituationDTO, NodeDTO } from "../src/api/client.ts";
+import type { EdgeDTO, MapAssetDTO, MapSituationDTO, NodeDTO } from "../src/api/client.ts";
 import {
-  COLUMN_MAX_M,
-  COLUMN_STUB_M,
   FLOW_DASH_STATIC,
   FLOW_DASH_STEPS,
   assetFigures,
-  assetLayers,
-  cargoPositions,
+  assetPoints,
   distanceKm,
   flowDashAt,
   flowDayOptions,
   flowLayers,
   flowMotion,
   flowsForDay,
-  greatCircle,
   greatCirclePoint,
   orientFlow,
   pathPrefix,
   pointIndex,
   pointSides,
-  sceneCamera,
   tweenPoints,
-  voyageLayers,
 } from "../src/app/mapScene.ts";
 
 const identity = (lon: number, lat: number): [number, number] => [lon, lat];
@@ -61,7 +54,7 @@ const loenhout: MapAssetDTO = {
   location: { lon: 4.6, lat: 51.4 }, capacity: [], flow: [], stock: null,
 };
 
-test("a terminal's column is its published send-out capacity, filled by the same direction's flow", () => {
+test("a terminal's figure is its published send-out capacity and the same direction's flow", () => {
   const figures = assetFigures(gate);
   assert.equal(figures.capacityGwhD, 400);
   assert.equal(figures.capacityDirection, "entry");
@@ -75,99 +68,27 @@ test("a terminal's column is its published send-out capacity, filled by the same
   assert.equal(storage.utilisation, null);
 });
 
-test("columns scale by square root, a site with no published capacity is a stub said so", () => {
-  const layers = assetLayers([gate, bergermeer, loenhout], identity);
-  const byId = new Map(layers.columns.features.map((feature) => [feature.properties.id, feature.properties]));
-  assert.equal(byId.get("entsog-lng-00027")?.height, COLUMN_MAX_M);
-  assert.equal(byId.get("entsog-ugs-00149")?.height, Math.round(COLUMN_MAX_M * Math.sqrt(100 / 400)));
-  assert.equal(byId.get("entsog-ugs-00002")?.height, COLUMN_STUB_M);
+test("site points scale by square root; a site with no published capacity is the smallest", () => {
+  const points = assetPoints([gate, bergermeer, loenhout], identity);
+  const byId = new Map(points.features.map((feature) => [feature.properties.id, feature.properties]));
+  assert.equal(byId.get("entsog-lng-00027")?.radius, 14);
+  assert.equal(byId.get("entsog-ugs-00149")?.radius, 4 + 10 * Math.sqrt(100 / 400));
+  assert.equal(byId.get("entsog-ugs-00002")?.radius, 4);
   assert.equal(byId.get("entsog-ugs-00002")?.published, false);
-  // Each footprint is a closed ring around its site.
-  for (const feature of layers.columns.features) {
-    const ring = feature.geometry.coordinates[0];
-    assert.deepEqual(ring[0], ring[ring.length - 1]);
-    assert.equal(ring.length, 5);
-  }
-  // A fill only where flow and capacity are both published at the point.
-  assert.deepEqual(layers.fills.features.map((feature) => feature.properties.id), ["entsog-lng-00027"]);
-  assert.equal(layers.fills.features[0].properties.height, Math.round(COLUMN_MAX_M * 0.75));
-  // The 2D fallback: one point per site from the same scale.
-  assert.equal(layers.points.features.length, 3);
-  assert.equal(layers.points.features[2].properties.radius, 4);
 });
 
 test("no assets in the payload (older server or no scope) draws nothing", () => {
-  const layers = assetLayers(undefined, identity);
-  assert.equal(layers.columns.features.length + layers.fills.features.length + layers.points.features.length, 0);
+  assert.equal(assetPoints(undefined, identity).features.length, 0);
   assert.deepEqual(flowDayOptions({} as MapSituationDTO), []);
   assert.deepEqual(flowsForDay(null, null), []);
 });
 
 const NOW = new Date("2026-11-12T12:00:00Z");
-const laden = (overrides: Partial<MapCargoDTO> = {}): MapCargoDTO => ({
-  cargo_id: "C1", vessel_name: "Arctic Voyager", vessel_imo: null, status: "laden", load_port: "Hammerfest",
-  departed_at_utc: "2026-11-10T12:00:00Z", destination_terminal: "Gate", eta_utc: "2026-11-14T12:00:00Z",
-  position_at_utc: null, volume_m3: null, energy_gwh: 950, own: true, book_id: "uk", source_system: "ETRM",
-  origin: { lon: 23.6, lat: 70.68 }, position: null, destination: { lon: 4.03, lat: 51.95 }, track: [],
-  position_basis: null,
-  eta: { basis: "master_notice", confidence: "medium", source: "ETRM", recorded_at_utc: null, text: "ETA from ETRM" },
-  ...overrides,
-});
-
-test("with no reported position a laden cargo is estimated half way at half time, never reported", () => {
-  const { primary, estimate } = cargoPositions(laden(), NOW);
-  assert.equal(primary, null);
-  assert.ok(estimate);
-  assert.equal(estimate.basis, "estimated");
-  assert.equal(estimate.from, "departure");
-  assert.equal(estimate.fraction, 0.5);
-  const origin: [number, number] = [23.6, 70.68];
-  const destination: [number, number] = [4.03, 51.95];
-  assert.ok(Math.abs(distanceKm(origin, estimate.at) - distanceKm(estimate.at, destination)) < 1);
-
-  const layers = voyageLayers([laden()], NOW, identity);
-  assert.equal(layers.reported.features.length, 0);
-  assert.equal(layers.estimated.features.length, 1);
-  assert.equal(layers.estimated.features[0].properties.basis, "estimated");
-  assert.equal(layers.estimated.features[0].properties.eta_basis, "master_notice");
-  // No track: the voyage is a great circle labelled planned, not the vessel's route.
-  assert.equal(layers.arcs.features[0].properties.basis, "planned");
-  assert.equal(layers.estimateLegs.features.length, 1);
-});
-
-test("a fresh report is drawn as reported; an old one gets an estimate beside it", () => {
-  const fresh = laden({ position: { lon: 10, lat: 62 }, position_basis: "reported", position_at_utc: "2026-11-12T10:00:00Z", track: [[23.6, 70.68], [10, 62]] });
-  const first = cargoPositions(fresh, NOW);
-  assert.equal(first.primary?.basis, "reported");
-  assert.deepEqual(first.primary?.at, [10, 62]);
-  assert.equal(first.estimate, null);
-
-  const old = laden({ position: { lon: 10, lat: 62 }, position_basis: "reported", position_at_utc: "2026-11-11T12:00:00Z", track: [[23.6, 70.68], [10, 62]] });
-  const second = cargoPositions(old, NOW);
-  assert.equal(second.primary?.basis, "reported");
-  assert.equal(second.estimate?.basis, "estimated");
-  assert.equal(second.estimate?.from, "reported");
-  assert.equal(second.estimate?.fraction, 1 / 3);
-  // A reported track: no planned arc on top of it.
-  assert.equal(voyageLayers([old], NOW, identity).arcs.features.length, 0);
-});
-
-test("no estimate without both times, after the ETA, or when not laden", () => {
-  assert.equal(cargoPositions(laden({ departed_at_utc: null }), NOW).estimate, null);
-  assert.equal(cargoPositions(laden({ eta_utc: "2026-11-12T06:00:00Z" }), NOW).estimate, null);
-  assert.equal(cargoPositions(laden({ eta_utc: null }), NOW).estimate, null);
-  const loading = cargoPositions(laden({ status: "loading" }), NOW);
-  assert.equal(loading.primary?.basis, "at_port");
-  assert.equal(loading.estimate, null);
-});
 
 test("great circle points and prefixes are exact", () => {
   const a: [number, number] = [0, 0];
   const b: [number, number] = [90, 0];
   assert.deepEqual(greatCirclePoint(a, b, 0.5).map((v) => Math.round(v * 1e6) / 1e6), [45, 0]);
-  const arc = greatCircle([170, 10], [-170, 10], 4);
-  // Longitudes stay continuous across the antimeridian.
-  assert.ok(arc.every(([lon]) => lon >= 170 && lon <= 190));
   const prefix = pathPrefix([[0, 0], [1, 0], [2, 0]], distanceKm([0, 0], [1.5, 0]));
   assert.equal(prefix.length, 3);
   assert.ok(Math.abs(prefix[2][0] - 1.5) < 1e-6);
@@ -250,18 +171,17 @@ test("flows move only when motion is allowed; reduced motion and a hidden page a
   assert.deepEqual(flowDashAt(5_000, "static"), FLOW_DASH_STATIC);
   assert.deepEqual(flowDashAt(0, "animated"), FLOW_DASH_STEPS[0]);
   assert.notDeepEqual(flowDashAt(70, "animated"), FLOW_DASH_STEPS[0]);
-  // The camera between 2D and 3D: the token's duration, none under reduced motion.
-  assert.deepEqual(sceneCamera("3d", false, 400), { pitch: 58, bearing: -17, duration: 400 });
-  assert.deepEqual(sceneCamera("2d", true, 400), { pitch: 0, bearing: 0, duration: 0 });
 });
 
 test("a moved vessel eases from where it was; a new one appears in place", () => {
-  const before = voyageLayers([laden({ position: { lon: 10, lat: 62 }, position_basis: "reported", position_at_utc: "2026-11-12T11:00:00Z", track: [[1, 1], [10, 62]] })], NOW, identity);
-  const after = voyageLayers([laden({ position: { lon: 8, lat: 60 }, position_basis: "reported", position_at_utc: "2026-11-12T11:30:00Z", track: [[1, 1], [8, 60]] })], NOW, identity);
-  const half = tweenPoints(pointIndex(before.reported), after.reported, 0.5);
+  const vessel = (lon: number, lat: number) => ({
+    type: "FeatureCollection" as const,
+    features: [{ type: "Feature" as const, properties: { id: "C1", basis: "reported" }, geometry: { type: "Point" as const, coordinates: [lon, lat] as [number, number] } }],
+  });
+  const half = tweenPoints(pointIndex(vessel(10, 62)), vessel(8, 60), 0.5);
   assert.deepEqual(half.features[0].geometry.coordinates, [9, 61]);
-  assert.deepEqual(tweenPoints(pointIndex(before.reported), after.reported, 1).features[0].geometry.coordinates, [8, 60]);
-  assert.deepEqual(tweenPoints(new Map(), after.reported, 0.2).features[0].geometry.coordinates, [8, 60]);
+  assert.deepEqual(tweenPoints(pointIndex(vessel(10, 62)), vessel(8, 60), 1).features[0].geometry.coordinates, [8, 60]);
+  assert.deepEqual(tweenPoints(new Map(), vessel(8, 60), 0.2).features[0].geometry.coordinates, [8, 60]);
 });
 
 test("frame behaviour is summarised as median and p95 interval", async () => {
@@ -283,41 +203,22 @@ test("the scene's map colours are the series tokens the key's swatches use", asy
   assert.deepEqual(values("--ds-series-6").slice(0, 2), [SCENE_COLOURS.light.storage, SCENE_COLOURS.dark.storage]);
 });
 
-test("cards name each figure's source and age; an estimate and a country total say what they are", async () => {
-  const { assetCard, estimateCard, voyageCard, flowCard } = await import("../src/app/mapSceneCards.ts");
+test("cards name each figure's source and age; a country total says what it is", async () => {
+  const { assetCard, flowCard } = await import("../src/app/mapSceneCards.ts");
   const en = (await import("../src/i18n/en.json", { with: { type: "json" } })).default as Record<string, string>;
   const t = (key: string, options: Record<string, unknown> = {}) => {
     const template = en[key];
     assert.ok(template, `missing ${key}`);
     return template.replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(options[name] ?? ""));
   };
-  // The map passes the reader's formatter (app/time/useInstant.ts); a marker shows it is used.
-  const when = (iso: string) => `[${iso}]`;
-  const card = assetCard(gate, NOW, t, "3d");
+  const card = assetCard(gate, NOW, t);
   assert.match(card.lines[0], /Published send-out capacity: 400 GWh\/d \(ENTSOG firm technical, gas day 2026-11-12, received 31 h ago\)/);
   assert.match(card.lines[1], /send-out: 300 GWh\/d .* · 75% of capacity/);
   assert.match(card.lines[2], /Inventory \(NL total, not this site\): 2\.1 TWh of 3\.4 TWh \(GIE ALSI, gas day 2026-11-11, received 4 h ago\)/);
-  assert.match(card.note ?? "", /approximate.*not to scale/);
-  const empty = assetCard(loenhout, NOW, t, "2d");
+  assert.match(card.note ?? "", /approximate/);
+  const empty = assetCard(loenhout, NOW, t);
   assert.deepEqual(empty.lines, [en["map.scene.no_capacity"], en["map.scene.no_stock"]]);
-  assert.doesNotMatch(empty.note ?? "", /not to scale/);
   // Storage directions are withdrawal and injection, not entry and exit.
-  assert.match(assetCard(bergermeer, NOW, t, "2d").lines[0], /Published withdrawal capacity/);
-
-  const estimate = estimateCard(laden(), NOW, t, when);
-  assert.ok(estimate);
-  assert.match(estimate.title, /Estimated position/);
-  assert.match(estimate.note ?? "", /from the departure from Hammerfest .* Not an observed position/);
-  assert.match(estimate.lines[0], /ETA \[2026-11-14T12:00:00Z\] at Gate: master's notice, medium confidence \(ETRM\)/);
-  assert.equal(estimateCard(laden({ status: "delivered" }), NOW, t, when), null);
-  assert.match(voyageCard(laden({ eta: null }), t, when).lines[0], /basis not stated, confidence not stated/);
-  assert.match(voyageCard(laden(), t, when).note ?? "", /not the vessel's route/);
+  assert.match(assetCard(bergermeer, NOW, t).lines[0], /Published withdrawal capacity/);
   assert.match(flowCard({ name: "Oude Statenzijl", direction: "entry", gwh_d: 120.4, gas_day: "2026-11-11" }, t).lines[0], /120 GWh\/d, gas day 2026-11-11/);
-});
-
-test("the gas-day scrubber ends at latest and survives a day leaving the window", async () => {
-  const { scrubberIndex } = await import("../src/app/mapScene.ts");
-  assert.equal(scrubberIndex(["2026-11-10", "2026-11-11"], null), 2);
-  assert.equal(scrubberIndex(["2026-11-10", "2026-11-11"], "2026-11-10"), 0);
-  assert.equal(scrubberIndex(["2026-11-10", "2026-11-11"], "2026-11-01"), 2);
 });

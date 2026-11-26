@@ -226,6 +226,17 @@ export function NetworkInfoPanel({
   );
 
   /* ---------------------------------------------------------------- columns */
+  // An outage's period in days ("23 Nov – 29 Nov", the year where it is not this one); the exact
+  // window with times is its tooltip.
+  const outagePeriod = (row: OutageListRow) => {
+    const thisYear = String(new Date(nowMs).getUTCFullYear());
+    const day = (iso: string) => formatGasDay(iso.slice(0, 10), language, iso.slice(0, 4) !== thisYear);
+    return (
+      <small className="network-panel-period" title={timeWindow(row.startUtc, row.endUtc, nowMs)}>
+        {row.startUtc ? day(row.startUtc) : "–"} – {row.endUtc ? day(row.endUtc) : t("outages.open_end")}
+      </small>
+    );
+  };
   const outageColumns = useMemo<DataGridColumn<OutageListRow>[]>(
     () => [
       {
@@ -236,12 +247,17 @@ export function NetworkInfoPanel({
         priority: "primary",
         value: (row) => row.asset,
         cellTitle: (row) => [row.reason, row.messages.length > 1 ? `${t("outages.messages_count", { count: row.messages.length })}: ${row.messages.join(", ")}` : row.eventId].filter(Boolean).join("\n"),
-        // One line a desk scans: whether it is out now, and the asset. The rest folds.
+        // What a desk scans: whether it is out now, the asset, and under it the period (the
+        // panel is narrow: one cell, two lines, instead of a period column pushing Why out of
+        // view). The exact window with times is the period's tooltip; the rest folds.
         render: (row) => (
-          <span className="network-outage-line">
-            <i className={`network-outage-state is-${row.state}`} aria-hidden="true" />
-            <span className="visually-hidden">{t(`outages.state.${row.state}`)}: </span>
-            <strong>{row.asset}</strong>
+          <span className="network-outage-cell">
+            <span className="network-outage-line">
+              <i className={`network-outage-state is-${row.state}`} aria-hidden="true" />
+              <span className="visually-hidden">{t(`outages.state.${row.state}`)}: </span>
+              <strong title={row.asset}>{row.asset}</strong>
+            </span>
+            {outagePeriod(row)}
           </span>
         ),
       },
@@ -258,24 +274,6 @@ export function NetworkInfoPanel({
         cellTitle: (row) => (row.gwhD === null && row.published ? t("outages.published", { value: row.published }) : undefined),
         state: (row) => (row.simulated ? { kind: "simulated", label: t("today.simulated_short"), description: t("today.simulated_long") } : null),
         width: "10ch",
-      },
-      {
-        id: "period",
-        header: t("outages.period"),
-        type: "date",
-        sortable: true,
-        priority: "primary",
-        value: (row) => row.startUtc,
-        // One short line of gas days ("23 Nov – 29 Nov"), the year where it is not this one; the
-        // exact window (with times) is the cell's tooltip, so the row stays one line in a panel.
-        format: (_, row) => {
-          const day = (iso: string | null) => (iso ? formatGasDay(iso.slice(0, 10), language, iso.slice(0, 4) !== String(new Date(nowMs).getUTCFullYear())) : "");
-          return (
-            <span className="network-panel-period" title={timeWindow(row.startUtc, row.endUtc, nowMs)}>
-              {day(row.startUtc)} – {row.endUtc ? day(row.endUtc) : t("outages.open_end")}
-            </span>
-          );
-        },
       },
       {
         // One action on the row: why it matters. The report link folds with the details.

@@ -58,7 +58,10 @@ test("a hub is its desk name and price, a zone with no trading point its name al
   assert.ok(!labels.some((item) => item.tone === "point" || item.tone === "zone"));
   const regional = mapLabels({ nodes, activeLayers: ["hubs"], situation: null, marketRows: rows, facilities: [], zoom: 6, nowMs: NOW, t });
   assert.ok(regional.some((item) => item.tone === "point"));
-  const zone = regional.find((item) => item.text === "Balancing Zone Bulgaria")!;
+  // A zone is named by its desk code, as hubs are; a point by its first place, never cut.
+  const zone = regional.find((item) => item.text === "BG")!;
+  assert.ok(regional.some((item) => item.text === "Oude Statenzijl"));
+  assert.ok(!regional.some((item) => item.text.includes("…")));
   assert.equal(zone.price, "");
   assert.equal(zone.tone, "zone");
   assert.ok(zone.rank > ttf.rank);

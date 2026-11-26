@@ -1,69 +1,68 @@
-import type { EdgeDTO, MapPointFlowDTO, NodeDTO } from "@/api/client";
-import { presentationPath } from "./mapLineGeometry.ts";
+import type { SupplyCorridorDTO } from "@/api/client";
 
 /**
- * The main import corridors (Norway, North Africa, TAP, TurkStream; Nord Stream out of service),
- * read as supply corridors: one line from outside Europe to its entry point, with the flow
- * measured at that entry point (owner, 2026-11-26).
+ * Europe's main import supply corridors (GET /api/reference-network/supply-corridors): the big
+ * picture of where Europe's gas comes from, one layer on by default.
  *
- * The topology follow-up adds them as edges. This reads any edge that says it is one, in the
- * shapes the reference bundle uses: `edge_type` "import_corridor" or "supply_corridor", or
- * `metadata.corridor` / `metadata.supply_corridor` true. Optional metadata: `corridor_name`
- * (else the edge's `name`), `in_service` false or `status` "out_of_service" (drawn as out of
- * service, never with a flow), `presentation_path` for the drawn path (else from-to). The entry
- * point is the edge's `to_node_id` (or `metadata.entry_node_id`). The flow is the latest
- * measured entry flow at that point, summed over its operators; none measured, none shown.
+ * - The line is thin: solid where its path follows SciGRID_gas, dashed where it is a schematic
+ *   straight line.
+ * - In service: width by the latest flow in GWh/d (the map's flow encoding) and an arrowhead at
+ *   the landing. Out of service: grey, no arrow.
+ * - The label at the landing: the corridor's name and its flow, "out of service since 2022", or
+ *   "not published" when no flow is stored (null is unknown, never zero).
  */
 
-export interface SupplyCorridor {
+type Translate = (key: string, options?: Record<string, unknown>) => string;
+
+export interface CorridorLine {
   id: string;
-  name: string;
   coordinates: Array<[number, number]>;
-  entryNodeId: string;
+  schematic: boolean;
   inService: boolean;
-  /** GWh/d measured at the entry point, or null when none is measured. */
-  entryGwhD: number | null;
-  /** Where the corridor's label sits: the entry point. */
-  labelAt: [number, number];
+  /** Line width in px: 1.2 out of service; in service 1.5 to 5 by the square root of the flow. */
+  width: number;
+  /** Where the label and the arrowhead sit: the first landing point (else the line's end). */
+  landing: [number, number];
 }
 
-export function isSupplyCorridor(edge: Pick<EdgeDTO, "edge_type" | "metadata_json">): boolean {
-  const meta = edge.metadata_json ?? {};
-  return edge.edge_type === "import_corridor" || edge.edge_type === "supply_corridor"
-    || meta.corridor === true || meta.supply_corridor === true;
+export function corridorWidth(flowGwhD: number | null, largest: number, inService: boolean): number {
+  if (!inService || flowGwhD === null || !(largest > 0) || !(flowGwhD > 0)) return inService ? 1.5 : 1.2;
+  return Math.round((1.5 + 3.5 * Math.sqrt(flowGwhD / largest)) * 10) / 10;
 }
 
-export function supplyCorridors(
-  edges: readonly EdgeDTO[],
-  nodes: readonly NodeDTO[],
-  flows: readonly MapPointFlowDTO[],
-): SupplyCorridor[] {
-  const byId = new Map(nodes.map((node) => [node.id, node]));
-  const out: SupplyCorridor[] = [];
-  for (const edge of edges) {
-    if (!isSupplyCorridor(edge)) continue;
-    const meta = edge.metadata_json ?? {};
-    const entryNodeId = typeof meta.entry_node_id === "string" ? meta.entry_node_id : edge.to_node_id;
-    const from = byId.get(edge.from_node_id);
-    const entry = byId.get(entryNodeId) ?? byId.get(edge.to_node_id);
-    const path = presentationPath(edge)
-      ?? (from && entry && [from.lon, from.lat, entry.lon, entry.lat].every(Number.isFinite)
-        ? [[from.lon, from.lat], [entry.lon, entry.lat]] as Array<[number, number]>
-        : null);
-    if (!path || !entry) continue;
-    const inService = meta.in_service !== false && meta.status !== "out_of_service";
-    const measured = flows.filter((flow) => flow.direction === "entry" && flow.gwh_d != null
-      && (flow.location.ref_id === entry.id || flow.point_id === entry.id));
-    const entryGwhD = inService && measured.length ? measured.reduce((sum, flow) => sum + (flow.gwh_d ?? 0), 0) : null;
-    const name = [meta.corridor_name, meta.name, edge.id].find((value) => typeof value === "string" && value.trim()) as string;
-    out.push({ id: edge.id, name, coordinates: path, entryNodeId: entry.id, inService, entryGwhD, labelAt: [entry.lon, entry.lat] });
+export function corridorLines(corridors: readonly SupplyCorridorDTO[]): CorridorLine[] {
+  const largest = Math.max(0, ...corridors.map((item) => (item.status === "in_service" ? item.latest_flow_gwh_d ?? 0 : 0)));
+  return corridors
+    .filter((item) => (item.geometry?.coordinates?.length ?? 0) > 1)
+    .map((item) => {
+      const coordinates = item.geometry.coordinates;
+      const first = item.landing_points[0];
+      const inService = item.status === "in_service";
+      return {
+        id: item.id,
+        coordinates,
+        schematic: item.geometry.basis === "schematic",
+        inService,
+        width: corridorWidth(item.latest_flow_gwh_d, largest, inService),
+        landing: first ? [first.lon, first.lat] : coordinates[coordinates.length - 1],
+      };
+    });
+}
+
+/** "Langeled · 61 GWh/d", "Nord Stream 1 · out of service since 2022", "Norpipe · not published". */
+export function corridorLabel(corridor: SupplyCorridorDTO, t: Translate): string {
+  if (corridor.status === "out_of_service") {
+    return `${corridor.name} · ${corridor.since ? t("map.corridor.out_since", { year: corridor.since.slice(0, 4) }) : t("map.corridor.out_of_service")}`;
   }
-  return out;
+  if (corridor.latest_flow_gwh_d === null) return `${corridor.name} · ${t("map.corridor.not_published")}`;
+  return `${corridor.name} · ${Math.round(corridor.latest_flow_gwh_d).toLocaleString("en-GB")} GWh/d`;
 }
 
-/** "Langeled · 61 GWh/d", "Nord Stream · out of service", or the name alone. */
-export function corridorLabel(corridor: SupplyCorridor, t: (key: string, options?: Record<string, unknown>) => string): string {
-  if (!corridor.inService) return `${corridor.name} · ${t("map.corridor.out_of_service")}`;
-  if (corridor.entryGwhD === null) return corridor.name;
-  return `${corridor.name} · ${Math.round(corridor.entryGwhD).toLocaleString("en-GB")} GWh/d`;
+/** The newest gas day among the corridor's stored flows, or null. */
+export function corridorFlowDay(corridor: SupplyCorridorDTO): string | null {
+  const days = corridor.flow_series
+    .map((item) => item.latest_flow?.gas_day_start_utc?.slice(0, 10) ?? null)
+    .filter((day): day is string => Boolean(day))
+    .sort();
+  return days[days.length - 1] ?? null;
 }

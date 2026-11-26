@@ -29,13 +29,13 @@ export type Project = (lon: number, lat: number) => [number, number];
 export const SITUATION_LAYERS = ["positions", "cargoes", "outages", "outages_all", "flows", "vessels", "infrastructure"] as const;
 export type SituationLayer = (typeof SITUATION_LAYERS)[number];
 /** The network's own layers, in the Layers menu's order: hubs first, the rest off by default. */
-export const NETWORK_LAYERS = ["hubs", "lng", "ips", "network", "routes"] as const;
+export const NETWORK_LAYERS = ["corridors", "hubs", "lng", "ips", "network", "routes"] as const;
 /**
  * The first view (owner review 2026-11-26): the map answers "what in the gas system affects my
- * book right now". Hubs with their price, our positions, our cargoes and the outages that touch
- * the book; every other point, all flows, all vessels and all outages are one click away.
+ * book right now". Hubs with their price, our positions, our cargoes, the outages that touch
+ * the book, and the import supply corridors (where Europe's gas comes from); every other point, all flows, all vessels and all outages are one click away.
  */
-export const DEFAULT_MAP_LAYERS: readonly string[] = ["hubs", "positions", "cargoes", "outages"];
+export const DEFAULT_MAP_LAYERS: readonly string[] = ["corridors", "hubs", "positions", "cargoes", "outages"];
 
 type Props = Record<string, string | number | boolean | null>;
 interface PointFeature {

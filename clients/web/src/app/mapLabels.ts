@@ -76,10 +76,15 @@ function priceText(value: number): string {
   return value.toLocaleString("en-GB", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 }
 
-/** The short name of a network point for its label: its code part, at most 18 characters. */
-function pointName(node: NodeDTO): string {
-  const head = node.name.split(/\s+\(|\s+[-–]\s+/)[0].trim() || node.name;
-  return head.length > 18 ? `${head.slice(0, 17)}…` : head;
+/**
+ * The short name a desk uses for a network point: its market code where it has one, else the
+ * first place of its name ("Oude Statenzijl (NL) / Bunde (DE)" is "Oude Statenzijl"). Never a
+ * name cut with an ellipsis ("GTF (Bilateral Tra…", owner review 2026-11-26).
+ */
+export function pointDeskName(node: Pick<NodeDTO, "name" | "metadata_json">): string {
+  const code = node.metadata_json?.market_code;
+  if (typeof code === "string" && code.trim()) return code.trim();
+  return node.name.split(/\s+\(|\s+[-–/]\s+|\s*\/\s*/)[0].trim() || node.name;
 }
 
 function ownCargoLabels(cargoes: readonly MapCargoDTO[], nowMs: number, t: Translate): MapLabel[] {
@@ -125,8 +130,8 @@ export function mapLabels(input: LabelInputs): MapLabel[] {
     const at: [number, number] = [node.lon, node.lat];
     if (node.node_type === "hub") {
       if (isZoneOnly(node)) {
-        // A zone with no trading point is context: named from regional zoom, never priced.
-        if (zoom >= 5) out.push(label(at, node.name, 5, "zone"));
+        // A zone with no trading point is context: its code from regional zoom, never priced.
+        if (zoom >= 5) out.push(label(at, hubDeskName(node), 5, "zone"));
         continue;
       }
       const name = hubDeskName(node);
@@ -136,7 +141,7 @@ export function mapLabels(input: LabelInputs): MapLabel[] {
         sim: price.simulated ? ` ${t("today.simulated_short")}` : "",
       } : {}));
     } else if (zoom >= 5) {
-      out.push(label(at, pointName(node), 4, "point"));
+      out.push(label(at, pointDeskName(node), 4, "point"));
     }
   }
   if (situation && zoom >= 6 && input.outageIds) {

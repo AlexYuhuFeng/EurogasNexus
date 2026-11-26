@@ -475,12 +475,15 @@ with the details on hover.
 
 ## Decisions
 
-- **No 3D.** Extruded terrain or buildings add nothing to a gas network at country scale
-  and cost legibility and battery. The map supports pitch for those who want it, but
-  values are never encoded in height, which is hard to read and compare.
-- **Flows at points, not invented arrows between countries.** Cross-border direction comes
-  from the points' own entry and exit data and from pipelines whose geometry is verified.
-  Country-to-country arrows would need a netting the sources do not publish.
+- **Flat, north-up, no 3D** (owner, 2026-11-26). Height is hard to read and compare; the map
+  has no pitch and no rotation (mouse, touch or keyboard), and no 2D/3D control or setting.
+  Intensity is drawn flat, one metric at a time from the Layers menu: flow by line width and
+  arrowhead (one net figure per border at Europe zoom, point by point closer in), utilisation
+  by colour, outage impact and storage or LNG by circle area. Exact comparison is the side
+  panel's ranked list (the largest ten), not the map.
+- **Border flows from the points' own data.** A border's net figure sums each point's larger
+  reported flow, oriented by its operator's side (the market-area link that lists it); a point
+  whose operator is on no listed side adds nothing rather than a guessed direction.
 - **One read for the picture.** `GET /api/portfolio/map-situation` composes outages, flows,
   contracts, cargoes and slots in one call, so the map is consistent at one moment and
   access is decided in one place.

@@ -14,7 +14,7 @@ import {
 import type { ExpressionSpecification } from "maplibre-gl";
 import mapLibreWorkerUrl from "maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url";
 import "maplibre-gl/dist/maplibre-gl.css";
-import { EdgeDTO, FacilityDTO, MapCargoDTO, MapSituationDTO, NodeDTO, RouteEligibilityDTO } from "@/api/client";
+import { EdgeDTO, FacilityDTO, MapCargoDTO, MapSituationDTO, NodeDTO, RouteEligibilityDTO, type SupplyCorridorDTO } from "@/api/client";
 import {
   OVERVIEW_MAX_ZOOM,
   SITUATION_COLOURS,
@@ -62,9 +62,9 @@ import {
 } from "@/app/mapTileProviders";
 import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
 import { FACILITY_ICON, drawFacilityIcon, drawVesselIcon, vesselIconId } from "@/app/mapIcons";
-import { isZoneOnly, labelFeatures, mapLabels, type MapLabel } from "@/app/mapLabels";
+import { hubDeskName, isZoneOnly, labelFeatures, mapLabels, type MapLabel } from "@/app/mapLabels";
 import { cargoEta, cargoMapLabel } from "@/app/mapCargo";
-import { corridorLabel, supplyCorridors } from "@/app/mapCorridors";
+import { corridorLabel, corridorLines } from "@/app/mapCorridors";
 import { MapFinder, type MapFinderPlace } from "@/components/MapFinder";
 import { MapDetailPanel } from "@/components/MapDetailPanel";
 import {
@@ -80,8 +80,17 @@ import { plainDecimal } from "@/app/time/valueFormat";
 import { useInstantFormatter } from "@/app/time/useInstant";
 import { Icon } from "@/components/ui/Icon";
 import { useMapScene } from "@/components/mapScene/useMapScene";
+import {
+  BORDER_FLOWS_BELOW_ZOOM,
+  borderFlows,
+  intensityColour,
+  intensityPoints,
+  intensityRadius,
+  type IntensityDatum,
+  type IntensityMetric,
+} from "@/app/mapIntensity";
 import { MapSceneControls } from "@/components/mapScene/MapSceneControls";
-import { flowDayOptions, pointIndex, tweenPoints, type FC, type SceneDimension } from "@/app/mapScene";
+import { chevronAt, flowDayOptions, pointIndex, tweenPoints, type FC } from "@/app/mapScene";
 
 // Let Vite resolve and bundle the module worker and its shared imports in both dev and build.
 // MapLibre's default relative URL otherwise points inside Vite's optimized dependency cache.
@@ -197,6 +206,16 @@ interface GasNetworkMapProps {
   callouts?: MapCallout[];
   /** The page's own key lines, shown first in the map's one key. */
   keyExtra?: ReactNode;
+  /** The stored gas day the flows show (null: each point's latest closed day); the page's toolbar picks it. */
+  flowDay?: string | null;
+  /** The intensity view's metric (the Layers menu), or null for the flat map. */
+  intensity?: IntensityMetric | null;
+  /** A clicked intensity column: its figure, unit, gas day and source go to the side panel. */
+  onSelectIntensity?: (pick: { metric: IntensityMetric; datum: IntensityDatum }) => void;
+  /** Europe's import supply corridors (the "Supply corridors" layer). */
+  corridors?: SupplyCorridorDTO[];
+  /** A clicked corridor: its facts go to the side panel. */
+  onSelectCorridor?: (corridorId: string) => void;
 }
 
 /** A callout on the map: a title, short lines and an optional progress bar (0..1). */
@@ -248,6 +267,18 @@ function routeLineColor(colors: { edge: string; route: string }): ExpressionSpec
 function linkLineColor(colors: { link: string; route: string }): ExpressionSpecification {
   return ["case", ["==", ["get", "matters"], true], colors.route, colors.link];
 }
+
+/** The HTML overlays drawn over the map canvas; names keep clear of them (see the blockers). */
+export const OVERLAY_SELECTOR = [
+  ".map-finder",
+  ".map-finder-toggle",
+  ".map-control-stack",
+  ".maplibregl-ctrl-top-right .maplibregl-ctrl",
+  ".maplibregl-ctrl-bottom-left .maplibregl-ctrl",
+  ".map-basemap-state",
+  ".map-scene-key",
+  ".map-intensity-legend",
+].join(", ");
 
 const SITUATION_HOVER_LAYERS = [
   "situation-outages",
@@ -406,14 +437,6 @@ const remembered: {
   selection: MapSelection | null;
 } = { camera: null, selection: null };
 
-/** 2D or 3D (MAP-1), remembered on the device; 2D unless the user chose 3D. */
-function storedDimension(): SceneDimension {
-  try {
-    return window.localStorage.getItem("egn.map.dimension") === "3d" ? "3d" : "2d";
-  } catch {
-    return "2d";
-  }
-}
 
 export function GasNetworkMap({
   nodes,
@@ -448,6 +471,11 @@ export function GasNetworkMap({
   detailCard = true,
   onViewChange,
   hoverAt = null,
+  flowDay = null,
+  intensity = null,
+  onSelectIntensity,
+  corridors = [],
+  onSelectCorridor,
 }: GasNetworkMapProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapLibreMap | null>(null);
@@ -461,8 +489,6 @@ export function GasNetworkMap({
   const [tier, setTier] = useState<ZoomTier>("overview");
   /** The whole zoom level, for the labels that appear as the view narrows. */
   const [labelZoom, setLabelZoom] = useState(3);
-  /** 2D or 3D (MAP-1). */
-  const [dimension, setDimension] = useState<SceneDimension>(() => (compact ? "2d" : storedDimension()));
   /** The outages the map draws: those touching our book, or every one with "All outages". */
   const outageIds = useMemo(() => {
     if (!situation) return new Set<string>();
@@ -769,6 +795,11 @@ export function GasNetworkMap({
         zoom: view?.zoom ?? 3.65,
         ...mapZoomRange(mapTileProvider.id),
         attributionControl: false,
+        // Flat and north-up: no rotation, no tilt, by mouse, touch or keyboard.
+        dragRotate: false,
+        pitchWithRotate: false,
+        touchPitch: false,
+        maxPitch: 0,
         style: buildMapStyle(
           mapTileProvider.id,
           { background: mapColors.background },
@@ -784,15 +815,15 @@ export function GasNetworkMap({
 
     // Zoom sits bottom-right: the top of the map belongs to the finder, the bar above to the
     // toolbar, so no two control groups can meet at any width.
-    map.addControl(new NavigationControl({ visualizePitch: true }), "top-right");
+    // Flat and north-up (owner, 2026-11-26): zoom only, no compass, no rotation, no pitch.
+    map.addControl(new NavigationControl({ showCompass: false }), "top-right");
+    map.dragRotate.disable();
+    map.touchZoomRotate.disableRotation();
+    map.keyboard.disableRotation();
     map.addControl(new AttributionControl({ compact: true }), "bottom-left");
     let loaded = false;
     map.on("load", () => {
       loaded = true;
-      // At overview zoom the map is drawn as a globe, so the Norwegian shelf is not stretched
-      // against the Mediterranean as on a flat Mercator map; MapLibre flattens it as the view
-      // narrows to a region.
-      map.setProjection({ type: "globe" });
       // OpenStreetMap, muted: the network, our positions and prices are the content.
       if (mapTileProvider.styleUrl) muteVectorBasemap(map);
       setMapReady(true);
@@ -837,6 +868,9 @@ export function GasNetworkMap({
     syncTier();
     map.on("zoomend", syncTier);
     mapRef.current = map;
+    // For measurement in a real browser (scripts/uat/map_overlap_check.mjs): the map instance on
+    // its own container element, read-only use. Nothing in the product reads it.
+    (containerRef.current as HTMLElement & { egnMap?: MapLibreMap }).egnMap = map;
     // A map kept mounted while its page is hidden (MarketCockpit) has no size there; it takes
     // its size again the moment the page shows, with no rebuild.
     const resizeObserver = typeof ResizeObserver === "function"
@@ -859,6 +893,193 @@ export function GasNetworkMap({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [basemapStyleKey]);
+
+  // Intensity on the flat map (app/mapIntensity.ts): one metric from the Layers menu. Flow is the
+  // flow lines (width, arrowhead) from regional zoom and one net figure per border below it;
+  // utilisation, outage impact and storage are circles (area, colour). No figure, no mark.
+  const intensityData = useMemo(() => {
+    if (!intensity || compact) return null;
+    return {
+      points: intensity === "flow" ? [] : intensityPoints(intensity, { situation, nodes, edges, flowDay }),
+      borders: intensity === "flow" ? borderFlows({ situation, edges, flowDay }) : [],
+    };
+  }, [compact, edges, flowDay, intensity, nodes, situation]);
+  const intensityPalette = useMemo(() => effectiveTheme === "dark"
+    ? { into: "#60a5fa", out: "#fbbf24", outage: "#f87171", ramp: ["#134e4a", "#0f766e", "#14b8a6", "#99f6e4"] }
+    : { into: "#1d4ed8", out: "#b45309", outage: "#b91c1c", ramp: ["#ccfbf1", "#5eead4", "#0d9488", "#134e4a"] }, [effectiveTheme]);
+  const intensityMax = useMemo(() => {
+    if (!intensityData) return 0;
+    return Math.max(0, ...intensityData.points.map((item) => item.value), ...intensityData.borders.map((item) => item.value));
+  }, [intensityData]);
+  const intensityDataRef = useRef(intensityData);
+  intensityDataRef.current = intensityData;
+  const intensityPickRef = useRef(onSelectIntensity);
+  intensityPickRef.current = onSelectIntensity;
+  const intensityMetricRef = useRef(intensity);
+  intensityMetricRef.current = intensity;
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return;
+    const byId = new globalThis.Map(nodes.map((node) => [node.id, node]));
+    const metric = intensity;
+    const points = intensityData?.points ?? [];
+    const borders = intensityData?.borders ?? [];
+    const pointData = {
+      type: "FeatureCollection" as const,
+      features: metric ? points.map((item) => ({
+        type: "Feature" as const,
+        properties: {
+          id: item.id,
+          radius: metric === "utilisation" ? 6 : intensityRadius(item.value, intensityMax),
+          colour: intensityColour(metric, item, intensityPalette),
+        },
+        geometry: { type: "Point" as const, coordinates: toMapCoordinates(item.at[0], item.at[1]) },
+      })) : [],
+    };
+    const borderLines: Array<{ id: string; coords: Array<[number, number]>; width: number }> = [];
+    for (const border of borders) {
+      const from = byId.get(border.fromId);
+      const to = byId.get(border.toId);
+      if (!from || !to) continue;
+      const width = Math.round((1.2 + 4.8 * Math.sqrt(border.value / (intensityMax || 1))) * 10) / 10;
+      borderLines.push({ id: border.id, coords: [[from.lon, from.lat], [to.lon, to.lat]], width });
+    }
+    const borderData = {
+      type: "FeatureCollection" as const,
+      features: borderLines.flatMap((line) => {
+        const chevron = chevronAt(line.coords, 40);
+        return [
+          { type: "Feature" as const, properties: { id: line.id, width: line.width, part: "line" }, geometry: { type: "LineString" as const, coordinates: line.coords.map(([lon, lat]) => toMapCoordinates(lon, lat)) } },
+          ...(chevron ? [{ type: "Feature" as const, properties: { id: line.id, width: line.width, part: "arrow" }, geometry: { type: "LineString" as const, coordinates: chevron.map(([lon, lat]) => toMapCoordinates(lon, lat)) } }] : []),
+        ];
+      }),
+    };
+    const flowColour = SITUATION_COLOURS[effectiveTheme].flow;
+    const before = map.getLayer("map-labels") ? "map-labels" : undefined;
+    if (upsertSource(map, "intensity-points", pointData)) {
+      map.addLayer({
+        id: "intensity-points",
+        type: "circle",
+        source: "intensity-points",
+        paint: {
+          "circle-radius": ["get", "radius"],
+          "circle-color": ["get", "colour"],
+          "circle-opacity": 0.55,
+          "circle-stroke-color": ["get", "colour"],
+          "circle-stroke-width": 1.2,
+        },
+      }, before);
+      map.on("click", "intensity-points", (event) => {
+        const id = String(event.features?.[0]?.properties?.id ?? "");
+        const datum = intensityDataRef.current?.points.find((item) => item.id === id);
+        const current = intensityMetricRef.current;
+        if (datum && current) intensityPickRef.current?.({ metric: current, datum });
+      });
+      map.on("mouseenter", "intensity-points", () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", "intensity-points", () => {
+        map.getCanvas().style.cursor = "";
+      });
+    }
+    if (upsertSource(map, "intensity-borders", borderData)) {
+      map.addLayer({
+        id: "intensity-borders",
+        type: "line",
+        source: "intensity-borders",
+        maxzoom: BORDER_FLOWS_BELOW_ZOOM,
+        layout: { "line-cap": "round", "line-join": "round" },
+        paint: { "line-color": flowColour, "line-width": ["case", ["==", ["get", "part"], "arrow"], 2, ["get", "width"]], "line-opacity": 0.85 },
+      }, before);
+    }
+    map.setPaintProperty("intensity-borders", "line-color", flowColour);
+    map.setLayoutProperty("intensity-points", "visibility", metric && metric !== "flow" ? "visible" : "none");
+    map.setLayoutProperty("intensity-borders", "visibility", metric === "flow" ? "visible" : "none");
+    // Flow, point by point, from regional zoom; below it the borders carry the picture.
+    if (map.getLayer("scene-flow-lines")) {
+      const from = metric === "flow" ? BORDER_FLOWS_BELOW_ZOOM : 0;
+      map.setLayerZoomRange("scene-flow-lines", from, 24);
+      map.setLayerZoomRange("scene-flow-chevrons", from, 24);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [effectiveTheme, intensity, intensityData, intensityMax, intensityPalette, mapReady, nodes]);
+
+  // The map's overlays (finder, zoom, control stack, attribution, notices) are HTML over the
+  // canvas, which MapLibre's label placement cannot see. Each is mirrored as invisible collision
+  // squares in the map's own placement, above every label layer, so a name never sits under an
+  // overlay: it moves to a free side or drops out, like any colliding label (owner review
+  // 2026-11-26: "nothing overlaps").
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map || !mapReady) return undefined;
+    if (!map.hasImage("overlay-blocker")) {
+      map.addImage("overlay-blocker", { width: 16, height: 16, data: new Uint8Array(16 * 16 * 4) }, { pixelRatio: 1 });
+    }
+    const container = map.getContainer();
+    let frame = 0;
+    const update = () => {
+      frame = 0;
+      const box = container.getBoundingClientRect();
+      const root = container.closest(".gas-map") ?? container.parentElement;
+      const overlays = [...(root?.querySelectorAll(OVERLAY_SELECTOR) ?? [])];
+      const features: Array<{ type: "Feature"; properties: { size: number }; geometry: { type: "Point"; coordinates: [number, number] } }> = [];
+      for (const element of overlays) {
+        const rect = element.getBoundingClientRect();
+        if (rect.width <= 0 || rect.height <= 0) continue;
+        const left = Math.max(rect.left, box.left) - box.left;
+        const right = Math.min(rect.right, box.right) - box.left;
+        const top = Math.max(rect.top, box.top) - box.top;
+        const bottom = Math.min(rect.bottom, box.bottom) - box.top;
+        if (right <= left || bottom <= top) continue;
+        // Squares of the overlay's height (with a small margin) along its width.
+        const side = bottom - top + 6;
+        for (let x = left + side / 2 - 3; x < right + side / 2 - 3; x += side - 2) {
+          const at = map.unproject([Math.min(x, right - 1), (top + bottom) / 2]);
+          features.push({ type: "Feature", properties: { size: side / 16 }, geometry: { type: "Point", coordinates: [at.lng, at.lat] } });
+        }
+      }
+      const data = { type: "FeatureCollection" as const, features };
+      const source = map.getSource("overlay-blockers") as GeoJSONSource | undefined;
+      if (source) source.setData(data);
+      else {
+        map.addSource("overlay-blockers", { type: "geojson", data });
+        map.addLayer({
+          id: "overlay-blockers",
+          type: "symbol",
+          source: "overlay-blockers",
+          layout: {
+            "icon-image": "overlay-blocker",
+            "icon-size": ["get", "size"],
+            "icon-allow-overlap": true,
+            "icon-ignore-placement": false,
+            "icon-pitch-alignment": "viewport",
+            "icon-rotation-alignment": "viewport",
+          },
+        });
+      }
+      // Placed first: the topmost symbol layer.
+      if (map.getLayer("overlay-blockers")) map.moveLayer("overlay-blockers");
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(update);
+    };
+    update();
+    map.on("move", schedule);
+    map.on("resize", schedule);
+    // An overlay that opens, closes or changes size (the key, a notice) moves the blockers too.
+    const observer = typeof MutationObserver === "function" ? new MutationObserver(schedule) : null;
+    const root = container.closest(".gas-map") ?? container.parentElement;
+    if (root) observer?.observe(root, { childList: true, subtree: false, attributes: false });
+    const resize = typeof ResizeObserver === "function" ? new ResizeObserver(schedule) : null;
+    for (const element of root?.querySelectorAll(OVERLAY_SELECTOR) ?? []) resize?.observe(element);
+    return () => {
+      cancelAnimationFrame(frame);
+      map.off("move", schedule);
+      map.off("resize", schedule);
+      observer?.disconnect();
+      resize?.disconnect();
+    };
+  }, [mapReady]);
 
   // OpenStreetMap names places in the app language where OSM holds the name (Chinese or
   // English), else in Latin script: a Chinese desk reads 荷兰, not Nederland.
@@ -1993,8 +2214,7 @@ export function GasNetworkMap({
       "situation-cargo-ahead": activeLayers.includes("cargoes") || activeLayers.includes("vessels"),
       "situation-regas": activeLayers.includes("positions"),
       "situation-contracts": activeLayers.includes("positions"),
-      // In 3D the vessel is the hull the scene draws at the same place.
-      "situation-cargo-positions": (activeLayers.includes("cargoes") || activeLayers.includes("vessels")) && dimension !== "3d",
+      "situation-cargo-positions": activeLayers.includes("cargoes") || activeLayers.includes("vessels"),
       "situation-outage-halo": outageIds.size > 0,
       "situation-outages": outageIds.size > 0,
     };
@@ -2042,7 +2262,7 @@ export function GasNetworkMap({
       if (map.getLayer(layerId)) map.setPaintProperty(layerId, property as never, value as never);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLayers, dimension, effectiveTheme, facilities, mapReady, outageIds, situation, t, verifiedPipelineLines, view]);
+  }, [activeLayers, effectiveTheme, facilities, mapReady, outageIds, situation, t, verifiedPipelineLines, view]);
 
   // Selection: draw the selected object and what it relates to on top, dim everything else.
   const dimmedRef = useRef<Map<string, unknown>>(new Map());
@@ -2250,6 +2470,7 @@ export function GasNetworkMap({
     map.setPaintProperty("selection-labels", "text-color", accent);
     map.setPaintProperty("selection-labels", "text-halo-color", SITUATION_COLOURS[effectiveTheme].halo);
     map.moveLayer("selection-labels");
+    if (map.getLayer("overlay-blockers")) map.moveLayer("overlay-blockers");
   }, [bookEmphasis, edges, effectiveTheme, facilities, mapReady, nodeLookup, nodes, selection, situation, sites, verifiedPipelineLines, view, Boolean(replay)]);
 
   // Replay of a completed deal: the whole voyage faint, the part sailed by the replay clock
@@ -2372,46 +2593,100 @@ export function GasNetworkMap({
   // The map's names: one symbol layer MapLibre declutters (app/mapLabels.ts). A label that would
   // touch another is dropped, the less important first, and the basemap's names give way to
   // ours; nothing is an HTML box over the map.
-  // The main import corridors, as supply corridors with their entry-point flow (app/mapCorridors).
-  const corridors = useMemo(() => supplyCorridors(edges, nodes, situation?.flows ?? []), [edges, nodes, situation?.flows]);
+  // Europe's import supply corridors (app/mapCorridors.ts): thin lines, solid on a SciGRID path
+  // and dashed when schematic; in service with the flow width and an arrowhead at the landing,
+  // out of service grey with none. On by default ("Supply corridors").
+  const corridorSelectRef = useRef(onSelectCorridor);
+  corridorSelectRef.current = onSelectCorridor;
+  const corridorDrawn = useMemo(() => corridorLines(corridors), [corridors]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
-    const data = {
-      type: "FeatureCollection" as const,
-      features: corridors.map((corridor) => ({
-        type: "Feature" as const,
-        properties: { id: corridor.id, in_service: corridor.inService },
-        geometry: { type: "LineString" as const, coordinates: corridor.coordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)) },
-      })),
-    };
-    const colour = mapColors.link;
-    if (upsertSource(map, "supply-corridors", data)) {
+    const features = corridorDrawn.flatMap((line) => {
+      const props = { id: line.id, in_service: line.inService, schematic: line.schematic, width: line.width };
+      const chevron = line.inService ? chevronAt(line.coordinates, 30) : null;
+      return [
+        { type: "Feature" as const, properties: { ...props, part: "line" }, geometry: { type: "LineString" as const, coordinates: line.coordinates.map(([lon, lat]) => toMapCoordinates(lon, lat)) } },
+        ...(chevron ? [{ type: "Feature" as const, properties: { ...props, part: "arrow" }, geometry: { type: "LineString" as const, coordinates: chevron.map(([lon, lat]) => toMapCoordinates(lon, lat)) } }] : []),
+      ];
+    });
+    const flowColour = SITUATION_COLOURS[effectiveTheme].flow;
+    const grey = effectiveTheme === "dark" ? "#71717a" : "#a1a1aa";
+    const colour = ["case", ["get", "in_service"], flowColour, grey];
+    const before = map.getLayer("node-clusters") ? "node-clusters" : undefined;
+    if (upsertSource(map, "supply-corridors", { type: "FeatureCollection", features })) {
+      for (const [id, schematic] of [["supply-corridors", false], ["supply-corridors-schematic", true]] as const) {
+        map.addLayer({
+          id,
+          type: "line",
+          source: "supply-corridors",
+          filter: ["all", ["==", ["get", "schematic"], schematic], ["==", ["get", "part"], "line"]],
+          layout: { "line-cap": "butt", "line-join": "round" },
+          paint: {
+            "line-color": colour as never,
+            "line-width": ["get", "width"],
+            "line-opacity": ["case", ["get", "in_service"], 0.85, 0.6],
+            ...(schematic ? { "line-dasharray": [2.5, 2] } : {}),
+          },
+        }, before);
+      }
       map.addLayer({
-        id: "supply-corridors",
+        id: "supply-corridor-arrows",
         type: "line",
         source: "supply-corridors",
+        filter: ["==", ["get", "part"], "arrow"],
         layout: { "line-cap": "round", "line-join": "round" },
-        // In service: a firm line; out of service: faint and dashed.
-        paint: {
-          "line-color": colour,
-          "line-width": ["case", ["get", "in_service"], 2.4, 1.4],
-          "line-opacity": ["case", ["get", "in_service"], 0.8, 0.4],
-          "line-dasharray": ["case", ["get", "in_service"], ["literal", [1, 0]], ["literal", [2, 2]]] as never,
-        },
-      }, map.getLayer("node-clusters") ? "node-clusters" : undefined);
+        paint: { "line-color": colour as never, "line-width": 2, "line-opacity": 0.9 },
+      }, before);
+      map.addLayer({
+        id: "supply-corridor-hit",
+        type: "line",
+        source: "supply-corridors",
+        filter: ["==", ["get", "part"], "line"],
+        paint: { "line-color": "rgba(0,0,0,0)", "line-width": 12 },
+      });
+      map.on("click", "supply-corridor-hit", (event) => {
+        const id = event.features?.[0]?.properties?.id;
+        if (id) corridorSelectRef.current?.(String(id));
+      });
+      map.on("mouseenter", "supply-corridor-hit", () => {
+        map.getCanvas().style.cursor = "pointer";
+      });
+      map.on("mouseleave", "supply-corridor-hit", () => {
+        map.getCanvas().style.cursor = "";
+      });
     }
-    map.setPaintProperty("supply-corridors", "line-color", colour);
+    const visible = activeLayers.includes("corridors") ? "visible" : "none";
+    for (const id of ["supply-corridors", "supply-corridors-schematic", "supply-corridor-arrows", "supply-corridor-hit"]) {
+      if (!map.getLayer(id)) continue;
+      map.setLayoutProperty(id, "visibility", visible);
+      if (id !== "supply-corridor-hit") map.setPaintProperty(id, "line-color", colour as never);
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [corridors, mapColors, mapReady]);
+  }, [activeLayers, corridorDrawn, effectiveTheme, mapReady]);
   const extraLabels = useMemo<MapLabel[]>(() => {
     const base = { price: "", sim: "", action: "" };
-    // Each corridor names itself and its entry-point flow at its entry point.
-    const corridorLabels: MapLabel[] = corridors.map((corridor) => ({
-      ...base, at: corridor.labelAt, text: corridorLabel(corridor, t), rank: 2, tone: "point",
-    }));
-    if (view !== "book") return corridorLabels;
-    const out: MapLabel[] = [...corridorLabels];
+    // Each corridor names itself and its flow (or its status) at its landing.
+    const lines = new globalThis.Map(corridorDrawn.map((line) => [line.id, line]));
+    const corridorLabels: MapLabel[] = activeLayers.includes("corridors")
+      ? corridors.flatMap((corridor) => {
+          const line = lines.get(corridor.id);
+          return line ? [{ ...base, at: line.landing, text: corridorLabel(corridor, t), rank: 2, tone: "point" as const }] : [];
+        })
+      : [];
+    // Flow intensity at Europe zoom: each border's net figure at its middle.
+    const byId = new globalThis.Map(nodes.map((node) => [node.id, node]));
+    const borderLabels: MapLabel[] = intensity === "flow" && labelZoom < BORDER_FLOWS_BELOW_ZOOM
+      ? (intensityData?.borders ?? []).flatMap((border) => {
+          const from = byId.get(border.fromId);
+          const to = byId.get(border.toId);
+          return from && to
+            ? [{ ...base, at: [(from.lon + to.lon) / 2, (from.lat + to.lat) / 2] as [number, number], text: `${Math.round(border.value).toLocaleString("en-GB")}`, rank: 2, tone: "point" as const }]
+            : [];
+        })
+      : [];
+    if (view !== "book") return [...corridorLabels, ...borderLabels];
+    const out: MapLabel[] = [...corridorLabels, ...borderLabels];
     if (activeLayers.includes("positions")) {
       for (const flow of bookFlows) {
         const end = flow.coordinates[flow.coordinates.length - 1];
@@ -2426,7 +2701,7 @@ export function GasNetworkMap({
     }
     return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeLayers, bookFlows, bookOpportunities, bookProposals, corridors, view]);
+  }, [activeLayers, bookFlows, bookOpportunities, bookProposals, corridorDrawn, corridors, intensity, intensityData, labelZoom, nodes, view]);
   useEffect(() => {
     const map = mapRef.current;
     if (!map || !mapReady) return;
@@ -2488,6 +2763,8 @@ export function GasNetworkMap({
     // Names above every line and mark drawn since (the scene, the selection).
     map.moveLayer("map-labels");
     if (map.getLayer("selection-labels")) map.moveLayer("selection-labels");
+    // The overlays' blockers stay topmost, so names keep clear of the HTML over the map.
+    if (map.getLayer("overlay-blockers")) map.moveLayer("overlay-blockers");
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeLayers, effectiveTheme, extraLabels, facilities, filteredNodes, labelZoom, mapReady, marketRows, outageIds, situation, t]);
 
@@ -2566,26 +2843,14 @@ export function GasNetworkMap({
 
   // MAP-1: terminal and storage columns, moving flows, voyages with estimated positions. Its
   // layers are added after the map's own (this hook's effects run after the ones above).
-  const chooseDimension = (next: SceneDimension) => {
-    setDimension(next);
-    try {
-      window.localStorage.setItem("egn.map.dimension", next);
-    } catch {
-      // Not remembered; kept for this visit.
-    }
-  };
-  const [flowDay, setFlowDay] = useState<string | null>(null);
+  // The stored gas day the flows show is chosen in the toolbar while flows are drawn (the page
+  // holds it), never as a bar over the map's bottom edge.
   const flowDays = useMemo(() => flowDayOptions(situation), [situation]);
   // A stored day that has left the window falls back to the latest.
   const shownFlowDay = flowDay !== null && flowDays.includes(flowDay) ? flowDay : null;
   const sceneProject = useCallback(
     (lon: number, lat: number): [number, number] => transformCoordinate(mapTileProvider.id, lon, lat),
     [mapTileProvider.id],
-  );
-  const formatSceneInstant = useInstantFormatter();
-  const sceneWhen = useCallback(
-    (iso: string) => formatSceneInstant(iso, { date: "always" })?.text ?? iso,
-    [formatSceneInstant],
   );
   const scene = useMapScene({
     map: mapRef.current,
@@ -2597,23 +2862,17 @@ export function GasNetworkMap({
     theme: effectiveTheme,
     flowColour: SITUATION_COLOURS[effectiveTheme].flow,
     project: sceneProject,
-    dimension,
     flowDay: shownFlowDay,
     activeLayers,
     t: t as (key: string, options?: Record<string, unknown>) => string,
-    when: sceneWhen,
-    pillarNodes: filteredNodes,
-    pointColours: { hub: mapColors.hub, point: mapColors.interconnection },
-    shipColours: { own: SITUATION_COLOURS[effectiveTheme].own, market: SITUATION_COLOURS[effectiveTheme].market },
     onSelectRef: (refId) => {
       const next = selectForRef.current(refId);
       if (next) setSelection(next);
-      // A clicked column or pillar brings its site in, as a clicked dot does.
+      // A clicked site point brings its site in, as a clicked dot does.
       const map = mapRef.current;
       const node = nodes.find((item) => item.id === refId);
       if (map && node) focusOn(map, toMapCoordinates(node.lon, node.lat), Math.max(map.getZoom(), 7));
     },
-    onSelectCargo: (cargoId) => setSelection({ kind: "cargo", id: cargoId }),
   });
 
   // Everything the map can locate, for the finder. Positions come from the same sources
@@ -2695,14 +2954,8 @@ export function GasNetworkMap({
           controls would sit under it, drawn but out of reach (browser acceptance, 390 px). */}
       {mapReady && !compact && !phoneWidth && (
         <MapSceneControls
-          dimension={dimension}
-          onDimension={chooseDimension}
-          flowDays={flowDays}
-          flowDay={shownFlowDay}
-          onFlowDay={setFlowDay}
           t={t as (key: string, options?: Record<string, unknown>) => string}
           activeLayers={activeLayers}
-          showFlowDay={activeLayers.includes("flows")}
           onFitPositions={
             situation && (situation.contracts.length > 0 || situation.regas_slots.length > 0 || situation.cargoes.some((item) => item.own))
               ? fitOurPositions
@@ -2710,6 +2963,54 @@ export function GasNetworkMap({
           }
           keyExtra={keyExtra}
         />
+      )}
+      {/* Under the finder, one column of what the map says about itself: the offline notice and
+          the intensity legend. Nothing in the bottom band, which is the attribution's. */}
+      {(showingOfflineOutline || (mapReady && intensity && intensityData)) && !mapStartError && (
+        <div className="map-top-left-stack">
+          {showingOfflineOutline && (
+            // OpenStreetMap could not be reached (offline, a proxy): the coastline outline stands in.
+            <p className="map-basemap-state is-fallback" role="status">
+              <strong>{t("map.basemap.offline")}</strong>
+            </p>
+          )}
+          {mapReady && intensity && intensityData && (() => {
+            // The metric's legend: what size and colour mean, the largest figure and its unit, the
+            // scale, the gas day; or that the metric holds nothing for the day.
+            const data = intensity === "flow" ? intensityData.borders : intensityData.points;
+            const days = [...new Set(data.map((item) => item.gasDay).filter(Boolean))].sort();
+            const swatch = (colour: string, label: string) => (
+              <span className="map-intensity-swatch"><i style={{ background: colour }} aria-hidden="true" />{label}</span>
+            );
+            return (
+              <div className="map-intensity-legend" role="note" aria-label={t("map.intensity.legend")}>
+                <strong>{t(`map.intensity.metric.${intensity}`)}</strong>
+                {data.length === 0 ? (
+                  <span>{t("map.intensity.no_data")}</span>
+                ) : (
+                  <>
+                    <span>
+                      {t(`map.intensity.size.${intensity}`, { max: Math.round(intensityMax).toLocaleString("en-GB") })}
+                    </span>
+                    <span className="map-intensity-swatches">
+                      {intensity === "outage" && swatch(intensityPalette.outage, t("map.intensity.colour.outage"))}
+                      {intensity === "utilisation" && intensityPalette.ramp.map((colour, index) => (
+                        <span key={colour} className="map-intensity-swatch"><i style={{ background: colour }} aria-hidden="true" />{t(`map.intensity.band.${index}`)}</span>
+                      ))}
+                      {(intensity === "flow" || intensity === "storage") && (
+                        <>
+                          {swatch(intensityPalette.into, t(intensity === "storage" ? "map.intensity.colour.into_grid" : "map.intensity.colour.entry"))}
+                          {swatch(intensityPalette.out, t(intensity === "storage" ? "map.intensity.colour.out_of_grid" : "map.intensity.colour.exit"))}
+                        </>
+                      )}
+                    </span>
+                    {days.length > 0 && <small>{t("map.intensity.gas_day", { day: days.length === 1 ? days[0] : `${days[0]} – ${days[days.length - 1]}` })}</small>}
+                  </>
+                )}
+              </div>
+            );
+          })()}
+        </div>
       )}
       {selection && detailCard && (
         <MapDetailPanel
@@ -2729,12 +3030,6 @@ export function GasNetworkMap({
         <p className="map-basemap-state is-unavailable" role="alert">
           <strong>{t("map.start_failed.title")}</strong>
           <small>{t("map.start_failed.body")}</small>
-        </p>
-      )}
-      {!mapStartError && showingOfflineOutline && (
-        // OpenStreetMap could not be reached (offline, a proxy): the coastline outline stands in.
-        <p className="map-basemap-state is-fallback" role="status">
-          <strong>{t("map.basemap.offline")}</strong>
         </p>
       )}
       <svg className={mapReady ? "fallback-network-map map-ready" : "fallback-network-map"} viewBox="0 0 1000 620" role="presentation">

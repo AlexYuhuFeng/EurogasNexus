@@ -4,7 +4,10 @@ import { useApiStore } from "@/stores/api";
 import { api, type EdgeDTO, type NodeDTO, type RouteEligibilityDTO, type TodayNeedsMeItemDTO } from "@/api/client";
 import { buildVisibleMapNetworkLines } from "@/app/networkMapLines";
 import { legPaths, zoneMemberIds } from "@/app/mapLineGeometry";
-import { isSupplyCorridor } from "@/app/mapCorridors";
+import { corridorFlowDay } from "@/app/mapCorridors";
+import { readKey, useCachedRead } from "@/app/data/readCache";
+import { INTENSITY_METRICS, rankIntensity, intensityPoints, type IntensityDatum, type IntensityMetric } from "@/app/mapIntensity";
+import type { SupplyCorridorDTO } from "@/api/client";
 import { normalizePointName } from "@/app/routeMetadata";
 import { isMapEligibleNode, type NetworkGeometryState } from "@/app/workspaceDerivedData";
 import {
@@ -25,6 +28,8 @@ import {
 import { MapBookRelevance, OpportunityCard, type NeedsYouRow } from "@/components/MapBookRelevance";
 import { GasNetworkMap, type MapCallout } from "@/components/GasNetworkMap";
 import { NETWORK_LAYERS, SITUATION_LAYERS, situationSummary } from "@/app/mapSituation";
+import { flowDayOptions } from "@/app/mapScene";
+import { formatGasDay } from "@/app/time/timeFormat";
 import { buildSites, topologyIssues, type MapSelection } from "@/app/mapSelection";
 import { MAP_SITUATION_REFRESH_MS, useMapSituation } from "@/app/hooks/useMapSituation";
 import { useExpandedView } from "@/app/hooks/useExpandedView";
@@ -416,6 +421,22 @@ export function NetworkWorkspace({
 
   /* ---------------------------------------------------------------- one selection */
   const [selection, setSelection] = useState<MapSelection | null>(null);
+  // Intensity: one metric from the Layers menu (flat encodings), and the mark the trader opened.
+  const [intensity, setIntensity] = useState<IntensityMetric | null>(null);
+  const [intensityPick, setIntensityPick] = useState<{ metric: IntensityMetric; datum: IntensityDatum } | null>(null);
+  const chooseIntensity = (next: IntensityMetric | null) => {
+    setIntensity(next);
+    setIntensityPick(null);
+  };
+  // Europe's import supply corridors: shipped reference data with the store's latest flows,
+  // read once per session (they change with a gas day, not by the minute).
+  const corridorsRead = useCachedRead<SupplyCorridorDTO[]>(
+    readKey("/reference-network/supply-corridors", {}),
+    (signal) => api.supplyCorridors({ signal }).then((response) => response.data?.corridors ?? []),
+    { freshMs: 30 * 60_000 },
+  );
+  const corridors = useMemo(() => corridorsRead.data ?? [], [corridorsRead.data]);
+  const [corridorPick, setCorridorPick] = useState<string | null>(null);
   escapeStateRef.current = { drawerOpen, hasSelection: selection !== null };
   const [selectedRow, setSelectedRow] = useState<PanelRowRef | null>(null);
   const [hoverAt, setHoverAt] = useState<LonLat | null>(null);
@@ -478,11 +499,117 @@ export function NetworkWorkspace({
   };
   const selectOnMap = (next: MapSelection | null) => {
     setSelection(next);
+    setIntensityPick(null);
+    setCorridorPick(null);
     if (next) setOpenOpportunityId(null);
     if (next) setOpenMark(null);
     if (!next) setSelectedRow(null);
   };
-  const detail = openOpportunity && mapView === "book" ? (
+  const intensityCard = intensityPick ? (
+    // A column's figure: what it is, the value and unit, the gas day and the source.
+    <aside className="map-detail-panel" aria-label={t("map.detail.title")}>
+      <button type="button" className="map-detail-close link-button" onClick={() => setIntensityPick(null)} aria-label={t("map.detail.close")} title={t("map.detail.close")}><Icon name="close" /></button>
+      <header className="map-detail-header">
+        <h3>{intensityPick.datum.name}</h3>
+        <p className="muted">
+          {t(`map.intensity.metric.${intensityPick.metric}`)}
+        </p>
+      </header>
+      <div className="map-detail-figures">
+        <div className="map-detail-figure">
+          <span>{t("map.intensity.card.value")}</span>
+          <strong>{Math.round(intensityPick.datum.value).toLocaleString("en-GB")}<small> GWh/d</small></strong>
+          {intensityPick.datum.direction && (
+            <small className="muted">{t(`map.intensity.card.direction_${intensityPick.datum.direction}`)}</small>
+          )}
+        </div>
+      </div>
+      {intensityPick.datum.ratio !== null && (
+        <p className="muted">{tr("map.intensity.card.utilisation", { pct: Math.round(intensityPick.datum.ratio * 100) })}</p>
+      )}
+      <p className="muted">
+        {intensityPick.datum.gasDay ? tr("map.intensity.gas_day", { day: intensityPick.datum.gasDay }) : null}
+        {intensityPick.datum.gasDay && intensityPick.datum.source ? " · " : null}
+        {intensityPick.datum.source ? tr("map.intensity.card.source", { source: intensityPick.datum.source }) : null}
+      </p>
+    </aside>
+  ) : null;
+  // A corridor's card: where it comes from, who runs it, where it lands, capacity, the latest
+  // flow with its gas day, its status with its date, and the source.
+  const pickedCorridor = corridorPick ? corridors.find((item) => item.id === corridorPick) ?? null : null;
+  const corridorCard = pickedCorridor ? (
+    <aside className="map-detail-panel" aria-label={t("map.detail.title")}>
+      <button type="button" className="map-detail-close link-button" onClick={() => setCorridorPick(null)} aria-label={t("map.detail.close")} title={t("map.detail.close")}><Icon name="close" /></button>
+      <header className="map-detail-header">
+        <h3>{pickedCorridor.name}</h3>
+        <p className="muted">{tr("map.corridor.card.from", { country: pickedCorridor.source_country, place: pickedCorridor.source.place })}</p>
+      </header>
+      <dl className="map-corridor-facts">
+        <dt>{t("map.corridor.card.operator")}</dt>
+        <dd>{pickedCorridor.operator?.name ?? "–"}</dd>
+        <dt>{t("map.corridor.card.landing")}</dt>
+        <dd>{pickedCorridor.landing_points.map((point) => point.name).join(", ") || "–"}{pickedCorridor.into_market_areas.length ? ` → ${pickedCorridor.into_market_areas.join(", ")}` : ""}</dd>
+        <dt>{t("map.corridor.card.capacity")}</dt>
+        <dd>
+          {pickedCorridor.capacity?.firm_technical_kwh_d
+            ? `${Math.round(pickedCorridor.capacity.firm_technical_kwh_d / 1e6).toLocaleString("en-GB")} GWh/d`
+            : t("map.corridor.not_published")}
+          {pickedCorridor.capacity?.gas_day ? <small className="muted"> · {tr("map.intensity.gas_day", { day: pickedCorridor.capacity.gas_day })}</small> : null}
+        </dd>
+        <dt>{t("map.corridor.card.flow")}</dt>
+        <dd>
+          {pickedCorridor.latest_flow_gwh_d === null
+            ? t("map.corridor.not_published")
+            : `${Math.round(pickedCorridor.latest_flow_gwh_d).toLocaleString("en-GB")} GWh/d`}
+          {pickedCorridor.latest_flow_gwh_d !== null && corridorFlowDay(pickedCorridor)
+            ? <small className="muted"> · {tr("map.intensity.gas_day", { day: corridorFlowDay(pickedCorridor) })}</small>
+            : null}
+        </dd>
+        <dt>{t("map.corridor.card.status")}</dt>
+        <dd>
+          {pickedCorridor.status === "out_of_service"
+            ? (pickedCorridor.since ? tr("map.corridor.out_since_date", { date: pickedCorridor.since }) : t("map.corridor.out_of_service"))
+            : t(`map.corridor.status.${pickedCorridor.status}`)}
+        </dd>
+      </dl>
+      <p className="muted map-corridor-source">
+        {[pickedCorridor.status_source?.citation, pickedCorridor.capacity?.citation].filter(Boolean).join(" · ")}
+      </p>
+    </aside>
+  ) : null;
+  // The chosen metric's ten largest figures: exact comparison is a table's job, not the map's.
+  // A row flies the map to the point and opens its figure.
+  const intensityRanking = useMemo(
+    () => (intensity && intensity !== "flow" ? rankIntensity(intensityPoints(intensity, { situation: rawSituation, nodes, edges, flowDay: null })) : []),
+    [edges, intensity, nodes, rawSituation],
+  );
+  const rankingPanel = intensity && intensity !== "flow" ? (
+    <section className="map-intensity-ranking" aria-label={t("map.intensity.ranking")}>
+      <h4>{tr("map.intensity.ranking_title", { metric: t(`map.intensity.metric.${intensity}`) })}</h4>
+      {intensityRanking.length === 0 ? (
+        <p className="muted">{t("map.intensity.no_data")}</p>
+      ) : (
+        <ol>
+          {intensityRanking.map((item) => (
+            <li key={item.id}>
+              <button
+                type="button"
+                className="map-intensity-rank-row"
+                onClick={() => {
+                  setFocus({ at: item.at, nonce: Date.now() });
+                  setIntensityPick({ metric: intensity, datum: item });
+                }}
+              >
+                <span>{item.name}</span>
+                <strong>{Math.round(item.value).toLocaleString("en-GB")}<small> GWh/d</small></strong>
+              </button>
+            </li>
+          ))}
+        </ol>
+      )}
+    </section>
+  ) : null;
+  const detail = corridorCard ?? intensityCard ?? rankingPanel ?? (openOpportunity && mapView === "book" ? (
     <OpportunityCard
       item={openOpportunity}
       t={tr}
@@ -532,7 +659,7 @@ export function NetworkWorkspace({
         if (site) setFocus({ refId: site.members[0]?.id ?? null, at: [site.lon, site.lat], nonce: Date.now() });
       }}
     />
-  ) : null;
+  ) : null);
   // Phone width: the panel is a sheet under the map; its handle moves the split.
   const [sheetRaised, setSheetRaised] = useState(false);
   const dragRef = useRef<{ startY: number; raised: boolean } | null>(null);
@@ -757,6 +884,22 @@ export function NetworkWorkspace({
       <span>{t(`map.layer.${layer}`)}</span>
     </label>
   );
+  // Intensity: one entry per metric (and off), each drawn flat by size and colour.
+  const intensityChoice = (
+    <>
+      {[null, ...INTENSITY_METRICS].map((metric) => (
+        <label key={metric ?? "off"} className="map-layer-option">
+          <input
+            type="radio"
+            name="map-intensity"
+            checked={intensity === metric}
+            onChange={() => chooseIntensity(metric)}
+          />
+          <span>{t(metric ? `map.intensity.metric.${metric}` : "map.intensity.off")}</span>
+        </label>
+      ))}
+    </>
+  );
   const layerMenu = (
     <Popover
       label={t("map.layers_panel")}
@@ -781,11 +924,33 @@ export function NetworkWorkspace({
         {NETWORK_LAYERS.map((layer) =>
           layerOption(layer, layer === "routes" ? "map.layer.routes_hint" : layer === "network" ? "map.layer.network_hint" : `map.layer.${layer}`))}
       </fieldset>
-      <button type="button" className="link-button map-layer-default" onClick={onDefaultLayers}>
+      <fieldset className="map-layer-group">
+        <legend title={t("map.intensity.hint")}>{t("map.intensity.layer")}</legend>
+        {intensityChoice}
+      </fieldset>
+      <button type="button" className="link-button map-layer-default" onClick={() => { onDefaultLayers(); chooseIntensity(null); }}>
         {t("map.layers.default")}
       </button>
     </Popover>
   );
+  // The flows' gas day: in the toolbar while flows (or a flow intensity) are drawn (latest by default),
+  // never as a bar over the map's bottom edge, where the attribution lives.
+  const [flowDay, setFlowDay] = useState<string | null>(null);
+  const flowDays = useMemo(() => flowDayOptions(rawSituation), [rawSituation]);
+  const flowDayPicker = (mapLayers.includes("flows") || intensity === "flow" || intensity === "utilisation") && flowDays.length > 0 ? (
+    <label className="map-flow-day-select">
+      <span>{t("map.scene.flow_day")}</span>
+      <select
+        value={flowDay && flowDays.includes(flowDay) ? flowDay : ""}
+        onChange={(event) => setFlowDay(event.target.value || null)}
+      >
+        <option value="">{t("map.scene.flow_day_latest")}</option>
+        {[...flowDays].reverse().map((day) => (
+          <option key={day} value={day}>{formatGasDay(day, language, true)}</option>
+        ))}
+      </select>
+    </label>
+  ) : null;
   const toolbar = (
       <div className={controlsInSheet ? "map-toolbar network-desk-toolbar is-in-sheet" : "map-toolbar network-desk-toolbar"}>
         <Segmented
@@ -796,10 +961,11 @@ export function NetworkWorkspace({
           onChange={chooseMapViewAndTab}
         />
         {!controlsInSheet && (compactLayout ? layerChips : layerMenu)}
+        {flowDayPicker}
         {/* The rest of the row is the map's; the view's own actions sit at its end. */}
         <span className="map-toolbar-spacer" aria-hidden="true" />
         {/* Phone width: one compact row, an icon with its name for assistive technology. The
-            map's own view controls (3D, fit, key) are in its corner; nothing here repeats them. */}
+            map's own view controls (fit, key) are in its corner; nothing here repeats them. */}
         <button
           type="button"
           className={compactLayout ? "chip map-fullscreen-chip map-icon-chip" : "chip map-fullscreen-chip"}
@@ -853,7 +1019,7 @@ export function NetworkWorkspace({
         {(mapLayers.includes("outages") || mapLayers.includes("outages_all")) && (
           <span><i className="situation-dot outage-scheduled" />{t("map.key.outage_scheduled")}</span>
         )}
-        {edges.some(isSupplyCorridor) && <span><i className="line-swatch corridor" />{t("map.key.corridor")}</span>}
+        {mapLayers.includes("corridors") && <span><i className="line-swatch corridor" />{t("map.key.corridor")}</span>}
         {surveyedPipelineCount > 0 && <span><i className="line-swatch verified" />{t("map.key.pipeline")}</span>}
         {connectionLinkCount > 0 && <span><i className="line-swatch link" />{t("map.key.connection")}</span>}
         {mapLayers.includes("routes") && mapView === "network" && (
@@ -916,6 +1082,21 @@ export function NetworkWorkspace({
             setOpenOpportunityId(null);
           }}
           callouts={callouts}
+          flowDay={flowDay}
+          intensity={intensity}
+          onSelectIntensity={(pick) => {
+            setIntensityPick(pick);
+            setCorridorPick(null);
+            setSelection(null);
+            if (compactLayout) setSheetRaised(true);
+          }}
+          corridors={corridors}
+          onSelectCorridor={(id) => {
+            setCorridorPick(id);
+            setIntensityPick(null);
+            setSelection(null);
+            if (compactLayout) setSheetRaised(true);
+          }}
           keyExtra={keyExtra}
           // The page holds the selection: the panel lists what the selected object relates
           // to and shows its card, so the map draws no card of its own.
@@ -988,6 +1169,14 @@ export function NetworkWorkspace({
         {controlsInSheet && (
           <div className="map-layer-row" role="group" aria-label={t("map.layers_panel")}>
             {layerChips}
+            <label className="map-flow-day-select">
+              <span>{t("map.intensity.layer")}</span>
+              <select value={intensity ?? ""} onChange={(event) => chooseIntensity((event.target.value || null) as IntensityMetric | null)}>
+                {[null, ...INTENSITY_METRICS].map((metric) => (
+                  <option key={metric ?? "off"} value={metric ?? ""}>{t(metric ? `map.intensity.metric.${metric}` : "map.intensity.off")}</option>
+                ))}
+              </select>
+            </label>
           </div>
         )}
         <NetworkInfoPanel
