@@ -29,18 +29,8 @@ test("the server's English notes on the book are said in Chinese, contracts by n
   assert.equal(serverWarningText("Something new.", t), "Something new.");
 });
 
-test("the server still writes the sentences this table recognises", () => {
-  const inputs = read("../../../src/eurogas_nexus/application/position_inputs.py");
-  for (const fragment of ["price floats with ", "; volume only on the ladder", "an FOB cargo is not on a European hub until it is sold or ", "Marks are simulated prices, not market prices.", "cargo(es) on the ladder from their plans and recorded "]) {
-    assert.ok(inputs.includes(fragment), `position_inputs.py no longer writes "${fragment}"`);
-  }
-  const fx = read("../../../src/eurogas_nexus/domain/market/fx_forward.py");
-  assert.ok(fx.includes('f"derived (interest parity from {names}, flat rate)"'), "fx_forward.py label changed");
-  const delivery = read("../../../src/eurogas_nexus/domain/risk/delivery.py");
-  for (const fragment of ["deviates from nominations on more than 1 day in 5", "% against DCQ", "volatile delivery (CV above 15%)"]) {
-    assert.ok(delivery.includes(fragment), `delivery.py no longer writes "${fragment}"`);
-  }
-});
+// That the server still writes these sentences is checked server-side
+// (tests/unit/test_server_text_in_client_locales.py; a client source does not read the backend).
 
 test("a simulated feed's identifier is never on screen; the quiet simulated mark is", async () => {
   const { sourceSystemLabel } = await import("../src/app/model/enumLabels.ts");

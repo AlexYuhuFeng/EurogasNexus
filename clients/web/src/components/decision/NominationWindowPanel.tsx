@@ -1,10 +1,14 @@
-import { useState } from "react";
-import { Button, DataGrid, EvidenceBlock, PanelHeader, PeriodPicker } from "@/components/ui";
+import { useEffect, useState } from "react";
+import { Button, DataGrid, EvidenceBlock, PanelHeader, PeriodPicker, RecordPicker } from "@/components/ui";
+import { api } from "@/api/client";
+import { useCachedRead } from "@/app/data/readCache";
+import { manualInputLabel, manualInputs, nominationDraftFrom, planningContractOptions } from "@/app/model/planningPrefill";
 import { displayTime } from "@/app/time/displayTime";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import {
   MAX_NOMINATION_INSTRUCTIONS,
   MAX_NOMINATION_WINDOWS,
+  emptyNominationDraft,
   nominationDecisionRows,
   type NominationDraft,
   type NominationInstructionDraft,
@@ -59,6 +63,26 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
   };
   const failure = error ? presentError(t, describeFailure(error)) : null;
 
+  // Live by default (AGENTS rule 19): the contract in execution is chosen from the book, and its
+  // DCQ, the day's nomination and the TSO calendar's windows fill the form; anything typed after
+  // that is said in the result. Planning only: nothing is nominated (rule 8).
+  const planning = useCachedRead("/optimization/planning-inputs", (signal) => api.planningInputs(undefined, { signal }));
+  const inputs = planning.data?.data ?? null;
+  const [contractId, setContractId] = useState<string | null>(null);
+  const [prefilled, setPrefilled] = useState<NominationDraft | null>(null);
+  const choose = (id: string) => {
+    const next = inputs ? nominationDraftFrom(inputs, id) : null;
+    if (!next) return;
+    updateDraft(() => next);
+    setPrefilled(next);
+    setContractId(id);
+  };
+  useEffect(() => {
+    if (inputs && contractId === null && !touched && inputs.contracts[0]) choose(inputs.contracts[0].contract_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputs]);
+  const manual = manualInputs(draft, prefilled ?? emptyNominationDraft());
+
   function updateInstruction(index: number, patch: Partial<NominationInstructionDraft>): void {
     edit((current) => ({
       ...current,
@@ -90,6 +114,17 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
 
         <div className="decision-assessment-grid">
           <span className="decision-assessment-field">
+            <RecordPicker
+              id="nomination-contract"
+              label={t("decision.planning.contract")}
+              // A read that failed (an older server) offers nothing to choose, never "loading" forever.
+              options={planning.error ? [] : planningContractOptions(inputs)}
+              value={contractId}
+              emptyText={t("decision.planning.no_contracts")}
+              onChange={(choice) => choice && choose(choice.id)}
+            />
+          </span>
+          <span className="decision-assessment-field">
             <label className="field-label" htmlFor="nomination-initial">
               {t("decision.nomination.initial_quantity")}
             </label>
@@ -107,6 +142,11 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
 
         <div className="section-heading">
           <span className="eyebrow">{t("decision.nomination.windows")}</span>
+          {inputs && (
+            <small className="muted" data-windows-basis={inputs.windows.basis} title={inputs.windows.windows.map((window) => window.source).join("\n")}>
+              {t(inputs.windows.basis === "held" ? "decision.planning.windows_held" : "decision.planning.windows_assumption")}
+            </small>
+          )}
         </div>
         <DataGrid
           id="nomination-windows"
@@ -238,6 +278,11 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
             title={t("decision.nomination.result")}
             meta={`${enumLabel(result.status, t)} · ${formatQuantity(result.final_quantity_mwh)} MWh`}
           />
+          {manual.length > 0 && (
+            <p className="muted" data-manual-inputs="true">
+              {t("decision.planning.manual_inputs", { inputs: manual.map((path) => manualInputLabel(path, t)).join(", ") })}
+            </p>
+          )}
           <EvidenceBlock
             ariaLabel={t("decision.nomination.result")}
             items={[

@@ -11,7 +11,7 @@ const t = (key: string, options?: Record<string, unknown>) =>
   (zh[key] ?? key).replace(/\{\{(\w+)\}\}/g, (_, name: string) => String(options?.[name] ?? ""));
 
 test("every breach sentence the risk engine writes is recognised and said in Chinese", () => {
-  // One example per template in src/eurogas_nexus/domain/risk/limits.py.
+  // One example per template the risk engine writes (domain/risk/limits.py on the server).
   const samples = [
     "TTF is outside the mandate (demo-kestrel-uk-6)",
     "physical supply is not allowed (C-1)",
@@ -30,11 +30,8 @@ test("every breach sentence the risk engine writes is recognised and said in Chi
     assert.ok(en[`limits.breach.${parsed.kind}`] && zh[`limits.breach.${parsed.kind}`], parsed.kind);
     assert.match(breachText(sample, t), /\p{Script=Han}/u, sample);
   }
-  // The engine's sentence templates are still the ones above.
-  const engine = read("../../../src/eurogas_nexus/domain/risk/limits.py");
-  for (const fragment of ["is outside the mandate (", "physical supply is not allowed (", "financial trades are not allowed (", "is not an allowed instrument (", "is beyond ", " is over ", "%, above ", "%, below ", "over the approved", "under the approved"]) {
-    assert.ok(engine.includes(fragment), `limits.py no longer writes "${fragment}"; update limitBreaches.ts`);
-  }
+  // That the engine still writes these sentences is checked server-side
+  // (tests/unit/test_server_text_in_client_locales.py).
 });
 
 test("a contract reference is named, -0% reads 0%, and a band breached month after month is one line", () => {

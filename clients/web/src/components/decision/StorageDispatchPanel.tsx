@@ -1,12 +1,16 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Button, DataGrid, EvidenceBlock, PanelHeader, RecordPicker } from "@/components/ui";
 import { contractOptions } from "@/app/model/recordOptions";
 import { useApiStore } from "@/stores/api";
+import { api } from "@/api/client";
+import { useCachedRead } from "@/app/data/readCache";
+import { manualInputLabel, manualInputs, planningStorageOptions, storageDraftFrom } from "@/app/model/planningPrefill";
 import { displayTime } from "@/app/time/displayTime";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import {
   MAX_STORAGE_PERIODS,
   dispatchDecisionRows,
+  emptyStorageDispatchDraft,
   type StorageDispatchDraft,
   type StorageFacilityDraft,
   type StoragePeriodDraft,
@@ -57,7 +61,16 @@ function formatMoney(value: number | null | undefined): string {
  */
 export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchPanelProps) {
   const contracts = useApiStore((state) => state.upstreamContracts);
-  const storageChoices = contractOptions(contracts.filter((contract) => contract.resource_type === "STORAGE"));
+  // Live by default (AGENTS rule 19): a facility from the store's masters, with its latest
+  // inventory, fills the facility terms; the book's storage contracts stay choosable.
+  const planning = useCachedRead("/optimization/planning-inputs", (signal) => api.planningInputs(undefined, { signal }));
+  const inputs = planning.data?.data ?? null;
+  const masters = planningStorageOptions(inputs);
+  const storageChoices = [
+    ...masters,
+    ...contractOptions(contracts.filter((contract) => contract.resource_type === "STORAGE")).filter((option) => !masters.some((master) => master.id === option.id)),
+  ];
+  const [prefilled, setPrefilled] = useState<StorageDispatchDraft | null>(null);
   const { draft, updateDraft, readiness, result, busy, error, runId, recorded } = assessment;
   // A blocker is said once the user has started, not on an untouched form.
   const [touched, setTouched] = useState(false);
@@ -66,6 +79,18 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
     updateDraft(change);
   };
   const failure = error ? presentError(t, describeFailure(error)) : null;
+  const prefillFrom = (facilityId: string): boolean => {
+    const next = inputs ? storageDraftFrom(inputs, facilityId, draft) : null;
+    if (!next) return false;
+    updateDraft(() => next);
+    setPrefilled(next);
+    return true;
+  };
+  useEffect(() => {
+    if (inputs && prefilled === null && !touched && inputs.storage[0]) prefillFrom(inputs.storage[0].facility_id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inputs]);
+  const manual = manualInputs(draft, prefilled ?? emptyStorageDispatchDraft());
 
   const facilityFields: Array<{ key: keyof StorageFacilityDraft; labelKey: string }> = [
     { key: "initialInventory", labelKey: "decision.dispatch.initial_inventory" },
@@ -111,7 +136,10 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
               value={draft.facilityId || null}
               allowManual
               emptyText={t("decision.dispatch.no_storage_contracts")}
-              onChange={(choice) => edit((current) => ({ ...current, facilityId: choice?.id.slice(0, 128) ?? "" }))}
+              onChange={(choice) => {
+                if (choice && !choice.manual && prefillFrom(choice.id)) return;
+                edit((current) => ({ ...current, facilityId: choice?.id.slice(0, 128) ?? "" }));
+              }}
             />
           </span>
           {facilityFields.map((field) => (
@@ -209,6 +237,11 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
             title={t("decision.dispatch.result")}
             meta={`${enumLabel(result.status, t)} · ${formatMoney(result.objective_value_gbp)}`}
           />
+          {manual.length > 0 && (
+            <p className="muted" data-manual-inputs="true">
+              {t("decision.planning.manual_inputs", { inputs: manual.map((path) => manualInputLabel(path, t)).join(", ") })}
+            </p>
+          )}
           <EvidenceBlock
             ariaLabel={t("decision.dispatch.result")}
             items={[

@@ -1,64 +1,20 @@
 import assert from "node:assert/strict";
-import { readdirSync, readFileSync, statSync } from "node:fs";
-import { join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { lineageNames } from "../src/app/model/lineageNames.ts";
 import { warningLabel } from "../src/app/warningLabel.ts";
 import { ladderNotes } from "../src/app/model/ladderNotes.ts";
 
-// Server warnings are stable codes (`CODE:detail`) the client translates (AGENTS rule 17, BRIEF:
-// "server-produced warnings render through i18n from a code"). A code the locale files do not
-// know used to fall back to its own words in English ("contract index priced"), in the Chinese
-// interface too. This test reads the codes the server appends to its warning, blocker and
-// missing-input lists and requires a `warning.<code>` line for each in both languages.
+// Server warnings are stable codes (`CODE:detail`) the client translates (AGENTS rule 17): a code
+// the locale files did not know used to fall back to its own words in English, in Chinese too.
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), "utf8");
 const en = JSON.parse(read("../src/i18n/en.json")) as Record<string, string>;
 const zh = JSON.parse(read("../src/i18n/zh.json")) as Record<string, string>;
-const serverRoot = fileURLToPath(new URL("../../../src/eurogas_nexus", import.meta.url));
-
-function pythonFiles(dir: string): string[] {
-  const out: string[] = [];
-  for (const name of readdirSync(dir)) {
-    const path = join(dir, name);
-    if (statSync(path).isDirectory()) out.push(...pythonFiles(path));
-    else if (name.endsWith(".py")) out.push(path);
-  }
-  return out;
-}
-
-/** Codes the server writes into a warnings / blockers / missing list (`warnings.append("CODE:...")`). */
-function serverWarningCodes(): Set<string> {
-  const codes = new Set<string>();
-  const pattern = /(?:warning|blocker|missing|issue)s?\w*\.(?:append|add)\(\s*f?"([A-Z][A-Z0-9_]{3,})(?=[:"{])/g;
-  for (const file of pythonFiles(serverRoot)) {
-    for (const match of readFileSync(file, "utf8").matchAll(pattern)) codes.add(match[1]);
-  }
-  // Notes declared once on the server (domain/ontology/notes.py `declare("CODE", template)`).
-  for (const file of pythonFiles(serverRoot)) {
-    for (const match of readFileSync(file, "utf8").matchAll(/\bdeclare\(\s*"([A-Z][A-Z0-9_]+)"/g)) codes.add(match[1]);
-  }
-  // `TARIFF_STATUS_{status}`: every non-final tariff status (domain/ontology/vocabulary.py).
-  codes.delete("TARIFF_STATUS_");
-  for (const status of ["INDICATIVE", "PROVISIONAL", "DRAFT", "SIMULATOR_ONLY"]) codes.add(`TARIFF_STATUS_${status}`);
-  codes.add("TARIFF_APPLICABILITY_NOT_ASSESSED");
-  return codes;
-}
-
-test("every warning code the server emits has words in English and Chinese", () => {
-  const codes = serverWarningCodes();
-  assert.ok(codes.size > 50, `found only ${codes.size} codes; the pattern no longer matches the server`);
-  const missing: string[] = [];
-  for (const code of codes) {
-    const key = `warning.${code.toLowerCase()}`;
-    if (!en[key]) missing.push(`en ${key}`);
-    if (!zh[key]) missing.push(`zh ${key}`);
-    else if (!/\p{Script=Han}/u.test(zh[key])) missing.push(`zh ${key} is not Chinese`);
-  }
-  assert.deepEqual(missing, []);
-});
+// The check that every server code has both languages reads the server, so it lives server-side
+// (tests/unit/test_server_text_in_client_locales.py): a client source does not reference the
+// backend (architecture fitness FF1).
 
 test("a warning reads in words; an unknown code falls back to enum words, then the humanised code", () => {
   const table: Record<string, string> = { "warning.contract_index_priced": "合同按指数定价", "enum.quote_stale": "报价已过时" };
@@ -74,7 +30,7 @@ test("lineage shows the records a trader knows by name; evidence lines and bare 
     [
       "upstream_resource_contract:demo-brae-10",
       "upstream_resource_contract:demo-unknown",
-      "ENTSOG TP [25-11-2026] https://transparency.entsog.eu/",
+      "ENTSOG TP [25-11-2026] (a source line with its address)",
       "DEMO_Sim:simulated-tariff",
       "published: 10.512 EUR/(kWh/h)/y",
     ],
