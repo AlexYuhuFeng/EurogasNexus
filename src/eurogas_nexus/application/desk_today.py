@@ -401,6 +401,12 @@ def _prices(
             if resolved is not None:
                 resolved = {**resolved, "change": None if previous is None
                             else round(resolved["value"] - previous, 4)}
+        elif tenor != "month-ahead":
+            # During the trading day the day-ahead on screen is tomorrow's contract and the
+            # newest close is still yesterday's (for today): a live tick for the contract
+            # trading now is the price, and its change is against that newest close, as a
+            # screen states a day-ahead's change.
+            resolved = _live_day_ahead(price_book, hub, now, against=shown, against_day=days[-1])
         if resolved is not None:
             one = resolved["resolved"]
             shown, unit = resolved["value"], resolved["unit"]
@@ -1236,6 +1242,35 @@ def focus_hubs(session, caller: Caller, book: _Book, prices: dict) -> list[str]:
     return ordered[:MARKET_HUBS]
 
 
+def _live_day_ahead(price_book, hub: str, now: datetime, *, against: float, against_day: date):
+    """A live tick for the day-ahead contract trading at ``now``, or ``None`` (keep the close)."""
+
+    from eurogas_nexus.application.price_resolver import month_window, price_payload
+    from eurogas_nexus.application.projections.daily_closes import in_native_unit
+    from eurogas_nexus.domain.market.gas_day import gas_day_label
+    from eurogas_nexus.domain.market.products import ProductCodeError, resolve_product
+
+    if price_book is None:
+        return None
+    try:
+        prompt = resolve_product("DA", date.fromisoformat(gas_day_label(now)))
+    except ProductCodeError:
+        return None
+    window = month_window(prompt.first_gas_day, prompt.last_gas_day + timedelta(days=1))
+    one = price_book.resolve(hub, *window)
+    if one is None or one.kind != "live_tick":
+        return None
+    value, unit = in_native_unit(hub, one.value, one.unit)
+    return {
+        "resolved": one,
+        "value": value,
+        "unit": unit,
+        "change": round(value - against, 4),
+        "change_vs": against_day,
+        "payload": price_payload(one),
+    }
+
+
 def _todays_day_ahead(close: dict[str, Any], now: datetime) -> bool:
     """Whether a day-ahead close is for the day-ahead contract of the gas day at ``now``."""
 
@@ -1338,6 +1373,11 @@ def _market(
             if resolved is not None:
                 resolved = {**resolved, "change": None if previous is None
                             else round(resolved["value"] - previous, 4)}
+        else:
+            # During the trading day the day-ahead trading now is tomorrow's contract and the
+            # newest close is still the previous one: a live tick for the contract trading
+            # now is the price, and its change is against that newest close.
+            resolved = _live_day_ahead(price_book, hub, now, against=shown, against_day=days[-1])
         if resolved is not None:
             one = resolved["resolved"]
             shown, unit, change = resolved["value"], resolved["unit"], resolved["change"]
