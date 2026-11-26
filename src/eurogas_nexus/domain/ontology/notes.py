@@ -5,8 +5,8 @@ server declares each note once, here or in the module that raises it, with an En
 a payload carries ``{"code", "params", "text"}``. The client says the note in the reader's
 language through ``warning.<code>`` with the same parameters (``serverWarningText`` in
 ``clients/web/src/app/warningLabel.ts``) and falls back to ``text``. The client test
-``serverWarningCodes.test.ts`` reads every ``declare(<code>, <template>)`` in the server and requires
-both languages for it.
+``serverWarningCodes.test.ts`` reads every ``declare(<code>, <template>)`` in the server and
+requires both languages for it.
 
 A parameter that names a record carries the name a person knows (``ref_name``) beside the id
 (``ref``), so no screen needs a second read to avoid showing an identifier.
