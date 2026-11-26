@@ -7,9 +7,9 @@ Decisions are in [08](08_DECISION_LOG.md). Acceptance criteria are in [06](06_AC
 (CODEX1-1 to CODEX1-6). Evidence is in [09](09_VALIDATION_EVIDENCE.md).
 
 Data volumes and the infrastructure staging they justify (backfill, ten years of running,
-PostgreSQL, TimescaleDB, Kafka and Iceberg thresholds, industry benchmarks) are sized in doc 19,
-written separately. This document does not project volumes. Where a verdict depends on size, it
-says "sizing in doc 19".
+PostgreSQL, TimescaleDB, Kafka and Iceberg thresholds, industry benchmarks) are sized in
+[19](19_DATA_CAPACITY_AND_INFRASTRUCTURE.md) (CAP-1). This document does not project volumes.
+Where a verdict depends on size, it says "sizing in doc 19".
 
 ## What was reviewed
 
