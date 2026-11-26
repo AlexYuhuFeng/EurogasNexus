@@ -34,6 +34,10 @@ def desk(tmp_path, monkeypatch):
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
     monkeypatch.setenv("EUROGAS_NEXUS_DEMO_MARKS", "true")
     monkeypatch.setenv("EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED", "true")
+    # Security M10 removed the default provider: a model call now needs an endpoint the
+    # installation has chosen. This test is about the provenance of a running AI use, so it
+    # configures one (the recorded provider fixture still answers, no network).
+    monkeypatch.setenv("EUROGAS_NEXUS_LLM_BASE_URL", "https://model.example/v1")
     engine = create_engine(url)
     Base.metadata.create_all(engine)
     spec = importlib.util.spec_from_file_location("seed_demo_desk", SEED)
