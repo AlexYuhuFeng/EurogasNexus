@@ -101,7 +101,9 @@ def test_a_morning_daily_is_assembled_from_every_section_on_the_demo_desk(env):
     html = report.html
     assert html.count("<h1>") == 1 and "Methodology and sources" in html
     assert "Our book" in html and "Key findings" in html and "At a glance" in html
-    assert "DEMONSTRATION DATA: SIMULATED" in html
+    # Simulated values carry one quiet source mark: the dagger, keyed in the masthead's data line.
+    assert "† simulated source" in html
+    assert "DEMONSTRATION" not in html.upper() and "演示" not in html
 
 
 def test_the_html_is_self_contained(env):
@@ -373,12 +375,15 @@ def test_body_tables_are_edited_and_captions_carry_no_duplicate_unit(daily):
     assert not re.search(r"\(([^()]+)\)\s*\(\1\)", daily.html)
 
 
-def test_classification_and_simulated_mark_are_on_every_page(daily):
+def test_classification_is_on_every_page_and_simulated_is_a_quiet_source_mark(daily):
     css = re.search(r"<style>(.*?)</style>", daily.html).group(1)
     assert '@bottom-left{content:"INTERNAL' in css
     assert 'counter(page) " of " counter(pages)' in css
-    assert "Simulated demonstration data" in css  # the dagger's meaning in every footer
-    assert 'class="r-mark"' in daily.html and "position:fixed" in css
+    # No watermark, banner or repeated footer note: the dagger beside each simulated value is
+    # keyed once in the masthead's data line and once in Methodology.
+    assert 'class="r-mark"' not in daily.html and "demonstration" not in daily.html.lower()
+    assert "† simulated source" in daily.html
+    assert "marks a value from a simulated source" in daily.html
 
 
 def test_a_shareable_report_still_holds_no_book(env):

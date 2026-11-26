@@ -777,8 +777,8 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
     )
 
     for terminal, name, country, hub, regas, entry, fuel, port, sail in (
-        ("demo-gate", "Demo Rotterdam terminal", "NL", "TTF", 1.30, 0.45, 0.9, 120_000, 0.0),
-        ("demo-zee", "Demo Zeebrugge terminal", "BE", "ZTP", 1.10, 0.40, 1.0, 110_000, 0.5),
+        ("demo-gate", "Rotterdam terminal", "NL", "TTF", 1.30, 0.45, 0.9, 120_000, 0.0),
+        ("demo-zee", "Zeebrugge terminal", "BE", "ZTP", 1.10, 0.40, 1.0, 110_000, 0.5),
         ("demo-grain", "Demo Thames terminal", "GB", "NBP", 1.05, 0.30, 0.7, 95_000, 1.5),
     ):
         session.add(
@@ -793,7 +793,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
                 port_costs_per_cargo=port,
                 other_per_mwh=0.0,
                 extra_sailing_days=sail,
-                source_note="Demo figures, not published tariffs.",
+                source_note="Simulated figures, not published tariffs.",
                 updated_by="demo-seed",
                 updated_at_utc=now,
             )
@@ -856,15 +856,15 @@ D1_BOOK = "demo-lng-nwe"
 D1_SOURCE = "DEMO_Sim"
 D1_TERMINALS = (
     # terminal id, name, country, hub, extra sailing days versus the reference voyage
-    ("demo-gate", "Demo Rotterdam terminal", "NL", "TTF", 0.0),
-    ("demo-zee", "Demo Zeebrugge terminal", "BE", "ZTP", 0.5),
-    ("demo-dunk", "Demo Dunkerque terminal", "FR", "PEG", 0.5),
-    ("demo-huelva", "Demo Huelva terminal", "ES", "PVB", -2.5),
+    ("demo-gate", "Rotterdam terminal", "NL", "TTF", 0.0),
+    ("demo-zee", "Zeebrugge terminal", "BE", "ZTP", 0.5),
+    ("demo-dunk", "Dunkerque terminal", "FR", "PEG", 0.5),
+    ("demo-huelva", "Huelva terminal", "ES", "PVB", -2.5),
 )
 D1_CARGOES = ("demo-lng-a", "demo-lng-b", "demo-lng-c")
 D1_SLOTS = ("demo-d1-zee", "demo-d1-gate", "demo-d1-huelva", "demo-d1-dunk")
 D1_OFFERS = ("demo-d1-borrow", "demo-d1-send", "demo-d1-store", "demo-d1-int")
-D1_LABEL = "demo: illustrative, not a published tariff"
+D1_LABEL = "simulated: not a published tariff"
 
 
 def clear_lng_disruption_case(session) -> None:
@@ -898,9 +898,9 @@ def clear_lng_disruption_case(session) -> None:
 def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
     """D1: a late cargo in a small LNG book, with everything the re-optimisation reads.
 
-    Relative to the gas day ``T`` six days ahead: Demo Meridian holds the Zeebrugge slot from
-    ``T`` (10 days, 100 GWh/d) and is due on ``T + 2`` (medium confidence); Demo Halcyon is
-    due at Rotterdam on ``T`` for a slot from ``T + 2``; Demo Solace discharges at Huelva from
+    Relative to the gas day ``T`` six days ahead: Meridian holds the Zeebrugge slot from
+    ``T`` (10 days, 100 GWh/d) and is due on ``T + 2`` (medium confidence); Halcyon is
+    due at Rotterdam on ``T`` for a slot from ``T + 2``; Solace discharges at Huelva from
     ``T - 2`` (20 days at 50 GWh/d) against a firm 45,000 MWh/d delivery; a Dunkerque slot
     from ``T + 4`` is spare; a pipeline supply delivers 30,000 MWh/d at ZTP.
     """
@@ -921,8 +921,8 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
     t = today + timedelta(days=6)
     if session.get(TradingBookRecord, D1_BOOK) is None:
         session.add(TradingBookRecord(
-            book_id=D1_BOOK, name="Demo LNG NWE", legal_entity="NWG-NL", region="europe",
-            business="LNG (demo)", base_currency="EUR", active=True, updated_by="demo-seed",
+            book_id=D1_BOOK, name="LNG NWE", legal_entity="NWG-NL", region="europe",
+            business="LNG", base_currency="EUR", active=True, updated_by="demo-seed",
             updated_at_utc=now,
         ))
     for terminal_id, name, country, hub, sail in D1_TERMINALS:
@@ -931,7 +931,7 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
                 terminal_id=terminal_id, name=name, country=country, hub=hub,
                 regas_tariff_per_mwh=0.0, entry_tariff_per_mwh=0.0, fuel_retention_pct=0.0,
                 port_costs_per_cargo=0.0, other_per_mwh=0.0, extra_sailing_days=sail,
-                source_note="Demo figures, not published tariffs.", updated_by="demo-seed",
+                source_note="Simulated figures, not published tariffs.", updated_by="demo-seed",
                 updated_at_utc=now,
             ))
 
@@ -940,16 +940,16 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
 
     cargoes = (
         # id, vessel, terminal, ETA gas day, confidence, slot
-        ("demo-lng-a", "Demo Meridian", "Demo Zeebrugge terminal", t + timedelta(days=2),
+        ("demo-lng-a", "Meridian", "Zeebrugge terminal", t + timedelta(days=2),
          "medium", "demo-d1-zee"),
-        ("demo-lng-b", "Demo Halcyon", "Demo Rotterdam terminal", t, "high", "demo-d1-gate"),
-        ("demo-lng-c", "Demo Solace", "Demo Huelva terminal", t - timedelta(days=2), "high",
+        ("demo-lng-b", "Halcyon", "Rotterdam terminal", t, "high", "demo-d1-gate"),
+        ("demo-lng-c", "Solace", "Huelva terminal", t - timedelta(days=2), "high",
          "demo-d1-huelva"),
     )
     for cargo_id, vessel, terminal, eta, confidence, _slot in cargoes:
         departed = now - timedelta(days=8)
         session.add(LngCargoRecord(
-            cargo_id=cargo_id, vessel_name=vessel, status="laden", load_port="Demo load port",
+            cargo_id=cargo_id, vessel_name=vessel, status="laden", load_port="Load port",
             departed_at_utc=departed, destination_terminal=terminal,
             eta_utc=start(eta) + timedelta(hours=6), volume_m3=170_000.0, energy_gwh=1_000.0,
             book_id=D1_BOOK, source_system=D1_SOURCE, source_reference="demo:d1-cargo",
@@ -957,18 +957,18 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
             eta_source=D1_SOURCE, eta_recorded_at_utc=now,
         ))
         session.add(LngVoyageTermsRecord(
-            cargo_id=cargo_id, charter_reference=f"demo charter {vessel}", laytime_hours=36.0,
+            cargo_id=cargo_id, charter_reference=f"charter {vessel}", laytime_hours=36.0,
             demurrage_eur_per_day=70_000.0, boil_off_pct_per_day=0.10, diversion_allowed=True,
             diversion_note=None, source_reference=D1_LABEL, updated_at_utc=now,
         ))
     slots = (
         # id, terminal, first gas day, days, GWh/d, cargo
-        ("demo-d1-zee", "Demo Zeebrugge terminal", t, 10, 100.0, "demo-lng-a"),
-        ("demo-d1-gate", "Demo Rotterdam terminal", t + timedelta(days=2), 10, 100.0,
+        ("demo-d1-zee", "Zeebrugge terminal", t, 10, 100.0, "demo-lng-a"),
+        ("demo-d1-gate", "Rotterdam terminal", t + timedelta(days=2), 10, 100.0,
          "demo-lng-b"),
-        ("demo-d1-huelva", "Demo Huelva terminal", t - timedelta(days=2), 20, 50.0,
+        ("demo-d1-huelva", "Huelva terminal", t - timedelta(days=2), 20, 50.0,
          "demo-lng-c"),
-        ("demo-d1-dunk", "Demo Dunkerque terminal", t + timedelta(days=4), 10, 100.0, None),
+        ("demo-d1-dunk", "Dunkerque terminal", t + timedelta(days=4), 10, 100.0, None),
     )
     for slot_id, terminal, first, days, rate, cargo_id in slots:
         session.add(RegasSlotRecord(
@@ -982,7 +982,7 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
         storage_profile="linear_decline", release_value_eur_mwh=0.10,
         source_reference=D1_LABEL, updated_at_utc=now,
     ))
-    zee = "Demo Zeebrugge terminal"
+    zee = "Zeebrugge terminal"
     for offer_id, kind, first, last, price, per_day, total, storage in (
         ("demo-d1-borrow", "borrow", t, t + timedelta(days=1), 0.10, 100_000.0, None, None),
         ("demo-d1-send", "send_out", t, t + timedelta(days=15), 0.15, 50_000.0, None, None),
@@ -994,18 +994,18 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
             offer_id=offer_id, book_id=D1_BOOK, terminal_name=zee, kind=kind,
             first_gas_day=first, last_gas_day=last, price_eur_mwh=price,
             max_mwh_per_day=per_day, max_mwh=total, storage_price_eur_mwh_day=storage,
-            basis="indicative", counterparty="Demo terminal user", source_reference=D1_LABEL,
+            basis="indicative", counterparty="Terminal user", source_reference=D1_LABEL,
             valid_until_utc=None, updated_at_utc=now,
         ))
     session.add(LngDeliveryObligationRecord(
-        obligation_id="demo-d1-iberia", book_id=D1_BOOK, counterparty="Demo Iberia offtaker",
-        contract_id=None, point="Demo Huelva terminal", hub="PVB",
+        obligation_id="demo-d1-iberia", book_id=D1_BOOK, counterparty="Iberia offtaker",
+        contract_id=None, point="Huelva terminal", hub="PVB",
         first_gas_day=t - timedelta(days=2), last_gas_day=t + timedelta(days=17),
         mwh_per_day=45_000.0, firm=True, penalty_eur_mwh=None, source_reference=D1_LABEL,
         updated_at_utc=now,
     ))
     session.add(PipelineSupplyRecord(
-        supply_id="demo-d1-pipe", book_id=D1_BOOK, label="Demo North Sea pipeline (ZTP)",
+        supply_id="demo-d1-pipe", book_id=D1_BOOK, label="North Sea pipeline (ZTP)",
         contract_id=None, hub="ZTP", point="ZTP", first_gas_day=today,
         last_gas_day=today + timedelta(days=60), mwh_per_day=30_000.0, cost_eur_mwh=None,
         curtailed=[], source_system=D1_SOURCE, source_reference=D1_LABEL, updated_at_utc=now,
@@ -1485,7 +1485,7 @@ def seed_demo_gas_day(session, now: datetime) -> dict[str, int]:
     slot_id = f"demo-slot-gate-{tomorrow:%Y%m%d}"
     if session.get(RegasSlotRecord, slot_id) is None:
         session.add(RegasSlotRecord(
-            slot_id=slot_id, terminal_name="Demo Rotterdam terminal", terminal_country="NL",
+            slot_id=slot_id, terminal_name="Rotterdam terminal", terminal_country="NL",
             terminal_lat=None, terminal_lon=None,
             window_start_utc=gas_day_start_for_date(tomorrow),
             window_end_utc=gas_day_start_for_date(tomorrow + timedelta(days=1)),

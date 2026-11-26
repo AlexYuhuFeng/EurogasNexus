@@ -121,7 +121,7 @@ def test_a_pipeline_crossing_has_three_legs_and_simulated_rows_say_so(graph):
     ]
     assert ttf_nbp["status"] == "priced" and ttf_nbp["class"] == "simulated"
     assert [leg["source"] for leg in ttf_nbp["legs"]] == [
-        "simulated (demo)",
+        "simulated",
         "ENTSOG TP",
         "register (administrator)",
     ]

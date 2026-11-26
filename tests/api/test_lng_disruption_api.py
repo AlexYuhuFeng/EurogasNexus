@@ -131,7 +131,7 @@ def test_a_late_cargo_gets_valued_options_a_frontier_and_a_default(tmp_path, mon
     # The Huelva swap breaks the firm daily delivery there.
     iberia = options["swap:demo-lng-c+absorb"]
     assert not iberia["feasible"]
-    assert any("Demo Iberia offtaker" in reason for reason in iberia["reasons"])
+    assert any("Iberia offtaker" in reason for reason in iberia["reasons"])
     # The Rotterdam swap moves a cargo that runs normally: counted and penalised.
     swap = options["swap:demo-lng-b+absorb"]
     assert swap["affects_other_supplies"] == ["demo-lng-b"]
@@ -173,7 +173,7 @@ def test_a_cargo_running_normally_is_as_planned(tmp_path, monkeypatch):
     data = client.get(
         "/api/lng/cargoes/demo-lng-c/disruption-options", headers=who["viewer"]
     ).json()["data"]
-    # Demo Solace is only moved by the (infeasible) swap.
+    # Solace is only moved by the (infeasible) swap.
     assert data["status"] == "affected"
     assert all(not o["feasible"] for o in data["options"])
     unknown = client.get("/api/lng/cargoes/nope/disruption-options", headers=who["viewer"])
@@ -265,7 +265,7 @@ def test_choosing_records_the_decision_audited_and_books_nothing(tmp_path, monke
         assert "(not the default)" in audit.detail
         # Nothing moved: the cargo still holds its slot and ETA.
         assert session.get(LngCargoRecord, "demo-lng-a").destination_terminal == (
-            "Demo Zeebrugge terminal"
+            "Zeebrugge terminal"
         )
     again = client.get(
         "/api/lng/cargoes/demo-lng-a/disruption-options", headers=who["viewer"]
@@ -295,7 +295,7 @@ def test_the_consumer_keeps_a_timeline_and_notifies_once_per_change(tmp_path, mo
         )
         assert result["status"] == "unchanged"
 
-        # A later ETA (two more days) ten minutes on: the swap with Demo Halcyon no longer
+        # A later ETA (two more days) ten minutes on: the swap with Halcyon no longer
         # fits, so the frontier moves (with these flat test prices the default stays): a
         # new run, held back by the cooldown because the recommendation is the same.
         cargo = session.get(LngCargoRecord, "demo-lng-a")

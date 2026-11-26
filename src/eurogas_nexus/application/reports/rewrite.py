@@ -42,7 +42,7 @@ def section_task(section: dict[str, Any]) -> str:
         "Rewrite the lines of one section of a market report as sober report prose for a "
         "gas trader: the most important fact first, then the others. Keep every figure, date "
         "and unit exactly as given; do not add, round or combine figures."
-        + (" Say that the figures are simulated demo data." if section.get("simulated") else "")
+        + (" Name the source once as simulated data." if section.get("simulated") else "")
         + (" Say that the forward figures are a forecast." if section.get("forecast") else "")
     )
 

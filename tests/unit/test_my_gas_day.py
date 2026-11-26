@@ -312,7 +312,7 @@ def _cargo_at_the_slot(engine, eta: datetime) -> str:
         session.add(LngCargoRecord(
             cargo_id="test-cargo-1", vessel_name="Test vessel", status="laden",
             load_port="Sabine Pass", departed_at_utc=NOW - timedelta(days=10),
-            destination_terminal="Demo Rotterdam terminal", eta_utc=eta, energy_gwh=1_000.0,
+            destination_terminal="Rotterdam terminal", eta_utc=eta, energy_gwh=1_000.0,
             book_id="demo-nl-ttf", source_system="ETRM_CSV", source_reference="etrm:test",
             updated_at_utc=NOW,
         ))
