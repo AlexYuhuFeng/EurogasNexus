@@ -5,7 +5,13 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import type { SupplyCorridorDTO } from "../src/api/client.ts";
-import { corridorFlowDay, corridorLabel, corridorLines, corridorWidth } from "../src/app/mapCorridors.ts";
+import {
+  corridorFlowDay,
+  corridorFlowText,
+  corridorLabel,
+  corridorLines,
+  corridorWidth,
+} from "../src/app/mapCorridors.ts";
 
 const t = (key: string, options?: Record<string, unknown>) => (options ? `${key}${JSON.stringify(options)}` : key);
 const corridor = (overrides: Partial<SupplyCorridorDTO>): SupplyCorridorDTO => ({
@@ -26,6 +32,19 @@ test("labels say the flow, out of service since a year, or not published", () =>
   assert.equal(corridorLabel(corridor({ name: "Nord Stream 1", status: "out_of_service", since: "2022-09-01", latest_flow_gwh_d: null }), t), 'Nord Stream 1 · map.corridor.out_since{"year":"2022"}');
   assert.equal(corridorLabel(corridor({ name: "Norpipe", status: "not_published", latest_flow_gwh_d: null }), t), "Norpipe · map.corridor.not_published");
   assert.equal(corridorFlowDay(corridor({})), "2026-11-24");
+});
+
+test("a shared entry point names its point and keeps the figure off the map", () => {
+  const shared = corridor({ shared_entry_point: true, latest_flow_gwh_d: 794 });
+  assert.equal(corridorLabel(shared, t), "Langeled · map.corridor.shared");
+  assert.doesNotMatch(corridorLabel(shared, t), /794/);
+  assert.equal(
+    corridorFlowText(shared, t),
+    'map.corridor.card.shared_flow{"point":"Easington","flow":"794 GWh/d"}',
+  );
+  // An ordinary corridor still shows its own flow in the panel.
+  assert.equal(corridorFlowText(corridor({}), t), "61 GWh/d");
+  assert.equal(corridorFlowText(corridor({ latest_flow_gwh_d: null }), t), "map.corridor.not_published");
 });
 
 test("lines: dashed when schematic, flow width in service, thin grey out of service", () => {

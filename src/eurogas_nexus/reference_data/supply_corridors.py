@@ -88,6 +88,9 @@ class Corridor:
     probe_to: str | None = None
     facts: dict[str, Any] = field(default_factory=dict)
     notes: str | None = None
+    #: The landing point's flow series also carries other gas (e.g. Langeled at Easington,
+    #: which also receives UK shelf gas): the point's whole flow is not this corridor's.
+    shared_entry_point: bool = False
 
 
 def _gassco(slug: str, **facts: Any) -> dict[str, Any]:
@@ -115,6 +118,7 @@ CORRIDORS: tuple[Corridor, ...] = (
             first_gas="2006 (Sleipner - Easington), 2007 (Nyhamna - Sleipner)",
         ),
         notes="Easington also receives UK shelf gas: the entry series is the terminal's.",
+        shared_entry_point=True,
     ),
     Corridor(
         "vesterled", "Vesterled", "norway", "NO", "NO-TSO-0001",
@@ -124,6 +128,7 @@ CORRIDORS: tuple[Corridor, ...] = (
                       diameter_inch="32", first_gas="1976 (as Frigg Norwegian Pipeline)"),
         notes="St Fergus also receives UK shelf gas (FLAGS, SAGE): the entry series is the "
         "terminal's.",
+        shared_entry_point=True,
     ),
     Corridor(
         "europipe-1", "Europipe I", "norway", "NO", "NO-TSO-0001",

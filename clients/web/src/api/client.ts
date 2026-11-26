@@ -5849,6 +5849,8 @@ function definedQuery(query: Record<string, string | number | boolean | undefine
 /** One import supply corridor (GET /api/reference-network/supply-corridors). */
 export interface SupplyCorridorDTO {
   id: string;
+  /** The landing point's flow series also carries other gas: its whole flow is not the corridor's. */
+  shared_entry_point?: boolean;
   name: string;
   group: string;
   source_country: string;
