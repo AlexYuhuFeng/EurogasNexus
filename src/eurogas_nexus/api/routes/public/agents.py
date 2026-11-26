@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Any
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 
 from eurogas_nexus.application.agents.registry import register_builtin_capabilities
@@ -44,6 +44,8 @@ class ResearchRunRequest(BaseModel):
     frozen_strategy_version_id: str | None = Field(default=None, max_length=128)
     period_start_utc: str | None = None
     period_end_utc: str | None = None
+    #: Run the pipeline as a background job and answer with the job at once (202).
+    background: bool = False
 
 
 class PlanValidateRequest(BaseModel):
@@ -207,8 +209,18 @@ def list_agent_profiles(request: Request) -> dict:
 
 
 @router.post("/api/agent/research")
-def run_research(body: ResearchRunRequest, request: Request) -> dict:
+def run_research(
+    body: ResearchRunRequest,
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+) -> dict:
     """Run one governed research pipeline and record it.
+
+    With ``background: true`` the answer (202) is the QUEUED ``AGENT_RUN`` job at once; the
+    pipeline runs after the response and reports its step (plan, analysis, hypothesis,
+    backtest, review) on the job, whose ``agent_run:`` output names the run to open
+    (``GET /api/agent/runs/{agent_run_id}``). Without it the run answers in the request.
 
     The run is filed under an ``agent_profile``, so the profile must be one the runtime declares:
     the catalogue at ``GET /api/agent/profiles`` is the same list this refuses against, and an
@@ -251,62 +263,37 @@ def run_research(body: ResearchRunRequest, request: Request) -> dict:
             },
         )
 
-    from eurogas_nexus.application.agents.research_orchestrator import (
-        GovernedResearchOrchestrator,
-    )
     from eurogas_nexus.application.jobs import track_job
 
     principal = _principal(request)
     run_id = f"agent-run-{uuid4().hex[:20]}"
+    job_spec = {
+        "kind": "AGENT_RUN",
+        "principal": _job_principal(request),
+        "owner_principal_id": _named_job_owner(request),
+        "scope_refs": (f"AGENT_PROFILE:{body.agent_profile}",),
+        "inputs": {
+            "objective": body.objective,
+            "agent_profile": body.agent_profile,
+            "strategy_generation_allowed": bool(body.strategy_generation_allowed),
+            "frozen_strategy_version_id": body.frozen_strategy_version_id or "",
+            "period_start_utc": _iso_or_none(body.period_start_utc),
+            "period_end_utc": _iso_or_none(body.period_end_utc),
+        },
+        "correlation_id": getattr(request.state, "request_id", None),
+        "provenance": ("agent-runtime", "governed-research"),
+    }
     with _session() as session:
-        from eurogas_nexus.db.models import StrategyVersionRecord
-        from eurogas_nexus.db.repositories.strategy_access import (
-            require_named_principal,
-            require_strategy_access,
-        )
-
-        require_named_principal(session, principal.principal_id)
-        if body.frozen_strategy_version_id:
-            version = session.get(StrategyVersionRecord, body.frozen_strategy_version_id)
-            if version is None:
-                raise HTTPException(status_code=404, detail="Strategy version not found")
-            # Research can persist evaluations; a read-share does not grant writes.
-            require_strategy_access(
-                session, version.strategy_id, principal.principal_id, write=True
+        _authorise_research(session, body, principal)
+        if body.background:
+            return _queue_research(
+                session, body, principal, run_id, job_spec, request, response, background_tasks
             )
         # Wave 8: the governed research run registers into the unified job model, in the
         # same session that persists the run's own rows, so the job commits with the work
         # it describes (and is rolled back with it when the run fails).
-        with track_job(
-            session,
-            kind="AGENT_RUN",
-            principal=_job_principal(request),
-            owner_principal_id=_named_job_owner(request),
-            scope_refs=(f"AGENT_PROFILE:{body.agent_profile}",),
-            inputs={
-                "objective": body.objective,
-                "agent_profile": body.agent_profile,
-                "strategy_generation_allowed": bool(body.strategy_generation_allowed),
-                "frozen_strategy_version_id": body.frozen_strategy_version_id or "",
-                "period_start_utc": _iso_or_none(body.period_start_utc),
-                "period_end_utc": _iso_or_none(body.period_end_utc),
-            },
-            correlation_id=getattr(request.state, "request_id", None),
-            provenance=("agent-runtime", "governed-research"),
-        ) as job:
-            orchestrator = GovernedResearchOrchestrator()
-            outcome = orchestrator.run_research(
-                session,
-                run_id=run_id,
-                principal=principal,
-                objective=body.objective,
-                agent_profile=body.agent_profile,
-                strategy_generation_allowed=body.strategy_generation_allowed,
-                strategy_ir_payload=body.strategy_ir,
-                frozen_strategy_version_id=body.frozen_strategy_version_id,
-                period_start_utc=body.period_start_utc,
-                period_end_utc=body.period_end_utc,
-            )
+        with track_job(session, **job_spec) as job:
+            outcome = _run_pipeline(session, body, principal, run_id)
             _record_agent_artifacts(job, run_id, outcome)
         # Commit after the tracker has written the terminal outcome, so the job row and
         # the run rows it describes land in one transaction.
@@ -317,6 +304,117 @@ def run_research(body: ResearchRunRequest, request: Request) -> dict:
         source="agent-runtime",
         warnings=outcome.warnings,
     )
+
+
+#: The steps of a research run, in order, as recorded on its background job, and the
+#: orchestration stages each one covers.
+RESEARCH_STEPS: tuple[tuple[str, frozenset[str]], ...] = (
+    ("research.plan", frozenset({"PLAN_DRAFTED", "PLAN_VALIDATED"})),
+    ("research.analyse", frozenset({"DATA_ANALYSIS"})),
+    (
+        "research.hypothesis",
+        frozenset({"HYPOTHESIS_FORMED", "STRATEGY_SPEC_DRAFTED", "STRATEGY_VALIDATED"}),
+    ),
+    ("research.backtest", frozenset({"BACKTESTED", "ROBUSTNESS_EVALUATED"})),
+    ("research.review", frozenset({"CHALLENGED", "READY_FOR_HUMAN_REVIEW"})),
+)
+
+
+def _research_step(stage) -> tuple[int, str] | None:
+    """The job step an orchestration stage belongs to, or None (BLOCKED, FAILED, ...)."""
+
+    for index, (label, stages) in enumerate(RESEARCH_STEPS, start=1):
+        if str(getattr(stage, "value", stage)) in stages:
+            return index, label
+    return None
+
+
+def _authorise_research(session, body: ResearchRunRequest, principal) -> None:
+    """Refuse an unnamed caller and a frozen version the caller may not write to."""
+
+    from eurogas_nexus.db.models import StrategyVersionRecord
+    from eurogas_nexus.db.repositories.strategy_access import (
+        require_named_principal,
+        require_strategy_access,
+    )
+
+    require_named_principal(session, principal.principal_id)
+    if body.frozen_strategy_version_id:
+        version = session.get(StrategyVersionRecord, body.frozen_strategy_version_id)
+        if version is None:
+            raise HTTPException(status_code=404, detail="Strategy version not found")
+        # Research can persist evaluations; a read-share does not grant writes.
+        require_strategy_access(session, version.strategy_id, principal.principal_id, write=True)
+
+
+def _run_pipeline(session, body: ResearchRunRequest, principal, run_id: str, on_stage=None):
+    from eurogas_nexus.application.agents.research_orchestrator import (
+        GovernedResearchOrchestrator,
+    )
+
+    return GovernedResearchOrchestrator().run_research(
+        session,
+        run_id=run_id,
+        principal=principal,
+        objective=body.objective,
+        agent_profile=body.agent_profile,
+        strategy_generation_allowed=body.strategy_generation_allowed,
+        strategy_ir_payload=body.strategy_ir,
+        frozen_strategy_version_id=body.frozen_strategy_version_id,
+        period_start_utc=body.period_start_utc,
+        period_end_utc=body.period_end_utc,
+        on_stage=on_stage,
+    )
+
+
+def _queue_research(session, body, principal, run_id, job_spec, request, response, tasks):
+    """Create the QUEUED research job, schedule the run, and answer with the job (202)."""
+
+    from eurogas_nexus.application.background_jobs import (
+        JobQueueFull,
+        run_background_job,
+        submit_background_job,
+    )
+    from eurogas_nexus.db.session import get_session_factory
+
+    if job_spec["owner_principal_id"] is None:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "background_job_requires_named_identity",
+                "message": "Background research runs are followed per user; sign in to start one.",
+            },
+        )
+    try:
+        job = submit_background_job(session, **job_spec, steps_total=len(RESEARCH_STEPS))
+    except JobQueueFull as exc:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": exc.code,
+                "message": "You already have three jobs running. Wait for one to finish.",
+            },
+        ) from exc
+    session.commit()
+
+    def work(work_session, progress) -> None:
+        def on_stage(stage) -> None:
+            step = _research_step(stage)
+            if step is not None:
+                progress.step(*step)
+
+        outcome = _run_pipeline(work_session, body, principal, run_id, on_stage=on_stage)
+        _record_agent_artifacts(progress, run_id, outcome)
+
+    tasks.add_task(
+        run_background_job,
+        get_session_factory(),
+        job["job_id"],
+        work,
+        steps_total=len(RESEARCH_STEPS),
+    )
+    response.status_code = 202
+    return _env(job, request, source="job-records")
 
 
 def _job_principal(request: Request) -> str:

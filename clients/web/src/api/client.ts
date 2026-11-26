@@ -1392,6 +1392,17 @@ export interface DecisionCaseDecisionInputDTO {
   note?: string;
 }
 
+/** The request body of `POST /api/agent/research` (see `ResearchRunRequest` on the server). */
+export interface ResearchRunStartDTO {
+  objective: string;
+  agent_profile?: string;
+  strategy_generation_allowed?: boolean;
+  strategy_ir?: Record<string, unknown> | null;
+  frozen_strategy_version_id?: string | null;
+  period_start_utc?: string | null;
+  period_end_utc?: string | null;
+}
+
 /**
  * Unified job record (`GET /api/jobs`). Architecture V2 converges ingestion,
  * dataset builds, optimisation, backtests, reporting and agent work on this one
@@ -1432,6 +1443,14 @@ export interface JobDTO {
   cancellable: boolean;
   correlation_id: string | null;
   provenance: string[];
+  /**
+   * A background job's step: working on `step` of `step_total`, named by `step_label` (a stable
+   * step code, translated as `jobs.step.<label>`). Null for work tracked inside a request; an
+   * older server omits them.
+   */
+  step?: number | null;
+  step_total?: number | null;
+  step_label?: string;
 }
 
 export interface PipelineHealthSourceDTO {
@@ -5886,6 +5905,27 @@ export const api = {
     get<JobDTO>(`/jobs/${encodeURIComponent(jobId)}`, undefined, options),
 
   cancelJob: (jobId: string) => post<JobDTO>(`/jobs/${encodeURIComponent(jobId)}/cancel`, {}),
+
+  /**
+   * Start a dataset build as a background job (`POST /api/research/datasets`, `background`).
+   * The answer is the QUEUED job at once; follow it with `job`/`jobs`. Its `dataset_snapshot:`
+   * output names the stored snapshot. The dataset builder is a deferred capability: a server
+   * that does not serve it answers 404.
+   */
+  startDatasetBuild: (datasetSpec: Record<string, unknown>, snapshotId?: string | null) =>
+    post<JobDTO>("/research/datasets", {
+      dataset_spec: datasetSpec,
+      snapshot_id: snapshotId ?? null,
+      materialize: true,
+      background: true,
+    }),
+
+  /**
+   * Start a governed research run as a background job (202 with the QUEUED job); the run to
+   * open is the job's `agent_run:` output once it succeeded.
+   */
+  startResearchRun: (body: ResearchRunStartDTO) =>
+    post<JobDTO>("/agent/research", { ...body, background: true }),
 
   recordReviewDecision: (body: ReviewDecisionInputDTO) =>
     post<ReviewDecisionDTO>("/review/decisions", body),

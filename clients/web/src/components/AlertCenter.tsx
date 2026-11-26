@@ -21,6 +21,7 @@ import {
 import { WhyButton } from "./WhyButton";
 import { ReportLink } from "./ReportLink";
 import { IconButton } from "./ui/Button";
+import { JobActivityIndicator, JobNotifications } from "./JobNotifications";
 import { Icon } from "@/components/ui/Icon";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -216,6 +217,7 @@ export function AlertCenter({
         <Icon name="alerts" className="alert-trigger-icon" />
         <span>{isChinese ? "告警" : "Alerts"}</span>
         {counts.unread > 0 && <strong>{counts.unread}</strong>}
+        <JobActivityIndicator t={t} />
       </button>
 
       {open && (
@@ -280,6 +282,7 @@ export function AlertCenter({
           )}
 
           <div className="alert-list">
+            <JobNotifications t={t} onNavigate={() => setOpen(false)} />
             {shown.map((group) => {
               const alert = group.lead;
               const expanded = expandedKey === group.key;

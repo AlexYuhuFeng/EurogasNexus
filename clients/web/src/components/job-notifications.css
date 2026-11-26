@@ -1,0 +1,184 @@
+@layer legacy {
+  /* Background work in the notification centre (JobNotifications.tsx). Tokens only. */
+
+  .job-notices {
+    display: grid;
+    gap: var(--ds-space-2);
+    border-bottom: 1px solid var(--ds-border);
+    padding-bottom: var(--ds-space-3);
+  }
+
+  .job-notices-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-2);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-semibold);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .job-notices-list {
+    display: grid;
+    gap: var(--ds-space-2);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .job-notice {
+    display: grid;
+    gap: var(--ds-space-1);
+    min-width: 0;
+    border: 1px solid var(--ds-border);
+    border-left-width: 3px;
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    padding: var(--ds-space-2) var(--ds-space-3);
+  }
+
+  .job-notice.is-running {
+    border-left-color: var(--ds-accent);
+  }
+
+  .job-notice.is-done {
+    border-left-color: var(--ds-status-ok);
+  }
+
+  .job-notice.is-failed {
+    border-left-color: var(--ds-status-breach);
+  }
+
+  .job-notice.is-stopped {
+    border-left-color: var(--ds-border-strong);
+  }
+
+  .job-notice-heading {
+    display: flex;
+    min-width: 0;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: var(--ds-space-2);
+  }
+
+  .job-notice-heading strong {
+    overflow: hidden;
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-semibold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .job-notice-status {
+    flex: none;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  .job-notice.is-failed .job-notice-status {
+    color: var(--ds-status-breach);
+  }
+
+  .job-notice.is-done .job-notice-status {
+    color: var(--ds-status-ok);
+  }
+
+  .job-notice-detail,
+  .job-notice-hint {
+    margin: 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  .job-notice-hint {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+  }
+
+  .job-notice-bar {
+    position: relative;
+    height: var(--ds-space-1);
+    overflow: hidden;
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-surface-3);
+  }
+
+  .job-notice-bar > span {
+    position: absolute;
+    inset: 0 auto 0 0;
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-accent);
+  }
+
+  .job-notice-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+  }
+
+  .job-notice-actions:empty {
+    display: none;
+  }
+
+  .job-notice-open {
+    color: var(--ds-accent);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-medium);
+  }
+
+  /* The mark beside the alerts trigger. */
+  .job-activity {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-1);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .job-activity-ring {
+    width: var(--ds-space-3);
+    height: var(--ds-space-3);
+    border: 2px solid var(--ds-surface-3);
+    border-top-color: var(--ds-accent);
+    border-radius: var(--ds-radius-pill);
+  }
+
+  .job-activity-dot {
+    width: var(--ds-space-2);
+    height: var(--ds-space-2);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-status-ok);
+  }
+
+  .job-activity.has-failed .job-activity-dot {
+    background: var(--ds-status-breach);
+  }
+
+  [data-width-class="compact"] .job-activity-text {
+    display: none;
+  }
+
+  @media (prefers-reduced-motion: no-preference) {
+    .job-notice-bar > span {
+      transition: width var(--ds-duration-slow) var(--ds-ease-out);
+    }
+
+    .job-activity-ring {
+      /* One turn every four slow beats (about a second), from the duration tokens. */
+      animation: job-activity-spin calc(var(--ds-duration-slow) * 4) linear infinite;
+    }
+  }
+
+  @keyframes job-activity-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+}

@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import UTC
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from pydantic import BaseModel, Field, ValidationError
 
 from eurogas_nexus.application.research_registry import DatasetRegistryError
@@ -45,6 +45,8 @@ class DatasetMaterializeRequest(BaseModel):
     dataset_spec: dict[str, Any]
     snapshot_id: str | None = Field(default=None, max_length=128)
     materialize: bool = True
+    #: Run the build as a background job and answer with the job at once (202).
+    background: bool = False
 
 
 class DatasetExportRequest(BaseModel):
@@ -414,8 +416,21 @@ def list_datasets(request: Request) -> dict:
 
 
 @router.post("/api/research/datasets")
-def materialize_dataset(body: DatasetMaterializeRequest, request: Request) -> dict:
-    """Build and persist one immutable point-in-time dataset snapshot."""
+def materialize_dataset(
+    body: DatasetMaterializeRequest,
+    request: Request,
+    response: Response,
+    background_tasks: BackgroundTasks,
+) -> dict:
+    """Build and persist one immutable point-in-time dataset snapshot.
+
+    With ``background: true`` the build runs as a background job: the answer (202) is the
+    QUEUED job at once, the build runs after the response, and the user follows it in
+    ``GET /api/jobs/{job_id}`` (step x of 6, then the ``dataset_snapshot:`` output, or a
+    stable code and a reason). A background build always materializes, since its rows are
+    read back from the stored snapshot. Without it the build answers in the request, as
+    before.
+    """
 
     if not _db_configured():
         raise HTTPException(
@@ -426,79 +441,30 @@ def materialize_dataset(body: DatasetMaterializeRequest, request: Request) -> di
         spec = DatasetSpec.model_validate(body.dataset_spec)
     except ValidationError as exc:
         raise _dataset_spec_error(exc) from None
+    job_spec = {
+        "kind": "DATASET_BUILD",
+        "principal": principal.name,
+        "owner_principal_id": (
+            principal.principal_id if ":" not in principal.principal_id else None
+        ),
+        "scope_refs": (f"SNAPSHOT:{body.snapshot_id}",) if body.snapshot_id else (),
+        "snapshot_id": body.snapshot_id,
+        "inputs": body.dataset_spec,
+        "correlation_id": getattr(request.state, "request_id", None),
+        "provenance": ("research-datasets",),
+    }
+    if body.background:
+        return _queue_dataset_build(
+            body, spec, principal, job_spec, request, response, background_tasks
+        )
     with _session() as session:
         # Architecture V2 Wave 8: a dataset build is tracked under the shared job
         # lifecycle, so its outcome is visible in /api/jobs together with the
         # artefacts it produced and a stable code when it fails.
         from eurogas_nexus.application.jobs import track_job
 
-        with track_job(
-            session,
-            kind="DATASET_BUILD",
-            principal=principal.name,
-            owner_principal_id=(
-                principal.principal_id if ":" not in principal.principal_id else None
-            ),
-            scope_refs=(f"SNAPSHOT:{body.snapshot_id}",) if body.snapshot_id else (),
-            snapshot_id=body.snapshot_id,
-            inputs=body.dataset_spec,
-            correlation_id=getattr(request.state, "request_id", None),
-            provenance=("research-datasets",),
-        ) as job:
-            try:
-                result, dependency_rows, issue_rows = _build_from_runtime(
-                    session, spec, snapshot_id=body.snapshot_id, principal=principal
-                )
-            except HTTPException:
-                raise
-            except DatasetRegistryError as exc:
-                raise _registry_error(exc) from exc
-            except (KeyError, TypeError, ValueError) as exc:
-                raise _dataset_build_error() from exc
-            if body.materialize:
-                # SQLAlchemy is imported here rather than at module scope: a contract test
-                # asserts that importing the API does not import the database layer, so a
-                # top-level `from sqlalchemy.exc import IntegrityError` would couple them.
-                from sqlalchemy.exc import IntegrityError
-
-                from eurogas_nexus.application import research_artifacts
-                from eurogas_nexus.db.repositories.research import (
-                    DatasetSnapshotConflict,
-                    persist_dataset_snapshot,
-                )
-
-                try:
-                    # CR14-ARTIFACT-001: materialize the format-specific artifacts
-                    # this deployment can produce before persisting the snapshot, so
-                    # a snapshot can never reference an artifact that was not
-                    # written, and an unusable store fails closed.
-                    artifacts = research_artifacts.write_dataset_artifacts(result)
-                except research_artifacts.ArtifactStoreUnavailable as exc:
-                    raise _artifact_store_error(exc.detail) from exc
-                try:
-                    _, created = persist_dataset_snapshot(
-                        session,
-                        metadata=result.as_metadata(),
-                        dependencies=dependency_rows,
-                        issues=issue_rows,
-                        artifacts=artifacts,
-                    )
-                except DatasetSnapshotConflict as exc:
-                    # The id already describes different content. Rolling back keeps the
-                    # session usable and the message names the conflict rather than
-                    # surfacing a driver error.
-                    session.rollback()
-                    raise _snapshot_conflict_error(str(exc)) from exc
-                except IntegrityError as exc:
-                    # A unique violation that slipped past the existence check, for
-                    # instance two builds racing on the same content. Previously this
-                    # escaped as an unhandled 500 with no structured issues, which is the
-                    # defect the review recorded.
-                    session.rollback()
-                    raise _snapshot_conflict_error(_integrity_detail(exc)) from exc
-                job.add_output(f"dataset_snapshot:{result.dataset_snapshot_id}")
-                if not created:
-                    job.add_output("dataset_snapshot_reused:true")
+        with track_job(session, **job_spec) as job:
+            result = _materialize(session, spec, body, principal, job)
         # The tracked outcome commits with the work it describes; a validate-only
         # build persists nothing but its job record.
         session.commit()
@@ -514,6 +480,172 @@ def materialize_dataset(body: DatasetMaterializeRequest, request: Request) -> di
         source="runtime-postgresql",
         warnings=result.warnings,
     )
+
+
+#: The steps of a dataset build, in order, as recorded on its background job.
+DATASET_BUILD_STEPS: tuple[str, ...] = (
+    "dataset.resolve",
+    "dataset.read_prices",
+    "dataset.read_fundamentals",
+    "dataset.compute",
+    "dataset.write_files",
+    "dataset.save_snapshot",
+)
+
+
+def _queue_dataset_build(body, spec, principal, job_spec, request, response, background_tasks):
+    """Create the QUEUED build job, schedule the build, and answer with the job (202)."""
+
+    from eurogas_nexus.application.background_jobs import (
+        JobQueueFull,
+        run_background_job,
+        submit_background_job,
+    )
+    from eurogas_nexus.db.session import get_session_factory
+
+    if not body.materialize:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "error": "background_requires_materialize",
+                "message": "A background build stores its snapshot; set materialize to true.",
+            },
+        )
+    if job_spec["owner_principal_id"] is None:
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "background_job_requires_named_identity",
+                "message": "Background builds are followed per user; sign in to start one.",
+            },
+        )
+    factory = get_session_factory()
+    with factory() as session:
+        try:
+            job = submit_background_job(
+                session,
+                **job_spec,
+                steps_total=len(DATASET_BUILD_STEPS),
+            )
+        except JobQueueFull as exc:
+            raise HTTPException(
+                status_code=429,
+                detail={
+                    "error": exc.code,
+                    "message": "You already have three jobs running. Wait for one to finish.",
+                },
+            ) from exc
+        session.commit()
+
+    def work(work_session, progress) -> None:
+        _materialize_in_background(work_session, spec, body, principal, progress)
+
+    background_tasks.add_task(
+        run_background_job, factory, job["job_id"], work, steps_total=len(DATASET_BUILD_STEPS)
+    )
+    response.status_code = 202
+    return _env(job, request, source="job-records")
+
+
+def _materialize_in_background(session, spec, body, principal, progress) -> None:
+    """Run one build for a background job, turning refusals into a code and a reason."""
+
+    from eurogas_nexus.application.background_jobs import BackgroundJobFailure
+
+    def step(name: str) -> None:
+        progress.step(DATASET_BUILD_STEPS.index(name) + 1, name)
+
+    try:
+        _materialize(session, spec, body, principal, progress, step=step)
+    except HTTPException as exc:
+        code, reason = _failure_reason(exc)
+        raise BackgroundJobFailure(code, reason, retryable=exc.status_code >= 500) from exc
+
+
+def _failure_reason(exc: HTTPException) -> tuple[str, str]:
+    """The stable code and plain reason of a refused build, for the job record."""
+
+    detail = exc.detail
+    if isinstance(detail, dict):
+        code = str(detail.get("error") or detail.get("code") or "dataset_build_failed")
+        reason = str(detail.get("message") or "The dataset could not be built.")
+        issues = detail.get("issues")
+        if isinstance(issues, list) and issues and isinstance(issues[0], dict):
+            first = issues[0]
+            reason = f"{reason} {first.get('field', '')}: {first.get('message', '')}".strip()
+        return code, reason[:500]
+    if exc.status_code == 422:
+        return "dataset_no_observations", str(detail)[:500]
+    return "dataset_build_failed", str(detail or "The dataset could not be built.")[:500]
+
+
+def _materialize(session, spec, body, principal, job, *, step=None):
+    """Build one dataset and, when asked, write its files and persist the snapshot.
+
+    ``job`` records the artefacts (a request-scoped job handle or a background job's
+    progress); ``step`` reports each named step of :data:`DATASET_BUILD_STEPS`. Raises the
+    route's HTTP refusals; never commits.
+    """
+
+    try:
+        result, dependency_rows, issue_rows = _build_from_runtime(
+            session, spec, snapshot_id=body.snapshot_id, principal=principal, step=step
+        )
+    except HTTPException:
+        raise
+    except DatasetRegistryError as exc:
+        raise _registry_error(exc) from exc
+    except (KeyError, TypeError, ValueError) as exc:
+        raise _dataset_build_error() from exc
+    if body.materialize:
+        # SQLAlchemy is imported here rather than at module scope: a contract test
+        # asserts that importing the API does not import the database layer, so a
+        # top-level `from sqlalchemy.exc import IntegrityError` would couple them.
+        from sqlalchemy.exc import IntegrityError
+
+        from eurogas_nexus.application import research_artifacts
+        from eurogas_nexus.db.repositories.research import (
+            DatasetSnapshotConflict,
+            persist_dataset_snapshot,
+        )
+
+        if step is not None:
+            step("dataset.write_files")
+        try:
+            # CR14-ARTIFACT-001: materialize the format-specific artifacts
+            # this deployment can produce before persisting the snapshot, so
+            # a snapshot can never reference an artifact that was not
+            # written, and an unusable store fails closed.
+            artifacts = research_artifacts.write_dataset_artifacts(result)
+        except research_artifacts.ArtifactStoreUnavailable as exc:
+            raise _artifact_store_error(exc.detail) from exc
+        if step is not None:
+            step("dataset.save_snapshot")
+        try:
+            _, created = persist_dataset_snapshot(
+                session,
+                metadata=result.as_metadata(),
+                dependencies=dependency_rows,
+                issues=issue_rows,
+                artifacts=artifacts,
+            )
+        except DatasetSnapshotConflict as exc:
+            # The id already describes different content. Rolling back keeps the
+            # session usable and the message names the conflict rather than
+            # surfacing a driver error.
+            session.rollback()
+            raise _snapshot_conflict_error(str(exc)) from exc
+        except IntegrityError as exc:
+            # A unique violation that slipped past the existence check, for
+            # instance two builds racing on the same content. Previously this
+            # escaped as an unhandled 500 with no structured issues, which is the
+            # defect the review recorded.
+            session.rollback()
+            raise _snapshot_conflict_error(_integrity_detail(exc)) from exc
+        job.add_output(f"dataset_snapshot:{result.dataset_snapshot_id}")
+        if not created:
+            job.add_output("dataset_snapshot_reused:true")
+    return result
 
 
 @router.get("/api/research/datasets/{dataset_snapshot_id}")
@@ -670,6 +802,7 @@ def _build_from_runtime(
     *,
     snapshot_id: str | None = None,
     principal: AuthenticatedPrincipal | None = None,
+    step=None,
 ) -> tuple[DatasetBuildResult, list[dict[str, str]], list[dict[str, str]]]:
     """Build one snapshot from runtime observation tables.
 
@@ -694,6 +827,11 @@ def _build_from_runtime(
         canonical_entity_id,
     )
 
+    def report(name: str) -> None:
+        if step is not None:
+            step(name)
+
+    report("dataset.resolve")
     principal = principal or legacy_public_token_principal()
     resolution = require_dataset_registry(session, spec)
     authorized_sources = authorized_source_definitions(principal, spec.source_restrictions)
@@ -719,6 +857,7 @@ def _build_from_runtime(
         )
     requested_entity_ids = set(resolution.entity_ids)
 
+    report("dataset.read_prices")
     records: list[DatasetEvidenceRecord] = []
     history_start = spec.start - spec.history_lookback
     market_query = (
@@ -796,6 +935,7 @@ def _build_from_runtime(
     # Fundamentals beyond prices: power (ENTSO-E), storage (AGSI), LNG (ALSI) and flows
     # (ENTSOG). Only the series the requested features depend on are read, so a dataset over
     # one storage site does not scan every flow point in Europe.
+    report("dataset.read_fundamentals")
     needed = {
         series_id for feature in features.values() for series_id in feature.input_dependencies
     }
@@ -817,6 +957,7 @@ def _build_from_runtime(
 
     from eurogas_nexus.domain.research.datasets import build_dataset
 
+    report("dataset.compute")
     result = build_dataset(
         spec,
         records,

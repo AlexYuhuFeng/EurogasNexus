@@ -8,6 +8,7 @@ no provider is configured.
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
@@ -117,7 +118,15 @@ class GovernedResearchOrchestrator:
         frozen_strategy_version_id: str | None = None,
         period_start_utc: str | None = None,
         period_end_utc: str | None = None,
+        on_stage: Callable[[OrchestrationStage], None] | None = None,
     ) -> OrchestrationOutcome:
+        """Run one governed research pipeline in ``session`` (never committed here).
+
+        ``on_stage`` is told each stage the run enters, so a background job can report its step;
+        whatever it raises (a cancellation) propagates and the caller rolls the run back.
+        """
+
+        self._on_stage = on_stage
         outcome = OrchestrationOutcome(run_id)
         # GOV-1: capability calls in a research run are made by the agent, so the register's
         # allowlist for the research use and the caller's roles applies to each.
@@ -511,6 +520,9 @@ class GovernedResearchOrchestrator:
         outcome.stage = stage
         outcome.status = status
         outcome.note_stage(stage)
+        on_stage = getattr(self, "_on_stage", None)
+        if on_stage is not None:
+            on_stage(stage)
 
     def _safe_input_summary(self, arguments):
         return {
