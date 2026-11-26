@@ -149,6 +149,31 @@ test("the top bar carries no trading context; the trading pages set it in their 
   assert.match(css, /\.cockpit-app \.app-header\.workspace-topbar-page \{\s*display: flex;/);
 });
 
+test("the search collapses to its icon at compact width on the shell's breakpoint", () => {
+  const bar = readWebSource("components/WorkspaceTopBar.tsx");
+  const topbar = readWebSource("components/WorkspaceTopBar.css");
+  const app = readWebSource("styles/app.css");
+  const design = readWebSource("styles/design-system.css");
+
+  // The label is not rendered at compact width (COMPACT_MAX_PX = 719): only the magnifier,
+  // whose name stays on aria-label, so it cannot crowd the alerts chip.
+  assert.match(bar, /\{!compact && \(\s*<span className="topbar-command-label"/);
+  assert.match(design, /@media \(max-width: 719px\) \{[\s\S]*?topbar-command-label\s*\{\s*display: none;/);
+
+  // The top bar's phone layout and its popovers switch at 719, the shell's own breakpoint.
+  assert.equal(/@media \(max-width: 900px\)/.test(topbar), false);
+  assert.match(topbar, /@media \(max-width: 719px\)/);
+  for (const stale of [
+    "@media (max-width: 900px) {\n  .topbar-search,",
+    "@media (max-width: 900px) {\n  .cockpit-app .workspace-topbar-only",
+    "@media (max-width: 900px) {\n  .cockpit-app .cockpit-topbar > *",
+    "@media (max-width: 900px) {\n  .workspace-menu {",
+  ]) {
+    assert.equal(app.includes(stale), false, stale);
+  }
+  assert.match(app, /@media \(max-width: 719px\) \{\s*\.cockpit-app \.workspace-topbar-only\.has-map-search/);
+});
+
 test("the top bar shows who is signed in once, on the account menu", () => {
   const bar = readWebSource("components/WorkspaceTopBar.tsx");
   const menu = readWebSource("components/HeaderPreferencesMenu.tsx");

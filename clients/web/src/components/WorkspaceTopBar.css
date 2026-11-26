@@ -69,7 +69,9 @@
   box-shadow: inset 3px 0 0 var(--ds-ink);
 }
 
-@media (max-width: 900px) {
+/* The shell's compact breakpoint (COMPACT_MAX_PX = 719, app/shell/useShellLayout.ts), so the
+   top-bar popovers switch to their phone layout with the bar itself. */
+@media (max-width: 719px) {
   .workspace-menu {
     top: 68px;
     left: 12px;
@@ -161,7 +163,7 @@
   white-space: nowrap;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 719px) {
   .topbar-account-name {
     display: none;
   }
@@ -681,7 +683,7 @@
   color: var(--ds-text-1);
 }
 
-@media (max-width: 900px) {
+@media (max-width: 719px) {
   .alert-drawer {
     top: 68px;
     right: 12px;
