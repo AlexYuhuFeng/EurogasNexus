@@ -30,6 +30,7 @@ Phase 0 work (baseline, audit, these documents). Status is kept in
 | MAP-1 | The map: terminals and storage from published capacity, LNG carriers with tracks and ETAs, animated flows, page transitions; real or labelled data only | 5, 9 | No | **Built, tested** (MAP1-1 to MAP1-6 met; additive fields on the map read, no route or migration; frame rate in a browser and page-to-page transitions not yet done) |
 | NEWS-1 | News, policy and geopolitical events into analysis, cited and grounded under GOV-1's AI controls | 8 | No (public sources) | **Built, tested** (NEWS1-1 to NEWS1-11 met; migration `0084_news_items` after SCHED-1's `0085`; ADR Decision 35; feed addresses for the Commission, EUR-Lex and ACER await the owner) |
 | SCHED-1 | Nominations: explain mismatches between trades, confirmations and nominations (read only; nothing sent) | 5 | No | **Built, tested** (SCHED1-1 to SCHED1-8 met; one read `GET /api/desk/gas-day/{gas_day}/reconciliation`; migration `0085_sched1_nomination_matching`, columns only, no ADR) |
+| CODEX-1 | Review of the Codex assessments on agents and on data storage and processing ([18](18_CODEX_ASSESSMENT_REVIEW.md)): capability runtime controls (refusals traced, output hash and shape checked, timeout overrun reported, quality not assumed, confirmation by a signed-in person only and audited), the agents route fails closed, a versioned market change envelope for a later transport; broker, new datastores and live model routing listed for the owner | 8, 10 | No | **Built, tested** (CODEX1-1 to CODEX1-6 met; no route, no migration, no ADR) |
 | UX-2 | Personal workspaces from a governed component catalogue, "make me a view", command palette finds instruments, cargoes and vessels | 9, 12 | No | After UX-1 and GOV-1 |
 | LOOP-1 | Improvement loop tooling: feedback lifecycle and thread with the requester, change specification template, repository map, triage | 12 | No | After UX-2 |
 | M8 | Take-or-pay: ACQ, make-up, carry-forward and shortfall exposure on contracts, with events on change | 5 | No | Planned |
@@ -65,6 +66,7 @@ they overlap. Each one is mapped to a single slice above so nothing is built twi
 | News, policy and geopolitics, cited, no hallucination | NEWS-1 |
 | Deployment | M12, dropped; the owner deploys later |
 | Branch hygiene | Main plus one development branch |
+| Review the Codex assessments on agents and big data; build what is valid (2026-11-25) | CODEX-1 ([18](18_CODEX_ASSESSMENT_REVIEW.md)); data sizing in doc 19 |
 
 ## Order and reasoning
 

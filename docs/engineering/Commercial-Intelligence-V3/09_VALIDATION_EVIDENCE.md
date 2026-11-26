@@ -376,6 +376,28 @@ The engine is about 2 ms per option (112 options in 0.22 s; the 256 cap about 0.
 | Markdown links | `python scripts/ci/check_markdown_links.py` | All local links resolve |
 | Web | `npx tsc --noEmit -p .`; `npm test` (in `clients/web`) | clean; 1,394 tests, 1,391 passed, 3 skipped, 0 failed (5 new in `disruptionOptionsModel.test.ts`); token lint 43 of 44 stylesheets clean, baseline unchanged |
 
+## CODEX-1 the Codex assessments reviewed (2026-11-25, branch `wip/codex-review`)
+
+Verdicts in [18](18_CODEX_ASSESSMENT_REVIEW.md). Codex's own measurements on the research
+branch, quoted and not re-run here (no model was called): the evidence-gated workflow costs
+about 74 µs at the median over direct engine calls (92.34 µs against 18.09 µs, 3,000
+iterations); the follow-up planner on two local models found a feasible follow-up in 3 of 9
+cases, as fixed order did, against 9 of 9 for a deterministic purpose rule, at 1,157 ms and
+2,254 ms median.
+
+| Run | Command | Result |
+| --- | --- | --- |
+| CODEX-1 tests | `pytest tests/unit/test_codex1_runtime_controls.py tests/streaming tests/api/test_capability_invocation_api.py tests/api/test_agents_api.py tests/evals/test_agent_evals.py` | all passed (15 new runtime cases, 11 new streaming cases, 4 new agent-evaluation tests, 2 new route cases) |
+| AI gate | `python scripts/ai/ai_gate.py` | passes; `agent_research` and `mcp_tools` re-recorded for the evaluation set (33 cases; prompts and fingerprints unchanged) |
+| Evaluations | `pytest tests/evals` | 253 passed |
+| Contract, docs and streaming (census 303 paths / 338 operations, unchanged) | `pytest tests/contract tests/docs tests/streaming` | 619 passed, 12 skipped |
+| Full serial run | `pytest tests/unit tests/domain tests/security tests/evals tests/db tests/sdk tests/release tests/integration tests/api` | 6,263 passed, 253 skipped (PostgreSQL and other preconditions), 0 failed |
+| Lint | `ruff check src tests scripts alembic` | All checks passed |
+| Markdown links | `python scripts/ci/check_markdown_links.py` | All local links resolve |
+
+No migration and no storage were added, so no PostgreSQL run was needed; the web client is
+unchanged.
+
 ## Not yet evidenced
 
 - NEWS-1 live feeds: no feed was read live (no outbound network in the build environment);

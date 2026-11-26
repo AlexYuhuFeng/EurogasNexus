@@ -6,6 +6,28 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-25 — Commercial Intelligence V3, CODEX-1: the Codex assessments reviewed (branch `wip/codex-review`)
+
+- Reviewed `research/agentic-decision-architecture` (five Codex commits on `main@6d21b89`) against
+  the innovation branch; verdicts and the list for the owner in
+  [18](Commercial-Intelligence-V3/18_CODEX_ASSESSMENT_REVIEW.md). The research branch is unchanged.
+- `application/agents/runtime.py`: every result, refusals included, carries capability, version,
+  principal, agent run and argument hash; a success carries `output_hash` and is refused when it
+  breaks its declared `output_schema`; `TIMEOUT_OVERRUN` when a handler runs past its
+  `timeout_policy`; a `HUMAN_CONFIRMATION` capability runs only on a signed-in person's own
+  confirmation (not a model, the deployment token or a service account); confirmations and
+  writing calls audited (`governance.agent_capability`). `CapabilityResult` quality defaults to
+  `NOT_ASSESSED`. `AgentInvocationContext.principal_type` (default `SERVICE`).
+- `api/routes/public/agents.py`: no identity is 401, not a wildcard analyst.
+- `streaming/contracts.py`: `MarketChangeV1`, the versioned wire form of a DATA-1 change digest
+  (key `event_key`; unknown versions and extra fields refused). No broker or dependency. The
+  research branch's `IngestionInvalidationV1` is not built (the outbox already records
+  `source.ingested`).
+- AI gate: AGENT-EVAL-031 to 033; `agent_research` and `mcp_tools` re-recorded (set hash, cases).
+- No route, migration, ADR or census change (303 paths / 338 operations).
+  Not built, for the owner: a broker, TimescaleDB, pgvector, Iceberg, Temporal, live model
+  routing, MCP delegated identity (C8).
+
 ## 2026-11-25 — Commercial Intelligence V3, LNG-3: a disruption re-optimises the portfolio (branch `wip/lng3`)
 
 - `domain/lng/disruption.py` (pure, deterministic, no solver): a late cargo or a curtailed

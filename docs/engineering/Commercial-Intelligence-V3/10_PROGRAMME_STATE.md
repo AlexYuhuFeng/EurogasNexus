@@ -38,6 +38,7 @@ nothing merged, no tag, no release package)
 | SCHED-1 Nominations: why trades, confirmations and nominations disagree | Built and tested; SCHED1-1 to SCHED1-8 met ([06](06_ACCEPTANCE_CRITERIA.md)): per gas day, hub and counterparty traded, confirmed, nominated and TSO-matched quantities; eleven break kinds explained with their arithmetic and next step, ordered by cut-off and MWh at risk with an indicative cash-out; alerts in `nomination`, withdrawn when fixed; Today's Reconciliation row and What needs me; demo case R1. Read only, nothing sent. Not yet: shipper-code reference data (codes come from the scheduling file), a TSO confirmation feed (imported, not received) |
 | NEWS-1 News and events in the analysis | Built and tested; NEWS1-1 to NEWS1-11 met ([06](06_ACCEPTANCE_CRITERIA.md)): a source registry with quoted terms (REMIT messages held, GOV.UK DESNZ feed polled; the Commission, EUR-Lex and ACER terms read, feed addresses not yet recorded; licensed and forbidden sources excluded), deterministic tags, a link from an item to a held outage that re-evaluates opportunities, role routing with dedupe and cooldown, the AI use `news_note` with a sentence-by-sentence grounding check and its evaluation set, three additive reads and the Desk → Today panel |
 | LNG-3 A disruption re-optimises the portfolio | Built and tested; LNG3-1 to LNG3-8 met ([06](06_ACCEPTANCE_CRITERIA.md)); design, sources and limits in [17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md); migration `0086_lng_disruption`, ADR Decision 36; latency in [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) sections 2 and 8 |
+| CODEX-1 The Codex assessments on agents and big data | Reviewed and the valid, contained proposals built (`wip/codex-review`); CODEX1-1 to CODEX1-6 met ([06](06_ACCEPTANCE_CRITERIA.md)); verdicts and the list for the owner in [18](18_CODEX_ASSESSMENT_REVIEW.md); no route, migration or ADR; data sizing in doc 19 |
 | UX-1, UX-2, LOOP-1, M8 to M11, M13 | Planned, in the order of [05](05_IMPLEMENTATION_ROADMAP.md) |
 | M12 Hosted pilot | Dropped by the user on 2026-11-24 (deployment later, outside this programme) |
 
@@ -76,6 +77,9 @@ nothing merged, no tag, no release package)
 | `c88ab8f` | LNG-3 owner scenario through the store on SQLite and PostgreSQL; demo D1 planted test |
 | `b1ecc82` | LNG-3 web Options section with a Choose that only records |
 | (this commit) | LNG-3 documents and evidence |
+| `b3881e9` | CODEX-1 capability runtime controls from the Codex agentisation review (`wip/codex-review`) |
+| `531b2e0` | CODEX-1 versioned market change wire contract for a later transport |
+| (this commit) | CODEX-1 documents (18) and evidence |
 
 ## What M5 built
 
