@@ -355,3 +355,36 @@ def test_simulated_is_said_once_when_every_price_and_mark_is_simulated():
     assert _all_simulated(prices + real_inputs)
     assert not _all_simulated([*prices, item("spread.NBP.TTF", False)])  # genuinely mixed prices
     assert not _all_simulated(real_inputs)  # no prices at all: nothing to say
+
+
+
+def test_the_ladder_marks_the_front_month_at_the_month_ahead_close(desk):
+    """One number: every hub's curve front month is its newest month-ahead close, and the
+    ladder marks at that curve (not at a seasonal shape of its own); for TTF it is the price
+    Today shows."""
+
+    from datetime import date
+
+    from eurogas_nexus.application.position_inputs import ladder_inputs
+    from eurogas_nexus.db.models import MarketObservationRecord
+
+    caller = _principal("DEMO", "BOOKS:*")
+    prices = {item["hub"]: item for item in _today(desk, caller)["rows"][0]["prices"]}
+    today = NOW.date()
+    inputs = ladder_inputs(caller, today, today.replace(day=1), date(2029, 12, 1))
+    with Session(desk) as session:
+        closes = {}
+        for row in (session.query(MarketObservationRecord)
+                    .filter_by(source_reference="demo:history")
+                    .order_by(MarketObservationRecord.observed_at_utc)):
+            closes[row.metadata_json["hub"]] = row.price
+    for hub in ("TTF", "NBP", "THE", "PEG", "ZTP"):
+        curve = {point.month: point.price for point in inputs.curve.points if point.hub == hub}
+        assert curve["2026-12"] == pytest.approx(closes[hub], abs=1e-6), hub
+        assert inputs.marks[(hub, "2026-12")] == pytest.approx(curve["2026-12"], abs=1e-6), hub
+        # A seasonal term structure, not one year repeated: winter over summer, January the
+        # peak, and no two Decembers alike (the month-on-month drift, QA-T-02).
+        assert curve["2027-01"] > curve["2026-12"] > curve["2027-07"], hub
+        assert len({curve["2026-12"], curve["2027-12"], curve["2028-12"], curve["2029-12"]}) == 4
+    # TTF, the arbitrage band's reference, is quoted on the board at its close: Today agrees.
+    assert inputs.marks[("TTF", "2026-12")] == pytest.approx(prices["TTF"]["value"], abs=1e-3)

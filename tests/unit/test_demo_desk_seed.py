@@ -797,3 +797,43 @@ def test_curve_months_a_year_apart_are_not_the_same_price(session):
     assert seed._forward_curve_price("TTF", seeded_at.date(), 3) == seed._forward_curve_price(
         "TTF", seeded_at.date(), 3
     )
+
+
+def _newest_curve(session, hub):
+    newest = (
+        session.query(MarketObservationRecord.observed_at_utc)
+        .filter_by(source_reference="demo:curve")
+        .order_by(MarketObservationRecord.observed_at_utc.desc())
+        .first()[0]
+    )
+    return {
+        row.period_start_utc.date(): row.price
+        for row in session.query(MarketObservationRecord).filter_by(
+            source_reference="demo:curve", observed_at_utc=newest
+        )
+        if row.metadata_json["hub"] == hub
+    }
+
+
+def test_the_curve_is_anchored_to_the_newest_month_ahead_close(session):
+    """Every hub's curve front month is its newest month-ahead close: on the seed, after a
+    daily roll-forward and after one across a month turn."""
+
+    seed = _load()
+    seeded_at = datetime(2026, 11, 25, 9, tzinfo=UTC)
+    seed.seed(session, seeded_at, history_days=20)
+    session.commit()
+    for now in (seeded_at, datetime(2026, 11, 26, 9, tzinfo=UTC),
+                datetime(2026, 12, 3, 9, tzinfo=UTC)):
+        if now != seeded_at:
+            seed.roll_forward(session, now)
+            session.commit()
+        for hub, _currency in seed.DEMO_PRICE_HUBS:
+            close = seed._last_history(session, hub)
+            front = close.period_start_utc.date()
+            assert front == seed._month_start(now.date(), 1)
+            assert _newest_curve(session, hub)[front] == pytest.approx(close.price, abs=1e-6), (
+                hub, now)
+    rows = session.query(MarketObservationRecord).filter_by(source_reference="demo:curve").all()
+    assert all(row.metadata_json["simulated"] is True and row.source_system.endswith("_Sim")
+               for row in rows)
