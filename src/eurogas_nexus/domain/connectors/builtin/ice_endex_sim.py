@@ -11,8 +11,7 @@ MANIFEST = ConnectorManifest(
     category="price",
     datasets=("gas-option-settlements", "simulated"),
     description="ICE Endex-shaped simulated TTF option settlements (end of day, every strike, "
-    "Black-76 implied volatility) for the demo. Synthetic numbers, never a market price; "
-    "outranked by any exchange or vendor option settlement.",
+    "Black-76 implied volatility); outranked by any exchange or vendor option settlement.",
     entitled=False,
     freshness_minutes=1440,
     operations={"freshness_policy": FreshnessPolicy(1440, 2880, 4320)},

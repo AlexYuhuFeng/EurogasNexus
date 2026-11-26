@@ -22,6 +22,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
 from eurogas_nexus.application.caller import Caller
+from eurogas_nexus.application.position_inputs import is_simulated_marks_warning
 from eurogas_nexus.application.reports import commentary as rules
 from eurogas_nexus.application.reports.catalogue import SECTION_BY_KEY, ReportPlan
 from eurogas_nexus.application.reports.lang import T, zh
@@ -373,7 +374,7 @@ def prices(ctx: Ctx) -> SectionResult:
                 "close_day": days[-1].isoformat(),
                 "simulated": simulated,
                 "state": state,
-                "source": "Demo price (simulated)" if simulated else source_system,
+                "source": "Simulated" if simulated else source_system,
                 "rolled_from": rolled,
             }
         )
@@ -414,7 +415,7 @@ def prices(ctx: Ctx) -> SectionResult:
              "note": "Front month rolls at each month end; closes as received."}
         )
     if result.simulated:
-        result.warnings.append("Demo prices: simulated figures, not market prices.")
+        result.warnings.append("Prices from a simulated source.")
     return _apply(result, rules.prices(out_rows, period_label=ctx.period_label))
 
 
@@ -820,7 +821,7 @@ def storage(ctx: Ctx) -> SectionResult:
     ))
     for system in (figure["source"] or "").split(", "):
         result.sources.append(source("Storage inventory and working capacity",
-                                     "DEMO_Sim" if system in {"Demo", ""} else system,
+                                     "DEMO_Sim" if system in {"Simulated", "Demo", ""} else system,
                                      latest["day"], stats["state"], dataset="GIE storage (AGSI)"))
     result.methods.append({
         "key": "storage_scope", "title": "Storage scope",
@@ -1409,7 +1410,7 @@ def book_limits(ctx: Ctx) -> SectionResult:
     credit = credit_exposure_rows(ctx.caller, ctx.today)
     mandates = mandate_usage_rows(ctx.caller, ctx.today)
     visible = _limits_visibility()
-    demo = any(w.startswith("DEMO") for w in credit.warnings)
+    demo = any(is_simulated_marks_warning(w) for w in credit.warnings)
     rows, books = [], set()
     for kind, rows_in in (("credit", credit), ("mandate", mandates)):
         for row, row_books in zip(rows_in.rows, rows_in.books, strict=True):

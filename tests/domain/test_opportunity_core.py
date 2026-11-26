@@ -628,7 +628,7 @@ def test_could_act_ranking_by_score_and_reason() -> None:
     assert [r.opportunity_id for r in ranked] == ["a", "c", "b", "d"]
     assert ranked[0].reason == "ranked 1st: EUR 71k, all inputs sourced, expires in 9 d"
     assert "weakest input: assumption" in ranked[2].reason
-    assert "simulated inputs (demo)" in ranked[3].reason
+    assert "simulated inputs" in ranked[3].reason
 
 
 def test_must_act_ranking_by_deadline_then_size() -> None:

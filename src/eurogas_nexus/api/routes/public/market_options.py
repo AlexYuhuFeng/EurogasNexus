@@ -29,8 +29,7 @@ from eurogas_nexus.domain.market.units import HUB_NATIVE_PRICE_UNIT
 router = APIRouter(tags=["market"])
 
 SIMULATED_WARNING = (
-    "SIMULATED: some contracts come from the demo simulator (ICE_ENDEX_Sim); their "
-    "settlements and volatilities are synthetic and are not market prices."
+    "Simulated source: some contracts' settlements and volatilities come from ICE_ENDEX_Sim."
 )
 NO_DATA_WARNING = (
     "No option settlements you are entitled to are stored for this hub and period. Option "

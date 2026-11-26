@@ -121,7 +121,7 @@ def fx_forward(
         raise _unprocessable(code, str(exc)) from exc
     payload = rate.as_dict()
     payload["as_of"] = anchor.isoformat()
-    warnings = ["Derived from simulated demo rates."] if rate.simulated else []
+    warnings = ["Derived from simulated rates."] if rate.simulated else []
     return _env(payload, source="fx-forward", warnings=warnings)
 
 

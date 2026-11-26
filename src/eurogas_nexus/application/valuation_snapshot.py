@@ -365,7 +365,7 @@ class LiveSnapshotReader(RecordingReader):
                 row.observed_at_utc,
                 row.source_system,
                 row.quote_id,
-                f"{label} {side} ({row.venue}{', demo' if simulated else ''})",
+                f"{label} {side} ({row.venue}{', simulated' if simulated else ''})",
                 klass,
                 {
                     "basis": "quote",
@@ -414,7 +414,7 @@ class LiveSnapshotReader(RecordingReader):
                 row.observed_at_utc,
                 row.source_system,
                 row.observation_id,
-                f"{label} {'demo price' if simulated else 'settlement'} ({row.market_venue})",
+                f"{label} {'simulated price' if simulated else 'settlement'} ({row.market_venue})",
                 klass,
                 {
                     "basis": "demo" if simulated else "settlement",

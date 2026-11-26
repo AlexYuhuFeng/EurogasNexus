@@ -30,6 +30,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from eurogas_nexus.application.caller import Caller
+from eurogas_nexus.application.position_inputs import is_simulated_marks_warning
 
 MAX_ITEMS = 6
 #: The position ladder's default horizon: the day P&L change uses the same open position.
@@ -210,11 +211,11 @@ def build_today(
         "gas_day": gas_day_label(now),
         "front_month": front_month_label(today),
         "simulated": simulated,
-        # Every market figure on the page simulated (the demo desk): the page says so once and
-        # drops the per-figure marker; mixed classes keep the marker on each figure. Positions
+        # Every market figure on the page simulated: the page names the source once, quietly,
+        # and drops the per-figure marker; mixed classes keep the marker on each figure. Positions
         # and mandate sizes are book data, never simulated, so they do not decide it.
         "all_simulated": _all_simulated(read.figures),
-        "simulated_notice": "Demo data: simulated figures, not market data." if simulated
+        "simulated_notice": "Source: simulated." if simulated
         else None,
         "rows": rows,
         # The hubs the page is about: the book's, then the board's (or the user's own list).
@@ -271,7 +272,7 @@ PRICE_KEYS = ("price.", "market.", "spread.", "mark.")
 
 
 def _all_simulated(figures: list[dict[str, Any]]) -> bool:
-    """Every price and mark on the page is simulated: the page says it once (no per-figure pill)."""
+    """Every price and mark on the page is simulated: one source line, no per-figure pill."""
 
     prices = [item for item in figures if item["key"].startswith(PRICE_KEYS)]
     return bool(prices) and all(item["simulated"] for item in prices)
@@ -293,11 +294,11 @@ def _book(caller: Caller, today: date, read: _Read) -> _Book:
     except Exception as exc:  # noqa: BLE001 - the other rows stand without the book
         read.warnings.append(f"book: not available ({exc.__class__.__name__})")
         return _Book()
-    read.warnings += [w for w in inputs.warnings if not w.startswith("DEMO")]
+    read.warnings += [w for w in inputs.warnings if not is_simulated_marks_warning(w)]
     return _Book(
         inputs=inputs,
         positions=net_positions(inputs.legs, today),
-        demo_marks=any(w.startswith("DEMO") for w in inputs.warnings),
+        demo_marks=any(is_simulated_marks_warning(w) for w in inputs.warnings),
     )
 
 
@@ -355,7 +356,7 @@ def _prices(caller: Caller, now: datetime, book: _Book, read: _Read) -> dict[str
                 _iso(last.get("observed_at_utc")) or days[-1].isoformat(),
                 state,
                 simulated=bool(last["simulated"]),
-                source="Demo price" if last["simulated"] else source,
+                source="Simulated" if last["simulated"] else source,
                 hub=hub,
                 product=product,
                 tenor=tenor,
@@ -484,7 +485,7 @@ def _tightest_limit(caller: Caller, now: datetime, read: _Read) -> dict[str, Any
     simulated = (
         kind == "credit"
         and credit.marks_as_of is not None
-        and any(w.startswith("DEMO") for w in credit.warnings)
+        and any(is_simulated_marks_warning(w) for w in credit.warnings)
     )
     if kind == "credit":
         marks_day = date.fromisoformat(credit.marks_as_of) if credit.marks_as_of else None
@@ -955,7 +956,7 @@ def _storage(session, caller: Caller, now: datetime, read: _Read) -> dict[str, A
             last.isoformat(),
             period_state(dataset, starts[last], now),
             simulated=simulated,
-            source="Demo" if simulated else ", ".join(sorted({r.source_system for r in rows})),
+            source="Simulated" if simulated else ", ".join(sorted({r.source_system for r in rows})),
             countries=sorted(by_day[last]),
         )
     )
@@ -1054,7 +1055,7 @@ def _balance(session, caller: Caller, now, balance_reader, read: _Read) -> dict[
             last_day.isoformat(),
             period_state("GIE storage (AGSI)", start, now),
             simulated=simulated,
-            source="Demo" if simulated else "ENTSOG, GIE, National Gas",
+            source="Simulated" if simulated else "ENTSOG, GIE, National Gas",
         )
     )
     # E.2 row 4: the call today against its 7-day average, and LNG send-out against yesterday.
@@ -1180,7 +1181,7 @@ def _market(caller: Caller, now: datetime, focus: list[str], read: _Read) -> dic
                 _iso(last.get("observed_at_utc")) or days[-1].isoformat(),
                 close_state(days[-1], today),
                 simulated=bool(last["simulated"]),
-                source="Demo price" if last["simulated"] else source,
+                source="Simulated" if last["simulated"] else source,
                 hub=hub,
                 product=product,
                 tenor=tenor,
@@ -1317,7 +1318,7 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
             max(leg["close_day"], base["close_day"]),
             leg["state"] if leg["state"] != "current" else base["state"],
             simulated=simulated,
-            source="Demo price" if simulated else None,
+            source="Simulated" if simulated else None,
             pair=label,
             product=leg["product"],
             fx=fx,

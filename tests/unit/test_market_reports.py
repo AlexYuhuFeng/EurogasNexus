@@ -91,7 +91,7 @@ def test_a_morning_daily_is_assembled_from_every_section_on_the_demo_desk(env):
     for section in snap["sections"]:
         assert section["commentary"]["basis"] == "rule"
         assert len(section["commentary"]["bullets"]) <= 3
-    # Demo prices are said to be simulated next to the value.
+    # Simulated prices are marked next to the value.
     assert "(simulated)" in sections["prices"]["commentary"]["headline"]
     # The balance's forecast is labelled and its method is in the evidence.
     assert sections["balance"]["forecast"]
@@ -101,7 +101,9 @@ def test_a_morning_daily_is_assembled_from_every_section_on_the_demo_desk(env):
     html = report.html
     assert html.count("<h1>") == 1 and "Methodology and sources" in html
     assert "Our book" in html and "Key findings" in html and "At a glance" in html
-    assert "DEMONSTRATION DATA: SIMULATED" in html
+    # No demonstration masthead or watermark: the simulated source is named in its source line.
+    assert "DEMONSTRATION" not in html and "演示" not in html and 'class="r-mark"' not in html
+    assert "Simulated source" in html
 
 
 def test_the_html_is_self_contained(env):
@@ -377,8 +379,9 @@ def test_classification_and_simulated_mark_are_on_every_page(daily):
     css = re.search(r"<style>(.*?)</style>", daily.html).group(1)
     assert '@bottom-left{content:"INTERNAL' in css
     assert 'counter(page) " of " counter(pages)' in css
-    assert "Simulated demonstration data" in css  # the dagger's meaning in every footer
-    assert 'class="r-mark"' in daily.html and "position:fixed" in css
+    assert "† Simulated source" in css  # the dagger's meaning, quietly, in the page margin
+    # No watermark or demonstration banner (owner, 2026-11-26).
+    assert 'class="r-mark"' not in daily.html and "demonstration" not in daily.html.lower()
 
 
 def test_a_shareable_report_still_holds_no_book(env):

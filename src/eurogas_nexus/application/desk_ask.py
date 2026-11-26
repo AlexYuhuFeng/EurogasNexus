@@ -265,7 +265,7 @@ def _price_lines(key_figures: dict[str, Any]) -> list[FactLine]:
             text += T(f", {price['day_change']:+.{decimals}f} on the day",
                       f"，日变化{price['day_change']:+.{decimals}f}")
         if price.get("simulated"):
-            text += T(", simulated demo price, not a market price", "，模拟演示价格，非市场价格")
+            text += T(", simulated price", "，模拟价格")
         lines.append(FactLine("prices", text + T(".", "。"), f"price:{price.get('hub')}",
                               price.get("as_of"), bool(price.get("simulated"))))
     return lines

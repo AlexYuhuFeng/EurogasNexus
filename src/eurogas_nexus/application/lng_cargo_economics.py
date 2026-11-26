@@ -245,7 +245,7 @@ def _hh_label(row, pricing_month: str | None = None) -> tuple[InputClass, str]:
         text = f"Henry Hub spot {day} (EIA)"
         klass = InputClass.INDICATIVE
     else:
-        text = f"Henry Hub spot {day} (demo, simulated)"
+        text = f"Henry Hub spot {day} (simulated)"
         klass = InputClass.SIMULATED
     return klass, f"{text}, spot proxy for {pricing_month}" if pricing_month else text
 

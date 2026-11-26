@@ -38,7 +38,7 @@ from eurogas_nexus.ingestion.licensed_quote_import import (
     SUPPORTED_HUBS,
 )
 
-SIMULATED_FEED_SOURCES = {"EEX_Sim": "EEX (simulated)", "DEMO_Sim": "Demo exchange (simulated)"}
+SIMULATED_FEED_SOURCES = {"EEX_Sim": "EEX (simulated)", "DEMO_Sim": "Exchange feed (simulated)"}
 MAX_TICKS_PER_CALL = 5_000
 _SESSION_PRICE_FIELDS = ("open", "high", "low", "vwap", "settlement", "prior_settlement", "last")
 

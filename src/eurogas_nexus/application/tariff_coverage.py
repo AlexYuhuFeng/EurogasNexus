@@ -63,7 +63,7 @@ def leg_source(leg: Any) -> str | None:
         return None
     tariff_id = str(leg.tariff_id or "")
     if (leg.status or "").upper() == "SIMULATOR_ONLY":
-        return "simulated (demo)"
+        return "simulated"
     if tariff_id.startswith("entsog-"):
         return "ENTSOG TP"
     if tariff_id.startswith("entry-"):

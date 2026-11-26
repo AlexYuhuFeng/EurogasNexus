@@ -51,9 +51,9 @@ QUIET_DAY = date(2026, 12, 2)  # Wednesday, neither
 
 EVERY_DAY = {
     ("must_act", "G", "Haldor supply (Easington)"),
-    ("must_act", "E", "Demo Haldor field, Norwegian shelf · Haldor supply (Easington)"),
-    ("must_act", "E", "Demo Kestrel export line · Kestrel supply (TTF)"),
-    ("must_act", "E", "Demo Kestrel export line · Kestrel UK leg (TTF, sold at NBP)"),
+    ("must_act", "E", "Haldor field, Norwegian shelf · Haldor supply (Easington)"),
+    ("must_act", "E", "Kestrel export line · Kestrel supply (TTF)"),
+    ("must_act", "E", "Kestrel export line · Kestrel UK leg (TTF, sold at NBP)"),
     ("could_act", "C", "TTF → NBP"),
     ("market", "T", "CEGH"),
 }

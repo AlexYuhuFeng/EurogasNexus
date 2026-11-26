@@ -239,7 +239,7 @@ def get_opportunity(opportunity_id: str, request: Request) -> dict:
         data = detail(session, principal, opportunity_id)
     if data is None:
         raise HTTPException(status_code=404, detail={"code": "unknown_opportunity"})
-    return _env(data, ["Simulated inputs (demo desk)."] if data["simulated"] else [])
+    return _env(data, ["Simulated inputs."] if data["simulated"] else [])
 
 
 class StateBody(BaseModel):

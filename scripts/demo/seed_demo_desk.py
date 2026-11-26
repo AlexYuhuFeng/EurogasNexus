@@ -243,15 +243,15 @@ SIMULATED_TARIFFS = _simulated_tariffs.SIMULATED_TARIFF_LEGS
 SIMULATED_VESSEL_SOURCE = "Kpler_Sim"
 SIMULATED_VESSELS = (
     # id, vessel, load port, (lat, lon), terminal, country, (lat, lon), now (lat, lon), days to ETA
-    ("demo-vsl-1", "Demo Aurora", "Sabine Pass", (29.73, -93.87), "Gate Terminal", "NL",
+    ("demo-vsl-1", "Aurora", "Sabine Pass", (29.73, -93.87), "Gate Terminal", "NL",
      (51.96, 4.04), (46.9, -14.2), 3),
-    ("demo-vsl-2", "Demo Borealis", "Hammerfest", (70.67, 23.68), "Eemshaven", "NL",
+    ("demo-vsl-2", "Borealis", "Hammerfest", (70.67, 23.68), "Eemshaven", "NL",
      (53.45, 6.83), (62.4, 4.1), 2),
-    ("demo-vsl-3", "Demo Cassiopeia", "Ras Laffan", (25.90, 51.55), "Zeebrugge LNG", "BE",
+    ("demo-vsl-3", "Cassiopeia", "Ras Laffan", (25.90, 51.55), "Zeebrugge LNG", "BE",
      (51.33, 3.20), (36.1, -9.6), 5),
-    ("demo-vsl-4", "Demo Dorado", "Corpus Christi", (27.80, -97.40), "Isle of Grain", "GB",
+    ("demo-vsl-4", "Dorado", "Corpus Christi", (27.80, -97.40), "Isle of Grain", "GB",
      (51.44, 0.72), (49.2, -6.9), 1),
-    ("demo-vsl-5", "Demo Eridanus", "Bonny", (4.42, 7.15), "Dunkerque LNG", "FR",
+    ("demo-vsl-5", "Eridanus", "Bonny", (4.42, 7.15), "Dunkerque LNG", "FR",
      (51.03, 2.21), (43.6, -10.4), 4),
 )
 
@@ -423,8 +423,8 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
     _clear(session)
 
     for book_id, name, entity, currency in (
-        ("demo-uk-nbp", "Demo UK NBP", "NWG-UK", "GBP"),
-        ("demo-nl-ttf", "Demo NL TTF", "NWG-NL", "EUR"),
+        ("demo-uk-nbp", "UK NBP", "NWG-UK", "GBP"),
+        ("demo-nl-ttf", "NL TTF", "NWG-NL", "EUR"),
     ):
         session.add(
             TradingBookRecord(
@@ -432,7 +432,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
                 name=name,
                 legal_entity=entity,
                 region="europe",
-                business="NW Europe gas (demo)",
+                business="NW Europe gas",
                 base_currency=currency,
                 active=True,
                 updated_by="demo-seed",
@@ -577,7 +577,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
                     gas_day=day,
                     nominated_mwh=round(nominated, 1),
                     allocated_mwh=None if back == 1 else round(allocated, 1),
-                    tso="Demo TSO",
+                    tso="Desk TSO",
                     point=point,
                     source_system="DEMO",
                     source_reference="demo:deliveries",
@@ -597,7 +597,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
             ScreenOrderObservationRecord(
                 order_observation_id=oid,
                 provider_id=provider,
-                venue="Demo ETRM" if provider == "ETRM" else "Demo exchange",
+                venue="ETRM" if provider == "ETRM" else "Exchange",
                 account_label=account,
                 external_order_id=oid,
                 side=side,
@@ -728,7 +728,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
         TraderMandateRecord(
             mandate_id="DEMO-UK-1",
             trader="demo.trader",
-            display_name="Demo NBP desk trader",
+            display_name="NBP desk trader",
             book_ids=["demo-uk-nbp"],
             hubs=["NBP"],
             max_net_mwh_per_month=1_400_000,
@@ -746,7 +746,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
         TraderMandateRecord(
             mandate_id="DEMO-NL-1",
             trader="demo.nl.trader",
-            display_name="Demo TTF desk trader",
+            display_name="TTF desk trader",
             book_ids=["demo-nl-ttf"],
             # The continental desk may place its TTF gas at the neighbouring hubs, so a
             # locational opportunity out of TTF passes the mandate's hub check.
@@ -762,9 +762,9 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
     )
 
     for terminal, name, country, hub, regas, entry, fuel, port, sail in (
-        ("demo-gate", "Demo Rotterdam terminal", "NL", "TTF", 1.30, 0.45, 0.9, 120_000, 0.0),
-        ("demo-zee", "Demo Zeebrugge terminal", "BE", "ZTP", 1.10, 0.40, 1.0, 110_000, 0.5),
-        ("demo-grain", "Demo Thames terminal", "GB", "NBP", 1.05, 0.30, 0.7, 95_000, 1.5),
+        ("demo-gate", "Rotterdam terminal", "NL", "TTF", 1.30, 0.45, 0.9, 120_000, 0.0),
+        ("demo-zee", "Zeebrugge terminal", "BE", "ZTP", 1.10, 0.40, 1.0, 110_000, 0.5),
+        ("demo-grain", "Thames terminal", "GB", "NBP", 1.05, 0.30, 0.7, 95_000, 1.5),
     ):
         session.add(
             LngTerminalTermsRecord(
@@ -778,7 +778,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
                 port_costs_per_cargo=port,
                 other_per_mwh=0.0,
                 extra_sailing_days=sail,
-                source_note="Demo figures, not published tariffs.",
+                source_note="Simulated figures, not published tariffs.",
                 updated_by="demo-seed",
                 updated_at_utc=now,
             )
@@ -791,7 +791,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
             contract_id="demo-haldor-24",
             min_hedge_ratio_pct=60.0,
             max_hedge_ratio_pct=80.0,
-            approval_ref="Demo risk committee RC-07",
+            approval_ref="Risk committee RC-07",
             valid_until=date(today.year + 1, 9, 30),
             notes="Demo approval (fictional).",
             updated_by="demo.risk",
@@ -806,7 +806,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
     session.add(
         RouteCandidateRecord(
             route_id="demo-route-ttf-local",
-            route_name="Sell locally at TTF (demo)",
+            route_name="Sell locally at TTF",
             start_point_name="TTF",
             target_point_name="TTF",
             business_model="VIRTUAL_HUB_SALE",
@@ -855,7 +855,7 @@ def seed_demo_review_case(session, now: datetime) -> int:
         DecisionCaseRecord(
             case_id=DEMO_REVIEW_CASE_ID,
             objective=(
-                "Demo: the Haldor supply (Easington) volume is open on the NBP book; cover "
+                "The Haldor supply (Easington) volume is open on the NBP book; cover "
                 "tomorrow on NBP day-ahead or from storage?"
             ),
             status=DecisionCaseStatus.UNDER_REVIEW.value,
@@ -870,19 +870,19 @@ def seed_demo_review_case(session, now: datetime) -> int:
             decision_due_at_utc=now + timedelta(days=1),
             assumptions_json=[
                 {"key": "haldor_dcq_mwh_d", "value": "24000", "source": "MANUAL",
-                 "note": "Daily contract quantity of the demo Haldor contract"},
+                 "note": "Daily contract quantity of the Haldor contract"},
             ],
             alternatives_json=[
                 {"alternative_id": "buy-nbp-da", "label": "Buy NBP day-ahead",
-                 "description": "Priced at the demo mark (simulated).", "economics_ref": "",
+                 "description": "Priced at the simulated mark.", "economics_ref": "",
                  "warnings": ["simulated price"]},
-                {"alternative_id": "draw-storage", "label": "Draw demo storage",
-                 "description": "Within the demo book's storage terms.", "economics_ref": "",
+                {"alternative_id": "draw-storage", "label": "Draw storage",
+                 "description": "Within the book's storage terms.", "economics_ref": "",
                  "warnings": []},
             ],
             evidence_json=[],
             ai_findings_json=[],
-            warnings_json=["Demo case: every figure behind it is simulated."],
+            warnings_json=["Simulated inputs."],
         )
     )
     record_audit_event(
@@ -930,11 +930,11 @@ def seed_typed_contracts(session, now: datetime, today: date) -> None:
     )
     demo = "Demo contract (fictional)."
     rows = (
-        ("demo-mspa-atlantic", "Atlantic LNG MSPA (demo)", "LNG_MSPA", master_terms, None,
+        ("demo-mspa-atlantic", "Atlantic LNG MSPA", "LNG_MSPA", master_terms, None,
          "demo-nl-ttf", f"Price review: none. Heel: seller retains. {demo}"),
-        ("demo-mspa-atlantic-cn07", "Atlantic cargo CN-07 (demo)", "LNG_CARGO", cargo_terms,
+        ("demo-mspa-atlantic-cn07", "Atlantic cargo CN-07", "LNG_CARGO", cargo_terms,
          "demo-mspa-atlantic", "demo-nl-ttf", demo),
-        ("demo-tender-skarv", "Skarv West tender (demo)", "UPSTREAM_TENDER", tender_terms, None,
+        ("demo-tender-skarv", "Skarv West tender", "UPSTREAM_TENDER", tender_terms, None,
          "demo-uk-nbp", f"Shortfall: seller pays the difference to NBP day-ahead. {demo}"),
     )
     for cid, name, kind, terms, master, book, unmodelled in rows:
@@ -1005,7 +1005,7 @@ def _seed_cross_border_position(session, now: datetime, today: date) -> None:
     session.add(
         RouteCandidateRecord(
             route_id=CROSS_BORDER_ROUTE,
-            route_name="TTF -> BBL -> NBP (demo)",
+            route_name="TTF -> BBL -> NBP",
             start_point_name="TTF",
             target_point_name="NBP",
             business_model="CROSS_BORDER_TRANSFER",
@@ -1073,7 +1073,7 @@ def seed_demo_storage_and_assumptions(session, now: datetime) -> dict[str, int]:
         session.add(
             StorageFacilityMasterRecord(
                 facility_id=DEMO_STORAGE_ID,
-                name="Demo storage at CEGH (fictional)",
+                name="Storage at CEGH",
                 market_hub="CEGH",
                 country="AT",
                 minimum_inventory_mwh=0.0,
@@ -1104,7 +1104,7 @@ def seed_demo_storage_and_assumptions(session, now: datetime) -> dict[str, int]:
         session.add(
             AssumptionSetRecord(
                 set_id=DEMO_ASSUMPTION_SET_ID,
-                name="Demo desk assumptions",
+                name="Desk assumptions",
                 book_id=None,
                 description="Fictional storage costs for the demo desk (not a published tariff).",
                 created_by="demo-seed",
@@ -1151,23 +1151,23 @@ def seed_demo_storage_and_assumptions(session, now: datetime) -> dict[str, int]:
 #: (suffix, book, hub, direction, kind, label, point, MWh). Fictional; marked simulated.
 DEMO_GAS_DAY_SCHEDULE = (
     ("uk-offtake", "demo-uk-nbp", "NBP", "out", "customer_offtake",
-     "Demo industrial offtake (fictional)", "Teesside", 9_000.0),
+     "Industrial offtake", "Teesside", 9_000.0),
     ("uk-bbl-import", "demo-uk-nbp", "NBP", "in", "import",
      "BBL import on held capacity", "Bacton (BBL)", 4_000.0),
     ("uk-bbl-export", "demo-uk-nbp", "TTF", "out", "export",
      "BBL export to NBP on held capacity", "Julianadorp (BBL)", 4_000.0),
     ("nl-offtake", "demo-nl-ttf", "TTF", "out", "customer_offtake",
-     "Demo city-gate offtake (fictional)", "Groningen", 14_000.0),
+     "City-gate offtake", "Groningen", 14_000.0),
     ("nl-storage", "demo-nl-ttf", "TTF", "out", "storage_injection",
-     "Demo NL storage (fictional)", None, 7_000.0),
+     "NL storage", None, 7_000.0),
 )
 #: The demo's delegated split: the TTF desk clears the part of the UK book's TTF delivery that
 #: is not exported through BBL (inside its mandate: DEMO-NL-1 holds TTF).
 DEMO_GAS_DAY_SPLIT_MWH = 2_000.0
 #: Who nominates each demo contract's gas (fictional names; a beach supply through an agent).
 DEMO_NOMINATION_AGENTS = {
-    "demo-haldor-24": "Demo nominations agent (fictional)",
-    "demo-brae-10": "Demo nominations agent (fictional)",
+    "demo-haldor-24": "Nominations agent",
+    "demo-brae-10": "Nominations agent",
 }
 #: Cash-out premium (short) and discount (long) against day-ahead per demo book, invented.
 DEMO_CASH_OUT = (
@@ -1232,7 +1232,7 @@ def seed_demo_gas_day(session, now: datetime) -> dict[str, int]:
         session.add(ContractDeliveryRecord(
             contract_id=cid, gas_day=today,
             nominated_mwh=round(dcq * factor, 1), allocated_mwh=None,
-            tso="Demo TSO", point=point, source_system="DEMO",
+            tso="Desk TSO", point=point, source_system="DEMO",
             source_reference="demo:deliveries", updated_at_utc=now,
         ))
         counts["gas_day_nominations"] += 1
@@ -1240,7 +1240,7 @@ def seed_demo_gas_day(session, now: datetime) -> dict[str, int]:
     for cid in (*(row[0] for row in CONTRACTS), CROSS_BORDER_CONTRACT):
         contract = session.get(UpstreamResourceContractRecord, cid)
         if contract is not None and getattr(contract, "nomination_agent", None) is None:
-            contract.nomination_agent = DEMO_NOMINATION_AGENTS.get(cid, "Demo shipper desk")
+            contract.nomination_agent = DEMO_NOMINATION_AGENTS.get(cid, "Shipper desk")
             counts["gas_day_agents"] = counts.get("gas_day_agents", 0) + 1
     # Statuses as the scheduling import recorded them; tomorrow's Brae North is still to send.
     for day, ref, hub, book, step, status, suffix in (
@@ -1278,7 +1278,7 @@ def seed_demo_gas_day(session, now: datetime) -> dict[str, int]:
             event_id=event_id, gas_day=day, line_ref=ref, hub=hub, book_id=book, step=step,
             status=status, quantity_mwh=None,
             agent=getattr(contract, "nomination_agent", None), origin="import",
-            recorded_by=getattr(contract, "nomination_agent", None) or "Demo scheduling import",
+            recorded_by=getattr(contract, "nomination_agent", None) or "Scheduling import",
             recorded_at_utc=now - timedelta(hours=2), note=None, source_system=SOURCE,
         ))
         counts["gas_day_statuses"] = counts.get("gas_day_statuses", 0) + 1
@@ -1286,7 +1286,7 @@ def seed_demo_gas_day(session, now: datetime) -> dict[str, int]:
     slot_id = f"demo-slot-gate-{tomorrow:%Y%m%d}"
     if session.get(RegasSlotRecord, slot_id) is None:
         session.add(RegasSlotRecord(
-            slot_id=slot_id, terminal_name="Demo Rotterdam terminal", terminal_country="NL",
+            slot_id=slot_id, terminal_name="Rotterdam terminal", terminal_country="NL",
             terminal_lat=None, terminal_lon=None,
             window_start_utc=gas_day_start_for_date(tomorrow),
             window_end_utc=gas_day_start_for_date(tomorrow + timedelta(days=1)),
@@ -1318,7 +1318,7 @@ def seed_demo_gas_day(session, now: datetime) -> dict[str, int]:
                             note="Demo cash-out discount under day-ahead (fictional)"),
         ]
         session.add(AssumptionSetRecord(
-            set_id=set_id, name=f"Demo {book} balancing", book_id=book,
+            set_id=set_id, name=f"{book} balancing", book_id=book,
             description="Fictional cash-out premium and discount for the demo desk.",
             created_by="demo-seed", created_at_utc=now,
         ))
@@ -1541,7 +1541,7 @@ def seed_market_around_the_book(
                     observation_id=f"demo-agsi-{code}-{day:%Y%m%d}",
                     source_dataset="AGSI",
                     facility_id=code,
-                    facility_name=f"{STORAGE_NAMES[code]} (demo)",
+                    facility_name=f"{STORAGE_NAMES[code]}",
                     country=code,
                     inventory_twh=round(capacity * fill / 100, 4),
                     working_capacity_twh=capacity,
@@ -1571,7 +1571,7 @@ def seed_market_around_the_book(
                 observation_id=f"demo-ng-storage-GB-{day:%Y%m%d}",
                 source_dataset="NG-SUPPLY",
                 facility_id="GB-NTS-STORAGE",
-                facility_name="Great Britain storage (demo)",
+                facility_name="Great Britain storage",
                 country="GB",
                 inventory_twh=None,
                 working_capacity_twh=None,
@@ -1598,10 +1598,10 @@ def seed_market_around_the_book(
     # LNG send-out (ALSI-shaped per country and the EU total; GB National Gas-shaped).
     before = len(rows)
     lng_series = [
-        (code, f"{STORAGE_NAMES[code]} LNG (demo)", "ALSI", profile)
+        (code, f"{STORAGE_NAMES[code]} LNG", "ALSI", profile)
         for code, profile in profiles["lng"].items()
     ]
-    lng_series.append(("GB", "Great Britain LNG (demo)", "NG-SUPPLY", None))
+    lng_series.append(("GB", "Great Britain LNG", "NG-SUPPLY", None))
     # ALSI-shaped series reach back as far as storage (the LNG read's five-year range); the
     # days shared with the other series draw from the shared generator exactly as before, older
     # years from their own, with a slow level drift that eases in beyond the shared window.
@@ -2337,10 +2337,10 @@ def _demo_outages(now: datetime, suffix: str = "") -> list:
     for message_id, asset, zone, technical, unavailable, kind, hours_ago, reason, days in (
         # A Norwegian-shelf field landing in Britain: an asked report about Norwegian outages
         # attributes it (``reports.sections.norwegian_basis``), as it would a real one.
-        ("demo-umm-1", "Demo Haldor field, Norwegian shelf", "NBP", 70.0, 52.0, "unplanned", 75,
-         "Compressor trip (demo)", 6),
-        ("demo-umm-2", "Demo Kestrel export line", "TTF", 40.0, 9.0, "planned", 30,
-         "Valve maintenance (demo)", 3),
+        ("demo-umm-1", "Haldor field, Norwegian shelf", "NBP", 70.0, 52.0, "unplanned", 75,
+         "Compressor trip", 6),
+        ("demo-umm-2", "Kestrel export line", "TTF", 40.0, 9.0, "planned", 30,
+         "Valve maintenance", 3),
     ):
         message_id = f"{message_id}{suffix}"
         start = now - timedelta(hours=hours_ago)
@@ -2356,7 +2356,7 @@ def _demo_outages(now: datetime, suffix: str = "") -> list:
             direction="entry", unit="mcm/d", technical_capacity=technical,
             available_capacity=technical - unavailable, unavailable_capacity=unavailable,
             unavailable_mcm_d=unavailable, unavailable_gwh_d=round(unavailable * 10.83, 1),
-            reason=reason, market_participant="Demo operator", remarks="Fictional demo message.",
+            reason=reason, market_participant="Field operator", remarks="Simulated message.",
             source_system="DEMO", source_reference="demo:umm", ingested_at_utc=now,
         ))
     return rows
@@ -2432,7 +2432,7 @@ def _roll_outages(session, now: datetime) -> int:
         unavailable_capacity=unavailable, unavailable_mcm_d=unavailable,
         unavailable_gwh_d=round(unavailable * 10.83, 1), reason=latest.reason,
         market_participant=latest.market_participant,
-        remarks="Fictional demo message, revised.", source_system="DEMO",
+        remarks="Simulated message, revised.", source_system="DEMO",
         source_reference="demo:umm", ingested_at_utc=now,
     ))
     return 1
@@ -2477,7 +2477,7 @@ def _roll_deliveries(session, now: datetime, rng: random.Random) -> int:
                     gas_day=day,
                     nominated_mwh=round(nominated, 1),
                     allocated_mwh=None if back == 1 else round(allocated, 1),
-                    tso="Demo TSO",
+                    tso="Desk TSO",
                     point=point,
                     source_system="DEMO",
                     source_reference="demo:deliveries",

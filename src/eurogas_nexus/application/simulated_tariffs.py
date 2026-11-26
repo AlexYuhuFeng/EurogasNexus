@@ -9,7 +9,7 @@ invented, not market data.
 
 - **Labelled.** ``tariff_status`` ``SIMULATOR_ONLY`` (the lowest status: a published row always
   wins a selection; the leg's class reads "simulated"), document ``demo-simulated-tariffs``,
-  source "Simulated demo tariff: not a published tariff".
+  source "Simulated tariff (not published)".
 - **Retired** (``retire_simulated_tariffs``) once a published ENTSOG row or a *reviewed*
   public tariff (``application/tso_tariff_entries``) names the same operator, point and
   direction. A candidate entry awaiting review does not retire one.
@@ -29,7 +29,7 @@ from datetime import UTC, date, datetime
 from typing import Any
 
 SIMULATED_TARIFF_DOCUMENT = "demo-simulated-tariffs"
-SIMULATED_TARIFF_SOURCE = "Simulated demo tariff: not a published tariff"
+SIMULATED_TARIFF_SOURCE = "Simulated tariff (not published)"
 
 #: (country, operator, point key, point name, direction, EUR/MWh at 100 % load factor).
 SIMULATED_TARIFF_LEGS: tuple[tuple[str, str, str, str, str, float], ...] = (

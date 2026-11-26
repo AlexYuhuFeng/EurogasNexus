@@ -47,7 +47,8 @@ def test_the_morning_brief_has_the_desk_sections_with_sources(desk):
     for section in brief.sections:
         assert section.sources and 0 < len(section.lines) <= 6
     assert brief.simulated and brief.text.startswith("Gas desk morning brief")
-    assert "simulated prices" in brief.text  # a demo brief cannot be mistaken for a real one
+    # A simulated brief names its source once, quietly, and never calls itself a demo.
+    assert brief.text.split("\n")[2] == "Source: simulated."
     assert brief.lead is None and brief.lead_basis == "none"
     assert "Rhinmark" in brief.text and "credit breach" in brief.text
 

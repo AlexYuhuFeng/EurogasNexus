@@ -378,7 +378,8 @@ def time_rows(holdings: Holdings, hub: str, carry: Mapping[str, Any] | None) -> 
         # Two simulated years with the same shape: their difference is the simulator's, not a
         # finding. Said so instead of a spread of 0.000.
         c1 = c2 = None
-        cal_extra = {**_why("uninformative", "not informative on demo data"), "uninformative": True}
+        cal_extra = {**_why("uninformative", "not informative on simulated data"),
+                     "uninformative": True}
     add(
         f"cal{cal1[0]:%y}_cal{cal2[0]:%y}",
         f"Cal-{cal1[0]:%y} − Cal-{cal2[0]:%y}",

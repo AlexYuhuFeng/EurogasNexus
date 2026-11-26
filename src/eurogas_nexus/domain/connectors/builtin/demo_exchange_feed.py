@@ -15,9 +15,8 @@ MANIFEST = ConnectorManifest(
     system="DEMO_Sim",
     category="price",
     datasets=("prompt-quotes", "trade-prints", "session-statistics", "simulated"),
-    description="Demo exchange feed (simulated): bursty two-sided WD/DA quotes with size, trade "
-    "prints, VWAP and volume for TTF and NBP, with planted prompt cases on a schedule. Demo "
-    "only; never a market price.",
+    description="Simulated exchange feed: bursty two-sided WD/DA quotes with size, trade "
+    "prints, VWAP and volume for TTF and NBP, with planted prompt cases on a schedule.",
     entitled=False,
     freshness_minutes=1,
     operations={"freshness_policy": FreshnessPolicy(1, 60, 720)},

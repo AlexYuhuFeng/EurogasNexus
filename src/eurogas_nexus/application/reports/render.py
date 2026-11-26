@@ -278,10 +278,6 @@ color:var(--ink-2)}
 .r-annex table{font-size:6.4pt;line-height:8.2pt}
 .r-annex figure{break-inside:avoid;margin:0 0 2.5mm}
 .r-annex .r-flow{columns:3;column-gap:5mm}.r-annex .r-flow-2{columns:2}
-.r-mark{display:none}
-.r-demo .r-mark{display:block;position:fixed;top:45%;left:0;right:0;text-align:center;
-transform:rotate(-30deg);font:600 30pt/1 SANS;letter-spacing:.2em;color:rgba(109,40,217,.055);
-pointer-events:none;z-index:0;text-transform:uppercase}
 .r-ink-1{fill:var(--ink)}.r-ink-2{fill:var(--ink-2)}.r-ink-3{fill:var(--ink-3)}
 @media screen and (max-width:820px){
 .r-sheet{width:auto;min-height:0;margin:0;padding:6mm 4mm;box-shadow:none}
@@ -324,11 +320,11 @@ WORDS: dict[str, dict[str, str]] = {
         "week": "Week", "year": "Year", "norm": "vs norm", "as_of": "As of",
         "days30": "30 days", "figure": "Figure", "table": "Table", "source": "Source:",
         "note": "Note:", "data_as_of": "Data as of", "issue": "Issue", "period": "Period",
-        "to": "to", "demo": "DEMONSTRATION DATA: SIMULATED", "question": "Question:",
+        "to": "to", "question": "Question:",
         "contents": "Contents", "watch": "What to watch",
         "method": "Methodology and sources", "annex": "Data annex",
         "foot_left": "Not advice to trade: see Methodology", "page": "Page", "of": "of",
-        "simulated_foot": "† Simulated demonstration data, not market prices",
+        "simulated_foot": "† Simulated source",
         "glance_source": "Eurogas Nexus calculations from the sources listed in Methodology.",
         "rows_newest": "rows, newest first",
         "answer": "Answer", "evidence": "Evidence",
@@ -341,11 +337,11 @@ WORDS: dict[str, dict[str, str]] = {
         "week": "周变化", "year": "同比", "norm": "较常态", "as_of": "日期",
         "days30": "近30天", "figure": "图", "table": "表", "source": "来源：",
         "note": "注：", "data_as_of": "数据截至", "issue": "第", "period": "期间",
-        "to": "至", "demo": "演示数据：模拟", "question": "问题：",
+        "to": "至", "question": "问题：",
         "contents": "目录", "watch": "关注事项",
         "method": "方法与来源", "annex": "数据附录",
         "foot_left": "非交易建议：见方法说明", "page": "第", "of": "页，共",
-        "simulated_foot": "† 模拟演示数据，非市场价格",
+        "simulated_foot": "† 模拟来源",
         "glance_source": "Eurogas Nexus 根据方法说明所列来源计算。",
         "rows_newest": "行，最新在前",
         "answer": "回答", "evidence": "依据",
@@ -605,8 +601,6 @@ def _masthead(snapshot: dict) -> str:
         snapshot["audience"], T("INTERNAL", "内部"))
     period = snapshot.get("period") or {}
     issue = snapshot.get("issue") or 1
-    demo = (f' · <span class="r-class">{_w(lang, "demo")}</span>'
-            if snapshot.get("simulated") else "")
     licensed = (snapshot.get("licensed") or {}).get("sources")
     if licensed:
         classification += f" · Licensed data from {', '.join(licensed)}: internal use"
@@ -626,7 +620,7 @@ def _masthead(snapshot: dict) -> str:
         f'{brand}<span class="r-pub">{_e(_publication())}</span></p><div>{line}</div></div>'
         f'<div class="r-mast-right"><div class="r-class">{_e(classification)}</div>'
         f"<div>{_e(issue_text)} · {_e(fmt_date(snapshot['as_of']))}{_e(span)}</div>"
-        f"<div>{_w(lang, 'data_as_of')} {_e(fmt_datetime(snapshot['as_of']))} UTC{demo}</div>"
+        f"<div>{_w(lang, 'data_as_of')} {_e(fmt_datetime(snapshot['as_of']))} UTC</div>"
         "</div></header>"
     )
 
@@ -1019,8 +1013,8 @@ def _back(snapshot: dict, numbers: Numbering, body: str = "") -> str:
                + (T(f"Contains licensed data from {_e(', '.join(licensed))}: internal use only. ",
                     f"含有来自{_e('、'.join(licensed))}的授权数据：仅限内部使用。")
                   if licensed else "")
-               + (T(f"{DAGGER} marks simulated demonstration values: not market data. ",
-                    f"{DAGGER} 表示模拟演示数值，非市场数据。")
+               + (T(f"{DAGGER} marks a value from a simulated source. ",
+                    f"{DAGGER} 表示该数值来自模拟来源。")
                   if snapshot.get("simulated") else "") + "</p>")
     out.append(f"<p><b>{T('Disclaimer.', '免责声明。')}</b> {_e(T(DISCLAIMER, DISCLAIMER_ZH))}"
                "</p>"
@@ -1197,10 +1191,6 @@ def _render_report(snapshot: dict) -> str:
                         f"<li>{mark_simulated(w['text'])}</li>" for w in watch) + "</ul></section>")
     back = _back(snapshot, numbers, "".join(front + body)) + _annex(snapshot, numbers)
     title = snapshot["title"]
-    demo_class = ' class="r-demo"' if snapshot.get("simulated") else ""
-    mark = ('<div class="r-mark" aria-hidden="true">'
-            f'{T("Demonstration · simulated data", "演示 · 模拟数据")}</div>'
-            if snapshot.get("simulated") else "")
     html_lang = "zh-CN" if lang != "en" else "en"
     return (
         f'<!doctype html><html lang="{html_lang}"><head><meta charset="utf-8">'
@@ -1208,7 +1198,7 @@ def _render_report(snapshot: dict) -> str:
         '<meta name="generator" content="'
         f'{_e(snapshot.get("template_version", TEMPLATE_VERSION))}">'
         f"<title>{_e(title)}</title><style>{_css(snapshot)}</style></head>"
-        f"<body{demo_class}>{mark}<main>"
+        "<body><main>"
         f'<article class="r-sheet r-front" aria-label="Summary">{"".join(front)}</article>'
         f'<article class="r-sheet r-body" aria-label="Report">{"".join(body)}</article>'
         f'<article class="r-sheet r-back-sheet" aria-label="Methodology and data">{back}'

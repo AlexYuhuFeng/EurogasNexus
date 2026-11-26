@@ -181,8 +181,8 @@ def ask_messages(
 
     language_instruction = language_rule(language)
     simulated_instruction = (
-        " The facts use simulated demo data: say so, and never call a simulated price a "
-        "market price." if simulated else ""
+        " Some facts come from a simulated source: mark a simulated figure as simulated "
+        "once, and never call a simulated price a market price." if simulated else ""
     )
     return [
         {

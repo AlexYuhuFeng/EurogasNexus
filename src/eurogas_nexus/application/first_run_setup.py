@@ -93,7 +93,7 @@ SOURCE_STEPS: dict[str, str | None] = {
 
 #: Why a source is left out of the flow.
 EXCLUDED_REASONS: dict[str, str] = {
-    source_id: "simulated demo source, never part of a customer's set-up"
+    source_id: "simulated source, never part of a customer's set-up"
     for source_id, step in SOURCE_STEPS.items()
     if step is None
 }
