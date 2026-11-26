@@ -446,3 +446,16 @@ def test_review_decision_rejects_unknown_entity_kind(client) -> None:
         },
     )
     assert response.status_code == 422
+
+
+def test_a_call_without_a_resolved_caller_is_refused_not_given_every_scope():
+    from types import SimpleNamespace
+
+    from fastapi import HTTPException
+
+    from eurogas_nexus.api.routes.public.agents import _principal
+
+    request = SimpleNamespace(state=SimpleNamespace())
+    with pytest.raises(HTTPException) as refused:
+        _principal(request)
+    assert refused.value.status_code == 401

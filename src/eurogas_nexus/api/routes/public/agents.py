@@ -88,13 +88,11 @@ def _principal(
 
     identity = getattr(request.state, "identity", None)
     if identity is None:
-        return AgentInvocationContext(
-            principal_id="service:public-api",
-            role="ANALYST",
-            roles=["ANALYST"],
-            data_scopes=["*"],
-            human_confirmation=human_confirmation,
-            confirmation_note=confirmation_note,
+        # Fail closed: a call that reached this route without a resolved caller is refused, not
+        # served as an analyst with every data scope (agentisation review, 2026-11-25).
+        raise HTTPException(
+            status_code=401,
+            detail={"code": "authentication_required", "message": "no caller identity"},
         )
     return AgentInvocationContext(
         principal_id=identity.principal_id,
