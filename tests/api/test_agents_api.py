@@ -446,3 +446,94 @@ def test_review_decision_rejects_unknown_entity_kind(client) -> None:
         },
     )
     assert response.status_code == 422
+
+
+def _job(client, job_id: str) -> dict:
+    response = client.get(f"/api/jobs/{job_id}")
+    assert response.status_code == 200, response.text
+    return response.json()["data"]
+
+
+def test_a_background_research_run_answers_with_its_job_and_reports_each_step(client) -> None:
+    queued = client.post(
+        "/api/agent/research",
+        json={
+            "objective": "Is the NBP premium over TTF persistent today?",
+            "agent_profile": "STRATEGY_RESEARCHER",
+            "background": True,
+        },
+    )
+
+    assert queued.status_code == 202, queued.text
+    job = queued.json()["data"]
+    assert job["kind"] == "AGENT_RUN"
+    assert job["status"] == "QUEUED"
+    assert (job["step"], job["step_total"]) == (0, 5)
+    assert "background-job" in job["provenance"]
+    # The test client runs the scheduled pipeline before it hands the answer back.
+    done = _job(client, job["job_id"])
+    assert done["status"] == "SUCCEEDED", (done["error_code"], done["error_message"], done["step"])
+    assert (done["step"], done["step_total"], done["step_label"]) == (5, 5, "research.review")
+    run_refs = [ref for ref in done["output_refs"] if ref.startswith("agent_run:")]
+    assert len(run_refs) == 1
+    detail = client.get(f"/api/agent/runs/{run_refs[0].split(':', 1)[1]}")
+    assert detail.status_code == 200
+    assert detail.json()["data"]["status"] == "READY_FOR_HUMAN_REVIEW"
+
+
+def test_a_cancelled_background_research_run_stores_no_run(client, monkeypatch) -> None:
+    """A cancel seen at a step boundary rolls the whole run back: no run row, no outputs.
+
+    On SQLite the pipeline's own writes hold the only write lock while it runs, so the test
+    stands in for the user's cancel by having the step boundary see it (the runner's own
+    cancel tests in tests/unit/test_background_jobs.py cancel through the store).
+    """
+
+    from sqlalchemy.orm import Session as SyncSession
+
+    from eurogas_nexus.application import background_jobs
+    from eurogas_nexus.db.models import AgentRunRecord
+
+    original = background_jobs.JobProgress.step
+
+    def cancelled_at_hypothesis(self, index, label):
+        if label == "research.hypothesis":
+            raise background_jobs.JobCancelled(self.job_id)
+        original(self, index, label)
+
+    monkeypatch.setattr(background_jobs.JobProgress, "step", cancelled_at_hypothesis)
+    queued = client.post(
+        "/api/agent/research",
+        json={
+            "objective": "Is the NBP premium over TTF persistent today?",
+            "agent_profile": "STRATEGY_RESEARCHER",
+            "background": True,
+        },
+    )
+
+    job_id = queued.json()["data"]["job_id"]
+    stopped = _job(client, job_id)
+    assert stopped["status"] != "SUCCEEDED"
+    assert stopped["output_refs"] == []
+    with SyncSession(client.engine) as session:
+        assert session.query(AgentRunRecord).count() == 0
+    cancelled = client.post(f"/api/jobs/{job_id}/cancel")
+    assert cancelled.status_code == 200, cancelled.text
+    assert cancelled.json()["data"]["status"] == "CANCELLED"
+
+
+def test_a_background_research_run_needs_a_named_user(client, monkeypatch) -> None:
+    from eurogas_nexus.api.routes.public import agents
+
+    monkeypatch.setattr(agents, "_named_job_owner", lambda request: None)
+    refused = client.post(
+        "/api/agent/research",
+        json={
+            "objective": "Is the NBP premium over TTF persistent today?",
+            "agent_profile": "STRATEGY_RESEARCHER",
+            "background": True,
+        },
+    )
+
+    assert refused.status_code == 403
+    assert refused.json()["detail"]["code"] == "background_job_requires_named_identity"
