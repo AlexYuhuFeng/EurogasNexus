@@ -147,7 +147,7 @@ def main(argv: list[str] | None = None) -> int:
     now = datetime.now(UTC)
     with session_factory() as session:
         for row in result.rows:
-            session.merge(OptionSettlementRecord(**row))
+            session.merge(OptionSettlementRecord(**keep_first_receipt(session, row)))
         session.merge(
             IngestionRunRecord(
                 run_id=f"options-{args.source.lower()}-{now:%Y%m%dT%H%M%S}",
@@ -164,6 +164,27 @@ def main(argv: list[str] | None = None) -> int:
         session.commit()
     print(f"Stored {len(result.rows)} {args.source} option settlements.")
     return 0
+
+
+def keep_first_receipt(session, row: dict) -> dict:
+    """Keep the stored receipt time when a reimport brings the same settlement unchanged.
+
+    ``ingested_at_utc`` is when the desk could first have known the value; dataset builds use it
+    as ``available_at``. An identical reimport must not move it later, or a training origin that
+    could see the value before would stop seeing it.
+    """
+
+    from eurogas_nexus.db.models import OptionSettlementRecord
+
+    stored = session.get(OptionSettlementRecord, row["settlement_id"])
+    if stored is None or stored.ingested_at_utc is None:
+        return row
+    for key, value in row.items():
+        if key == "ingested_at_utc":
+            continue
+        if getattr(stored, key, None) != value:
+            return row
+    return {**row, "ingested_at_utc": stored.ingested_at_utc}
 
 
 if __name__ == "__main__":

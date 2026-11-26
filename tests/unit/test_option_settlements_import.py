@@ -227,3 +227,29 @@ def test_simulated_settlements_are_flagged_and_priced_consistently() -> None:
     # Most strikes carry time value above the settlement tick and solve.
     assert result.solved > 0.8 * len(result.rows)
     assert {row["trade_date"].weekday() for row in result.rows} <= {0, 1, 2, 3, 4}
+
+
+def test_an_unchanged_reimport_keeps_the_first_receipt_time() -> None:
+    """Dataset builds read ``ingested_at_utc`` as ``available_at``; an identical file again
+    must not move it later, while a changed value takes the new receipt."""
+
+    from types import SimpleNamespace
+
+    import scripts.ops.import_option_settlements as script
+
+    first = datetime(2026, 11, 20, 18, 0, tzinfo=UTC)
+    again = datetime(2026, 11, 22, 18, 0, tzinfo=UTC)
+    row = {"settlement_id": "s1", "settlement_price": 1.25, "strike": 30.0, "ingested_at_utc": again}
+
+    class Session:
+        def __init__(self, stored):
+            self.stored = stored
+
+        def get(self, _model, key):
+            return self.stored if key == "s1" else None
+
+    stored = SimpleNamespace(settlement_id="s1", settlement_price=1.25, strike=30.0, ingested_at_utc=first)
+    assert script.keep_first_receipt(Session(stored), row)["ingested_at_utc"] == first
+    changed = SimpleNamespace(settlement_id="s1", settlement_price=1.30, strike=30.0, ingested_at_utc=first)
+    assert script.keep_first_receipt(Session(changed), row)["ingested_at_utc"] == again
+    assert script.keep_first_receipt(Session(None), row)["ingested_at_utc"] == again

@@ -186,6 +186,14 @@ export const useBackgroundJobsStore = create<BackgroundJobsState>((set, get) => 
         const response = await api.jobs({ limit: LIST_LIMIT });
         if (asked !== generation) return;
         const previous = get().jobs;
+        const warnings = response.meta?.warnings ?? [];
+        if (warnings.includes("RUNTIME_POSTGRESQL_UNAVAILABLE")) {
+          // An empty list from a store that could not be read is not "nothing running": keep the
+          // jobs already followed and keep asking, so their notices come back with the store.
+          set({ lastError: "RUNTIME_POSTGRESQL_UNAVAILABLE" });
+          schedule();
+          return;
+        }
         const next = Array.isArray(response.data) ? response.data : [];
         const finished = newlyFinishedJobs(previous, next);
         set({
