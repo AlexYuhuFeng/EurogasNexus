@@ -6996,5 +6996,8 @@
   "reports.stop_waiting": "Stop waiting",
   "reports.landed_after_timeout": "The report finished after the connection timed out and was filed in the archive. It is open below.",
   "reports.fail.stopped_waiting": "Stopped waiting. The report may still finish: press Refresh on the archive in a minute or two.",
-  "reports.fail.not_landed": "The report has not reached the archive after six minutes. Press Refresh on the archive to check again, try again, or make it without AI, which takes seconds."
+  "reports.fail.not_landed": "The report has not reached the archive after six minutes. Press Refresh on the archive to check again, try again, or make it without AI, which takes seconds.",
+  "status.partial_sources": "{{active}} of {{total}} data sources are live; the rest are not connected or are behind, so figures from them may be missing or older.",
+  "status.store_not_ready": "The desk's data store is not fully ready: {{detail}}.",
+  "status.partial_unknown": "Some data has not arrived yet. Figures that are affected are marked where they appear."
 }
