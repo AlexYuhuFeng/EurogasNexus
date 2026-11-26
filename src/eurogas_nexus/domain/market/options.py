@@ -368,11 +368,13 @@ def smile_metrics(quotes: Sequence[SmileQuote], forward: float, tenor: float) ->
         if atm is None:
             reasons["atm"] = "strikes_do_not_bracket_the_underlying"
         # Call delta falls as the strike rises; interpolate in increasing delta.
+        # ``points`` is in increasing strike, so delta must fall strictly along it. Check that
+        # before reversing: sorting first would hide a reversal and join strikes that are not
+        # neighbours on the smile.
         deltas = [forward_delta(CALL, forward, strike, vol, tenor) for strike, vol in points]
-        ordered = sorted(zip(deltas, vols, strict=True))
-        delta_axis = [delta for delta, _ in ordered]
-        vol_axis = [vol for _, vol in ordered]
-        if any(b <= a for a, b in zip(delta_axis, delta_axis[1:], strict=False)):
+        delta_axis = deltas[::-1]
+        vol_axis = vols[::-1]
+        if any(b >= a for a, b in zip(deltas, deltas[1:], strict=False)):
             reasons["delta_25"] = "smile_not_monotone_in_delta"
         else:
             call25 = _interpolate(delta_axis, vol_axis, 0.25)

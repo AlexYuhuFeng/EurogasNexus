@@ -201,3 +201,17 @@ def test_the_open_interest_ratio_is_withheld_when_a_strike_has_none() -> None:
     metrics = smile_metrics(quotes, 30.0, 0.25)
     assert metrics.put_call_oi_ratio is None
     assert metrics.reasons["put_call_oi_ratio"] == "open_interest_incomplete"
+
+
+def test_a_delta_reversal_across_strikes_is_refused_not_sorted_away() -> None:
+    """Sorting by delta would join strikes that are not neighbours and publish a wrong put wing."""
+
+    strikes = [70.0, 80.0, 100.0, 120.0, 160.0]
+    vols = [0.2, 0.2, 0.2, 1.0, 0.3]
+    quotes = []
+    for strike, vol in zip(strikes, vols, strict=True):
+        quotes.append(SmileQuote(strike, CALL, vol, 10.0))
+        quotes.append(SmileQuote(strike, PUT, vol, 10.0))
+    metrics = smile_metrics(quotes, 100.0, 1.0)
+    assert metrics.reasons.get("delta_25") == "smile_not_monotone_in_delta"
+    assert metrics.risk_reversal_25d is None
