@@ -28,6 +28,47 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   Not built, for the owner: a broker, TimescaleDB, pgvector, Iceberg, Temporal, live model
   routing, MCP delegated identity (C8).
 
+## 2026-11-25 — Commercial Intelligence V3, TAR-2: contracted before public, tariff years, one source order
+
+- Point in time: a figure valued as of T uses the tariff version held at T, final if a final
+  was held, else indicative and flagged. A row with no stated status (ENTSOG) takes NC TAR
+  Art. 29 at T (`domain/tariffs/tariff_year.py`: in force, or the yearly auction that ran at
+  it held; else indicative), re-derived on every read; new bases `nc_tar_tariff_in_force`,
+  `nc_tar_yearly_auction_held`, `nc_tar_before_yearly_auction`.
+- Tariff years: each publisher's convention and cadence in `domain/tariffs/publishers.py`
+  (unconfirmed ones say so) and the registry document; `tariff_versions.tariff_year`; both
+  versions per year side by side (`application/tariff_book.tariff_years`); a period across two
+  years splits per gas day; a newly final version is flagged in `tariff.changed`
+  (`new_final`, priority 1) and raises `tariff_final_published`. ENTSOG polled hourly in wider
+  windows, 6-hourly otherwise (the hourly ENTSOG job is the floor).
+- Capacity the firm holds: migration `0088_tar2_capacity_bookings` (on `0086_lng_disruption`;
+  0087 left free), ADR Decision 38 (37 reserved): table `capacity_bookings`, import contract
+  `etrm.capacity_bookings.v1`. `domain/tariffs/precedence.split` prices contracted, then
+  public (how the rest would be bought: DA/WD reserve plus premium, FCFS at terminals), else
+  not held (never zero); `application/capacity_costs.py` for pipeline and terminal; applied in
+  route pricing (`RouteLeg.cost_basis`, `layers`), contract costs, the capacity optimiser
+  (`held_capacity_mwh`) and LNG-3 (booked send-out and storage as `contracted` offers ranked
+  first).
+- One resolver, `domain/pricing/source_precedence.py` (FX, interest, capacity cost, tariff,
+  commodity price): default orders, the firm's order per kind and `kind@context` in the
+  organisation setting `source_precedence` (admin, validated, audited); every result lists all
+  tiers in order with the one used marked. `application/source_precedence.resolve_fx_rate(
+  session, from_ccy, to_ccy, as_of, context)` and `resolve_interest_rate`.
+- Financial-institution connector type: registry entry `src-bank-rates` (no credential), the
+  setting `financial_institutions` (credential fields refused; `api` access only with the
+  firm's agreement recorded, still unconnected), contracts `bank.fx_rates.v1` and
+  `bank.interest_rates.v1` (rows `BANK:<key>`).
+- Routes (READ): `GET /api/tariffs/years`, `/api/capacity/bookings`, `/api/capacity/cost`,
+  `/api/pricing/fx-rate`, `/api/pricing/source-precedence`. Census 308 paths / 343 operations.
+- Web: Sources → Infrastructure: the tariff book shows each row's tariff year and a new mark,
+  and a facility's years with both versions; a capacity cost panel (bookings, a cost by layer
+  with status, tariff year and publication date, the sources in order, the order in force and
+  an FX check), EN and ZH, design tokens.
+- Open: booking content history (an update overwrites), a re-sent interest rate overwrites, LNG-3
+  takes the first-ranked offer per kind (no spill beyond a booking), no maker-checker on the
+  settings, bank rows are not served by the general FX reads for database identities (entitlement
+  family unknown).
+
 ## 2026-11-25 — Commercial Intelligence V3, LNG-3: a disruption re-optimises the portfolio (branch `wip/lng3`)
 
 - `domain/lng/disruption.py` (pure, deterministic, no solver): a late cargo or a curtailed

@@ -138,6 +138,46 @@ AI 用途 `news_note` 的 AI 说明（"对我的账簿意味着什么"），标�
 `0080_lng_eta_basis`）。接口统计不变：282 条路径 / 315 个操作。设计见
 `docs/engineering/Commercial-Intelligence-V3/12_LNG_CARGO_IN_TRANSIT.md`。
 
+2026-11-25 新增“先签约、后公开”的容量成本、费率年度与数据来源优先级（Commercial Intelligence
+V3 TAR-2）：五条路径、五个操作，均为 READ，不写入任何数据。`GET /api/tariffs/years?facility=`
+（可选 `direction`、`product`、`operator`、`as_of`；缺 `facility` 为 422）按费率年度返回
+`years[]`：每项含 `tariff_year`（`label`、`convention`、首末燃气日）、方向、产品、`INDICATIVE`
+与 `FINAL` 两个版本并列（与 `GET /api/tariffs` 的版本行相同，或为 null）、`versions`、`used`
+（按 `as_of` 估值时采用的状态）与 `used_version_id`。`GET /api/capacity/bookings`（`kind`、
+`facility`、`as_of`）列出调用方账簿内、在 `as_of` 时点持有的已导入订舱（获取方式、期间、数量与
+单位、签约价格与单位、`price_recorded`、记录与释放时间等）。`GET /api/capacity/cost`（`kind`
+pipeline|terminal、`facility`；管道需 `direction`、`first`、`last`、`mwh_per_day`，可选
+`product`（默认 DAILY）、`premium`、`operator`；接收站需 `arrival`、`cargo_mwh`，可选 `product`
+（默认 spot）；`as_of`）先按签约成本、再按公开费率计价，返回 `layers[]`（`layer`
+contracted|public|not_held、数量、单位成本、成本、状态；签约层含 `booking_id`、`acquired_via`、
+`contracted_price`；公开层含 `status_basis`、`tariff_year`、`version_id`、`published_at`
+（发布方未注明时为 null）、`recorded_at`、`how_bought`、`premium`、`public_price`、`source`）、
+`covered`、`total_cost`（不完整时为 null，绝不为零）、`complete`、`indicative`、`order`、
+`order_source`、`sources[]`（按顺序列出各层级及是否采用、原因）与 `issues`；输入不符为 422
+`capacity_cost_input_missing`、`period_too_long`（超过 400 个燃气日）或 `period_reversed`。
+`GET /api/pricing/fx-rate?from=&to=`（`as_of`、`context`、`rate_type`）按企业的来源顺序解析一个
+汇率，返回 `value`（每单位 `from` 折合多少 `to`，或 null）、`used_tier`、`source`、`order`、
+`order_source`（`default`、`setting:<键>` 或 `calculation`）与 `sources[]`（各层级的 `used`、
+`reason`：not_held|stale|not_covering|not_configured|not_entitled|not_tried|used、`note`，
+采用的层级另含取值、来源、日期与方法）。`GET /api/pricing/source-precedence`（`context`）返回
+各类数值的现行顺序 `kinds[]`、企业已配置的银行 `institutions[]`（不含任何凭据）与
+`live_feed_terms`。其他新增字段：费率版本行增加 `tariff_year`、`status_rule`、`new`、
+`published_at_stated`，`status_basis` 可为 `nc_tar_tariff_in_force`、
+`nc_tar_yearly_auction_held`、`nc_tar_before_yearly_auction`（按所问时点重新判定；旧的
+`period_started`、`period_not_started` 按同一规则重读）；发布方行增加 `tariff_year`、`cadence`、
+`cadence_confirmed`；路径段增加 `indicative`、`version_id`、`version`、`tariff_year`、
+`status_basis`、`published_at`、`recorded_at`、`cost_basis`（public|contracted|contracted+public）、
+`layers` 与 `breakdown`；合同成本的 `basis` 可为 `contracted` 或 `contracted+public` 并附
+`breakdown`；`POST /api/optimization/capacity` 接受可选 `held_capacity_mwh`（默认 0）与
+`held_cost_gbp`，结果增加 `held_capacity_mwh`、`held_cost_gbp` 与 `layers`；
+`PUT /api/settings/organisation`（ADMIN，审计 `settings.organisation.update`）接受
+`source_precedence`（`kind` 或 `kind@context` 对应该类层级的有序列表）与
+`financial_institutions`（键对应名称、是否签约、提供内容、接入方式 file|manual|api 等；api 需已
+记录企业协议；任何凭据字段为 422 `setting_invalid`；值为 null 即删除）；告警可含类型
+`tariff_final_published`；`tariff.changed` 载荷增加 `tariff_year`、`published_at_utc`、
+`recorded_at_utc` 与 `new_final`。不进行任何订舱、竞拍、提名或发送。接口统计：308 条路径 / 343
+个操作（在 303 / 338 基础上 +5 / +5）。
+
 2026-11-25 新增组合扰动再优化（Commercial Intelligence V3 LNG-3）：四条路径、四个操作。
 `GET /api/lng/cargoes/{cargo_id}/disruption-options`（READ，PORTFOLIO_READ，按账簿范围）围绕
 账簿内所有受扰动的供应（晚于其时段开始到港的船货、有削减日的管道供应）重新优化，返回

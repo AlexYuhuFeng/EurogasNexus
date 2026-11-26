@@ -128,6 +128,41 @@ come from the vessel feed, not from this contract.
 | `eta`, `eta_basis`, `eta_confidence` | no | ISO 8601. The basis is one of `master_notice`, `ais_declared`, `feed_estimate`, `schedule`, `manual`. The confidence is `high`, `medium` or `low` |
 | `vessel_imo`, `load_country`, `departed_at`, `destination_terminal`, `destination_country`, `volume_m3`, `energy_gwh`, `book_id` | no | `book_id` must exist here |
 
+### `etrm.capacity_bookings.v1`: capacity the firm holds (TAR-2)
+
+Lands in `capacity_bookings` (migration 0088, ADR Decision 38). The key is the sending system
+and `booking_id`. A booking's contracted cost prices what it covers before any public tariff:
+in route pricing, contract costs, the capacity optimiser, LNG-3 and `GET /api/capacity/cost`.
+A row with `status` `RELEASED`, `CANCELLED`, `CANCELED` or `VOID` ends the booking: it is
+stamped released and stays readable as of the instants it was held. A booking without a price
+is held, and the cost it covers is then not given (never zero). Nothing is booked, bid or
+released at a TSO or terminal from here.
+
+| Column | Required | Content |
+|---|---|---|
+| `booking_id`, `kind`, `facility`, `first_gas_day`, `last_gas_day`, `quantity`, `quantity_unit`, `acquired_via` | yes | `kind`: `entry`, `exit`, `lng_slot`, `regas`, `send_out`, `storage` (`kind_unknown`). `facility`: the ENTSOG point key, terminal id or storage id as the registers name it. `quantity_unit`: `MWh/d`, `kWh/h`, `kWh/d`, `MWh` or `slot` (only, and always, for `lng_slot`: `unit_unknown`). `acquired_via`: `auction`, `long_term`, `allocation`, `secondary`, `fcfs`, `bilateral` (`acquired_via_unknown`). The last day is inclusive (`period_reversed`); the quantity is positive (`quantity_not_positive`) |
+| `price`, `price_unit`, `currency` | no | The contracted price in a tariff unit (`EUR/(kWh/h)/y`, `p/kWh/d`, `EUR/MWh`, ...) or `<CCY>/slot` for slots; the currency defaults to the unit's |
+| `operator`, `facility_name`, `product`, `firmness`, `book_id`, `counterparty`, `status` | no | `firmness` `FIRM` (default) or `INTERRUPTIBLE` (`firmness_invalid`); a blank `book_id` holds the capacity at firm level |
+
+### `bank.fx_rates.v1` and `bank.interest_rates.v1`: the firm's own bank (TAR-2)
+
+The firm's clearing or account bank's FX and interest rates, from the bank's own export or typed
+by hand. The sending system (`--system`) is the institution's key in the organisation setting
+`financial_institutions` (administrators, audited; no credential is accepted there), and the
+rows land in `fx_observations` and `interest_rate_observations` with source `BANK:<key>`. They
+are the `contracted_bank` tier of the source-precedence resolver, used before a licensed
+fixing (WM/Reuters, BFIX) and the ECB unless the firm sets another order; rows of a key that is
+not configured are stored but not used. A re-sent rate replaces the earlier one. No bank is
+connected live: a feed needs the firm's own agreement and credentials, and stays outside this
+product.
+
+| Contract | Column | Required | Content |
+|---|---|---|---|
+| `bank.fx_rates.v1` | `base_currency`, `quote_currency`, `rate`, `value_date` | yes | ISO 4217 codes (`pair_invalid` when the same); `rate` positive, quote currency per unit of base; `value_date` YYYY-MM-DD |
+| | `rate_type`, `published_at`, `rate_id` | no | `mid` (default), `buy` or `sell` (`rate_type_unknown`); when the bank published it (default: the end of the value date); the bank's own reference |
+| `bank.interest_rates.v1` | `rate_id`, `currency`, `rate_pct`, `value_date` | yes | The bank's name for the rate, up to 9 characters (`EUR-ON`, `USD-1M`); percent a year, -5 to 50 |
+| | `day_count` | no | `ACT/360` (default) or `ACT/365F` |
+
 ### `erp.counterparties.v1`: counterparties
 
 Lands in `erp_references` (kind `counterparty`). It is a reference that lets a trade, a credit
@@ -176,6 +211,8 @@ configuration, so confirm every mapping with the system's administrator.
 | `etrm.physical_positions.v1` | the ETRM's scheduling or logistics module, or a separate scheduling system | Daily scheduled quantities per location and path, storage injection and withdrawal by facility, and customer offtake. These are often held as nominations or schedules per gas day |
 | `etrm.nominations.v1` | the ETRM's scheduling module or the nominations agent's confirmations | Nomination and renomination quantities per gas day and point, with a status that moves from submitted to confirmed or matched, and confirmation times. TSO confirmations follow the Edig@s message flow, which the scheduler typically records |
 | `etrm.cargo_schedule.v1` | the ETRM's LNG or shipping module | A cargo or voyage id, vessel, load port, laycan or loading window, discharge terminal, ETA, and volume (m3) or energy |
+| `etrm.capacity_bookings.v1` | the ETRM's transport or capacity module, or a download from the booking platform (PRISMA, a terminal's portal) | A capacity contract or booking number, point or terminal, direction, product, period, booked quantity (often kWh/h), auction premium or contracted price, and the platform it was bought on |
+| `bank.fx_rates.v1`, `bank.interest_rates.v1` | the bank's own rate export or the treasury system | A currency pair or rate name, value date, rate and its type (mid, buy, sell), and the bank's reference |
 | `erp.counterparties.v1` | SAP S/4HANA or ECC, and other ERPs | A business partner or customer/vendor number, legal name, country, company code, payment terms and a posting or payment block flag. Bank details and tax numbers are also held there, and they are deliberately not taken |
 | `erp.invoices.v1` | SAP S/4HANA or ECC (accounts receivable and payable), and other ERPs | Document number, company code, customer or vendor number, document and due dates, gross amount and currency, clearing status, and a reference or assignment field that often carries the ETRM's deal number |
 

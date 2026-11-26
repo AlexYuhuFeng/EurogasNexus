@@ -7,7 +7,7 @@ describes.
 **Branch:** `innovation/continuous-commercial-intelligence` (pushed; no pull request opened,
 nothing merged, no tag, no release package)
 **Baseline:** `main@6d21b898661d6466418b3aaeab505a7bc4fb4013`
-**Schema head on the branch:** `0086_lng_disruption` (LNG-3: seven expand-only tables, ADR Decision 36), on `0084_news_items` (NEWS-1: tables `news_items`, `news_source_polls`), on `0085_sched1_nomination_matching` (SCHED-1: matching columns on `gas_day_nomination_events`), on `0083_tar1_tariff_book` (TAR-1: tables `tariff_versions`, `capacity_notices`), on `0082_data1_integration` (DATA-1: `market_events.writer_txid`, table `erp_references`), on `0081_change_requests` (P-17), on `0080_lng_eta_basis` (LNG-2), on `0079_licensed_data_use` (GOV-1, P6)
+**Schema head on the branch:** `0088_tar2_capacity_bookings` (TAR-2: table `capacity_bookings`, column `tariff_versions.tariff_year`, ADR Decision 38; 0087 left free), on `0086_lng_disruption` (LNG-3: seven expand-only tables, ADR Decision 36), on `0084_news_items` (NEWS-1: tables `news_items`, `news_source_polls`), on `0085_sched1_nomination_matching` (SCHED-1: matching columns on `gas_day_nomination_events`), on `0083_tar1_tariff_book` (TAR-1: tables `tariff_versions`, `capacity_notices`), on `0082_data1_integration` (DATA-1: `market_events.writer_txid`, table `erp_references`), on `0081_change_requests` (P-17), on `0080_lng_eta_basis` (LNG-2), on `0079_licensed_data_use` (GOV-1, P6)
 
 ## Where the programme stands
 
@@ -40,6 +40,7 @@ nothing merged, no tag, no release package)
 | LNG-3 A disruption re-optimises the portfolio | Built and tested; LNG3-1 to LNG3-8 met ([06](06_ACCEPTANCE_CRITERIA.md)); design, sources and limits in [17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md); migration `0086_lng_disruption`, ADR Decision 36; latency in [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) sections 2 and 8 |
 | CODEX-1 The Codex assessments on agents and big data | Reviewed and the valid, contained proposals built; CODEX1-1 to CODEX1-6 met ([06](06_ACCEPTANCE_CRITERIA.md)); verdicts and the list for the owner in [18](18_CODEX_ASSESSMENT_REVIEW.md); no route, migration or ADR; data sizing in [doc 19](19_DATA_CAPACITY_AND_INFRASTRUCTURE.md) |
 | CAP-1 Data capacity and infrastructure | Report done ([19](19_DATA_CAPACITY_AND_INFRASTRUCTURE.md)): sizes, rates and a staged recommendation for 15 years; recommendation only, nothing adopted; proposed ADRs ADR-P1 to ADR-P7 await the owner. Read-only measurement script `scripts/capacity/measure_db.py` (not shipped) |
+| TAR-2 Contracted before public, tariff years, one source order | Built and tested; TAR2-1 to TAR2-9 met ([06](06_ACCEPTANCE_CRITERIA.md)): status as of the instant valued (NC TAR Art. 29 for rows that state none), tariff years with both versions and their dates, a new final flagged and alerted, the firm's bookings priced before public tariffs in route pricing, contract costs, the optimiser and LNG-3, one configurable audited source-precedence resolver (`resolve_fx_rate` for LNG-4), a financial-institution connector type with no live bank; five reads and the Sources view; migration `0088_tar2_capacity_bookings`, ADR Decision 38 |
 | UX-1, UX-2, LOOP-1, M8 to M11, M13 | Planned, in the order of [05](05_IMPLEMENTATION_ROADMAP.md) |
 | M12 Hosted pilot | Dropped by the user on 2026-11-24 (deployment later, outside this programme) |
 
@@ -82,7 +83,14 @@ nothing merged, no tag, no release package)
 | `892ca1d` | CODEX-1 versioned market change wire contract for a later transport |
 | `1a3095e` | CODEX-1 documents (18) and evidence |
 | `93fb109` | CAP-1 read-only measurement of table sizes and row counts |
-| (this commit) | CAP-1 data capacity and infrastructure report (19), decision log and state |
+| `acbfbe1` | CAP-1 data capacity and infrastructure report (19), decision log and state |
+| `0ce74e7` | TAR-2 one source-precedence resolver and a financial-institution connector type |
+| `60cb3cb` | TAR-2 migration 0088 (capacity bookings, tariff year), ADR Decision 38 |
+| `a498589` | TAR-2 point-in-time tariff status, tariff years and new-final alerts |
+| `126eba1` | TAR-2 capacity cost contracted before public, in routes, costs, the optimiser and LNG-3 |
+| `1489c42` | TAR-2 five reads and the web view of layers, tariff years and sources |
+| `84b4988` | TAR-2 source counts include the financial-institution connector |
+| (this commit) | TAR-2 documents and evidence |
 
 ## What M5 built
 
@@ -112,7 +120,10 @@ deduplicated plan in [05](05_IMPLEMENTATION_ROADMAP.md) ("Consolidated requireme
    curtail, and the default preference weights.
 3. **GOV-1.** Audit with the change, entitlement reporting, maker-checker, AI controls.
 4. **UX-1.** The twelve design-study fixes, installer and sign-in.
-5. **DATA-1, TAR-1, MAP-1, SCHED-1, NEWS-1 and LNG-3 (built).** Then **UX-2, LOOP-1**, M8 to M11 and M13.
+5. **DATA-1, TAR-1, MAP-1, SCHED-1, NEWS-1, LNG-3 and TAR-2 (built).** TAR-2 left for the
+   owner: which banks the firm holds and their export format, the firm's source order per
+   calculation, confirming the unconfirmed publisher cadences, booking content history, and
+   maker-checker on the source-order setting. Then **UX-2, LOOP-1**, M8 to M11 and M13.
 
 
 A persona review round follows each user-facing slice.

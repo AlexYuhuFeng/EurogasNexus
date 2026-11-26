@@ -28,6 +28,7 @@ Phase 0 work (baseline, audit, these documents). Status is kept in
 | UX-1 | Client polish from the design study (R1 to R12): focus in high contrast, colour-blind palette, directional change, one number formatter, icons, dark surfaces, motion tokens, density, settings split, desktop plugins and menu; installer and sign-in; freshness shown on every figure | 9 | No | Next |
 | DATA-1 | Price revisions readable as known at a time; a change feed over market events; Power Query refreshable reads; ETRM and ERP import contracts | 1, 2 | No | **Built, tested** (DATA1-1 to DATA1-4 met; migration `0082_data1_integration`, ADR Decision 33) |
 | TAR-1 | Public tariffs from TSOs, LNG terminals and storage operators, versioned indicative and final, slot windows, auction notices | 1, 5 | No (public sources) | **Built, tested** (TAR1-1 to TAR1-6 met; migration `0083_tar1_tariff_book`, ADR Decision 34; only ENTSOG is machine-readable, the rest are recorded in the [publisher registry](../../data/TARIFF_PUBLISHER_REGISTRY.md) as manual or parsed) |
+| TAR-2 | Point-in-time tariff status (final if held at the instant valued, else indicative, by NC TAR Art. 29 where a publisher states none); tariffs per tariff year with both versions and their publication dates; capacity cost contracted before public (the firm's bookings, then the public price of how the rest would be bought, else not held, never zero) in route pricing, the optimiser, LNG-3 and the API; one configurable, audited source-precedence resolver (FX, interest, capacity, tariff, commodity price) with a financial-institution connector type (file or manual import; no live feed without the firm's agreement) | 1, 5, 7 | No (the firm's own bookings and bank exports; public tariffs) | **Built, tested** (TAR2-1 to TAR2-9 met; migration `0088_tar2_capacity_bookings`, ADR Decision 38) |
 | MAP-1 | The map: terminals and storage from published capacity, LNG carriers with tracks and ETAs, animated flows, page transitions; real or labelled data only | 5, 9 | No | **Built, tested** (MAP1-1 to MAP1-6 met; additive fields on the map read, no route or migration; frame rate in a browser and page-to-page transitions not yet done) |
 | NEWS-1 | News, policy and geopolitical events into analysis, cited and grounded under GOV-1's AI controls | 8 | No (public sources) | **Built, tested** (NEWS1-1 to NEWS1-11 met; migration `0084_news_items` after SCHED-1's `0085`; ADR Decision 35; feed addresses for the Commission, EUR-Lex and ACER await the owner) |
 | SCHED-1 | Nominations: explain mismatches between trades, confirmations and nominations (read only; nothing sent) | 5 | No | **Built, tested** (SCHED1-1 to SCHED1-8 met; one read `GET /api/desk/gas-day/{gas_day}/reconciliation`; migration `0085_sched1_nomination_matching`, columns only, no ADR) |
@@ -64,6 +65,7 @@ they overlap. Each one is mapped to a single slice above so nothing is built twi
 | Docs and SDK to commercial standard | DOC (done), kept current by each slice |
 | 3D terminals, ships, voyages, flow animation | MAP-1 |
 | Real public tariffs from every publisher, indicative and final | TAR-1 |
+| The firm's contracted capacity and bank rates before public figures, as of any instant | TAR-2 |
 | News, policy and geopolitics, cited, no hallucination | NEWS-1 |
 | Deployment | M12, dropped; the owner deploys later |
 | Branch hygiene | Main plus one development branch |
@@ -72,7 +74,7 @@ they overlap. Each one is mapped to a single slice above so nothing is built twi
 ## Order and reasoning
 
 Built so far: M4 to M6, LNG-1, F1, DOC, the first persona round (QA-1, P-11), P-08, M7,
-LNG-2 and LNG-3. Next:
+LNG-2, LNG-3 and TAR-2. Next:
 
 1. **P-08 and M7 together.** Every later screen and alert depends on one price and on
    changes reaching people in seconds. M7 builds role routing, which LNG-2 needs.
@@ -84,7 +86,9 @@ LNG-2 and LNG-3. Next:
    harder on AI (NEWS-1, "make me a view").
 4. **UX-1.** Polish on a stable model; two items are bugs (high-contrast focus, desktop
    capabilities claimed without their plugins).
-5. **DATA-1, TAR-1, MAP-1, SCHED-1 and NEWS-1 (built)**, each on the foundations above.
+5. **DATA-1, TAR-1, MAP-1, SCHED-1 and NEWS-1 (built)**, each on the foundations above;
+   **TAR-2 (built)** puts the firm's own bookings and bank rates ahead of TAR-1's public
+   figures through one source-precedence resolver.
 6. **UX-2 and LOOP-1**, once the component catalogue and AI controls exist.
 7. **M8 to M11, M13** for commercial depth and consolidation.
 

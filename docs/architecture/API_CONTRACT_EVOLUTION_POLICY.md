@@ -202,6 +202,60 @@ accepts the categories `opportunity` and `nomination`; a channel subscribed to `
 receiving both. Census unchanged: 282 paths / 315 operations. Design and budgets:
 `docs/engineering/Commercial-Intelligence-V3/15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md`.
 
+Additive 2026-11-25 (contracted before public, tariff years and source precedence, Commercial
+Intelligence V3 TAR-2): five paths, five operations, all READ and storing nothing. `GET
+/api/tariffs/years?facility=` (`direction`, `product`, `operator`, `as_of`; 422 without
+`facility`) answers `facility_id`, `as_of` and `years[]`, each with `tariff_year` (`label`,
+`convention`, `first_gas_day`, `last_gas_day`), `direction`, `product`, `firmness`, `operator`,
+`period_from`, `period_to`, the `INDICATIVE` and the `FINAL` version side by side (a version row
+as `GET /api/tariffs` returns it, or null), `versions`, `used` (the status a valuation as of
+`as_of` uses) and `used_version_id`. `GET /api/capacity/bookings` (`kind`
+entry|exit|lng_slot|regas|send_out|storage, `facility`, `as_of`) lists the firm's imported
+bookings in the caller's books as held at `as_of` (`booking_id`, `source_system`,
+`external_id`, `book_id`, `kind`, `facility_kind`, `facility_id`, `facility_name`, `operator`,
+`direction`, `product`, `firmness`, `acquired_via`, `first_gas_day`, `last_gas_day`,
+`quantity`, `quantity_unit`, `quantity_basis`, `price`, `price_unit`, `currency`,
+`price_recorded`, `counterparty`, `source_reference`, `recorded_at_utc`, `updated_at_utc`,
+`released_at_utc`). `GET /api/capacity/cost` (`kind` pipeline|terminal, `facility`; a pipeline
+needs `direction`, `first`, `last`, `mwh_per_day`, with `product` (default DAILY), `premium`,
+`operator`; a terminal needs `arrival`, `cargo_mwh`, with `product` (default spot); `as_of`)
+prices the requirement contracted before public and answers `layers[]` (`layer`
+contracted|public|not_held, `reference`, `quantity`, `unit`, `unit_cost`, `cost`, `currency`,
+`first_gas_day`, `last_gas_day`, `status`, and for a contracted layer `booking_id`,
+`acquired_via`, `contracted_price`, for a public one `status_basis`, `tariff_year`,
+`version_id`, `published_at` (null when the publisher states none), `recorded_at`,
+`how_bought`, `premium`, `public_price`, `source`), `covered`, `total_quantity`, `total_cost`
+(null unless complete: never zero), `unit_cost`, `currency`, `complete`, `indicative`,
+`precedence`, `order`, `order_source`, `sources[]` (every tier in order: `tier`, `label`,
+`used`, `quantity`, `reason`, `note`) and `issues` (also the envelope's warnings); refused
+inputs are 422 `capacity_cost_input_missing`, `period_too_long` (over 400 gas days) or
+`period_reversed`. `GET /api/pricing/fx-rate?from=&to=` (`as_of`, `context`, `rate_type`)
+resolves one FX rate through the firm's source order and answers `kind`, `context`, `as_of`,
+`value` (units of `to` per unit of `from`, or null), `used_tier`, `source`, `order`,
+`order_source` (`default`, `setting:<key>` or `calculation`) and `sources[]` (each tier with
+`used`, `reason` not_held|stale|not_covering|not_configured|not_entitled|not_tried|used,
+`note`, and for the tier used `value`, `source`, `reference`, `as_of`, `unit`, `method`).
+`GET /api/pricing/source-precedence` (`context`) answers `kinds[]` (`kind`, `context`, `order`,
+`order_source`, `tiers[]`), `institutions[]` (the firm's configured banks, no credential) and
+`live_feed_terms`. Additive fields elsewhere: tariff version rows (`GET /api/tariffs`) gain
+`tariff_year`, `status_rule`, `new` and `published_at_stated`, and their `status_basis` may be
+`nc_tar_tariff_in_force`, `nc_tar_yearly_auction_held` or `nc_tar_before_yearly_auction`
+(re-read as of the instant asked; the older `period_started` and `period_not_started` are
+re-read by the same rule); `GET /api/tariffs/publishers` rows gain `tariff_year`, `cadence` and
+`cadence_confirmed`; a route leg gains `indicative`, `version_id`, `version`, `tariff_year`,
+`status_basis`, `published_at`, `recorded_at`, `cost_basis` (public|contracted|contracted+public),
+`layers` and `breakdown`; a contract cost answer may have `basis` `contracted` or
+`contracted+public` with a `breakdown`; `POST /api/optimization/capacity` accepts optional
+`held_capacity_mwh` (default 0) and `held_cost_gbp`, and its result gains `held_capacity_mwh`,
+`held_cost_gbp` and `layers`; `PUT /api/settings/organisation` (ADMIN, audited
+`settings.organisation.update`) accepts `source_precedence` (`kind` or `kind@context` -> an
+ordered list of that kind's tiers) and `financial_institutions` (KEY -> name, contracted,
+provides, access file|manual|api, contexts, max_age_days; api needs `agreement_recorded`; a
+credential field is 422 `setting_invalid`; a null value removes a key); alerts may carry type
+`tariff_final_published`; the `tariff.changed` payload gains `tariff_year`, `published_at_utc`,
+`recorded_at_utc` and `new_final`. Nothing is booked, bid, nominated or sent. Census: 308 paths
+/ 343 operations (+5 / +5 on 303 / 338).
+
 Additive 2026-11-25 (portfolio disruption re-optimisation, Commercial Intelligence V3 LNG-3):
 four paths, four operations. `GET /api/lng/cargoes/{cargo_id}/disruption-options` (READ,
 PORTFOLIO_READ, book scope) re-optimises the cargo's book around every disrupted supply (a cargo

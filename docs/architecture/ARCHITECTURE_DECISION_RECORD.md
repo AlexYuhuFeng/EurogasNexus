@@ -887,3 +887,44 @@ requirement) and storing terminal tariff figures as product data (Fluxys, Elengy
 forbid reuse; offers are the desk's own quotes or entries and are labelled).
 Tests: `tests/domain/test_lng_disruption.py`, `tests/unit/test_lng_disruption_migration.py`,
 `tests/api/test_lng_disruption_api.py`, `tests/integration/test_lng_disruption_postgres.py`.
+
+## Decision 38: Capacity the firm holds is one table, priced before public tariffs through one source-precedence resolver
+
+Accepted 2026-11-25 (branch `wip/fix-tar`, programme
+[Commercial Intelligence V3](../engineering/Commercial-Intelligence-V3/05_IMPLEMENTATION_ROADMAP.md),
+slice TAR-2; Decision 37 is reserved for another slice). Migration
+`0088_tar2_capacity_bookings` (on `0086_lng_disruption`, expand only) adds one table,
+`capacity_bookings`: pipeline entry and exit capacity, LNG slots, regasification, send-out
+and storage the firm holds, each with how it was acquired (auction, long term, allocation,
+secondary, FCFS, bilateral), its period, quantity, unit and basis (per day or a pool of slots), contracted
+price and unit, book and source, and the instants it was recorded and released, imported
+through the contract `etrm.capacity_bookings.v1` and read as of any instant. It also adds the
+nullable `tariff_versions.tariff_year` (the year as the publisher defines it; older versions
+keep NULL and readers derive it from the period, so no row is rewritten). The downgrade drops
+only these two.
+
+A capacity cost is priced in layers by `domain/tariffs/precedence.split`: what the bookings
+cover at the contracted cost, the rest at the public price of how it would be bought (the
+day-ahead or within-day reserve price plus premium, or a terminal's first-come-first-served
+rate), final where a final version was held at the instant valued, else indicative and
+flagged, and anything else not held, never zero. A tariff whose publisher states no status
+takes NC TAR Article 29 at that instant, re-derived on every read. The order of the layers,
+and of the sources of FX rates, interest rates, tariffs and commodity prices, comes from one
+resolver, `domain/pricing/source_precedence.py`, with a default per kind and an order the firm
+may set per kind and per calculation context in the existing organisation setting
+`source_precedence` (administrators only, validated, audited in the same transaction); every
+result lists every tier in order with the one used marked. The firm's banks are named in the
+organisation setting `financial_institutions` and their rates arrive by file or by hand
+(`bank.fx_rates.v1`, `bank.interest_rates.v1`) into the existing FX and interest-rate tables
+as `BANK:<key>` rows, so no further table is needed; a credential is refused, and a live feed
+is recorded only as needing the firm's agreement. Nothing is booked, bid or nominated
+(AGENTS.md rule 8).
+
+Rejected: columns on the ETRM's capacity contract tables (an import would overwrite them and
+they do not say how capacity was acquired or its price unit), a precedence table (the
+organisation setting already has governed, audited writes and one row per firm), a table per
+bank feed (the rates are FX and interest observations like any other, with a source), storing
+the status derived on the day of reading (wrong for an earlier or later instant), and a live
+bank connector (needs the firm's own agreement and credentials, which this product does not
+hold). Tests: `tests/domain/test_tar2_tariff_year_and_precedence.py`,
+`tests/unit/test_tar2_capacity_costs.py`, `tests/api/test_tar2_api.py`.

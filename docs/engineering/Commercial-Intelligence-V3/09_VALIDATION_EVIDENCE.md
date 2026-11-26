@@ -398,7 +398,25 @@ cases, as fixed order did, against 9 of 9 for a deterministic purpose rule, at 1
 No migration and no storage were added, so no PostgreSQL run was needed; the web client is
 unchanged.
 
+## TAR-2 contracted before public, tariff years and source precedence (2026-11-25)
+
+| What | Command | Result |
+| --- | --- | --- |
+| TAR2-1 to TAR2-9 (status as of T, tariff years, new finals, bookings, the split, its uses, the resolver, the bank connector type, the reads) | `pytest tests/domain/test_tar2_tariff_year_and_precedence.py tests/unit/test_tar2_capacity_costs.py tests/api/test_tar2_api.py` | 25 + 16 + 6 passed |
+| Worked example, pipeline | `test_long_term_capacity_covers_part_and_the_rest_is_priced_at_the_day_ahead_reserve`, `test_bookings_and_the_capacity_cost_read_name_layers_versions_and_sources` | ITP-1 exit, January 2027, 100 MWh/d: booking LT-7 (2,500 kWh/h = 60 MWh/d at 3.65 EUR/(kWh/h)/y = 0.416667 EUR per MWh/d a day) 1,860 MWh for 775.00 EUR; the other 40 MWh/d at the day-ahead reserve price (0.0125 EUR/(kWh/h)/d = 0.520833) plus 0.05 premium, final, GY 2026/27, 1,240 MWh for 707.83 EUR; total 1,482.83 EUR |
+| Worked example, LNG slot | `test_a_slot_booked_at_auction_prices_before_the_first_come_first_served_rate` | slot SLOT-3 bought at auction for March 2027 at 450,000 EUR: a 12 March arrival costs 450,000 EUR (contracted); a 12 April arrival takes the first-come-first-served public rate, 520,000 EUR, final (reviewed), CY 2027, with the contracted tier `not_covering` |
+| Tariff, capacity, route, contract-cost, optimiser, LNG, scheduler, import-contract and source suites, the demo planted cases | `pytest` the 85 files under `tests/unit`, `tests/domain`, `tests/api`, `tests/integration`, `tests/db` whose names hold tariff, capacity, optimi, lng, route, contract_cost, scheduler, tar2, spreads, desk_today, planted, import_contract or source (`tests/integration/test_demo_planted_cases.py` included) | 912 passed, 7 skipped |
+| Full serial suite | `pytest tests/unit tests/domain tests/security tests/evals tests/db tests/sdk tests/release tests/integration tests/api` (no PostgreSQL URL) | 6,286 passed, 253 skipped, 3 failed: three registry counts that the new connector moves (43 sources; `BANK` in the fx category), fixed in `84b4988` and re-run (61 passed) |
+| Contract, census, permissions, reachability and docs gates | `pytest tests/contract tests/docs` | 605 passed, 12 skipped; census 308 paths / 343 operations |
+| TAR-2 on PostgreSQL 16 (migration 0088) | store at `0086_lng_disruption`: `alembic upgrade head` (table `capacity_bookings`, column `tariff_versions.tariff_year`), `downgrade -1` (both gone), `upgrade head`; `pytest tests/integration/*postgres*.py tests/unit/test_postgres_native_schema_pipeline.py tests/db` with `RUNTIME_STORE_DATABASE_URL` and `EUROGAS_NEXUS_TEST_POSTGRES_URL` set | migration up, down, up clean; 255 passed, 16 skipped, 1 failed: `test_lng_cargo_change_postgres.py::test_a_late_cargo_reaches_each_role_through_the_listen_worker` (each role also receives LNG-3's "Disruption cleared" message); it fails the same way at `85d59f1`, before TAR-2 |
+| Web | `npx tsc --noEmit -p .`; `npm test` | clean; 1,416 tests, 1,413 passed, 0 failed (`capacityCostModel.test.ts` new; CSS token lint, locale and date-input gates pass) |
+| Lint | `ruff check src tests scripts alembic` | clean |
+
 ## Not yet evidenced
+
+- TAR-2: the capacity cost panel and the tariff years view have not been walked in a browser;
+  the time from ENTSOG republishing a reserve price to the version being held was not measured
+  live (no outbound network), only bounded by the hourly job and the poll interval.
 
 - NEWS-1 live feeds: no feed was read live (no outbound network in the build environment);
   end-to-end latency from publication to a role's alert not measured.
