@@ -332,7 +332,7 @@ export function SettingsCenter({
                     value={mapTileProviderId}
                     onChange={(event) => setMapTileProviderId(event.target.value as typeof mapTileProviderId)}
                   >
-                    {MAP_TILE_PROVIDERS.map((provider) => (
+                    {MAP_TILE_PROVIDERS.filter((provider) => provider.id !== "outline").map((provider) => (
                       <option key={provider.id} value={provider.id}>
                         {language.startsWith("zh") ? provider.labelZh : provider.label}
                       </option>

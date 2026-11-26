@@ -30,10 +30,6 @@ export type MapTileProviderId =
   | "outline"
   | "custom"
   | "openfreemap"
-  | "versatiles"
-  | "osm"
-  | "carto"
-  | "amap"
   | "tianditu";
 
 /**
@@ -177,23 +173,6 @@ export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
     attribution: "OpenFreeMap © OpenMapTiles Data from OpenStreetMap",
   },
   {
-    id: "versatiles",
-    label: "VersaTiles",
-    labelZh: "VersaTiles（开放许可，可商用）",
-    requiresToken: false,
-    licence: "open-licence",
-    availability: "outside-mainland-china",
-    description:
-      "Free, open-source vector basemap permitted for commercial use, with light and dark styles. "
-      + "Data © OpenStreetMap contributors (ODbL). It can also be self-hosted from a single file for "
-      + "networks without internet access.",
-    styleUrl: {
-      light: "https://tiles.versatiles.org/assets/styles/graybeard/style.json",
-      dark: "https://tiles.versatiles.org/assets/styles/eclipse/style.json",
-    },
-    attribution: "© VersaTiles © OpenStreetMap contributors",
-  },
-  {
     id: "tianditu",
     label: "Tianditu / 天地图",
     labelZh: "天地图（需 operator token）",
@@ -203,39 +182,6 @@ export const MAP_TILE_PROVIDERS: MapTileProvider[] = [
     description:
       "CGCS2000-compatible WMTS basemap operated in mainland China. Requires an operator-provided "
       + "Tianditu token; coordinate alignment with the network WGS84 data is display-safe.",
-  },
-  {
-    id: "osm",
-    label: "OpenStreetMap",
-    labelZh: "OpenStreetMap（仅非商业/评估）",
-    requiresToken: false,
-    licence: "not-for-commercial-use",
-    availability: "outside-mainland-china",
-    description:
-      "Volunteer-run tile service. Its usage policy excludes heavy and commercial use, so this is "
-      + "for evaluation only: a production deployment must configure its own source.",
-  },
-  {
-    id: "carto",
-    label: "CARTO Voyager",
-    labelZh: "CARTO Voyager（仅非商业/评估）",
-    requiresToken: false,
-    licence: "not-for-commercial-use",
-    availability: "outside-mainland-china",
-    description:
-      "Public basemaps endpoint, not a production entitlement under CARTO's terms. Evaluation only.",
-  },
-  {
-    id: "amap",
-    label: "AMap / 高德地图",
-    labelZh: "高德地图（仅非商业/评估）",
-    requiresToken: false,
-    licence: "not-for-commercial-use",
-    availability: "mainland-china",
-    description:
-      "Public raster endpoint. Enterprise use needs AMap's paid commercial licence (reported at "
-      + "about CNY 50,000 a year for the basic tier) and a key; without one, evaluation only. AMap uses GCJ-02 coordinates; the client transforms WGS84 network "
-      + "data to GCJ-02 for display alignment.",
   },
 ];
 
@@ -384,43 +330,15 @@ function isOutsideChina(lon: number, lat: number): boolean {
   return lon < 72.004 || lon > 137.8347 || lat < 0.8293 || lat > 55.8271;
 }
 
-export function wgs84ToGcj02(lon: number, lat: number): [number, number] {
-  if (isOutsideChina(lon, lat)) return [lon, lat];
-  const a = 6378245.0;
-  const ee = 0.00669342162296594323;
-  let dLat = transformLatitude(lon - 105.0, lat - 35.0);
-  let dLon = transformLongitude(lon - 105.0, lat - 35.0);
-  const radLat = (lat / 180.0) * Math.PI;
-  let magic = Math.sin(radLat);
-  magic = 1 - ee * magic * magic;
-  const sqrtMagic = Math.sqrt(magic);
-  dLat = (dLat * 180.0) / (((a * (1 - ee)) / (magic * sqrtMagic)) * Math.PI);
-  dLon = (dLon * 180.0) / ((a / sqrtMagic) * Math.cos(radLat) * Math.PI);
-  return [lon + dLon, lat + dLat];
-}
-
-function transformLatitude(x: number, y: number): number {
-  let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
-  ret += ((20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0) / 3.0;
-  ret += ((20.0 * Math.sin(y * Math.PI) + 40.0 * Math.sin((y / 3.0) * Math.PI)) * 2.0) / 3.0;
-  ret += ((160.0 * Math.sin((y / 12.0) * Math.PI) + 320 * Math.sin((y * Math.PI) / 30.0)) * 2.0) / 3.0;
-  return ret;
-}
-
-function transformLongitude(x: number, y: number): number {
-  let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
-  ret += ((20.0 * Math.sin(6.0 * x * Math.PI) + 20.0 * Math.sin(2.0 * x * Math.PI)) * 2.0) / 3.0;
-  ret += ((20.0 * Math.sin(x * Math.PI) + 40.0 * Math.sin((x / 3.0) * Math.PI)) * 2.0) / 3.0;
-  ret += ((150.0 * Math.sin((x / 12.0) * Math.PI) + 300.0 * Math.sin((x / 30.0) * Math.PI)) * 2.0) / 3.0;
-  return ret;
-}
-
 export function transformCoordinate(
   providerId: MapTileProviderId,
   lon: number,
   lat: number,
 ): [number, number] {
-  return providerId === "amap" ? wgs84ToGcj02(lon, lat) : [lon, lat];
+  // Every offered basemap is drawn in WGS84 (Tianditu's CGCS2000 agrees with it at map scale), so
+  // no point is shifted; the hook stays for a provider that would need it.
+  void providerId;
+  return [lon, lat];
 }
 
 export interface MapStyleOptions {
@@ -606,50 +524,7 @@ export function buildMapStyle(
     return style;
   }
 
-  if (providerId === "amap") {
-    style.sources = {
-      ...style.sources,
-      basemap: {
-        type: "raster",
-        tiles: ["1", "2", "3", "4"].map(
-          (subdomain) =>
-            `https://webrd0${subdomain}.is.autonavi.com/appmaptile?lang=zh_cn&size=1&scale=1&style=8&x={x}&y={y}&z={z}`,
-        ),
-        tileSize: 256,
-        attribution: "AMap / 高德地图",
-      },
-    };
-  } else if (providerId === "carto") {
-    style.sources = {
-      ...style.sources,
-      basemap: {
-        type: "raster",
-        tiles: [
-          "https://a.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-          "https://b.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-          "https://c.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-          "https://d.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png",
-        ],
-        tileSize: 256,
-        attribution: "CARTO basemaps © OpenStreetMap contributors",
-      },
-    };
-  } else if (providerId === "osm") {
-    style.sources = {
-      ...style.sources,
-      basemap: {
-        type: "raster",
-        tiles: ["https://tile.openstreetmap.org/{z}/{x}/{y}.png"],
-        tileSize: 256,
-        attribution: "OpenStreetMap contributors",
-      },
-    };
-  } else {
-    // "none", or a provider whose endpoints are not a commercial entitlement and which therefore
-    // draws nothing: the background layer is the whole style.
-    return style;
-  }
-  style.layers.push({ id: "basemap-raster", type: "raster", source: "basemap", paint });
+  // "none": the background layer is the whole style.
   return style;
 }
 

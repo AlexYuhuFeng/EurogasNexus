@@ -127,30 +127,80 @@ def _simplify_line(points: list[tuple[float, float]]) -> list[tuple[float, float
     return [point for point, kept in zip(points, keep, strict=True) if kept]
 
 
+def _unwrap(ring: list[tuple[float, float]]) -> list[tuple[float, float]]:
+    """Longitudes made continuous across the antimeridian.
+
+    Natural Earth draws Russia's polygon across 180 degrees: a ring that jumps from +180 to
+    -180 in Chukotka (65 to 71 degrees north) would close across the whole map at those
+    latitudes, and clipped to Europe that edge ran through Norway, Sweden and Finland. Each
+    jump of more than half the globe is undone, so the ring runs on past 180 instead.
+    """
+
+    out: list[tuple[float, float]] = []
+    shift = 0.0
+    previous = None
+    for lon, lat in ring:
+        if previous is not None:
+            step = lon + shift - previous
+            if step > 180:
+                shift -= 360
+            elif step < -180:
+                shift += 360
+        out.append((lon + shift, lat))
+        previous = lon + shift
+    # A ring that starts in Chukotka would carry the rest of Eurasia a whole turn away: centre
+    # the ring on its own middle longitude.
+    middle = sorted(lon for lon, _ in out)[len(out) // 2] if out else 0.0
+    turn = 360.0 * round(middle / 360.0)
+    return [(lon - turn, lat) for lon, lat in out] if turn else out
+
+
 def build(source: Path) -> dict:
+    """Land polygons clipped to ``BBOX`` with a real polygon intersection.
+
+    The ring-by-ring Sutherland-Hodgman clip (``_clip``) is only correct for convex shapes: on a
+    concave coastline that leaves the box (the Russian Arctic coast at the east and north
+    edges) it joined the pieces with thin "land" bridges along the box edge, drawn as a band
+    across the Norwegian and Barents seas. Shapely intersects each polygon with the box instead
+    (build time only; nothing here ships with the client): ``pip install shapely``.
+    """
+
+    try:
+        from shapely.geometry import MultiPolygon, Polygon, box, mapping
+        from shapely.validation import make_valid
+    except ImportError as exc:  # pragma: no cover - a build-time tool
+        raise SystemExit("building the land layer needs shapely: pip install shapely") from exc
+
     topology = json.loads(source.read_text(encoding="utf-8"))
     arcs = _decode_arcs(topology)
-    polygons = []
+    frame = box(*BBOX)
+    pieces: list[Polygon] = []
     for geometry in topology["objects"]["land"]["geometries"]:
         shapes = geometry["arcs"] if geometry["type"] == "MultiPolygon" else [geometry["arcs"]]
         for shape in shapes:
-            rings = []
-            for indexes in shape:
-                ring = _simplify(_clip(_ring(indexes, arcs)))
-                if len(ring) >= 4:
-                    ring = [(round(x, 3), round(y, 3)) for x, y in ring]
-                    if ring[0] != ring[-1]:
-                        ring.append(ring[0])
-                    rings.append(ring)
-            if rings:
-                polygons.append(rings)
+            rings = [_unwrap(_ring(indexes, arcs)) for indexes in shape]
+            if not rings or len(rings[0]) < 4:
+                continue
+            polygon = make_valid(Polygon(rings[0], [ring for ring in rings[1:] if len(ring) >= 4]))
+            clipped = polygon.intersection(frame)
+            if clipped.is_empty:
+                continue
+            simplified = clipped.simplify(TOLERANCE, preserve_topology=True)
+            for part in getattr(simplified, "geoms", [simplified]):
+                if isinstance(part, Polygon) and not part.is_empty and part.area > 0:
+                    pieces.append(part)
+    land = MultiPolygon(pieces)
+    coordinates = [
+        [[(round(x, 3), round(y, 3)) for x, y in ring] for ring in polygon]
+        for polygon in mapping(land)["coordinates"]
+    ]
     return {
         "type": "FeatureCollection",
         "features": [
             {
                 "type": "Feature",
                 "properties": {"source": "Natural Earth 1:50m land (public domain)"},
-                "geometry": {"type": "MultiPolygon", "coordinates": polygons},
+                "geometry": {"type": "MultiPolygon", "coordinates": coordinates},
             }
         ],
     }

@@ -53,12 +53,11 @@ test("no third-party basemap is the default", () => {
 test("every provider declares its licence state, and the excluded ones say so", () => {
   const source = readWebSource("src/app/mapTileProviders.ts");
 
-  const restricted = ["osm", "carto", "amap"];
-  for (const id of restricted) {
-    // Each of the three carries the state on its own record rather than in prose.
-    const block = source.slice(source.indexOf(`id: "${id}"`));
-    const record = block.slice(0, block.indexOf("},"));
-    assert.match(record, /licence: "not-for-commercial-use"/, id);
+  // Public endpoints whose terms exclude a commercial product (OpenStreetMap's tile servers,
+  // CARTO's free tiles, AMap's public raster) are not offered at all (owner review 2026-11-26):
+  // a customer with a licence for one uses "Your own tile service".
+  for (const id of ["osm", "carto", "amap", "versatiles"]) {
+    assert.doesNotMatch(source, new RegExp(`id: "${id}"`), id);
   }
   for (const id of ["none", "custom", "tianditu"]) {
     const block = source.slice(source.indexOf(`id: "${id}"`));
@@ -118,9 +117,6 @@ test("every basemap sentence exists in both locales, distinguishable and without
     "settings.map_tile_provider_none",
     "settings.map_tile_provider_custom",
     "settings.map_tile_provider_tianditu",
-    "settings.map_tile_provider_osm",
-    "settings.map_tile_provider_carto",
-    "settings.map_tile_provider_amap",
     "settings.map_tile_custom_detail",
   ];
 

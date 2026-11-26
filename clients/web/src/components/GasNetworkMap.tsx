@@ -539,7 +539,7 @@ export function GasNetworkMap({
   const mapColors = useMemo(
     () => effectiveTheme === "dark"
       ? {
-          background: "#080808",
+          background: "#0b1220",
           edge: "#737373",
           // Connections between market areas: legible on the dark land, still under markers.
           link: "#b4bcc8",
@@ -552,7 +552,8 @@ export function GasNetworkMap({
           stroke: "#0a0a0a",
         }
       : {
-          background: "#eeeeee",
+          // Water: a quiet blue, so land (white) and sea read apart at a glance.
+          background: "#e3ebf3",
           edge: "#6b7280",
           link: "#4b5563",
           route: "#00b871",
