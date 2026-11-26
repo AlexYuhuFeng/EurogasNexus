@@ -64,6 +64,7 @@ import type { RouteGeometryState } from "@/components/ResourcePoolPathOverlay";
 import { FACILITY_ICON, drawFacilityIcon, drawVesselIcon, vesselIconId } from "@/app/mapIcons";
 import { hubDeskName, isZoneOnly, labelFeatures, mapLabels, type MapLabel } from "@/app/mapLabels";
 import { cargoEta, cargoMapLabel } from "@/app/mapCargo";
+import { basemapNameExpression } from "@/app/basemapLabels";
 import { corridorLabel, corridorLines } from "@/app/mapCorridors";
 import { MapFinder, type MapFinderPlace } from "@/components/MapFinder";
 import { MapDetailPanel } from "@/components/MapDetailPanel";
@@ -1082,7 +1083,8 @@ export function GasNetworkMap({
   }, [mapReady]);
 
   // OpenStreetMap names places in the app language where OSM holds the name (Chinese or
-  // English), else in Latin script: a Chinese desk reads 荷兰, not Nederland.
+  // English), else in Latin script: a Chinese desk reads 荷兰, not Nederland. Chinese prefers
+  // name:zh-Hans and never shows a joined "simplified/traditional" string (basemapLabels.ts).
   useEffect(() => {
     const apply = (language: string) => {
       const map = mapRef.current;
@@ -1092,10 +1094,9 @@ export function GasNetworkMap({
           .filter((layer) => layer.type === "symbol" && JSON.stringify(layer.layout?.["text-field"] ?? "").includes("name"))
           .map((layer) => layer.id);
       }
-      const own = String(language).toLowerCase().startsWith("zh") ? "name:zh" : "name:en";
       for (const id of basemapSymbolIdsRef.current) {
         if (!map.getLayer(id)) continue;
-        map.setLayoutProperty(id, "text-field", ["coalesce", ["get", own], ["get", "name:latin"], ["get", "name"]]);
+        map.setLayoutProperty(id, "text-field", basemapNameExpression(language) as never);
       }
     };
     apply(i18n.language);
