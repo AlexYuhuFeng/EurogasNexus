@@ -39,7 +39,16 @@ from eurogas_nexus.domain.ontology.notes import declare, split_notes
 
 MAX_ITEMS = 6
 #: The position ladder's default horizon: the day P&L change uses the same open position.
+#: Today's book horizon: the ladder's default, through the one ``ladder_horizon``.
 BOOK_HORIZON_MONTHS = 12
+
+
+def book_horizon(today: date) -> tuple[date, date]:
+    """The horizon of Today's book: the position ladder's default (``ladder_horizon``)."""
+
+    from eurogas_nexus.domain.portfolio.position_ladder import ladder_horizon
+
+    return ladder_horizon(today, BOOK_HORIZON_MONTHS)
 #: The ticker's and the map's outage horizon (``ShellTicker``: ``api.outages(14)``).
 OUTAGE_HORIZON_DAYS = 14
 STORAGE_DAYS = 30
@@ -324,7 +333,7 @@ def _book(caller: Caller, today: date, read: _Read, *, now: datetime | None = No
           price_book=None) -> _Book:
     from eurogas_nexus.application.position_inputs import ladder_inputs
 
-    end = _month_start(today, BOOK_HORIZON_MONTHS + 1) - timedelta(days=1)
+    _start, end = book_horizon(today)
     try:
         inputs = ladder_inputs(caller, today, today, end, now=now, price_book=price_book)
     except Exception as exc:  # noqa: BLE001 - the other rows stand without the book
@@ -798,7 +807,11 @@ def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, 
     from eurogas_nexus.application.projections.daily_closes import in_native_unit
     from eurogas_nexus.domain.market.returns import contract_move
     from eurogas_nexus.domain.ontology.markets import quote_currency
-    from eurogas_nexus.domain.portfolio.position_ladder import MAX_VAR_GAP_DAYS, build_ladder
+    from eurogas_nexus.domain.portfolio.position_ladder import (
+        MAX_VAR_GAP_DAYS,
+        build_ladder,
+        net_position_by_hub,
+    )
     from eurogas_nexus.domain.risk.method_notes import method_note
 
     if not book.positions:
@@ -811,14 +824,13 @@ def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, 
                            "Open Position"),
         }
     inputs = book.inputs
-    end = _month_start(today, BOOK_HORIZON_MONTHS + 1) - timedelta(days=1)
+    _start, end = book_horizon(today)
     ladder = build_ladder(inputs.legs, horizon_start=today, horizon_end=end)
-    net_open: dict[str, float] = {}
+    # The ladder's own net position per hub (flat-price exposure), not a second sum.
+    net_open = net_position_by_hub(ladder)
     long_hubs, short_hubs = set(), set()
     for row in ladder:
-        # The day P&L moves with the flat-price exposure (an index-priced contract has none).
         exposure = row.price_exposure_mwh
-        net_open[row.hub] = net_open.get(row.hub, 0.0) + exposure
         if exposure > 1e-9:
             long_hubs.add(row.hub)
         elif exposure < -1e-9:

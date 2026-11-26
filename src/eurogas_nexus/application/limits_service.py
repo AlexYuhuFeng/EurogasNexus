@@ -21,8 +21,9 @@ HORIZON_MONTHS = 36
 def horizon(today: date) -> tuple[date, date]:
     """Today to the last day of the month 36 months on: the ladder's credit horizon."""
 
-    end = (today.replace(day=1) + timedelta(days=32 * HORIZON_MONTHS)).replace(day=1)
-    return today, end - timedelta(days=1)
+    from eurogas_nexus.domain.portfolio.position_ladder import ladder_horizon
+
+    return ladder_horizon(today, HORIZON_MONTHS)
 
 
 @dataclass

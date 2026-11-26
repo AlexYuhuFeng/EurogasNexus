@@ -388,3 +388,26 @@ def test_the_ladder_marks_the_front_month_at_the_month_ahead_close(desk):
         assert len({curve["2026-12"], curve["2027-12"], curve["2028-12"], curve["2029-12"]}) == 4
     # TTF, the arbitrage band's reference, is quoted on the board at its close: Today agrees.
     assert inputs.marks[("TTF", "2026-12")] == pytest.approx(prices["TTF"]["value"], abs=1e-3)
+
+
+def test_today_and_the_position_ladder_show_one_net_position_per_hub(desk):
+    """Today's NBP net was 11.91 TWh and the ladder's 11.19 on the demo: Today summed 13
+    months (the current one plus 12), the ladder 12. Both now read ``ladder_horizon`` and
+    ``net_position_by_hub``."""
+
+    from eurogas_nexus.application.desk_today import book_horizon
+    from eurogas_nexus.domain.portfolio.position_ladder import ladder_horizon
+
+    caller = _principal("DEMO", "BOOKS:*")
+    assert book_horizon(NOW.date()) == ladder_horizon(NOW.date())
+    today = {hub["hub"]: hub["net_open_mwh"] for hub in _today(desk, caller)["rows"][2]["hubs"]}
+    from eurogas_nexus.application.position_inputs import ladder_inputs
+    from eurogas_nexus.domain.portfolio.position_ladder import build_ladder, tenor_exposure
+
+    start, end = ladder_horizon(NOW.date())
+    inputs = ladder_inputs(caller, NOW.date(), start, end)
+    ladder = {item["hub"]: item["net_mwh"] for item in tenor_exposure(
+        build_ladder(inputs.legs, horizon_start=start, horizon_end=end))}
+    assert today and set(today) <= set(ladder)
+    for hub, net in today.items():
+        assert net == pytest.approx(ladder[hub], abs=0.1), hub

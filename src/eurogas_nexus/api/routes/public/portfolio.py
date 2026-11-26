@@ -191,16 +191,14 @@ def get_position_ladder(
     currency other than the hub's mark are left unvalued.
     """
 
-    from datetime import UTC, datetime, timedelta
+    from datetime import UTC, datetime
 
     from eurogas_nexus.application.projections.daily_closes import in_native_unit
-    from eurogas_nexus.domain.portfolio.position_ladder import ladder_report
+    from eurogas_nexus.domain.portfolio.position_ladder import ladder_horizon, ladder_report
 
     today = datetime.now(UTC).date()
-    horizon_start = today
-    horizon_end = (today.replace(day=1) + timedelta(days=32 * months)).replace(day=1) - timedelta(
-        days=1
-    )
+    # The one horizon (``ladder_horizon``) Today's book and the reports read too.
+    horizon_start, horizon_end = ladder_horizon(today, months)
     if not _db_is_configured():
         return _env(
             {"rows": [], "warnings": ["RUNTIME_DB_NOT_CONFIGURED"]},

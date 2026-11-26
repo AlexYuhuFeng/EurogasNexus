@@ -1280,8 +1280,8 @@ def _hub_ok(ctx: Ctx, hub: str) -> bool:
 
 def book_position(ctx: Ctx) -> SectionResult:
     from eurogas_nexus.application.desk_today import (
-        BOOK_HORIZON_MONTHS,
         _month_start,
+        book_horizon,
         front_month_label,
     )
     from eurogas_nexus.domain.portfolio.position_ladder import build_ladder
@@ -1292,7 +1292,7 @@ def book_position(ctx: Ctx) -> SectionResult:
     positions = {h: v for h, v in book.positions.items() if _hub_ok(ctx, h)}
     if not positions:
         return _empty(result, "No position is held in the books you may see", "Open Position")
-    end = _month_start(ctx.today, BOOK_HORIZON_MONTHS + 1) - timedelta(days=1)
+    _start, end = book_horizon(ctx.today)
     legs = [leg for leg in book.inputs.legs if _hub_ok(ctx, leg.hub.upper())]
     ladder = build_ladder(legs, horizon_start=ctx.today, horizon_end=end)
     months = sorted({row.month for row in ladder})[:12]

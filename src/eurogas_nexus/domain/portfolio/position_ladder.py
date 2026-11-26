@@ -245,6 +245,39 @@ class LadderResult:
         }
 
 
+#: The ladder's default horizon, in months counting the current one; Today's book reads it.
+DEFAULT_HORIZON_MONTHS = 12
+
+
+def ladder_horizon(today: date, months: int = DEFAULT_HORIZON_MONTHS) -> tuple[date, date]:
+    """Today to the last day of the ``months``-th calendar month counting the current one.
+
+    The one horizon every "net position over the next N months" reads (the ladder, Today's
+    book, the reports). It replaced ``today + 32 x months days`` (which reached a 37th month
+    at 36) and Today's own "current month plus 12", which made Today's NBP net 0.72 TWh larger
+    than the ladder's on the demo (one more month).
+    """
+
+    if months < 1:
+        raise ValueError("months must be at least 1")
+    index = today.year * 12 + today.month - 1 + months
+    first_after = date(index // 12, index % 12 + 1, 1)
+    return today, first_after - timedelta(days=1)
+
+
+def net_position_by_hub(rows: Sequence[LadderRow]) -> dict[str, float]:
+    """Per hub, the net flat-price exposure summed over the delivery months (long positive).
+
+    The one net position per hub: the ladder's ``tenor_exposure`` and Today's book both read
+    it, so the two screens cannot disagree for the same legs and horizon.
+    """
+
+    out: dict[str, float] = {}
+    for row in rows:
+        out[row.hub] = out.get(row.hub, 0.0) + row.price_exposure_mwh
+    return out
+
+
 def tenor_exposure(rows: Sequence[LadderRow]) -> list[dict[str, object]]:
     """Per hub: the net and the gross (sum of |net| over delivery months) position (#53).
 
@@ -252,9 +285,9 @@ def tenor_exposure(rows: Sequence[LadderRow]) -> list[dict[str, object]]:
     """
 
     by_hub: dict[str, dict[str, float]] = {}
+    net = net_position_by_hub(rows)
     for row in rows:
-        entry = by_hub.setdefault(row.hub, {"net": 0.0, "gross": 0.0, "months": 0.0})
-        entry["net"] += row.price_exposure_mwh
+        entry = by_hub.setdefault(row.hub, {"net": net[row.hub], "gross": 0.0, "months": 0.0})
         entry["gross"] += abs(row.price_exposure_mwh)
         entry["months"] += 1 if abs(row.price_exposure_mwh) > 1e-9 else 0
     return [

@@ -151,3 +151,12 @@ def test_a_tenor_shock_without_an_fx_rate_is_excluded_and_named() -> None:
     )
     assert result["pnl"] == 50.0
     assert result["excluded_no_fx"] == ["NBP"]
+
+
+def test_the_horizon_counts_whole_calendar_months_without_drift():
+    from eurogas_nexus.domain.portfolio.position_ladder import ladder_horizon
+
+    assert ladder_horizon(date(2026, 11, 26), 12) == (date(2026, 11, 26), date(2027, 10, 31))
+    # ``today + 32 x 36 days`` reached a 37th month; 36 months end in October 2029.
+    assert ladder_horizon(date(2026, 11, 26), 36)[1] == date(2029, 10, 31)
+    assert ladder_horizon(date(2026, 12, 31), 1)[1] == date(2026, 12, 31)
