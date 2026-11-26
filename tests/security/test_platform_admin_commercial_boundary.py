@@ -99,6 +99,8 @@ def test_commercial_surface_declaration_matches_the_intended_boundary() -> None:
     assert serves_commercial_data("/api/strategy-lab/evaluate") is True
     assert serves_commercial_data("/api/research/datasets") is True
     assert serves_commercial_data("/api/agent/runs") is True
+    assert serves_commercial_data("/api/decision-cases") is True
+    assert serves_commercial_data("/api/decision-cases/case-1") is True
 
     assert serves_commercial_data(PLATFORM_PATH) is False
     assert serves_commercial_data("/api/audit") is False
@@ -133,7 +135,12 @@ def test_platform_admin_cannot_read_commercial_data(tmp_path, monkeypatch) -> No
     detail = denied.json()["detail"]
     assert detail["error"] == "commercial_access_not_granted"
     assert "ANALYST" in detail["message"]
-    for path in ("/api/strategies", "/api/strategy-runs", "/api/backtest-experiments"):
+    for path in (
+        "/api/strategies",
+        "/api/strategy-runs",
+        "/api/backtest-experiments",
+        "/api/decision-cases",
+    ):
         response = client.get(path, headers=_headers(admin_bearer))
         assert response.status_code == 403
         assert "data" not in response.json()
