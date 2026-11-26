@@ -49,6 +49,7 @@
 @import url("../components/news-panel.css");
 /* The map scene (MAP-1): 2D or 3D, the flows' gas day, and the key with its figures. */
 @import url("../components/mapScene/map-scene.css");
+@import url("../components/map-calm.css");
 /* Sources → Infrastructure (TAR-1): the tariff book, versions and capacity windows. */
 @import url("../components/tariff-book.css");
 
@@ -1297,6 +1298,11 @@
     align-items: center;
     gap: var(--ds-space-2) var(--ds-space-4);
     padding: var(--ds-space-2) 0;
+  }
+
+  /* The boxed strip keeps its inside space: a label never sits on the border. */
+  .market-context-strip:not(.is-line) {
+    padding-inline: var(--ds-space-3);
   }
 
   .market-context-strip > span {

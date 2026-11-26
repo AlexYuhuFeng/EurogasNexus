@@ -1,0 +1,328 @@
+/*
+ * The live map, calm (owner review 2026-11-26: "minimalistic, clean, straightforward").
+ *
+ * One toolbar row (view, Layers menu, then the view's own actions at the end), one quiet status
+ * chip in the map's top-left corner under the finder, one control stack in the top-right
+ * corner under the zoom (2D/3D, fit our positions, the key), and the flow-day bar only while
+ * flows are drawn. Nothing on the map overlaps anything else: every overlay has its own corner.
+ * Tokens only.
+ */
+@layer ds-components {
+  /* ------------------------------------------------------------------ toolbar */
+  .workspace-network .network-desk > .network-desk-toolbar,
+  .network-desk .map-toolbar.network-desk-toolbar:not(.is-in-sheet) {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-1) 0;
+  }
+
+  .network-desk .map-toolbar-spacer {
+    flex: 1 1 auto;
+  }
+
+  .map-layer-menu-trigger {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+  }
+
+  .map-layer-menu-count {
+    min-width: var(--ds-space-4);
+    padding: 0 var(--ds-space-1);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+
+  .map-layer-group {
+    display: grid;
+    gap: var(--ds-space-1);
+    margin: 0 0 var(--ds-space-3);
+    padding: 0;
+    border: 0;
+  }
+
+  .map-layer-group:last-child {
+    margin-bottom: 0;
+  }
+
+  .map-layer-group legend {
+    margin-bottom: var(--ds-space-1);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    text-transform: uppercase;
+  }
+
+  .map-layer-option {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    min-height: var(--ds-control);
+    padding: 0 var(--ds-space-1);
+    border-radius: var(--ds-radius-sm);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    cursor: pointer;
+  }
+
+  .map-layer-option:hover {
+    background: var(--ds-surface-2);
+  }
+
+  .map-layer-swatch {
+    flex: 0 0 auto;
+    width: var(--ds-space-2);
+    height: var(--ds-space-2);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-text-3);
+  }
+
+  .map-layer-swatch.layer-routes { height: var(--ds-space-05); border-radius: var(--ds-radius-pill); background: var(--ds-text-3); }
+  .map-layer-swatch.layer-network { background: var(--ds-series-7); }
+  .map-layer-swatch.layer-lng { background: var(--ds-series-5); }
+  .map-layer-swatch.layer-ips { background: var(--ds-series-3); }
+  .map-layer-swatch.layer-hubs { background: var(--ds-series-2); }
+  .map-layer-swatch.layer-outages { background: var(--ds-negative); }
+  .map-layer-swatch.layer-flows { height: var(--ds-space-05); border-radius: var(--ds-radius-pill); background: var(--ds-positive); }
+  .map-layer-swatch.layer-positions { background: var(--ds-accent); }
+  .map-layer-swatch.layer-vessels { background: var(--ds-text-2); }
+  .map-layer-swatch.layer-infrastructure { background: var(--ds-text-3); }
+
+  /* ------------------------------------------------------------------ status chip */
+  /* Top-left, under the finder: live, what is out now, and how old the picture is. The other
+     counts are in the key. */
+  .workspace-network .network-map-column .map-situation-strip {
+    top: calc(var(--ds-space-3) + var(--ds-control) + var(--ds-space-2));
+    bottom: auto;
+    left: var(--ds-space-3);
+    max-width: calc(100% - 2 * var(--ds-space-3) - var(--ds-control-touch) - var(--ds-space-6));
+    gap: var(--ds-space-2);
+    padding: var(--ds-space-05) var(--ds-space-3);
+    border-color: var(--ds-border);
+    background: color-mix(in srgb, var(--ds-surface) 94%, transparent);
+    font-size: var(--ds-text-xs);
+  }
+
+  .workspace-network .network-map-column .map-situation-strip small {
+    color: var(--ds-text-3);
+    white-space: nowrap;
+  }
+
+  /* ------------------------------------------------------------------ control stack */
+  /* The zoom is MapLibre's control in the top-right corner; our stack sits under it in the
+     same column, the same width, the same look. */
+  .gas-map .maplibregl-ctrl-top-right {
+    top: var(--ds-space-2);
+    right: var(--ds-space-2);
+  }
+
+  .gas-map .maplibregl-ctrl-group {
+    border-radius: var(--ds-radius-md);
+  }
+
+  .map-control-stack {
+    position: absolute;
+    z-index: 3;
+    /* Under MapLibre's zoom, compass group (three 29 px buttons and its margin). */
+    top: calc(var(--ds-space-2) + 3 * var(--ds-control-sm) + var(--ds-space-4));
+    right: calc(var(--ds-space-2) + var(--ds-space-2) + var(--ds-space-05));
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+  }
+
+  .map-control-button {
+    display: grid;
+    place-items: center;
+    width: var(--ds-control-sm);
+    height: var(--ds-control-sm);
+    padding: 0;
+    border: 0;
+    border-top: 1px solid var(--ds-border);
+    background: transparent;
+    color: var(--ds-text-1);
+    cursor: pointer;
+  }
+
+  .map-control-button:first-child {
+    border-top: 0;
+  }
+
+  .map-control-button:hover {
+    background: var(--ds-surface-2);
+  }
+
+  .map-control-button[aria-pressed="true"],
+  .map-control-button[aria-expanded="true"] {
+    color: var(--ds-accent);
+  }
+
+  .map-control-button:focus-visible {
+    outline: var(--ds-space-05) solid var(--ds-focus-ring);
+    outline-offset: calc(-1 * var(--ds-space-05));
+  }
+
+  .map-control-text {
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  /* The key opens to the left of the stack, never under it or over the zoom. */
+  .gas-map .map-scene-key {
+    position: absolute;
+    z-index: 4;
+    top: calc(var(--ds-space-2) + 3 * var(--ds-control-sm) + var(--ds-space-4));
+    right: calc(var(--ds-space-2) + var(--ds-space-2) + var(--ds-space-05) + var(--ds-control-sm) + var(--ds-space-2));
+    bottom: auto;
+    left: auto;
+    width: min(calc(var(--ds-space-8) * 10), calc(100% - var(--ds-control-sm) - 6 * var(--ds-space-2)));
+    max-height: calc(100% - 3 * var(--ds-control-sm) - 6 * var(--ds-space-2));
+    overflow-y: auto;
+    padding: var(--ds-space-3);
+    border: 0;
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+    box-shadow: var(--ds-shadow-pop);
+  }
+
+  .map-key-extra {
+    display: grid;
+    gap: var(--ds-space-2);
+    margin-bottom: var(--ds-space-3);
+    padding-bottom: var(--ds-space-3);
+    border-bottom: 1px solid var(--ds-border);
+  }
+
+  .map-key-now {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-1) var(--ds-space-3);
+    margin: 0;
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+  }
+
+  .gas-map .map-scene-key {
+    overflow-x: hidden;
+  }
+
+  .gas-map .map-scene-key > *,
+  .gas-map .map-scene-key li {
+    min-width: 0;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .workspace-network .gas-map .map-key-extra .map-visual-legend,
+  .map-key-extra .map-visual-legend {
+    position: static;
+    display: grid;
+    gap: var(--ds-space-1);
+    max-width: none;
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+  }
+
+  /* ------------------------------------------------------------------ flow-day bar */
+  .map-flow-day-bar {
+    position: absolute;
+    z-index: 3;
+    bottom: var(--ds-space-3);
+    left: 50%;
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    max-width: calc(100% - 2 * var(--ds-space-8) - 2 * var(--ds-control-touch));
+    padding: var(--ds-space-1) var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-pill);
+    background: color-mix(in srgb, var(--ds-surface) 94%, transparent);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    transform: translateX(-50%);
+  }
+
+  .map-flow-day-bar input[type="range"] {
+    width: calc(var(--ds-space-8) * 5);
+  }
+
+  .map-flow-day-bar output {
+    color: var(--ds-text-1);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  /* ------------------------------------------------------------------ labels */
+  /* Hub and point names: text on the map, not boxes on it (a light halo keeps them legible). */
+  .gas-map .map-node-label {
+    padding: 0;
+    border: 0;
+    background: none;
+    box-shadow: none;
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-semibold);
+    text-shadow:
+      0 0 var(--ds-space-05) var(--ds-surface),
+      0 0 var(--ds-space-1) var(--ds-surface),
+      0 0 var(--ds-space-2) var(--ds-surface);
+    white-space: nowrap;
+  }
+
+  .gas-map .map-node-label.map-node-label-hub {
+    font-size: var(--ds-text-sm);
+  }
+
+  .gas-map .map-node-label.map-detail-label,
+  .gas-map .map-node-label.map-facility-label {
+    color: var(--ds-text-2);
+    font-weight: var(--ds-weight-regular);
+  }
+
+  /* ------------------------------------------------------------------ outage list */
+  .network-outage-line {
+    display: flex;
+    align-items: center;
+    gap: var(--ds-space-2);
+    min-width: 0;
+  }
+
+  .network-outage-line strong {
+    overflow: hidden;
+    font-weight: var(--ds-weight-medium);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .network-outage-state {
+    flex: 0 0 auto;
+    width: var(--ds-space-2);
+    height: var(--ds-space-2);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-text-3);
+  }
+
+  .network-outage-state.is-active { background: var(--ds-negative); }
+  .network-outage-state.is-scheduled { background: var(--ds-status-watch); }
+  .network-outage-state.is-ended { background: var(--ds-border-strong); }
+}
+
+@layer ds-components {
+  /* The key's site rows: the name, then its figure under it, inside the key's width. */
+  .gas-map .map-scene-key .map-scene-list button {
+    display: grid;
+    justify-items: start;
+    width: 100%;
+    text-align: start;
+  }
+}

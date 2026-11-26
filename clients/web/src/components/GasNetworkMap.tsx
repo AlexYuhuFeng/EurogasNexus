@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 // maplibre-gl v6 is ESM-only and has no default export: every symbol the map uses is imported by
 // name. (The upgrade from v5 to v6.10.0 is a security fix - see the package note in
 // `clients/web/package.json` and `docs/operations/VALIDATION.md`.)
@@ -20,7 +20,6 @@ import {
   SITUATION_COLOURS,
   type ZoomTier,
   cargoFeatures,
-  countrySummaries,
   detailLabel,
   zoomTier,
   contractFeatures,
@@ -195,6 +194,8 @@ interface GasNetworkMapProps {
   onSelectContractLine?: (lineId: string) => void;
   /** Callouts anchored on the map: what, until when, how much of ours, progress. */
   callouts?: MapCallout[];
+  /** The page's own key lines, shown first in the map's one key. */
+  keyExtra?: ReactNode;
 }
 
 /** A callout on the map: a title, short lines and an optional progress bar (0..1). */
@@ -349,9 +350,17 @@ const MAJOR_HUB_PRIORITY = [
   "IBP",
 ];
 
-function fallbackNodeLabel(node: NodeDTO): string {
+/** The desk's short name for a point: its market code, else the name's own code part
+ * ("ZTP (Zeebrugge Trading Point)" is ZTP, "VTP - Gas Exchange Point" VTP); the full name is
+ * the label's tooltip. */
+export function fallbackNodeLabel(node: NodeDTO): string {
   const metadata = node.metadata_json ?? {};
-  return String(metadata.market_code ?? node.name);
+  const code = metadata.market_code;
+  if (typeof code === "string" && code.trim()) return code.trim();
+  const head = node.name.split(/\s+\(|\s+[-–]\s+/)[0].trim();
+  // A generic code (VTP, VIP) names several places: it carries its country (VTP CZ, VTP SK).
+  if (/^(VTP|VIP|PVB|VHP)$/i.test(head) && node.country) return `${head} ${node.country}`;
+  return head.length > 14 ? `${head.slice(0, 13)}…` : head || node.name;
 }
 
 function isSearchLabelMatch(node: NodeDTO, searchTerm: string): boolean {
@@ -411,6 +420,7 @@ export function GasNetworkMap({
   drawInKey = null,
   onSelectContractLine,
   callouts = [],
+  keyExtra,
   selection: selectionProp,
   onSelectionChange,
   detailCard = true,
@@ -507,29 +517,12 @@ export function GasNetworkMap({
   };
   const selectForRef = useRef(selectFor);
   selectForRef.current = selectFor;
-  const summaryMarkersRef = useRef<Marker[]>([]);
   const effectiveTheme = resolveEffectiveTheme(themeMode);
   // The deployment profile names the installation's default basemap; it can arrive after the
   // map first mounts, so the provider follows it. A vector basemap that cannot be reached (an
   // office proxy, an air-gapped network) falls back to the bundled outline and says so.
   const deploymentMapDefault = useApiStore((state) => state.runtimeRelease?.deployment?.map_default_provider ?? null);
   const [unreachableBasemap, setUnreachableBasemap] = useState<string | null>(null);
-  // The zoom card's hint can be dismissed; the choice is remembered on the device.
-  const [tierHintHidden, setTierHintHidden] = useState<boolean>(() => {
-    try {
-      return window.localStorage.getItem("egn.map.tier_hint") === "hidden";
-    } catch {
-      return false;
-    }
-  });
-  const hideTierHint = () => {
-    setTierHintHidden(true);
-    try {
-      window.localStorage.setItem("egn.map.tier_hint", "hidden");
-    } catch {
-      // Not remembered; hidden for this visit.
-    }
-  };
   const configuredProvider = useMemo(configuredMapTileProvider, [deploymentMapDefault]);
   const basemapFellBack = unreachableBasemap === configuredProvider.id;
   const mapTileProvider = basemapFellBack ? mapTileProviderById("outline")! : configuredProvider;
@@ -753,7 +746,7 @@ export function GasNetworkMap({
 
     // Zoom sits bottom-right: the top of the map belongs to the finder, the bar above to the
     // toolbar, so no two control groups can meet at any width.
-    map.addControl(new NavigationControl({ visualizePitch: true }), "bottom-right");
+    map.addControl(new NavigationControl({ visualizePitch: true }), "top-right");
     map.addControl(new AttributionControl({ compact: true }), "bottom-left");
     let loaded = false;
     map.on("load", () => {
@@ -1181,7 +1174,7 @@ export function GasNetworkMap({
         filter: ["has", "point_count"],
         paint: {
           "circle-color": mapColors.node,
-          "circle-radius": ["step", ["get", "point_count"], 14, 25, 18, 100, 22],
+          "circle-radius": ["step", ["get", "point_count"], 9, 25, 12, 100, 15],
           "circle-stroke-color": mapColors.stroke,
           "circle-stroke-width": 2,
           "circle-opacity": 0.88,
@@ -1811,11 +1804,13 @@ export function GasNetworkMap({
         type: "circle",
         source: "situation-flows",
         paint: {
-          "circle-radius": ["interpolate", ["linear"], ["sqrt", ["get", "gwh_d"]], 0, 3, 30, 16],
+          // A metering point's flow: a small quiet dot, larger with the flow, never a ring
+          // that covers its neighbours (2 to 7 px).
+          "circle-radius": ["interpolate", ["linear"], ["sqrt", ["get", "gwh_d"]], 0, 2, 30, 7],
           "circle-color": palette.flow,
-          "circle-opacity": 0.16,
+          "circle-opacity": 0.55,
           "circle-stroke-color": palette.flow,
-          "circle-stroke-width": 1.2,
+          "circle-stroke-width": 0,
         },
       });
     }
@@ -2474,75 +2469,8 @@ export function GasNetworkMap({
     };
   }, [activeLayers, facilities, highlightedRoutePoints, mapReady, priorityLabelNodes, situation]);
 
-  // Overview tier: one compact pill per country with the portfolio's headline there; the
-  // full breakdown is in its tooltip. Pills that would overlap are pushed apart, and
-  // clicking one zooms into that country, where the individual assets take over.
-  useEffect(() => {
-    const map = mapRef.current;
-    const clear = () => {
-      summaryMarkersRef.current.forEach((marker) => marker.remove());
-      summaryMarkersRef.current = [];
-    };
-    clear();
-    // Country totals summarise the market; the book view draws its deals themselves.
-    if (!map || !mapReady || tier !== "overview" || view === "book") return;
-    const showPositions = activeLayers.includes("positions");
-    const showOutages = activeLayers.includes("outages");
-    const compact = (value: number) =>
-      value >= 1000 ? `${(value / 1000).toLocaleString(undefined, { maximumFractionDigits: 1 })}k` : `${Math.round(value)}`;
-    const rows = countrySummaries(situation)
-      .map((row) => {
-        const headline: string[] = [];
-        const details: string[] = [];
-        if (showPositions && row.contracts) {
-          headline.push(`${compact(row.contractedMwhD)} MWh/d`);
-          details.push(`${row.contractedMwhD.toLocaleString()} MWh/d ${t("map.overview.contracted")} (${row.contracts})`);
-        }
-        if (showPositions && row.cargoesInbound) {
-          headline.push(`${row.cargoesInbound} ⛴`);
-          details.push(`${t("map.overview.cargoes_inbound", { count: row.cargoesInbound })}${row.inboundGwh ? ` · ${Math.round(row.inboundGwh).toLocaleString()} GWh` : ""}`);
-        }
-        if (showPositions && row.slots) details.push(t("map.overview.slots", { count: row.slots }));
-        const alert = showOutages && row.outagesNow > 0;
-        if (alert) {
-          details.push(`${row.outagesNow} ${t("map.overview.outages_now")}${row.unavailableGwhD ? ` · −${Math.round(row.unavailableGwhD).toLocaleString()} GWh/d` : ""}`);
-        }
-        if (showOutages && row.outagesScheduled) details.push(t("map.overview.outages_scheduled", { count: row.outagesScheduled }));
-        return { row, headline, details, alert };
-      })
-      .filter((item) => item.details.length > 0);
-
-    const place = () => {
-      clear();
-      const taken: Array<{ x: number; y: number }> = [];
-      for (const { row, headline, details, alert } of rows) {
-        const at = toMapCoordinates(row.lon, row.lat);
-        const base = map.project(at);
-        let dy = 0;
-        // Simple label placement: step down until the pill clears the ones placed.
-        while (taken.some((box) => Math.abs(box.x - base.x) < 150 && Math.abs(box.y - (base.y + dy)) < 26) && dy < 260) {
-          dy += 28;
-        }
-        taken.push({ x: base.x, y: base.y + dy });
-        const element = document.createElement("button");
-        element.type = "button";
-        element.className = `map-summary-card${alert ? " has-alert" : ""}`;
-        element.title = details.join("\n");
-        element.setAttribute("aria-label", `${row.country}: ${details.join("; ")}. ${t("map.overview.zoom_in")}`);
-        element.innerHTML = `<strong>${escapeHtml(row.country)}</strong><span>${escapeHtml(headline.join(" · ") || details[0])}</span>${alert ? `<b class="is-alert">${row.outagesNow} ${escapeHtml(t("map.overview.outages_now"))}</b>` : ""}`;
-        element.addEventListener("click", () => focusOn(map, at, 6));
-        summaryMarkersRef.current.push(
-          new Marker({ element, anchor: "bottom", offset: [0, dy - 6] }).setLngLat(at).addTo(map),
-        );
-      }
-    };
-    place();
-    map.on("moveend", place);
-    return () => {
-      map.off("moveend", place);
-      clear();
-    };
-  }, [activeLayers, mapReady, situation, t, tier, view]);
+  // Overview tier: no per-country cards over the map (they collided with labels and each
+  // other); the outage list groups by zone, and a click on the map selects what is there.
 
   /** Frame everything the firm holds: contracts, own cargoes and held slots. */
   function fitOurPositions() {
@@ -2742,6 +2670,13 @@ export function GasNetworkMap({
             const map = mapRef.current;
             if (map) focusOn(map, toMapCoordinates(at[0], at[1]), zoom);
           }}
+          showFlowDay={activeLayers.includes("flows")}
+          onFitPositions={
+            situation && (situation.contracts.length > 0 || situation.regas_slots.length > 0 || situation.cargoes.some((item) => item.own))
+              ? fitOurPositions
+              : undefined
+          }
+          keyExtra={keyExtra}
         />
       )}
       {selection && detailCard && (
@@ -2757,30 +2692,6 @@ export function GasNetworkMap({
           onSelect={setSelection}
           t={t as (key: string, options?: Record<string, unknown>) => string}
         />
-      )}
-      {mapReady && !(selection && detailCard) && !compact && !phoneWidth && (
-        // One line: the zoom's question as a chip the user may dismiss (remembered), and the
-        // way back to our positions. It covers as little of the map as it can.
-        <div className="map-zoom-tier" role="status" aria-live="polite">
-          {view === "network" && !tierHintHidden && (
-            <>
-              <span className={`map-zoom-tier-name is-${tier}`}>{t(`map.tier.${tier}`)}</span>
-              <small title={t(`map.tier.${tier}_hint`)}>{t(`map.tier.${tier}_hint`)}</small>
-              <button
-                type="button"
-                className="map-zoom-tier-dismiss"
-                aria-label={t("map.tier.dismiss")}
-                title={t("map.tier.dismiss")}
-                onClick={hideTierHint}
-              >
-                <Icon name="close" />
-              </button>
-            </>
-          )}
-          {situation && (situation.contracts.length > 0 || situation.regas_slots.length > 0 || situation.cargoes.some((item) => item.own)) && (
-            <button type="button" className="chip" onClick={fitOurPositions}>{t("map.tier.fit_positions")}</button>
-          )}
-        </div>
       )}
       {/*
         Owner decision D4 (amended 2026-11-05): a global installation defaults to OpenFreeMap, an

@@ -47,11 +47,13 @@ type Polygon = { type: "Polygon"; coordinates: LonLat[][] };
 const fc = <G>(features: Array<Feature<G>>): FC<G> => ({ type: "FeatureCollection", features });
 
 /** The camera's pitch per dimension; 3D tilts, 2D is the flat map the desk already knows. */
-export const SCENE_PITCH: Record<SceneDimension, number> = { "2d": 0, "3d": 50 };
+export const SCENE_PITCH: Record<SceneDimension, number> = { "2d": 0, "3d": 58 };
+/** 3D also turns the map a little, so the columns read as standing, not as dots. */
+export const SCENE_BEARING: Record<SceneDimension, number> = { "2d": 0, "3d": -17 };
 
 /** The camera move between 2D and 3D: the map duration token, none under reduced motion. */
 export function sceneCamera(dimension: SceneDimension, reducedMotion: boolean, durationMs: number) {
-  return { pitch: SCENE_PITCH[dimension], duration: reducedMotion ? 0 : durationMs };
+  return { pitch: SCENE_PITCH[dimension], bearing: SCENE_BEARING[dimension], duration: reducedMotion ? 0 : durationMs };
 }
 
 /**
@@ -192,8 +194,8 @@ export function assetFigures(asset: MapAssetDTO): AssetFigures {
 }
 
 /** Column height in metres: square root of capacity against the largest on the map. */
-export const COLUMN_MAX_M = 120_000;
-export const COLUMN_STUB_M = 6_000;
+export const COLUMN_MAX_M = 420_000;
+export const COLUMN_STUB_M = 24_000;
 export function columnHeightM(capacityGwhD: number | null, largestGwhD: number): number {
   if (capacityGwhD === null || !(largestGwhD > 0)) return COLUMN_STUB_M;
   return Math.max(COLUMN_STUB_M * 2, Math.round(COLUMN_MAX_M * Math.sqrt(capacityGwhD / largestGwhD)));
@@ -208,7 +210,10 @@ export interface AssetLayers {
   points: FC<Point>;
 }
 
-export function assetLayers(assets: MapAssetDTO[] | undefined, project: Project, halfKm = 10): AssetLayers {
+/** A column's half-width: wide enough to read at the zoom that shows Europe (about 7 px). */
+export const COLUMN_HALF_KM = 24;
+
+export function assetLayers(assets: MapAssetDTO[] | undefined, project: Project, halfKm = COLUMN_HALF_KM): AssetLayers {
   const list = assets ?? [];
   const figures = list.map(assetFigures);
   const largest = Math.max(0, ...figures.map((item) => item.capacityGwhD ?? 0));
@@ -518,10 +523,11 @@ export function orientFlow(flow: SceneFlow, at: LonLat, sides: Side[] | undefine
   };
 }
 
-/** Line width in px from GWh/d: square root, 1.5 to 9 px against the largest flow drawn. */
+/** Line width in px from GWh/d: square root, 1 to 3.5 px against the largest flow drawn. A
+ * flow is a thin moving line, never a band that hides the network under it. */
 export function flowWidth(gwhD: number, largest: number): number {
-  if (!(largest > 0) || !(gwhD > 0)) return 1.5;
-  return Math.round((1.5 + 7.5 * Math.sqrt(gwhD / largest)) * 10) / 10;
+  if (!(largest > 0) || !(gwhD > 0)) return 1;
+  return Math.round((1 + 2.5 * Math.sqrt(gwhD / largest)) * 10) / 10;
 }
 
 export interface FlowLayers {

@@ -47,8 +47,8 @@ test("an opportunity's path pops out with ours and is labelled with the core's h
   const lines = opportunityPathLines(relevance, nodes);
   assert.deepEqual(lines.map((line) => [line.opportunityId, line.emphasis]), [["o1", "pop"], ["o2", "outline"]]);
   assert.deepEqual(lines[0].labelAt, [9.5, 51.5]);
-  assert.equal(lines[0].label, "L +1.25 EUR/MWh sim");
-  assert.equal(opportunityLabel(relevance.opportunities[1]), "L -0.10 EUR/MWh");
+  assert.equal(lines[0].label, "L +1.250 EUR/MWh sim");
+  assert.equal(opportunityLabel(relevance.opportunities[1]), "L -0.100 EUR/MWh");
   assert.deepEqual(lines[0].coordinates[0], [4.9, 52.1]);
 });
 

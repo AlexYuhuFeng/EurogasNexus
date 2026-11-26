@@ -1,7 +1,9 @@
 import { useState } from "react";
 
 export function useCockpitControls() {
-  const [activeLayers, setActiveLayers] = useState(["routes", "hubs", "lng", "ips", "network", "outages", "positions", "vessels", "flows"]);
+  // A calm first view: pipelines, hubs, LNG, what is out and where we are. Points, interconnection
+  // markers, vessels and flows are one click away in the Layers menu.
+  const [activeLayers, setActiveLayers] = useState(["routes", "hubs", "lng", "outages", "positions"]);
   const [searchTerm, setSearchTerm] = useState("");
 
   function toggleLayer(layer: string) {

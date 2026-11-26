@@ -132,8 +132,8 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
     const add = (layer: Parameters<MapLibreMap["addLayer"]>[0]) => {
       if (!map.getLayer(layer.id)) map.addLayer(layer);
     };
-    add({ id: "scene-flow-lines", type: "line", source: "scene-flow-lines", layout: { "line-cap": "butt", "line-join": "round" }, paint: { "line-color": flowColour, "line-width": ["get", "width"], "line-opacity": 0.85, "line-dasharray": flowDashAt(0, "static") } });
-    add({ id: "scene-flow-chevrons", type: "line", source: "scene-flow-chevrons", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": flowColour, "line-width": 2, "line-opacity": 0.9 } });
+    add({ id: "scene-flow-lines", type: "line", source: "scene-flow-lines", layout: { "line-cap": "butt", "line-join": "round" }, paint: { "line-color": flowColour, "line-width": ["get", "width"], "line-opacity": 0.7, "line-dasharray": flowDashAt(0, "static") } });
+    add({ id: "scene-flow-chevrons", type: "line", source: "scene-flow-chevrons", layout: { "line-cap": "round", "line-join": "round" }, paint: { "line-color": flowColour, "line-width": 1.5, "line-opacity": 0.85 } });
     add({ id: "scene-voyage-arcs", type: "line", source: "scene-voyage-arcs", layout: { "line-cap": "round" }, paint: { "line-color": colours.estimate, "line-width": 1.2, "line-opacity": 0.55, "line-dasharray": [1, 3] } });
     add({ id: "scene-estimate-legs", type: "line", source: "scene-estimate-legs", layout: { "line-cap": "butt" }, paint: { "line-color": colours.estimate, "line-width": 1.5, "line-opacity": 0.8, "line-dasharray": [2, 2] } });
     add({ id: "scene-voyage-estimated", type: "circle", source: "scene-voyage-estimated", paint: { "circle-radius": 6, "circle-color": colours.estimate, "circle-opacity": 0, "circle-stroke-color": colours.estimate, "circle-stroke-width": 2 } });
@@ -269,12 +269,12 @@ export function useMapScene(options: MapSceneOptions): { flows: Pick<FlowLayers,
   useEffect(() => {
     if (!live || !map) return;
     const camera = sceneCamera(dimension, prefersReducedMotion(), durationToken("--ds-duration-map", 400));
-    if (firstDimension.current && dimension === "2d" && map.getPitch() === 0) {
+    if (firstDimension.current && dimension === "2d" && map.getPitch() === 0 && map.getBearing() === 0) {
       firstDimension.current = false;
       return;
     }
     firstDimension.current = false;
-    map.easeTo({ pitch: camera.pitch, duration: camera.duration, easing: easeOut, essential: false });
+    map.easeTo({ pitch: camera.pitch, bearing: camera.bearing, duration: camera.duration, easing: easeOut, essential: false });
   }, [dimension, live, map]);
 
   // Flow motion: the dash pattern steps while visible and motion is allowed. Frame intervals

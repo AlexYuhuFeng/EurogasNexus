@@ -3,10 +3,11 @@
  * that says what each mark means and lists the figures on the map as buttons that fly there,
  * so every site and estimate is reachable from the keyboard as well as by pointer.
  */
-import { useId, useMemo, useState } from "react";
+import { useId, useMemo, useState, type ReactNode } from "react";
 
 import type { MapSituationDTO } from "@/api/client";
-import { Button, Segmented } from "@/components/ui";
+import { Button } from "@/components/ui";
+import { Icon } from "@/components/ui/Icon";
 import { assetFigures, cargoPositions, scrubberIndex, type LonLat, type SceneDimension } from "@/app/mapScene";
 import type { Translate } from "@/app/mapSceneCards";
 
@@ -23,6 +24,12 @@ export interface MapSceneControlsProps {
   now: Date;
   t: Translate;
   onFlyTo: (at: LonLat, zoom: number) => void;
+  /** The flow-day bar shows only while flows are drawn. */
+  showFlowDay: boolean;
+  /** Fit the map to our positions; absent when we hold none on the map. */
+  onFitPositions?: () => void;
+  /** The page's own key lines (pipelines, links, our flows), above the scene's. */
+  keyExtra?: ReactNode;
 }
 
 export function MapSceneControls({
@@ -36,6 +43,9 @@ export function MapSceneControls({
   now,
   t,
   onFlyTo,
+  showFlowDay,
+  onFitPositions,
+  keyExtra,
 }: MapSceneControlsProps) {
   const [open, setOpen] = useState(false);
   const keyId = useId();
@@ -59,18 +69,44 @@ export function MapSceneControls({
   );
 
   return (
-    <div className="map-scene-controls" role="group" aria-label={t("map.scene.controls")}>
-      <Segmented
-        label={t("map.scene.dimension")}
-        options={[
-          { value: "2d", label: t("map.scene.2d"), title: t("map.scene.2d_hint") },
-          { value: "3d", label: t("map.scene.3d"), title: t("map.scene.3d_hint") },
-        ]}
-        value={dimension}
-        onChange={onDimension}
-      />
-      {flowDays.length > 0 && (
-        <div className="map-scene-scrubber">
+    <>
+      {/* One quiet stack in the map's corner, beside the zoom: the map's own controls. */}
+      <div className="map-control-stack" role="group" aria-label={t("map.scene.controls")}>
+        <button
+          type="button"
+          className="map-control-button"
+          aria-pressed={dimension === "3d"}
+          title={t(dimension === "3d" ? "map.control.view_2d" : "map.control.view_3d")}
+          aria-label={t(dimension === "3d" ? "map.control.view_2d" : "map.control.view_3d")}
+          onClick={() => onDimension(dimension === "3d" ? "2d" : "3d")}
+        >
+          {dimension === "3d" ? <span className="map-control-text">2D</span> : <span className="map-control-text">3D</span>}
+        </button>
+        {onFitPositions && (
+          <button
+            type="button"
+            className="map-control-button"
+            title={t("map.control.fit_positions")}
+            aria-label={t("map.control.fit_positions")}
+            onClick={onFitPositions}
+          >
+            <Icon name="locate-positions" />
+          </button>
+        )}
+        <button
+          type="button"
+          className="map-control-button"
+          aria-expanded={open}
+          aria-controls={keyId}
+          title={t("map.control.key")}
+          aria-label={t("map.control.key")}
+          onClick={() => setOpen((value) => !value)}
+        >
+          <Icon name="info" />
+        </button>
+      </div>
+      {showFlowDay && flowDays.length > 0 && (
+        <div className="map-flow-day-bar">
           <label htmlFor={scrubberId}>{t("map.scene.flow_day")}</label>
           <input
             id={scrubberId}
@@ -88,16 +124,9 @@ export function MapSceneControls({
           <output htmlFor={scrubberId} aria-live="polite">{dayText}</output>
         </div>
       )}
-      <Button
-        variant="quiet"
-        aria-expanded={open}
-        aria-controls={keyId}
-        onClick={() => setOpen((value) => !value)}
-      >
-        {t("map.scene.key")}
-      </Button>
       {open && (
         <div id={keyId} className="map-scene-key" role="region" aria-label={t("map.scene.key")}>
+          {keyExtra}
           <ul className="map-scene-legend">
             <li><span className="map-scene-swatch is-column" aria-hidden="true" />{t("map.scene.legend.column")}</li>
             <li><span className="map-scene-swatch is-stub" aria-hidden="true" />{t("map.scene.legend.stub")}</li>
@@ -145,6 +174,6 @@ export function MapSceneControls({
           <p className="map-scene-note">{t("map.scene.sources")}</p>
         </div>
       )}
-    </div>
+    </>
   );
 }

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { BookOpportunityPathDTO, BookProposalDTO, BookRelevanceDTO } from "@/api/client";
-import { benefitLabel, groupOpportunities, opportunityLabel, reachableLine, reasonLine, type Translate } from "@/app/mapBookRelevance";
+import { benefitLabel, groupOpportunities, opportunityLabel, reachableLine, reasonLine, signedMargin, type Translate } from "@/app/mapBookRelevance";
 import { formatDeliveryMonth, formatInstant } from "@/app/time/timeFormat";
 import { formatMeasure } from "@/app/time/valueFormat";
 import { Icon } from "@/components/ui/Icon";
@@ -225,7 +225,7 @@ function periodFigures(members: readonly BookOpportunityPathDTO[]): string {
   }
   return [...best.entries()]
     .sort(([a], [b]) => a.localeCompare(b))
-    .map(([period, value]) => `${formatDeliveryMonth(period)} ${value >= 0 ? "+" : ""}${value}`)
+    .map(([period, value]) => `${formatDeliveryMonth(period)} ${signedMargin(value)}`)
     .join(" · ");
 }
 

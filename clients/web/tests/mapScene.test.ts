@@ -222,7 +222,7 @@ test("no direction is claimed when the operator is on no listed side", () => {
   // One line per point (its larger direction); the chevron sits at the downstream end.
   assert.equal(layers.lines.features.length, 1);
   assert.equal(layers.lines.features[0].properties.direction, "entry");
-  assert.equal(layers.lines.features[0].properties.width, 9);
+  assert.equal(layers.lines.features[0].properties.width, 3.5);
   assert.equal(layers.chevrons.features.length, 1);
   assert.equal(layers.oriented, 1);
 });
@@ -251,8 +251,8 @@ test("flows move only when motion is allowed; reduced motion and a hidden page a
   assert.deepEqual(flowDashAt(0, "animated"), FLOW_DASH_STEPS[0]);
   assert.notDeepEqual(flowDashAt(70, "animated"), FLOW_DASH_STEPS[0]);
   // The camera between 2D and 3D: the token's duration, none under reduced motion.
-  assert.deepEqual(sceneCamera("3d", false, 400), { pitch: 50, duration: 400 });
-  assert.deepEqual(sceneCamera("2d", true, 400), { pitch: 0, duration: 0 });
+  assert.deepEqual(sceneCamera("3d", false, 400), { pitch: 58, bearing: -17, duration: 400 });
+  assert.deepEqual(sceneCamera("2d", true, 400), { pitch: 0, bearing: 0, duration: 0 });
 });
 
 test("a moved vessel eases from where it was; a new one appears in place", () => {

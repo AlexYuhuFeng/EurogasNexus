@@ -232,17 +232,26 @@ export function NetworkInfoPanel({
         header: t("outages.asset"),
         rowHeader: true,
         sortable: true,
+        priority: "primary",
         value: (row) => row.asset,
         cellTitle: (row) => [row.reason, row.messages.length > 1 ? `${t("outages.messages_count", { count: row.messages.length })}: ${row.messages.join(", ")}` : row.eventId].filter(Boolean).join("\n"),
+        // One line a desk scans: whether it is out now, and the asset. The rest folds.
+        render: (row) => (
+          <span className="network-outage-line">
+            <i className={`network-outage-state is-${row.state}`} aria-hidden="true" />
+            <span className="visually-hidden">{t(`outages.state.${row.state}`)}: </span>
+            <strong>{row.asset}</strong>
+          </span>
+        ),
+      },
+      {
+        id: "where",
+        header: t("outages.where"),
+        priority: "secondary",
+        value: (row) => row.zone,
         render: (row) => (
           <span className="network-panel-cell-stack">
-            <span className="network-panel-title-line">
-              <StatusBadge tone={row.state === "active" ? "watch" : "neutral"}>{t(`outages.state.${row.state}`)}</StatusBadge>
-              <strong>{row.asset}</strong>
-            </span>
-            <small>
-              {[row.zone, row.operators.join(" · "), t(`outages.type_${row.eventType}`, { defaultValue: row.eventType })].filter(Boolean).join(" · ")}
-            </small>
+            <span>{[row.zone, row.operators.join(" · "), t(`outages.type_${row.eventType}`, { defaultValue: row.eventType })].filter(Boolean).join(" · ")}</span>
             {row.placement !== "placed" && (
               <small className="network-panel-placement" data-outage-placement={row.placement}>
                 {t(`outages.placement.${row.placement}`)}
@@ -258,6 +267,7 @@ export function NetworkInfoPanel({
         unit: "GWh/d",
         type: "number",
         sortable: true,
+        priority: "primary",
         value: (row) => row.gwhD,
         format: (value) => figure(typeof value === "number" ? value : null),
         cellTitle: (row) => (row.gwhD === null && row.published ? t("outages.published", { value: row.published }) : undefined),
@@ -269,6 +279,7 @@ export function NetworkInfoPanel({
         header: t("outages.period"),
         type: "date",
         sortable: true,
+        priority: "secondary",
         value: (row) => row.startUtc,
         // Two lines: the start, then the end, so a multi-year window keeps its years visible.
         format: (_, row) => {
@@ -284,6 +295,7 @@ export function NetworkInfoPanel({
       {
         id: "actions",
         header: <span className="visually-hidden">{t("why.button")}</span>,
+        priority: "secondary",
         render: (row) => (
           <span className="network-panel-actions network-panel-actions-stack">
             <WhyButton subject="outage" id={row.eventId} label={row.asset} language={language} t={t} />
@@ -466,6 +478,8 @@ export function NetworkInfoPanel({
               rows={shownOutages}
               rowKey={(row) => row.key}
               density="compact"
+              // A side panel: one line per outage; where, operator, period and actions fold.
+              phoneLayout="fold"
               loading={events === null && !error}
               defaultSort={{ columnId: "offline", direction: "descending" }}
               selectedKey={rowKey("outages")}

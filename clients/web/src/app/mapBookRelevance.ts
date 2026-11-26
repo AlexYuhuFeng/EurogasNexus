@@ -118,9 +118,16 @@ export interface OpportunityPathLine {
 }
 
 /** The core's headline as the map labels it: "L +1.25 EUR/MWh", "sim" when simulated. */
+/** A margin as a desk reads it: signed, three decimals (+0.238), "–" when not stated. */
+export function signedMargin(value: string | number | null | undefined): string {
+  const number = typeof value === "number" ? value : value === null || value === undefined ? Number.NaN : Number(value);
+  if (!Number.isFinite(number)) return "–";
+  const text = Math.abs(number).toFixed(3);
+  return `${number < 0 ? "-" : "+"}${text}`;
+}
+
 export function opportunityLabel(item: BookOpportunityPathDTO): string {
-  const value = item.headline.value;
-  const signed = value === null ? "–" : value.startsWith("-") ? value : `+${value}`;
+  const signed = signedMargin(item.headline.value);
   return `${item.type_code} ${signed} ${item.headline.unit}${item.simulated ? " sim" : ""}`;
 }
 
@@ -456,8 +463,7 @@ export function benefitLabel(item: BookOpportunityPathDTO, t: Translate): string
   const benefit = item.proposal?.benefit;
   if (!benefit) return opportunityLabel(item);
   if (benefit.avoids_outage) return t("map.book.benefit_avoids_outage");
-  const value = benefit.headline.value;
-  const signed = value === null ? "–" : value.startsWith("-") ? value : `+${value}`;
+  const signed = signedMargin(benefit.headline.value);
   const figure = `${signed} ${benefit.headline.unit}${item.simulated ? " sim" : ""}`;
   return benefit.via ? t("map.book.benefit_via", { via: benefit.via, figure }) : t("map.book.benefit", { figure });
 }

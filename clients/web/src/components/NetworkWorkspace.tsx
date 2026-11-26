@@ -47,7 +47,7 @@ import {
 import type { MapCargoDTO } from "@/api/client";
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import { useInspectorStore } from "@/stores/inspector";
-import { Segmented } from "@/components/ui";
+import { Popover, Segmented } from "@/components/ui";
 import { Icon } from "@/components/ui/Icon";
 
 type Translate = (key: string) => string;
@@ -144,8 +144,6 @@ export function NetworkWorkspace({
 }: NetworkWorkspaceProps) {
   const compactLayout = useShellLayout().widthClass === "compact";
   const [statusOpen, setStatusOpen] = useState(false);
-  const [legendOpen, setLegendOpen] = useState(false);
-  const [attributionText, setAttributionText] = useState("");
   // Wave 9: map nodes hand their detail to the canonical Inspector. This page declares
   // `network-node` as an inspectable subject, so the hand-over is legal here; the builder
   // refuses it everywhere the composition does not declare it.
@@ -261,7 +259,6 @@ export function NetworkWorkspace({
   closeTransientRef.current = () => {
     fullscreen.exit();
     setDrawerOpen(false);
-    setLegendOpen(false);
     setStatusOpen(false);
     setHoverAt(null);
     const open = useInspectorStore.getState();
@@ -732,6 +729,41 @@ export function NetworkWorkspace({
         ))}
     </>
   );
+  // Desktop: the layers are one menu, not a row of chips. The map is what the page shows; the
+  // toolbar names the view and keeps its choices one click away.
+  const shownLayerCount = [...["routes", "network", "lng", "ips", "hubs"], ...SITUATION_LAYERS].filter((layer) => activeLayers.includes(layer)).length;
+  const layerOption = (layer: string, hint: string) => (
+    <label key={layer} className="map-layer-option" title={t(hint)}>
+      <input type="checkbox" checked={activeLayers.includes(layer)} onChange={() => onToggleLayer(layer)} />
+      <i className={`map-layer-swatch layer-${layer}`} aria-hidden="true" />
+      <span>{t(`map.layer.${layer}`)}</span>
+    </label>
+  );
+  const layerMenu = (
+    <Popover
+      label={t("map.layers_panel")}
+      placement="bottom-start"
+      width="sm"
+      className="map-layer-menu"
+      trigger={(props) => (
+        <button {...props} type="button" className="chip map-layer-menu-trigger">
+          <Icon name="layers" />
+          <span>{t("map.layers_panel")}</span>
+          <span className="map-layer-menu-count">{shownLayerCount}</span>
+        </button>
+      )}
+    >
+      <fieldset className="map-layer-group">
+        <legend>{t("map.layers.group_network")}</legend>
+        {["routes", "network", "lng", "ips", "hubs"].map((layer) =>
+          layerOption(layer, layer === "routes" ? "map.layer.routes_hint" : `map.layer.${layer}`))}
+      </fieldset>
+      <fieldset className="map-layer-group">
+        <legend>{t("map.layers.group_situation")}</legend>
+        {SITUATION_LAYERS.map((layer) => layerOption(layer, `map.layer.${layer}_hint`))}
+      </fieldset>
+    </Popover>
+  );
   const toolbar = (
       <div className={controlsInSheet ? "map-toolbar network-desk-toolbar is-in-sheet" : "map-toolbar network-desk-toolbar"}>
         <Segmented
@@ -741,7 +773,9 @@ export function NetworkWorkspace({
           value={mapView}
           onChange={chooseMapViewAndTab}
         />
-        <span className="map-toolbar-divider" aria-hidden="true" />
+        {!controlsInSheet && (compactLayout ? layerChips : layerMenu)}
+        {/* The rest of the row is the map's; the view's own actions sit at its end. */}
+        <span className="map-toolbar-spacer" aria-hidden="true" />
         {/* Phone width: one compact row, icons with their names for assistive technology. */}
         <button
           className={compactLayout ? "chip reset-chip map-icon-chip" : "chip reset-chip"}
@@ -754,8 +788,6 @@ export function NetworkWorkspace({
             <Icon name="reset" />
           ) : t("map.reset")}
         </button>
-        {!controlsInSheet && layerChips}
-        <span className="map-toolbar-divider" aria-hidden="true" />
         <button
           type="button"
           className={compactLayout ? "chip map-fullscreen-chip map-icon-chip" : "chip map-fullscreen-chip"}
@@ -781,6 +813,53 @@ export function NetworkWorkspace({
           </button>
         )}
       </div>
+  );
+
+  // The one map key: what is drawn now (counts), then the lines, then the scene's marks.
+  const keyExtra = (
+    <div className="map-key-extra">
+      {summary && (
+        <p className="map-key-now">
+            {summary.contracts > 0 && (
+              <span><i className="situation-dot own" />{t("map.situation.contracts")} <b>{summary.contracts}</b></span>
+            )}
+            {summary.cargoesAtSea > 0 && (
+              <span><i className="situation-dot own" />{t("map.situation.cargoes_at_sea")} <b>{summary.cargoesAtSea}</b></span>
+            )}
+            {summary.slots > 0 && (
+              <span><i className="situation-dot own ring" />{t("map.situation.slots")} <b>{summary.slots}</b></span>
+            )}
+            {summary.regasNow > 0 && (
+              <span><i className="situation-dot own" />{t("map.situation.regas_now")} <b>{summary.regasNow}</b></span>
+            )}
+            {summary.entryGwhD != null && (
+              <span>{t("map.situation.entry_flow")} <b>{Math.round(summary.entryGwhD).toLocaleString()}</b> GWh/d</span>
+            )}
+            {mapLayers.includes("vessels") && situation?.vessel_feed?.entitled === false && (
+              // A licensed feed the caller does not hold: say so rather than show an empty sea.
+              <span className="is-alert">{t("map.situation.vessels_unentitled")}</span>
+            )}
+            {mapLayers.includes("vessels") && (situation?.vessel_feed?.market_cargoes ?? 0) > 0 && (
+              <span>
+                <i className="situation-dot market" />{t("map.situation.vessels")}{" "}
+                <b>{situation!.vessel_feed!.market_cargoes}</b>
+                {situation!.vessel_feed!.simulated > 0 ? <small> sim</small> : null}
+              </span>
+            )}
+        </p>
+      )}
+      <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
+        {surveyedPipelineCount > 0 && <span><i className="line-swatch verified" />{t("map.key.pipeline")}</span>}
+        {connectionLinkCount > 0 && <span><i className="line-swatch link" />{t("map.key.connection")}</span>}
+        {mapView === "book" && <span className="map-book-legend-line">{t("map.book.legend")}</span>}
+        {mapLayers.includes("routes") && mapView === "network" && (
+          <span><i className="line-swatch context" />{t("map.key.context_pipelines")}</span>
+        )}
+        {indicativeRouteCount > 0 && <span><i className="line-swatch indicative" />{t("map.indicative_route_lines")}</span>}
+        {bookFlows.length > 0 && mapLayers.includes("positions") && <span><i className="line-swatch flow" />{t("map.key.book_flow")}</span>}
+        {displayedHubCount > 0 && <span><i className="node-swatch hubs" />{t("map.key.hub_area")}</span>}
+      </div>
+    </div>
   );
 
   return (
@@ -829,6 +908,7 @@ export function NetworkWorkspace({
             setOpenOpportunityId(null);
           }}
           callouts={callouts}
+          keyExtra={keyExtra}
           // The page holds the selection: the panel lists what the selected object relates
           // to and shows its card, so the map draws no card of its own.
           selection={selection}
@@ -884,32 +964,6 @@ export function NetworkWorkspace({
             {summary.outagesScheduled > 0 && (
               <span><i className="situation-dot outage-scheduled" />{t("map.situation.outages_scheduled")} <b>{summary.outagesScheduled}</b></span>
             )}
-            {summary.contracts > 0 && (
-              <span><i className="situation-dot own" />{t("map.situation.contracts")} <b>{summary.contracts}</b></span>
-            )}
-            {summary.cargoesAtSea > 0 && (
-              <span><i className="situation-dot own" />{t("map.situation.cargoes_at_sea")} <b>{summary.cargoesAtSea}</b></span>
-            )}
-            {summary.slots > 0 && (
-              <span><i className="situation-dot own ring" />{t("map.situation.slots")} <b>{summary.slots}</b></span>
-            )}
-            {summary.regasNow > 0 && (
-              <span><i className="situation-dot own" />{t("map.situation.regas_now")} <b>{summary.regasNow}</b></span>
-            )}
-            {summary.entryGwhD != null && (
-              <span>{t("map.situation.entry_flow")} <b>{Math.round(summary.entryGwhD).toLocaleString()}</b> GWh/d</span>
-            )}
-            {mapLayers.includes("vessels") && situation?.vessel_feed?.entitled === false && (
-              // A licensed feed the caller does not hold: say so rather than show an empty sea.
-              <span className="is-alert">{t("map.situation.vessels_unentitled")}</span>
-            )}
-            {mapLayers.includes("vessels") && (situation?.vessel_feed?.market_cargoes ?? 0) > 0 && (
-              <span>
-                <i className="situation-dot market" />{t("map.situation.vessels")}{" "}
-                <b>{situation!.vessel_feed!.market_cargoes}</b>
-                {situation!.vessel_feed!.simulated > 0 ? <small> sim</small> : null}
-              </span>
-            )}
             {situationStale && <span className="is-alert">{t("map.situation.stale")}</span>}
             {/* A newer picture is being read behind this one: said quietly, never a spinner. */}
             {situationUpdating && <span className="map-situation-updating">{t("map.situation.updating")}</span>}
@@ -926,39 +980,6 @@ export function NetworkWorkspace({
             <small>{t("map.empty_help")}</small>
           </div>
         )}
-        {/* The chips are the key for points; this one line keys only the lines drawn. A hub
-            is a market area, never wired to its points: the key says how to see its zone. */}
-        {/* The line key (and, on a phone, the basemap credit) opens from one info button, so it
-            never covers the map or the zoom card. */}
-        {mapHasVisibleEvidence && (
-          <button
-            type="button"
-            className="map-info-chip"
-            aria-expanded={legendOpen}
-            aria-label={t("map.visual_legend")}
-            title={t("map.visual_legend")}
-            onClick={() => {
-              // The basemap's own attribution, read from the map, goes behind this button too.
-              const credit = mapColumnRef.current?.querySelector(".maplibregl-ctrl-attrib-inner");
-              setAttributionText(credit?.textContent?.trim() ?? "");
-              setLegendOpen((open) => !open);
-            }}
-          >
-            <Icon name="info" />
-          </button>
-        )}
-        {mapHasVisibleEvidence && legendOpen && <div className="map-visual-legend" aria-label={t("map.visual_legend")}>
-          {surveyedPipelineCount > 0 && <span><i className="line-swatch verified" />{t("map.key.pipeline")}</span>}
-          {connectionLinkCount > 0 && <span><i className="line-swatch link" />{t("map.key.connection")}</span>}
-          {mapView === "book" && <span className="map-book-legend-line">{t("map.book.legend")}</span>}
-          {mapLayers.includes("routes") && mapView === "network" && (
-            <span><i className="line-swatch context" />{t("map.key.context_pipelines")}</span>
-          )}
-          {indicativeRouteCount > 0 && <span><i className="line-swatch indicative" />{t("map.indicative_route_lines")}</span>}
-          {bookFlows.length > 0 && mapLayers.includes("positions") && <span><i className="line-swatch flow" />{t("map.key.book_flow")}</span>}
-          {displayedHubCount > 0 && <span><i className="node-swatch hubs" />{t("map.key.hub_area")}</span>}
-          {compactLayout && attributionText && <small className="map-legend-attribution">{attributionText}</small>}
-        </div>}
       </div>
       </section>
 

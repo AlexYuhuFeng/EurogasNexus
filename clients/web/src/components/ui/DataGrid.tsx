@@ -150,7 +150,11 @@ export interface DataGridProps<R> {
    * At phone width: `columns` (default) keeps the primary columns and folds the rest into each
    * row's Details; `scroll` keeps every column and scrolls inside the grid's own box.
    */
-  phoneLayout?: "columns" | "scroll";
+  /**
+   * `fold` folds the secondary columns into each row's Details at every width: for a grid in a
+   * narrow side panel, where a phone's layout is the right one on any screen.
+   */
+  phoneLayout?: "columns" | "scroll" | "fold";
   /** How many columns stay in the row at phone width when none is marked primary (default 3). */
   phoneColumns?: number;
 }
@@ -307,7 +311,8 @@ export function DataGrid<R>({
 }: DataGridProps<R>) {
   const { t } = useTranslation();
   const compactWidth = useCompactWidth();
-  const phoneFold = compactWidth && phoneLayout === "columns" && allColumns.length > phoneColumns;
+  const phoneFold =
+    (phoneLayout === "fold" || (compactWidth && phoneLayout === "columns")) && allColumns.length > phoneColumns;
   const split = useMemo(
     () => (phoneFold ? phoneColumnSplit(allColumns, phoneColumns) : { visible: [...allColumns], folded: [] }),
     [phoneFold, allColumns, phoneColumns],
