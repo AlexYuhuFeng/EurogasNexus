@@ -30,6 +30,9 @@ RowFilter = Callable[[Iterable[dict[str, Any]]], list[dict[str, Any]]]
 ASSET_KINDS = {"lng": "lng_terminal", "storage": "storage"}
 #: Gas days back from the current one in which a published capacity is still the newest.
 CAPACITY_LOOKBACK_DAYS = 40
+#: Above this a published firm capacity for one point is a placeholder, not a figure: Europe's
+#: largest single points (Greifswald, Emden, Baumgarten) stand under about 2,000 GWh/d.
+PLAUSIBLE_POINT_CAPACITY_GWH_D = 3_000.0
 #: Gas days back in which a GIE inventory row is still shown (it says its own gas day).
 STOCK_LOOKBACK_DAYS = 10
 
@@ -124,6 +127,11 @@ def build_map_assets(
             continue
         energy, from_volume = row_energy_gwh(record)
         if energy is None or from_volume:
+            continue
+        if energy > PLAUSIBLE_POINT_CAPACITY_GWH_D:
+            # A "no limit" placeholder, not a capacity (GTS publishes 10^9 kWh/h, 24,000 GWh/d,
+            # at German storage connections on its grid): the site reads as not published
+            # rather than as one that dwarfs every real one on the map.
             continue
         seen.add(key)
         capacities.append(

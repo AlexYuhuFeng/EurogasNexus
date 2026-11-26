@@ -198,3 +198,13 @@ def test_a_cargo_says_what_its_eta_rests_on_and_that_no_position_was_reported(se
     assert cargo["eta"]["confidence"] == "medium"
     assert cargo["eta"]["source"] == "ETRM"
     assert "the master's notice" in cargo["eta"]["text"]
+
+
+def test_a_no_limit_placeholder_is_not_read_as_a_capacity(session):
+    # GTS publishes 10^9 kWh/h (24,000 GWh/d) at German storage connections on its grid: a
+    # placeholder, which would dwarf every real site's column on the map.
+    _capacity(session, "c-placeholder", "UGS-00149", "entry", 24_000e6, DAY + timedelta(days=4))
+    session.commit()
+    assets = {asset["asset_id"]: asset for asset in _situation(session)["assets"]}
+    directions = [item["direction"] for item in assets["entsog-ugs-00149"]["capacity"]]
+    assert directions == ["exit"]
