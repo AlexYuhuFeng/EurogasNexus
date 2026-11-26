@@ -13,6 +13,7 @@ from uuid import uuid4
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response
 from pydantic import BaseModel, Field
 
+from eurogas_nexus.api.errors import ApiError
 from eurogas_nexus.application.agents.registry import register_builtin_capabilities
 from eurogas_nexus.application.agents.runtime import CapabilityRuntime
 from eurogas_nexus.domain.agents.contracts import (
@@ -122,9 +123,10 @@ def _db_configured() -> bool:
 
 def _session():
     if not _db_configured():
-        raise HTTPException(
-            status_code=503,
-            detail="Runtime PostgreSQL is required for agent research persistence.",
+        raise ApiError(
+            503,
+            "runtime_db_required",
+            "Runtime PostgreSQL is required for agent research persistence.",
         )
     from eurogas_nexus.db.session import get_session_factory
 
@@ -162,7 +164,12 @@ def search_capabilities(
 def describe_capability(capability_id: str, request: Request) -> dict:
     definition = _registry().get(capability_id)
     if definition is None:
-        raise HTTPException(status_code=404, detail=f"Unknown capability: {capability_id}")
+        raise ApiError(
+            404,
+            "agent_capability_not_found",
+            f'Unknown capability: {capability_id}',
+            params={"capability_id": capability_id},
+        )
     return _env(definition.public_metadata(), request, source="domain-contract")
 
 
@@ -342,7 +349,7 @@ def _authorise_research(session, body: ResearchRunRequest, principal) -> None:
     if body.frozen_strategy_version_id:
         version = session.get(StrategyVersionRecord, body.frozen_strategy_version_id)
         if version is None:
-            raise HTTPException(status_code=404, detail="Strategy version not found")
+            raise ApiError(404, "strategy_version_not_found", "Strategy version not found")
         # Research can persist evaluations; a read-share does not grant writes.
         require_strategy_access(session, version.strategy_id, principal.principal_id, write=True)
 
@@ -496,7 +503,7 @@ def get_agent_run(agent_run_id: str, request: Request) -> dict:
 
         principal_id = require_named_principal(session, _principal(request).principal_id)
         if row is None or row.principal_id != principal_id:
-            raise HTTPException(status_code=404, detail="Agent run not found")
+            raise ApiError(404, "agent_run_not_found", "Agent run not found")
         data = {
             "agent_run_id": row.agent_run_id,
             "principal_id": row.principal_id,
@@ -533,7 +540,7 @@ def replay_agent_run(agent_run_id: str, request: Request) -> dict:
 
         principal_id = require_named_principal(session, _principal(request).principal_id)
         if row is None or row.principal_id != principal_id:
-            raise HTTPException(status_code=404, detail="Agent run not found")
+            raise ApiError(404, "agent_run_not_found", "Agent run not found")
         data = agents.replay_payload(session, row)
     return _env(data, request, source="runtime-postgresql")
 

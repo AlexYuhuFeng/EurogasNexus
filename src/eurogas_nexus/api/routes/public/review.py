@@ -10,10 +10,11 @@ lives in :mod:`eurogas_nexus.api.dependencies.acting_actor`, and a caller that s
 
 from __future__ import annotations
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Query, Request
 from pydantic import BaseModel, Field
 
 from eurogas_nexus.api.dependencies.acting_actor import acting_actor
+from eurogas_nexus.api.errors import ApiError
 from eurogas_nexus.domain.ontology.vocabulary import ReviewDecisionValue, ReviewEntityType
 
 router = APIRouter(tags=["review"])
@@ -70,7 +71,7 @@ def post_review_decision(body: ReviewDecisionRequest, request: Request) -> dict:
                 if not can_read_review_target(
                     session, body.entity_type.value, body.entity_id, _principal_id(request)
                 ):
-                    raise HTTPException(status_code=404, detail="Review target not found")
+                    raise ApiError(404, "review_target_not_found", "Review target not found")
                 if body.entity_type == ReviewEntityType.STRATEGY_RUN:
                     from eurogas_nexus.db.models import StrategyRunRecord
                     from eurogas_nexus.db.repositories.strategy_access import (
@@ -79,7 +80,7 @@ def post_review_decision(body: ReviewDecisionRequest, request: Request) -> dict:
 
                     run = session.get(StrategyRunRecord, body.entity_id)
                     if run is None:
-                        raise HTTPException(status_code=404, detail="Strategy run not found")
+                        raise ApiError(404, "strategy_run_not_found", "Strategy run not found")
                     require_strategy_access(
                         session, run.strategy_id, _principal_id(request), write=True
                     )

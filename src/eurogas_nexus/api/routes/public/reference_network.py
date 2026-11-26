@@ -4,6 +4,8 @@ from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from eurogas_nexus.api.errors import ApiError
+
 router = APIRouter(tags=["reference-network"])
 
 
@@ -35,7 +37,12 @@ def get_node(node_id: str, request: Request) -> dict:
         return _envelope(node, request, source="postgresql")
 
     if _db_is_configured():
-        raise HTTPException(status_code=404, detail=f"Node '{node_id}' not found.")
+        raise ApiError(
+            404,
+            "reference_node_not_found",
+            f"Node '{node_id}' not found.",
+            params={"node_id": node_id},
+        )
 
     raise _db_not_configured("reference_nodes")
 
@@ -68,7 +75,12 @@ def get_edge(edge_id: str, request: Request) -> dict:
         return _envelope(edge, request, source="postgresql")
 
     if _db_is_configured():
-        raise HTTPException(status_code=404, detail=f"Edge '{edge_id}' not found.")
+        raise ApiError(
+            404,
+            "reference_edge_not_found",
+            f"Edge '{edge_id}' not found.",
+            params={"edge_id": edge_id},
+        )
 
     raise _db_not_configured("reference_edges")
 
@@ -104,7 +116,12 @@ def get_facility(facility_id: str, request: Request) -> dict:
         return _envelope(facility, request, source="postgresql")
 
     if _db_is_configured():
-        raise HTTPException(status_code=404, detail=f"Facility '{facility_id}' not found.")
+        raise ApiError(
+            404,
+            "reference_facility_not_found",
+            f"Facility '{facility_id}' not found.",
+            params={"facility_id": facility_id},
+        )
 
     raise _db_not_configured("reference_facilities")
 

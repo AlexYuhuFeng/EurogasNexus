@@ -99,8 +99,14 @@ def test_the_client_reads_the_field_names_the_envelope_writes() -> None:
     assert "correlation_id" in read_fields
     # And the envelope writes one field a business surface deliberately does not read:
     # `operator_detail` exists for an operator reading the raw body, and is only ever
-    # written for an operator identity.
+    # written for an operator identity. `params` and `fallback_message` (the HTTP envelope's
+    # translation contract, backend audit 2026-11-26) are written beside the taxonomy for
+    # the client's code-based translation; until the client reads them they are extra.
     assert written - read_fields == {"operator_detail"}
+    from eurogas_nexus.api.error_handlers import error_body
+
+    http_written = set(error_body(404, {"code": "not_found", "message": "Not found."}))
+    assert {"params", "fallback_message"} <= http_written
 
     """A code the catalogue does not know borrows the family's words, never a raw key.
 

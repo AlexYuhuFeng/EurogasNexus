@@ -13,6 +13,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from eurogas_nexus.api.dependencies.acting_actor import acting_actor_name
+from eurogas_nexus.api.errors import ApiError
 from eurogas_nexus.application.dataops_observability import emit_event
 from eurogas_nexus.domain.dataops.contracts import IngestionTriggerType
 from eurogas_nexus.domain.ingestion.certification import (
@@ -85,7 +86,12 @@ def get_source_health(source_id: str, request: Request) -> dict:
         with _session() as session:
             data = source_health(session, source_id=source_id)
         if data is None:
-            raise HTTPException(status_code=404, detail=f"Source '{source_id}' not found.")
+            raise ApiError(
+                404,
+                "source_not_found",
+                f"Source '{source_id}' not found.",
+                params={"source_id": source_id},
+            )
         return _env(data, request, source="runtime-postgresql")
     except HTTPException:
         raise
@@ -134,7 +140,7 @@ def post_source_run(source_id: str, body: SourceRunRequest, request: Request) ->
         _emit_operator_event("run", source_id, actor=_actor(request))
         return _env(data, request, source="runtime-postgresql")
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise ApiError(404, "source_operation_target_not_found", str(exc)) from exc
     except _sqlalchemy_error_type() as exc:
         raise _db_unavailable(exc) from exc
 
@@ -153,11 +159,13 @@ def post_source_backfill(
     start = _as_utc(body.start_utc)
     end = _as_utc(body.end_utc)
     if start >= end:
-        raise HTTPException(status_code=422, detail="start_utc must be before end_utc.")
+        raise ApiError(422, "backfill_window_invalid", "start_utc must be before end_utc.")
     if end - start > timedelta(days=MAX_BACKFILL_DAYS):
-        raise HTTPException(
-            status_code=422,
-            detail=f"Backfill window exceeds {MAX_BACKFILL_DAYS} days.",
+        raise ApiError(
+            422,
+            "backfill_window_too_long",
+            f'Backfill window exceeds {MAX_BACKFILL_DAYS} days.',
+            params={"MAX_BACKFILL_DAYS": MAX_BACKFILL_DAYS},
         )
     try:
         with _session() as session:
@@ -173,7 +181,7 @@ def post_source_backfill(
         _emit_operator_event("backfill", source_id, actor=_actor(request))
         return _env(data, request, source="runtime-postgresql")
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise ApiError(404, "source_operation_target_not_found", str(exc)) from exc
     except _sqlalchemy_error_type() as exc:
         raise _db_unavailable(exc) from exc
 
@@ -194,7 +202,7 @@ def post_source_retry(
         with _session() as session:
             failed = dataops_repository.get_source_run(session, body.run_id)
             if failed is None or failed.source_id != source_id:
-                raise HTTPException(status_code=404, detail="Failed run not found for source.")
+                raise ApiError(404, "failed_run_not_found", "Failed run not found for source.")
             data = request_operator_run(
                 session,
                 source_id=source_id,
@@ -208,7 +216,7 @@ def post_source_retry(
     except HTTPException:
         raise
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise ApiError(404, "source_operation_target_not_found", str(exc)) from exc
     except _sqlalchemy_error_type() as exc:
         raise _db_unavailable(exc) from exc
 
@@ -239,7 +247,7 @@ def patch_source_enabled(
         )
         return _env(data, request, source="runtime-postgresql")
     except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc)) from exc
+        raise ApiError(404, "source_operation_target_not_found", str(exc)) from exc
     except _sqlalchemy_error_type() as exc:
         raise _db_unavailable(exc) from exc
 
@@ -364,7 +372,12 @@ def post_source_certification(
     _require_db()
     provider = _provider_for_source_id(source_id)
     if provider is None:
-        raise HTTPException(status_code=404, detail=f"Source '{source_id}' not found.")
+        raise ApiError(
+            404,
+            "source_not_found",
+            f"Source '{source_id}' not found.",
+            params={"source_id": source_id},
+        )
     try:
         validate_certification_payload(
             source_system=provider,

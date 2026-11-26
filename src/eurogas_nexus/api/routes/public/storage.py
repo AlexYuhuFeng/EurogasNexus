@@ -4,6 +4,7 @@ from datetime import date
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from eurogas_nexus.api.errors import ApiError
 from eurogas_nexus.api.routes.public import observation_window
 from eurogas_nexus.application.warm_views import ViewSpec, warm_view
 from eurogas_nexus.domain.market.storage_targets import (
@@ -320,7 +321,7 @@ def get_fundamentals_storage(
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001 - a store failure is a 503, never a partial read
-        raise HTTPException(status_code=503, detail="runtime_db_unavailable") from exc
+        raise ApiError(503, "runtime_db_unavailable", "runtime_db_unavailable") from exc
     sources = sorted(
         {s for entity in [data["region"], *data["countries"]] if entity for s in entity["sources"]}
     )
@@ -372,7 +373,7 @@ def get_fundamentals_lng(
         with get_session_factory()() as session:
             data = lng_read(session, current_principal(request), season=codes)
     except Exception as exc:  # noqa: BLE001 - a store failure is a 503, never a partial read
-        raise HTTPException(status_code=503, detail="runtime_db_unavailable") from exc
+        raise ApiError(503, "runtime_db_unavailable", "runtime_db_unavailable") from exc
     sources = sorted(
         {s for entity in [data["region"], *data["countries"]] if entity for s in entity["sources"]}
     )
@@ -431,11 +432,11 @@ def get_fundamentals_forward_balance(
             summary=summary,
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise ApiError(422, "forward_balance_input_invalid", str(exc)) from exc
     except HTTPException:
         raise
     except Exception as exc:  # noqa: BLE001 - a store failure is a 503, never a partial read
-        raise HTTPException(status_code=503, detail="runtime_db_unavailable") from exc
+        raise ApiError(503, "runtime_db_unavailable", "runtime_db_unavailable") from exc
 
 
 @router.get("/api/fundamentals/flows")
@@ -472,7 +473,7 @@ def get_fundamentals_flows(
         with get_session_factory()() as session:
             data = flows_read(session, current_principal(request), season=codes)
     except Exception as exc:  # noqa: BLE001 - a store failure is a 503, never a partial read
-        raise HTTPException(status_code=503, detail="runtime_db_unavailable") from exc
+        raise ApiError(503, "runtime_db_unavailable", "runtime_db_unavailable") from exc
     provider = bool(data["totals"] or data["landings"]) and not data["simulated"]
     return {
         "data": data,

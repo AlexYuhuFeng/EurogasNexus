@@ -11,6 +11,8 @@ from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from eurogas_nexus.api.errors import ApiError
+
 router = APIRouter(tags=["cost-observations"])
 
 
@@ -85,7 +87,7 @@ def get_applicable(
             warnings=["NO_COST_OBSERVATION"] if resolution.selected is None else [],
         )
     except ValueError as exc:
-        raise HTTPException(status_code=422, detail=str(exc)) from exc
+        raise ApiError(422, "cost_observation_query_invalid", str(exc)) from exc
     except _sqlalchemy_error_type() as exc:
         raise _db_unavailable(exc) from exc
 
@@ -104,7 +106,9 @@ def _sqlalchemy_error_type():
 
 def _db_unavailable(exc: Exception) -> HTTPException:
     detail = f"Runtime DB unavailable: {exc.__class__.__name__}"
-    return HTTPException(status_code=503, detail=detail)
+    return ApiError(
+        503, "runtime_db_unavailable", detail, params={"error_class": exc.__class__.__name__}
+    )
 
 
 def _envelope(data: object, request: Request, *, source: str, warnings: list[str]) -> dict:
