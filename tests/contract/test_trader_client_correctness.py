@@ -316,6 +316,7 @@ def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
     derived = _read(WEB / "app" / "workspaceDerivedData.ts")
     network_workspace = _read(WEB / "components" / "NetworkWorkspace.tsx")
     map_component = _read(WEB / "components" / "GasNetworkMap.tsx")
+    map_labels = _read(WEB / "app" / "mapLabels.ts")
     line_model = _read(WEB / "app" / "networkMapLines.ts")
     resource_pool_paths = _read(WEB / "app" / "resourcePoolMapPaths.ts")
 
@@ -390,7 +391,18 @@ def test_network_geometry_does_not_overstate_route_corridor_coverage() -> None:
     assert "<KeptSlot id={DESK_NETWORK_KEPT} />" in _read(WEB / "components" / "MarketCockpit.tsx")
     assert "<NetworkWorkspace" in _read(WEB / "components" / "DeskNetworkTask.tsx")
     assert "MAJOR_HUB_PRIORITY" in map_component
-    assert "map-node-label" in map_component
+    # Names are one decluttered MapLibre symbol layer built by app/mapLabels.ts, not HTML
+    # markers: only the nodes the active layers draw are named, a name that would overlap
+    # another is dropped, and a zone-only node is never given a price.
+    assert "const labels = mapLabels({" in map_component
+    assert "nodes: filteredNodes" in map_component
+    assert 'id: "map-labels"' in map_component
+    assert 'type: "symbol"' in map_component
+    assert '"text-allow-overlap": false' in map_component
+    assert "export function mapLabels" in map_labels
+    assert "export function labelFeatures" in map_labels
+    assert "isZoneOnly(node)" in map_labels
+    assert "never priced" in map_labels
     assert "cluster: true" in map_component
     assert 'id: "node-clusters"' in map_component
 
