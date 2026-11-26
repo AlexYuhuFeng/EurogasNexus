@@ -158,6 +158,7 @@ interface StoreLike {
     bindIdentity: (id: string | null) => void;
     refresh: () => Promise<void>;
     startDatasetBuild: (spec: Record<string, unknown>, options?: Record<string, unknown>) => Promise<JobDTO>;
+    startResearchRun: (body: Record<string, unknown>, options?: Record<string, unknown>) => Promise<JobDTO>;
     retry: (id: string) => Promise<JobDTO | null>;
     cancel: (id: string) => Promise<void>;
     dismiss: (id: string) => void;
@@ -215,6 +216,27 @@ test("retry re-sends the stored request as a new job and dismisses the failed on
   const starts = harness.calls.filter((call) => call.method === "startDatasetBuild");
   assert.deepEqual(starts.map((call) => call.args), [[{ dataset_spec_id: "s" }, "snap-x"], [{ dataset_spec_id: "s" }, "snap-x"]]);
   assert.equal(await store.getState().retry("unknown"), null);
+  store.getState().stop();
+});
+
+test("a research run starts in the background and its retry re-sends the same request", async () => {
+  const harness = await loadApiStore();
+  const { useBackgroundJobsStore: store } = await harness.load<{ useBackgroundJobsStore: StoreLike }>(
+    "/src/stores/backgroundJobs.ts?test=research",
+  );
+  harness.answer("jobs", () => ({ data: [], meta: {} }));
+  let next = "run-1";
+  harness.answer("startResearchRun", () => ({ data: job(next, { kind: "AGENT_RUN", status: "QUEUED" }), meta: {} }));
+  store.getState().bindIdentity("principal-r");
+  await settle();
+  const body = { objective: "Is the NBP premium over TTF persistent today?", agent_profile: "STRATEGY_RESEARCHER" };
+  await store.getState().startResearchRun(body, { returnTo: "/research?task=agents", title: "NBP premium" });
+  assert.deepEqual(store.getState().started["run-1"].retry, { action: "research-run", body });
+  next = "run-2";
+  const again = await store.getState().retry("run-1");
+  assert.equal(again?.job_id, "run-2");
+  const starts = harness.calls.filter((call) => call.method === "startResearchRun");
+  assert.deepEqual(starts.map((call) => call.args), [[body], [body]]);
   store.getState().stop();
 });
 
@@ -319,6 +341,9 @@ test("every new jobs text exists in both locales, translated", () => {
   }
   for (const step of ["resolve", "read_prices", "read_fundamentals", "compute", "write_files", "save_snapshot"]) {
     assert.ok(en[`jobs.step.dataset.${step}`], `the server's step dataset.${step} has no text`);
+  }
+  for (const step of ["plan", "analyse", "hypothesis", "backtest", "review"]) {
+    assert.ok(en[`jobs.step.research.${step}`], `the server's step research.${step} has no text`);
   }
 });
 

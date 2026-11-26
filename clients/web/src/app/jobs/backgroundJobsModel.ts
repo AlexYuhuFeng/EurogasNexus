@@ -35,7 +35,7 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 /** What re-runs a job: an action this client knows, with the request it sent. */
 export interface JobRetry {
-  readonly action: "dataset-build";
+  readonly action: "dataset-build" | "research-run";
   readonly body: Record<string, unknown>;
 }
 

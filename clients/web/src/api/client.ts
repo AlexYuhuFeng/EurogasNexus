@@ -1379,6 +1379,17 @@ export interface DecisionCaseDecisionInputDTO {
   note?: string;
 }
 
+/** The request body of `POST /api/agent/research` (see `ResearchRunRequest` on the server). */
+export interface ResearchRunStartDTO {
+  objective: string;
+  agent_profile?: string;
+  strategy_generation_allowed?: boolean;
+  strategy_ir?: Record<string, unknown> | null;
+  frozen_strategy_version_id?: string | null;
+  period_start_utc?: string | null;
+  period_end_utc?: string | null;
+}
+
 /**
  * Unified job record (`GET /api/jobs`). Architecture V2 converges ingestion,
  * dataset builds, optimisation, backtests, reporting and agent work on this one
@@ -5720,6 +5731,13 @@ export const api = {
       materialize: true,
       background: true,
     }),
+
+  /**
+   * Start a governed research run as a background job (202 with the QUEUED job); the run to
+   * open is the job's `agent_run:` output once it succeeded.
+   */
+  startResearchRun: (body: ResearchRunStartDTO) =>
+    post<JobDTO>("/agent/research", { ...body, background: true }),
 
   recordReviewDecision: (body: ReviewDecisionInputDTO) =>
     post<ReviewDecisionDTO>("/review/decisions", body),
