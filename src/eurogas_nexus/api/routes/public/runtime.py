@@ -176,6 +176,7 @@ def runtime_dependencies(request: Request) -> dict:
     db = {
         "state": "UNAVAILABLE",
         "detail": "Runtime PostgreSQL is not configured.",
+        "detail_code": "database_not_configured",
     }
     if database_url:
         engine = None
@@ -185,6 +186,7 @@ def runtime_dependencies(request: Request) -> dict:
             db = {
                 "state": "AVAILABLE" if not missing else "DEGRADED",
                 "detail": "schema incomplete" if missing else "schema ok",
+                "detail_code": "schema_incomplete" if missing else "schema_ok",
                 "missing_tables": sorted(missing),
                 "checked_at_utc": now.isoformat(),
             }
@@ -192,6 +194,7 @@ def runtime_dependencies(request: Request) -> dict:
             db = {
                 "state": "UNAVAILABLE",
                 "detail": exc.__class__.__name__,
+                "detail_code": "database_error",
                 "checked_at_utc": now.isoformat(),
             }
         finally:
@@ -231,10 +234,12 @@ def runtime_dependencies(request: Request) -> dict:
             "llm": {
                 "state": "GATED",
                 "detail": "external provider calls are profile-gated",
+                "detail_code": "provider_calls_gated",
             },
             "streaming": {
                 "state": "AVAILABLE",
                 "detail": "SSE is advisory; PostgreSQL/API remain canonical",
+                "detail_code": "stream_advisory",
             },
         },
         "meta": {
@@ -248,7 +253,11 @@ def runtime_dependencies(request: Request) -> dict:
 
 def _heartbeat_state(last: datetime | None, now: datetime) -> dict:
     if last is None:
-        return {"state": "UNKNOWN", "detail": "no heartbeat recorded"}
+        return {
+            "state": "UNKNOWN",
+            "detail": "no heartbeat recorded",
+            "detail_code": "no_heartbeat",
+        }
     from eurogas_nexus.domain.dataops.contracts import as_utc
 
     age_seconds = max(0.0, (now - as_utc(last)).total_seconds())
@@ -262,6 +271,7 @@ def _heartbeat_state(last: datetime | None, now: datetime) -> dict:
         "state": state,
         "last_heartbeat_at_utc": as_utc(last).isoformat(),
         "age_seconds": round(age_seconds, 1),
+        "detail_code": "heartbeat_age",
     }
 
 

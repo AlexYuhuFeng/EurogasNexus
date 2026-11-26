@@ -126,7 +126,7 @@ class FxRate:
 
     def text(self) -> str:
         when = f" of {self.value_date}" if self.value_date else ""
-        simulated = " (simulated demo rate)" if self.simulated else ""
+        simulated = " (simulated rate)" if self.simulated else ""
         return f"{self.label}{when}: {self.units_per_eur:,.4f} {self.currency} per EUR{simulated}"
 
     def as_dict(self) -> dict[str, Any]:
@@ -193,7 +193,7 @@ class FxBook:
                     currency,
                     found[1],
                     DEMO_FX_SOURCE,
-                    "demo reference rate",
+                    "simulated reference rate",
                     found[0],
                     simulated=True,
                 )
@@ -300,7 +300,7 @@ class FxResolution:
         if self.rate is None:
             return self.missing or f"no {self.from_ccy}/{self.to_ccy} rate held"
         when = f" of {self.rate_date}" if self.rate_date else ""
-        flag = " (simulated demo rate)" if self.simulated else ""
+        flag = " (simulated rate)" if self.simulated else ""
         return f"{self.label}{when}: 1 {self.from_ccy} = {self.rate:,.6f} {self.to_ccy}{flag}"
 
     def as_dict(self) -> dict[str, Any]:
@@ -328,7 +328,7 @@ def _tried(book: FxBook, currency: str) -> list[str]:
     until = (choice.rate_date or book.on).isoformat()
     tried = [f"{fixing.label} for {currency} on or before {until}"]
     if fixing.source_system == "ECB" and book.allow_demo:
-        tried.append(f"demo reference rate for {currency}")
+        tried.append(f"simulated reference rate for {currency}")
     return tried
 
 

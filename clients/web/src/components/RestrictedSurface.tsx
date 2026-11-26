@@ -22,13 +22,13 @@ export function RestrictedSurface({ t }: RestrictedSurfaceProps) {
     <section
       className="workspace-page restricted-surface"
       id="workspace-active-panel"
-      role="alert"
+      role="status"
       data-restricted-surface="true"
       aria-label={t("restricted.title")}
     >
       <header className="workspace-page-header">
         <div className="workspace-page-heading">
-          <span className="eyebrow">{t("restricted.eyebrow")}</span>
+          <span className="eyebrow visually-hidden">{t("restricted.eyebrow")}</span>
           <h1>{t("restricted.title")}</h1>
         </div>
       </header>

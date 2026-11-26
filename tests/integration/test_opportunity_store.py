@@ -353,7 +353,8 @@ def test_demo_desk_evaluators_i_produce_marked_objects(store) -> None:
         assert row.state == "indicative" and row.simulated, row.claim_text
         version = store.get(OpportunityVersionRecord, (row.opportunity_id, row.version))
         (use,) = version.payload_json["assumptions"]
-        assert use["book_id"] == key[1][0] and use["set_name"] == f"Demo {key[1][0]} balancing"
+        names = {"NBP": "UK NBP balancing", "TTF": "NL TTF balancing"}
+        assert use["book_id"] == key[1][0] and use["set_name"] == names[key[0]]
     assert sell_down[("TTF", ("demo-uk-nbp",))].state == "blocked"
     # CP-10: Kestrel's BBL route makes the pool's re-routing gain a simulated R object.
     assert any(row.type == "reroute" and row.simulated for row in rows)

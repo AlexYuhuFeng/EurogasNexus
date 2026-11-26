@@ -215,7 +215,7 @@ export function AlertCenter({
       >
         <span className="alert-trigger-mark" aria-hidden="true" />
         <Icon name="alerts" className="alert-trigger-icon" />
-        <span>{isChinese ? "告警" : "Alerts"}</span>
+        <span>{t("alerts.title")}</span>
         {counts.unread > 0 && <strong>{counts.unread}</strong>}
         <JobActivityIndicator t={t} />
       </button>
@@ -227,8 +227,10 @@ export function AlertCenter({
               <span>{t("alerts.kicker")}</span>
               <strong>{t("alerts.title")}</strong>
             </div>
-            <IconButton label={isChinese ? "关闭" : "Close"} icon="close" onClick={close} />
+            <IconButton label={t("alerts.close")} icon="close" onClick={close} />
           </div>
+          {/* Nothing held at all: one empty line, not three zero tiles and four disabled buttons. */}
+          {counts.active + counts.dismissed > 0 && (<>
           <div className="alert-summary-strip">
             <span><strong>{counts.unread}</strong>{t("alerts.count.unread")}</span>
             <span><strong>{counts.critical}</strong>{t("alerts.count.critical")}</span>
@@ -273,6 +275,7 @@ export function AlertCenter({
               )}
             </div>
           </div>
+          </>)}
           {failure && (
             <div className="alert-reader-error" role="alert">
               <strong>{failure.title}</strong>
@@ -338,7 +341,7 @@ export function AlertCenter({
                         </span>
                       )}
                       {group.acknowledged && <span>{t("alerts.acknowledged")}</span>}
-                      {group.simulated && <span>{isChinese ? "模拟价格输入" : "simulated price input"}</span>}
+                      {group.simulated && <span>{t("alerts.simulated_input")}</span>}
                     </div>
                   )}
                   {expanded && (
@@ -369,7 +372,7 @@ export function AlertCenter({
                             title={t("alerts.acknowledge_hint")}
                             onClick={() => void acknowledgeGroup(group)}
                           >
-                            {isChinese ? "确认" : "Acknowledge"}
+                            {t("alerts.action.acknowledge")}
                           </button>
                         )}
                         {group.dismissed ? (

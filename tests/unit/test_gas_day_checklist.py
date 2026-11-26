@@ -71,7 +71,7 @@ def test_statuses_as_recorded_agent_and_mismatch(desk):
     _, items = _items(desk, "demo.trader")
     haldor = items[("contract:demo-haldor-24", "nomination")]
     assert haldor["status"]["status"] == "confirmed" and haldor["status"]["origin"] == "import"
-    assert haldor["agent"] == "Demo nominations agent (fictional)"
+    assert haldor["agent"] == "North Sea nominations agent"
     assert haldor["expected"]["mwh"] == 24_000 and haldor["nominated"]["mwh"] == 21_120
     assert haldor["mismatch"]["over_tolerance"] is True and haldor["mismatch"]["pct"] == -12.0
     brae = items[("contract:demo-brae-10", "nomination")]
