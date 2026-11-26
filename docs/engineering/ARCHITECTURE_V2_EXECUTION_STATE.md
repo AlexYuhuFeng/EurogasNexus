@@ -6,6 +6,28 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — Backend audit (branch `backend-audit`)
+
+- Findings, causes, other occurrences and the structural plan:
+  [BACKEND_AUDIT_2026-11-26](../assessments/BACKEND_AUDIT_2026-11-26.md).
+- One error envelope (`api/error_handlers.error_body`; the router's own 404/405 included);
+  `api/errors.ApiError(status, code, text, params)`; the envelope adds `params` and
+  `fallback_message`; 73 English-only refusals converted; gate
+  `tests/contract/test_api_error_codes.py`. Uncatalogued codes keep their name (family from
+  the status); `CODE_ALIASES` for the four runtime-database spellings.
+- No-store rule: `meta.runtime_store` on every enveloped read without a store (middleware).
+- `application/bounded_reads.read_bounded`: calculation inputs refuse past their bound (422
+  `read_bound_exceeded`) instead of using part (positions, Today storage, NWE prices, reports,
+  outages, news REMIT).
+- Ingestion: script failures classified by their report (`classify_script_failure`); EIA
+  and IIP report codes; demo catch-up ends the IIP partial-read loop; demo monitoring asks for
+  enrichment only with a service identity.
+- Provenance: `domain/ontology/provenance.is_simulated` (one rule, ratchet test); outage and
+  observation rows carry `simulated`; `capacity_impact_mcm_d` is `None` when unknown.
+- Performance: one price book per valuation snapshot (spread board 54 → 3 quote reads); one
+  source-state read on reconcile.
+- No route, migration, ADR or census change.
+
 ## 2026-11-26 — Commercial Intelligence V3, LNG-4: options with consequences, full cost, substitute supply, demurrage, REMIT
 
 - `domain/lng/disruption.py`: every option listed and ranked with its flags
