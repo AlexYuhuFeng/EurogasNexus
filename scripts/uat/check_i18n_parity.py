@@ -27,6 +27,15 @@ def referenced_keys() -> set[str]:
     return {key for key in keys if "{" not in key}
 
 
+#: i18next plural suffixes: ``t("x.count", {count})`` resolves through ``x.count_one`` and
+#: ``x.count_other`` (zh uses ``_other`` only), so the bare key is never in the catalogue.
+PLURAL_SUFFIXES = ("_zero", "_one", "_two", "_few", "_many", "_other")
+
+
+def resolves(key: str, catalogue: dict[str, str]) -> bool:
+    return key in catalogue or any(f"{key}{suffix}" in catalogue for suffix in PLURAL_SUFFIXES)
+
+
 def main() -> int:
     errors = []
     only_en = sorted(set(EN) - set(ZH))
@@ -35,7 +44,7 @@ def main() -> int:
         errors.append(f"only-en keys: {only_en[:10]}")
     if only_zh:
         errors.append(f"only-zh keys: {only_zh[:10]}")
-    missing = sorted(key for key in referenced_keys() if key not in EN)
+    missing = sorted(key for key in referenced_keys() if not resolves(key, EN))
     if missing:
         errors.append(f"missing referenced keys: {missing[:20]}")
     same = [
