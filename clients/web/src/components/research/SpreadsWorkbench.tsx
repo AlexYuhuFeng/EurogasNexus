@@ -45,6 +45,11 @@ import { Chart, Waterfall, type ChartData } from "@/components/ui/charts";
 import { BacktestDetails, type BacktestAnalysis } from "@/components/research/BacktestDetails";
 import { StrategyTrackPanel } from "@/components/research/StrategyTrackPanel";
 import { formatMeasure } from "@/app/time/valueFormat";
+import { useLiveTopics } from "@/app/hooks/useLive";
+
+/** The board re-reads on price notices at most this often: its front-month legs are the one
+ * price every screen shows now, a live tick when a feed quotes it. */
+export const SPREADS_BOARD_LIVE_MS = 5_000;
 
 const fixed = (value: number | null | undefined, decimals = 3): string =>
   formatMeasure("ratio", value, { decimals });
@@ -69,6 +74,14 @@ export function SpreadsWorkbench() {
   const [boardFailed, setBoardFailed] = useState(false);
   // Set once the desk asks for something: the default study then never replaces it.
   const asked = useRef(false);
+  // The hubs the board was first read for (the desk's focus hubs): a live re-read keeps them.
+  const boardHubs = useRef<string[] | null>(null);
+  const rereadBoard = useCallback(() => {
+    const hubs = boardHubs.current;
+    if (hubs === null) return;
+    api.spreadsBoard(hubs).then((response) => setBoard(response.data)).catch(() => undefined);
+  }, []);
+  useLiveTopics(["prices"], rereadBoard, { minIntervalMs: SPREADS_BOARD_LIVE_MS });
 
   const evaluate = useCallback(async (next: StrategySpecDTO) => {
     const seq = ++evaluateSeq.current;
@@ -120,7 +133,10 @@ export function SpreadsWorkbench() {
     const linkedSpec = specFromSearch(search);
     api.myPreferences()
       .then((response) => focusHubs(response.data?.effective?.strip_focus_hubs), () => [] as string[])
-      .then((hubs) => api.spreadsBoard(hubs))
+      .then((hubs) => {
+        boardHubs.current = hubs;
+        return api.spreadsBoard(hubs);
+      })
       .then((response) => {
         if (!live) return;
         setBoard(response.data);

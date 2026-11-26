@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api, type LadderRollupDTO, type PositionLadderDTO, type PositionLadderRowDTO } from "@/api/client";
 import { hubCurrency } from "@/app/contractChoices";
@@ -16,6 +16,7 @@ import {
 } from "@/app/model/positionLadderModel";
 import { pnlClass } from "@/app/model/pnlColor";
 import { formatMeasure } from "@/app/time/valueFormat";
+import { useLiveTopics } from "@/app/hooks/useLive";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -64,19 +65,30 @@ function HedgeValue({ ratio, t }: { ratio: number | null | undefined; t: Transla
 
 const signClass = (value: number) => (value >= 0 ? "is-long" : "is-short");
 
+/** The ladder re-reads on price, trade and book notices at most this often: marks and the
+ * mark-to-market move with the prices (a live feed's ticks), positions with the trades. */
+export const LADDER_LIVE_MS = 5_000;
+
 function useLadder(months: number, groupBy = "hub", reportingCurrency = "") {
   const [ladder, setLadder] = useState<PositionLadderDTO | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [generation, setGeneration] = useState(0);
   useEffect(() => {
     let live = true;
     api
       .positionLadder(months, undefined, { groupBy, reportingCurrency: reportingCurrency || undefined })
-      .then((response) => live && setLadder(response.data))
+      .then((response) => {
+        if (!live) return;
+        setLadder(response.data);
+        setError(null);
+      })
       .catch((caught: unknown) => live && setError(caught instanceof Error ? caught.message : String(caught)));
     return () => {
       live = false;
     };
-  }, [months, groupBy, reportingCurrency]);
+  }, [months, groupBy, reportingCurrency, generation]);
+  const reread = useCallback(() => setGeneration((value) => value + 1), []);
+  useLiveTopics(["prices", "trades", "book"], reread, { minIntervalMs: LADDER_LIVE_MS });
   return { ladder, error };
 }
 
@@ -93,6 +105,7 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
         label={t("position.mtm")}
         value={money(ladder.mark_to_market)}
         unit={ladder.reporting_currency || undefined}
+        live={{ watch: ladder.mark_to_market, identity: `ladder|mtm|${ladder.reporting_currency ?? ""}` }}
         notes={
           <>
             <MethodNote method={ladder.methods?.mark_to_market} subject={t("position.mtm")} t={t} />
@@ -262,7 +275,7 @@ function useRollupColumns(ladder: PositionLadderDTO | null, groupBy: string, t: 
       { id: "financial", header: t("position.financial"), type: "number", sortable: true, value: (row) => row.financial_mwh, format: (value) => mwh(value as number) },
       { id: "net", header: t("position.net"), unit: "MWh", type: "number", sortable: true, value: (row) => row.net_mwh, format: (value) => mwh(value as number), cellClassName: (row) => signClass(row.net_mwh) },
       { id: "hedged", header: t("position.hedged"), type: "number", sortable: true, value: (row) => row.hedge_ratio, render: (row) => <HedgeValue ratio={row.hedge_ratio} t={t} /> },
-      { id: "mtm", header: t("position.mtm"), unit: ladder?.reporting_currency || undefined, type: "number", sortable: true, value: (row) => row.mark_to_market, format: (value) => money(value as number) },
+      { id: "mtm", header: t("position.mtm"), unit: ladder?.reporting_currency || undefined, type: "number", sortable: true, value: (row) => row.mark_to_market, format: (value) => money(value as number), flash: true },
     ],
     [ladder, groupBy, t],
   );
@@ -295,6 +308,8 @@ function useLadderColumns(ladder: PositionLadderDTO | null, t: Translate) {
         header: t("position.mark"),
         type: "number",
         value: (row) => row.mark_quote ?? row.mark,
+        // A mark that moves with a live price flashes once (UX R2); a new month is not a tick.
+        flash: true,
         // Shown as the desk quotes the hub (NBP in GBp/th, rule 17); the unit differs by row and
         // is in the cell. The per-MWh value the book is valued at is on demand in the title.
         render: (row) => {
