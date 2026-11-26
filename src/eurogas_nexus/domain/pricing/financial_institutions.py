@@ -20,7 +20,8 @@ twelve capital letters or digits) to its terms::
   this setting. One bank has a connector in this build: Société Générale, key ``SOCGEN``
   (``ingestion/connectors/socgen.py``, source ``src-bank-socgen``, off by default), which
   fetches only with the agreement recorded, the endpoint configuration and the credentials in
-  place, and otherwise reports "not connected" without a network call. An ``api`` entry for any other bank stays unconnected; use the file import.
+  place, and otherwise reports "not connected" without a network call. An ``api`` entry for
+  any other bank stays unconnected; use the file import.
 * ``contexts`` (optional): the calculations this bank's rates apply to (none listed: all).
 * ``max_age_days`` (optional, 1 to 31): how old a fixing may be before it is stale.
 

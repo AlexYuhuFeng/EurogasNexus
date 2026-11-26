@@ -5,6 +5,7 @@ import type { SourceRunOutcome, SourceRunReadiness } from "@/app/model/sourceRun
 import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import type { SourceRegistryReadSurface } from "@/app/model/sourceRegistryRead";
 import { useInspectorStore } from "@/stores/inspector";
+import { useApiStore } from "@/stores/api";
 import { WeatherForecastEvidence } from "@/components/WeatherForecastEvidence";
 import { DemoCatchUpLine, PublicSourceApprovals } from "@/components/PublicSourceApprovals";
 import { TariffBookPanel } from "@/components/TariffBookPanel";
@@ -322,6 +323,11 @@ export function SourceCenter({
   onRequestSourceRun,
   formatSourceTimestamp,
 }: SourceCenterProps) {
+  // Commercial reference panels need their own read permission; a platform administrator
+  // without it does not open them (their reads would only be refused).
+  const permissions = useApiStore((state) => state.currentUser?.permissions ?? []);
+  const canReadMarket = permissions.includes("market.read");
+  const canReadBook = permissions.includes("portfolio.read");
   const inspector = useInspectorStore();
   const [activeView, setActiveView] = useUrlView<SourceViewId>("sources", "attention");
   // On a phone the source detail is a full-screen sheet opened from the list, with Back
@@ -902,7 +908,7 @@ export function SourceCenter({
       </div>
       )}
 
-      {activeView === "access" && registryRead.hasReading && <TariffEntryPanel t={t} />}
+      {activeView === "access" && registryRead.hasReading && canReadMarket && <TariffEntryPanel t={t} />}
       {activeView === "access" && registryRead.hasReading && <LngTariffRegisterPanel t={t} />}
 
       {activeView === "infrastructure" && (
@@ -963,10 +969,10 @@ export function SourceCenter({
           <summary>{t("capacityCost.title")}</summary>
           <CapacityCostPanel t={t} />
         </details>
-        <details className="source-infrastructure-fold">
+        {canReadMarket && <details className="source-infrastructure-fold">
           <summary>{t("tariffs.title")}</summary>
           <TariffPublicationsPanel t={t} />
-        </details>
+        </details>}
         <details className="source-infrastructure-fold">
           <summary>{t("network.reference.title")}</summary>
           <ReferenceNetworkCatalogue t={t} />
@@ -975,10 +981,10 @@ export function SourceCenter({
           <summary>{t("nativeCapacity.title")}</summary>
           <NativeCapacityContextPanel t={t} />
         </details>
-        <details className="source-infrastructure-fold">
+        {canReadBook && <details className="source-infrastructure-fold">
           <summary>{t("network.panel.contract_book")}</summary>
           <CapacityContractBook t={t} />
-        </details>
+        </details>}
       </div>
       )}
     </div>
