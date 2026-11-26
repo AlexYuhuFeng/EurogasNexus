@@ -41,6 +41,8 @@ import json
 import math
 import random
 import sys
+import time
+from contextlib import contextmanager
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
 
@@ -57,6 +59,8 @@ from eurogas_nexus.db.models import (
     InterestRateObservationRecord,
     LngTerminalTermsRecord,
     MarketObservationRecord,
+    MarketQuoteRecord,
+    MarketTradeRecord,
     RemitUmmRecord,
     RouteCandidateRecord,
     ScreenOrderObservationRecord,
@@ -74,6 +78,160 @@ from eurogas_nexus.domain.risk.limits import CounterpartyLeg, CreditLine, credit
 from eurogas_nexus.reference_data.network_bundle import seed_reference_bundle
 
 SOURCE = "DEMO_Sim"
+#: Rows deleted per statement (and committed) by :func:`_delete_in_batches`.
+#:
+#: The clear runs against a live demo store: the continuous feed leaves hundreds of
+#: thousands to millions of simulated quotes, and ``get_engine`` gives pg8000 a socket
+#: ``timeout`` of 5 s that applies to every statement, not only the connect. One
+#: ``DELETE`` of that table outlives it (``TimeoutError: timed out``) and the demo start
+#: fails; a bounded batch stays far inside it and releases its row locks at each commit.
+CLEAR_BATCH_ROWS = 5_000
+#: Advisory lock key held while the seed clears ("EGNS"). The demo exchange feed checks the
+#: same key before writing, so a feed left running by a previous start (or a re-seed by hand
+#: on a live demo) does not add simulated quotes while the clear is walking the table.
+#: ``scripts/demo/exchange_feed.py`` holds the matching ``SEED_LOCK``.
+SEED_CLEAR_LOCK = 0x45474E53
+
+
+def _log(message: str) -> None:
+    print(f"[demo-seed] {message}", flush=True)
+
+
+def _delete_in_batches(session, model, condition, *, batch_size: int = CLEAR_BATCH_ROWS,
+                       log=None) -> int:
+    """Delete the rows of ``model`` matching ``condition`` in bounded, committed batches.
+
+    PostgreSQL is walked by ``ctid``: each statement deletes at most ``batch_size`` rows
+    found by a ``SELECT ctid ... LIMIT batch_size``, so no statement carries the whole
+    table's work and each commit releases the row locks it took. Other dialects (SQLite)
+    walk the primary-key index in ranges. Only rows matching ``condition`` are removed.
+
+    Each batch is committed as it goes. The caller must not hold uncommitted writes it
+    needs to keep together with the clear: a failure leaves the earlier batches deleted
+    and the retry (the next start) deletes the rest and re-seeds. Returns the rows removed.
+    """
+
+    from sqlalchemy import and_, literal_column, select
+
+    table = model.__table__
+    log = _log if log is None else log
+    started = time.monotonic()
+    total = batches = 0
+    if session.get_bind().dialect.name == "postgresql":
+        while True:
+            batch = (
+                select(literal_column("ctid"))
+                .select_from(table)
+                .where(condition)
+                .limit(batch_size)
+            )
+            removed = session.execute(
+                table.delete().where(literal_column("ctid").in_(batch))
+            ).rowcount
+            session.commit()
+            if removed <= 0:
+                break
+            total += removed
+            batches += 1
+            if batches % 10 == 0:
+                log(
+                    f"{table.name}: {total:,} rows deleted in {batches} batches "
+                    f"({time.monotonic() - started:.1f}s)"
+                )
+            if removed < batch_size:
+                break  # the batch found every remaining match; no empty scan needed
+    else:
+        keys = list(table.primary_key.columns)
+        if len(keys) != 1:
+            raise ValueError(f"{table.name}: batched clear needs a single-column primary key")
+        key = keys[0]
+        after = None
+        while True:
+            filters = [condition] if after is None else [condition, key > after]
+            found = list(
+                session.execute(
+                    select(key).select_from(table).where(and_(*filters))
+                    .order_by(key).limit(batch_size)
+                ).scalars()
+            )
+            if not found:
+                break
+            last = found[-1]
+            if after is None:
+                delete = table.delete().where(and_(condition, key <= last))
+            else:
+                delete = table.delete().where(and_(condition, key > after, key <= last))
+            removed = session.execute(delete).rowcount
+            session.commit()
+            total += removed
+            batches += 1
+            after = last
+            if batches % 10 == 0:
+                log(
+                    f"{table.name}: {total:,} rows deleted in {batches} batches "
+                    f"({time.monotonic() - started:.1f}s)"
+                )
+            if len(found) < batch_size:
+                break
+    if total:
+        log(
+            f"{table.name}: {total:,} rows removed in {batches} batches "
+            f"({time.monotonic() - started:.1f}s)"
+        )
+    return total
+
+
+@contextmanager
+def _seed_clear_lock(session):
+    """Hold the seed/clear advisory lock so a live demo feed pauses while rows are removed.
+
+    The demo start runs the seed before it starts the feed, so this matters only when a feed
+    from an earlier start (or a by-hand re-seed of a serving demo) is still writing. The lock
+    is database-wide, so it needs no schema/search path; SQLite is skipped (one writer).
+    """
+
+    from sqlalchemy import text
+
+    bind = session.get_bind()
+    engine = getattr(bind, "engine", bind)
+    if engine.dialect.name != "postgresql":
+        yield
+        return
+    connection = engine.connect().execution_options(isolation_level="AUTOCOMMIT")
+    try:
+        deadline = time.monotonic() + 120
+        while not connection.execute(
+            text("select pg_try_advisory_lock(:key)"), {"key": SEED_CLEAR_LOCK}
+        ).scalar():
+            if time.monotonic() >= deadline:
+                raise TimeoutError(
+                    "another demo seed is clearing the store; gave up after 120s"
+                )
+            time.sleep(0.5)
+        try:
+            yield
+        finally:
+            connection.execute(
+                text("select pg_advisory_unlock(:key)"), {"key": SEED_CLEAR_LOCK}
+            )
+    finally:
+        connection.close()
+
+
+#: The simulated tables a live feed or a long roll-forward leaves large, and the filter that
+#: keeps every other source's rows. ``_clear`` empties these in bounded batches; the rest of
+#: the demo rows are small and keep the single-statement clear.
+_BATCHED_CLEAR = (
+    (MarketQuoteRecord, MarketQuoteRecord.source_system == SOURCE),
+    (MarketTradeRecord, MarketTradeRecord.source_system == SOURCE),
+    (MarketObservationRecord, MarketObservationRecord.source_system == SOURCE),
+    (FlowObservationRecord, FlowObservationRecord.source_system == SOURCE),
+    (StorageObservationRecord, StorageObservationRecord.source_system == SOURCE),
+    (LngObservationRecord, LngObservationRecord.source_system == SOURCE),
+    (PowerObservationRecord, PowerObservationRecord.source_system == SOURCE),
+    (FxObservationRecord, FxObservationRecord.source_system == SOURCE),
+    (InterestRateObservationRecord, InterestRateObservationRecord.source_system == SOURCE),
+)
 PROFILES = Path(__file__).with_name("demo_profiles.json")
 HISTORY_DAYS = 400  # more than a gas year, so the balance has a seasonal normal
 #: Storage keeps six gas years and the current one, so the storage read draws its five-year
@@ -301,100 +459,92 @@ def _seed_simulated_vessels(session, now: datetime) -> None:
 
 
 def _clear(session) -> None:
-    clear_lng_disruption_case(session)
-    ids = [row[0] for row in CONTRACTS] + [CROSS_BORDER_CONTRACT]
-    # Confirmations before their master (the master is restricted while one names it).
-    session.query(UpstreamResourceContractRecord).filter(
-        UpstreamResourceContractRecord.master_contract_id.in_(TYPED_DEMO_CONTRACTS)
-    ).delete(synchronize_session=False)
-    session.query(UpstreamResourceContractRecord).filter(
-        UpstreamResourceContractRecord.contract_id.in_(TYPED_DEMO_CONTRACTS)
-    ).delete(synchronize_session=False)
-    session.query(LngCargoRecord).filter(
-        LngCargoRecord.source_system == SIMULATED_VESSEL_SOURCE
-    ).delete(synchronize_session=False)
-    session.query(TsoTariffRecord).filter(
-        TsoTariffRecord.document_id == SIMULATED_TARIFF_DOCUMENT
-    ).delete(synchronize_session=False)
-    session.query(ContractDeliveryRecord).filter(
-        ContractDeliveryRecord.contract_id.in_(ids)
-    ).delete(synchronize_session=False)
-    session.query(UpstreamResourceContractRecord).filter(
-        UpstreamResourceContractRecord.contract_id.in_(ids)
-    ).delete(synchronize_session=False)
-    session.query(MarketObservationRecord).filter(
-        MarketObservationRecord.source_system == SOURCE
-    ).delete(synchronize_session=False)
-    from eurogas_nexus.db.models import MarketQuoteRecord
+    """Remove the demo rows, in bounded batches for the tables a live feed fills.
 
-    session.query(MarketQuoteRecord).filter(
-        MarketQuoteRecord.source_system == SOURCE
-    ).delete(synchronize_session=False)
-    session.query(ScreenOrderObservationRecord).filter(
-        ScreenOrderObservationRecord.order_observation_id.like("demo-%")
-    ).delete(synchronize_session=False)
-    session.query(HedgeApprovalRecord).filter(HedgeApprovalRecord.contract_id.in_(ids)).delete(
-        synchronize_session=False
-    )
-    session.query(CreditLineRecord).filter(
-        CreditLineRecord.counterparty_id.in_([row[0] for row in COUNTERPARTIES])
-    ).delete(synchronize_session=False)
-    session.query(TraderMandateRecord).filter(TraderMandateRecord.mandate_id.like("DEMO-%")).delete(
-        synchronize_session=False
-    )
-    session.query(TradingBookRecord).filter(TradingBookRecord.book_id.like("demo-%")).delete(
-        synchronize_session=False
-    )
-    session.query(FxObservationRecord).filter(FxObservationRecord.source_system == SOURCE).delete(
-        synchronize_session=False
-    )
-    session.query(InterestRateObservationRecord).filter(
-        InterestRateObservationRecord.source_system == SOURCE
-    ).delete(synchronize_session=False)
-    session.query(RemitUmmRecord).filter(RemitUmmRecord.source_system == "DEMO").delete(
-        synchronize_session=False
-    )
-    session.query(LngTerminalTermsRecord).filter(
-        LngTerminalTermsRecord.terminal_id.like("demo-%")
-    ).delete(synchronize_session=False)
-    session.query(RouteCandidateRecord).filter(
-        RouteCandidateRecord.route_id.like("demo-%")
-    ).delete(synchronize_session=False)
-    from eurogas_nexus.db.models import (
-        AssumptionSetRecord,
-        AssumptionSetVersionRecord,
-        AssumptionValueRecord,
-        StorageFacilityMasterRecord,
-    )
+    A re-seed can run against a store the continuous feed has filled with millions of
+    simulated quotes. One ``DELETE`` of that table outlives the engine's 5 s pg8000 socket
+    timeout and the start fails (2026-11-26); :func:`_delete_in_batches` commits a bounded
+    batch at a time instead. The feed pauses on :data:`SEED_CLEAR_LOCK` while this runs.
 
-    session.query(StorageFacilityMasterRecord).filter(
-        StorageFacilityMasterRecord.facility_id == DEMO_STORAGE_ID
-    ).delete(synchronize_session=False)
-    versions = [
-        version_id
-        for (version_id,) in session.query(AssumptionSetVersionRecord.version_id).filter(
-            AssumptionSetVersionRecord.set_id == DEMO_ASSUMPTION_SET_ID
-        )
-    ]
-    if versions:
-        session.query(AssumptionValueRecord).filter(
-            AssumptionValueRecord.version_id.in_(versions)
+    The batched deletes commit per batch, so the caller must not hold uncommitted writes
+    here; only rows of the simulated sources are removed, exactly as before.
+    """
+
+    with _seed_clear_lock(session):
+        for model, condition in _BATCHED_CLEAR:
+            _delete_in_batches(session, model, condition)
+
+        clear_lng_disruption_case(session)
+        ids = [row[0] for row in CONTRACTS] + [CROSS_BORDER_CONTRACT]
+        # Confirmations before their master (the master is restricted while one names it).
+        session.query(UpstreamResourceContractRecord).filter(
+            UpstreamResourceContractRecord.master_contract_id.in_(TYPED_DEMO_CONTRACTS)
         ).delete(synchronize_session=False)
-    session.query(AssumptionSetVersionRecord).filter(
-        AssumptionSetVersionRecord.set_id == DEMO_ASSUMPTION_SET_ID
-    ).delete(synchronize_session=False)
-    session.query(AssumptionSetRecord).filter(
-        AssumptionSetRecord.set_id == DEMO_ASSUMPTION_SET_ID
-    ).delete(synchronize_session=False)
-    for model in (
-        FlowObservationRecord,
-        StorageObservationRecord,
-        LngObservationRecord,
-        PowerObservationRecord,
-    ):
-        session.query(model).filter(model.source_system == SOURCE).delete(
+        session.query(UpstreamResourceContractRecord).filter(
+            UpstreamResourceContractRecord.contract_id.in_(TYPED_DEMO_CONTRACTS)
+        ).delete(synchronize_session=False)
+        session.query(LngCargoRecord).filter(
+            LngCargoRecord.source_system == SIMULATED_VESSEL_SOURCE
+        ).delete(synchronize_session=False)
+        session.query(TsoTariffRecord).filter(
+            TsoTariffRecord.document_id == SIMULATED_TARIFF_DOCUMENT
+        ).delete(synchronize_session=False)
+        session.query(ContractDeliveryRecord).filter(
+            ContractDeliveryRecord.contract_id.in_(ids)
+        ).delete(synchronize_session=False)
+        session.query(UpstreamResourceContractRecord).filter(
+            UpstreamResourceContractRecord.contract_id.in_(ids)
+        ).delete(synchronize_session=False)
+        session.query(ScreenOrderObservationRecord).filter(
+            ScreenOrderObservationRecord.order_observation_id.like("demo-%")
+        ).delete(synchronize_session=False)
+        session.query(HedgeApprovalRecord).filter(HedgeApprovalRecord.contract_id.in_(ids)).delete(
             synchronize_session=False
         )
+        session.query(CreditLineRecord).filter(
+            CreditLineRecord.counterparty_id.in_([row[0] for row in COUNTERPARTIES])
+        ).delete(synchronize_session=False)
+        session.query(TraderMandateRecord).filter(
+            TraderMandateRecord.mandate_id.like("DEMO-%")
+        ).delete(synchronize_session=False)
+        session.query(TradingBookRecord).filter(TradingBookRecord.book_id.like("demo-%")).delete(
+            synchronize_session=False
+        )
+        session.query(RemitUmmRecord).filter(RemitUmmRecord.source_system == "DEMO").delete(
+            synchronize_session=False
+        )
+        session.query(LngTerminalTermsRecord).filter(
+            LngTerminalTermsRecord.terminal_id.like("demo-%")
+        ).delete(synchronize_session=False)
+        session.query(RouteCandidateRecord).filter(
+            RouteCandidateRecord.route_id.like("demo-%")
+        ).delete(synchronize_session=False)
+        from eurogas_nexus.db.models import (
+            AssumptionSetRecord,
+            AssumptionSetVersionRecord,
+            AssumptionValueRecord,
+            StorageFacilityMasterRecord,
+        )
+
+        session.query(StorageFacilityMasterRecord).filter(
+            StorageFacilityMasterRecord.facility_id == DEMO_STORAGE_ID
+        ).delete(synchronize_session=False)
+        versions = [
+            version_id
+            for (version_id,) in session.query(AssumptionSetVersionRecord.version_id).filter(
+                AssumptionSetVersionRecord.set_id == DEMO_ASSUMPTION_SET_ID
+            )
+        ]
+        if versions:
+            session.query(AssumptionValueRecord).filter(
+                AssumptionValueRecord.version_id.in_(versions)
+            ).delete(synchronize_session=False)
+        session.query(AssumptionSetVersionRecord).filter(
+            AssumptionSetVersionRecord.set_id == DEMO_ASSUMPTION_SET_ID
+        ).delete(synchronize_session=False)
+        session.query(AssumptionSetRecord).filter(
+            AssumptionSetRecord.set_id == DEMO_ASSUMPTION_SET_ID
+        ).delete(synchronize_session=False)
 
 
 

@@ -457,6 +457,11 @@ def prepare_database() -> None:
         reason = ""
     if reason:
         log(f"seeding the demo desk ({reason})")
+        # The marker below is written only after the seed succeeds. A start that fails while
+        # the seed's batched clear is committing therefore still sees the previous marker (or
+        # none) and the same reason, so the next start re-seeds; the clear is idempotent and
+        # removes what the failed attempt left. The FATAL exit happens before uvicorn is
+        # exec'd, so a half-cleared store is never served as healthy.
         run_step("demo desk seed", [python, "scripts/demo/seed_demo_desk.py"])
     else:
         log("demo desk already seeded; testers' changes kept (change "

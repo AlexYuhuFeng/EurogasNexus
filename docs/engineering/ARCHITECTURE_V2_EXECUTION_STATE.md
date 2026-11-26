@@ -6,6 +6,31 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — Demo re-seed clear survives a feed-sized quote table (branch `seedfix`)
+
+- Cause: `_clear` deleted `market_quotes` in one statement. `get_engine` passes its
+  `connect_timeout_seconds` (5 s) to pg8000 as `timeout`, which pg8000 applies with
+  `settimeout` to the whole socket, so it bounds every statement rather than only the
+  connect. The continuous feed leaves the table feed-sized and `market_quotes` has no index
+  leading with `source_system` (the lookup index leads with `hub`), so the DELETE is a
+  sequential scan: 1,000,000 rows measured 0.73 s (Seq Scan, cost 0..35,756); at 5,000,000
+  rows the seed's own engine raised `TimeoutError: timed out` after exactly 5.0 s.
+- Fix: `_delete_in_batches` removes at most 5,000 rows per statement, commits per batch
+  and logs progress (PostgreSQL by `ctid`, SQLite by primary-key range); `_clear` uses it
+  for the quotes, prints/trades, market observations and the flow, storage, LNG, power, FX
+  and rate series, still filtering on the simulated source only. The seed holds
+  `SEED_CLEAR_LOCK` while clearing; the exchange feed checks it each loop and takes it in
+  shared mode around each write, so a feed from a previous start (or a re-seed of a serving
+  demo) pauses. The start already ran the seed before the feed. The FATAL exit is kept and
+  the seed marker is written only after success, so the next start re-seeds (test).
+- Measured on scratch PostgreSQL 16: a re-seed over 1,000,000 simulated quotes clears the
+  table in 15.5 s over 201 batches (each statement well inside the 2 s socket timeout the
+  test uses); the whole re-seed takes 26 s. With 200,000 quotes: 0.7 s clear, 12 s seed.
+- Tests: batching helper (SQLite), the retry after a failed clear, the feed/seed lock, and
+  `tests/integration/test_demo_seed_clear_postgres.py` (added to
+  `scripts/ci/run_postgres_ci.sh`). Two stale tariff expectations (34; the quantfix merge
+  made 34 legs x 3 capacity products) were corrected in the demo seed tests.
+
 ## 2026-11-26 — Quant review fixes (branch `quantfix`)
 
 - Confirmed errors of the quant review fixed, each with a failing test first: VaR on one

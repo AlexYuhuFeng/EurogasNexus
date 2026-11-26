@@ -64,6 +64,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+from contextlib import contextmanager
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, timedelta
 
@@ -387,6 +388,64 @@ PRUNE_EVERY = timedelta(minutes=10)
 BOOK_EVERY_SECONDS = 900.0
 #: One advisory lock: two feeds never run against one demo database.
 ADVISORY_LOCK = 0x45474E46  # "EGNF"
+#: The demo seed holds this while it clears the simulated rows ("EGNS"); the feed checks it
+#: before every write and pauses, so a re-seed on a live demo (or a feed left by a previous
+#: start) never adds quotes to the table the clear is walking. Matching constant:
+#: ``scripts/demo/seed_demo_desk.py`` ``SEED_CLEAR_LOCK``.
+SEED_LOCK = 0x45474E53  # "EGNS"
+
+
+def seed_clear_in_progress(lock_connection) -> bool:
+    """Whether the demo seed currently holds the clear lock (a live feed must pause).
+
+    ``lock_connection`` is the feed's autocommit connection, the one holding the feed's own
+    advisory lock; a second session-level lock on it is released immediately when taken.
+    ``None`` (SQLite, or a feed with no advisory connection) means no coordination is needed.
+    """
+
+    if lock_connection is None:
+        return False
+    from sqlalchemy import text
+
+    held = lock_connection.execute(
+        text("select pg_try_advisory_lock_shared(:key)"), {"key": SEED_LOCK}
+    ).scalar()
+    if held:
+        lock_connection.execute(
+            text("select pg_advisory_unlock_shared(:key)"), {"key": SEED_LOCK}
+        )
+        return False
+    return True
+
+
+@contextmanager
+def seed_clear_guard(lock_connection):
+    """Hold the clear lock in shared mode around a write; ``False`` if the seed holds it.
+
+    The seed takes the same key exclusively. A shared holder makes the seed wait for the
+    write in flight, and a seed already clearing makes the feed skip the write: the race
+    between the feed's pause check and its next batch cannot put rows into the table while
+    the clear is walking it.
+    """
+
+    from sqlalchemy import text
+
+    if lock_connection is None:
+        yield True
+        return
+    held = lock_connection.execute(
+        text("select pg_try_advisory_lock_shared(:key)"), {"key": SEED_LOCK}
+    ).scalar()
+    if not held:
+        yield False
+        return
+    try:
+        yield True
+    finally:
+        lock_connection.execute(
+            text("select pg_advisory_unlock_shared(:key)"), {"key": SEED_LOCK}
+        )
+
 
 #: The feed's session. ``exchange`` (the default anywhere but the hosted demo): simulated
 #: trading hours 07:00-19:00 CET/CEST every day. ``24h``: a demo-only session that never
@@ -830,16 +889,31 @@ def run_continuous(dislocations: float, *, clock=lambda: datetime.now(UTC),
     counts = {"quotes": 0, "trades": 0, "last": None}
     status_since = last_prune = started
     thinned_until: datetime | None = None
+    paused_for_seed = False
     while True:
         now = clock()
         if stop_after is not None and (now - started).total_seconds() >= stop_after:
             return 0
+        if seed_clear_in_progress(lock_connection):
+            # The demo seed is removing the simulated rows: writing now would add quotes to
+            # the table it is walking (and to the rows it just cleared). Wait it out.
+            if not paused_for_seed:
+                print(json.dumps({"feed": "paused while the demo seed clears the store"}),
+                      flush=True)
+                paused_for_seed = True
+            sleeper(1)
+            continue
+        if paused_for_seed:
+            print(json.dumps({"feed": "resumed"}), flush=True)
+            paused_for_seed = False
         if now - last_prune >= PRUNE_EVERY:
-            with factory() as session:
-                removed = _prune(session, now)
-                removed["thinned"], thinned_until = _thin(session, now, thinned_until)
-                session.commit()
-            print(json.dumps({"feed": "pruned", **removed}), flush=True)
+            with seed_clear_guard(lock_connection) as allowed:
+                if allowed:
+                    with factory() as session:
+                        removed = _prune(session, now)
+                        removed["thinned"], thinned_until = _thin(session, now, thinned_until)
+                        session.commit()
+                    print(json.dumps({"feed": "pruned", **removed}), flush=True)
             last_prune = now
         if not in_session(now, mode):
             if now - status_since >= STATUS_EVERY * 5:
@@ -861,16 +935,20 @@ def run_continuous(dislocations: float, *, clock=lambda: datetime.now(UTC),
                               "instruments": len(screen.books)}), flush=True)
         quotes, trades = screen.step(now)
         if quotes or trades:
-            with factory() as session:
-                try:
-                    ingest_ticks(session, source_system=FEED_SOURCE, quotes=quotes,
-                                 trades=trades, simulated_allowed=True)
-                    session.commit()
-                except FeedError as exc:  # one refused batch never stops the screen
-                    session.rollback()
-                    print(json.dumps({"feed": "batch refused", "error": str(exc)[:300]}),
-                          flush=True)
-                    quotes, trades = [], []
+            with seed_clear_guard(lock_connection) as allowed:
+                if allowed:
+                    with factory() as session:
+                        try:
+                            ingest_ticks(session, source_system=FEED_SOURCE, quotes=quotes,
+                                         trades=trades, simulated_allowed=True)
+                            session.commit()
+                        except FeedError as exc:  # one refused batch never stops the screen
+                            session.rollback()
+                            print(json.dumps({"feed": "batch refused",
+                                              "error": str(exc)[:300]}), flush=True)
+                            quotes, trades = [], []
+                else:
+                    quotes, trades = [], []  # the seed is clearing: drop this batch
             counts["quotes"] += len(quotes)
             counts["trades"] += len(trades)
             if quotes:

@@ -80,6 +80,52 @@ def test_reseeding_replaces_the_demo_rows(session):
     assert session.query(UpstreamResourceContractRecord).count() == 7
 
 
+def test_the_clear_deletes_in_bounded_batches_and_only_the_simulated_rows(session):
+    """The batched clear (SQLite: primary-key ranges) is bounded, logged and source-safe.
+
+    A single DELETE of a feed-sized table outlives the pg8000 socket timeout; the batch is
+    what keeps every statement short. Rows of another source are never touched.
+    """
+
+    from eurogas_nexus.db.models import MarketQuoteRecord
+
+    seed = _load()
+    now = datetime(2026, 11, 7, 9, tzinfo=UTC)
+
+    def quote(quote_id: str, source: str) -> MarketQuoteRecord:
+        return MarketQuoteRecord(
+            quote_id=quote_id, source_system=source, venue="Demo", instrument_id="i",
+            hub="TTF", product="day-ahead", delivery_start_utc=now, delivery_end_utc=now,
+            bid_price=30.0, ask_price=30.1, currency="EUR", unit="EUR/MWh",
+            observed_at_utc=now, received_at_utc=now, source_reference="test",
+            freshness="live", quality_score=1.0, simulated=True,
+        )
+
+    session.add_all([quote(f"sim-{n}", seed.SOURCE) for n in range(23)])
+    session.add_all([quote(f"real-{n}", "TEST_REAL") for n in range(4)])
+    session.commit()
+
+    lines: list[str] = []
+    removed = seed._delete_in_batches(
+        session, MarketQuoteRecord, MarketQuoteRecord.source_system == seed.SOURCE,
+        batch_size=5, log=lines.append,
+    )
+    assert removed == 23
+    assert session.query(MarketQuoteRecord).filter(
+        MarketQuoteRecord.source_system == seed.SOURCE).count() == 0
+    assert session.query(MarketQuoteRecord).filter(
+        MarketQuoteRecord.source_system == "TEST_REAL").count() == 4
+    # Five batches of five, five, five, five, three; each committed, then one summary line.
+    assert len(lines) == 1 and "market_quotes" in lines[0] and "23 rows removed" in lines[0]
+
+    # Idempotent: a second clear finds nothing and logs nothing.
+    assert seed._delete_in_batches(
+        session, MarketQuoteRecord, MarketQuoteRecord.source_system == seed.SOURCE,
+        batch_size=5, log=lines.append,
+    ) == 0
+    assert len(lines) == 1
+
+
 def test_the_seed_refuses_release_and_demo_marks_stay_off_by_default(monkeypatch, capsys):
     monkeypatch.setenv("EUROGAS_NEXUS_ENV", "release")
     assert _load().main() == 2
@@ -621,8 +667,12 @@ def test_an_older_volume_gets_the_newer_fixtures_and_keeps_tester_changes(sessio
 
     counts = seed.ensure_demo_fixtures(session, seeded_at)
     session.commit()
+    from eurogas_nexus.application.simulated_tariffs import SIMULATED_PRODUCT_MULTIPLIERS
+
     assert counts == {
-        "fixture_tariffs": len(seed.SIMULATED_TARIFFS),
+        # One row per leg and capacity product (yearly, monthly, daily; quant review
+        # 2026-11-26). This expectation predated the short-term rows and missed the merge.
+        "fixture_tariffs": len(seed.SIMULATED_TARIFFS) * len(SIMULATED_PRODUCT_MULTIPLIERS),
         "fixture_review_case": 1,
         "fixture_typed_contracts": 3,
         "contract_counterparties": 1,
