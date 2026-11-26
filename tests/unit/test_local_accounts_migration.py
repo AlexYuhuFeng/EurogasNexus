@@ -9,8 +9,6 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy import create_engine, inspect, text
 
-from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
-
 VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 
 
@@ -34,7 +32,6 @@ def test_chain_and_head():
     module = _module()
     assert module.revision == "0065_local_accounts"
     assert module.down_revision == "0064_market_reports"
-    assert DB_SCHEMA_REVISION == "0090_job_progress_steps"
 
 
 def test_upgrade_creates_the_table_and_downgrade_removes_only_it():

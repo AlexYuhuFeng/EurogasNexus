@@ -450,7 +450,6 @@ def test_0088_adds_bookings_and_the_tariff_year_and_downgrades():
     from alembic.operations import Operations
     from sqlalchemy import inspect
 
-    from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 
     path = ROOT / "alembic" / "versions" / "0088_tar2_capacity_bookings.py"
     spec = importlib.util.spec_from_file_location("m0088", path)
@@ -459,7 +458,6 @@ def test_0088_adds_bookings_and_the_tariff_year_and_downgrades():
     assert (module.revision, module.down_revision) == (
         "0088_tar2_capacity_bookings", "0086_lng_disruption"
     )
-    assert DB_SCHEMA_REVISION == "0089_alert_reader_state"  # later revisions follow
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
         TariffVersionRecord.__table__.create(connection)

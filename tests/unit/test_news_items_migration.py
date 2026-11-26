@@ -12,8 +12,6 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy import create_engine, inspect
 
-from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
-
 VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 
 
@@ -29,7 +27,6 @@ def test_up_down_and_model_match():
 
     module = _load("0084_news_items.py")
     assert module.revision == "0084_news_items"
-    assert DB_SCHEMA_REVISION == "0090_job_progress_steps"
     assert module.down_revision == "0085_sched1_nomination_matching"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:

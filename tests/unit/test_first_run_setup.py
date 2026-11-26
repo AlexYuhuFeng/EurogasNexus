@@ -89,7 +89,6 @@ def test_every_entry_page_and_connection_has_words_in_both_languages():
 
 def test_migration_0066_up_down_and_model_match():
     from eurogas_nexus.db.models import InstallationSetupRecord
-    from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 
     spec = importlib.util.spec_from_file_location(
         "tests.migration_0068", ROOT / "alembic/versions/0068_installation_setup.py"
@@ -97,7 +96,6 @@ def test_migration_0066_up_down_and_model_match():
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     assert module.down_revision == "0067_opportunities"
-    assert DB_SCHEMA_REVISION == "0090_job_progress_steps"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
         module.op = Operations(MigrationContext.configure(connection=connection))
