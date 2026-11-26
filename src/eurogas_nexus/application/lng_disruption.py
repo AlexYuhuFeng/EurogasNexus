@@ -973,6 +973,7 @@ def disruption_options(
             "cargo": _cargo_block(row, book),
             "demurrage": book.demurrage.get(cargo_id),
             "fx": _fx_block(book),
+            "pipeline_outages": book.pipeline_outages,
             "status": status,
             "book_options": len(result.options),
             "inputs": book.inputs,

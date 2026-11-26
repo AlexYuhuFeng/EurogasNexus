@@ -6270,25 +6270,29 @@ export const api = {
   /** The plan against the plan under another ETA, slot or berth delay; nothing is stored. */
   cargoPlanWhatIf: (cargoId: string, body: { eta_utc?: string; slot_id?: string; berth_delay_hours?: number; laytime_hours?: number; demurrage_per_day?: number }, options?: ApiRequestOptions) =>
     post<{ change: CargoPlanChangeDTO }>(`/lng/cargoes/${encodeURIComponent(cargoId)}/plan/what-if`, body, options),
-  /** LNG-3: the book's re-optimisation as it bears on one cargo (options, frontier, default). */
-  disruptionOptions: (cargoId: string, options?: ApiRequestOptions) =>
-    get<DisruptionOptionsDTO>(`/lng/cargoes/${encodeURIComponent(cargoId)}/disruption-options`, undefined, options),
-  /** One option in full: legs, arithmetic per scenario and the mandates it moves. */
-  disruptionOption: (cargoId: string, optionId: string, options?: ApiRequestOptions) =>
+  /** LNG-3: the book's re-optimisation as it bears on one cargo (options, frontier, default).
+   * LNG-4: every option with its flags and consequences, the recommended set, and the
+   * cargo's demurrage at the FX choice (`fx`, ECB by default). */
+  disruptionOptions: (cargoId: string, options?: ApiRequestOptions, fx?: DisruptionFxQuery) =>
+    get<DisruptionOptionsDTO>(`/lng/cargoes/${encodeURIComponent(cargoId)}/disruption-options`, fxParams(fx), options),
+  /** One option in full: legs, arithmetic per scenario with each line's sources, the mandates it moves. */
+  disruptionOption: (cargoId: string, optionId: string, options?: ApiRequestOptions, fx?: DisruptionFxQuery) =>
     get<DisruptionOptionDetailDTO>(
       `/lng/cargoes/${encodeURIComponent(cargoId)}/disruption-options/${encodeURIComponent(optionId)}`,
-      undefined,
+      fxParams(fx),
       options,
     ),
-  /** Record the option a person chose (audited). A record only: nothing is booked or sent. */
-  chooseDisruptionOption: (cargoId: string, optionId: string, note?: string) =>
+  /** Record the option a person chose (audited). A record only: nothing is booked or sent.
+   * LNG-4: an option that breaks a contract may be chosen; the record keeps its consequences
+   * and the FX choice the figures were read at. */
+  chooseDisruptionOption: (cargoId: string, optionId: string, note?: string, fx?: DisruptionFxQuery) =>
     post<DisruptionDecisionDTO>(
       `/lng/cargoes/${encodeURIComponent(cargoId)}/disruption-options/${encodeURIComponent(optionId)}/choose`,
-      { note: note ?? null },
+      { note: note ?? null, ...(fx ?? {}) },
     ),
   /** The whole book's options and frontier, optionally with a pipeline supply curtailed. */
   disruptionFrontier: (
-    query: { book_id: string; curtail_supply?: string; curtail_from?: string; curtail_to?: string; curtail_mwh_per_day?: number },
+    query: { book_id: string; curtail_supply?: string; curtail_from?: string; curtail_to?: string; curtail_mwh_per_day?: number } & DisruptionFxQuery,
     options?: ApiRequestOptions,
   ) =>
     get<DisruptionFrontierDTO>(
@@ -6296,6 +6300,14 @@ export const api = {
       Object.fromEntries(Object.entries(query).filter(([, value]) => value !== undefined).map(([key, value]) => [key, String(value)])),
       options,
     ),
+  /** LNG-4: the REMIT messages linked to a pipeline supply, why, and the days each curtails. */
+  pipelineOutageLinks: (supplyId: string, options?: ApiRequestOptions) =>
+    get<PipelineOutageLinksDTO>(`/lng/pipeline-supplies/${encodeURIComponent(supplyId)}/outage-links`, undefined, options),
+  /** LNG-4: whether linked outages curtail the supply (auto) or only the days entered by hand (manual); audited. */
+  setPipelineOutageOverride: (
+    supplyId: string,
+    body: { outage_mode: "auto" | "manual"; curtailed?: [string, number][]; reason?: string },
+  ) => put<PipelineOutageLinksDTO>(`/lng/pipeline-supplies/${encodeURIComponent(supplyId)}/outage-override`, body),
   /** Replace the hedge legs that cover a cargo (a short hedge is negative MWh). */
   saveCargoHedges: (cargoId: string, legs: CargoHedgeLegDTO[]) =>
     put<{ cargo_id: string; legs: number; events?: unknown }>(`/lng/cargoes/${encodeURIComponent(cargoId)}/hedges`, { legs }),
@@ -7254,12 +7266,181 @@ export interface DisruptionLegDTO {
   boil_off_mwh: number;
 }
 
+/** LNG-4: how a figure in another currency is converted (ECB by default; omitted keys keep the default). */
+export interface DisruptionFxQuery {
+  reporting_currency?: "EUR" | "GBP" | "USD";
+  fx_source?: "ECB" | "WMR" | "BFIX" | "manual";
+  fx_fixing?: string;
+  fx_rate_date?: string;
+  /** With `fx_source` manual: units of `fx_currency` per 1 EUR. */
+  fx_rate?: number;
+  fx_currency?: "USD" | "GBP";
+}
+
+function fxParams(fx?: DisruptionFxQuery): Record<string, string> | undefined {
+  if (!fx) return undefined;
+  const entries = Object.entries(fx).filter(([, value]) => value !== undefined && value !== "");
+  return entries.length ? Object.fromEntries(entries.map(([key, value]) => [key, String(value)])) : undefined;
+}
+
+/** LNG-4: one conversion as `_fx_rate` answered it. */
+export interface FxResolutionDTO {
+  from: string;
+  to: string;
+  rate: number | null;
+  source: string | null;
+  label: string | null;
+  rate_date: string | null;
+  tried: string[];
+  simulated: boolean;
+  entered_by_hand: boolean;
+  missing: string | null;
+}
+
+/** LNG-4: the FX choice a read used. */
+export interface DisruptionFxDTO {
+  choice: { source: string; fixing: string | null; rate_date: string | null; rate: number | null; rate_currency: string | null; reporting_currency: string; default: boolean };
+  rate_date_used: string;
+  sources: string[];
+  conversion: string;
+}
+
+/** LNG-4: demurrage as the contract states it, and as converted. */
+export interface DisruptionDemurrageDTO {
+  rate_per_day: number | null;
+  currency: string | null;
+  source: string | null;
+  terms: string | null;
+  laytime_hours: number | null;
+  laytime_source: string | null;
+  eur_per_day: number | null;
+  fx: FxResolutionDTO | null;
+  note: string;
+  warning: string | null;
+}
+
+/** LNG-4: a firm delivery an option breaks. */
+export interface DisruptionBreachDTO {
+  obligation_id: string;
+  contract_id: string | null;
+  counterparty: string;
+  point: string;
+  text: string;
+  shortfall_mwh: number;
+  days: { gas_day: string; mwh: number }[];
+  penalty_eur_mwh: number | null;
+  penalty_held: boolean;
+  penalty_terms: string | null;
+  exposure_eur: number | null;
+}
+
+/** LNG-4: a cargo or supply running to plan that an option moves. */
+export interface DisruptionDisruptsDTO {
+  supply_id: string;
+  label: string;
+  mwh: number;
+  from?: string | null;
+  to?: string | null;
+  cause?: string;
+  [key: string]: unknown;
+}
+
+/** LNG-4: one opportunity cost of an option: a call delayed, capacity or storage forgone. */
+export interface DisruptionOpportunityDTO {
+  kind: "berth_delay" | "capacity_forgone" | "storage_forgone" | string;
+  text: string;
+  value_eur: number;
+  sources: string[];
+  owner?: "own" | "third_party";
+  label?: string;
+  [key: string]: unknown;
+}
+
+/** LNG-4: substitute supply an option buys to cover a short obligation. */
+export interface DisruptionCoverDTO {
+  source_id: string;
+  obligation_id: string;
+  mwh: number;
+  days: { gas_day: string; mwh: number }[];
+  [key: string]: unknown;
+}
+
+/** LNG-4: one arithmetic line with the price, rate and tariff sources it applied. */
+export interface DisruptionLineDTO {
+  label: string;
+  value: number;
+  text: string;
+  sources: string[];
+  basis: "direct" | "opportunity";
+}
+
+/** LNG-4: an option of the recommended set and why. */
+export interface DisruptionRecommendedDTO {
+  option_id: string;
+  key: string;
+  title: string;
+  basis: "clean" | "best_expected" | "overall" | string;
+  reason: string;
+}
+
+/** LNG-4: a REMIT message linked to a pipeline supply. */
+export interface PipelineOutageLinkDTO {
+  link_id: string;
+  supply_id: string;
+  message_id: string;
+  version: number;
+  event_status: string;
+  asset_name: string;
+  asset_eic: string;
+  matched_on: "asset_eic" | "asset_name" | "gie_facility_eic";
+  dependency: Record<string, unknown>;
+  why: string;
+  fraction: number | null;
+  curtailed: [string, number][];
+  curtailed_mwh: number;
+  status: "applied" | "unsized" | "withdrawn" | "ended";
+  event_id: string | null;
+  first_linked_at_utc: string;
+  updated_at_utc: string;
+}
+
+/** LNG-4: a pipeline supply's REMIT links and the curtailment the valuation reads. */
+export interface PipelineOutageSupplyDTO {
+  supply_id: string;
+  label: string;
+  outage_mode: "auto" | "manual";
+  links: PipelineOutageLinkDTO[];
+  effective: [string, number][];
+  effective_source: Record<string, string>;
+}
+
+export interface PipelineOutageLinksDTO extends PipelineOutageSupplyDTO {
+  book_id: string;
+  depends_on: Record<string, unknown>[];
+  entered_by_hand: [string, number][];
+  advisory: string;
+}
+
 export interface DisruptionOptionDTO {
   option_id: string;
   key: string;
   kind: string;
   title: string;
   feasible: boolean;
+  /** LNG-4: whether the option can physically happen (the only refusal on choose). */
+  possible?: boolean;
+  /** LNG-4: position in the list (1 first), by the ordering weights. */
+  rank?: number | null;
+  flags?: { physically_possible: boolean; contract_breach: boolean; disrupts_normal_cargo: boolean };
+  breaches?: DisruptionBreachDTO[];
+  disrupts?: DisruptionDisruptsDTO[];
+  recommended_as?: string[];
+  recommended_why?: string[];
+  covers?: DisruptionCoverDTO[];
+  direct_pnl_expected?: number;
+  opportunity_cost_expected?: number;
+  opportunity?: DisruptionOpportunityDTO[];
+  reporting?: { currency: string; fx: FxResolutionDTO | null; figures: Record<string, number> | null; warning?: string };
   reasons: string[];
   notes: string[];
   on_frontier: boolean;
@@ -7272,7 +7453,7 @@ export interface DisruptionOptionDTO {
   releases: string[];
   swaps: string[][];
   obligations: unknown[];
-  scenarios: { scenario_id: string; label: string; pnl: number }[];
+  scenarios: { scenario_id: string; label: string; pnl: number; direct_pnl?: number; opportunity_cost?: number }[];
   hedge_legs: unknown[];
   legs: DisruptionLegDTO[];
 }
@@ -7284,8 +7465,10 @@ export interface DisruptionOptionDetailDTO extends DisruptionOptionDTO {
   recommended_option_id: string | null;
   dominated_by_title: string | null;
   components?: Record<string, number>;
-  arithmetic?: string[];
-  scenario_detail?: { scenario_id: string; label: string; pnl: number; components: Record<string, number>; arithmetic: string[] }[];
+  arithmetic?: DisruptionLineDTO[];
+  scenario_detail?: { scenario_id: string; label: string; pnl: number; components: Record<string, number>; arithmetic: DisruptionLineDTO[] }[];
+  recommended_set?: DisruptionRecommendedDTO[];
+  fx?: DisruptionFxDTO;
   mandates: { checked: number; moves: unknown[]; error?: string };
   advisory: string;
 }
@@ -7319,6 +7502,10 @@ export interface DisruptionDecisionDTO {
   decided_at_utc: string;
   /** Always false: a choice is a record; nothing is booked, traded, nominated or sent. */
   booked: false;
+  /** LNG-4: the recommended set when chosen, what the choice breaks and moves, and the FX choice. */
+  recommended_set?: DisruptionRecommendedDTO[];
+  consequences?: { flags: DisruptionOptionDTO["flags"]; breaches: DisruptionBreachDTO[]; disrupts: DisruptionDisruptsDTO[]; opportunity: DisruptionOpportunityDTO[]; covers: DisruptionCoverDTO[]; rank: number | null; recommended_as: string[] } | null;
+  fx?: DisruptionFxDTO | null;
 }
 
 interface DisruptionResultDTO {
@@ -7328,6 +7515,12 @@ interface DisruptionResultDTO {
   options: DisruptionOptionDTO[];
   frontier: string[];
   recommended: string | null;
+  /** LNG-4: the options recommended, each named once, with the basis and a reason. */
+  recommended_set?: DisruptionRecommendedDTO[];
+  /** LNG-4: how the P&L splits into direct and opportunity cost. */
+  valuation?: string;
+  fx?: DisruptionFxDTO;
+  pipeline_outages?: PipelineOutageSupplyDTO[];
   digest: string;
   preference: { risk_weight: number; disruption_eur_per_mwh: number; disruption_eur_per_supply: number; flexibility_eur_per_mwh: number; rule: string; sources: Record<string, string> };
   costs: Record<string, number>;
@@ -7342,6 +7535,8 @@ export interface DisruptionOptionsDTO extends DisruptionResultDTO {
   status: "disrupted" | "affected" | "as_planned";
   book_options: number;
   decision: DisruptionDecisionDTO | null;
+  /** LNG-4: the cargo's demurrage as its contract states it, and as converted. */
+  demurrage?: DisruptionDemurrageDTO | null;
 }
 
 export interface DisruptionFrontierDTO extends DisruptionResultDTO {
