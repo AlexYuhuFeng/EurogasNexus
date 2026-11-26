@@ -30,6 +30,12 @@ roles and explains how the audit trail is protected.
    application role. Until these are set both fall back to `POSTGRES_USER`.
 5. Restart and check `GET /api/health/ready` and `python scripts/ops/verify_audit_chain.py`.
 
+Checked on PostgreSQL 16 (2026-11-26): migrations to head as the owner, a business write and
+an audit row as the application role, the chain verifying, and UPDATE, DELETE and TRUNCATE of
+the audit tables and any DDL refused for the application role. Should a later migration ever
+recreate an audit table, run the two audit lines of the script again (the default privileges
+grant new tables the ordinary DML; the triggers still refuse updates and deletes).
+
 The application works with the restricted role: it never updates or deletes an audit row. The
 chain is kept in its own table (`audit_chain`), one inserted link per audit row, so sealing a
 row is an insert too.

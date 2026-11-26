@@ -24,10 +24,34 @@ CREATE ROLE eurogas_app LOGIN PASSWORD :app_password;
 CREATE ROLE eurogas_reader LOGIN PASSWORD :reader_password;
 CREATE ROLE eurogas_auditor NOLOGIN;
 
--- Hand the existing schema to the owner role (it was created by POSTGRES_USER).
-REASSIGN OWNED BY CURRENT_USER TO eurogas_owner;
+-- Hand the existing schema to the owner role (it was created by POSTGRES_USER, which is the
+-- bootstrap superuser in the container and cannot simply give everything away).
 ALTER DATABASE :db OWNER TO eurogas_owner;
 ALTER SCHEMA public OWNER TO eurogas_owner;
+DO $$
+DECLARE item record;
+BEGIN
+    FOR item IN SELECT tablename FROM pg_tables WHERE schemaname = 'public' LOOP
+        EXECUTE format('ALTER TABLE public.%I OWNER TO eurogas_owner', item.tablename);
+    END LOOP;
+    FOR item IN SELECT sequencename FROM pg_sequences WHERE schemaname = 'public' LOOP
+        EXECUTE format('ALTER SEQUENCE public.%I OWNER TO eurogas_owner', item.sequencename);
+    END LOOP;
+    FOR item IN SELECT viewname FROM pg_views WHERE schemaname = 'public' LOOP
+        EXECUTE format('ALTER VIEW public.%I OWNER TO eurogas_owner', item.viewname);
+    END LOOP;
+    FOR item IN SELECT matviewname FROM pg_matviews WHERE schemaname = 'public' LOOP
+        EXECUTE format('ALTER MATERIALIZED VIEW public.%I OWNER TO eurogas_owner', item.matviewname);
+    END LOOP;
+    FOR item IN
+        SELECT p.oid::regprocedure AS signature
+        FROM pg_proc p JOIN pg_namespace n ON n.oid = p.pronamespace
+        WHERE n.nspname = 'public'
+    LOOP
+        EXECUTE format('ALTER FUNCTION %s OWNER TO eurogas_owner', item.signature);
+    END LOOP;
+END
+$$;
 
 REVOKE CREATE ON SCHEMA public FROM PUBLIC;
 GRANT USAGE ON SCHEMA public TO eurogas_app, eurogas_reader, eurogas_auditor;

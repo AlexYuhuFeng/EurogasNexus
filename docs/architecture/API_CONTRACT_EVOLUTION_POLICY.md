@@ -4,6 +4,14 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-26 (security review 2026-11): twelve paths, twelve operations. ADMIN:
+`GET /api/access/privileged-changes`, `POST .../{change_id}/approve|reject|withdraw`,
+`POST /api/access/users/{principal_id}/mfa/reset`, `GET /api/audit/verify`,
+`POST /api/audit/checkpoint`, `POST /api/audit/prune`. The caller's own: `GET /api/me/mfa`,
+`POST /api/me/mfa/enrol`, `POST /api/me/mfa/confirm`; sign-in: `POST /api/auth/mfa/verify`.
+Census: 328 paths / 364 operations (+12 / +12 on 316 / 352). Behaviour changes on existing
+paths are listed in docs/release/notes/SECURITY_HARDENING_2026-11.md.
+
 Additive 2026-11-26 (planning inputs): one path, one operation, READ: `GET /api/optimization/planning-inputs`.
 Census on the innovation branch: 316 paths / 352 operations (+1 / +1 on 315 / 351).
 

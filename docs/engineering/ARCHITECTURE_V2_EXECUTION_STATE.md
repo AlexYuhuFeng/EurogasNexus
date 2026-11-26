@@ -6,6 +6,21 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — Security review remediation (branch `secfix`)
+
+- The 2026-11 security review (7 High, 10 Medium, 5 Low) worked through finding by finding:
+  [SECURITY_REVIEW_REMEDIATION_2026-11](../security/SECURITY_REVIEW_REMEDIATION_2026-11.md);
+  behaviour changes for installations in
+  [the release note](../release/notes/SECURITY_HARDENING_2026-11.md).
+- Book isolation on by default, enforced once in the ORM layer (`db/book_scope.py`); the
+  commercial boundary is default-commercial; `risk.limits.read` and `PERM:` grants; OPERATOR no
+  longer reads positions. Compatible with the role-model DRAFT ADR (phase 1 not started).
+- Deployment token as a scoped service principal; licensed venue labels only from a connector
+  key; hash-chained audit trail with a role split (`deploy/runtime/database_roles.sql`); TOTP;
+  dual control with a cooling period and break-glass. Migration `0095_security_hardening`.
+- Open: PostgreSQL row-level security, WebAuthn, an approval screen in Admin, KMS/Vault, image
+  digests for PostgreSQL and Caddy, a query outside a request still sees every book.
+
 ## 2026-11-26 — Architecture plan version 3 proposed (branch `archplan`, docs only, not pushed)
 
 - Seven professional reviews (front office, middle and back office, technology, multinational,
