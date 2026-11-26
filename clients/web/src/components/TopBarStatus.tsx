@@ -184,8 +184,14 @@ export function TopBarStatus({
               {endpointFailures.truncatedSummary ? <p className="topbar-status-more">{endpointFailures.truncatedSummary}</p> : null}
               <div className="topbar-status-actions">
                 {onRetry ? (
-                  <Button size="sm" variant="secondary" loading={endpointRetry?.busy} onClick={onRetry}>
-                    {endpointRetry?.busy ? t("workspace.retry_in_progress") : t("workspace.retry_failed")}
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    loading={endpointRetry?.busy}
+                    aria-label={endpointRetry?.busy ? t("workspace.retry_in_progress") : undefined}
+                    onClick={onRetry}
+                  >
+                    {t("workspace.retry_failed")}
                   </Button>
                 ) : null}
                 {onOpenDataSources ? (

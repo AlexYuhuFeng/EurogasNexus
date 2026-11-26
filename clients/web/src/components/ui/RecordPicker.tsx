@@ -13,6 +13,7 @@
  */
 import { useCallback, useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { useTranslation } from "react-i18next";
+import { Spinner } from "./Spinner";
 
 import {
   moveActive,
@@ -188,7 +189,17 @@ export function RecordPicker(props: RecordPickerProps) {
           }
         }}
       >
-        <span id={`${baseId}-value`} className="ds-ipicker-value">{triggerText}</span>
+        <span id={`${baseId}-value`} className="ds-ipicker-value">
+          {options === null ? (
+            // The ring shows it is reading; the words stay for assistive technology (aria-labelledby).
+            <>
+              <Spinner size="xs" />
+              <span className="ds-visually-hidden">{triggerText}</span>
+            </>
+          ) : (
+            triggerText
+          )}
+        </span>
         {manualValue && <span className="ds-ipicker-meta">{t("record_picker.typed")}</span>}
         <span className="ds-ipicker-caret" aria-hidden="true">▾</span>
       </button>

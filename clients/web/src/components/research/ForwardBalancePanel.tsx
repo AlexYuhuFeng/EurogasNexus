@@ -9,7 +9,7 @@ import {
   storageChart,
   type ForwardRow,
 } from "@/app/model/forwardBalanceModel";
-import { DataGrid, Segmented, type DataGridColumn } from "@/components/ui";
+import { DataGrid, Segmented, Skeleton, UpdatingMark, type DataGridColumn } from "@/components/ui";
 import { Chart } from "@/components/ui/charts";
 import { gasDayLabel, periodLabel } from "@/components/ui/charts/chartModel";
 
@@ -134,9 +134,10 @@ export function ForwardBalancePanel({ t }: { t: Translate }) {
     <section className="workspace-panel span-3 forward-balance-panel" aria-labelledby="fb-title" data-forward-balance={dto ? "ready" : "loading"}>
       <div className="panel-title-row">
         <h2 id="fb-title">{t("fb.title")}</h2>
-        {loading && <small className="muted">{t("fb.loading")}</small>}
+        <UpdatingMark active={loading && Boolean(dto)} label={t("fb.loading")} />
       </div>
       {error && <p role="alert">{error}</p>}
+      {loading && !dto && !error && <Skeleton label={t("fb.loading")} rows={4} />}
       {phrase ? (
         <p className="fb-headline" data-fb-direction={dto?.headline?.direction}>
           <strong>{t(phrase.key, phrase.values)}</strong> {t(String(phrase.values.driver), phrase.values)}

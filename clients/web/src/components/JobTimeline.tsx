@@ -18,6 +18,7 @@ import { inspectorSubjectFor } from "@/app/model/inspectorDetail";
 import { describeApiError, describeFailure, presentError } from "@/app/experience/errorPresentation";
 import { useApiStore } from "@/stores/api";
 import { useInspectorStore } from "@/stores/inspector";
+import { Button } from "@/components/ui";
 import {
   JOB_STATUS_BADGE_VARIANT,
   jobCanCancel,
@@ -95,9 +96,9 @@ export function JobTimeline({ t }: JobTimelineProps) {
       />
 
       <div className="job-timeline-actions">
-        <button type="button" disabled={busy} onClick={() => void refresh()}>
-          {busy ? t("job.refreshing") : t("job.refresh")}
-        </button>
+        <Button loading={busy} aria-label={busy ? t("job.refreshing") : undefined} onClick={() => void refresh()}>
+          {t("job.refresh")}
+        </Button>
       </div>
 
       <ul className="job-timeline-list">

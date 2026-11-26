@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { api } from "@/api/client";
-import { DataGrid, PanelHeader, StatusBadge, type DataGridColumn } from "@/components/ui";
+import { DataGrid, PanelHeader, Skeleton, StatusBadge, type DataGridColumn } from "@/components/ui";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import {
   capacityContractRows,
@@ -90,8 +90,8 @@ export function CapacityContractBook({ t }: CapacityContractBookProps) {
       />
       {/* The explanation of how to read the rows is shown only when there are rows (#69). */}
       {rows.length > 0 && <PanelHelp text={t("capacity.contracts.note")} label={t("panel.how_to_read")} />}
-      {/* This panel's own read, named as such: the workspace is not loading because one panel is. */}
-      {loading && <p className="muted">{t("capacity.contracts.loading")}</p>}
+      {/* This panel's own read, named as such (skeleton rows where the table will be, below): the
+          workspace is not loading because one panel is. */}
       {failure && (
         <div className="alert">
           <strong>{failure.title}</strong>
@@ -107,6 +107,8 @@ export function CapacityContractBook({ t }: CapacityContractBookProps) {
             {read.missingInputs.join(", ") || t("data.unavailable")}
           </p>
         </div>
+      ) : loading ? (
+        <Skeleton label={t("capacity.contracts.loading")} rows={5} />
       ) : rows.length === 0 ? (
         <p className="muted">{t("capacity.contracts.none")}</p>
       ) : (

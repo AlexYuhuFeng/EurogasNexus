@@ -18,6 +18,14 @@ export function PanelHeader({ title, meta }) {
   return createElement("header", null, title, meta);
 }
 
+export function Button({ children, loading, variant, size, ...rest }) {
+  return createElement("button", { ...rest, disabled: rest.disabled || loading, "aria-busy": loading || undefined }, children);
+}
+
+export function Skeleton({ label }) {
+  return createElement("div", { role: "status", "aria-busy": "true" }, label);
+}
+
 export function MetricStrip({ items }) {
   return createElement("div", null, (items ?? []).map((item, index) =>
     createElement("div", { key: index }, item.label, ": ", item.value, item.detail ? " " : "", item.detail)));

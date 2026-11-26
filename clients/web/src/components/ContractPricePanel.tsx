@@ -25,6 +25,7 @@ import {
   type PriceDraft,
 } from "@/app/model/priceTerms";
 import { formatDeliveryMonth } from "@/app/time/timeFormat";
+import { Skeleton } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -72,7 +73,7 @@ export function ContractPricePanel({ contract, save, t }: {
           </label>
         )}
       </div>
-      {read.loading && <p className="muted">{t("contracts.price.reading")}</p>}
+      {read.loading && <Skeleton label={t("contracts.price.reading")} rows={2} variant="text" />}
       {priced && (
         <>
           <p className="contract-price-words" data-price-words>{priceWords(priced.price_terms, t) ?? priced.note ?? t("contracts.price.not_recorded")}</p>

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "@/api/client";
-import { PanelHeader } from "@/components/ui";
+import { PanelHeader, Skeleton } from "@/components/ui";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import {
   declaredCapacityCounts,
@@ -122,8 +122,8 @@ export function ReferenceNetworkCatalogue({ t }: ReferenceNetworkCatalogueProps)
         meta={facilityRead.source ?? t("status.unknown")}
       />
       <PanelHelp text={t("network.reference.note")} label={t("panel.how_to_read")} />
-      {/* This panel's own read, named as such: the workspace is not loading because one panel is. */}
-      {loading && <p className="muted">{t("network.reference.loading")}</p>}
+      {/* This panel's own read, named as such (skeleton rows where the table will be, below): the
+          workspace is not loading because one panel is. */}
       {failure && (
         <div className="alert">
           <strong>{failure.title}</strong>
@@ -172,14 +172,18 @@ export function ReferenceNetworkCatalogue({ t }: ReferenceNetworkCatalogueProps)
                 </option>
               ))}
             </select>
-            <span className="muted">
-              {filtered
-                ? `${facilities.length} / ${declaredFacilities.length} ${t("network.reference.facilities")}`
-                : `${declaredFacilities.length} ${t("network.reference.facilities")}`}
-            </span>
+            {!loading && (
+              <span className="muted">
+                {filtered
+                  ? `${facilities.length} / ${declaredFacilities.length} ${t("network.reference.facilities")}`
+                  : `${declaredFacilities.length} ${t("network.reference.facilities")}`}
+              </span>
+            )}
           </div>
 
-          {facilities.length === 0 ? (
+          {loading ? (
+            <Skeleton label={t("network.reference.loading")} rows={5} />
+          ) : facilities.length === 0 ? (
             <p className="muted">
               {filtered ? t("network.reference.no_match") : t("network.reference.no_facilities")}
             </p>
@@ -227,6 +231,8 @@ export function ReferenceNetworkCatalogue({ t }: ReferenceNetworkCatalogueProps)
             />
             {hubRead.posture === "runtime-db-not-configured" ? (
               <p className="muted">{t("network.reference.not_configured")}</p>
+            ) : loading ? (
+              <Skeleton label={t("network.reference.loading")} rows={3} />
             ) : hubs.length === 0 ? (
               <p className="muted">{t("network.reference.no_hubs")}</p>
             ) : (

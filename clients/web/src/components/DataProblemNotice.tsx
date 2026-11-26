@@ -63,8 +63,14 @@ export function DataProblemNotice({
     return (
       <div className="data-problem-notice is-critical" role="alert" data-problem-notice="store">
         <p>{t("status.store_down")}</p>
-        <Button size="sm" variant="secondary" loading={retry.busy} onClick={onRetry}>
-          {retry.busy ? t("workspace.retry_in_progress") : t("workspace.retry_failed")}
+        <Button
+          size="sm"
+          variant="secondary"
+          loading={retry.busy}
+          aria-label={retry.busy ? t("workspace.retry_in_progress") : undefined}
+          onClick={onRetry}
+        >
+          {t("workspace.retry_failed")}
         </Button>
       </div>
     );
@@ -74,8 +80,14 @@ export function DataProblemNotice({
     <div className="data-problem-notice" role="status" aria-live="polite" data-problem-notice="reads">
       <p>{t("status.notice_reads", { names: noticeNames(failures, t) })}</p>
       <div className="data-problem-notice-actions">
-        <Button size="sm" variant="secondary" loading={retry.busy} onClick={onRetry}>
-          {retry.busy ? t("workspace.retry_in_progress") : t("workspace.retry_failed")}
+        <Button
+          size="sm"
+          variant="secondary"
+          loading={retry.busy}
+          aria-label={retry.busy ? t("workspace.retry_in_progress") : undefined}
+          onClick={onRetry}
+        >
+          {t("workspace.retry_failed")}
         </Button>
         <Button size="sm" variant="quiet" onClick={() => window.dispatchEvent(new Event(OPEN_DATA_STATUS_EVENT))}>
           {t("status.notice_details")}

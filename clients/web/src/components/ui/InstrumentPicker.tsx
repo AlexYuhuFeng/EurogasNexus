@@ -49,6 +49,7 @@ import {
 } from "@/app/model/instrumentPicker";
 import { displayTime } from "@/app/time/displayTime";
 import { useSimulatedPills } from "./SimulatedScope";
+import { Spinner } from "./Spinner";
 
 export interface InstrumentPickerProps {
   catalogue: PickerCatalogue | null;
@@ -235,7 +236,17 @@ export function InstrumentPicker({
           }
         }}
       >
-        <span id={`${baseId}-value`} className="ds-ipicker-value">{loading && !catalogue ? t("instrument_picker.loading") : triggerText}</span>
+        <span id={`${baseId}-value`} className="ds-ipicker-value">
+          {loading && !catalogue ? (
+            // The ring shows it is reading; the words stay for assistive technology (aria-labelledby).
+            <>
+              <Spinner size="xs" />
+              <span className="ds-visually-hidden">{t("instrument_picker.loading")}</span>
+            </>
+          ) : (
+            triggerText
+          )}
+        </span>
         {triggerUnit && <span className="ds-ipicker-unit">{triggerUnit}</span>}
         {triggerSimulated && pills && <span className="ds-ipicker-sim" title={t("instrument_picker.simulated_hint")}>{t("instrument_picker.sim")}</span>}
         <span className="ds-ipicker-caret" aria-hidden="true">▾</span>
