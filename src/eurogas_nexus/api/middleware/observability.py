@@ -1,74 +1,47 @@
-"""Process-local HTTP observability middleware (vendor-neutral).
+"""HTTP observability middleware: latency histograms, the access record, open streams, spans.
 
-Records low-cardinality request counts, latency histograms and status counts.
-Exposed by /api/runtime/metrics alongside data-operations metrics. This is
-per-process instrumentation; multi-replica aggregation belongs to the
-deployment observability layer.
+Per request, after the response: one sample in ``eurogas_http_request_duration_seconds`` and
+``eurogas_http_requests_total`` labelled by the matched route's group, method and status
+class (:mod:`eurogas_nexus.application.process_metrics`, multi-process safe); one access log
+record with the request id and principal id (:mod:`eurogas_nexus.core.structured_logging`);
+and, when tracing is on, one server span (:mod:`eurogas_nexus.core.tracing`). A
+server-sent-events response counts in ``eurogas_stream_connections`` while it is open.
+
+Nothing here reads a header, the query string, the body or the client address.
 """
 
 from __future__ import annotations
 
-import threading
 import time
 from collections.abc import Awaitable, Callable
+from contextlib import nullcontext
 from typing import Any
 
-_LOCK = threading.Lock()
-_ROUTE_BUCKETS: dict[str, tuple[int, int, int]] = {}
-_LATENCY_BUCKETS = (10.0, 50.0, 100.0, 250.0, 500.0, 1000.0, 5000.0)
+from eurogas_nexus.application import process_metrics
+from eurogas_nexus.core import structured_logging, tracing
 
 
-def route_bucket(path: str) -> str:
-    """Map a request path to a bounded cardinality label."""
+def route_template(scope: dict[str, Any]) -> str | None:
+    """The matched route's template (``/api/sources/{source_id}``), if routing matched."""
 
-    parts = [part for part in path.split("/") if part]
-    if not parts:
-        return "root"
-    if parts[:1] == ["api"]:
-        if len(parts) >= 2 and parts[1] in {
-            "health",
-            "sources",
-            "market",
-            "portfolio",
-            "strategy-runs",
-            "shadow-monitors",
-            "access",
-            "audit",
-            "runtime",
-            "review",
-        }:
-            return f"/api/{parts[1]}"
-        return "/api/other"
-    return "/other"
+    route = scope.get("route")
+    return getattr(route, "path_format", None) or getattr(route, "path", None)
 
 
-def record_request(path: str, status_code: int, elapsed_ms: float) -> None:
-    key = route_bucket(path)
-    with _LOCK:
-        count, errors, total_ms = _ROUTE_BUCKETS.get(key, (0, 0, 0.0))
-        next_errors = errors + (1 if status_code >= 500 else 0)
-        _ROUTE_BUCKETS[key] = (count + 1, next_errors, total_ms + elapsed_ms)
+def _stream_topic(template: str | None) -> str:
+    if template and template.startswith("/api/stream/"):
+        return template.removeprefix("/api/stream/").split("/", 1)[0] or "stream"
+    return "other"
 
 
-def http_metric_lines() -> list[str]:
-    """Render the process-local HTTP metric family (Prometheus text)."""
+def _quiet(path: str) -> bool:
+    """Liveness and readiness probes run every few seconds; they are not access-logged."""
 
-    with _LOCK:
-        snapshot = dict(_ROUTE_BUCKETS)
-    lines = [
-        "# HELP eurogas_http_requests_total Process-local HTTP requests.",
-        "# TYPE eurogas_http_requests_total counter",
-    ]
-    for key, (count, errors, total_ms) in sorted(snapshot.items()):
-        safe_key = key.replace('"', "")
-        lines.append(f'eurogas_http_requests_total{{route="{safe_key}"}} {count}')
-        lines.append(f'eurogas_http_errors_total{{route="{safe_key}"}} {errors}')
-        lines.append(f'eurogas_http_latency_ms_sum{{route="{safe_key}"}} {total_ms:.3f}')
-    return lines
+    return path.startswith("/api/health")
 
 
 class HttpObservabilityMiddleware:
-    """ASGI middleware recording safe request metrics and latency."""
+    """ASGI middleware recording safe request metrics, the access record and a span."""
 
     def __init__(self, app: Callable[..., Awaitable[None]]) -> None:
         self.app = app
@@ -78,19 +51,79 @@ class HttpObservabilityMiddleware:
             await self.app(scope, receive, send)
             return
         started = time.perf_counter()
-        status_holder = {"status": 500}
+        status_holder = {"status": 500, "stream": False}
+        method = str(scope.get("method", "GET"))
 
         async def send_with_status(message: dict[str, Any]) -> None:
             if message["type"] == "http.response.start":
                 status_holder["status"] = int(message["status"])
+                content_type = next(
+                    (
+                        value
+                        for key, value in message.get("headers", [])
+                        if key.lower() == b"content-type"
+                    ),
+                    b"",
+                )
+                if content_type.startswith(b"text/event-stream"):
+                    status_holder["stream"] = True
+                    process_metrics.stream_opened(_stream_topic(route_template(scope)))
             await send(message)
 
-        try:
-            await self.app(scope, receive, send_with_status)
-        finally:
-            elapsed_ms = (time.perf_counter() - started) * 1000.0
-            record_request(
-                str(scope.get("path", "")),
-                status_holder["status"],
-                elapsed_ms,
-            )
+        active_tracer = tracing.tracer()
+        span_context = (
+            active_tracer.start_as_current_span(f"HTTP {method}", kind=_server_kind())
+            if active_tracer is not None
+            else nullcontext(None)
+        )
+        with span_context as span:
+            try:
+                await self.app(scope, receive, send_with_status)
+            finally:
+                elapsed = time.perf_counter() - started
+                template = route_template(scope)
+                if status_holder["stream"]:
+                    process_metrics.stream_closed(_stream_topic(template))
+                process_metrics.observe_request(
+                    template, method, status_holder["status"], elapsed
+                )
+                process_metrics.observe_pools()
+                if span is not None:
+                    _finish_span(span, scope, method, template, status_holder["status"])
+                path = str(scope.get("path", ""))
+                if path.startswith("/api/") and not _quiet(path):
+                    structured_logging.log_access(
+                        method=method,
+                        route=template or "unmatched",
+                        status=status_holder["status"],
+                        duration_ms=elapsed * 1000.0,
+                        stream=bool(status_holder["stream"]),
+                    )
+
+
+def _server_kind() -> Any:
+    from opentelemetry.trace import SpanKind
+
+    return SpanKind.SERVER
+
+
+def _finish_span(
+    span: Any, scope: dict[str, Any], method: str, template: str | None, status: int
+) -> None:
+    try:
+        span.update_name(f"{method} {template or 'unmatched'}")
+        span.set_attribute("http.request.method", method)
+        span.set_attribute("http.route", template or "unmatched")
+        span.set_attribute("http.response.status_code", status)
+        request_id = (scope.get("state") or {}).get("request_id")
+        if request_id:
+            span.set_attribute("eurogas.request_id", str(request_id))
+        if status >= 500:
+            from opentelemetry.trace import Status, StatusCode
+
+            span.set_status(Status(StatusCode.ERROR))
+    except Exception:  # noqa: BLE001 - tracing never fails a request
+        return
+
+
+__all__ = ["HttpObservabilityMiddleware", "route_template"]

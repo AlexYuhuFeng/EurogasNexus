@@ -9,10 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 
 from eurogas_nexus.api.app import create_app
-from eurogas_nexus.api.middleware.observability import (
-    http_metric_lines,
-    record_request,
-)
+from eurogas_nexus.application import process_metrics
 from eurogas_nexus.application.shadow_runtime import recover_stale_evaluations
 from eurogas_nexus.core.config import Settings
 from eurogas_nexus.db.base import Base
@@ -110,12 +107,18 @@ def test_error_taxonomy_is_stable() -> None:
 
 
 def test_http_observability_records_low_cardinality_metrics() -> None:
-    record_request("/api/sources/src-123/health", 200, 12.5)
-    record_request("/api/market/observations", 503, 80.0)
-    lines = http_metric_lines()
-    assert any("/api/sources" in line for line in lines)
-    assert any("eurogas_http_errors_total" in line for line in lines)
-    assert not any("src-123" in line for line in lines)
+    # The label is the matched route template's group, never the raw path.
+    process_metrics.observe_request("/api/sources/{source_id}/health", "GET", 200, 0.0125)
+    process_metrics.observe_request("/api/market/observations", "GET", 503, 0.08)
+    lines = process_metrics.render().splitlines()
+    assert any('route_group="/api/sources"' in line for line in lines)
+    assert any(
+        line.startswith("eurogas_http_requests_total")
+        and 'route_group="/api/market"' in line
+        and 'status_class="5xx"' in line
+        for line in lines
+    )
+    assert not any("src-123" in line or "{source_id}" in line for line in lines)
 
 
 def test_db_pool_settings_are_applied(monkeypatch) -> None:
