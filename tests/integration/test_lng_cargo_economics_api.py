@@ -218,9 +218,15 @@ def test_fob_and_des_cargoes_in_one_table(store):
     assert us["blocked"] is None and us["cost_usd_mmbtu"] == pytest.approx(7.0408, abs=1e-4)
     assert any("spot proxy" in leg["source"] for leg in us["legs"] if leg["key"] == "hh")
     gate = us["terminals"][0]
-    # (30.00 - 0.45) x 0.995 - 0.95 = 28.4523; margin 28.4523 - 20.7107 = 7.7416.
-    assert gate["netback_per_mwh"] == pytest.approx(28.4523, abs=1e-4)
-    assert gate["margin_per_mwh"] == pytest.approx(7.7416, abs=1e-3)
+    # (30.00 - 0.45) x 0.995 - 0.95 = 28.4523 before carbon; an FOB voyage into an EU terminal
+    # also pays EU ETS on half its fuel (the firm's Gate takes the published Gate's country).
+    carbon = next(i for i in gate["cost_stack"]["value"] if i["key"] == "carbon_voyage")
+    assert carbon["per_mwh"] < 0 and carbon["input_class"] == "assumption"
+    assert gate["netback_per_mwh"] == pytest.approx(28.4523 + carbon["per_mwh"], abs=1e-4)
+    assert gate["margin_per_mwh"] == pytest.approx(7.7416 + carbon["per_mwh"], abs=1e-3)
+    # The firm's own Gate stands for the published one: no second Gate row.
+    assert [row["terminal_id"] for row in us["terminals"]].count("gate-terminal") == 0
+    assert us["verdict"]["state"] == "positive" and us["verdict"]["best_terminal_id"] == "gate"
     assert gate["regas_basis"] == "firm_terms" and gate["grade"] in {"assumption", "indicative"}
     # DES: 28.4523 - 30.00 = -1.5477 at a 30.00 mark.
     assert des["terminals"][0]["margin_per_mwh"] == pytest.approx(-1.5477, abs=1e-4)

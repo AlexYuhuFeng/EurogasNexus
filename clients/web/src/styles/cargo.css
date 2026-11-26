@@ -16,10 +16,12 @@
   min-width: 0;
 }
 
+/* Fields sit on a grid, not a wrapping row: each field fills its column, so inputs, selects and
+   segmented choices line up across rows whatever their caption's length. */
 .cargo-group {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  align-items: end;
   gap: var(--ds-space-2) var(--ds-space-3);
   min-width: 0;
   margin: 0;
@@ -36,9 +38,9 @@
 }
 
 .cargo-group-body {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: flex-end;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(11rem, 1fr));
+  align-items: end;
   gap: var(--ds-space-2) var(--ds-space-3);
   padding-top: var(--ds-space-2);
 }
@@ -49,17 +51,28 @@
   min-width: 0;
 }
 
-.cargo-field .spreads-number {
-  width: 7rem;
+.cargo-field .spreads-number,
+.cargo-field .ds-select {
+  width: 100%;
+  min-width: 0;
 }
 
-.cargo-field[data-width="m"] .spreads-number {
-  width: 9rem;
+.cargo-field[data-choice] .ds-segmented {
+  justify-self: start;
+}
+
+@media (min-width: 641px) {
+  .cargo-field[data-choice] {
+    grid-column: span 2;
+  }
 }
 
 .cargo-field-label {
+  overflow: hidden;
   color: var(--ds-text-2);
   font-size: var(--ds-text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .cargo-field-unit {
@@ -70,6 +83,7 @@
 .cargo-example-note,
 .cargo-note,
 .cargo-headline-basis {
+  grid-column: 1 / -1;
   flex-basis: 100%;
   margin: 0;
   color: var(--ds-text-2);
@@ -209,14 +223,15 @@
     padding: var(--ds-space-3);
   }
 
-  .cargo-field .spreads-number,
-  .cargo-field[data-width="m"] .spreads-number {
-    width: 100%;
+  .cargo-group,
+  .cargo-group-body {
+    grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr));
   }
+}
 
-  .cargo-group > .cargo-field {
-    flex: 1 1 8rem;
-  }
+.cargo-terminal-choice,
+.cargo-group > [data-confirmed-cargo] {
+  grid-column: 1 / -1;
 }
 
 .cargo-terminal-choice {
@@ -236,5 +251,45 @@
   align-items: center;
   gap: var(--ds-space-1);
   font-size: var(--ds-text-sm);
+}
+
+.cargo-verdict {
+  display: grid;
+  gap: var(--ds-space-1);
+  padding: var(--ds-space-2) var(--ds-space-3);
+  border-left: 3px solid var(--ds-accent);
+  background: var(--ds-surface-2);
+}
+
+.cargo-verdict[data-verdict="all_negative"] {
+  border-left-color: var(--ds-negative);
+}
+
+.cargo-verdict p {
+  margin: 0;
+}
+
+.cargo-why {
+  display: block;
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+  font-weight: 400;
+}
+
+.cargo-stack td,
+.cargo-stack th {
+  vertical-align: top;
+}
+
+.cargo-stack-head th {
+  padding-top: var(--ds-space-2);
+  color: var(--ds-text-2);
+  font-size: var(--ds-text-sm);
+  font-weight: 600;
+  text-align: left;
+}
+
+.cargo-stack tr[data-total] {
+  border-top: 1px solid var(--ds-border-subtle);
 }
 }

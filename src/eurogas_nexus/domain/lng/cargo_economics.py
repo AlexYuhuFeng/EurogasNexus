@@ -113,6 +113,17 @@ class CargoOffer:
 
 
 @dataclass(frozen=True)
+class OtherCost:
+    """One further cost at a terminal: a total in the hub currency, its class and source."""
+
+    key: str
+    label: str
+    total: Decimal
+    input_class: InputClass = InputClass.ASSUMPTION
+    source: str = ""
+
+
+@dataclass(frozen=True)
 class TerminalOption:
     """One terminal the cargo could discharge at, for one arrival month."""
 
@@ -131,9 +142,16 @@ class TerminalOption:
     #: USD per one unit of the hub currency for the arrival month (EUR/USD 1.16 -> 1.16).
     fx_usd_per_unit: Valued = field(default_factory=missing)
     other_total: Decimal = Decimal(0)
+    #: Further costs at this terminal, each a total in the hub currency with its source: the
+    #: FSRU's CO2 pass-through, EU ETS on an FOB voyage, discharge port costs a DES buyer pays.
+    other_items: tuple[OtherCost, ...] = ()
     hub_price_before: Decimal | None = None
     hub_price_after: Decimal | None = None
     excludes: tuple[str, ...] = ()
+    #: DES only, when the DES price is in another currency than the hub: hub-currency units per
+    #: one DES-currency unit for the arrival month (GBP DES at a EUR hub: EUR per GBP). None
+    #: leaves such a terminal out (``currency_mismatch``); held -> the DES price is converted.
+    des_fx: Valued | None = None
 
 
 @dataclass(frozen=True)
@@ -396,8 +414,11 @@ def _terminal(cargo: CargoResult, offer: CargoOffer, option: TerminalOption) -> 
     ):
         if not value.held:
             return TerminalResult(**base, reason=key)
-    if offer.term == "DES" and offer.des_currency != option.currency:
+    converted = offer.term == "DES" and offer.des_currency != option.currency
+    if converted and option.des_fx is None:
         return TerminalResult(**base, reason="currency_mismatch")
+    if converted and not option.des_fx.held:
+        return TerminalResult(**base, reason="no_fx")
     fx_needed = offer.term == "FOB"
     if fx_needed and not option.fx_usd_per_unit.held:
         return TerminalResult(**base, reason="no_fx")
@@ -410,13 +431,18 @@ def _terminal(cargo: CargoResult, offer: CargoOffer, option: TerminalOption) -> 
         lifting_cost = cargo.lifting_cost_usd_mmbtu * MMBTU_PER_MWH / fx
     else:
         cost = lifting_cost = offer.des_price.value
+        if converted:
+            inputs.append(option.des_fx)
+            cost = lifting_cost = cost * option.des_fx.value
         fx = option.fx_usd_per_unit.value if option.fx_usd_per_unit.held else None
     keep = 1 - option.gas_in_kind_pct.value / _HUNDRED
     sent_out = q_del_mwh * keep
 
+    others = sum((item.total for item in option.other_items), Decimal(0))
+
     def netback(hub_price: Decimal) -> Decimal:
         revenue = sent_out * (hub_price - option.entry.value)
-        return (revenue - option.regas_total.value - option.other_total) / q_del_mwh
+        return (revenue - option.regas_total.value - option.other_total - others) / q_del_mwh
 
     value = netback(option.hub_price.value)
     margin = value - cost
@@ -446,6 +472,10 @@ def _terminal(cargo: CargoResult, offer: CargoOffer, option: TerminalOption) -> 
             unit,
             option.regas_total,
         ),
+        *(
+            Leg(item.key, item.label, item.total / q_del_mwh, unit, item.input_class, item.source)
+            for item in option.other_items
+        ),
         Leg("netback", "Netback at the ship's rail", value, unit, InputClass.DERIVED, ""),
         Leg("margin", "Margin", margin, unit, InputClass.DERIVED, ""),
     )
@@ -456,6 +486,7 @@ def _terminal(cargo: CargoResult, offer: CargoOffer, option: TerminalOption) -> 
         ("gas_in_kind", -hub_value * (1 - keep), "delta"),
         ("entry", -option.entry.value * keep, "delta"),
         ("regas", -regas_per_mwh, "delta"),
+        *((item.key, -item.total / q_del_mwh, "delta") for item in option.other_items),
         ("netback", value, "total"),
     ]
     delivered = arb = fob_netback = None
@@ -469,13 +500,17 @@ def _terminal(cargo: CargoResult, offer: CargoOffer, option: TerminalOption) -> 
             ("boil_off", -(fob_delivered - fob_at_load), "delta"),
             ("freight", -freight_per, "delta"),
         ]
-        delivered = (cost + regas_per_mwh) / keep + option.entry.value
+        delivered = (cost + regas_per_mwh + others / q_del_mwh) / keep + option.entry.value
         arb = hub_value - delivered
         fob_netback = cargo.fob_price + margin * q_del_mwh * fx / cargo.q_load_mmbtu
     else:
         cost_steps = [("des", -cost, "delta")]
     steps = (*netback_steps, *cost_steps, ("margin", margin, "total"))
-    classes = [cargo.grade, *(i.input_class for i in inputs)]
+    classes = [
+        cargo.grade,
+        *(i.input_class for i in inputs),
+        *(item.input_class for item in option.other_items),
+    ]
     return TerminalResult(
         **base,
         fx_usd_per_unit=fx,
@@ -495,7 +530,9 @@ def _terminal(cargo: CargoResult, offer: CargoOffer, option: TerminalOption) -> 
         margin_high_per_mwh=max(neighbours),
         legs=legs,
         grade=weakest(classes),
-        assumptions=cargo.assumptions + sum(i.input_class == InputClass.ASSUMPTION for i in inputs),
+        assumptions=cargo.assumptions
+        + sum(i.input_class == InputClass.ASSUMPTION for i in inputs)
+        + sum(item.input_class == InputClass.ASSUMPTION for item in option.other_items),
     )
 
 

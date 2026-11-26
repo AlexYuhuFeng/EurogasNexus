@@ -1,0 +1,993 @@
+{
+  "schema_version": "eurogas.lng-terminal-published-tariffs/1",
+  "notes": [
+    "Published LNG terminal and TSO entry charges, transcribed by a person from the regulator's or operator's own publication, one figure per row, each with its URL, publication date, the date it was read and a terms note.",
+    "Nothing here is fetched at run time. A firm's own terms and a reviewed register row (lng_terminal_tariff) take precedence over these figures; these price a cargo only where the firm holds neither.",
+    "status is the publisher's own status (FINAL: approved or stated final; INDICATIVE: provisional, a cap, a last-sale price, or a figure not yet checked against the authoritative text). It is not the firm's four-eyes review.",
+    "A terminal with no published price for a new booking (exempt, fully contracted or negotiated) says so in not_published and is never given a figure.",
+    "Fluxys LNG (Zeebrugge): the operator's legal notice forbids reproduction of its site content without written consent, so no Fluxys figure is held here; the existing register parser (CP-11) reads it once the firm records Fluxys LNG's permission."
+  ],
+  "terminals": [
+    {
+      "terminal_id": "grain-lng",
+      "name": "Isle of Grain",
+      "aliases": [
+        "grain",
+        "isle-of-grain"
+      ],
+      "operator": "Grain LNG",
+      "country": "GB",
+      "hub": "NBP",
+      "regime": "regulated_contracted",
+      "not_published": "Primary capacity is held under long-term contracts; no public price for a spot slot. Secondary capacity is bilateral.",
+      "entry": {
+        "tso": "National Gas Transmission",
+        "point": "Isle of Grain LNG Importation Terminal (NTS entry)"
+      },
+      "charges": [
+        {
+          "charge_id": "nts-entry-grain-2627",
+          "kind": "entry_capacity",
+          "basis": "p_kwh_d",
+          "value": 0.1259,
+          "currency": "GBP",
+          "published_unit": "p/kWh/day",
+          "product": "firm",
+          "valid_from": "2026-10-01",
+          "valid_to": "2027-09-30",
+          "period_label": "Gas year 2026/27",
+          "status": "FINAL",
+          "published_on": "2026-07-31",
+          "read_on": "2026-11-26",
+          "source_title": "National Gas: Notice of Gas Transmission Transportation Charges, October 2026 (Table 4)",
+          "source_url": "https://www.nationalgas.com/sites/default/files/documents/Notice%20Of%20Transportation%20Statement%20Oct%2026.pdf",
+          "terms": "Published charge transcribed by a person (no automated retrieval); cite National Gas.",
+          "note": "Reserve price for NTS entry firm capacity. Priced at 100 % load factor on daily capacity (GB short-term multiplier 1)."
+        },
+        {
+          "charge_id": "nts-gnts-entry-2627",
+          "kind": "entry_commodity",
+          "basis": "p_kwh",
+          "value": 0.0213,
+          "currency": "GBP",
+          "published_unit": "p/kWh",
+          "product": "firm",
+          "valid_from": "2026-10-01",
+          "valid_to": "2027-09-30",
+          "period_label": "Gas year 2026/27",
+          "status": "FINAL",
+          "published_on": "2026-07-31",
+          "read_on": "2026-11-26",
+          "source_title": "National Gas: Notice of Gas Transmission Transportation Charges, October 2026 (Table 22)",
+          "source_url": "https://www.nationalgas.com/sites/default/files/documents/Notice%20Of%20Transportation%20Statement%20Oct%2026.pdf",
+          "terms": "Published charge transcribed by a person (no automated retrieval); cite National Gas.",
+          "note": "General Non-Transmission Services entry commodity charge, uniform at every entry point."
+        }
+      ]
+    },
+    {
+      "terminal_id": "south-hook-lng",
+      "name": "South Hook",
+      "aliases": [
+        "south-hook"
+      ],
+      "operator": "South Hook LNG",
+      "country": "GB",
+      "hub": "NBP",
+      "regime": "exempt",
+      "not_published": "Exempt from regulated third-party access; capacity is held by its shareholders. No public price.",
+      "entry": {
+        "tso": "National Gas Transmission",
+        "point": "Milford Haven LNG Importation Terminal (NTS entry)"
+      },
+      "charges": [
+        {
+          "charge_id": "nts-entry-milford-2627",
+          "kind": "entry_capacity",
+          "basis": "p_kwh_d",
+          "value": 0.1259,
+          "currency": "GBP",
+          "published_unit": "p/kWh/day",
+          "product": "firm",
+          "valid_from": "2026-10-01",
+          "valid_to": "2027-09-30",
+          "period_label": "Gas year 2026/27",
+          "status": "FINAL",
+          "published_on": "2026-07-31",
+          "read_on": "2026-11-26",
+          "source_title": "National Gas: Notice of Gas Transmission Transportation Charges, October 2026 (Table 4)",
+          "source_url": "https://www.nationalgas.com/sites/default/files/documents/Notice%20Of%20Transportation%20Statement%20Oct%2026.pdf",
+          "terms": "Published charge transcribed by a person (no automated retrieval); cite National Gas.",
+          "note": "Reserve price for NTS entry firm capacity at Milford Haven."
+        },
+        {
+          "charge_id": "nts-gnts-entry-2627-mh",
+          "kind": "entry_commodity",
+          "basis": "p_kwh",
+          "value": 0.0213,
+          "currency": "GBP",
+          "published_unit": "p/kWh",
+          "product": "firm",
+          "valid_from": "2026-10-01",
+          "valid_to": "2027-09-30",
+          "period_label": "Gas year 2026/27",
+          "status": "FINAL",
+          "published_on": "2026-07-31",
+          "read_on": "2026-11-26",
+          "source_title": "National Gas: Notice of Gas Transmission Transportation Charges, October 2026 (Table 22)",
+          "source_url": "https://www.nationalgas.com/sites/default/files/documents/Notice%20Of%20Transportation%20Statement%20Oct%2026.pdf",
+          "terms": "Published charge transcribed by a person (no automated retrieval); cite National Gas.",
+          "note": "General Non-Transmission Services entry commodity charge."
+        }
+      ]
+    },
+    {
+      "terminal_id": "dragon-lng",
+      "name": "Dragon",
+      "aliases": [
+        "dragon"
+      ],
+      "operator": "Dragon LNG",
+      "country": "GB",
+      "hub": "NBP",
+      "regime": "exempt",
+      "not_published": "Exempt from regulated third-party access; capacity is sold bilaterally or by open season. No public price.",
+      "entry": {
+        "tso": "National Gas Transmission",
+        "point": "Milford Haven LNG Importation Terminal (NTS entry)"
+      },
+      "charges": [
+        {
+          "charge_id": "nts-entry-milford-2627-dr",
+          "kind": "entry_capacity",
+          "basis": "p_kwh_d",
+          "value": 0.1259,
+          "currency": "GBP",
+          "published_unit": "p/kWh/day",
+          "product": "firm",
+          "valid_from": "2026-10-01",
+          "valid_to": "2027-09-30",
+          "period_label": "Gas year 2026/27",
+          "status": "FINAL",
+          "published_on": "2026-07-31",
+          "read_on": "2026-11-26",
+          "source_title": "National Gas: Notice of Gas Transmission Transportation Charges, October 2026 (Table 4)",
+          "source_url": "https://www.nationalgas.com/sites/default/files/documents/Notice%20Of%20Transportation%20Statement%20Oct%2026.pdf",
+          "terms": "Published charge transcribed by a person (no automated retrieval); cite National Gas.",
+          "note": "Reserve price for NTS entry firm capacity at Milford Haven."
+        },
+        {
+          "charge_id": "nts-gnts-entry-2627-dr",
+          "kind": "entry_commodity",
+          "basis": "p_kwh",
+          "value": 0.0213,
+          "currency": "GBP",
+          "published_unit": "p/kWh",
+          "product": "firm",
+          "valid_from": "2026-10-01",
+          "valid_to": "2027-09-30",
+          "period_label": "Gas year 2026/27",
+          "status": "FINAL",
+          "published_on": "2026-07-31",
+          "read_on": "2026-11-26",
+          "source_title": "National Gas: Notice of Gas Transmission Transportation Charges, October 2026 (Table 22)",
+          "source_url": "https://www.nationalgas.com/sites/default/files/documents/Notice%20Of%20Transportation%20Statement%20Oct%2026.pdf",
+          "terms": "Published charge transcribed by a person (no automated retrieval); cite National Gas.",
+          "note": "General Non-Transmission Services entry commodity charge."
+        }
+      ]
+    },
+    {
+      "terminal_id": "gate-terminal",
+      "name": "Gate (Rotterdam)",
+      "aliases": [
+        "gate"
+      ],
+      "operator": "Gate terminal",
+      "country": "NL",
+      "hub": "TTF",
+      "regime": "exempt",
+      "entry": {
+        "tso": "Gasunie Transport Services",
+        "point": "Maasvlakte (Gate) entry"
+      },
+      "charges": [
+        {
+          "charge_id": "gate-last-sale",
+          "kind": "regas",
+          "basis": "eur_per_bcm_year",
+          "value": 12500000,
+          "currency": "EUR",
+          "published_unit": "EUR per bcm (throughput: berthing, storage, regasification)",
+          "product": "term",
+          "valid_from": null,
+          "valid_to": null,
+          "period_label": "Most recent capacity sale (undated)",
+          "status": "INDICATIVE",
+          "published_on": "2023-01-31",
+          "read_on": "2026-11-26",
+          "source_title": "Gate terminal: Commercial, Tariff",
+          "source_url": "https://www.gateterminal.com/en/commercial/tariff/",
+          "terms": "Operator page, read by a person; one published price transcribed with citation.",
+          "note": "The price of Gate's most recent long-term capacity sale, escalated yearly by 0.70 + 0.30 x CPI. Priced at full utilisation with the desk's 11.0 kWh/m3: a long-term throughput price, not a spot slot offer. Page date is the page's last modification."
+        }
+      ]
+    },
+    {
+      "terminal_id": "eemshaven-lng",
+      "name": "Eemshaven (EemsEnergyTerminal)",
+      "aliases": [
+        "eemshaven",
+        "eet"
+      ],
+      "operator": "EemsEnergyTerminal",
+      "country": "NL",
+      "hub": "TTF",
+      "regime": "regulated_methodology",
+      "not_published": "Capacity to September 2027 is contracted; the published cap below applies only from September 2027.",
+      "entry": {
+        "tso": "Gasunie Transport Services",
+        "point": "Eemshaven LNG entry"
+      },
+      "charges": [
+        {
+          "charge_id": "eet-cap-2027-2035",
+          "kind": "regas",
+          "basis": "eur_per_bcm_year",
+          "value": 17000000,
+          "currency": "EUR",
+          "published_unit": "EUR per bcm per year, 2024 prices (cap)",
+          "product": "term",
+          "valid_from": "2027-09-01",
+          "valid_to": "2035-10-31",
+          "period_label": "Sep 2027 - Oct 2035",
+          "status": "INDICATIVE",
+          "published_on": "2025-07-17",
+          "read_on": "2026-11-26",
+          "source_title": "ACM: goedkeuringsbesluit tarieven EET (17 July 2025)",
+          "source_url": "https://www.acm.nl/system/files/documents/goedkeuringsbesluit-tarieven-eet.pdf",
+          "terms": "Public decision of the Dutch regulator (ACM); reusable with citation.",
+          "note": "Upper bound for the annual service charge, indexed to CPI; variable costs (electricity, CO2) passed through. A cap, not the charge."
+        }
+      ]
+    },
+    {
+      "terminal_id": "zeebrugge",
+      "name": "Zeebrugge",
+      "aliases": [
+        "zee",
+        "fluxys-zeebrugge"
+      ],
+      "operator": "Fluxys LNG",
+      "country": "BE",
+      "hub": "ZTP",
+      "regime": "regulated",
+      "permission_operator": "fluxys_lng",
+      "not_published": "Regulated (CREG) and published, but Fluxys's legal notice forbids reproduction without written consent: held once the firm records Fluxys LNG's permission.",
+      "entry": {
+        "tso": "Fluxys Belgium",
+        "point": "Zeebrugge LNG entry"
+      },
+      "charges": []
+    },
+    {
+      "terminal_id": "dunkerque-lng",
+      "name": "Dunkerque LNG",
+      "aliases": [
+        "dunkerque",
+        "dunk"
+      ],
+      "operator": "Dunkerque LNG",
+      "country": "FR",
+      "hub": "PEG",
+      "regime": "exempt",
+      "not_published": "Exempt from regulated access (CRE exemption, revised 2022); capacity sold by open season and bilaterally. No public price.",
+      "entry": {
+        "tso": "NaTran",
+        "point": "PITTM Dunkerque GNL"
+      },
+      "charges": [
+        {
+          "charge_id": "natran-pittm-dunkerque-2026",
+          "kind": "entry_capacity",
+          "basis": "eur_mwh_d_year",
+          "value": 119.51,
+          "currency": "EUR",
+          "published_unit": "EUR/MWh/d per year (daily product = 1/365)",
+          "product": "firm",
+          "valid_from": "2026-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATRT8, 1 Apr 2026 - 31 Mar 2027",
+          "status": "INDICATIVE",
+          "published_on": "2026-01-28",
+          "read_on": "2026-11-26",
+          "source_title": "NaTran: Transmission tariffs 2026 (informative summary of CRE deliberation of 28 January 2026)",
+          "source_url": "https://www.natrangroupe.com/sites/default/files/re/reminder-transmission-tariffs-2026.pdf",
+          "terms": "TSO's informative summary of a CRE deliberation (public sector information); transcribed by a person.",
+          "note": "Read from the TSO's summary table; to be checked against the CRE deliberation, which is authoritative. Indicative until then."
+        }
+      ]
+    },
+    {
+      "terminal_id": "montoir",
+      "name": "Montoir-de-Bretagne",
+      "aliases": [
+        "montoir-de-bretagne"
+      ],
+      "operator": "Elengy",
+      "country": "FR",
+      "hub": "PEG",
+      "regime": "regulated",
+      "entry": {
+        "tso": "NaTran",
+        "point": "PITTM Montoir"
+      },
+      "charges": [
+        {
+          "charge_id": "attm7-montoir-tna",
+          "kind": "regas",
+          "basis": "per_berthing",
+          "value": 90000,
+          "currency": "EUR",
+          "published_unit": "EUR per berthing (TNA)",
+          "product": "any",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": "Updated mid-period on 1 April 2027 (Z = IPC + k)."
+        },
+        {
+          "charge_id": "attm7-montoir-tqd-spot",
+          "kind": "regas",
+          "basis": "per_mwh_unloaded",
+          "value": 0.662,
+          "currency": "EUR",
+          "published_unit": "EUR/MWh unloaded (TQD spot, 75 % of base)",
+          "product": "spot",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": ""
+        },
+        {
+          "charge_id": "attm7-montoir-tqd-base",
+          "kind": "regas",
+          "basis": "per_mwh_unloaded",
+          "value": 0.882,
+          "currency": "EUR",
+          "published_unit": "EUR/MWh unloaded (TQD base)",
+          "product": "term",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": ""
+        },
+        {
+          "charge_id": "attm7-montoir-tve",
+          "kind": "regas",
+          "basis": "per_mwh_unloaded",
+          "value": 0.053,
+          "currency": "EUR",
+          "published_unit": "EUR/MWh unloaded (TVE)",
+          "product": "any",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": "Variable energy term."
+        },
+        {
+          "charge_id": "attm7-montoir-tn",
+          "kind": "gas_in_kind",
+          "basis": "percent_in_kind",
+          "value": 0.5,
+          "currency": "EUR",
+          "published_unit": "% of quantity unloaded (TN)",
+          "product": "any",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "terminal_id": "fos-cavaou",
+      "name": "Fos Cavaou",
+      "aliases": [
+        "cavaou"
+      ],
+      "operator": "Elengy",
+      "country": "FR",
+      "hub": "PEG",
+      "regime": "regulated",
+      "entry": {
+        "tso": "NaTran",
+        "point": "PITTM Fos"
+      },
+      "charges": [
+        {
+          "charge_id": "attm7-cavaou-tna",
+          "kind": "regas",
+          "basis": "per_berthing",
+          "value": 100000,
+          "currency": "EUR",
+          "published_unit": "EUR per berthing (TNA)",
+          "product": "any",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": "Updated mid-period on 1 April 2027 (Z = IPC + k)."
+        },
+        {
+          "charge_id": "attm7-cavaou-tqd-spot",
+          "kind": "regas",
+          "basis": "per_mwh_unloaded",
+          "value": 0.736,
+          "currency": "EUR",
+          "published_unit": "EUR/MWh unloaded (TQD spot)",
+          "product": "spot",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": ""
+        },
+        {
+          "charge_id": "attm7-cavaou-tqd-base",
+          "kind": "regas",
+          "basis": "per_mwh_unloaded",
+          "value": 0.982,
+          "currency": "EUR",
+          "published_unit": "EUR/MWh unloaded (TQD base)",
+          "product": "term",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": ""
+        },
+        {
+          "charge_id": "attm7-cavaou-tve",
+          "kind": "regas",
+          "basis": "per_mwh_unloaded",
+          "value": 0.057,
+          "currency": "EUR",
+          "published_unit": "EUR/MWh unloaded (TVE)",
+          "product": "any",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": "Variable energy term."
+        },
+        {
+          "charge_id": "attm7-cavaou-tn",
+          "kind": "gas_in_kind",
+          "basis": "percent_in_kind",
+          "value": 0.1,
+          "currency": "EUR",
+          "published_unit": "% of quantity unloaded (TN)",
+          "product": "any",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "terminal_id": "fos-tonkin",
+      "name": "Fos Tonkin",
+      "aliases": [
+        "tonkin"
+      ],
+      "operator": "Elengy",
+      "country": "FR",
+      "hub": "PEG",
+      "regime": "regulated",
+      "entry": {
+        "tso": "NaTran",
+        "point": "PITTM Fos"
+      },
+      "charges": [
+        {
+          "charge_id": "attm7-tonkin-tna",
+          "kind": "regas",
+          "basis": "per_berthing",
+          "value": 75000,
+          "currency": "EUR",
+          "published_unit": "EUR per berthing (TNA)",
+          "product": "any",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": "Updated on 1 April 2027 and again on 1 April 2028."
+        },
+        {
+          "charge_id": "attm7-tonkin-tqd-spot",
+          "kind": "regas",
+          "basis": "per_mwh_unloaded",
+          "value": 0.974,
+          "currency": "EUR",
+          "published_unit": "EUR/MWh unloaded (TQD spot)",
+          "product": "spot",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": ""
+        },
+        {
+          "charge_id": "attm7-tonkin-tqd-base",
+          "kind": "regas",
+          "basis": "per_mwh_unloaded",
+          "value": 1.298,
+          "currency": "EUR",
+          "published_unit": "EUR/MWh unloaded (TQD base)",
+          "product": "term",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": ""
+        },
+        {
+          "charge_id": "attm7-tonkin-tve",
+          "kind": "regas",
+          "basis": "per_mwh_unloaded",
+          "value": 0.061,
+          "currency": "EUR",
+          "published_unit": "EUR/MWh unloaded (TVE)",
+          "product": "any",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": "Variable energy term."
+        },
+        {
+          "charge_id": "attm7-tonkin-tn",
+          "kind": "gas_in_kind",
+          "basis": "percent_in_kind",
+          "value": 0.4,
+          "currency": "EUR",
+          "published_unit": "% of quantity unloaded (TN)",
+          "product": "any",
+          "valid_from": "2025-04-01",
+          "valid_to": "2027-03-31",
+          "period_label": "ATTM7, 1 Apr 2025 - 31 Mar 2027",
+          "status": "FINAL",
+          "published_on": "2025-02-06",
+          "read_on": "2026-11-26",
+          "source_title": "CRE deliberation 2025-41 (ATTM7), grille tarifaire",
+          "source_url": "https://www.cre.fr/fileadmin/Documents/Deliberations/2025/250204_2025-41_ATTM7.pdf",
+          "terms": "CRE deliberation: public sector information, reusable with citation (CRPA art. L321-1).",
+          "note": ""
+        }
+      ]
+    },
+    {
+      "terminal_id": "wilhelmshaven:fsru-1",
+      "name": "Wilhelmshaven 1 (FSRU)",
+      "aliases": [
+        "wilhelmshaven",
+        "whv1"
+      ],
+      "operator": "Deutsche Energy Terminal",
+      "country": "DE",
+      "hub": "THE",
+      "regime": "regulated_auction",
+      "entry": {
+        "tso": "Open Grid Europe",
+        "point": "Wilhelmshaven LNG entry"
+      },
+      "charges": [
+        {
+          "charge_id": "det-whv1-2026-fee",
+          "kind": "regas",
+          "basis": "per_mwh_unloaded",
+          "value": 3.45,
+          "currency": "EUR",
+          "published_unit": "EUR/MWh (1.01 EUR/MMBtu), terminal fee = auction start price",
+          "product": "any",
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "period_label": "Price sheet 2026",
+          "status": "FINAL",
+          "published_on": "2025-12-22",
+          "read_on": "2026-11-26",
+          "source_title": "BNetzA BK9-25/101-LNG-PLAN, Annex III: approved price sheet, DET Wilhelmshaven 01, 2026",
+          "source_url": "https://energy-terminal.de/fileadmin/user_upload/Test/Haendlerinformationen/Wilhelmshaven_I/Preisblatt/20251222_Preisblatt_2026_WHV01-1.pdf",
+          "terms": "Annex to a Bundesnetzagentur decision (official work, s. 5 UrhG); figure transcribed by a person. DET's site states no reuse terms.",
+          "note": "Approved maximum: capacity is auctioned and clears at or below it. Bunker and CO2 charges are passed through at cost."
+        },
+        {
+          "charge_id": "det-whv1-2026-gik-closed",
+          "kind": "gas_in_kind",
+          "basis": "percent_in_kind",
+          "value": 2.5,
+          "currency": "EUR",
+          "published_unit": "% of send-out, closed loop (251 t/d at 500 mmscf/d)",
+          "product": "any",
+          "months": [
+            10,
+            11,
+            12,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "period_label": "Price sheet 2026",
+          "status": "FINAL",
+          "published_on": "2025-12-22",
+          "read_on": "2026-11-26",
+          "source_title": "BNetzA BK9-25/101-LNG-PLAN, Annex III: approved price sheet, DET Wilhelmshaven 01, 2026",
+          "source_url": "https://energy-terminal.de/fileadmin/user_upload/Test/Haendlerinformationen/Wilhelmshaven_I/Preisblatt/20251222_Preisblatt_2026_WHV01-1.pdf",
+          "terms": "Annex to a Bundesnetzagentur decision (official work, s. 5 UrhG); figure transcribed by a person.",
+          "note": "Closed-loop regasification, 1 October to 1 June."
+        },
+        {
+          "charge_id": "det-whv1-2026-gik-open",
+          "kind": "gas_in_kind",
+          "basis": "percent_in_kind",
+          "value": 0.7,
+          "currency": "EUR",
+          "published_unit": "% of send-out, open loop (66 t/d at 500 mmscf/d)",
+          "product": "any",
+          "months": [
+            6,
+            7,
+            8,
+            9
+          ],
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "period_label": "Price sheet 2026",
+          "status": "FINAL",
+          "published_on": "2025-12-22",
+          "read_on": "2026-11-26",
+          "source_title": "BNetzA BK9-25/101-LNG-PLAN, Annex III: approved price sheet, DET Wilhelmshaven 01, 2026",
+          "source_url": "https://energy-terminal.de/fileadmin/user_upload/Test/Haendlerinformationen/Wilhelmshaven_I/Preisblatt/20251222_Preisblatt_2026_WHV01-1.pdf",
+          "terms": "Annex to a Bundesnetzagentur decision (official work, s. 5 UrhG); figure transcribed by a person.",
+          "note": "Open-loop regasification, 1 June to 1 October."
+        },
+        {
+          "charge_id": "det-whv1-2026-co2",
+          "kind": "fsru_co2",
+          "basis": "tco2_per_gj_fuel",
+          "value": 0.0561,
+          "currency": "EUR",
+          "published_unit": "t CO2 per GJ of methane burned; charged at the EEX EUA spot index",
+          "product": "any",
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "period_label": "Price sheet 2026",
+          "status": "FINAL",
+          "published_on": "2025-12-22",
+          "read_on": "2026-11-26",
+          "source_title": "BNetzA BK9-25/101-LNG-PLAN, Annex III: approved price sheet, DET Wilhelmshaven 01, 2026",
+          "source_url": "https://energy-terminal.de/fileadmin/user_upload/Test/Haendlerinformationen/Wilhelmshaven_I/Preisblatt/20251222_Preisblatt_2026_WHV01-1.pdf",
+          "terms": "Annex to a Bundesnetzagentur decision (official work, s. 5 UrhG); figure transcribed by a person.",
+          "note": "CO2 pass-through on the gas the FSRU burns (estimated here as the gas retained in kind)."
+        }
+      ]
+    },
+    {
+      "terminal_id": "wilhelmshaven:fsru-2",
+      "name": "Wilhelmshaven 2 (FSRU)",
+      "aliases": [
+        "whv2"
+      ],
+      "operator": "Deutsche Energy Terminal",
+      "country": "DE",
+      "hub": "THE",
+      "regime": "regulated_auction",
+      "entry": {
+        "tso": "Open Grid Europe",
+        "point": "Wilhelmshaven LNG entry"
+      },
+      "charges": [
+        {
+          "charge_id": "det-whv2-2026-fee",
+          "kind": "regas",
+          "basis": "per_mwh_unloaded",
+          "value": 8.0,
+          "currency": "EUR",
+          "published_unit": "EUR/MWh (2.35 EUR/MMBtu), terminal fee = auction start price",
+          "product": "any",
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "period_label": "Price sheet 2026",
+          "status": "FINAL",
+          "published_on": "2025-12-22",
+          "read_on": "2026-11-26",
+          "source_title": "BNetzA BK9-25/104-LNG-PLAN, Annex III: approved price sheet, DET Wilhelmshaven 02, 2026",
+          "source_url": "https://energy-terminal.de/fileadmin/user_upload/Test/Haendlerinformationen/Wilhelmshaven_II/Preisblatt/20251222_Preisblatt_2026_WHV02.pdf",
+          "terms": "Annex to a Bundesnetzagentur decision (official work, s. 5 UrhG); figure transcribed by a person. DET's site states no reuse terms.",
+          "note": "Approved maximum: capacity is auctioned and clears at or below it. Bunker and CO2 charges are passed through at cost."
+        },
+        {
+          "charge_id": "det-whv2-2026-gik-closed",
+          "kind": "gas_in_kind",
+          "basis": "percent_in_kind",
+          "value": 2.3,
+          "currency": "EUR",
+          "published_unit": "% of send-out, closed loop (207 t/d at 450 mmscf/d)",
+          "product": "any",
+          "months": [
+            10,
+            11,
+            12,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "period_label": "Price sheet 2026",
+          "status": "FINAL",
+          "published_on": "2025-12-22",
+          "read_on": "2026-11-26",
+          "source_title": "BNetzA BK9-25/104-LNG-PLAN, Annex III: approved price sheet, DET Wilhelmshaven 02, 2026",
+          "source_url": "https://energy-terminal.de/fileadmin/user_upload/Test/Haendlerinformationen/Wilhelmshaven_II/Preisblatt/20251222_Preisblatt_2026_WHV02.pdf",
+          "terms": "Annex to a Bundesnetzagentur decision (official work, s. 5 UrhG); figure transcribed by a person.",
+          "note": "Closed-loop regasification, 1 October to 1 June."
+        },
+        {
+          "charge_id": "det-whv2-2026-gik-open",
+          "kind": "gas_in_kind",
+          "basis": "percent_in_kind",
+          "value": 1.3,
+          "currency": "EUR",
+          "published_unit": "% of send-out, open loop (119 t/d at 450 mmscf/d)",
+          "product": "any",
+          "months": [
+            6,
+            7,
+            8,
+            9
+          ],
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "period_label": "Price sheet 2026",
+          "status": "FINAL",
+          "published_on": "2025-12-22",
+          "read_on": "2026-11-26",
+          "source_title": "BNetzA BK9-25/104-LNG-PLAN, Annex III: approved price sheet, DET Wilhelmshaven 02, 2026",
+          "source_url": "https://energy-terminal.de/fileadmin/user_upload/Test/Haendlerinformationen/Wilhelmshaven_II/Preisblatt/20251222_Preisblatt_2026_WHV02.pdf",
+          "terms": "Annex to a Bundesnetzagentur decision (official work, s. 5 UrhG); figure transcribed by a person.",
+          "note": "Open-loop regasification (the sheet dates this mode to 2025)."
+        },
+        {
+          "charge_id": "det-whv2-2026-co2",
+          "kind": "fsru_co2",
+          "basis": "tco2_per_gj_fuel",
+          "value": 0.0561,
+          "currency": "EUR",
+          "published_unit": "t CO2 per GJ of methane burned; charged at the EEX EUA spot index",
+          "product": "any",
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "period_label": "Price sheet 2026",
+          "status": "FINAL",
+          "published_on": "2025-12-22",
+          "read_on": "2026-11-26",
+          "source_title": "BNetzA BK9-25/104-LNG-PLAN, Annex III: approved price sheet, DET Wilhelmshaven 02, 2026",
+          "source_url": "https://energy-terminal.de/fileadmin/user_upload/Test/Haendlerinformationen/Wilhelmshaven_II/Preisblatt/20251222_Preisblatt_2026_WHV02.pdf",
+          "terms": "Annex to a Bundesnetzagentur decision (official work, s. 5 UrhG); figure transcribed by a person.",
+          "note": "CO2 pass-through on the gas the FSRU burns (estimated here as the gas retained in kind)."
+        }
+      ]
+    },
+    {
+      "terminal_id": "brunsbuttel",
+      "name": "Brunsbüttel (FSRU)",
+      "aliases": [
+        "brunsbüttel"
+      ],
+      "operator": "Deutsche Energy Terminal",
+      "country": "DE",
+      "hub": "THE",
+      "regime": "regulated_auction",
+      "entry": {
+        "tso": "Gasunie Deutschland",
+        "point": "Brunsbüttel LNG entry"
+      },
+      "charges": [
+        {
+          "charge_id": "det-bbu-2026-fee",
+          "kind": "regas",
+          "basis": "per_mwh_unloaded",
+          "value": 13.16,
+          "currency": "EUR",
+          "published_unit": "EUR/MWh (3.86 EUR/MMBtu), terminal fee = auction start price",
+          "product": "any",
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "period_label": "Price sheet 2026",
+          "status": "FINAL",
+          "published_on": "2025-12-22",
+          "read_on": "2026-11-26",
+          "source_title": "BNetzA BK9-25/102-LNG-PLAN, Annex III: approved price sheet, DET Brunsbüttel 01, 2026",
+          "source_url": "https://energy-terminal.de/fileadmin/user_upload/Test/Haendlerinformationen/Brunsb%C3%BCttel/Preisblatt/20251222_Preisblatt_2026_BB%C3%9C01.pdf",
+          "terms": "Annex to a Bundesnetzagentur decision (official work, s. 5 UrhG); figure transcribed by a person. DET's site states no reuse terms.",
+          "note": "Approved maximum: capacity is auctioned and clears at or below it. Bunker and CO2 charges are passed through at cost."
+        },
+        {
+          "charge_id": "det-bbu-2026-gik-combined",
+          "kind": "gas_in_kind",
+          "basis": "percent_in_kind",
+          "value": 0.9,
+          "currency": "EUR",
+          "published_unit": "% of send-out, combined loop (43 t/d at 240 mmscf/d)",
+          "product": "any",
+          "months": [
+            10,
+            11,
+            12,
+            1,
+            2,
+            3,
+            4,
+            5
+          ],
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "period_label": "Price sheet 2026",
+          "status": "FINAL",
+          "published_on": "2025-12-22",
+          "read_on": "2026-11-26",
+          "source_title": "BNetzA BK9-25/102-LNG-PLAN, Annex III: approved price sheet, DET Brunsbüttel 01, 2026",
+          "source_url": "https://energy-terminal.de/fileadmin/user_upload/Test/Haendlerinformationen/Brunsb%C3%BCttel/Preisblatt/20251222_Preisblatt_2026_BB%C3%9C01.pdf",
+          "terms": "Annex to a Bundesnetzagentur decision (official work, s. 5 UrhG); figure transcribed by a person.",
+          "note": "Combined-loop regasification, 1 October to 1 June."
+        },
+        {
+          "charge_id": "det-bbu-2026-gik-open",
+          "kind": "gas_in_kind",
+          "basis": "percent_in_kind",
+          "value": 0.7,
+          "currency": "EUR",
+          "published_unit": "% of send-out, open loop (52 t/d at 350 mmscf/d)",
+          "product": "any",
+          "months": [
+            6,
+            7,
+            8,
+            9
+          ],
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "period_label": "Price sheet 2026",
+          "status": "FINAL",
+          "published_on": "2025-12-22",
+          "read_on": "2026-11-26",
+          "source_title": "BNetzA BK9-25/102-LNG-PLAN, Annex III: approved price sheet, DET Brunsbüttel 01, 2026",
+          "source_url": "https://energy-terminal.de/fileadmin/user_upload/Test/Haendlerinformationen/Brunsb%C3%BCttel/Preisblatt/20251222_Preisblatt_2026_BB%C3%9C01.pdf",
+          "terms": "Annex to a Bundesnetzagentur decision (official work, s. 5 UrhG); figure transcribed by a person.",
+          "note": "Open-loop regasification, 1 June to 1 October."
+        },
+        {
+          "charge_id": "det-bbu-2026-co2",
+          "kind": "fsru_co2",
+          "basis": "tco2_per_gj_fuel",
+          "value": 0.0561,
+          "currency": "EUR",
+          "published_unit": "t CO2 per GJ of methane burned; charged at the EEX EUA spot index",
+          "product": "any",
+          "valid_from": "2026-01-01",
+          "valid_to": "2026-12-31",
+          "period_label": "Price sheet 2026",
+          "status": "FINAL",
+          "published_on": "2025-12-22",
+          "read_on": "2026-11-26",
+          "source_title": "BNetzA BK9-25/102-LNG-PLAN, Annex III: approved price sheet, DET Brunsbüttel 01, 2026",
+          "source_url": "https://energy-terminal.de/fileadmin/user_upload/Test/Haendlerinformationen/Brunsb%C3%BCttel/Preisblatt/20251222_Preisblatt_2026_BB%C3%9C01.pdf",
+          "terms": "Annex to a Bundesnetzagentur decision (official work, s. 5 UrhG); figure transcribed by a person.",
+          "note": "CO2 pass-through on the gas the FSRU burns (estimated here as the gas retained in kind)."
+        }
+      ]
+    },
+    {
+      "terminal_id": "mukran",
+      "name": "Mukran (FSRU)",
+      "aliases": [
+        "deutsche-ostsee"
+      ],
+      "operator": "Deutsche ReGas",
+      "country": "DE",
+      "hub": "THE",
+      "regime": "negotiated",
+      "not_published": "Privately operated; slots are offered by the operator at negotiated prices. No public price.",
+      "entry": {
+        "tso": "Gascade",
+        "point": "Mukran LNG entry"
+      },
+      "charges": []
+    }
+  ]
+}
