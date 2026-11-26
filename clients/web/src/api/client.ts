@@ -3054,6 +3054,14 @@ export interface MonitoringAlertDTO {
   human_review_required: boolean;
 }
 
+/** One person's own mark on one alert (GET/POST /api/me/alert-state). */
+export interface AlertReaderMarkDTO {
+  read: boolean;
+  dismissed: boolean;
+  read_at_utc: string | null;
+  dismissed_at_utc: string | null;
+}
+
 export interface MonitoringSummaryDTO {
   open_count: number; acknowledged_count: number; critical_count: number;
   warning_count: number; info_count: number; llm_pending_count: number;
@@ -6032,6 +6040,15 @@ export const api = {
   marketReport: (reportId: string) =>
     get<ReportMetadataDTO>(`/reports/market/${encodeURIComponent(reportId)}`),
 
+  /** The caller's own read and dismissed marks on the alerts they can see (personal). */
+  alertReaderState: (options?: ApiRequestOptions) =>
+    get<{ alerts: Record<string, AlertReaderMarkDTO> }>("/me/alert-state", undefined, options),
+  /** Mark alerts read, dismissed or restored for the caller only; the shared status is untouched. */
+  markAlerts: (action: "read" | "dismiss" | "restore", alertIds: string[]) =>
+    post<{ changed: number; not_found: string[]; alerts: Record<string, AlertReaderMarkDTO> }>(
+      "/me/alert-state",
+      { action, alert_ids: alertIds },
+    ),
   acknowledgeMonitoringAlert: (alertId: string) =>
     post<MonitoringAlertDTO>(`/monitoring/alerts/${encodeURIComponent(alertId)}/acknowledge`, {}),
 

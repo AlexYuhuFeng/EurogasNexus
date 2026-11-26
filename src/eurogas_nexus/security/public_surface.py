@@ -280,6 +280,7 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/me/api-keys/{key_id}/revoke",
         "/api/me/password",
         "/api/me/preferences",
+        "/api/me/alert-state",
         "/api/access/groups",
         "/api/access/groups/{group_id}",
         "/api/access/groups/{group_id}/members/{principal_id}",

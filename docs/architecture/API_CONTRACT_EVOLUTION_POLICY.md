@@ -1301,3 +1301,12 @@ was). Additive and backward compatible:
   (`runtime_decision_input_blocked` on the portfolio-network optimisation).
 
 Public census unchanged: 231 paths / 248 operations.
+
+## 2026-11-26 additive alert reader state
+
+`GET /api/me/alert-state` returns the caller's own read and dismissed marks on the unresolved
+alerts they may see; `POST /api/me/alert-state` marks alerts `read`, `dismiss` or `restore`
+(1-500 ids) for the caller only and lists unknown or hidden ids under `not_found`. Both need
+READ. The shared, audited alert status is untouched, and a mark lapses when the alert recurs
+or escalates. Stored in `monitoring_alert_reader_state` (migration `0089_alert_reader_state`). Additive
+and backward compatible. Public census: 311 paths / 347 operations.

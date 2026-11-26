@@ -135,6 +135,7 @@ def resolve_absent_monitoring_alerts(
         MonitoringAlertRecord.status.in_(("open", "acknowledged"))
     )
     resolved = 0
+    resolved_ids: list[str] = []
     for row in rows.all():
         if row.fingerprint in active_fingerprints:
             continue
@@ -150,7 +151,10 @@ def resolve_absent_monitoring_alerts(
         row.status = "resolved"
         row.resolved_at_utc = now_utc
         row.updated_at_utc = now_utc
+        resolved_ids.append(row.alert_id)
         resolved += 1
+    if resolved_ids:
+        _drop_reader_marks(session, resolved_ids)
     session.flush()
     return resolved
 
@@ -310,3 +314,122 @@ def _as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+#: The personal marks a person can put on alerts in their own alert centre.
+READER_ACTIONS = ("read", "dismiss", "restore")
+
+
+def apply_reader_action(
+    session: Session,
+    principal_id: str,
+    alerts: list[MonitoringAlertRecord],
+    action: str,
+    *,
+    now_utc: datetime,
+) -> int:
+    """Mark alerts read, dismissed or restored for one person and return how many changed.
+
+    The mark records the alert's severity as it stands now: an alert that escalates
+    afterwards, or clears and comes back, counts as new again for that person. Dismissing also marks
+    the alert read. Restoring clears the dismissal only; the alert stays read.
+    """
+
+    from eurogas_nexus.db.models import MonitoringAlertReaderStateRecord
+
+    if action not in READER_ACTIONS:
+        raise ValueError(f"unknown reader action {action!r}")
+    changed = 0
+    for alert in alerts:
+        row = session.get(MonitoringAlertReaderStateRecord, (principal_id, alert.alert_id))
+        if row is None:
+            if action == "restore":
+                continue
+            row = MonitoringAlertReaderStateRecord(
+                principal_id=principal_id, alert_id=alert.alert_id
+            )
+            session.add(row)
+        if action in {"read", "dismiss"}:
+            row.read_at_utc = now_utc
+            row.read_event_time_utc = alert.event_time_utc
+            row.read_severity = alert.severity
+        if action == "dismiss":
+            row.dismissed_at_utc = now_utc
+            row.dismissed_event_time_utc = alert.event_time_utc
+            row.dismissed_severity = alert.severity
+        if action == "restore":
+            row.dismissed_at_utc = None
+            row.dismissed_event_time_utc = None
+            row.dismissed_severity = None
+        changed += 1
+    session.flush()
+    return changed
+
+
+def reader_state(
+    session: Session,
+    principal_id: str,
+    alerts: list[MonitoringAlertRecord],
+) -> dict[str, dict]:
+    """One person's current marks on the given alerts, keyed by alert id.
+
+    An alert is ``read`` when the person read it and it has not escalated since, and
+    ``dismissed`` on the same terms for a dismissal. Alerts with neither mark are left out.
+    """
+
+    from eurogas_nexus.db.models import MonitoringAlertReaderStateRecord
+
+    if not alerts:
+        return {}
+    by_id = {alert.alert_id: alert for alert in alerts}
+    rows = (
+        session.query(MonitoringAlertReaderStateRecord)
+        .filter(
+            MonitoringAlertReaderStateRecord.principal_id == principal_id,
+            MonitoringAlertReaderStateRecord.alert_id.in_(list(by_id)),
+        )
+        .all()
+    )
+    state: dict[str, dict] = {}
+    for row in rows:
+        alert = by_id[row.alert_id]
+        read = row.read_at_utc is not None and _still_current(
+            alert, row.read_event_time_utc, row.read_severity
+        )
+        dismissed = row.dismissed_at_utc is not None and _still_current(
+            alert, row.dismissed_event_time_utc, row.dismissed_severity
+        )
+        if read or dismissed:
+            state[row.alert_id] = {
+                "read": read,
+                "dismissed": dismissed,
+                "read_at_utc": row.read_at_utc.isoformat() if read and row.read_at_utc else None,
+                "dismissed_at_utc": (
+                    row.dismissed_at_utc.isoformat() if dismissed and row.dismissed_at_utc else None
+                ),
+            }
+    return state
+
+
+def _drop_reader_marks(session: Session, alert_ids: list[str]) -> None:
+    """Forget every reader's marks on resolved alerts, so a return reads as new."""
+
+    from eurogas_nexus.db.models import MonitoringAlertReaderStateRecord
+
+    session.query(MonitoringAlertReaderStateRecord).filter(
+        MonitoringAlertReaderStateRecord.alert_id.in_(alert_ids)
+    ).delete(synchronize_session=False)
+
+
+def _still_current(
+    alert: MonitoringAlertRecord,
+    marked_event_time: datetime | None,
+    marked_severity: str | None,
+) -> bool:
+    """True while the alert has not escalated since the mark."""
+
+    # The event time is not compared: for a level alert (a credit line at 86%) it moves on
+    # every revaluation without anything new for the reader. A condition that clears and comes
+    # back starts fresh because resolving an alert drops every reader's marks on it.
+    del marked_event_time
+    return SEVERITY_ORDER.get(alert.severity, 0) <= SEVERITY_ORDER.get(marked_severity or "", 0)

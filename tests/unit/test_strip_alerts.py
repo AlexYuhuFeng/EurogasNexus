@@ -146,6 +146,9 @@ def test_lng_send_out_far_from_its_7_day_average_is_a_fundamentals_surprise(desk
     assert lng.evidence_snapshot["deviation_pct"] >= 30
     assert lng.evidence_snapshot["source_system"].endswith("_Sim")
     assert lng.simulated is True
+    # More than 60 % off the week is a warning, dated by the day it is for, not by the scan.
+    assert lng.severity == "warning"
+    assert lng.event_time_utc.date().isoformat() == lng.evidence_snapshot["day"]
 
 
 def test_an_ordinary_demo_day_raises_no_fundamentals_surprise(desk):
