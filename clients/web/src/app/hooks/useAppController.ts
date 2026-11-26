@@ -19,6 +19,10 @@ import { useReviewAnalysis } from "./useReviewAnalysis";
 import { useSourceCenterController } from "./useSourceCenterController";
 import { useWorkspaceNavigation } from "./useWorkspaceNavigation";
 import { useWorkspaceRuntime } from "./useWorkspaceRuntime";
+import type { WorkspacePageId } from "@/workspaceNavigation";
+
+/** Pages that show the resource pool's optimised result (Position, Deals, Review). */
+const POOL_RESULT_PAGES: ReadonlySet<WorkspacePageId> = new Set(["contracts", "scenario", "review"]);
 
 export function useAppController() {
   const { t, i18n } = useTranslation();
@@ -87,6 +91,7 @@ export function useAppController() {
     selectedResourceId: selection.resourceId,
     selectedRouteId: selection.routeId,
     t,
+    autoOptimize: POOL_RESULT_PAGES.has(navigation.activeWorkspace),
   });
   // The report run takes the interface language and the snapshot it cites; the portfolio's
   // resource list is not an input, because the report is not scoped by a selection.

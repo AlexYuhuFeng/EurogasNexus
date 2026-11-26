@@ -301,13 +301,20 @@ export interface EventStreamHandle {
 }
 
 /**
+ * How a stream's connection went: `open`; `error`, dropped (it may come back); `refused`, the
+ * server answered with an error status (a 429 when the person's streams are at their limit):
+ * it is not retried here, the owner decides when to ask again (app/data/liveStream.ts).
+ */
+export type EventStreamStatus = "open" | "error" | "refused";
+
+/**
  * Server-sent events over fetch, for credentials that must stay in headers. Reconnects after
- * a dropped connection (as EventSource does) until closed.
+ * a dropped connection (as EventSource does) until closed; a refusal is reported, not retried.
  */
 function openHeaderEventStream(
   path: string,
   handlers: Record<string, (data: unknown) => void>,
-  onStatus?: (status: "open" | "error") => void,
+  onStatus?: (status: EventStreamStatus) => void,
 ): EventStreamHandle {
   const controller = new AbortController();
   let closed = false;
@@ -315,7 +322,11 @@ function openHeaderEventStream(
   const connect = async () => {
     try {
       const response = await fetch(apiUrl(path), requestInit({ signal: controller.signal, headers: { Accept: "text/event-stream" } }));
-      if (!response.ok || !response.body) throw new Error(`stream ${response.status}`);
+      if (!response.ok || !response.body) {
+        void response.body?.cancel();
+        if (!closed) onStatus?.("refused");
+        return;
+      }
       onStatus?.("open");
       // Loaded on first use: only header-authenticated callers read streams this way.
       const { dispatchSseBlock } = await import("./sse");
@@ -353,7 +364,7 @@ function openHeaderEventStream(
 export function openEventStream(
   path: string,
   handlers: Record<string, (data: unknown) => void>,
-  onStatus?: (status: "open" | "error") => void,
+  onStatus?: (status: EventStreamStatus) => void,
 ): EventStreamHandle {
   // A desktop session must travel in a header and never in a URL (URLs are logged), and
   // EventSource cannot set headers: read the stream with fetch instead.
@@ -365,8 +376,14 @@ export function openEventStream(
   // A browser session is a same-origin cookie, which EventSource sends by itself.
   const url = new URL(apiUrl(path), window.location.origin);
   const source = new EventSource(url.toString(), { withCredentials: true });
-  source.onopen = () => onStatus?.("open");
-  source.onerror = () => onStatus?.("error");
+  let opened = false;
+  source.onopen = () => {
+    opened = true;
+    onStatus?.("open");
+  };
+  // An answer that is not a stream (a 429, a 5xx) closes the EventSource for good before it
+  // ever opened; a dropped connection leaves it reconnecting.
+  source.onerror = () => onStatus?.(!opened && source.readyState === EventSource.CLOSED ? "refused" : "error");
   for (const [event, handler] of Object.entries(handlers)) {
     source.addEventListener(event, (message: MessageEvent) => {
       let data: unknown = message.data;

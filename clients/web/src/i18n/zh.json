@@ -6862,6 +6862,8 @@
   "live.title.connecting": "正在建立实时连接。",
   "live.title.stale": "一段时间未收到更新：数据显示最后一次的值，连接正在重建。",
   "live.title.offline": "实时连接已中断：数据显示最后一次的值，正在自动重连。",
+  "live.state.paused": "实时更新已暂停",
+  "live.title.paused": "此标签页的实时更新已暂停：数据按时刷新并显示最近更新时间，系统会自动重试实时连接。",
   "glossary.facts_title": "市场数据",
   "glossary.gas_day": "燃气日",
   "glossary.latest": "最新",

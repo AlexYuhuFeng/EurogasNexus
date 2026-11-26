@@ -63,6 +63,10 @@ def _marker(path: str) -> str:
 
 #: Paths the SDK (or CLI/MCP) call by design, and the product does not need on a screen.
 MACHINE_SURFACE: dict[str, str] = {
+    # The web client multiplexes every live topic on /api/stream/live, one per browser tab (the
+    # per-person stream cap counts tabs); the per-feed row streams remain for API clients.
+    "/api/stream/quotes": "screen quote rows as they land, resumable (SDK streaming client)",
+    "/api/stream/alerts": "monitoring alert rows and map notices, resumable (SDK streaming client)",
     "/api/lng/terminal-tariffs/price": (
         "one cargo's regas charge and its basis (SDK; cargo economics reads the register "
         "server-side)"

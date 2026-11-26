@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { api, type FacilityDTO, type MapSituationDTO } from "@/api/client";
-import { changeStreamOpen, onChangeNotice, onChangeStreamStatus } from "@/app/data/changeNotices";
+import { liveIsUp, onLiveStatus, subscribeLive, type LiveTopic } from "@/app/data/liveStream";
 import { DEFAULT_FRESH_MS, loadRead, readKey, useCachedRead } from "@/app/data/readCache";
 
 /** How often the map re-checks its situation while on screen and the change stream is open. */
@@ -11,6 +11,8 @@ export const MAP_SITUATION_FALLBACK_MS = 60 * 1000;
 export const MAP_SITUATION_RETURN_MS = 30 * 1000;
 /** Change notices close together are answered with one read. */
 const NOTICE_COALESCE_MS = 1500;
+/** The map's fast inputs: each changes the situation the map shows. */
+const MAP_TOPICS: readonly Exclude<LiveTopic, "jobs">[] = ["outages", "flows", "cargoes", "slots", "opportunities"];
 
 /**
  * The map's situation and located infrastructure, cache-first (app/data/readCache.ts).
@@ -19,8 +21,8 @@ const NOTICE_COALESCE_MS = 1500;
  *   read keeps the last good picture and reports the error, so the map never blanks.
  * - Located infrastructure is reference data: read once per session.
  * - While the map is on screen (`active` and the browser tab visible) the situation is kept
- *   current by the server's change notices (`map` on the session's alerts stream: outages,
- *   flows, cargoes, slots, opportunities; app/data/changeNotices.ts), each answered with a conditional read that is a 304 when nothing the
+ *   current by the server's change notices (outages, flows, cargoes, slots and opportunities
+ *   on the tab's live connection, app/data/liveStream.ts), each answered with a conditional read that is a 304 when nothing the
  *   caller sees changed; a safety re-check runs every 5 minutes, every minute while the
  *   stream is down. Off screen nothing is read; a return re-checks a picture older than 30 s.
  */
@@ -49,7 +51,7 @@ export function useMapSituation(enabled = true, historyDays = 0, active = true) 
     recheck(MAP_SITUATION_RETURN_MS);
     const onVisible = () => recheck(MAP_SITUATION_RETURN_MS);
     document.addEventListener("visibilitychange", onVisible);
-    let streamOpen = changeStreamOpen();
+    let streamOpen = liveIsUp();
     let timer = 0;
     const schedule = () => {
       window.clearTimeout(timer);
@@ -60,11 +62,15 @@ export function useMapSituation(enabled = true, historyDays = 0, active = true) 
     };
     schedule();
     let pending = 0;
-    const stopNotices = onChangeNotice("map", () => {
+    const onNotice = () => {
       window.clearTimeout(pending);
       pending = window.setTimeout(() => recheck(), NOTICE_COALESCE_MS);
-    });
-    const stopStatus = onChangeStreamStatus((open) => {
+    };
+    const stops = MAP_TOPICS.map((topic) => subscribeLive(topic, onNotice));
+    const stopNotices = () => stops.forEach((stop) => stop());
+    const stopStatus = onLiveStatus(() => {
+      const open = liveIsUp();
+      if (open === streamOpen) return;
       streamOpen = open;
       // Back on the stream after a gap: re-check once, then the long interval.
       if (open) recheck(DEFAULT_FRESH_MS);

@@ -290,6 +290,10 @@ def configure_environment(environ: dict[str, str] | os._Environ) -> list[str]:
         "EUROGAS_NEXUS_DB_POOL_SIZE": "8",
         "EUROGAS_NEXUS_DB_MAX_OVERFLOW": "4",
         "EUROGAS_NEXUS_DB_POOL_TIMEOUT": "15",
+        # Testers share accounts (several people on demo.trader, each with a few tabs), and the
+        # live-stream cap counts per account: one stream per tab, at most 40 per account here.
+        # The product default (8) is one person's tabs. Demo profile only.
+        "EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL": "40",
     }
     for name, value in defaults.items():
         if not (environ.get(name) or "").strip():

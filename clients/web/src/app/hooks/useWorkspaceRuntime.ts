@@ -77,10 +77,12 @@ export function useWorkspaceRuntime({
     return () => window.clearInterval(intervalId);
   }, [authenticated, activeWorkspace, readMarket]);
 
-  // The alert stream carries the rows; the count and summary re-read on the alerts notice.
+  // The alerts, their count and summary re-read on the alerts notice of the tab's connection;
+  // while it is down, on the timer below.
   useLiveTopics(["alerts"], () => void refreshMonitoring(), {
-    enabled: authenticated && streamingActive,
+    enabled: authenticated,
     minIntervalMs: LIVE_REREAD_MS,
+    fallbackMs: 0,
   });
 
   useEffect(() => {

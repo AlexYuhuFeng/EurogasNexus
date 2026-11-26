@@ -121,8 +121,14 @@ class _RowStream:
         initial_cursor: Cursor,
         guard: RowGuard | None,
         notices: tuple[tuple[str, FetchNotices], ...],
+        *,
+        standalone: bool = True,
+        notices_from: datetime | None = None,
     ) -> None:
         self.topic = topic
+        # False when this feed rides on another stream (the live stream), which owns the
+        # ``id:`` lines and the heartbeat.
+        self.standalone = standalone
         self.fetch = fetch
         self.ts_field = ts_field
         self.pk_field = pk_field
@@ -132,7 +138,7 @@ class _RowStream:
         # Change notices ride on the same connection (a browser holds few per host): each from
         # now, without an id (a reconnecting client re-reads what they announce anyway).
         self.notice_cursors: dict[str, Cursor] = {
-            name: (datetime.now(UTC), "") for name, _ in notices
+            name: (notices_from or datetime.now(UTC), "") for name, _ in notices
         }
         self.last_heartbeat = datetime.now(UTC)
         self.started = False
@@ -196,7 +202,11 @@ class _RowStream:
                 _sse(
                     row,
                     event=self.topic,
-                    event_id=_event_id(row.get(self.ts_field), row.get(self.pk_field)),
+                    event_id=(
+                        _event_id(row.get(self.ts_field), row.get(self.pk_field))
+                        if self.standalone
+                        else None
+                    ),
                 )
             )
         for name, notice in announced:
@@ -204,7 +214,7 @@ class _RowStream:
         for row in rows:
             self.cursor = self._cursor_of(row) or self.cursor
         now = datetime.now(UTC)
-        if (now - self.last_heartbeat).total_seconds() >= HEARTBEAT_SECONDS:
+        if self.standalone and (now - self.last_heartbeat).total_seconds() >= HEARTBEAT_SECONDS:
             out.append(": ping\n\n")
             self.last_heartbeat = now
         return out, False
@@ -640,9 +650,9 @@ def _stream_response(
 ) -> StreamingResponse:
     initial_cursor = _initial_cursor(request)
     guard = _guard_for(topic, request)
-    from eurogas_nexus.security.rate_limit import open_counted_stream
+    from eurogas_nexus.security.rate_limit import CountedStreamingResponse, open_counted_stream
 
-    return StreamingResponse(
+    return CountedStreamingResponse(
         open_counted_stream(_stream_owner(request), _event_stream(
             topic,
             fetch,
@@ -652,8 +662,6 @@ def _stream_response(
             guard=guard,
             notices=notices,
         )),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
 
 
@@ -781,6 +789,32 @@ class StreamGuard:
         from eurogas_nexus.security.capabilities import commercial_capabilities_for_principal
 
         return bool(commercial_capabilities_for_principal(self.principal))
+
+
+class _FollowingGuard(StreamGuard):
+    """Filters a feed riding on another stream for that stream's current caller.
+
+    The carrying stream's own guard checks access (revocation notes, the re-read identity)
+    every poll; this one only applies the topic's read rule to the principal it holds, so the
+    identity is not re-read twice."""
+
+    def __init__(self, topic: str, owner: StreamGuard) -> None:  # noqa: D107
+        self.topic = topic
+        self.owner = owner
+
+    @property
+    def principal(self):  # type: ignore[override]
+        return self.owner.principal
+
+    @property
+    def session_hash(self):  # type: ignore[override]
+        return self.owner.session_hash
+
+    def want(self, reads) -> None:
+        return None
+
+    def still_allowed(self, session) -> bool:
+        return True
 
 
 def _session_active(session, session_hash: str, now: datetime) -> bool:
@@ -926,6 +960,23 @@ class _LiveStream:
         self.jobs_since = start
         self.last_heartbeat = datetime.now(UTC)
         self.started = False
+        # With ``opportunities``, the opportunity engine's own events ride on this connection
+        # too (what ``/api/stream/opportunities`` sends), from the stream's start (a resumed
+        # stream from where it left off), filtered by the opportunity read rule of this
+        # stream's caller; this stream's guard alone decides whether the caller may go on.
+        self.opportunities: _RowStream | None = None
+        if "opportunities" in topics:
+            self.opportunities = _RowStream(
+                "opportunity",
+                _fetch_new_opportunities,
+                "changed_at_utc",
+                "opportunity_id",
+                (start, ""),
+                _FollowingGuard("opportunity", guard) if guard is not None else None,
+                (("opportunity", _fetch_opportunity_expiries), ("evaluated", _fetch_evaluations)),
+                standalone=False,
+                notices_from=start,
+            )
 
     def _principal(self):
         return None if self.guard is None else self.guard.principal
@@ -944,6 +995,8 @@ class _LiveStream:
             reads.want_outbox(self.outbox, kinds)
         if "jobs" in self.topics:
             reads.want_jobs(getattr(self._principal(), "principal_id", None), self.jobs_since)
+        if self.opportunities is not None:
+            self.opportunities.want(reads)
 
     def poll(self, reads) -> tuple[list[str], bool]:
         from eurogas_nexus.application.live_topics import (
@@ -1015,6 +1068,11 @@ class _LiveStream:
             reads.recover()
             announced, jobs = {}, []
             out.append(warning_event())
+        engine: list[str] = []
+        if self.opportunities is not None:
+            # Its own failure answers with its own warning event; it never ends this stream
+            # (access is this stream's guard's, checked above).
+            engine, _ = self.opportunities.poll(reads)
         current = self.event_id()
         for notice in announced.values():
             out.append(
@@ -1030,6 +1088,7 @@ class _LiveStream:
             )
         for job in jobs:
             out.append(_sse({**job, "event_id": current}, event="jobs", event_id=current))
+        out.extend(chunk for chunk in engine if chunk not in out)  # one warning per poll
         now = datetime.now(UTC)
         if (now - self.last_heartbeat).total_seconds() >= LIVE_HEARTBEAT_SECONDS:
             out.append(
@@ -1060,6 +1119,9 @@ async def _live_stream(
     * ``jobs``: ``{job_id, kind, status, progress, step, error_code, created_at, started_at,
       finished_at, event_id}`` when one of the caller's jobs moves;
     * ``heartbeat``: ``{at, event_id}`` every ``LIVE_HEARTBEAT_SECONDS``;
+    * with ``opportunities``, also the opportunity engine's ``opportunity`` and ``evaluated``
+      events, as ``/api/stream/opportunities`` sends them (a transition with its reason, no
+      figure), so a browser tab needs this one connection only;
     * ``warning`` (the database is unavailable; the stream keeps trying) and ``revoked`` (the
       caller may no longer stream; the stream ends).
 
@@ -1087,6 +1149,12 @@ async def stream_live(request: Request, topics: str = "") -> StreamingResponse:
     so the notice never carries data the page would have to entitle, and nothing the caller may
     not read produces one. Resumes from ``Last-Event-ID`` or the ``last_event_id`` parameter
     (a browser that opens a new connection cannot set the header).
+
+    The web client holds one of these per browser tab, with every topic, and attaches its
+    pages to it (``clients/web/src/app/data/liveStream.ts``); it counts once against the
+    per-person cap (``EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL``), and its place is freed the
+    moment the connection closes. The per-feed streams (``quotes``, ``opportunities``,
+    ``alerts``) remain for API clients.
     """
 
     from eurogas_nexus.application.live_topics import parse_topics
@@ -1095,9 +1163,9 @@ async def stream_live(request: Request, topics: str = "") -> StreamingResponse:
     resume = request.headers.get("last-event-id") or request.query_params.get("last_event_id")
     resumed = _parse_live_id(resume, now)
     guard = _guard_for("live", request)
-    from eurogas_nexus.security.rate_limit import open_counted_stream
+    from eurogas_nexus.security.rate_limit import CountedStreamingResponse, open_counted_stream
 
-    return StreamingResponse(
+    return CountedStreamingResponse(
         open_counted_stream(_stream_owner(request), _live_stream(
             parse_topics(topics),
             resumed[0] if resumed else now,
@@ -1105,6 +1173,4 @@ async def stream_live(request: Request, topics: str = "") -> StreamingResponse:
             guard,
             outbox_after=resumed[1] if resumed else None,
         )),
-        media_type="text/event-stream",
-        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

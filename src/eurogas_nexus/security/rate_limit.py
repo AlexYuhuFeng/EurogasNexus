@@ -59,7 +59,16 @@ async def require_auth_rate_limit(request: Request) -> None:
 
 
 async def require_admin_rate_limit(request: Request) -> None:
-    key = f"admin:{request.client.host if request.client else 'unknown'}"
+    # Per person once signed in (the app's identity check runs first), per address before:
+    # behind a gateway every user shares the gateway's address, and one administrator
+    # browsing must not spend the others' allowance.
+    identity = getattr(request.state, "identity", None)
+    principal = getattr(identity, "principal_id", None)
+    key = (
+        f"admin:principal:{principal}"
+        if principal
+        else f"admin:{request.client.host if request.client else 'unknown'}"
+    )
     if not rate_limit(key, limit=120):
         raise HTTPException(
             status_code=429,
@@ -150,12 +159,19 @@ async def require_principal_quota(request: Request) -> None:
         )
 
 
+#: The default cap. The web client holds ONE live stream per browser tab (its topics multiplexed
+#: on ``/api/stream/live``), so this is eight tabs or windows of one person at once: a trader's
+#: screens across several monitors plus the desktop app, with room for a reconnect that overlaps
+#: its predecessor for a moment. Still a small fixed bound on one account's connections.
+DEFAULT_STREAM_LIMIT = 8
+
+
 def stream_limit() -> int:
     """Open live-update streams per person at most (``EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL``,
-    default 5; 0 means no cap)."""
+    default :data:`DEFAULT_STREAM_LIMIT`; 0 means no cap)."""
 
     raw = (os.environ.get(STREAM_LIMIT_ENV) or "").strip()
-    return int(raw) if raw.isdigit() else 5
+    return int(raw) if raw.isdigit() else DEFAULT_STREAM_LIMIT
 
 
 #: A stream's slot in the shared cache is a lease: refreshed while the stream sends, gone this
@@ -209,8 +225,28 @@ def _release(owner: str, slot: _SharedSlot | None, ref) -> None:
         slot.release()
 
 
+#: The longest a counted stream stays silent: past this it sends a comment line, so a connection
+#: the client has closed is noticed at that send (a server that reports a disconnect only when
+#: a write fails) and its slot freed, and no proxy times out a quiet but healthy stream.
+STREAM_KEEPALIVE_SECONDS = 10.0
+KEEPALIVE_COMMENT = ": keepalive\n\n"
+
+
+def _retrieve(task) -> None:
+    """Done callback of an abandoned read: take its outcome so none is reported as lost."""
+
+    if not task.cancelled():
+        task.exception()
+
+
 class _CountedStream:
-    """An event stream that counts against its principal's cap while it is alive."""
+    """An event stream that counts against its principal's cap while it is alive.
+
+    Its place is released, exactly once, the moment it ends, fails, is cancelled (the server
+    cancels the response when the client disconnects) or is closed; failing all of those, when
+    it is garbage collected. The wrapped stream is read in a task of its own so that a quiet
+    stream still sends :data:`KEEPALIVE_COMMENT` every :data:`STREAM_KEEPALIVE_SECONDS`.
+    """
 
     def __init__(self, principal_id: str, stream: AsyncIterator[str]) -> None:
         self.principal_id = principal_id
@@ -218,25 +254,55 @@ class _CountedStream:
         self.slot: _SharedSlot | None = None
         self._ref = object()
         self._finalizer = None
+        self._pending = None  # the read of the wrapped stream in flight, if any
+        self._done = False
 
     def __aiter__(self) -> _CountedStream:
         return self
 
     async def __anext__(self) -> str:
+        import asyncio
+
+        if self._done:
+            raise StopAsyncIteration
         try:
-            chunk = await self.stream.__anext__()
+            if self._pending is None:
+                self._pending = asyncio.ensure_future(self.stream.__anext__())
+            done, _ = await asyncio.wait({self._pending}, timeout=STREAM_KEEPALIVE_SECONDS)
+            if done:
+                task, self._pending = self._pending, None
+                chunk = task.result()
+            else:
+                chunk = KEEPALIVE_COMMENT  # the read stays pending for the next call
         except BaseException:
-            self.release()
+            # Ended, failed or cancelled: free the place now, without awaiting anything (a
+            # cancelled response may not await again).
+            self._abandon()
             raise
         if self.slot is not None:
             self.slot.refresh()
         return chunk
 
-    async def aclose(self) -> None:
+    def _abandon(self) -> None:
+        self._done = True
+        pending, self._pending = self._pending, None
+        if pending is not None and not pending.done():
+            pending.add_done_callback(_retrieve)
+            pending.cancel()  # runs the wrapped stream's own clean-up (it leaves the poller)
         self.release()
+
+    async def aclose(self) -> None:
+        import asyncio
+        import contextlib
+
+        pending = self._pending
+        self._abandon()
+        if pending is not None:
+            await asyncio.wait({pending})  # its clean-up has run; its outcome is not ours
         closer = getattr(self.stream, "aclose", None)
         if closer is not None:
-            await closer()
+            with contextlib.suppress(RuntimeError, StopAsyncIteration):
+                await closer()
 
     def release(self) -> None:
         if self._finalizer is not None:
@@ -282,8 +348,9 @@ def open_counted_stream(principal_id: str, stream: AsyncIterator[str]) -> AsyncI
     frees its slots within :data:`STREAM_SLOT_TTL_SECONDS`. Without one, or while it cannot be
     reached, this process counts its own streams.
 
-    A stream is released when it ends or is closed; one whose response never started (the
-    client left first) is released when it is garbage collected.
+    A stream is released the moment it ends, fails, is cancelled or is closed (serve it with
+    :class:`CountedStreamingResponse`, which closes it however the response ends); one whose
+    response never started (the client left first) is released when it is garbage collected.
     """
 
     from eurogas_nexus.core.shared_cache import SharedCacheUnavailable, shared_cache
@@ -316,6 +383,33 @@ def open_streams(principal_id: str) -> int:
 
     with _LOCK:
         return len(_STREAMS.get(principal_id, ()))
+
+
+from fastapi.responses import StreamingResponse  # noqa: E402
+
+
+class CountedStreamingResponse(StreamingResponse):
+    """A server-sent-event response that frees its stream's place however it ends.
+
+    The client disconnecting (the server cancels the response, or, on a server that reports a
+    disconnect only through a failed write, the next send fails: at the latest the keepalive
+    after :data:`STREAM_KEEPALIVE_SECONDS`), the stream ending, or any error: the counted
+    stream is closed in ``finally``, so a slot never outlives its connection.
+    """
+
+    def __init__(self, content: AsyncIterator[str], **kwargs) -> None:
+        kwargs.setdefault("media_type", "text/event-stream")
+        headers = {"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
+        headers.update(kwargs.pop("headers", None) or {})
+        super().__init__(content, headers=headers, **kwargs)
+
+    async def __call__(self, scope, receive, send) -> None:
+        try:
+            await super().__call__(scope, receive, send)
+        finally:
+            closer = getattr(self.body_iterator, "aclose", None)
+            if closer is not None:
+                await closer()
 
 
 async def read_body_limited(request: Request, limit: int) -> bytes:

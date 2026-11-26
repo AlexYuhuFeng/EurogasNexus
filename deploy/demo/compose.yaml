@@ -78,6 +78,9 @@ services:
       EUROGAS_NEXUS_DEMO_DISK_DATABASE_PATH: ${EUROGAS_NEXUS_DEMO_DISK_DATABASE_PATH:-/var/lib/postgresql/data}
       EUROGAS_NEXUS_DEMO_DISK_SYSTEM_PATH: ${EUROGAS_NEXUS_DEMO_DISK_SYSTEM_PATH:-/}
       EUROGAS_NEXUS_CORS_ORIGINS: ${EUROGAS_NEXUS_CORS_ORIGINS:-}
+      # Live streams per account (one per browser tab). Testers share accounts, so the demo
+      # allows 40 where the product default is 8 (one person's tabs). SELF_HOSTED_DEMO.md.
+      EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL: ${EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL:-40}
       EUROGAS_NEXUS_LLM_API_KEY: ${EUROGAS_NEXUS_LLM_API_KEY:-}
       GIE_API_KEY: ${GIE_API_KEY:-}
       EIA_API_KEY: ${EIA_API_KEY:-}

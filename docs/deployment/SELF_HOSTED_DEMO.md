@@ -141,6 +141,7 @@ Planted prompt cases (CET/CEST, while the feed quotes), so a test session of any
 | `EUROGAS_NEXUS_DEMO_KEEP_*_DAYS`, `EUROGAS_NEXUS_DEMO_KEEP_SIMULATED_HOURS` | Housekeeping windows: public data 120 days, ingestion/raw pages/jobs/outbox 14 days, alerts 30 days, meter 90 days, simulated feed 48 hours; floors apply when the disk is low (see "Keeping the demo's disk from filling") | no |
 | `EUROGAS_NEXUS_DEMO_DISK_MIN_FREE_PCT`, `EUROGAS_NEXUS_DEMO_DISK_DATABASE_PATH`, `EUROGAS_NEXUS_DEMO_DISK_SYSTEM_PATH` | Disk guard: the low-space threshold (20 %) and the paths read (a path the container cannot see is reported as not visible) | no |
 | `EUROGAS_NEXUS_CORS_ORIGINS` | Only if saving fails with `origin_not_allowed` | no |
+| `EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL` | Live streams one account may hold open at once: 40 on the demo (see below), 8 in the product | no |
 
 The image sets the rest: `EUROGAS_NEXUS_ENV=development` (the demo seed refuses trial and
 release), `EUROGAS_NEXUS_API_PROFILE=demo`, the tester user names, demo marks on, AI on only
@@ -148,6 +149,15 @@ with a model key, a connection pool of 8 + 4 with up to 15 s to wait for a conne
 desk page fires about 28 reads at once; 3 + 2 with a 5 s wait refused them or let them pass
 the browser's 10 s timeout during a catch-up round), and a random deployment API token
 nobody knows, so the SDK token path is closed and browsers sign in instead.
+
+**Live streams per account.** A browser tab holds one live-update stream (`/api/stream/live`,
+every topic on one connection), and the server caps the streams one account holds at once
+(`EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL`). The product default, 8, is one person's tabs and
+windows. Testers share the demo accounts, so the demo profile sets 40 (the start script, and
+`deploy/demo/compose.yaml`, which passes a value of your own through): ten testers on one
+account with four tabs each. A tab past the cap is not an error: the top bar says "Live
+updates paused" once and the pages re-read on a timer until a place frees (a closed tab
+frees its place at once). An override set on the server earlier (60) can be removed, or kept.
 
 ## Sign in
 

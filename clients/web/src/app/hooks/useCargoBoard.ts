@@ -1,17 +1,16 @@
 /**
  * The cargo board's read, kept live (QA-L-05).
  *
- * There is no cargo channel of its own: a `cargo.changed` event goes to the market-event outbox,
- * not to the browser. What reaches the browser is the session's `map` change notice
- * (`/api/stream/alerts`), whose `cargoes` and `slots` groups fire when a cargo row or a regas
- * slot is written (an ETRM or vessel-feed import). The board re-reads on those notices, and polls
- * on the read cache's pattern while the stream is down. A hedge recorded here is a write, which
+ * There is no cargo channel of its own: what reaches the browser is the tab's live connection
+ * (app/data/liveStream.ts), whose `cargoes` and `slots` notices fire when a cargo row or a regas
+ * slot is written (an ETRM or vessel-feed import, or a `cargo.changed` market event). The board
+ * re-reads on those notices, and polls on the read cache's pattern while the stream is down. A hedge recorded here is a write, which
  * marks every kept read stale (app/data/readCache.ts), so the board reads again after it.
  */
 import { useEffect, useRef } from "react";
 
 import { api, type CargoPlanBoardLineDTO } from "@/api/client";
-import { onChangeNotice, onChangeStreamStatus, changeStreamOpen } from "@/app/data/changeNotices";
+import { liveIsUp, onLiveStatus, subscribeLive } from "@/app/data/liveStream";
 import { DEFAULT_FRESH_MS, loadRead, readKey, useCachedRead } from "@/app/data/readCache";
 
 export const CARGO_BOARD_KEY = readKey("/lng/cargoes/plans");
@@ -20,15 +19,17 @@ export const CARGO_BOARD_REFRESH_MS = 5 * 60_000;
 export const CARGO_BOARD_FALLBACK_MS = 60_000;
 const NOTICE_COALESCE_MS = 800;
 const CARGO_GROUPS = new Set(["cargoes", "slots"]);
+const CARGO_TOPICS = ["cargoes", "slots"] as const;
 
 export function readCargoBoard(signal: AbortSignal): Promise<CargoPlanBoardLineDTO[]> {
   return api.cargoPlans({ signal }).then((response) => response.data ?? []);
 }
 
-/** Whether a `map` change notice is about cargoes or slots (a group and a time, no row). */
+/** Whether a change notice is about cargoes or slots (a topic and a time, no row). */
 export function isCargoNotice(payload: unknown): boolean {
-  const group = payload && typeof payload === "object" ? (payload as { group?: unknown }).group : null;
-  return typeof group === "string" && CARGO_GROUPS.has(group);
+  const item = payload && typeof payload === "object" ? (payload as { topic?: unknown; group?: unknown }) : null;
+  const topic = item?.topic ?? item?.group;
+  return typeof topic === "string" && CARGO_GROUPS.has(topic);
 }
 
 export function useCargoBoard(active = true) {
@@ -44,7 +45,7 @@ export function useCargoBoard(active = true) {
     };
     const onVisible = () => recheck(DEFAULT_FRESH_MS);
     document.addEventListener("visibilitychange", onVisible);
-    let streamOpen = changeStreamOpen();
+    let streamOpen = liveIsUp();
     let timer = 0;
     const schedule = () => {
       window.clearTimeout(timer);
@@ -55,12 +56,16 @@ export function useCargoBoard(active = true) {
     };
     schedule();
     let pending = 0;
-    const stopNotices = onChangeNotice("map", (payload) => {
+    const onNotice = (payload: unknown) => {
       if (!isCargoNotice(payload)) return;
       window.clearTimeout(pending);
       pending = window.setTimeout(() => recheck(), NOTICE_COALESCE_MS);
-    });
-    const stopStatus = onChangeStreamStatus((open) => {
+    };
+    const stops = CARGO_TOPICS.map((topic) => subscribeLive(topic, onNotice));
+    const stopNotices = () => stops.forEach((stop) => stop());
+    const stopStatus = onLiveStatus(() => {
+      const open = liveIsUp();
+      if (open === streamOpen) return;
       streamOpen = open;
       if (open) recheck(DEFAULT_FRESH_MS);
       schedule();
@@ -80,7 +85,7 @@ export function useCargoBoard(active = true) {
     loading: read.loading,
     updating: read.updating,
     readAt: read.at ? new Date(read.at) : null,
-    live: changeStreamOpen(),
+    live: liveIsUp(),
     refresh: read.refresh,
   };
 }

@@ -23,12 +23,16 @@
     background: var(--ds-status-ok);
   }
 
-  .ds-live-indicator[data-live-state="stale"] {
+  /* Paused: the server would not open the stream; pages re-read on a timer. Quiet, not an
+     alarm: the figures still refresh. */
+  .ds-live-indicator[data-live-state="stale"],
+  .ds-live-indicator[data-live-state="paused"] {
     background: var(--ds-status-watch-soft);
     color: var(--ds-status-watch);
   }
 
-  .ds-live-indicator[data-live-state="stale"] .ds-live-dot {
+  .ds-live-indicator[data-live-state="stale"] .ds-live-dot,
+  .ds-live-indicator[data-live-state="paused"] .ds-live-dot {
     background: var(--ds-status-watch);
   }
 

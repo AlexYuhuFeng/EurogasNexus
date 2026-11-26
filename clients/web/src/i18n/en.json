@@ -6862,6 +6862,8 @@
   "live.title.connecting": "Opening the live connection.",
   "live.title.stale": "No update has arrived for a while: figures show their last value while the connection is renewed.",
   "live.title.offline": "The live connection dropped: figures show their last value. Reconnecting automatically.",
+  "live.state.paused": "Live updates paused",
+  "live.title.paused": "Live updates are paused for this tab: figures refresh on a timer and show the time of their last update. The live connection is tried again automatically.",
   "glossary.facts_title": "Market figures",
   "glossary.gas_day": "Gas day",
   "glossary.latest": "Latest",

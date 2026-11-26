@@ -6,6 +6,35 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — Live-stream 429s while browsing fixed at the cause (branch `streamfix`, not pushed)
+
+- Cause (measured on a local demo stack with a Playwright crawl, `scripts/uat/cold_load_requests.mjs`):
+  each browser tab held four streams (quotes, opportunities, alerts, live) against the per-person
+  cap of 5, re-opened all four on every cold load and the live one on every topic change, so one
+  more tab, one more tester on a shared account, or a gateway that delivers the new request
+  before the old close is processed hit the cap (two tabs: 429s on 2 of 8 pages, one console
+  error per refused stream). A slot was freed only through the server's cancellation; a server
+  that reports a disconnect through a failed write would have kept it until garbage collection.
+- Client: ONE live connection per tab (`app/data/liveStream.ts`), every topic, reference-counted
+  listeners, kept across page changes and workspace loads (10 s linger), backoff on drops, and a
+  quiet `paused` state on a refusal ("Live updates paused" once in the top bar; retried after
+  1 to 5 min) while pages re-read on a timer (`useLiveTopics` default fallback). The separate
+  quotes/opportunities/alerts EventSources and `changeNotices.ts` are gone.
+- Server: the live stream also carries the opportunity engine's `opportunity`/`evaluated` events
+  (with `opportunities`). `CountedStreamingResponse` closes its stream however the response ends,
+  a quiet stream sends a keepalive every 10 s, and the counted stream frees its slot at once on
+  end, error or cancellation (`tests/security/test_stream_release.py`, a real server: 20 opened
+  and closed in turn with a cap of 2, none refused; a third at once gets the coded 429 with
+  `Retry-After`). `EUROGAS_NEXUS_MAX_STREAMS_PER_PRINCIPAL` default 8 (tabs per person); the
+  demo profile sets 40 (shared tester accounts).
+- Quotas: the pool optimiser's automatic run (a heavy POST) went out on every cold load of any
+  page (15 of 22); it now runs only on Position, Deals and Review. The replay of a recorded cold
+  load mix (`tests/security/test_cold_load_quotas.py`) keeps a fast crawl inside the trial
+  quotas. The admin throttle counts per person once signed in (per address before).
+- Sources "infrastructure" no longer asks for capacity bookings without commercial reads (403 as
+  platform administrator). The report catalogue answers 200 with `availability_state.code`
+  (`ready`, `pending` past a 4 s probe budget, `unavailable`) instead of failing.
+
 ## 2026-11-26 — P1-D recovery and retention merged (branch `int2`, not pushed)
 
 - `p1-D` merged onto int2 (P1-C + P1-A + secfix). Its migration is now
