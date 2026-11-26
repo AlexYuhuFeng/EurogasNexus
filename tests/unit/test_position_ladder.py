@@ -96,7 +96,10 @@ def test_hub_net_flat_calendar_spread_has_no_hub_only_var():
     assert any("offsetting delivery months at TTF" in warning for warning in report.warnings)
     # Each warning also travels as a code with its parameters, for the reader's language.
     notes = report.as_dict()["notes"]
-    assert [note["code"] for note in notes] == ["INDICATIVE_PRICE_RISK_ONLY", "VAR_OFFSETTING_MONTHS"]
+    assert [note["code"] for note in notes] == [
+        "INDICATIVE_PRICE_RISK_ONLY",
+        "VAR_OFFSETTING_MONTHS",
+    ]
     assert notes[1]["params"] == {"hubs": "TTF"}
     assert len(notes) == len(report.warnings)
 
