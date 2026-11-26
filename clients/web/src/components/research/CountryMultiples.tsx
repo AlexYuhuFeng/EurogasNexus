@@ -10,6 +10,8 @@ import { useMemo } from "react";
 
 import { commonLabel, seasonChart, type SeasonEntity } from "@/app/model/storageByCountry";
 import { SmallMultiples, type MultipleCell } from "@/components/ui/charts";
+import { historyLabel } from "@/app/model/historyLabel";
+import { placeName } from "@/app/model/placeName";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -41,7 +43,7 @@ export function CountryMultiples<E extends MultipleEntity>({
 }) {
   // The history most panels share is said once above the grid; a panel names its own only
   // where it differs ("3 prior years held").
-  const common = useMemo(() => commonLabel(entities.map((entity) => entity.history.label)), [entities]);
+  const common = useMemo(() => commonLabel(entities.map((entity) => historyLabel(entity.history, t))), [entities]);
   const cells = useMemo<MultipleCell[]>(
     () =>
       entities.flatMap((entity) => {
@@ -51,6 +53,8 @@ export function CountryMultiples<E extends MultipleEntity>({
             lastYear: (year) => t("storage_panel.last_year", { year }),
             thisYear: (year) => year,
             mean: (count) => t("chart.history.mean", { count }),
+            history: (history) => historyLabel(history, t),
+            range: (years) => t("chart.history.range", { count: years.length, first: years[0] ?? "", last: years[years.length - 1] ?? "" }),
             target: (pct) => t("storage_panel.target_rule", { pct }),
             xTitle: t("storage_panel.day_of_gas_year"),
           },
@@ -61,8 +65,8 @@ export function CountryMultiples<E extends MultipleEntity>({
         const points = spark(entity);
         return [{
           id: entity.code,
-          title: entity.name,
-          headline: entity.history.label === common ? headline(entity) : `${headline(entity)} · ${entity.history.label}`,
+          title: placeName(entity, t),
+          headline: historyLabel(entity.history, t) === common ? headline(entity) : `${headline(entity)} · ${historyLabel(entity.history, t)}`,
           data: chart.data,
           simulated: entity.simulated,
           compare: chart.compare,
