@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -694,13 +695,29 @@ def _compute_target_value(
     )
 
 
+_HORIZON_PATTERN = re.compile(r"^(?:(?P<n1>[0-9]+)(?P<u1>[hd])|(?P<u2>[hd])(?P<n2>[0-9]+))$")
+
+
 def _target_delta(target: TargetDefinition) -> timedelta:
-    horizon = target.horizon
-    if horizon.endswith("h"):
-        return timedelta(hours=int(horizon[:-1]))
-    if horizon.endswith("d"):
-        return timedelta(days=int(horizon[:-1]))
-    return timedelta(hours=1)
+    """Parse a target horizon: ``"6h"``/``"1d"`` or the catalog's ``"H1"``/``"D1"`` form.
+
+    Anything else is refused. The previous parser read only a lower-case ``h``/``d``
+    suffix and fell back to one hour for every other string, so the seeded ``"D1"``
+    targets were silently labelled one *hour* after the origin rather than one day.
+    """
+
+    text = str(target.horizon).strip().lower()
+    match = _HORIZON_PATTERN.match(text)
+    if match is None:
+        raise ValueError(
+            f"target {target.target_id}: horizon {str(target.horizon)[:32]!r} must look like "
+            "'6h', '1d', 'H6' or 'D1'"
+        )
+    amount = int(match.group("n1") or match.group("n2"))
+    unit = match.group("u1") or match.group("u2")
+    if amount <= 0:
+        raise ValueError(f"target {target.target_id}: horizon must be positive")
+    return timedelta(hours=amount) if unit == "h" else timedelta(days=amount)
 
 
 def build_dataset(
@@ -724,6 +741,11 @@ def build_dataset(
     for target_id in spec.target_ids:
         if target_id not in targets:
             issues.append(f"unknown target_id: {target_id}")
+            continue
+        try:
+            _target_delta(targets[target_id])
+        except ValueError as exc:
+            issues.append(str(exc))
     overlap = set(spec.feature_ids) & set(spec.target_ids)
     if overlap:
         issues.append(f"target ids used as features: {sorted(overlap)}")
