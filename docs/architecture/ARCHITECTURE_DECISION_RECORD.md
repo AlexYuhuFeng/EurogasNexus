@@ -957,6 +957,33 @@ cost (the slot it uses and the berth it takes have a value elsewhere). Tests:
 `tests/api/test_data1_import_contracts.py`, `tests/integration/test_lng_disruption_postgres.py`,
 `tests/integration/test_demo_planted_cases.py`, `clients/web/tests/disruptionOptionsModel.test.ts`.
 
+Addendum of 2026-11-26 (the owner's decisions on berth priority and on another company's
+demurrage). A terminal's berth access rule is a hard constraint of the engine
+(`domain/lng/disruption.BerthRule`): a ship within its arrival window berths in turn; a late
+ship takes the next free gap without displacing an on-time holder, and its laytime starts at
+berthing (or at arrival where the rule says so). A swap of berth turn is an option: with a cargo
+of the book (`berth_swap`, its knock-on costed) or with another company's call
+(`counterparty_swap`, costed at that company's negotiated quote, `pending` until entered and then
+ranked as costed); either needs the terminal's approval where the rule says so, listed on the
+option as `approvals` (sentences) and `approval_requests` (the same as data, for the client's
+own language). Another company's demurrage and boil-off leave the book's opportunity cost; the
+delay is stated in `counterparty_effects` with no value. The previous text above ("the demurrage
+and boil-off of another user's ship ... where the line-up is held") is superseded by this.
+Migration `0091_lng_berth_rules` (on `0090_job_progress_steps`, expand-only) adds the table
+`lng_terminal_berth_rules` (terminal, arrival window in gas days, where a late ship's laytime
+starts, whether a swap needs approval, basis `terminal_code`, `example` or `assumption`, citation,
+the rule as worded, source) and nullable columns on `lng_berth_calls` (`counterparty`,
+`quote_amount`, `quote_currency`, `quote_reference`); the call's own demurrage columns stay but
+are no longer read. The reads add `berth_rules` (each terminal's rule as applied) and, per
+option, `quotes`, `approvals`, `approval_requests` and `counterparty_effects`, all additive.
+Not built: a way to record a terminal's rule, a line-up call or a quote (no route and no import
+contract writes `lng_terminal_berth_rules` or `lng_berth_calls`; today only the demo seed and the
+tests do, so on a customer store every terminal shows the default rule and no counterparty swap
+is offered until one is added); a quote in a currency without an FX fix stays pending. Tests:
+`tests/domain/test_lng_disruption.py`, `tests/unit/test_lng_berth_rules_migration.py`,
+`tests/api/test_lng_disruption_api.py`, `tests/integration/test_lng_disruption_postgres.py`,
+`clients/web/tests/disruptionOptionsModel.test.ts`.
+
 ## Decision 38: Capacity the firm holds is one table, priced before public tariffs through one source-precedence resolver
 
 Accepted 2026-11-25 (programme

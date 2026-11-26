@@ -859,7 +859,7 @@ D1_OFFERS = (
     "demo-d1-hint",
     "demo-d1-spot",
 )
-#: LNG-4: another user's carrier due at the Dunkerque berth (the line-up, illustrative).
+#: LNG-4: another company's carrier due at the Dunkerque berth (the line-up, illustrative).
 D1_CALLS = ("demo-d1-dk-call",)
 D1_LABEL = "simulated: illustrative, not a published tariff"
 
@@ -907,7 +907,8 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
     the reader's FX choice); Huelva offers interruptible capacity, so swapping Meridian
     with Solace can physically happen and is listed as breaking the Iberia delivery; the
     spare Dunkerque slot is worth 0.05 EUR/MWh released, a Dunkerque call holds the berth two
-    gas days and another user's carrier is due there on ``T + 4``; Montoir offers a spot slot
+    gas days and another company's carrier (Rhinmark's, no quote held) is due there on ``T + 4``;
+    Montoir offers a spot slot
     from ``T + 3``.
     """
 
@@ -1023,7 +1024,8 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
         ))
     session.add(LngBerthCallRecord(
         call_id="demo-d1-dk-call", terminal_name="Dunkerque terminal",
-        label="another user's carrier (simulated)", berth_gas_day=t + timedelta(days=4),
+        label="Rhinmark carrier", counterparty="Rhinmark Handel GmbH",
+        berth_gas_day=t + timedelta(days=4),
         berth_days=2, laytime_left_hours=24.0, demurrage_rate_per_day=65_000.0,
         demurrage_currency="EUR", boil_off_mwh_per_day=1_000.0,
         source_reference=D1_LABEL, updated_at_utc=now,

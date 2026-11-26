@@ -6,6 +6,21 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — Half-built branches integrated (branch `halfbuilt`)
+
+- LNG berth priority (`wip/berth-rule-on-innovation`): migration renumbered
+  `0091_lng_berth_rules` on `0090_job_progress_steps` (both branches had taken 0090 from the same
+  base); engine and API as the branch left them, plus `approval_requests` on each option (the
+  approvals as data). Web finished: the Options section lists the berth rules (folded, terminals
+  on one rule on one line), words approvals, quotes and another company's delay from their data
+  in EN and ZH, and tones "needs terminal approval" and "quote pending" as watch, not breach. Docs:
+  design 17 section 9.8, ADR Decision 37 addendum, decision log, LNG4-11. The demo's Dunkerque
+  call names its company. Not built: recording a terminal's rule, a call or a quote (no route or
+  import writes them); the rest of the Options panel still shows the engine's English sentences
+  (titles, reasons, notes, warnings) in ZH.
+- Migration tests no longer pin the schema head (merged from `inno-merge-test`); the head is
+  checked once against the alembic chain in `tests/api/test_release_metadata_api.py`.
+
 ## 2026-11-26 — Commercial Intelligence V3, LNG-4: options with consequences, full cost, substitute supply, demurrage, REMIT
 
 - `domain/lng/disruption.py`: every option listed and ranked with its flags
