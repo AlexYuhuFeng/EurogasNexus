@@ -9,6 +9,7 @@ import { aiActionContract, aiActionIsAvailable } from "@/app/experience/aiAction
 import { WhyButton } from "./WhyButton";
 import { ReportLink } from "./ReportLink";
 import { IconButton } from "./ui/Button";
+import { JobActivityIndicator, JobNotifications } from "./JobNotifications";
 import { Icon } from "@/components/ui/Icon";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -83,6 +84,7 @@ export function AlertCenter({
         <Icon name="alerts" className="alert-trigger-icon" />
         <span>{isChinese ? "告警" : "Alerts"}</span>
         <strong>{summary.open_count}</strong>
+        <JobActivityIndicator t={t} />
       </button>
 
       {open && (
@@ -101,6 +103,7 @@ export function AlertCenter({
           </div>
 
           <div className="alert-list">
+            <JobNotifications t={t} onNavigate={() => setOpen(false)} />
             {activeAlerts.map((alert) => {
               const analysis = analysisByAlert[alert.alert_id];
               const discussing = activeAlertId === alert.alert_id;
