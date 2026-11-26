@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button, DataGrid, EvidenceBlock, PanelHeader, RecordPicker } from "@/components/ui";
 import { contractOptions } from "@/app/model/recordOptions";
 import { useApiStore } from "@/stores/api";
@@ -17,6 +18,7 @@ import type {
 import type { StorageDispatchResultDTO } from "@/api/client";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 import { serverWarningText } from "@/app/warningLabel";
+import { enumLabel } from "@/app/model/enumLabels";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -57,6 +59,12 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
   const contracts = useApiStore((state) => state.upstreamContracts);
   const storageChoices = contractOptions(contracts.filter((contract) => contract.resource_type === "STORAGE"));
   const { draft, updateDraft, readiness, result, busy, error, runId, recorded } = assessment;
+  // A blocker is said once the user has started, not on an untouched form.
+  const [touched, setTouched] = useState(false);
+  const edit: typeof updateDraft = (change) => {
+    setTouched(true);
+    updateDraft(change);
+  };
   const failure = error ? presentError(t, describeFailure(error)) : null;
 
   const facilityFields: Array<{ key: keyof StorageFacilityDraft; labelKey: string }> = [
@@ -73,7 +81,7 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
   ];
 
   function updatePeriod(index: number, patch: Partial<StoragePeriodDraft>): void {
-    updateDraft((current) => ({
+    edit((current) => ({
       ...current,
       periods: current.periods.map((period, position) =>
         position === index ? { ...period, ...patch } : period,
@@ -103,7 +111,7 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
               value={draft.facilityId || null}
               allowManual
               emptyText={t("decision.dispatch.no_storage_contracts")}
-              onChange={(choice) => updateDraft((current) => ({ ...current, facilityId: choice?.id.slice(0, 128) ?? "" }))}
+              onChange={(choice) => edit((current) => ({ ...current, facilityId: choice?.id.slice(0, 128) ?? "" }))}
             />
           </span>
           {facilityFields.map((field) => (
@@ -117,7 +125,7 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
                 inputMode="decimal"
                 value={draft.facility[field.key]}
                 onChange={(event) =>
-                  updateDraft((current) => ({
+                  edit((current) => ({
                     ...current,
                     facility: { ...current.facility, [field.key]: event.target.value },
                   }))
@@ -129,7 +137,6 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
 
         <div className="section-heading">
           <span className="eyebrow">{t("decision.dispatch.periods")}</span>
-          <strong>{draft.periods.length}</strong>
         </div>
         <DataGrid
           id="dispatch-periods"
@@ -150,7 +157,7 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
             type="button"
             disabled={draft.periods.length >= MAX_STORAGE_PERIODS}
             onClick={() =>
-              updateDraft((current) => ({
+              edit((current) => ({
                 ...current,
                 periods: [...current.periods, { periodId: "", marketPrice: "" }],
               }))
@@ -162,7 +169,7 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
             type="button"
             disabled={draft.periods.length <= 1}
             onClick={() =>
-              updateDraft((current) => ({
+              edit((current) => ({
                 ...current,
                 periods: current.periods.slice(0, -1),
               }))
@@ -184,7 +191,7 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
             {t("decision.dispatch.assess")}
           </Button>
         </div>
-        {readiness.firstBlockerKey && (
+        {touched && readiness.firstBlockerKey && (
           <p className="strategy-error">{t(readiness.firstBlockerKey)}</p>
         )}
         {busy && <p className="muted">{t("status.loading")}</p>}
@@ -200,7 +207,7 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
         <section className="workspace-panel span-3 decision-dispatch-result">
           <PanelHeader
             title={t("decision.dispatch.result")}
-            meta={`${result.status} · ${formatMoney(result.objective_value_gbp)}`}
+            meta={`${enumLabel(result.status, t)} · ${formatMoney(result.objective_value_gbp)}`}
           />
           <EvidenceBlock
             ariaLabel={t("decision.dispatch.result")}

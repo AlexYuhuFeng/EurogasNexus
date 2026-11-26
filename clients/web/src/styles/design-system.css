@@ -973,6 +973,15 @@
     width: 100%;
   }
 
+  /* The add / remove row under each assessment table: one gap between buttons and room before
+     the next section (the buttons used to touch each other and the heading below). */
+  .decision-assessment-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-2);
+    margin: var(--ds-space-2) 0 var(--ds-space-4);
+  }
+
   /* Access & Identity (#24, #25). A grant reads as its values; "Change" opens a checkbox
      list in place, sized to its content, with a filter when long. */
   .access-grant-picker {
