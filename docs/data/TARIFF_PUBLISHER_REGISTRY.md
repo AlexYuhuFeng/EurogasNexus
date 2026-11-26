@@ -82,6 +82,36 @@ event at a higher priority; it is never silent. Valuations name the version and 
 tariff they priced (`tariff_version`, `tariff_status_basis` in the snapshot input's detail) and
 keep labelling an indicative tariff "indicative".
 
+## Published LNG terminal reference (cargo study)
+
+`src/eurogas_nexus/reference_data/lng_terminal_published_tariffs.json`
+(`domain/lng/published_tariffs.py`) holds the published regas and entry figures the Research
+cargo study prices a terminal with when the firm holds neither its own terms nor a reviewed
+register row. One row per figure, transcribed by a person, each with its URL, the publisher's
+status (FINAL or INDICATIVE), period, publication date, the date read (26-11-2026) and a terms
+note. Nothing is fetched at run time and nothing is parsed from a gated operator's site: the
+figures come from the regulator's decision where there is one.
+
+| Terminal | Hub | Figures held | Source and terms |
+| --- | --- | --- | --- |
+| Montoir, Fos Cavaou, Fos Tonkin (Elengy) | PEG | TNA per berthing, TQD spot and base, TVE, gas in kind (TN); ATTM7, 1 Apr 2025 to 31 Mar 2027, FINAL | CRE deliberation 2025-41 of 6 Feb 2025: public sector information, reusable with citation (CRPA L321-1) |
+| Wilhelmshaven 1 and 2, Brunsbüttel (DET) | THE | Terminal fee (auction start price), gas in kind by season, FSRU CO2 factor; price sheet 2026 (carried forward, so INDICATIVE, until the 2027 sheet is approved) | BNetzA decisions BK9-25/101, /102, /104, Annex III, as published on DET's site: an official work (s. 5 UrhG); DET states no reuse terms |
+| Eemshaven (EET) | TTF | Tariff cap from 1 Sep 2027 (2024 prices), INDICATIVE; nothing for an earlier month | ACM decision of 17 Jul 2025 |
+| Gate (Rotterdam) | TTF | Last capacity sale price per bcm/year, INDICATIVE | Gate terminal's own tariff page (exempt terminal) |
+| Isle of Grain, South Hook, Dragon | NBP | NTS entry capacity and commodity, gas year 2026/27, FINAL; no regas price (contracted or exempt) | National Gas, Notice of Transportation Charges (Oct 2026) |
+| Dunkerque LNG | PEG | NaTran PITTM entry, 1 Apr 2026 to 31 Mar 2027, INDICATIVE (to check against CRE); no regas price (exempt) | NaTran's published summary |
+| Zeebrugge (Fluxys LNG) | ZTP | None: the legal notice forbids reproduction; the CP-11 parser reads it once the firm records permission | |
+| Mukran (Deutsche Ostsee) | THE | None: negotiated access | |
+
+A firm's own terms for a terminal (matched by id or alias, `gate` for `gate-terminal`) stand for
+the published row, which then fills only what they lack. A figure is used for an arrival month
+when its period covers the month; otherwise the latest ended period is carried forward (and
+reads INDICATIVE); a period starting later never prices an earlier month. Entry tariffs not
+held (GTS, THE/OGE, Fluxys Belgium, NaTran at Montoir and Fos) are left out of that terminal's
+netback and the result says so for each terminal. Hub forwards (ICE Endex, EEX) and the EUA
+forward need a licence: on a desk without one, the hub price is the demo's simulated curve and
+EUA a labelled desk standard (70 EUR/t).
+
 ## Capacity notices
 
 `capacity_notices` holds the windows a scheduler or LNG desk plans around. The CAM standard
