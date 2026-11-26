@@ -38,6 +38,22 @@ class StaleFigure(BaseModel):
     as_of: str | None = None
 
 
+class DeskNote(BaseModel):
+    """One warning as a declared note: the client says it in the user's language.
+
+    Attributes:
+        code: Declared note code (``TEXT`` for a line said as sent).
+        params: The note's parameters.
+        text: The English line, as ``warnings`` carries it.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    code: str
+    params: dict[str, Any] = Field(default_factory=dict)
+    text: str
+
+
 class DeskToday(BaseModel):
     """The Today read for the calling principal.
 
@@ -59,6 +75,7 @@ class DeskToday(BaseModel):
             board's), at most four.
         stale_figures: Every late or stale figure by name.
         warnings: Non-blocking warnings.
+        notes: The same warnings as declared notes (``code``, ``params``, ``text``), once each.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -73,6 +90,7 @@ class DeskToday(BaseModel):
     focus_hubs: list[str] = Field(default_factory=list)
     stale_figures: list[StaleFigure] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
+    notes: list[DeskNote] = Field(default_factory=list)
 
     def row(self, key: RowKey) -> dict[str, Any] | None:
         """The row named ``key``, or None when the server did not return it."""

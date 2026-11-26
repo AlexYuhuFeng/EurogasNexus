@@ -8,7 +8,7 @@ Generated from the source of `eurogas_nexus_sdk`. Each function takes the server
 
 Field-level descriptions are in each model's docstring: `help(eurogas_nexus_sdk.market.MarketQuote)`.
 
-Surface: 34 modules, 157 public functions, 135 public models. 17 functions have no docstring and 4 have no type annotations.
+Surface: 34 modules, 157 public functions, 136 public models. 17 functions have no docstring and 4 have no type annotations.
 
 | Module | Functions | Models | Purpose |
 |---|---|---|---|
@@ -17,7 +17,7 @@ Surface: 34 modules, 157 public functions, 135 public models. 17 functions have 
 | [`contracts`](#contracts) | 2 | 2 | SDK client for /api/contracts. |
 | [`cost_observations`](#cost_observations) | 2 | 2 | SDK client for /api/cost-observations. |
 | [`credentials`](#credentials) | 1 | 1 | SDK client for provider credential metadata (read-only). |
-| [`desk`](#desk) | 2 | 2 | SDK client for the desk's Today read: ``GET /api/desk/today``. |
+| [`desk`](#desk) | 2 | 3 | SDK client for the desk's Today read: ``GET /api/desk/today``. |
 | [`functional`](#functional) | 4 | 0 | Task lifecycle client; numerical and access decisions stay on the server. |
 | [`fundamentals`](#fundamentals) | 1 | 0 | Regional balance scenario client; the backend owns numerical calculations. |
 | [`glossary`](#glossary) | 3 | 2 | SDK client for /api/glossary. |
@@ -174,7 +174,8 @@ fetch_desk_today_result(base_url: str) -> SdkResult[DeskToday]
 Models:
 
 - `StaleFigure` (4 fields). A late or stale figure named on its own (FRESH-02).
-- `DeskToday` (10 fields). The Today read for the calling principal.
+- `DeskNote` (3 fields). One warning as a declared note: the client says it in the user's language.
+- `DeskToday` (11 fields). The Today read for the calling principal.
 
 ## functional
 
