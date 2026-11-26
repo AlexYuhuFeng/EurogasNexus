@@ -3074,6 +3074,36 @@ def demo_market_rows(session, now: datetime, days: int) -> tuple[list, list]:
     return closes, demo_board_rows(market_module, market, board_anchors, now, outages, fed=fed)
 
 
+#: How far back the demo exchange feed looks for the month-ahead its board is priced from.
+BOARD_ANCHOR_LOOKBACK_DAYS = 10
+
+
+def demo_board_now(session, now: datetime) -> list:
+    """The whole demo board of the gas day at ``now``, as quote rows that are not stored.
+
+    Every hub and product of the board (none left to the feed), priced by the demo market
+    (``demo_market.DemoMarket``) from each hub's newest stored month-ahead, exactly as the
+    roll-forward prices it: the prices the demo exchange feed (``exchange_feed.py``) quotes
+    around, so its ticks stay on the demo market's own curve and inside its arbitrage band.
+    Empty when no month-ahead history is stored. Simulated, like everything here.
+    """
+
+    market_module = _load_demo_market()
+    market = _demo_market(market_module)
+    real = _real_price_hubs(session)
+    since = now.date() - timedelta(days=BOARD_ANCHOR_LOOKBACK_DAYS)
+    anchors = {}
+    for hub, currency in DEMO_PRICE_HUBS:
+        if hub in real:
+            continue
+        history = _month_ahead_history(session, hub, since)
+        if history:
+            anchors[(hub, currency)] = history[max(history)]
+    if not anchors:
+        return []
+    return demo_board_rows(market_module, market, anchors, now, _outage_days(session), fed=set())
+
+
 def _board_day(now: datetime) -> date:
     """The gas day the desk trades on at ``now`` (a gas day starts at 06:00 CET/CEST)."""
 
@@ -3156,8 +3186,8 @@ def demo_exchange_feed_running(session=None, now: datetime | None = None) -> set
 
     Without a session: whether the feed is on (it is unless the setting says off). With one:
     the hubs the feed has quoted in the last :data:`EXCHANGE_FEED_FRESH` before ``now``. Outside
-    its trading hours (07:00-19:00 CET), or before its first tick, that is none, and the
-    roll-forward's snapshot keeps the board quoted (and gives the feed its next anchor).
+    its session (07:00-19:00 CET, or all day in the demo's 24-hour session), or before its
+    first tick, that is none, and the roll-forward's snapshot keeps the board quoted.
     """
 
     import os

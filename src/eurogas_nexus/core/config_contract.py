@@ -670,15 +670,32 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         name="EUROGAS_NEXUS_DEMO_EXCHANGE_FEED",
         scope="OPERATOR",
         purpose="The demo server's simulated intraday exchange feed: on or off.",
-        default="false on the hosted demo (scripts/demo/start_public_demo.py); unset reads as on",
-        example="false",
+        default="on (the hosted demo, scripts/demo/start_public_demo.py, sets it; unset reads "
+        "as on)",
+        example="on",
         profiles=("development",),
         notes=(
-            "Demo image only (scripts/demo/exchange_feed.py --continuous). Every row is "
-            "simulated; 48 hours are kept. With it off the roll-forward's daily prompt snapshot "
-            "stands alone.",
-            "on/true: the feed writes today's WD and DA quotes and the hourly roll-forward "
-            "leaves them to it (seed_demo_desk.py).",
+            "Demo image only (scripts/demo/exchange_feed.py --continuous): a simulated live "
+            "screen of every demo hub (WD, DA, WE and the front month, quarter and season every "
+            "1-5 seconds, the rest of the curve with them). Every row is simulated; every quote "
+            "of the last hour is kept, then one per instrument per ten minutes, for 48 hours. "
+            "With it off the roll-forward's daily prompt snapshot stands alone.",
+            "on/true: the feed writes today's WD and DA quotes of the hubs it quotes and the "
+            "hourly roll-forward leaves them to it (seed_demo_desk.py).",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_FEED_SESSION",
+        scope="OPERATOR",
+        purpose="When the demo exchange feed quotes: exchange (07:00-19:00 CET/CEST) or 24h.",
+        default="24h on the hosted demo (scripts/demo/start_public_demo.py); unset reads as "
+        "exchange",
+        example="24h",
+        profiles=("development",),
+        notes=(
+            "Demo image only. 24h is a demo-only session that never closes, so a demo opened "
+            "at any hour shows moving prices; it is not a venue's timetable (real ICE Endex "
+            "and EEX gas sessions differ) and the feed's status line says so.",
         ),
     ),
     ConfigVar(
