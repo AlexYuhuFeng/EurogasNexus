@@ -146,6 +146,10 @@ export interface WorkspaceLoadCommit<T> {
 export function resetIdentityScopedCaches<T>(monitoringSummary: T) {
   return {
     authState: UNAUTHENTICATED_AUTH_STATE,
+    // A second-factor step or enrolment belongs to the identity that signed out.
+    mfaStep: null,
+    mfaErrorKey: null,
+    mfaEnrolmentRequired: false,
     nodes: [],
     edges: [],
     sources: [],

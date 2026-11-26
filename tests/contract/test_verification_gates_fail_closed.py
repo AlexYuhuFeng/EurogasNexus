@@ -50,8 +50,8 @@ CASES = (
         "an undeclared environment variable read",
         "src/eurogas_nexus/core/config.py",
         lambda text: text.replace(
-            'os.getenv("EUROGAS_NEXUS_ENV", "development")',
-            'os.getenv("EUROGAS_NEXUS_ENV", "development")\n'
+            "        environment = runtime_environment()",
+            "        environment = runtime_environment()\n"
             '        _probe = os.getenv("EUROGAS_NEXUS_UNDECLARED_PROBE", "")',
             1,
         ),

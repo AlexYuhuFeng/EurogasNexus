@@ -148,6 +148,7 @@ import {
   identityFailureKey,
   oidcSignInErrorKey,
   passwordChangeErrorKey,
+  mfaErrorKey,
   shouldTryLocalAfterDevFailure,
   resolveIdentity,
   type AuthStatusSnapshot,
@@ -774,6 +775,12 @@ export interface ApiState {
   passwordChange: { token: string; displayName: string; username: string } | null;
   /** i18n key of the last refused password change (policy, expired step). */
   passwordChangeErrorKey: string | null;
+  /** The code step of a sign-in with a second factor: the single-use token (memory only). */
+  mfaStep: { token: string; displayName: string } | null;
+  /** i18n key of the last refused code. */
+  mfaErrorKey: string | null;
+  /** Signed in, and the policy requires a second factor that is not set up yet. */
+  mfaEnrolmentRequired: boolean;
   /**
    * The canonical trading context the projection lanes request: the gas day, delivery product
    * and hub focus the caller is standing in.
@@ -955,6 +962,11 @@ export interface ApiState {
   completePasswordChange: (newPassword: string) => Promise<void>;
   /** Leave the forced change step and return to the sign-in form. */
   cancelPasswordChange: () => void;
+  /** Send the authenticator code (or a recovery code) of the second-factor step. */
+  completeMfa: (code: string, recovery: boolean) => Promise<void>;
+  cancelMfa: () => void;
+  /** The second factor is set up: the session is a full one now. */
+  finishMfaEnrolment: () => Promise<void>;
   fetchWorkspace: () => Promise<void>;
   retryFailedWorkspaceEndpoints: () => Promise<void>;
   refreshMarketData: () => Promise<void>;
@@ -1268,6 +1280,7 @@ interface SignedInData {
   role?: string;
   permissions?: string[];
   session_token?: string;
+  mfa_enrolment_required?: boolean;
 }
 
 export const useApiStore = create<ApiState>((set, get) => ({
@@ -1278,6 +1291,9 @@ export const useApiStore = create<ApiState>((set, get) => ({
   authBusy: false,
   passwordChange: null,
   passwordChangeErrorKey: null,
+  mfaStep: null,
+  mfaErrorKey: null,
+  mfaEnrolmentRequired: false,
   tradingContext: DEFAULT_TRADER_CONTEXT,
   nodes: [],
   edges: [],
@@ -1451,6 +1467,10 @@ export const useApiStore = create<ApiState>((set, get) => ({
           });
           return;
         }
+        if (local.mfa_required && local.mfa_token) {
+          set({ authBusy: false, mfaStep: { token: local.mfa_token, displayName: local.display_name } });
+          return;
+        }
         data = local;
       }
       if (!identityReadCoordinator.isCurrent(requestGeneration) || logoutInProgress) return;
@@ -1477,6 +1497,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
         authState: AUTHENTICATED_AUTH_STATE,
         authBusy: false,
         authErrorKey: null,
+        mfaEnrolmentRequired: Boolean(data.mfa_enrolment_required),
         currentUser: devLoginCurrentUser({
           authenticated: true,
           principal_id: data.principal_id ?? "",
@@ -1498,6 +1519,14 @@ export const useApiStore = create<ApiState>((set, get) => ({
     try {
       const response = await api.completePasswordChange(step.token, newPassword);
       if (!identityReadCoordinator.isCurrent(requestGeneration) || logoutInProgress) return;
+      if (response.data.mfa_required && response.data.mfa_token) {
+        set({
+          authBusy: false,
+          passwordChange: null,
+          mfaStep: { token: response.data.mfa_token, displayName: response.data.display_name },
+        });
+        return;
+      }
       if (response.data.session_token) {
         const { setDesktopSessionToken } = await import("@/api/client");
         setDesktopSessionToken(response.data.session_token);
@@ -1507,6 +1536,7 @@ export const useApiStore = create<ApiState>((set, get) => ({
         authBusy: false,
         authErrorKey: null,
         passwordChange: null,
+        mfaEnrolmentRequired: Boolean(response.data.mfa_enrolment_required),
         currentUser: devLoginCurrentUser({
           authenticated: true,
           principal_id: response.data.principal_id ?? "",
@@ -1528,6 +1558,53 @@ export const useApiStore = create<ApiState>((set, get) => ({
   },
 
   cancelPasswordChange: () => set({ passwordChange: null, passwordChangeErrorKey: null, authBusy: false }),
+
+  completeMfa: async (code, recovery) => {
+    const step = get().mfaStep;
+    if (!step || logoutInProgress) return;
+    const requestGeneration = identityReadCoordinator.capture();
+    set({ authBusy: true, mfaErrorKey: null });
+    try {
+      const response = await api.verifyMfa(
+        step.token,
+        recovery ? { recovery_code: code.trim() } : { code: code.trim() },
+      );
+      if (!identityReadCoordinator.isCurrent(requestGeneration) || logoutInProgress) return;
+      if (response.data.session_token) {
+        const { setDesktopSessionToken } = await import("@/api/client");
+        setDesktopSessionToken(response.data.session_token);
+      }
+      set({
+        authState: AUTHENTICATED_AUTH_STATE,
+        authBusy: false,
+        authErrorKey: null,
+        mfaStep: null,
+        currentUser: devLoginCurrentUser({
+          authenticated: true,
+          principal_id: response.data.principal_id ?? "",
+          display_name: response.data.display_name,
+          role: response.data.role ?? "",
+          permissions: response.data.permissions ?? [],
+        }),
+      });
+      await get().fetchMe();
+    } catch (error) {
+      if (!identityReadCoordinator.isCurrent(requestGeneration)) return;
+      const key = mfaErrorKey(String(error));
+      if (key === "auth.mfa_step_expired") {
+        set({ authBusy: false, mfaStep: null, authErrorKey: key });
+        return;
+      }
+      set({ authBusy: false, mfaErrorKey: key });
+    }
+  },
+
+  cancelMfa: () => set({ mfaStep: null, mfaErrorKey: null, authBusy: false }),
+
+  finishMfaEnrolment: async () => {
+    set({ mfaEnrolmentRequired: false });
+    await get().fetchMe();
+  },
 
   fetchWorkspace: async () => {
     if (logoutInProgress) return;

@@ -13,7 +13,6 @@ static deployment API token (SDK/CLI compatibility).
 
 from __future__ import annotations
 
-import hashlib
 from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -160,7 +159,13 @@ class OwnPasswordChangeRequest(BaseModel):
     new_password: str = Field(min_length=1, max_length=256)
 
 
-LOCAL_SESSION_MAX_AGE_SECONDS = 12 * 3600
+def _local_session_max_age() -> int:
+    from eurogas_nexus.db.repositories.security import session_absolute_ttl
+
+    return int(session_absolute_ttl().total_seconds())
+
+
+LOCAL_SESSION_MAX_AGE_SECONDS = 12 * 3600  # kept for importers; the cookie uses the setting
 
 
 def _client_address(request: Request) -> str:
@@ -234,6 +239,8 @@ def local_login(
             session.commit()
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
+    if outcome.mfa_token:
+        return _second_factor_step(outcome, payload)
     if outcome.change_token:
         return JSONResponse(
             {
@@ -288,7 +295,150 @@ def local_password_change(
             session.commit()
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
+    if outcome.mfa_token:
+        return _second_factor_step(outcome, payload)
     return _signed_in(request, outcome, payload, client=body.client)
+
+
+def _second_factor_step(outcome, payload: dict) -> JSONResponse:
+    """The password was right; the session opens after the second factor (H6)."""
+
+    from eurogas_nexus.application.mfa import CHALLENGE_TTL
+
+    return JSONResponse(
+        {
+            "data": {
+                "authenticated": False,
+                "password_change_required": False,
+                "mfa_required": True,
+                "mfa_token": outcome.mfa_token,
+                "display_name": payload["display_name"],
+                "expires_in_seconds": int(CHALLENGE_TTL.total_seconds()),
+            },
+            "meta": {"research_only": False, "human_review_required": False},
+        },
+        headers={"Cache-Control": "no-store"},
+    )
+
+
+class MfaVerifyRequest(BaseModel):
+    """The code step of a sign-in with a second factor."""
+
+    mfa_token: str = Field(min_length=16, max_length=128)
+    code: str | None = Field(default=None, max_length=12)
+    recovery_code: str | None = Field(default=None, max_length=24)
+    client: Literal["browser", "desktop"] = "browser"
+
+
+@router.post("/api/auth/mfa/verify")
+def local_mfa_verify(
+    body: MfaVerifyRequest,
+    request: Request,
+    _rate: None = Depends(require_auth_rate_limit),
+) -> JSONResponse:
+    """Send the authenticator code (or a recovery code) after the password; opens the session.
+
+    401 ``mfa_code_invalid`` for a wrong code (five end the step), 401 ``mfa_challenge_invalid``
+    when the step expired (five minutes): sign in again.
+    """
+
+    from eurogas_nexus.application import local_accounts
+
+    _refuse_foreign_origin(request)
+    _require_db()
+    if not (body.code or body.recovery_code):
+        raise HTTPException(status_code=422, detail={"code": "mfa_code_required"})
+    sqlalchemy_error = _sqlalchemy_error_type()
+    try:
+        with _session() as session:
+            try:
+                outcome = local_accounts.complete_mfa_sign_in(
+                    session,
+                    mfa_token=body.mfa_token,
+                    code=body.code,
+                    recovery_code=body.recovery_code,
+                )
+            except local_accounts.LocalAccountError as exc:
+                session.commit()  # keep the attempt count and the audit of the refusal
+                raise _account_error(exc) from exc
+            payload = _principal_permissions(session, outcome.principal)
+            session.commit()
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    return _signed_in(request, outcome, payload, client=body.client)
+
+
+class MfaCodeRequest(BaseModel):
+    code: str = Field(min_length=6, max_length=12)
+
+
+def _me_row(session, request: Request):
+    from eurogas_nexus.db.models import IdentityPrincipalRecord
+
+    identity = getattr(request.state, "identity", None)
+    row = session.get(IdentityPrincipalRecord, getattr(identity, "principal_id", "") or "")
+    if row is None or getattr(identity, "auth_method", "") != "session":
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "mfa_session_required",
+                    "message": "Set up a second factor from a signed-in session."},
+        )
+    return row
+
+
+def _mfa_error(exc) -> HTTPException:
+    return HTTPException(
+        status_code=exc.status_code, detail={"code": exc.code, "message": exc.message}
+    )
+
+
+@router.get("/api/me/mfa")
+def own_mfa_status(request: Request) -> dict:
+    """Whether the caller has a second factor, and whether the policy requires one."""
+
+    from eurogas_nexus.application import mfa
+
+    _require_db()
+    with _session() as session:
+        row = _me_row(session, request)
+        return {"data": mfa.status(session, row), "meta": {"research_only": False}}
+
+
+@router.post("/api/me/mfa/enrol")
+def own_mfa_enrol(request: Request) -> JSONResponse:
+    """A new authenticator secret for the caller, shown once (not active until confirmed)."""
+
+    from eurogas_nexus.application import mfa
+
+    _require_db()
+    with _session() as session:
+        row = _me_row(session, request)
+        try:
+            data = mfa.begin_enrolment(session, row)
+        except mfa.MfaError as exc:
+            raise _mfa_error(exc) from exc
+        session.commit()
+    return JSONResponse({"data": data, "meta": {"research_only": False}},
+                        headers={"Cache-Control": "no-store"})
+
+
+@router.post("/api/me/mfa/confirm")
+def own_mfa_confirm(body: MfaCodeRequest, request: Request) -> JSONResponse:
+    """Confirm the secret with a code; answers ten single-use recovery codes, once."""
+
+    from eurogas_nexus.application import mfa
+
+    _require_db()
+    with _session() as session:
+        row = _me_row(session, request)
+        try:
+            data = mfa.confirm_enrolment(session, row, body.code)
+        except mfa.MfaError as exc:
+            session.rollback()
+            raise _mfa_error(exc) from exc
+        session.commit()
+    return JSONResponse({"data": data, "meta": {"research_only": False}},
+                        headers={"Cache-Control": "no-store"})
 
 
 @router.post("/api/me/password")
@@ -354,17 +504,20 @@ def _signed_in(request: Request, outcome, payload: dict, *, client: str) -> JSON
         "display_name": payload["display_name"],
         "role": payload["role"],
         "permissions": payload["permissions"],
+        # The policy requires a second factor this person has not set up: the session opens
+        # the enrolment only (security review H6).
+        "mfa_enrolment_required": bool(getattr(outcome, "mfa_enrolment_required", False)),
     }
     meta: dict = {"research_only": False, "human_review_required": False}
     if client == "desktop":
         data["session_token"] = outcome.session_token
         data["token_type"] = "session"
-        data["expires_in_seconds"] = LOCAL_SESSION_MAX_AGE_SECONDS
+        data["expires_in_seconds"] = _local_session_max_age()
         meta["warnings"] = ["Keep this token in memory only; never store it on disk."]
         return JSONResponse({"data": data, "meta": meta}, headers={"Cache-Control": "no-store"})
     response = JSONResponse({"data": data, "meta": meta}, headers={"Cache-Control": "no-store"})
     response.headers["Set-Cookie"] = _session_cookie(
-        outcome.session_token, request=request, max_age_seconds=LOCAL_SESSION_MAX_AGE_SECONDS
+        outcome.session_token, request=request, max_age_seconds=_local_session_max_age()
     )
     return response
 
@@ -554,9 +707,9 @@ def get_me(
         )
     principal = getattr(request.state, "identity", legacy_public_token_principal())
     session_token = request.cookies.get(SESSION_COOKIE, "")
-    csrf_token = (
-        hashlib.sha256(session_token.encode("utf-8")).hexdigest()[:32] if session_token else None
-    )
+    from eurogas_nexus.api.middleware.origin_csrf import csrf_for_session
+
+    csrf_token = csrf_for_session(session_token) if session_token else None
     from eurogas_nexus.security.authorization import permissions_for_principal
     from eurogas_nexus.security.capabilities import build_experience_profile
 

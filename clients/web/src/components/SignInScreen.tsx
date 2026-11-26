@@ -32,6 +32,11 @@ interface SignInScreenProps {
   passwordChangeErrorKey?: string | null;
   onCompletePasswordChange?: (newPassword: string) => void;
   onCancelPasswordChange?: () => void;
+  /** The second-factor step after the password (null outside that step). */
+  mfaStep?: { displayName: string } | null;
+  mfaErrorKey?: string | null;
+  onCompleteMfa?: (code: string, recovery: boolean) => void;
+  onCancelMfa?: () => void;
 }
 
 export function SignInScreen({
@@ -50,7 +55,13 @@ export function SignInScreen({
   passwordChangeErrorKey = null,
   onCompletePasswordChange,
   onCancelPasswordChange,
+  mfaStep = null,
+  mfaErrorKey = null,
+  onCompleteMfa,
+  onCancelMfa,
 }: SignInScreenProps) {
+  const [mfaCode, setMfaCode] = useState("");
+  const [useRecoveryCode, setUseRecoveryCode] = useState(false);
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [newPassword, setNewPassword] = useState("");
@@ -69,6 +80,12 @@ export function SignInScreen({
     setNewPasswordTouched(true);
     if (authBusy || newPasswordKey) return;
     onCompletePasswordChange?.(newPassword);
+  }
+
+  function handleMfaSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (authBusy || !mfaCode.trim()) return;
+    onCompleteMfa?.(mfaCode, useRecoveryCode);
   }
 
   function handleDevLoginSubmit(event: FormEvent<HTMLFormElement>) {
@@ -115,7 +132,9 @@ export function SignInScreen({
         {/* Below 760 px the brand panel folds away; the card carries the lock-up instead. */}
         <BrandMark variant="wordmark" tone="auto" size="lg" className="sign-in-card-lockup" />
         <div className="sign-in-masthead">
-          <h1 id="sign-in-title">{passwordChange ? t("auth.change_title") : t("auth.title")}</h1>
+          <h1 id="sign-in-title">
+            {passwordChange ? t("auth.change_title") : mfaStep ? t("auth.mfa_title") : t("auth.title")}
+          </h1>
           <select
             aria-label={t("settings.language")}
             value={language}
@@ -171,6 +190,46 @@ export function SignInScreen({
             </button>
             <div className="sign-in-retry-row">
               <button type="button" className="sign-in-retry" onClick={onCancelPasswordChange} disabled={authBusy}>
+                {t("auth.change_cancel")}
+              </button>
+            </div>
+          </form>
+        ) : mfaStep ? (
+          <form className="sign-in-dev-form sign-in-mfa-form" onSubmit={handleMfaSubmit} noValidate>
+            <p className="sign-in-hint">
+              {t(useRecoveryCode ? "auth.mfa_recovery_intro" : "auth.mfa_intro").replace("{{name}}", mfaStep.displayName)}
+            </p>
+            <label htmlFor="sign-in-mfa-code">
+              {t(useRecoveryCode ? "auth.mfa_recovery_label" : "auth.mfa_code_label")}
+            </label>
+            <input
+              id="sign-in-mfa-code"
+              name="one-time-code"
+              type="text"
+              inputMode={useRecoveryCode ? "text" : "numeric"}
+              autoComplete="one-time-code"
+              maxLength={useRecoveryCode ? 24 : 8}
+              value={mfaCode}
+              onChange={(event) => setMfaCode(event.target.value)}
+              required
+            />
+            {mfaErrorKey && <p className="sign-in-error" role="alert">{t(mfaErrorKey)}</p>}
+            <button type="submit" className="sign-in-primary" disabled={authBusy || !mfaCode.trim()}>
+              {authBusy ? t("auth.mfa_submitting") : t("auth.mfa_submit")}
+            </button>
+            <div className="sign-in-retry-row">
+              <button
+                type="button"
+                className="sign-in-retry"
+                onClick={() => {
+                  setUseRecoveryCode(!useRecoveryCode);
+                  setMfaCode("");
+                }}
+                disabled={authBusy}
+              >
+                {t(useRecoveryCode ? "auth.mfa_use_app" : "auth.mfa_use_recovery")}
+              </button>
+              <button type="button" className="sign-in-retry" onClick={onCancelMfa} disabled={authBusy}>
                 {t("auth.change_cancel")}
               </button>
             </div>

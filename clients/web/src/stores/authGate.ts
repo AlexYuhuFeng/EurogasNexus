@@ -225,6 +225,14 @@ export function passwordChangeErrorKey(message: string): string {
   return "auth.error_generic";
 }
 
+/** Localise a refused second-factor code by its machine code. */
+export function mfaErrorKey(message: string): string {
+  if (message.includes("mfa_challenge_invalid")) return "auth.mfa_step_expired";
+  if (message.includes("mfa_code_invalid")) return "auth.mfa_code_invalid";
+  if (/^API 429\b/.test(message) || message.includes("rate_limited")) return "auth.mfa_too_many";
+  return "auth.error_generic";
+}
+
 /**
  * The client's own check before sending (the server re-checks): 12 to 128 characters, not the
  * user name, and the two entries agree. Returns an i18n key or null.

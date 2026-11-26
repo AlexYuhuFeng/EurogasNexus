@@ -7,6 +7,11 @@ the person chooses their own at first sign-in. Company SSO is unchanged and rema
 recommended way in; with SSO configured, local accounts are off unless
 `EUROGAS_NEXUS_LOCAL_ACCOUNTS=on`.
 
+**Since the 2026-11 security review (H6)**, in a `trial` or `release` environment local accounts
+are never switched on automatically: `auto` means off there, and a server with neither company
+SSO (OIDC or the authenticating gateway) nor `EUROGAS_NEXUS_LOCAL_ACCOUNTS=on` refuses to start
+with an error that says so. Development and test keep the old `auto` behaviour.
+
 Code: `security/passwords.py` (KDF and policy), `security/local_accounts_policy.py` (settings,
 no database import), `application/local_accounts.py` (every rule below; the API, the CLI and the
 demo start-up all go through it), `api/routes/public/auth.py` and `access.py` (routes).
@@ -53,6 +58,37 @@ rules. The new password must differ from the current/temporary one.
 - A temporary password opens no session: the response carries the change token, and only
   `POST /api/auth/password-change` with a policy-compliant password opens one.
 
+## Second factor (TOTP)
+
+Security review H6. A local account can hold a time-based one-time password (RFC 6238: SHA-1,
+30 seconds, 6 digits), implemented with the Python standard library (`security/totp.py`, no new
+dependency), so any authenticator app works.
+
+- **Enrol**: `POST /api/me/mfa/enrol` answers a secret (text and `otpauth://` URI, shown once);
+  `POST /api/me/mfa/confirm` with a current code activates it and answers ten single-use
+  recovery codes, once. The secret is encrypted with the deployment key (rotatable); recovery
+  codes are stored as hashes.
+- **Sign in**: after the password, a person with a second factor receives `mfa_required` and a
+  single-use, five-minute `mfa_token` instead of a session; `POST /api/auth/mfa/verify` with a
+  code (or a recovery code) opens the session. A code is accepted once (its time step is
+  remembered); five wrong codes end the step. Every outcome is audited.
+- **Policy**: `EUROGAS_NEXUS_MFA_REQUIRED` = `all`, `privileged` (every role above VIEWER and
+  SCHEDULER; the default in trial and release) or `off` (the default in development and test).
+  A person the policy covers who has not enrolled signs in to an enrolment-only session: the web
+  client shows the enrolment, and every other route answers 403 `mfa_enrolment_required`.
+- **Reset**: an administrator removes a person's factor with
+  `POST /api/access/users/{id}/mfa/reset`, under dual control (a second administrator approves);
+  every session of the person ends and they enrol again.
+
+Phishing-resistant factors (WebAuthn, hardware keys) are not implemented; with company SSO the
+identity provider's own MFA applies.
+
+## Session lifetimes
+
+`EUROGAS_NEXUS_SESSION_IDLE_MINUTES` (default 30 in trial and release, 720 in development) and
+`EUROGAS_NEXUS_SESSION_ABSOLUTE_HOURS` (default 10 in trial and release, 24 in development). The
+session cookie's lifetime follows the absolute setting.
+
 ## Session revocation
 
 A password change (first sign-in or self-service), an administrator's reset, a disable or a
@@ -62,7 +98,9 @@ session.
 ## Administration
 
 ADMIN only (route permission registry: `/api/access/users*` ADMIN; the handler re-checks
-`identity.manage`); a job function or work mode never grants it; nobody changes their own
+`identity.manage`); creating an account, changing roles or data scopes, issuing a service key,
+resetting a password or a second factor need a second administrator in trial and release
+(dual control, [SECURITY_REVIEW_REMEDIATION_2026-11.md](SECURITY_REVIEW_REMEDIATION_2026-11.md)); a job function or work mode never grants it; nobody changes their own
 roles or data scopes; the last active administrator (an ACTIVE USER principal holding ADMIN)
 cannot be disabled, locked, demoted or deleted (`409 last_administrator`, audited as a denial);
 delete only for a person with no audit history, API key, session or sign-in (`409

@@ -717,8 +717,10 @@ def check_environment(
     """
 
     source: Mapping[str, str] = os.environ if environ is None else environ
-    environment = (_value(source, "EUROGAS_NEXUS_ENV") or "development").lower()
     api_profile = (_value(source, "EUROGAS_NEXUS_API_PROFILE") or "development").lower()
+    # Unset in the release profile means release, never development (security review L3).
+    fallback = "release" if api_profile == "release" else "development"
+    environment = (_value(source, "EUROGAS_NEXUS_ENV") or fallback).lower()
 
     report = PreflightReport(environment=environment, api_profile=api_profile)
     report.findings.extend(_check_unknown_variables(source))

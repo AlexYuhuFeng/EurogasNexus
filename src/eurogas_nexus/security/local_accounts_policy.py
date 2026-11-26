@@ -35,9 +35,45 @@ def local_accounts_enabled(environ: Mapping[str, str] | None = None) -> bool:
     setting = local_accounts_setting(environ)
     if setting != "auto":
         return setting == "on"
+    from eurogas_nexus.core.config import runtime_environment
+
+    if runtime_environment(environ) in {"trial", "release"}:
+        # Security review H6: a production installation never falls back to passwords
+        # because SSO is missing; local accounts are a deliberate choice ("on").
+        return False
     from eurogas_nexus.security.oidc import oidc_configured
 
     return not oidc_configured()
+
+
+def assert_sign_in_configured(environment: str, environ: Mapping[str, str] | None = None) -> None:
+    """Refuse to start a trial or release server that offers no way to sign in.
+
+    Raises:
+        RuntimeError: neither company SSO (OIDC or the authenticating gateway) nor local
+            accounts (``EUROGAS_NEXUS_LOCAL_ACCOUNTS=on``) is configured.
+    """
+
+    if str(environment or "").strip().lower() not in {"trial", "release"}:
+        return
+    source = os.environ if environ is None else environ
+    if local_accounts_setting(source) == "on":
+        return
+    from eurogas_nexus.security.oidc import oidc_configured
+
+    if oidc_configured():
+        return
+    from eurogas_nexus.security.gateway_auth import GatewayConfig
+
+    if GatewayConfig.from_env(source).enabled:
+        return
+    raise RuntimeError(
+        "No sign-in is configured for this release server: set up company SSO "
+        "(EUROGAS_NEXUS_OIDC_ISSUER and EUROGAS_NEXUS_OIDC_CLIENT_ID, or the authenticating "
+        "gateway), or enable local accounts deliberately with EUROGAS_NEXUS_LOCAL_ACCOUNTS=on "
+        "(then require a second factor: EUROGAS_NEXUS_MFA_REQUIRED). Local accounts are no "
+        "longer switched on automatically when SSO is missing."
+    )
 
 
 def demo_profile_active(environ: Mapping[str, str] | None = None) -> bool:
@@ -45,7 +81,9 @@ def demo_profile_active(environ: Mapping[str, str] | None = None) -> bool:
 
     source = environ or os.environ
     profile = (source.get("EUROGAS_NEXUS_API_PROFILE") or "development").strip().lower()
-    environment = (source.get("EUROGAS_NEXUS_ENV") or "development").strip().lower()
+    from eurogas_nexus.core.config import runtime_environment
+
+    environment = runtime_environment(source)
     return profile == "demo" and environment in DEMO_ENVIRONMENTS
 
 
