@@ -335,6 +335,10 @@ class CargoBody(BaseModel):
     fob_price: float | None = Field(default=None, gt=-10, le=100)
     des_price: float | None = Field(default=None, gt=-500, le=1000)
     des_currency: str | None = Field(default=None, pattern="^(EUR|GBP|USD)$")
+    # The unit the DES price is stated in: per MWh, per MMBtu, or pence per therm (GBP).
+    des_price_unit: str | None = Field(default=None, pattern="^(per_mwh|per_mmbtu|p_th)$")
+    # DES: discharge port costs for the buyer's account under its contract, per call.
+    discharge_port_cost: float | None = Field(default=None, ge=0, le=10_000_000)
     route_id: str | None = Field(default=None, max_length=96)
     # The voyage as the desk states it when no saved route is named: a distance at a speed, or
     # days laden.
@@ -359,6 +363,8 @@ class TerminalInputBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
     entry_per_mwh: float | None = Field(default=None, ge=0, le=50)
     gas_in_kind_pct: float | None = Field(default=None, ge=0, le=10)
+    # The desk's own regas cost per MWh unloaded (overrides the published and register figures).
+    regas_per_mwh: float | None = Field(default=None, ge=0, le=50)
 
 
 class CargoEconomicsBody(BaseModel):
@@ -377,6 +383,8 @@ class CargoEconomicsBody(BaseModel):
     history_days: int = Field(default=0, ge=0, le=730)
     # Terminals in several currencies are ranked in this currency at the arrival month's FX.
     reporting_currency: str = Field(default="EUR", pattern="^(EUR|GBP|USD)$")
+    # EUA price for the carbon items (EUR/t); default the snapshot's, else the desk standard.
+    eua_eur_t: float | None = Field(default=None, ge=0, le=500)
     # The firm's assumption set to read (its approved version); default the organisation's.
     assumption_set_id: str | None = Field(default=None, max_length=64)
 

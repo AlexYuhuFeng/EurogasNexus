@@ -45,7 +45,7 @@ from eurogas_nexus.domain.lng.cargo_economics import (
 )
 from eurogas_nexus.domain.lng.voyage import Voyage
 from eurogas_nexus.domain.valuation.periods import DeliveryPeriod
-from eurogas_nexus.domain.valuation.quality import InputClass
+from eurogas_nexus.domain.valuation.quality import InputClass, weakest
 
 #: Assumption-set keys and the request field that overrides each.
 ASSUMPTION_KEYS = {
@@ -317,10 +317,20 @@ class _Terminal:
     gas_in_kind_pct: float | None
     entry_per_mwh: float | None
     excludes: tuple[str, ...]
+    #: "firm" (the firm's own terms) or "register" (a public register row): who gave gas in kind.
+    gik_from: str = "register"
+    #: The published reference (``domain/lng/published_tariffs.py``), when the terminal is in it.
+    published: Any = None
+    #: Terms the demo desk seeded (``demo-`` ids): fictional, never a default study terminal.
+    demo: bool = False
 
 
-def _terminals(session, wanted: list[str]) -> list[_Terminal]:
+def _terminals(session, wanted: list[str], *, study: bool = False) -> list[_Terminal]:
+    """Terminals with firm terms or register rows; with ``study`` also every published terminal,
+    and by default (nothing named) the published and the firm's real terminals, not demo ones."""
+
     from eurogas_nexus.db.models import LngTerminalTariffRecord, LngTerminalTermsRecord
+    from eurogas_nexus.domain.lng.published_tariffs import published_terminals
 
     found: dict[str, _Terminal] = {}
     for row in session.query(LngTerminalTermsRecord).all():
@@ -333,6 +343,8 @@ def _terminals(session, wanted: list[str]) -> list[_Terminal]:
             row.fuel_retention_pct,
             row.entry_tariff_per_mwh,
             (),
+            gik_from="firm",
+            demo=row.terminal_id.startswith("demo-"),
         )
     for row in session.query(LngTerminalTariffRecord).all():
         held = found.get(row.terminal_id)
@@ -347,9 +359,45 @@ def _terminals(session, wanted: list[str]) -> list[_Terminal]:
                 tuple(row.excludes or ()),
             )
         elif held.gas_in_kind_pct is None and in_kind is not None:
-            found[row.terminal_id] = _Terminal(**{**held.__dict__, "gas_in_kind_pct": in_kind})
+            found[row.terminal_id] = _Terminal(
+                **{**held.__dict__, "gas_in_kind_pct": in_kind, "gik_from": "register"}
+            )
+    if study:
+        for published in published_terminals():
+            # The firm's own terms for this terminal (by id or alias) stand for it.
+            own = next(
+                (
+                    key
+                    for key, terminal in found.items()
+                    if not terminal.demo
+                    and key != published.terminal_id
+                    and published.known_as(key)
+                ),
+                None,
+            )
+            if own is not None:
+                found[own] = _Terminal(**{**found[own].__dict__, "published": published})
+                continue
+            held = found.get(published.terminal_id)
+            found[published.terminal_id] = (
+                _Terminal(
+                    published.terminal_id,
+                    published.name,
+                    published.hub,
+                    None,
+                    None,
+                    (),
+                    published=published,
+                )
+                if held is None
+                else _Terminal(**{**held.__dict__, "published": published})
+            )
     if wanted:
         return [found[key] for key in wanted if key in found]
+    if study:
+        order = {t.terminal_id: index for index, t in enumerate(published_terminals())}
+        chosen = [t for t in found.values() if not t.demo]
+        return sorted(chosen, key=lambda t: (order.get(t.terminal_id, len(order)), t.terminal_id))
     return [found[key] for key in sorted(found)]
 
 
@@ -367,78 +415,212 @@ def _hub_currency(hub: str) -> str:
     return getattr(market, "currency", None) or ("GBP" if hub == "NBP" else "EUR")
 
 
-def _option(session, reader, terminal: _Terminal, *, request: dict[str, Any], q_del_mwh: float):
+def _neighbour(period: DeliveryPeriod, shift: int) -> DeliveryPeriod:
+    index = period.start.year * 12 + period.start.month - 1 + shift
+    return DeliveryPeriod.month(index // 12, index % 12 + 1)
+
+
+def _usd_per(reader, currency: str, period: DeliveryPeriod) -> Valued:
+    """USD per one unit of ``currency`` for the month (1 for USD)."""
+
+    if currency == "USD":
+        return Valued(Decimal(1), InputClass.SOURCED, "USD")
+    return _valued(reader.fx(currency, "USD", period))
+
+
+def _cross(reader, base: str, quote: str, period: DeliveryPeriod) -> Valued:
+    """Units of ``quote`` per one ``base`` for the month, through USD; missing when either is."""
+
+    if base == quote:
+        return Valued(Decimal(1), InputClass.SOURCED, base)
+    a, b = _usd_per(reader, base, period), _usd_per(reader, quote, period)
+    if not a.held or not b.held:
+        return missing(f"FX {base}/{quote}")
+    return Valued(
+        a.value / b.value,
+        weakest([a.input_class, b.input_class]),
+        f"{base}/{quote} via USD: {a.source}; {b.source}",
+    )
+
+
+def _option(
+    session,
+    reader,
+    terminal: _Terminal,
+    *,
+    request: dict[str, Any],
+    q_del_mwh: float,
+    offer: CargoOffer | None = None,
+    cost_side=None,
+    cargo: dict[str, Any] | None = None,
+):
+    """One terminal for the arrival month, and what the result says about where each figure
+    came from (the regas version, the entry tariff, the hub price's date, what is excluded)."""
+
+    from eurogas_nexus.application import lng_cargo_netback as desk
     from eurogas_nexus.application import lng_terminal_tariff_register as register
+    from eurogas_nexus.domain.lng import published_tariffs as published_tariffs
 
     month = request["arrival_month"]
     period = _month(month)
     currency = _hub_currency(terminal.hub)
-    price = reader.price(terminal.hub, period)
+    price_item = reader.price(terminal.hub, period)
     before = after = None
     for shift, slot in ((-1, "before"), (1, "after")):
-        year, number = period.start.year, period.start.month + shift
-        year, number = (
-            (year - 1, 12)
-            if number == 0
-            else (year + 1, 1)
-            if number == 13
-            else (
-                year,
-                number,
-            )
-        )
-        other = reader.price(terminal.hub, DeliveryPeriod.month(year, number))
+        other = reader.price(terminal.hub, _neighbour(period, shift))
         if other.held:
             if slot == "before":
                 before = other.value
             else:
                 after = other.value
+    product = request.get("product", "spot")
+    overrides = (request.get("terminal_inputs") or {}).get(terminal.terminal_id, {})
+    published = terminal.published
+    meta: dict[str, Any] = {
+        "hub_as_of": price_item.as_of_utc.isoformat() if price_item.as_of_utc else None,
+        "hub_licence_needed": price_item.input_class == InputClass.SIMULATED,
+        "excluded": [],
+        "versions": {},
+        "demo": terminal.demo,
+        "published": desk.published_payload(published),
+    }
     charge = register.price_terminal(
         session,
         terminal.terminal_id,
         arrival_month=month,
         cargo_mwh=q_del_mwh,
-        product=request.get("product", "spot"),
+        product=product,
     )
-    if charge.charge is None:
-        regas = missing(charge.reason or "no tariff")
-    else:
+    basis = charge.basis
+    excludes = tuple(charge.excludes) or terminal.excludes
+    entered_regas = overrides.get("regas_per_mwh")
+    arrival_day = period.start
+    if entered_regas is not None:
+        regas = Valued(
+            Decimal(str(entered_regas)) * Decimal(str(q_del_mwh)),
+            InputClass.ASSUMPTION,
+            "entered: regas cost",
+        )
+        basis = "entered"
+    elif charge.charge is not None:
         klass = {
             "firm_terms": InputClass.FIRM_MARK,
             "reviewed_public": InputClass.SOURCED,
             "candidate_public": InputClass.INDICATIVE,
         }[charge.basis]
         regas = Valued(Decimal(str(charge.charge)), klass, charge.basis)
-    overrides = (request.get("terminal_inputs") or {}).get(terminal.terminal_id, {})
-    entry = _entered(overrides.get("entry_per_mwh"), "entry tariff") or (
-        Valued(Decimal(str(terminal.entry_per_mwh)), InputClass.FIRM_MARK, "your terminal terms")
-        if terminal.entry_per_mwh is not None
-        else missing("entry tariff")
+    else:
+        uses = (
+            published_tariffs.select(published, "regas", arrival_day, product)
+            if published is not None
+            else []
+        )
+        total = published_tariffs.regas_total(uses, Decimal(str(q_del_mwh)))
+        if total is not None and uses[0].charge.currency == currency:
+            status = published_tariffs.weakest_status(uses)
+            regas = Valued(
+                total,
+                InputClass.SOURCED if status == "FINAL" else InputClass.INDICATIVE,
+                f"published: {uses[0].charge.source_title}",
+            )
+            basis = "published_final" if status == "FINAL" else "published_indicative"
+            meta["versions"]["regas"] = [use.version() for use in uses]
+        else:
+            regas = missing(
+                "not_published"
+                if published is not None and not published.permission_operator
+                else charge.reason or "no tariff"
+            )
+            if published is not None and published.permission_operator:
+                basis = "needs_firm_terms"
+    entry = _entered(overrides.get("entry_per_mwh"), "entry tariff")
+    if entry is None and terminal.entry_per_mwh is not None:
+        entry = Valued(
+            Decimal(str(terminal.entry_per_mwh)), InputClass.FIRM_MARK, "your terminal terms"
+        )
+    if entry is None and published is not None:
+        uses = published_tariffs.select(
+            published, "entry_capacity", arrival_day, "firm"
+        ) + published_tariffs.select(published, "entry_commodity", arrival_day, "firm")
+        value = published_tariffs.entry_per_mwh(uses)
+        if value is not None and uses[0].charge.currency == currency:
+            status = published_tariffs.weakest_status(uses)
+            entry = Valued(
+                value,
+                InputClass.SOURCED if status == "FINAL" else InputClass.INDICATIVE,
+                f"published: {published.entry_tso}, {published.entry_point}",
+            )
+            meta["versions"]["entry"] = [use.version() for use in uses]
+        else:
+            # A published terminal is still compared; the entry it lacks is excluded and said.
+            entry = Valued(Decimal(0), InputClass.ASSUMPTION, "entry capacity not held: excluded")
+            meta["excluded"].append("entry")
+    if entry is None:
+        entry = missing("entry tariff")
+    gik = _entered(overrides.get("gas_in_kind_pct"), "gas in kind")
+    if gik is None and terminal.gas_in_kind_pct is not None:
+        gik = Valued(
+            Decimal(str(terminal.gas_in_kind_pct)),
+            InputClass.FIRM_MARK if terminal.gik_from == "firm" else InputClass.SOURCED,
+            "your terminal terms" if terminal.gik_from == "firm" else "tariff register",
+        )
+    gik_uses = (
+        published_tariffs.select(published, "gas_in_kind", arrival_day, product)
+        if published is not None
+        else []
     )
-    gik = _entered(overrides.get("gas_in_kind_pct"), "gas in kind") or (
-        Valued(Decimal(str(terminal.gas_in_kind_pct)), InputClass.SOURCED, "tariff register")
-        if terminal.gas_in_kind_pct is not None
-        else missing("gas in kind")
-    )
+    if gik is None and gik_uses:
+        status = published_tariffs.weakest_status(gik_uses)
+        gik = Valued(
+            published_tariffs.percent(gik_uses),
+            InputClass.SOURCED if status == "FINAL" else InputClass.INDICATIVE,
+            f"published: {gik_uses[0].charge.source_title}",
+        )
+        meta["versions"]["gas_in_kind"] = [use.version() for use in gik_uses]
+    if gik is None and published is not None:
+        gik = Valued(Decimal(0), InputClass.ASSUMPTION, "gas in kind not published: excluded")
+        meta["excluded"].append("gas_in_kind")
+    if gik is None:
+        gik = missing("gas in kind")
     fx = reader.fx(currency, "USD", period) if currency != "USD" else None
-    return TerminalOption(
+    fx_value = Valued(Decimal(1), InputClass.SOURCED, "USD") if fx is None else _valued(fx)
+    des_fx = None
+    if offer is not None and offer.term == "DES" and offer.des_currency != currency:
+        des_fx = _cross(reader, offer.des_currency, currency, period)
+    others = desk.other_costs(
+        reader,
+        request=request,
+        cargo=cargo,
+        terminal=terminal,
+        currency=currency,
+        period=period,
+        q_del_mwh=Decimal(str(q_del_mwh)),
+        gik=gik,
+        offer=offer,
+        cost_side=cost_side,
+        fx_usd_per_unit=fx_value,
+        des_fx=des_fx,
+        meta=meta,
+    )
+    option = TerminalOption(
         terminal_id=terminal.terminal_id,
         name=terminal.name,
         hub=terminal.hub,
         currency=currency,
         arrival_month=month,
-        hub_price=_valued(price),
+        hub_price=_valued(price_item),
         entry=entry,
         gas_in_kind_pct=gik,
         regas_total=regas,
-        regas_basis=charge.basis,
-        fx_usd_per_unit=Valued(Decimal(1), InputClass.SOURCED, "USD")
-        if fx is None
-        else _valued(fx),
+        regas_basis=basis,
+        fx_usd_per_unit=fx_value,
         hub_price_before=before,
         hub_price_after=after,
-        excludes=tuple(charge.excludes) or terminal.excludes,
+        excludes=excludes,
+        other_items=others,
+        des_fx=des_fx,
     )
+    return option, meta
 
 
 def _offer(session, reader, cargo: dict[str, Any], pricing_month: str) -> CargoOffer:
@@ -451,10 +633,13 @@ def _offer(session, reader, cargo: dict[str, Any], pricing_month: str) -> CargoO
         "q_load_mmbtu": q_load,
     }
     if term == "DES":
+        from eurogas_nexus.application.lng_cargo_netback import des_per_mwh
+
+        per_mwh, currency, _how = des_per_mwh(cargo)
         return CargoOffer(
             **common,
-            des_price=_entered(cargo.get("des_price"), "DES price") or missing("DES price"),
-            des_currency=cargo.get("des_currency") or "EUR",
+            des_price=_entered(per_mwh, "DES price") or missing("DES price"),
+            des_currency=currency,
         )
     voyage = route = None
     voyage_class = InputClass.DERIVED
@@ -568,69 +753,53 @@ def _voyage_payload(offer: CargoOffer, cargo: dict[str, Any]) -> dict[str, Any] 
     }
 
 
-#: The inputs the study moves one at a time, and by how much (design D.2: hire, HH, hub, FX).
-SENSITIVITY_BUMPS = (
-    ("hh", Decimal("0.10"), "USD/MMBtu"),
-    ("hire", Decimal(5000), "USD/day"),
-    ("hub", Decimal(1), "per MWh"),
-    ("fx", Decimal("0.01"), "relative"),
-)
+def _desk_reading(result, offer, options, evaluated, metas, reporting, cargo, request) -> None:
+    """Add the desk's reading to one serialised cargo: units, the cost stack, the reason per
+    terminal, the verdict and two-sided sensitivities (``lng_cargo_netback``)."""
 
+    from eurogas_nexus.application import lng_cargo_netback as desk
 
-def _bumped(value: Valued, delta: Decimal, *, relative: bool = False) -> Valued:
-    if not value.held:
-        return value
-    moved = value.value * (1 + delta) if relative else value.value + delta
-    return Valued(moved, value.input_class, value.source)
-
-
-def _sensitivity(offer: CargoOffer, option: TerminalOption, base: Decimal) -> list[dict[str, Any]]:
-    """Margin change (hub currency per MWh delivered) for each input moved on its own."""
-
-    from dataclasses import replace
-
-    rows = []
-    for key, delta, unit in SENSITIVITY_BUMPS:
-        moved_offer, moved_option = offer, option
-        if key == "hh":
-            if offer.term != "FOB" or offer.fob_price.held or not offer.hh.held:
-                continue
-            moved_offer = replace(offer, hh=_bumped(offer.hh, delta))
-        elif key == "hire":
-            if offer.term != "FOB":
-                continue
-            moved_offer = replace(offer, hire_per_day=_bumped(offer.hire_per_day, delta))
-        elif key == "hub":
-            moved_option = replace(option, hub_price=_bumped(option.hub_price, delta))
-        elif key == "fx":
-            if offer.term != "FOB" or option.currency == "USD":
-                continue
-            moved_option = replace(
-                option, fx_usd_per_unit=_bumped(option.fx_usd_per_unit, delta, relative=True)
-            )
-        moved = evaluate_cargo(moved_offer, [moved_option])
-        row = moved.terminals[0] if moved.terminals else None
-        if row is None or row.margin_per_mwh is None:
-            continue
-        change = row.margin_per_mwh - base
-        rows.append(
-            {
-                "key": key,
-                "bump": float(delta * 100) if key == "fx" else float(delta),
-                "unit": "%" if key == "fx" else unit,
-                "margin_change_per_mwh": float(change.quantize(Decimal("0.0001"))),
-            }
+    by_id = {option.terminal_id: option for option in options}
+    stacks = {
+        row.terminal_id: desk.cost_stack(
+            evaluated, offer, by_id[row.terminal_id], row, metas.get(row.terminal_id, {})
         )
-    return rows
+        for row in evaluated.terminals
+        if row.terminal_id in by_id
+    }
+    why = desk.reasons(evaluated, stacks)
+    for row in result["terminals"]:
+        meta = metas.get(row["terminal_id"], {})
+        row["cost_stack"] = stacks.get(row["terminal_id"])
+        row["why"] = why.get(row["terminal_id"])
+        row["hub_as_of"] = meta.get("hub_as_of")
+        row["hub_licence_needed"] = meta.get("hub_licence_needed", False)
+        row["excluded"] = meta.get("excluded", [])
+        row["demo"] = meta.get("demo", False)
+        row["published"] = meta.get("published")
+        row["versions"] = meta.get("versions", {})
+    code = request.get("reporting_currency") or "EUR"
+    result["verdict"] = desk.verdict(evaluated, offer, stacks, code, reporting is not None)
+    _per_mwh, _currency, how = desk.des_per_mwh(cargo) if offer.term == "DES" else (None, "", None)
+    result["units"] = desk.units(evaluated, how)
+    eua = next((meta["eua"] for meta in metas.values() if meta.get("eua")), None)
+    result["eua"] = eua
+    result["sensitivity"] = desk.sensitivity(
+        offer,
+        options,
+        evaluated,
+        reporting=reporting,
+        eua_eur_t=None if eua is None else Decimal(str(eua["eur_t"])),
+    )
 
 
-def _price_one(session, reader, request, terminals, cargo, arrival):
+def _price_one(session, reader, request, terminals, cargo, arrival, *, full=False):
     pricing = cargo.get("pricing_month") or arrival
     offer = _offer(session, reader, cargo, pricing)
     # The regas charge is on the energy unloaded: price the voyage first.
     cost_side = evaluate_cargo(offer, [])
     q_del_mwh = float(cost_side.q_del_mwh) if cost_side.q_del_mwh else 0.0
-    options = (
+    priced = (
         [
             _option(
                 session,
@@ -638,12 +807,17 @@ def _price_one(session, reader, request, terminals, cargo, arrival):
                 terminal,
                 request={**request, "arrival_month": arrival},
                 q_del_mwh=q_del_mwh,
+                offer=offer,
+                cost_side=cost_side,
+                cargo=cargo,
             )
             for terminal in terminals
         ]
         if cost_side.blocked is None and q_del_mwh > 0
         else []
     )
+    options = [option for option, _meta in priced]
+    metas = {option.terminal_id: meta for option, meta in priced}
     # Terminals in several currencies rank in the reporting currency at the arrival month's FX.
     reporting = None
     code = request.get("reporting_currency") or "EUR"
@@ -655,7 +829,10 @@ def _price_one(session, reader, request, terminals, cargo, arrival):
         )
         if rate.held:
             reporting = (code, rate.value)
-    return offer, options, evaluate_cargo(offer, options, reporting=reporting)
+    evaluated = evaluate_cargo(offer, options, reporting=reporting)
+    if full:
+        return offer, options, evaluated, metas, reporting
+    return offer, options, evaluated
 
 
 def _series(session, reader, request, terminals, cargo, terminal_id, months):
@@ -797,23 +974,16 @@ def cargo_economics(session, request: dict[str, Any], *, caller) -> dict[str, An
         caller=caller,
         assumption_set_id=request.get("assumption_set_id") or None,
     )
-    terminals = _terminals(session, list(request.get("terminal_ids") or []))
+    terminals = _terminals(session, list(request.get("terminal_ids") or []), study=True)
     results = []
     series = history = None
     for cargo in request["cargoes"]:
-        offer, options, evaluated = _price_one(session, reader, request, terminals, cargo, arrival)
+        offer, options, evaluated, metas, reporting = _price_one(
+            session, reader, request, terminals, cargo, arrival, full=True
+        )
         result = serialise(evaluated)
         result["voyage"] = _voyage_payload(offer, cargo)
-        best = next(
-            (row for row in evaluated.terminals if row.terminal_id == evaluated.best_terminal_id),
-            None,
-        )
-        option = next((o for o in options if best and o.terminal_id == best.terminal_id), None)
-        result["sensitivity"] = (
-            _sensitivity(offer, option, best.margin_per_mwh)
-            if best is not None and option is not None
-            else []
-        )
+        _desk_reading(result, offer, options, evaluated, metas, reporting, cargo, request)
         results.append(result)
         history_days = int(request.get("history_days") or 0)
         if (
