@@ -61,7 +61,7 @@ def test_the_shipped_geometry_carries_its_source_and_licence() -> None:
 
 def test_the_context_layer_is_small_attributed_and_regional() -> None:
     raw = CONTEXT.read_bytes()
-    assert len(raw) < 600_000
+    assert len(raw) < 900_000  # trunk lines of every ENTSOG market area
     layer = json.loads(raw)
     assert layer["properties"]["licence"] == "CC-BY-4.0"
     assert "SciGRID_gas" in layer["properties"]["attribution"]
