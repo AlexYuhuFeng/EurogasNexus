@@ -1020,7 +1020,7 @@ def _db_session():
     if not _db_is_configured():
         raise HTTPException(
             status_code=503,
-            detail={"code": "runtime_db_unavailable", "message": "Runtime DB is not configured."},
+            detail={"code": "runtime_db_required", "message": "Runtime DB is not configured."},
         )
     from sqlalchemy.exc import SQLAlchemyError
 

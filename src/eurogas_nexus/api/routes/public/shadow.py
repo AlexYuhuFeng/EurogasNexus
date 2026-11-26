@@ -450,7 +450,7 @@ def _session():
     if resolve_database_url() is None:
         raise HTTPException(
             status_code=503,
-            detail={"code": "runtime_db_unavailable", "message": "Runtime DB is not configured."},
+            detail={"code": "runtime_db_required", "message": "Runtime DB is not configured."},
         )
     return _ShadowSession()
 
