@@ -28,6 +28,10 @@ row-entitlement enforcement.
 
 from __future__ import annotations
 
+import functools
+import weakref
+
+import anyio.to_thread
 from fastapi import HTTPException, Request
 
 from eurogas_nexus.api.dependencies.exempt_paths import (
@@ -60,6 +64,24 @@ IDENTITY_AUTHENTICATED_FLAG = "identity_authenticated"
 #: Paths that must answer without a credential. Declared once, in ``exempt_paths``, because the
 #: public-token gate needs the same list; re-exported here for the readers of this dependency.
 IDENTITY_EXEMPT_PREFIXES = CREDENTIAL_EXEMPT_PREFIXES
+
+#: Threads that resolve credentials at once, beside the request threads (``db/session.py``
+#: counts their connections). Their own limit: a sign-in, a session check or a live stream's
+#: opening never queues behind request threads busy with a long computation.
+IDENTITY_THREADS = 2
+_IDENTITY_LIMITERS: weakref.WeakKeyDictionary = weakref.WeakKeyDictionary()
+
+
+async def run_in_threadpool(function, *args):
+    """Run a credential check in a thread, under the identity threads' own limit."""
+
+    import asyncio
+
+    loop = asyncio.get_running_loop()
+    limiter = _IDENTITY_LIMITERS.get(loop)
+    if limiter is None:
+        limiter = _IDENTITY_LIMITERS[loop] = anyio.CapacityLimiter(IDENTITY_THREADS)
+    return await anyio.to_thread.run_sync(functools.partial(function, *args), limiter=limiter)
 
 
 def _allow_anonymous(request: Request) -> bool:
@@ -112,33 +134,47 @@ async def _resolve_identity(request: Request) -> None:
         # Resolved earlier in the chain, and that decision is authoritative.
         return
 
+    # Every credential check reads or writes the identity store (or, for OIDC, may fetch the
+    # issuer's keys): it runs in the thread pool, never on the event loop, which serves every
+    # other request and every live-update stream of this process. The request-scoped context
+    # (book scope, reader) is set by ``require_identity`` on the loop, after this returns.
+
     bearer = request.headers.get(IDENTITY_HEADER)
     oidc_token = request.headers.get(OIDC_ACCESS_TOKEN_HEADER)
     session_cookie = request.cookies.get(SESSION_COOKIE, "")
     session_header = (request.headers.get(SESSION_HEADER) or "").strip()
 
     if (bearer or "").strip():
-        request.state.identity = _authenticate_identity_key(bearer)
+        request.state.identity = await run_in_threadpool(_authenticate_identity_key, bearer)
         request.state.identity_authenticated = True
         return
 
     if (oidc_token or "").strip():
-        request.state.identity = _authenticate_oidc(oidc_token)
+        request.state.identity = await run_in_threadpool(_authenticate_oidc, oidc_token)
         request.state.identity_authenticated = True
         return
 
     if session_header:
         # Same session store, expiry and revocation as the cookie.
-        request.state.identity = _authenticate_session_cookie(request, session_header)
+        request.state.identity = await run_in_threadpool(
+            _authenticate_session_cookie, request, session_header
+        )
         request.state.identity_authenticated = True
         return
 
     if session_cookie:
-        request.state.identity = _authenticate_session_cookie(request, session_cookie)
+        request.state.identity = await run_in_threadpool(
+            _authenticate_session_cookie, request, session_cookie
+        )
         request.state.identity_authenticated = True
         return
 
-    gateway = _authenticate_gateway(request)
+    # Only a deployment with an authenticating gateway reads it (and may write the directory);
+    # a request without a credential otherwise answers on the loop, so a load balancer's
+    # health check never queues behind busy request threads.
+    gateway = (
+        await run_in_threadpool(_authenticate_gateway, request) if _gateway_enabled() else None
+    )
     if gateway is not None:
         request.state.identity = gateway
         request.state.identity_authenticated = True
@@ -244,6 +280,9 @@ def _authenticate_session_cookie(request: Request, token: str) -> AuthenticatedP
                     detail={"error": "session_principal_inactive"},
                 )
             touch_session(session, session_row)
+            # An open live-update stream checks this session's revocation for as long as it
+            # lives (``security/session_revocation.py``); it keeps the digest, never the token.
+            request.state.session_token_hash = session_row.session_token_hash
             resolved = AuthenticatedPrincipal(
                 principal_id=principal.principal_id,
                 name=principal.name,
@@ -304,6 +343,12 @@ def _authenticate_oidc(token: str) -> AuthenticatedPrincipal:
         identity_source="OIDC",
         auth_method="oidc_access_token",
     )
+
+
+def _gateway_enabled() -> bool:
+    from eurogas_nexus.security.gateway_auth import GatewayConfig
+
+    return GatewayConfig.from_env().enabled
 
 
 def _authenticate_gateway(request: Request) -> AuthenticatedPrincipal | None:

@@ -13,7 +13,7 @@ licences.
 
 | Ecosystem | Packages | Copyleft / non-commercial | Notes |
 |---|---|---|---|
-| Python (runtime and dev locks) | 46 | 0 | `certifi` CA bundle is MPL-2.0; `pypdf` (contract intake, added 2026-10-31) is BSD-3-Clause; `prometheus-client` (metrics endpoint, added 2026-11-26) is Apache-2.0 AND BSD-2-Clause |
+| Python (runtime and dev locks) | 48 | 0 | `certifi` CA bundle is MPL-2.0; `pypdf` (contract intake, added 2026-10-31) is BSD-3-Clause; `prometheus-client` (metrics endpoint, added 2026-11-26) is Apache-2.0 AND BSD-2-Clause; `valkey` (shared-cache client, added 2026-11-26) is MIT, with `async-timeout` (Apache-2.0) on Python below 3.11.3 only |
 | npm (web and desktop locks) | 103 | 0 | `lightningcss` (build-time CSS tool) is MPL-2.0; `uplot` (charts, added 2026-11-16) is MIT; `lucide-react` (icons, added 2026-11-24) is ISC |
 | Rust (desktop crate graph) | 434 | 0 | `cssparser`, `cssparser-macros`, `selectors`, `dtoa-short`, `option-ext` are MPL-2.0; `r-efi` uses its reviewed MIT branch (RCLC-0001/0002) |
 
@@ -21,6 +21,17 @@ No dependency had to be replaced. MPL-2.0 is file-level copyleft: the files may 
 used in proprietary products as long as they are not modified. Any change to an
 MPL-2.0 file must be published under MPL-2.0. On Linux the desktop app links the
 system WebKitGTK/GTK libraries (LGPL) dynamically, which LGPL permits.
+
+## Shared cache client (2026-11-26)
+
+Several API processes share counters and notes through Valkey (decision record
+`docs/architecture/decisions/2026-11-26-multi-process-api-and-shared-cache.md`). The client is
+`valkey` 6.2 (valkey-py, MIT, pure Python, the Valkey project's fork of redis-py), imported only
+when `EUROGAS_NEXUS_SHARED_CACHE_URL` is set; on Python below 3.11.3 it pulls `async-timeout`
+(Apache-2.0). Both are hash-pinned in `requirements-runtime.lock` and `requirements.lock`. The
+server is not bundled: Valkey (BSD-3-Clause) or Redis 7.2 or earlier (BSD-3-Clause); Redis 7.4
+and later (RSALv2/SSPLv1, and AGPLv3 from 8.0) are refused, as the policy refuses SSPL and AGPL.
+`deploy/runtime/compose.scale.yaml` uses the `valkey/valkey:8-alpine` image.
 
 ## Chart library (UX-09, 2026-11-16)
 

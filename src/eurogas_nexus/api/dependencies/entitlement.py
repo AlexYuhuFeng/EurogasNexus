@@ -29,6 +29,7 @@ an unknown family, an unentitled principal and an unavailable governance module.
 """
 
 from fastapi import HTTPException, Request
+from starlette.concurrency import run_in_threadpool
 
 from eurogas_nexus.security.identity import (
     legacy_public_token_principal,
@@ -81,7 +82,9 @@ async def require_entitlement(request: Request, source_system: str = "") -> None
         )
         identity = getattr(request.state, "identity", legacy_public_token_principal())
         if not principal_allows_source_family(identity, source_system):
-            _record_denial(source_system, identity.principal_id, "identity_scope_denied")
+            await run_in_threadpool(
+                _record_denial, source_system, identity.principal_id, "identity_scope_denied"
+            )
             raise HTTPException(
                 status_code=403,
                 detail={
@@ -98,7 +101,9 @@ async def require_entitlement(request: Request, source_system: str = "") -> None
             )
         decision = entitlement_check(source_system, known_entitled_systems=known)
         if not decision.granted:
-            _record_denial(source_system, identity.principal_id, "entitlement_denied")
+            await run_in_threadpool(
+                _record_denial, source_system, identity.principal_id, "entitlement_denied"
+            )
             raise HTTPException(
                 status_code=403,
                 detail={

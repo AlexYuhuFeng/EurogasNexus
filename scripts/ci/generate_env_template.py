@@ -75,6 +75,16 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "EUROGAS_NEXUS_DB_POOL_TIMEOUT",
             "EUROGAS_NEXUS_DB_POOL_RECYCLE",
             "EUROGAS_NEXUS_DB_SSL_ROOT_CERT",
+            "EUROGAS_NEXUS_DB_STATEMENT_TIMEOUT_MS",
+        ),
+    ),
+    (
+        "Serving: several API processes",
+        (
+            "UVICORN_WORKERS",
+            "EUROGAS_NEXUS_SHARED_CACHE_URL",
+            "EUROGAS_NEXUS_API_THREADS",
+            "EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL",
         ),
     ),
     (

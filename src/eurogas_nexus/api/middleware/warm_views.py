@@ -2,7 +2,8 @@
 
 Any POST, PUT, PATCH or DELETE under ``/api/`` that answers below 400 and is not a pure
 computation (``COMPUTE_ONLY_PATHS``) counts: every kept view is refreshed before it is
-fresh again, and the writer's own views are recomputed before they are served at all.
+fresh again, and the writer's own views (its own, and those it shares with readers of the same
+scope) are recomputed before they are served at all.
 """
 
 from __future__ import annotations
@@ -10,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Awaitable, Callable
 from typing import Any
 
-from eurogas_nexus.application.warm_views import COMPUTE_ONLY_PATHS, views
+from eurogas_nexus.application.warm_views import COMPUTE_ONLY_PATHS, scope_owner, views
 
 _READ_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
@@ -41,4 +42,7 @@ class WarmViewWriteMiddleware:
         finally:
             if status and status[0] < 400:
                 identity = (scope.get("state") or {}).get("identity")
-                views().note_write(getattr(identity, "principal_id", None))
+                views().note_write(
+                    getattr(identity, "principal_id", None),
+                    scope_owner(identity) if identity is not None else None,
+                )

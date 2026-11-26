@@ -27,6 +27,9 @@ dependencies = [
     # Prometheus exposition and multi-process metric files (Apache-2.0 / BSD-2-Clause,
     # pure Python, no dependencies); see docs/operations/MONITORING.md.
     "prometheus-client>=0.21,<1.0",
+    # Shared cache client for several API processes (MIT; Valkey itself is BSD-3-Clause).
+    # Imported only when EUROGAS_NEXUS_SHARED_CACHE_URL is set (decision 2026-11-26).
+    "valkey>=6.1,<7",
 ]
 
 [project.optional-dependencies]

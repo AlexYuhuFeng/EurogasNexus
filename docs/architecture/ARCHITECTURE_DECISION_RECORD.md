@@ -1075,3 +1075,25 @@ a later revision into an earlier read). Tests: `tests/unit/test_timescale_option
 `tests/integration/test_timescale_optional_postgres.py` (plain PostgreSQL),
 `tests/integration/test_timescale_present_postgres.py` (TimescaleDB), `tests/unit/test_reliability_ops.py`.
 
+
+## Decision 40: Several API processes, one live-update poller per process, and a shared cache (Valkey)
+
+Accepted 2026-11-26 (owner), with the architecture plan version 3. Full record:
+[decisions/2026-11-26-multi-process-api-and-shared-cache.md](decisions/2026-11-26-multi-process-api-and-shared-cache.md).
+It keeps Decision 28 (the outbox; no broker) and adds one small component, Valkey, for a
+deployment that runs more than one API process.
+
+Each API process runs one live-update poller (`api/stream_hub.py`): one thread, one database
+session per poll, each source read once from the oldest cursor any stream holds, each stream's
+own caller's entitlement applied in memory, events handed to each connection through an
+in-memory queue. No synchronous database call runs on the event loop (a contract test scans
+every `async def` under `api/`). The API runs as `UVICORN_WORKERS` processes; the schedulers and
+feeds stay separate worker services and never start inside an API process. The shared cache
+(`core/shared_cache.py`) has two backends behind one interface: the process's memory (default:
+one process, the demo, development, tests) and Valkey (`EUROGAS_NEXUS_SHARED_CACHE_URL`), used for
+the sign-in and administration rate limits, the per-address sign-in throttle, the warm views'
+write signal and session revocation notes. It is never a store of record. Nine audited
+reader-independent warm views are kept once per scope instead of once per person. Each process's
+pool is sized by a documented formula, request threads follow the pool, API statements time out
+after 30 s, and the pool's waits and timeouts are metrics. Client: `valkey` 6.2 (MIT), hash-pinned.
+Operations: `docs/operations/API_SERVING_AND_SHARED_CACHE.md`.

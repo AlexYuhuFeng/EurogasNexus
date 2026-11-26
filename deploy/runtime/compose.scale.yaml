@@ -1,0 +1,60 @@
+# Production-shaped serving on one server: several API processes and a shared cache.
+#
+#   docker compose -f compose.yaml -f compose.scale.yaml --env-file .env up -d
+#
+# Adds a Valkey server (BSD-3-Clause; on the internal network only, never published) and runs
+# UVICORN_WORKERS API processes that share it for rate limits, warm-view invalidation and
+# revocation notes. Each process opens its own database pool: size it with the formula in
+# docs/operations/API_SERVING_AND_SHARED_CACHE.md (the defaults below fit 4 processes on a
+# PostgreSQL with max_connections = 100, the workers included). With two or more servers,
+# point every server's EUROGAS_NEXUS_SHARED_CACHE_URL at one Valkey (or a replicated pair)
+# instead of running one here, and put the firm's load balancer in front; no sticky
+# sessions are needed.
+#
+# VALKEY_PASSWORD (required) is kept in the deployment's environment file, never in the
+# repository. Valkey keeps nothing on disk: losing it loses counters and notes, never data.
+
+services:
+  valkey:
+    image: valkey/valkey:8-alpine
+    restart: unless-stopped
+    command:
+      - valkey-server
+      - --requirepass
+      - ${VALKEY_PASSWORD:?set VALKEY_PASSWORD in the environment file}
+      - --save
+      - ""
+      - --appendonly
+      - "no"
+      - --maxmemory
+      - 256mb
+      # Never evict: the keys are small and all but one expire; a full cache answers with an
+      # error, which every caller treats as "unavailable" and falls back safely.
+      - --maxmemory-policy
+      - noeviction
+    healthcheck:
+      test: ["CMD-SHELL", "valkey-cli -a \"$$VALKEY_PASSWORD\" --no-auth-warning ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    environment:
+      VALKEY_PASSWORD: ${VALKEY_PASSWORD}
+
+  # The same settings reach the preflight (config-check) and the migration as the API, so
+  # the preflight checks the topology that will actually run.
+  config-check:
+    environment: &scale-environment
+      UVICORN_WORKERS: ${UVICORN_WORKERS:-4}
+      EUROGAS_NEXUS_SHARED_CACHE_URL: ${EUROGAS_NEXUS_SHARED_CACHE_URL:-valkey://:${VALKEY_PASSWORD}@valkey:6379/0}
+      # Per process: 4 x (8 + 4) = 48 connections for the API; see the formula.
+      EUROGAS_NEXUS_DB_POOL_SIZE: ${EUROGAS_NEXUS_DB_POOL_SIZE:-8}
+      EUROGAS_NEXUS_DB_MAX_OVERFLOW: ${EUROGAS_NEXUS_DB_MAX_OVERFLOW:-4}
+
+  migrate:
+    environment: *scale-environment
+
+  api:
+    environment: *scale-environment
+    depends_on:
+      valkey:
+        condition: service_healthy

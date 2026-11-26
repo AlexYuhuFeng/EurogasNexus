@@ -14,7 +14,9 @@ reachable through the public HTTPS gateway (the shipped gateways answer `/metric
 | --- | --- |
 | `eurogas_http_request_duration_seconds` (histogram), `eurogas_http_requests_total` | Request latency and count per route group (`/api/market`, `/api/portfolio`, ...), method and status class (2xx, 4xx, 5xx) |
 | `eurogas_db_pool_checked_out`, `eurogas_db_pool_size`, `eurogas_db_pool_overflow` | Database connections in use and available, summed over the API's worker processes |
+| `eurogas_db_pool_checkouts_total`, `eurogas_db_pool_waits_total`, `eurogas_db_pool_timeouts_total`, `eurogas_db_pool_wait_seconds_total` | Connections handed out, checkouts that had to wait because the pool was exhausted, checkouts that gave up after the pool timeout, and the time spent waiting (all from the pool's own counts, `db/session.py`) |
 | `eurogas_stream_connections{topic}` | Open live-update connections (quotes, alerts, opportunities ...) |
+| `eurogas_stream_polls_total`, `eurogas_stream_poll_seconds_total`, `eurogas_stream_poll_failures_total`, `eurogas_stream_refused_total` | The live-update pollers (one per API process): polls, time spent in them, polls that could not reach the store, streams refused over the per-caller cap |
 | `eurogas_source_freshness_seconds{source_id}`, `eurogas_source_stale_after_seconds{source_id}` | How old each enabled source's data is, and the age its own freshness rule calls stale |
 | `eurogas_source_consecutive_failures`, `eurogas_source_stale`, `eurogas_source_enabled`, `eurogas_source_scheduler_overdue`, `eurogas_source_certification_state` | Per-source health |
 | `eurogas_ingestion_runs_total`, `eurogas_ingestion_failures_total`, `eurogas_ingestion_failures_last_hour{source_id}` | Ingestion outcomes |

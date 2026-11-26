@@ -51,16 +51,30 @@ async def _application_lifespan(_app: FastAPI) -> AsyncIterator[None]:
     tracing.initialise("eurogas-nexus-api")
     process_metrics.prepare_process()
     runtime_dependencies.initialize_runtime_dependencies()
+    # Request threads sized from the database pool, so a request waits for a thread (no
+    # timeout) rather than for a connection (an error after the pool timeout).
+    import anyio.to_thread
+
+    from eurogas_nexus.db.session import api_thread_limit, use_api_statement_timeout
+
+    anyio.to_thread.current_default_thread_limiter().total_tokens = api_thread_limit()
+    # The API's database connections cancel a runaway statement (db/session.py). Set here,
+    # before any request opens the first connection, not when the app is created: importing
+    # the API must not load the database layer.
+    use_api_statement_timeout()
     # Background jobs run in this process: one that was running when the server last
     # stopped can never finish, so it is failed with a reason now (best effort, never fatal).
+    from starlette.concurrency import run_in_threadpool
+
     from eurogas_nexus.application.background_jobs import fail_orphaned_jobs_quietly
 
-    fail_orphaned_jobs_quietly()
+    # Database work never runs on the event loop, at startup and shutdown included.
+    await run_in_threadpool(fail_orphaned_jobs_quietly)
     yield
     # Close pooled database connections cleanly on shutdown (no-op when none were opened).
     from eurogas_nexus.db.session import dispose_cached_engines
 
-    dispose_cached_engines()
+    await run_in_threadpool(dispose_cached_engines)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:

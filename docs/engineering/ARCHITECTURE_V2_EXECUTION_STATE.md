@@ -6,6 +6,27 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — Phase 1, P1-A serving: one poller per process, several processes, Valkey (branch `p1-A`, not pushed)
+
+- Decision record accepted and renamed:
+  [2026-11-26-multi-process-api-and-shared-cache.md](../architecture/decisions/2026-11-26-multi-process-api-and-shared-cache.md)
+  (Decision 40 in the decision log).
+- Built: the per-process live-update poller (`api/stream_hub.py`, shared reads in
+  `application/live_topics.Reads`, per-connection entitlement kept); no synchronous database call
+  on the event loop (identity resolution, contract intake, import validation, entitlement
+  audits, lifespan; a contract test guards it); the shared-cache seam with an in-process and a
+  Valkey backend (rate limits, sign-in throttle, warm-view write signal, revocation notes on
+  open streams); nine reader-independent warm views kept once per scope; pool sizing, request
+  threads from the pool, a 30 s API statement timeout, pool and poller metrics; the load test
+  `scripts/ops/load_test_desk.py`; `deploy/runtime/compose.scale.yaml` (4 processes + Valkey).
+- New runtime dependency: `valkey` 6.2 (MIT), hash-pinned; no other pin moved.
+- Measured on a shared 4-core machine: see
+  [API_SERVING_AND_SHARED_CACHE.md](../operations/API_SERVING_AND_SHARED_CACHE.md#results-2026-11-26).
+- Not done here: `LISTEN/NOTIFY` early wake of the poller (pg8000 delivers notices only on a
+  round trip, so it would cost the same as the 1.5 s poll), warm-view values in Valkey (the
+  write signal is shared, values stay per process), per-person views kept by scope (seven views
+  read per-person state), cross-process stream caps (the cap is per process).
+
 ## 2026-11-26 — Quant review fixes (branch `quantfix`)
 
 - Confirmed errors of the quant review fixed, each with a failing test first: VaR on one
@@ -29,6 +50,7 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   daily) EUR/MWh with 1.80 sunk; Rhinmark replacement 19,377,360 -> 19,228,594 EUR.
 - Not built (plan work, `ARCHITECTURE_V3_PLAN.md`): storage extrinsic value, swing/ToP,
   options, PFE, P&L attribution, power, the stored EOD ladder/VaR run.
+
 ## 2026-11-26 — P1-C: observability, scheduler safety, gated upgrades (branch `p1-C`, not pushed)
 
 Plan v3 section 3.10 (and 3.2 for migrations), phase 1. Built:
