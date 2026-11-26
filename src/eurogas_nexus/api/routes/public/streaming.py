@@ -671,3 +671,202 @@ async def stream_alerts(request: Request) -> StreamingResponse:
         request,
         notices=(("map", _fetch_map_changes),),
     )
+
+
+# --- The live stream: per-topic change notices and job progress ---------------------------
+
+#: How often the live stream sends a ``heartbeat`` event (a named event, so a browser sees it
+#: and can tell a quiet feed from a dead connection).
+LIVE_HEARTBEAT_SECONDS = 5.0
+#: How far back a resumed live stream looks at most: older gaps are re-read by the page anyway.
+LIVE_RESUME_LIMIT_SECONDS = 15 * 60.0
+LIVE_ID_PREFIX = "live|"
+
+
+def _live_event_id(at: datetime, outbox: str | None = None) -> str:
+    base = f"{LIVE_ID_PREFIX}{_as_utc(at).isoformat()}"
+    return f"{base}|{outbox}" if outbox else base
+
+
+def _parse_live_id(value: str | None, now: datetime) -> tuple[datetime, str | None] | None:
+    """The time and outbox cursor a ``Last-Event-ID`` of the live stream names.
+
+    The time is kept within the resume limit; the outbox cursor (``c1-<writer>-<seq>``) is
+    exact, so a resumed client hears of every market event recorded while it was away.
+    """
+
+    if not value or not value.startswith(LIVE_ID_PREFIX):
+        return None
+    stamp, _, outbox = value[len(LIVE_ID_PREFIX) :].partition("|")
+    try:
+        at = _as_utc(datetime.fromisoformat(stamp))
+    except ValueError:
+        return None
+    if outbox:
+        from eurogas_nexus.application.change_feed import ChangeFeedError, parse_cursor
+
+        try:
+            parsed = parse_cursor(outbox)
+        except ChangeFeedError:
+            outbox = ""
+        else:
+            outbox = outbox if not isinstance(parsed, str) else ""
+    earliest = now.timestamp() - LIVE_RESUME_LIMIT_SECONDS
+    if at.timestamp() < earliest:
+        at = datetime.fromtimestamp(earliest, UTC)
+    return min(at, now), outbox or None
+
+
+async def _live_stream(
+    topics: tuple[str, ...],
+    start: datetime,
+    resumed: bool,
+    guard: StreamGuard | None,
+    outbox_after: str | None = None,
+) -> AsyncGenerator[str, None]:
+    """Poll the subscribed topics and send a ``change`` notice per topic that moved.
+
+    Market events come from the outbox (``market_events``, through ``change_feed``); what the
+    outbox does not carry (screen quotes, booked trades, nominations, alerts, the map's fast
+    inputs) from its own table (``application.live_topics``).
+
+    Events (each ``data`` is JSON):
+
+    * ``ready`` once: ``{topics, resumed_from, poll_seconds, heartbeat_seconds}``;
+    * ``change``: ``{topic, changed_at, event_id}``, at most one per topic per poll (bursts are
+      coalesced here: a page re-reads once however many rows landed);
+    * ``jobs``: ``{job_id, kind, status, progress, step, error_code, created_at, started_at,
+      finished_at, event_id}`` when one of the caller's jobs moves;
+    * ``heartbeat``: ``{at, event_id}`` every ``LIVE_HEARTBEAT_SECONDS``;
+    * ``warning`` (the database is unavailable; the stream keeps trying) and ``revoked`` (the
+      caller may no longer stream; the stream ends).
+
+    Every event but ``warning`` carries an ``id:`` (``live|<time>|<outbox cursor>``: the
+    earliest table cursor and the outbox position). A client that reconnects with it as
+    ``Last-Event-ID`` (or ``last_event_id``) is told about every topic that changed while it
+    was away.
+    """
+
+    from eurogas_nexus.application.live_topics import (
+        job_events,
+        outbox_changes,
+        outbox_start,
+        topic_changes,
+    )
+
+    notice_topics = tuple(topic for topic in topics if topic != "jobs")
+    cursors: dict = dict.fromkeys(notice_topics, start)
+    outbox = outbox_after
+    jobs_seen: dict[str, tuple] = {}
+    jobs_since = start
+
+    def event_id() -> str:
+        return _live_event_id(min(cursors.values(), default=datetime.now(UTC)), outbox)
+
+    if outbox is None and notice_topics:
+        try:
+            from eurogas_nexus.db.session import get_session_factory
+
+            with get_session_factory()() as session:
+                outbox = outbox_start(session)
+        except Exception:
+            outbox = None  # the first poll that reaches the store starts it
+    yield _sse(
+        {
+            "topics": list(topics),
+            "resumed_from": start if resumed else None,
+            "poll_seconds": POLL_SECONDS,
+            "heartbeat_seconds": LIVE_HEARTBEAT_SECONDS,
+        },
+        event="ready",
+        event_id=event_id(),
+    )
+    last_heartbeat = datetime.now(UTC)
+    while True:
+        announced: dict[str, dict] = {}
+        jobs: list[dict] = []
+        revoked = False
+        try:
+            from eurogas_nexus.db.session import get_session_factory
+
+            with get_session_factory()() as session:
+                if guard is not None and not guard._still_authorised(session):
+                    revoked = True
+                else:
+                    principal = None if guard is None else guard.principal
+                    found = topic_changes(
+                        session, notice_topics, cursors, principal, _fetch_map_changes
+                    )
+                    if outbox is None:
+                        outbox = outbox_start(session)
+                    else:
+                        events, outbox = outbox_changes(session, notice_topics, outbox, principal)
+                        found.extend(events)
+                    for notice in found:
+                        topic = notice["topic"]
+                        moved = notice.get("cursor")
+                        if isinstance(moved, datetime) and _as_utc(moved) > cursors[topic]:
+                            cursors[topic] = _as_utc(moved)
+                        if not notice.get("visible", True):
+                            continue
+                        held = announced.get(topic)
+                        if held is None or _as_utc(notice["changed_at"]) > _as_utc(
+                            held["changed_at"]
+                        ):
+                            announced[topic] = notice
+                    if "jobs" in topics:
+                        jobs = job_events(session, principal, jobs_since, jobs_seen)
+        except Exception:
+            announced, jobs = {}, []
+            yield _sse(
+                {"type": "warning", "message": "RUNTIME_POSTGRESQL_UNAVAILABLE"},
+                event="warning",
+            )
+        if revoked:
+            yield _sse({"type": "revoked", "message": "ACCESS_REVOKED"}, event="revoked")
+            return
+        current = event_id()
+        for notice in announced.values():
+            yield _sse(
+                {"topic": notice["topic"], "changed_at": notice["changed_at"], "event_id": current},
+                event="change",
+                event_id=current,
+            )
+        for job in jobs:
+            yield _sse({**job, "event_id": current}, event="jobs", event_id=current)
+        now = datetime.now(UTC)
+        if (now - last_heartbeat).total_seconds() >= LIVE_HEARTBEAT_SECONDS:
+            yield _sse({"at": now, "event_id": current}, event="heartbeat", event_id=current)
+            last_heartbeat = now
+        await asyncio.sleep(POLL_SECONDS)
+
+
+@router.get("/api/stream/live")
+async def stream_live(request: Request, topics: str = "") -> StreamingResponse:
+    """Push a change notice per subscribed topic, and the caller's job progress.
+
+    ``topics`` is a comma-separated subset of ``prices, trades, alerts, nominations, tariffs,
+    outages, flows, cargoes, slots, opportunities, book, capacity, sources, news, jobs``;
+    unknown names are ignored. Market events are read from the outbox (``market_events``). A notice
+    names a topic and a time, never a row: the page answers it with its own (conditional) read,
+    so the notice never carries data the page would have to entitle, and nothing the caller may
+    not read produces one. Resumes from ``Last-Event-ID`` or the ``last_event_id`` parameter
+    (a browser that opens a new connection cannot set the header).
+    """
+
+    from eurogas_nexus.application.live_topics import parse_topics
+
+    now = datetime.now(UTC)
+    resume = request.headers.get("last-event-id") or request.query_params.get("last_event_id")
+    resumed = _parse_live_id(resume, now)
+    return StreamingResponse(
+        _live_stream(
+            parse_topics(topics),
+            resumed[0] if resumed else now,
+            resumed is not None,
+            _guard_for("live", request),
+            outbox_after=resumed[1] if resumed else None,
+        ),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

@@ -291,6 +291,7 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/sources/{source_id}/run",
         "/api/sources/{source_id}/runs",
         "/api/stream/alerts",
+        "/api/stream/live",
         "/api/stream/opportunities",
         "/api/stream/quotes",
         "/api/weather/degree-days",

@@ -4,6 +4,18 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-26 (live data): one path, one operation. `GET /api/stream/live?topics=...`
+(server-sent events, the caller's own entitlement) sends `change` notices (`topic`, `changed_at`;
+no row, no value) for the subscribed topics: from the market event outbox (`market_events`, read
+through the change feed) `prices` (price, FX, rate), `outages`, `tariffs`, `cargoes`, `book`
+(contract, mark, limit, assumption, freight), `capacity`, `sources`, `news`; from their own
+tables `prices` (screen quotes), `trades`, `alerts`, `nominations`, `tariffs` (publications) and
+the map's `outages`, `flows`, `cargoes`, `slots`, `opportunities`. `jobs` events carry the
+caller's own jobs (`job_id`, `kind`, `status`, `progress`, `step`), a `heartbeat` comes every 5 s,
+and `ready`, `warning` and `revoked` as on the other streams. Resumes from `Last-Event-ID` or
+`last_event_id` (`live|<time>|<outbox cursor>`; the time at most 15 min back). Census: 304 paths /
+339 operations (+1 / +1 on 303 / 338).
+
 Additive 2026-11-25 (public tariffs and capacity windows, Commercial Intelligence V3 TAR-1, ADR
 Decision 34): three paths, three operations, all READ and read-only. New `GET /api/tariffs`
 (filters `publisher`, `facility`, `operator`, `direction` ENTRY|EXIT, `product`, `status`

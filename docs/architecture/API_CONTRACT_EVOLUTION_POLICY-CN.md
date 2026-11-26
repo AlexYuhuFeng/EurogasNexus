@@ -1,5 +1,13 @@
 # API 契约演化策略
 
+2026-11-26 新增 `GET /api/stream/live?topics=...`（服务器推送事件，按调用方自身权限过滤）：按订阅主题
+推送 `change` 变更通知（`topic`、`changed_at`，不含数据行与数值）。市场事件发件箱（`market_events`，经
+变更流读取）提供价格（含汇率、利率）、停运、费率、货船、账簿（合同、估值、限额、假设、运费）、容量、
+数据源与新闻；屏幕报价、成交、告警、提名、费率公告及地图的停运、流量、货船、窗口与机会读自各自的表。
+`jobs` 事件推送调用方自己的作业进度（`job_id`、`kind`、`status`、`progress`、`step`）；每 5 秒一次
+`heartbeat`。支持 `Last-Event-ID` 或 `last_event_id` 断点续传（`live|<时间>|<发件箱游标>`，时间最多回溯
+15 分钟）。接口统计：304 条路径 / 339 个操作。
+
 2026-11-25 新增公开费率与容量窗口（Commercial Intelligence V3 TAR-1，ADR 决策 34）：三条路径、三个操作，均为 READ
 且只读。新增 `GET /api/tariffs`（筛选 `publisher`、`facility`、`operator`、`direction` ENTRY|EXIT、`product`、
 `status` INDICATIVE|FINAL、`on` 某燃气日、`key`；`as_of` 为 ISO 8601 UTC；`history` 为 true 且带 `key` 或
