@@ -634,6 +634,34 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
             "OTEL_SERVICE_NAME; see docs/operations/MONITORING.md, Tracing",
         ),
     ),
+    # --- Gated database upgrades (P1-C) -------------------------------------
+    ConfigVar(
+        name="EUROGAS_NEXUS_AUTO_MIGRATE",
+        scope="OPERATOR",
+        purpose="Upgrade the database at start (development and demo only).",
+        default="on outside trial and release",
+        profiles=("development",),
+        example="0",
+        notes=(
+            "Ignored in trial and release: there the upgrade is the gated operator step "
+            "(scripts/ops/upgrade_database.py upgrade; docs/operations/DATABASE_UPGRADE.md)",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_MIGRATION_LOCK_TIMEOUT",
+        scope="OPERATOR",
+        purpose="Longest a migration statement waits for a lock before failing and rolling "
+        "back (PostgreSQL duration).",
+        default="10s",
+        example="10s",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_MIGRATION_STATEMENT_TIMEOUT",
+        scope="OPERATOR",
+        purpose="Longest one migration statement may run (PostgreSQL duration).",
+        default="1h",
+        example="1h",
+    ),
     # --- Model and source behaviour ----------------------------------------
     ConfigVar(
         name="EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED",

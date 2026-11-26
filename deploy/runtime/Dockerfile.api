@@ -81,6 +81,7 @@ COPY scripts/ops/approve_public_source.py \
      scripts/ops/run_public_ingestion_worker.py \
      scripts/ops/run_shadow_scheduler.py \
      scripts/ops/seed_reference_network.py \
+     scripts/ops/upgrade_database.py \
      scripts/ops/validate_runtime_db.py ./scripts/ops/
 COPY scripts/ci/audit_dependencies.py ./scripts/ci/
 COPY scripts/release/collect_python_license_texts.py \

@@ -12,7 +12,9 @@ See ``docs/deployment/SELF_HOSTED_DEMO.md`` for the operator guide.
    a platform URI (``postgres://``/``postgresql://`` with ``sslmode``) is mapped to the
    pg8000 URL the product uses;
 2. wait for PostgreSQL (up to ``DEMO_DB_WAIT_SECONDS``, default 90);
-3. ``alembic upgrade head`` (forward only; a failure stops this version from serving);
+3. the database upgrade at start (``scripts/ops/upgrade_database.py on-start``: forward only,
+   with lock and statement timeouts, audited as ``auto-migrate``; a failure stops this
+   version from serving);
 4. load the shipped reference network bundle (idempotent, no network);
 5. seed the fictional demo desk once, on an empty store. Later starts keep what testers
    changed, unless ``EUROGAS_NEXUS_DEMO_RESET_TOKEN`` differs from the value recorded at the
@@ -444,7 +446,12 @@ def prepare_database() -> None:
     from eurogas_nexus.db.session import get_session_factory
 
     python = sys.executable
-    run_step("alembic upgrade head", [python, "-m", "alembic", "upgrade", "head"])
+    # The demo upgrades at start (EUROGAS_NEXUS_AUTO_MIGRATE, on outside trial and release)
+    # through the same gated command as production: timeouts set, audited as auto-migrate.
+    run_step(
+        "database upgrade (auto-migrate)",
+        [python, "scripts/ops/upgrade_database.py", "on-start"],
+    )
     run_step(
         "reference network bundle",
         [python, "scripts/ops/seed_reference_network.py"],

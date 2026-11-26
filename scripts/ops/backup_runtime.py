@@ -74,11 +74,42 @@ def main(argv: list[str] | None = None) -> int:
         print(f"pg_dump failed with exit code {result.returncode}")
         return 1
     print(f"Backup written: {output_path}")
+    _record_marker(output_path)
     print(
         "Restore (see docs/operations/BACKUP_RESTORE.md): "
         f"pg_restore --clean --if-exists --dbname=<target> {output_path.name}"
     )
     return 0
+
+
+def _record_marker(output_path: Path) -> None:
+    """Record the dump in the audit trail, where the gated upgrade looks for a recent backup.
+
+    Best effort: a dump that was written stays valid when the marker cannot be recorded; the
+    operator can record it with ``upgrade_database.py record-backup``.
+    """
+
+    import hashlib
+
+    digest = hashlib.sha256()
+    with output_path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1 << 20), b""):
+            digest.update(chunk)
+    reference = f"{output_path.name} sha256:{digest.hexdigest()[:16]}"
+    try:
+        from eurogas_nexus.application.database_upgrade import record_backup
+        from eurogas_nexus.db.session import get_session_factory
+
+        with get_session_factory()() as session:
+            record_backup(session, operator="backup-runtime", reference=reference, kind="pg_dump")
+            session.commit()
+        print(f"Backup recorded for the gated upgrade: {reference}")
+    except Exception as exc:  # noqa: BLE001 - the dump itself succeeded
+        print(
+            f"warning: backup not recorded ({exc.__class__.__name__}); record it with "
+            f"`python scripts/ops/upgrade_database.py record-backup --reference "
+            f"'{reference}' --kind pg_dump --operator <you>`"
+        )
 
 
 if __name__ == "__main__":
