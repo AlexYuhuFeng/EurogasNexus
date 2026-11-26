@@ -119,7 +119,7 @@ const HUB_WORDS: Record<string, string> = {
   italian: "PSV", italy: "PSV", 意大利: "PSV",
   austrian: "CEGH", austria: "CEGH", baumgarten: "CEGH", 奥地利: "CEGH",
   spanish: "PVB", spain: "PVB", 西班牙: "PVB",
-  danish: "ETF", denmark: "ETF", 丹麦: "ETF",
+  danish: "ETF", denmark: "ETF", 丹麦: "ETF", gtf: "ETF",
   henry: "HH", "henry hub": "HH", 亨利港: "HH", 亨利中心: "HH", 美国: "HH",
 };
 

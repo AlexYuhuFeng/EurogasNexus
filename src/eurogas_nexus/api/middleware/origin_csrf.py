@@ -135,17 +135,15 @@ async def _reject(send: Any, *, status: int, code: str) -> None:
 
     from uuid import uuid4
 
-    from eurogas_nexus.domain.operations.error_taxonomy import error_payload
+    from eurogas_nexus.api.error_handlers import error_body
 
     correlation_id = uuid4().hex
-    payload = error_payload(
-        code,
-        correlation_id=correlation_id,
-        message="Cookie-authenticated request blocked.",
+    message = "Cookie-authenticated request blocked."
+    payload = error_body(
+        status, {"error": code, "message": message}, correlation_id=correlation_id
     )
-    body = json.dumps({**payload, "detail": {"error": code, "message": payload["message"]}}).encode(
-        "utf-8"
-    )
+    payload["message"] = message
+    body = json.dumps(payload).encode("utf-8")
     await send(
         {
             "type": "http.response.start",

@@ -1086,7 +1086,7 @@ export function MarketTerminal({
             ? <strong>{t("data.unavailable")}</strong>
             : latestFxPerPair(fxRates).slice(0, 4).map((rate) => (
               <strong key={`fx-${rate.pair}-${rate.observed_at_utc}`} title={formatTimestamp(rate.observed_at_utc)}>
-                {rate.pair} {formatMeasure("fx_rate", rate.rate)} <small>{rate.source_system ? sourceSystemLabel(rate.source_system) : t("market.ecb_source")}</small>
+                {rate.pair} {formatMeasure("fx_rate", rate.rate)} <small>{rate.source_system ? sourceSystemLabel(rate.source_system, t) : t("market.ecb_source")}</small>
               </strong>
             ))}
         </div>

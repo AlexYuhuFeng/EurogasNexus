@@ -77,7 +77,9 @@ def _aware(value: datetime | None) -> datetime | None:
 
 
 def _is_simulated(source_system: str | None, metadata: dict | None) -> bool:
-    return bool((metadata or {}).get("simulated")) or str(source_system or "").endswith("_Sim")
+    from eurogas_nexus.domain.ontology.provenance import is_simulated
+
+    return is_simulated(source_system, metadata)
 
 
 # ----------------------------------------------------------------------------- FX adapter
@@ -303,6 +305,10 @@ class LiveSnapshotReader(RecordingReader):
         self._hedge_cover_loader = hedge_cover_loader
         self._book_reads = book_reads
         self._book_sets: dict[str, tuple[str, Any] | None] = {}
+        #: One price book for the snapshot (backend audit P1): a book per price input (hub,
+        #: period, side) read the same quotes and observations again for every side, month
+        #: and hub - 96 queries for the spread board on the demo desk, now 3.
+        self._price_book: Any = None
         self._naive = session.get_bind().dialect.name == "sqlite"
 
     def _bound(self, moment: datetime) -> datetime:
@@ -327,15 +333,18 @@ class LiveSnapshotReader(RecordingReader):
         from eurogas_nexus.application.price_resolver import open_price_book
 
         label = f"{hub} {period.label}"
-        book = open_price_book(
-            self.session,
-            self.caller,
-            now=self.as_of_utc,
-            hubs=[hub],
-            allow_simulated=self.demo_desk,
-            lookback_days=SNAPSHOT_PRICE_LOOKBACK_DAYS,
-            period_starts=[period.start],
-        )
+        book = self._price_book
+        if book is None:
+            # Every hub and period at once: ``resolve`` keeps only the asked hub's candidates
+            # (``PriceBook.for_hub``) covering the asked period (``PriceCandidate.covers``),
+            # so the answer is the one a book narrowed to that hub and period gives.
+            book = self._price_book = open_price_book(
+                self.session,
+                self.caller,
+                now=self.as_of_utc,
+                allow_simulated=self.demo_desk,
+                lookback_days=SNAPSHOT_PRICE_LOOKBACK_DAYS,
+            )
         found = book.resolve(hub, period.start, period.end, side=side)
         held = None if found is None else self._resolved_input(key, found, label, side)
         if held is None:

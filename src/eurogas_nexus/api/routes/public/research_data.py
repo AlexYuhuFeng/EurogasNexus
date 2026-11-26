@@ -12,6 +12,7 @@ from typing import Any
 from fastapi import APIRouter, BackgroundTasks, HTTPException, Request, Response
 from pydantic import BaseModel, Field, ValidationError
 
+from eurogas_nexus.api.errors import ApiError
 from eurogas_nexus.application.research_registry import DatasetRegistryError
 from eurogas_nexus.domain.research.datasets import (
     DatasetBuildResult,
@@ -55,8 +56,10 @@ class DatasetExportRequest(BaseModel):
 
 def _session():
     if not _db_configured():
-        raise HTTPException(
-            status_code=503, detail="Runtime PostgreSQL is required for research data."
+        raise ApiError(
+            503,
+            "runtime_db_required",
+            "Runtime PostgreSQL is required for research data.",
         )
     from eurogas_nexus.db.session import get_session_factory
 
@@ -328,7 +331,12 @@ def get_feature(feature_id: str, request: Request) -> dict:
     with _session() as session:
         row = session.get(FeatureDefinitionRecord, feature_id)
         if row is None:
-            raise HTTPException(status_code=404, detail=f"Unknown feature: {feature_id}")
+            raise ApiError(
+                404,
+                "research_feature_not_found",
+                f'Unknown feature: {feature_id}',
+                params={"feature_id": feature_id},
+            )
         payload = _feature_payload(row)
     return _env(payload, request, source="research-catalog")
 
@@ -349,7 +357,12 @@ def get_target(target_id: str, request: Request) -> dict:
     with _session() as session:
         row = session.get(TargetDefinitionRecord, target_id)
         if row is None:
-            raise HTTPException(status_code=404, detail=f"Unknown target: {target_id}")
+            raise ApiError(
+                404,
+                "research_target_not_found",
+                f'Unknown target: {target_id}',
+                params={"target_id": target_id},
+            )
         payload = _target_payload(row)
     return _env(payload, request, source="research-catalog")
 
@@ -455,8 +468,10 @@ def materialize_dataset(
     """
 
     if not _db_configured():
-        raise HTTPException(
-            status_code=503, detail="Runtime PostgreSQL is required for dataset builds."
+        raise ApiError(
+            503,
+            "runtime_db_required",
+            "Runtime PostgreSQL is required for dataset builds.",
         )
     principal = _request_principal(request)
     try:
@@ -678,8 +693,11 @@ def get_dataset(dataset_snapshot_id: str, request: Request) -> dict:
     with _session() as session:
         row = get_dataset_snapshot(session, dataset_snapshot_id)
         if row is None:
-            raise HTTPException(
-                status_code=404, detail=f"Unknown dataset snapshot: {dataset_snapshot_id}"
+            raise ApiError(
+                404,
+                "dataset_snapshot_not_found",
+                f'Unknown dataset snapshot: {dataset_snapshot_id}',
+                params={"dataset_snapshot_id": dataset_snapshot_id},
             )
         if principal_can_read_snapshot(principal, row.metadata_json) is None:
             raise _source_access_denied()
@@ -710,8 +728,11 @@ def get_dataset_quality(dataset_snapshot_id: str, request: Request) -> dict:
     with _session() as session:
         row = get_dataset_snapshot(session, dataset_snapshot_id)
         if row is None:
-            raise HTTPException(
-                status_code=404, detail=f"Unknown dataset snapshot: {dataset_snapshot_id}"
+            raise ApiError(
+                404,
+                "dataset_snapshot_not_found",
+                f'Unknown dataset snapshot: {dataset_snapshot_id}',
+                params={"dataset_snapshot_id": dataset_snapshot_id},
             )
         if principal_can_read_snapshot(principal, row.metadata_json) is None:
             raise _source_access_denied()
@@ -746,8 +767,11 @@ def export_dataset(dataset_snapshot_id: str, body: DatasetExportRequest, request
     with _session() as session:
         row = get_dataset_snapshot(session, dataset_snapshot_id)
         if row is None:
-            raise HTTPException(
-                status_code=404, detail=f"Unknown dataset snapshot: {dataset_snapshot_id}"
+            raise ApiError(
+                404,
+                "dataset_snapshot_not_found",
+                f'Unknown dataset snapshot: {dataset_snapshot_id}',
+                params={"dataset_snapshot_id": dataset_snapshot_id},
             )
         definitions = principal_can_read_snapshot(principal, row.metadata_json)
         if definitions is None:
@@ -994,9 +1018,10 @@ def _build_from_runtime(
     records.extend(option_records)
     trusted_source_ids.update(option_sources)
     if not records:
-        raise HTTPException(
-            status_code=422,
-            detail="No eligible runtime observations matched the dataset spec.",
+        raise ApiError(
+            422,
+            "dataset_no_eligible_observations",
+            "No eligible runtime observations matched the dataset spec.",
         )
 
     from eurogas_nexus.domain.research.datasets import build_dataset

@@ -93,7 +93,7 @@ Details: [Authentication](AUTHENTICATION.md).
 | Rows say `simulated: True` or the source is `DEMO_Sim` | Demo or simulated data | Do not use for decisions; a production server has none |
 | `422 fx_rate_unavailable` from `convert_gas_price_result` with `to_unit` | No stored FX fix for that currency pair (the server reports `recoverability: unknown`) | Pass `gbp_per_eur` / `usd_per_eur`, or name `fx_source` and `fx_date` |
 | `route_cost.calculate_route_cost` returns `status` `BLOCKED` with `missing_inputs` `['ROUTE_TARIFF_LEGS_REQUIRED']` | No `tariff_legs` given | Pass the legs of a route candidate; see [Examples](EXAMPLES.md#cost-of-a-route-between-hubs) |
-| A call returns tens of thousands of rows (`market.fetch_market_observations`) | The function has no filter or limit | Use a narrower function (`fetch_market_quotes`, `research.list_spread_series`) |
+| `SdkPageLimitError` from `market.fetch_market_observations` | The range needs more pages than `max_pages` (the read is paged, 1,000 rows a page) | Pass a narrower `from_utc`/`to_utc` or a `product`, or raise `max_pages` |
 
 ## Version mismatches
 

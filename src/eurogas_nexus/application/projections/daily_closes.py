@@ -83,6 +83,36 @@ def in_native_unit(hub: str, price: float, unit: str) -> tuple[float, str]:
         return price, unit
 
 
+def per_mwh_in_hub_currency(hub: str, value: float, unit: str | None) -> float:
+    """A price or price change entered in ``unit`` (NBP in p/th, as the desk quotes it) as the
+    per-MWh figure in the hub's own currency that valuations use; the inverse of
+    ``in_native_unit``. Without a unit the value already is that figure.
+
+    Raises:
+        ValueError: The unit is unknown, or in another currency than the hub's (that would need
+            FX, which an entered price never silently gets).
+    """
+
+    from eurogas_nexus.domain.market.units import (
+        PRICE_UNITS,
+        UnitConversionError,
+        canonical_price_unit,
+        convert_price,
+    )
+    from eurogas_nexus.domain.ontology.markets import quote_currency
+
+    if not unit:
+        return value
+    target_text = f"{quote_currency(hub)}/MWh"
+    try:
+        given, target = canonical_price_unit(unit), canonical_price_unit(target_text)
+    except UnitConversionError as exc:
+        raise ValueError(f"unit {unit!r} is not known") from exc
+    if PRICE_UNITS[given][0] != PRICE_UNITS[target][0]:
+        raise ValueError(f"unit {unit!r} is not in {hub}'s currency ({target_text})")
+    return convert_price(value, given, target)
+
+
 #: A spread reads daily closes; this bounds the rows one request may load (about ten years
 #: of daily closes for 40 series, or less history when intraday ticks are stored too).
 MAX_OBSERVATION_ROWS = 150_000

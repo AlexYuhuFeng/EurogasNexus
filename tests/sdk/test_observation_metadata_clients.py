@@ -127,3 +127,39 @@ def test_sdk_reports_non_json_protocol_errors(monkeypatch) -> None:
 
     with pytest.raises(SdkProtocolError, match="non-JSON"):
         fetch_sources_result("https://nexus.example")
+
+
+def test_a_paged_read_follows_the_cursor_and_refuses_part_of_a_range(monkeypatch) -> None:
+    from eurogas_nexus_sdk._transport import SdkPageLimitError
+
+    asked: list[dict] = []
+    row = {
+        "observation_id": "o", "market_venue": "ECB", "product": "TTF", "price": 1.0,
+        "unit": "EUR/MWh", "currency": "EUR", "period_start_utc": "2026-07-11T05:00:00+00:00",
+        "period_end_utc": "2026-07-12T05:00:00+00:00",
+    }
+
+    def fake_get(url: str, *, params, timeout: float) -> httpx.Response:
+        asked.append(dict(params))
+        page = len(asked)
+        more = page < 3
+        return httpx.Response(
+            200,
+            request=httpx.Request("GET", url),
+            json={
+                "data": [{**row, "observation_id": f"o{page}"}],
+                "meta": {
+                    "continuation": {"has_more": more, "cursor": f"c{page}" if more else None}
+                },
+            },
+        )
+
+    monkeypatch.setattr(httpx, "get", fake_get)
+    result = fetch_market_observations_result(
+        "https://nexus.example", from_utc="2026-07-01T00:00:00+00:00"
+    )
+    assert [item.observation_id for item in result.data] == ["o1", "o2", "o3"]
+    assert asked[1]["cursor"] == "c1" and asked[1]["from_utc"] == "2026-07-01T00:00:00+00:00"
+    asked.clear()
+    with pytest.raises(SdkPageLimitError):
+        fetch_market_observations_result("https://nexus.example", max_pages=2)

@@ -38,11 +38,20 @@ def entsog_reference_nodes_from_connectionpoints(payload: dict[str, Any]) -> lis
             continue
 
         lon, lat = _entsog_map_to_lon_lat(record.get("tpMapX"), record.get("tpMapY"))
-        if lon is None or lat is None:
+        if lon is None or lat is None or _unplaced(record.get("tpMapX"), record.get("tpMapY")):
             continue
 
         node_type = _entsog_node_type(record)
         country = _infer_country(record)
+        if node_type == "hub":
+            from eurogas_nexus.reference_data.network_adjacency import (
+                RETIRED_TRADING_POINTS,
+                trading_point_country,
+            )
+
+            if point_key in RETIRED_TRADING_POINTS:
+                continue  # a trading point of a zone that no longer exists (PEG SUD)
+            country = trading_point_country(point_key) or country
         rows.append(
             {
                 "id": f"entsog-{point_key.lower()}",
@@ -266,6 +275,7 @@ def entsog_tso_access_points_from_json(payload: dict[str, Any]) -> list[dict[str
                     "tso_eic_code": record.get("tsoEicCode"),
                     "direction_key": direction,
                     "tso_country": record.get("tSOCountry"),
+                    "tso_balancing_zone": record.get("tSOBalancingZone"),
                     "adjacent_country": record.get("adjacentCountry"),
                     "adjacent_operator_key": record.get("adjacentOperatorKey"),
                     "connected_operators": record.get("connectedOperators"),
@@ -896,6 +906,13 @@ def _infer_country(record: dict[str, Any]) -> str:
     return "EU"
 
 
+def _unplaced(x_value: object, y_value: object) -> bool:
+    """ENTSOG writes map position 0/0 for a point it has not placed (Rough, Holford, PEG SUD):
+    transformed, it would read as a site in western Poland. Such a point has no position."""
+
+    return _to_float(x_value) == 0.0 and _to_float(y_value) == 0.0
+
+
 def _entsog_map_to_lon_lat(x_value: object, y_value: object) -> tuple[float | None, float | None]:
     x = _to_float(x_value)
     y = _to_float(y_value)
@@ -909,12 +926,24 @@ def _entsog_map_to_lon_lat(x_value: object, y_value: object) -> tuple[float | No
 
 
 def _market_hub_code(label: str, fallback: str) -> str:
+    """The hub code of a trading point from its published name (``TTF``, ``THE VTP (DE)``).
+
+    A name the market reference model knows, as a code or an alias, gives the model's code:
+    ENTSOG names the Danish trading point "GTF (Bilateral Trading Point)", the hub the model
+    codes ETF, so the map node, the routes and the prices are one hub.
+    """
+
+    from eurogas_nexus.domain.ontology.markets import Commodity, find_market
+
     cleaned = re.sub(r"[^A-Za-z0-9 -]", " ", label).strip()
     if not cleaned:
         return fallback[:16].upper()
     first = cleaned.split()[0].upper()
     if first in {"VIP", "VIRTUAL"} and len(cleaned.split()) > 1:
         first = cleaned.split()[1].upper()
+    found = find_market(first)
+    if found is not None and found.commodity is Commodity.NATURAL_GAS:
+        return found.code
     return first[:16]
 
 
@@ -928,7 +957,10 @@ def _gas_day_period(record: dict[str, Any]) -> tuple[datetime, datetime]:
     """
     from eurogas_nexus.domain.market.gas_day import gas_day_start_for_date
 
-    start_date = _parse_date(record.get("gasDayStart")) or date.today()
+    start_date = _parse_date(record.get("gasDayStart"))
+    if start_date is None:
+        # Never the server's date: a figure without its gas day is not today's figure.
+        raise ValueError("GIE record has no gasDayStart")
     end_date = _parse_date(record.get("gasDayEnd")) or (start_date + timedelta(days=1))
     return (
         gas_day_start_for_date(start_date, calendar=EU_CAM_UTC_CALENDAR),

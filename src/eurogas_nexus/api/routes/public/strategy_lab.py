@@ -5,8 +5,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Query, Request
 
+from eurogas_nexus.api.errors import ApiError
 from eurogas_nexus.domain.strategy_lab.evaluation import (
     StrategyLabScenario,
     evaluate_strategy_lab,
@@ -122,7 +123,7 @@ def _get_run(request: Request, run_id: str) -> tuple[dict | None, list[str]]:
         with get_session_factory()() as session:
             data = get_strategy_run(session, run_id)
             if data is None:
-                raise HTTPException(status_code=404, detail="Strategy run not found")
+                raise ApiError(404, "strategy_run_not_found", "Strategy run not found")
             _require_in_session(session, request, data["strategy_id"])
             return data, []
     except _sqlalchemy_error_type():
@@ -172,7 +173,7 @@ def _require_strategy(request: Request, strategy_id: str, *, write: bool = False
     from eurogas_nexus.db.session import get_session_factory
 
     if not _db_is_configured():
-        raise HTTPException(status_code=503, detail="Strategy store not configured")
+        raise ApiError(503, "runtime_db_required", "Strategy store not configured")
     with get_session_factory()() as session:
         _require_in_session(session, request, strategy_id, write=write)
 

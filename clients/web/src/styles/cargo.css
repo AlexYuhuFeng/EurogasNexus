@@ -5,7 +5,9 @@
   display: grid;
   gap: var(--ds-space-4);
   min-width: 0;
-  padding: var(--ds-space-4);
+  /* The shell sets the page gutter; a page adds none of its own (it sat 16 px inside the
+     title and purpose line). */
+  padding: 0;
   color: var(--ds-text-1);
   font-size: var(--ds-text-base);
 }

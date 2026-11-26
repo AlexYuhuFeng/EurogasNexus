@@ -30,6 +30,7 @@ from eurogas_nexus.application.scheduled_source_keys import (
 )
 from eurogas_nexus.db.session import get_session_factory, resolve_database_url
 from eurogas_nexus.domain.dataops.contracts import FailureCategory, QualityIssue, QualitySeverity
+from eurogas_nexus.domain.dataops.retry import classify_script_failure
 from eurogas_nexus.ingestion.entsog_scope import validate_entsog_point_directions
 from eurogas_nexus.ingestion.entsog_transport import EntsogWindowError
 from eurogas_nexus.ingestion.entsog_window import EntsogWindowPolicy, require_aware_anchor
@@ -141,6 +142,36 @@ _ENTSOG_REFUSAL_CODES = (
     "entsog_revision_not_newer",
     "entsog_revision_requires_history",
 )
+
+
+def _failure_report(stdout: str | None) -> tuple[list[str], int]:
+    """The failure codes and the rows a failed script still stored, from its JSON report."""
+
+    report = None
+    for text in [(stdout or "").strip(), *reversed((stdout or "").strip().splitlines())]:
+        try:
+            value = json.loads(text)
+        except ValueError:
+            continue
+        if isinstance(value, dict):
+            report = value
+            break
+    if report is None:
+        return [], 0
+    codes = [
+        str(failure.get("code"))
+        for failure in report.get("failures") or []
+        if isinstance(failure, dict) and failure.get("code")
+    ]
+    sources = report.get("sources") if isinstance(report.get("sources"), dict) else {}
+    stored = 0
+    for detail in sources.values():
+        if isinstance(detail, dict):
+            for field in ("inserted", "updated"):
+                value = detail.get(field)
+                if type(value) is int and value > 0:
+                    stored += value
+    return codes, stored
 
 
 def _configuration_refusal(stdout: str | None) -> tuple[str, str] | None:
@@ -333,19 +364,33 @@ def run_ingestor_attempt(
                         ],
                         lineage_refs=[window.reference],
                     )
+            # The script's own report says what failed (a rate limit, a provider outage, a
+            # missing key); only a script that said nothing is INTERNAL.
+            codes, stored = _failure_report(completed.stdout)
+            classified = classify_script_failure(codes)
             emit_event(
                 event="ingestion.attempt.failed",
                 level="warning",
                 source_id=source_id,
                 run_id=str(payload.get("run_id") or ""),
-                error_category="INTERNAL",
+                error_category=classified.category.value,
                 attempt=attempt,
-                details={"stderr_tail": (completed.stderr or "")[-400:]},
+                details={
+                    "codes": codes,
+                    "rows_stored": stored,
+                    "stderr_tail": (completed.stderr or "")[-400:],
+                },
+            )
+            text = (completed.stderr or completed.stdout or "").strip()[-400:]
+            partial = (
+                f"partial read: {stored} rows stored before it stopped; " if stored else ""
             )
             return IngestionAttemptResult(
                 succeeded=False,
-                classification=FailureCategory.INTERNAL,
-                error_message=(completed.stderr or completed.stdout or "").strip()[-500:],
+                classification=classified.category,
+                error_message=f"{classified.code}: {partial}{text}"[:500],
+                rows_received=stored,
+                rows_accepted=stored,
             )
         try:
             report = json.loads(completed.stdout or "{}")

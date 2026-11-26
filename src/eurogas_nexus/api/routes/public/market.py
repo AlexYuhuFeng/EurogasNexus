@@ -23,7 +23,6 @@ from eurogas_nexus.application.projections.market_reads import (
     fx_row_from_market_observation,
     intraday_opportunities,
     market_observation_row,
-    market_observations,
     market_quotes,
     normalized_market_view,
     quote_close_rows,
@@ -94,6 +93,43 @@ def _as_of(text: str | None) -> datetime | None:
         ) from exc
 
 
+_PAGE_LIMIT = Query(
+    default=1000,
+    ge=1,
+    le=10_000,
+    description="Rows per page (1..10000); meta.continuation says whether more follow.",
+)
+_PAGE_CURSOR = Query(default=None, max_length=512, description="meta.continuation.cursor")
+_FROM_UTC = Query(default=None, description="Oldest observed_at_utc (ISO-8601 with offset)")
+_TO_UTC = Query(default=None, description="Newest observed_at_utc (ISO-8601 with offset)")
+
+
+def _page_request(limit, cursor, from_utc, to_utc, filters):
+    """The page asked for; 400 with the paging code on a bad bound or cursor."""
+
+    from eurogas_nexus.application.keyset_paging import PageCursorError, page_request
+
+    try:
+        return page_request(
+            limit=limit, cursor=cursor, from_utc=from_utc, to_utc=to_utc, filters=filters
+        )
+    except PageCursorError as exc:
+        raise HTTPException(
+            status_code=400, detail={"code": exc.code, "message": str(exc)}
+        ) from exc
+
+
+def _paged_csv(rows, continuation: dict, *, columns, report: str):
+    """A page as CSV; the continuation rides in headers (a spreadsheet reads no meta)."""
+
+    response = _flat_csv(rows, columns=columns, report=report)
+    response.headers["X-Eurogas-Page-Limit"] = str(continuation["limit"])
+    response.headers["X-Eurogas-Has-More"] = "true" if continuation["has_more"] else "false"
+    if continuation["cursor"]:
+        response.headers["X-Eurogas-Next-Cursor"] = continuation["cursor"]
+    return response
+
+
 @router.get("/api/market/observations")
 def list_observations(
     request: Request,
@@ -101,24 +137,41 @@ def list_observations(
     format: str = Query(
         default="json", pattern=REFRESH_FORMAT_PATTERN, description=FORMAT_DESCRIPTION
     ),
+    limit: int = _PAGE_LIMIT,
+    cursor: str | None = _PAGE_CURSOR,
+    from_utc: str | None = _FROM_UTC,
+    to_utc: str | None = _TO_UTC,
+    product: str | None = Query(default=None, max_length=64, description="Product or hub code"),
+    market_venue: str | None = Query(default=None, max_length=64),
+    source_system: str | None = Query(default=None, max_length=64),
 ) -> dict:
-    """List market observations from the runtime DB.
+    """List market observations from the runtime DB, newest first, one keyset page at a time.
 
-    返回市场观测列表；DB 未配置时降级为空并告警（fail-closed）。
+    返回市场观测（按观测时间倒序分页）；DB 未配置时降级为空并告警（fail-closed）。
+
+    The read used to return the whole table (20.8 MB on the demo desk). It now answers one
+    page (``limit``, default 1,000) with ``meta.continuation`` (``has_more``, ``cursor``);
+    a caller that needs a whole range asks for it with ``from_utc``/``to_utc`` and follows
+    ``cursor`` (``application/keyset_paging``). ``product`` matches a product or every
+    product of a hub (``TTF`` matches ``TTF Month-Ahead``).
 
     Args:
         request: Incoming FastAPI request (used for row entitlement).
         as_of: DATA-1, read as known at this instant (see ``application/as_of_reads``).
-        format: DATA-1, ``csv`` for flat rows with a fixed header (Power Query).
-
-    Returns:
-        Enveloped observation rows or an empty enveloped response.
+        format: DATA-1, ``csv`` for flat rows with a fixed header (Power Query); the
+            continuation is in the ``X-Eurogas-Has-More``/``X-Eurogas-Next-Cursor`` headers.
 
     Raises:
-        HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
+        HTTPException: 400 ``page_cursor_invalid``/``page_cursor_filter_mismatch``/
+            ``page_window_invalid``; 503 ``runtime_db_unavailable`` on DB read failure.
     """
 
     moment = _as_of(as_of)
+    filters = {
+        "as_of": as_of or "", "product": product or "", "market_venue": market_venue or "",
+        "source_system": source_system or "",
+    }
+    page = _page_request(limit, cursor, from_utc, to_utc, filters)
     if not _db_is_configured():
         if format == "csv":
             return _flat_csv([], columns=OBSERVATION_COLUMNS, report="market-observations")
@@ -130,19 +183,42 @@ def list_observations(
 
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
+        from eurogas_nexus.application.keyset_paging import iso_ts, page_rows
+        from eurogas_nexus.application.projections.market_reads import (
+            market_observation_keyset_page,
+        )
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
             if moment is None:
-                rows = market_observations(session)
+                rows, more = market_observation_keyset_page(
+                    session, current_principal(request), page, product=product,
+                    market_venue=market_venue, source_system=source_system,
+                )
+                rows = _filter_entitled_rows(request, rows, source_key="source_system")
             else:
                 from eurogas_nexus.application.as_of_reads import market_observations_as_of
 
-                rows = market_observations_as_of(session, moment)
-        rows = _filter_entitled_rows(request, rows, source_key="source_system")
+                known = _filter_entitled_rows(
+                    request, market_observations_as_of(session, moment), source_key="source_system"
+                )
+                known = [
+                    row for row in known
+                    if (not product or row["product"] == product
+                        or str(row["product"]).startswith(f"{product} "))
+                    and (not market_venue or row["market_venue"] == market_venue)
+                    and (not source_system or row["source_system"] == source_system)
+                ]
+                rows, more = page_rows(
+                    known, page, ts_of=iso_ts, id_of=lambda row: str(row["observation_id"])
+                )
         if format == "csv":
-            return _flat_csv(rows, columns=OBSERVATION_COLUMNS, report="market-observations")
-        return _env(rows, source="runtime-postgresql")
+            return _paged_csv(
+                rows, more, columns=OBSERVATION_COLUMNS, report="market-observations"
+            )
+        envelope = _env(rows, source="runtime-postgresql")
+        envelope["meta"]["continuation"] = more
+        return envelope
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
@@ -154,24 +230,25 @@ def list_fx(
     format: str = Query(
         default="json", pattern=REFRESH_FORMAT_PATTERN, description=FORMAT_DESCRIPTION
     ),
+    limit: int = _PAGE_LIMIT,
+    cursor: str | None = _PAGE_CURSOR,
+    from_utc: str | None = _FROM_UTC,
+    to_utc: str | None = _TO_UTC,
+    pair: str | None = Query(default=None, max_length=16, description="e.g. EUR/GBP"),
 ) -> dict:
-    """List ECB FX observations from the runtime DB.
+    """List FX observations from the runtime DB, newest first, one keyset page at a time.
 
-    返回汇率观测列表；DB 未配置时降级为空并告警。
+    返回汇率观测（分页）；DB 未配置时降级为空并告警。
 
-    Args:
-        request: Incoming FastAPI request (unused except wiring).
-        as_of: DATA-1, read the ``fx_observations`` fixings as known at this instant.
-        format: DATA-1, ``csv`` for flat rows with a fixed header (Power Query).
-
-    Returns:
-        Enveloped FX rows or an empty enveloped response.
+    Same paging as ``/api/market/observations`` (``meta.continuation``; CSV headers).
 
     Raises:
-        HTTPException: 503 ``runtime_db_unavailable`` on DB read failure.
+        HTTPException: 400 on a bad cursor or bound; 503 ``runtime_db_unavailable``.
     """
 
     moment = _as_of(as_of)
+    filters = {"as_of": as_of or "", "pair": pair or ""}
+    page = _page_request(limit, cursor, from_utc, to_utc, filters)
     if not _db_is_configured():
         if format == "csv":
             return _flat_csv([], columns=FX_COLUMNS, report="market-fx")
@@ -183,6 +260,7 @@ def list_fx(
 
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
+        from eurogas_nexus.application.keyset_paging import iso_ts, page_rows
         from eurogas_nexus.db.session import get_session_factory
 
         with get_session_factory()() as session:
@@ -194,9 +272,19 @@ def list_fx(
                 rows = fx_observations_as_of(session, moment)
         # Licensed fixes (WMR/BFIX) share this table: filter like every other row read.
         rows = _filter_entitled_rows(request, rows, source_key="source_system")
+        if pair:
+            rows = [row for row in rows if str(row.get("pair") or "").upper() == pair.upper()]
+        # The FX read unions two tables (fixings, and the ECB rows of the market table), so
+        # the page is taken over the read rows; the answer is bounded either way.
+        rows, more = page_rows(
+            rows, page, ts_of=iso_ts,
+            id_of=lambda row: str(row.get("observation_id") or row.get("pair") or ""),
+        )
         if format == "csv":
-            return _flat_csv(rows, columns=FX_COLUMNS, report="market-fx")
-        return _env(rows, source="runtime-postgresql")
+            return _paged_csv(rows, more, columns=FX_COLUMNS, report="market-fx")
+        envelope = _env(rows, source="runtime-postgresql")
+        envelope["meta"]["continuation"] = more
+        return envelope
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 
@@ -208,8 +296,20 @@ def list_quotes(
     product: str | None = None,
     source_system: str | None = None,
     limit: int = Query(default=500, ge=1, le=2000),
+    cursor: str | None = _PAGE_CURSOR,
+    from_utc: str | None = _FROM_UTC,
+    to_utc: str | None = _TO_UTC,
 ) -> dict:
-    """Return normalized L1 quotes from the runtime DB."""
+    """Return normalized L1 quotes from the runtime DB, newest first, one keyset page.
+
+    The page used to stop at ``limit`` without saying so; it now states
+    ``meta.continuation`` (``has_more``, ``cursor``) like every paged read.
+    """
+
+    page = _page_request(
+        limit, cursor, from_utc, to_utc,
+        {"hub": hub or "", "product": product or "", "source_system": source_system or ""},
+    )
 
     if not _db_is_configured():
         return _env(
@@ -224,27 +324,22 @@ def list_quotes(
 
         now = datetime.now(UTC)
         with get_session_factory()() as session:
-            rows = _filter_entitled_rows(
-                request,
-                market_quotes(
-                    session,
-                    hub=hub,
-                    product=product,
-                    source_system=source_system,
-                    limit=limit,
-                ),
-                source_key="source_system",
+            found, more = market_quotes(
+                session, hub=hub, product=product, source_system=source_system, page=page
             )
+            rows = _filter_entitled_rows(request, found, source_key="source_system")
             # P-08: the one price every screen reads for each quote's hub and window.
             book = open_price_book(
                 session, request, now=now, hubs={str(row.get("hub") or "") for row in rows}
             )
         # Each quote with its as-of, age against the source's cadence and the previous close
         # (additive fields; the close is read from the desk's daily closes for this caller).
-        return _env(
+        envelope = _env(
             attach_resolved(annotate_quotes(rows, quote_close_rows(request, now), now=now), book),
             source="runtime-postgresql",
         )
+        envelope["meta"]["continuation"] = more
+        return envelope
     except sqlalchemy_error as exc:
         raise _db_unavailable(exc) from exc
 

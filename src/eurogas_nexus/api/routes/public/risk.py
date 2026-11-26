@@ -12,6 +12,7 @@ from datetime import UTC, date, datetime, timedelta
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
 
+from eurogas_nexus.api.manual_inputs import states_manual_inputs
 from eurogas_nexus.api.positions import ladder_inputs
 from eurogas_nexus.api.routes.public.portfolio_common import (
     db_is_configured as _db_is_configured,
@@ -745,6 +746,12 @@ class CargoBidBody(BaseModel):
 
 
 @router.post("/api/portfolio/lng-cargo-bid")
+@states_manual_inputs(
+    include=("cargo_mwh", "cargo_mmbtu", "target_margin_per_mwh", "boil_off_pct_per_day",
+             "charter_per_day"),
+    units={"target_margin_per_mwh": "per MWh", "boil_off_pct_per_day": "%/d",
+           "charter_per_day": "per day"},
+)
 def post_lng_cargo_bid(body: CargoBidBody, request: Request) -> dict:
     """The most the firm can bid DES for a cargo at each terminal, best first.
 
@@ -949,9 +956,18 @@ class SellDownBody(BaseModel):
     long_discount_per_mwh: float = Field(default=0.0, ge=0, le=500)
     lot_mwh: float = Field(default=24.0, gt=0, le=100_000)
     history_days: int = Field(default=60, ge=14, le=365)
+    #: The unit the four prices are entered in, as the desk quotes the hub (NBP in p/th);
+    #: omitted, they are per MWh in the hub's currency.
+    price_unit: str | None = Field(default=None, max_length=16)
 
 
 @router.post("/api/portfolio/sell-down-plan")
+@states_manual_inputs(
+    include=("da_price", "wd_expected_price", "short_penalty_per_mwh", "long_discount_per_mwh",
+             "lot_mwh"),
+    units={"da_price": "per MWh", "wd_expected_price": "per MWh",
+           "short_penalty_per_mwh": "per MWh", "long_discount_per_mwh": "per MWh"},
+)
 def post_sell_down_plan(body: SellDownBody, request: Request) -> dict:
     """How much of tomorrow's supply at a hub to sell day-ahead, and how much to keep back.
 
@@ -968,11 +984,29 @@ def post_sell_down_plan(body: SellDownBody, request: Request) -> dict:
     from statistics import pstdev
 
     from eurogas_nexus.api.positions import hub_from_text
+    from eurogas_nexus.application.projections.daily_closes import per_mwh_in_hub_currency
     from eurogas_nexus.domain.portfolio.sell_down import SellDownInputs, plan_sell_down
 
+    hub = body.hub.upper()
+    try:
+        # The desk enters NBP in p/th; the plan prices per MWh in the hub's currency.
+        body = body.model_copy(
+            update={
+                name: per_mwh_in_hub_currency(hub, getattr(body, name), body.price_unit)
+                for name in (
+                    "da_price",
+                    "wd_expected_price",
+                    "short_penalty_per_mwh",
+                    "long_discount_per_mwh",
+                )
+            }
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail={"code": "price_unit_invalid", "message": str(exc)}
+        ) from exc
     if not _db_is_configured():
         raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
-    hub = body.hub.upper()
     since = datetime.now(UTC).date() - timedelta(days=body.history_days)
     sqlalchemy_error = _sqlalchemy_error_type()
     try:

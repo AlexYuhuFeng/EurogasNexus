@@ -10,8 +10,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0093_option_settlements"
-down_revision = "0092_timescale_optional"
+revision = "0094_option_settlements"
+down_revision = "0093_timescale_optional"
 branch_labels = None
 depends_on = None
 

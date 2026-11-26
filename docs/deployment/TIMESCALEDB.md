@@ -52,8 +52,8 @@ its customers away from schema changes (it gives them none today).
    - `auto`: convert where the server can, otherwise log why not and carry on;
    - `require`: as `auto`, but stop the migration when the server cannot (a production server
      that is meant to have it does not silently run without it).
-5. Run the migrations (`alembic upgrade head`). Migration `0092_timescale_optional` converts once.
-   On a store already at `0092` (the extension installed later), run
+5. Run the migrations (`alembic upgrade head`). Migration `0093_timescale_optional` converts once.
+   On a store already at `0093` (the extension installed later), run
    `python scripts/ops/timescale.py apply` with the same setting; it is idempotent.
 6. Check: `python scripts/ops/timescale.py status` (mode, versions, licence, each planned table's
    state and any blocker), and `GET /api/health/ready` → `extensions.timescaledb`
@@ -102,10 +102,10 @@ source comes back as plain tables.
 
 ## Proof (2026-11-26, `timescale/timescaledb:latest-pg16`, TimescaleDB 2.32.1, PostgreSQL 16)
 
-- `EUROGAS_NEXUS_TIMESCALE=auto alembic upgrade head` from `0091`: the three tables became
+- `EUROGAS_NEXUS_TIMESCALE=auto alembic upgrade head` from `0092`: the three tables became
   hypertables with compression and three compression jobs; `scripts/ops/timescale.py status`:
   `state: active`, no blocker.
-- `alembic downgrade 0091_lng_berth_rules`: no change (still hypertables); `downgrade
+- `alembic downgrade 0092_lng_berth_rules`: no change (still hypertables); `downgrade
   0089_alert_reader_state`, then `upgrade head` again: unchanged, nothing failed.
 - `alembic downgrade 0071_opportunity_pending_inputs` (past `0072`, which drops `market_trades`
   and columns of `market_quotes`), then `upgrade head` with `auto`: converted again.

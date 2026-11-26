@@ -116,8 +116,12 @@ def main(argv: list[str] | None = None, *, get_page=None) -> int:
     if read.error:
         say(f"incomplete: stopped after {read.pages} pages ({read.error}); the newest "
             "messages read were kept and the next round reads the window again")
+    read_back_to = (
+        read.oldest_submitted.isoformat().replace("+00:00", "Z")
+        if read.oldest_submitted else None
+    )
     failures = (
-        [{"code": read.error, "partial": True}] if read.error
+        [{"code": read.error, "partial": True, "read_back_to": read_back_to}] if read.error
         else [] if read.records else [{"code": "iip_no_messages"}]
     )
     if args.json:

@@ -69,8 +69,8 @@ has a default.
 
 While the demo is up, `scripts/demo/exchange_feed.py --continuous` (started by the demo start-up)
 behaves like a live exchange screen, so every screen that reads prices moves as it would on a
-licensed feed. For **every demo hub the tick intake accepts** (TTF, NBP, THE, PEG, ZTP, PSV,
-CEGH, PVB, ETF; GTF stays on the roll-forward's snapshot) it quotes **WD, DA, WE and the front
+licensed feed. For **every demo hub** (TTF, NBP, THE, PEG, ZTP, PSV, CEGH, PVB, and the Danish
+ETF, which OTC calls GTF: one hub) it quotes **WD, DA, WE and the front
 month, quarter and season**, each instrument on its own clock: after every quote the next one is
 drawn uniformly from 1 to 5 seconds later. Moves are small and on the hub's tick, the odd quote
 comes with a trade print (screen, or now and then a block), and every quote carries the session
@@ -220,7 +220,7 @@ that to a public name); a restart or a tester with `tester`'s administrator righ
 
 ## The demo market
 
-Every demo hub (TTF, NBP, THE, PEG, ZTP, PSV, CEGH, PVB, ETF, GTF) is quoted for every product
+Every demo hub (TTF, NBP, THE, PEG, ZTP, PSV, CEGH, PVB, ETF) is quoted for every product
 the board and the instrument catalogue know: WD, DA, WE, BOM, the next twelve months, four
 quarters, two seasons (Sum/Win) and two calendar years. Quotes are two-sided, in the hub's own
 quotation (NBP in p/th, the others in EUR/MWh), on its tick (0.01 p/th, 0.005 EUR/MWh), with a
@@ -249,7 +249,7 @@ day D and DA for the next day the market quotes (Monday's on a Friday; the weeke
 roll-forward (at start-up and hourly) writes one snapshot of WD and DA, two-sided with a size and
 a running "last", and the curve once a day. While the demo exchange feed quotes (it is on unless
 `EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=off`; all day in the demo's 24-hour session) it owns today's WD
-and DA quotes of every hub it quotes and the roll-forward writes the rest (GTF's); outside its
+and DA quotes of every hub it quotes and the roll-forward writes the rest; outside its
 session, or with the feed off, the roll-forward writes them all, so the board is always quoted.
 The feed's newer quotes of WE and the curve supersede the snapshot's as they arrive.
 

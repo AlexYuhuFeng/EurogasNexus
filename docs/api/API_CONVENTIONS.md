@@ -21,17 +21,21 @@ Decision-support meta may additionally carry `run_id`, `snapshot_id`, and
 
 ## Pagination
 
-List endpoints accept optional `limit` (and only `limit` in the current release):
+One style (`application/keyset_paging.py`, the audit retrieval's style made general):
 
-- `limit`: `1..N` inclusive, endpoint-specific cap (100–2000).
-  Omitted → endpoint default. Out-of-range → 422 by FastAPI validation.
-- There is no `offset`/cursor in the current release; lists are newest-first or
-  repository-ordered and bounded.
+- `limit` (default 1,000, at most 10,000), `cursor`, and the range `from_utc`/`to_utc`
+  (ISO 8601 with an offset); rows newest first by `(timestamp, id)`.
+- Every page states `meta.continuation = {anchor_utc, limit, returned, has_more, cursor}`;
+  follow `cursor` until `has_more` is false. A cursor used with other filters is refused
+  (400 `page_cursor_filter_mismatch`); a bound without an offset is refused (400
+  `page_window_timezone_required`). A CSV page carries `X-Eurogas-Page-Limit`,
+  `X-Eurogas-Has-More` and `X-Eurogas-Next-Cursor` headers.
+- A caller that needs a whole range asks for the range; nothing fetches a whole table.
 
-Endpoints with `limit`: `/api/glossary`, `/api/ingestion-runs`,
-`/api/market/*` (observations/quotes/spreads/normalized),
-`/api/monitoring/alerts`, `/api/reference-network/*` (nodes/edges/facilities/
-market-hubs/tso-access), `/api/review/decisions`, `/api/strategy-lab/runs`.
+Paged this way: `/api/market/observations`, `/api/market/fx`, `/api/audit` (its own cursor
+of the same shape). Older list endpoints take `limit` only and are being moved to this
+style (backend audit A5); a calculation whose inputs exceed its read bound refuses with 422
+`read_bound_exceeded` instead of using part of them.
 
 ## Errors
 

@@ -183,8 +183,8 @@ DEMO_HUB_CURVES: tuple[tuple[str, str, float, float], ...] = (
     ("PSV", "EUR", 40.2, 2.2),
     ("CEGH", "EUR", 40.6, 2.7),
     ("PVB", "EUR", 39.5, 1.9),
+    # The Danish hub once: ETF is its code, GTF (the OTC name) an alias of it.
     ("ETF", "EUR", 38.5, 2.5),
-    ("GTF", "EUR", 38.4, 2.5),
 )
 DEMO_PRICE_HUBS: tuple[tuple[str, str], ...] = tuple((hub, cur) for hub, cur, *_ in DEMO_HUB_CURVES)
 _CURVE_SHAPE = {hub: (base, swing) for hub, _, base, swing in DEMO_HUB_CURVES}
@@ -2890,7 +2890,6 @@ _BOARD_CURVE = (
     "S+1", "S+2", "Cal+1", "Cal+2",
 )
 _PROMPT_TENOR = {"WD": "within-day", "DA": "day-ahead", "WE": "weekend", "BOM": "bom"}
-_BOARD_PRODUCT = {**_PROMPT_TENOR, "M+1": "month-ahead"}
 
 
 _DEMO_MARKET_MODULE = None
@@ -3247,6 +3246,7 @@ def demo_exchange_feed_running(session=None, now: datetime | None = None) -> set
 
 def _quote_row(market, hub, currency, code, label, kind, mid, start, end, now, day, *,
                stamp=None, planted=None, last=None):
+    from eurogas_nexus.domain.market.products import board_tenor
     from eurogas_nexus.domain.market.units import HUB_NATIVE_PRICE_UNIT
 
     bid, native_mid, ask = market.quote(hub, mid, kind)
@@ -3278,9 +3278,10 @@ def _quote_row(market, hub, currency, code, label, kind, mid, start, end, now, d
         instrument_id=f"{hub}:{label}",
         hub=hub,
         # The board and the market context match quotes by tenor key (``day-ahead``,
-        # ``month-ahead``); the desk label (DA, Jan-27) travels in the metadata and the
-        # instrument id (``TTF:DA``).
-        product=_BOARD_PRODUCT.get(code, label),
+        # ``month-ahead``, ``jan-27``), the one rule the tick intake and the screen import
+        # store under (``products.board_tenor``); the desk label (DA, Jan-27) travels in the
+        # metadata and the instrument id (``TTF:DA``).
+        product=board_tenor(code, kind, label),
         delivery_start_utc=start,
         delivery_end_utc=end,
         bid_price=round(per_mwh(bid), 4),

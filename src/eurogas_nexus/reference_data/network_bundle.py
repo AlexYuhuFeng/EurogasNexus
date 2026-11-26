@@ -222,6 +222,11 @@ def _node_metadata(bundle: dict[str, Any], node: dict[str, Any]) -> dict[str, An
         "data_status": BUNDLE_DATA_STATUS,
         "reference_bundle_version": bundle["version"],
         "attribution": source["attribution"],
+        **{
+            key: node[key]
+            for key in ("hub_code", "balancing_zone_key", "zone_only")
+            if node.get(key) is not None
+        },
     }
 
 
@@ -256,14 +261,19 @@ def reference_rows(bundle: dict[str, Any], *, now: datetime) -> dict[str, list[d
             "created_at_utc": now,
         }
         nodes.append(row)
-        if node["type"] == "hub":
+        if node.get("zone_only"):
+            # A market area ENTSOG publishes no trading point for: a node, never a hub master
+            # row (no hub to trade or pick).
+            row["source_dataset"] = "balancingzones"
+        elif node["type"] == "hub":
             from eurogas_nexus.ingestion.public_sources import _market_hub_code
 
             hubs.append(
                 {
                     "id": f"hub-{node['point_key'].lower()}",
                     "name": node["name"][:128],
-                    "hub_code": _market_hub_code(node["name"], node["point_key"]),
+                    "hub_code": node.get("hub_code")
+                    or _market_hub_code(node["name"], node["point_key"]),
                     "country": node["country"],
                     "market_area": None,
                     "valid_from_utc": None,
@@ -388,6 +398,8 @@ def reference_rows(bundle: dict[str, Any], *, now: datetime) -> dict[str, list[d
                             "folded_points",
                             "evidence",
                             "virtual_point",
+                            "side_basis",
+                            "hub_directions",
                             "pipeline",
                             "system_label",
                             "point_keys",
@@ -510,3 +522,27 @@ def shipped_reference_edges() -> list[dict[str, Any]]:
             {key: value for key, value in row.items() if key != "created_at_utc"} for row in rows
         ]
     return [dict(row) for row in _SHIPPED_EDGES["edges"]]
+
+
+_SHIPPED_ZONE_NODES: dict[str, list[dict[str, Any]]] = {}
+
+
+def shipped_zone_nodes() -> list[dict[str, Any]]:
+    """The bundle's market-area nodes for zones ENTSOG publishes no trading point for.
+
+    A live ENTSOG read stores connection points only, so a store holding one has no node for
+    Switzerland, Slovakia, Romania and the other zones drawn at ENTSOG's balancing-zone
+    position (``zone_only``); the node reader serves these rows where the store holds none, so
+    the adjacency edges to them (``shipped_reference_edges``) are served on every store.
+    """
+
+    if "nodes" not in _SHIPPED_ZONE_NODES:
+        bundle = load_bundle()
+        built = str(bundle.get("built_at_utc") or "2026-11-14T00:00:00+00:00")
+        rows = reference_rows(bundle, now=datetime.fromisoformat(built))["nodes"]
+        _SHIPPED_ZONE_NODES["nodes"] = [
+            {key: value for key, value in row.items() if key != "created_at_utc"}
+            for row in rows
+            if (row.get("metadata_json") or {}).get("zone_only")
+        ]
+    return [dict(row) for row in _SHIPPED_ZONE_NODES["nodes"]]

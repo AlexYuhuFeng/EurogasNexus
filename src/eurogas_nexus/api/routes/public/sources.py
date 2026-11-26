@@ -7,8 +7,9 @@ import re
 from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi import APIRouter, Query, Request
 
+from eurogas_nexus.api.errors import ApiError
 from eurogas_nexus.domain.dataops.contracts import MANUAL_REGISTER, IngestionRunStatus
 from eurogas_nexus.domain.dataops.run_status import (
     FAILURE_RUN_STATUSES,
@@ -153,7 +154,12 @@ def get_source(source_id: str, request: Request) -> dict:
     for source in sources:
         if source["source_id"] == source_id:
             return _envelope(source, request, source=_source_label(), warnings=warnings)
-    raise HTTPException(status_code=404, detail=f"Source '{source_id}' not found.")
+    raise ApiError(
+        404,
+        "source_not_found",
+        f"Source '{source_id}' not found.",
+        params={"source_id": source_id},
+    )
 
 
 @router.get("/api/ingestion-runs")

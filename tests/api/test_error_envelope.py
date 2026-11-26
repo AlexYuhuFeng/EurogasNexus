@@ -128,7 +128,8 @@ def test_a_string_detail_is_left_exactly_as_raised(tmp_path, monkeypatch) -> Non
     # A plain string stays a plain string: no client has to learn a new shape.
     assert isinstance(body["detail"], str)
     assert "node-that-does-not-exist" in body["detail"]
-    assert body["error"] == "not_found"
+    # ...and the route names its own code (ApiError), which the client translates by.
+    assert body["error"] == "reference_node_not_found"
     assert body["family"] == "VALIDATION"
     assert body["recoverability"] == "permanent"
     assert body["correlation_id"]
@@ -215,3 +216,69 @@ def test_operator_detail_is_separate_and_gated_on_an_operator_identity(
     assert "operator_detail" not in business.json()
     assert privileged.json()["operator_detail"]
     assert "requires role" in privileged.json()["operator_detail"]
+
+
+def test_the_router_own_404_and_405_get_the_one_envelope() -> None:
+    """A path no route matches and a method a route does not take used to answer a bare
+    ``{"detail": "Not Found"}`` (Starlette's own exception, not FastAPI's)."""
+
+    client = TestClient(create_app(Settings(api_profile="development")))
+    missing = client.get("/api/no-such-route", headers=_headers())
+    assert missing.status_code == 404
+    body = missing.json()
+    assert body["detail"] == "Not Found"
+    assert body["error"] == "not_found"
+    assert body["params"] == {}
+    assert body["fallback_message"] == "Not Found"
+    assert body["correlation_id"] == missing.headers["x-request-id"]
+
+    wrong_method = client.delete("/api/glossary", headers=_headers())
+    assert wrong_method.status_code == 405
+    assert wrong_method.json()["error"] == "method_not_allowed"
+    assert wrong_method.json()["family"] == "VALIDATION"
+
+
+def test_an_api_error_reports_its_code_params_and_english_fallback(tmp_path, monkeypatch) -> None:
+    database_url = _prepare(tmp_path, monkeypatch)
+    viewer = _bearer(database_url, name="envelope-viewer-3", role="VIEWER")
+    client = TestClient(create_app(Settings(api_profile="release")))
+
+    response = client.get("/api/reference-network/nodes/node-x", headers=_headers(viewer))
+    assert response.status_code == 404
+    body = response.json()
+    # ``detail`` is the text it always was, so a client reading it is unaffected.
+    assert body["detail"] == "Node 'node-x' not found."
+    assert body["error"] == "reference_node_not_found"
+    assert body["params"] == {"node_id": "node-x"}
+    assert body["fallback_message"] == "Node 'node-x' not found."
+    assert body["family"] == "VALIDATION"
+
+
+def test_an_uncatalogued_code_keeps_its_name_under_the_status_family() -> None:
+    from fastapi import FastAPI, HTTPException
+
+    from eurogas_nexus.api.error_handlers import register_error_handlers
+
+    app = FastAPI()
+    register_error_handlers(app)
+
+    @app.get("/refuse")
+    def refuse() -> None:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "personal_keys_are_for_people", "message": "No.", "kind": "SERVICE"},
+        )
+
+    @app.get("/no-store")
+    def no_store() -> None:
+        raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
+
+    client = TestClient(app)
+    body = client.get("/refuse").json()
+    # Translated by its own name, not collapsed into UNCLASSIFIED_ERROR.
+    assert body["error"] == "personal_keys_are_for_people"
+    assert body["family"] == "AUTH"
+    assert body["params"] == {"kind": "SERVICE"}
+    assert body["fallback_message"] == "No."
+    # Four spellings of "needs the runtime database" are reported as the catalogued one.
+    assert client.get("/no-store").json()["error"] == "runtime_db_required"

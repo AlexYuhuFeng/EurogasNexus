@@ -31,23 +31,28 @@ const PRODUCT_WORDS: Record<"day-ahead" | "within-day", RegExp> = {
   "within-day": /\bwithin-?day\b|intraday|\bocm\b|\bwd\b/i,
 };
 
-/** The latest price for `hub` and `product` in `currency`/MWh, or null when none is held. */
+/**
+ * The latest price for `hub` and `product` in `currency`/MWh, or, with `quoteUnit`, in the unit
+ * the desk quotes the hub in (NBP in p/th) taken as the board holds it, never converted here;
+ * null when none is held.
+ */
 export function latestBoardPrice(
   observations: readonly BoardObservation[],
   hub: string,
   product: "day-ahead" | "within-day",
   currency: string,
+  quoteUnit?: string,
 ): BoardPrice | null {
   const want = PRODUCT_WORDS[product];
   let best: BoardObservation | null = null;
   for (const row of observations) {
     if (row.hub.toUpperCase() !== hub.toUpperCase() || !want.test(row.product.replace(/[_\s]+/g, "-"))) continue;
-    if (priceIn(row, currency) === null) continue;
+    if (priceIn(row, currency, quoteUnit) === null) continue;
     if (!best || row.period_start_utc > best.period_start_utc) best = row;
   }
   if (!best) return null;
   return {
-    value: priceIn(best, currency) as number,
+    value: priceIn(best, currency, quoteUnit) as number,
     day: best.period_start_utc.slice(0, 10),
     source: best.source_system ?? null,
     simulated: /sim|demo/i.test(best.source_system ?? "") || best.freshness === "simulated",
@@ -55,8 +60,13 @@ export function latestBoardPrice(
 }
 
 /** The price per MWh in `currency`, from the observation's own unit; null when it is not. */
-function priceIn(row: BoardObservation, currency: string): number | null {
+function priceIn(row: BoardObservation, currency: string, quoteUnit?: string): number | null {
   const unit = row.unit.replace(/\s+/g, "");
+  if (quoteUnit) {
+    // The board's own quotation, as stored ("p/th" and "GBp/th" are the same unit).
+    const same = (text: string) => text.replace(/^p\/th$/i, "GBp/th").toUpperCase();
+    return same(unit) === same(quoteUnit) ? row.price : null;
+  }
   if (unit.toUpperCase() === `${currency}/MWH`) return row.price;
   // The server's own GBP/MWh normalisation (exact factors, no FX) for an NBP p/th quote.
   if (currency === "GBP" && typeof row.price_gbp_mwh === "number") return row.price_gbp_mwh;

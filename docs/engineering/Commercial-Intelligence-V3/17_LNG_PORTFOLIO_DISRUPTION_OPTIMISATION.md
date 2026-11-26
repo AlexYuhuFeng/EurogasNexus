@@ -500,7 +500,7 @@ delay is a `counterparty_effects` line with `in_pnl: false` and no value. Each a
 `approvals` (a sentence) and `approval_requests` (`kind` `berth_order` or `ship_substitution`,
 `terminal`, `with`, `party`), so the web client words it in the reader's language.
 
-Migration `0091_lng_berth_rules` (ADR Decision 37, addendum). Tests:
+Migration `0092_lng_berth_rules` (ADR Decision 37, addendum). Tests:
 `tests/domain/test_lng_disruption.py` (the berth tests), `tests/api/test_lng_disruption_api.py`,
 `tests/integration/test_lng_disruption_postgres.py::test_a_late_cargo_waits_its_turn_and_a_swap_with_another_company_is_its_quote`,
 `clients/web/tests/disruptionOptionsModel.test.ts`.

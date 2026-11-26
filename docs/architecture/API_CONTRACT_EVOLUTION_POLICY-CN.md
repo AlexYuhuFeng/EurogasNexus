@@ -1,5 +1,8 @@
 # API 契约演化策略
 
+2026-11-26 新增拓扑读取：一条路径、一个操作，为 READ：`GET /api/reference-network/supply-corridors`（参考管网的供应走廊；
+参考数据，不含账簿数据）。创新分支接口统计：315 条路径 / 351 个操作（在 314 / 350 基础上 +1 / +1）。
+
 2026-11-26 新增天然气期权结算价读取（自基于 main 的演示评审移植）：两条路径、两个操作，均为 READ：
 `GET /api/market/options/surface` 与 `GET /api/market/options/metrics`。创新分支接口统计：314 条路径 / 350 个操作
 （在 312 / 348 基础上 +2 / +2）。

@@ -5,6 +5,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from eurogas_nexus.api.errors import ApiError
 from eurogas_nexus.domain.analysis import build_glossary_context
 from eurogas_nexus.domain.glossary import GlossaryTerm, baseline_glossary_terms
 
@@ -76,7 +77,12 @@ def get_term(
         }
         if normalized in candidates:
             return _env(item.localized(lang), source=source, warnings=warnings)
-    raise HTTPException(404, f"Term '{term}' not found.")
+    raise ApiError(
+        404,
+        "glossary_term_not_found",
+        f"Term '{term}' not found.",
+        params={"term": term},
+    )
 
 
 @router.get("/api/glossary/{term}/context")

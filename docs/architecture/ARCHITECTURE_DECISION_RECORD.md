@@ -970,7 +970,7 @@ option as `approvals` (sentences) and `approval_requests` (the same as data, for
 own language). Another company's demurrage and boil-off leave the book's opportunity cost; the
 delay is stated in `counterparty_effects` with no value. The previous text above ("the demurrage
 and boil-off of another user's ship ... where the line-up is held") is superseded by this.
-Migration `0091_lng_berth_rules` (on `0090_job_progress_steps`, expand-only) adds the table
+Migration `0092_lng_berth_rules` (on `0091_hub_one_identity`, expand-only) adds the table
 `lng_terminal_berth_rules` (terminal, arrival window in gas days, where a late ship's laytime
 starts, whether a swap needs approval, basis `terminal_code`, `example` or `assumption`, citation,
 the rule as worded, source) and nullable columns on `lng_berth_calls` (`counterparty`,
@@ -1047,7 +1047,7 @@ TimescaleDB "for now". PostgreSQL stays the runtime store and no new datastore o
 added (AGENTS.md rule 5): TimescaleDB is an extension inside the same server. The setting
 `EUROGAS_NEXUS_TIMESCALE` is `off` by default; `auto` converts where the server has TimescaleDB
 2.13 or later preloaded with the Community Edition licence loaded; `require` stops a migration
-that cannot. Migration `0092_timescale_optional` (on `0091_lng_berth_rules`) calls the
+that cannot. Migration `0093_timescale_optional` (on `0092_lng_berth_rules`) calls the
 idempotent `eurogas_nexus.db.timescale.apply`, also run by `scripts/ops/timescale.py apply`. It
 converts `raw_payload_archives`, `market_quotes` and `market_trades` to hypertables with
 compression policies, widening each primary key from `(id)` to `(id, time)`; no writer uses

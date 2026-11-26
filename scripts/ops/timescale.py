@@ -6,7 +6,7 @@
     EUROGAS_NEXUS_TIMESCALE=auto python scripts/ops/timescale.py apply
     python scripts/ops/timescale.py apply --mode require   # fail if the server cannot
 
-Migration ``0092_timescale_optional`` runs the same idempotent ``apply`` once; this script is
+Migration ``0093_timescale_optional`` runs the same idempotent ``apply`` once; this script is
 for a server that gets the extension after that revision has run. ``apply`` changes three
 primary keys and converts three tables in one transaction; on a large table it holds locks
 while the rows are copied into chunks, so run it in a maintenance window, after a backup

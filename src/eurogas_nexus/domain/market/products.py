@@ -361,3 +361,35 @@ def standard_strip(
         except ProductCodeError:
             continue
     return periods
+
+
+#: Stored quote keys of the prompt products, which the board and the market context group by.
+_BOARD_TENOR = {
+    "within_day": "within-day",
+    "day_ahead": "day-ahead",
+    "weekend": "weekend",
+    "balance_of_month": "bom",
+}
+
+
+def board_tenor(code: str, kind: str, label: str) -> str:
+    """The key a quote of a product is stored under in ``market_quotes.product``.
+
+    One rule for every intake (tick feed, licensed screen import, the demo board), so a
+    product is one row whoever quoted it: the prompt keys (``within-day``, ``day-ahead``,
+    ``weekend``, ``bom``), ``month-ahead`` for the rolling front month (``M+1``/``MA``), and
+    otherwise the desk label in lower case (``jan-27``, ``q1-27``). The desk label as written
+    (``Jan-27``) travels in the quote's metadata as ``product_label``.
+
+    Args:
+        code: The product code as quoted (``M+1``, ``Jan-27``, ``DA``).
+        kind: The resolved period's kind (:data:`PRODUCT_KINDS`).
+        label: The resolved period's absolute desk label (``Jan-27``).
+    """
+
+    tenor = _BOARD_TENOR.get(kind)
+    if tenor is not None:
+        return tenor
+    if (code or "").strip().upper() in {"M+1", "MA"}:
+        return "month-ahead"
+    return label.lower()

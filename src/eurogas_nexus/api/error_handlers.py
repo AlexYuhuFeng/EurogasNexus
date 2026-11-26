@@ -23,6 +23,19 @@ fields are added alongside it at the top level::
 Additive by construction, so Web, SDK and CLI clients that read ``detail`` keep
 working, while a V2 client can explain the failure through the taxonomy.
 
+Translation contract (backend audit 2026-11-26): the envelope also carries ``params``,
+the values a sentence for the code interpolates (``{"node_id": "..."}``), and
+``fallback_message``, the endpoint's own English text, so a client renders
+``errors.<error>.message`` with ``params`` in the user's language and falls back to the
+English text only when it has no entry for the code. A route raises
+:class:`eurogas_nexus.api.errors.ApiError` (code, English text, params) or a dict
+``detail`` with ``code`` and ``message``; a plain string ``detail`` with no code is refused
+by ``tests/contract/test_api_error_codes.py``.
+
+Every refusal gets this one shape, the router's own included: a path that matches no route
+(404) or a method a route does not take (405) is raised by Starlette, not FastAPI, and used
+to answer a bare ``{"detail": "Not Found"}`` that no client could classify.
+
 An **unexpected** failure is enveloped too: status 500, the framework's own
 user-facing text in ``detail``, the ``internal`` code from the taxonomy (family
 SYSTEM, severity critical), an always-present correlation id echoed on
@@ -41,7 +54,9 @@ from uuid import uuid4
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from eurogas_nexus.application.bounded_reads import ReadBoundExceeded
 from eurogas_nexus.domain.operations.error_taxonomy import code_for_status, error_payload
 from eurogas_nexus.governance.audit import GovernedAuditError
 from eurogas_nexus.security.identity import ROLE_RANK, Role
@@ -57,27 +72,70 @@ UNHANDLED_ERROR_CODE = "internal"
 _SERVER_ERROR_DETAIL = "Internal Server Error"
 
 
+#: Keys of a dict ``detail`` that are not interpolation values: the code itself, and the
+#: text fields (``reason``/``developer_message`` may carry internal wording).
+_NOT_PARAMS = frozenset(
+    {"error", "code", "error_code", "message", "reason", "developer_message", "detail"}
+)
+
+
+def error_body(
+    status_code: int,
+    detail: Any,
+    *,
+    code: str | None = None,
+    params: dict[str, Any] | None = None,
+    correlation_id: str | None = None,
+    operator: bool = False,
+    operator_detail: str | None = None,
+) -> dict[str, Any]:
+    """The one error body: ``detail`` as raised, the taxonomy, ``params``, the English text.
+
+    Shared by the exception handlers and the middlewares that answer before routing
+    (``origin_csrf``, the web client's static fallback), so no layer builds its own shape.
+    """
+
+    resolved = code or _code_from_detail(detail) or code_for_status(status_code)
+    payload = error_payload(
+        resolved,
+        correlation_id=correlation_id,
+        operator=operator,
+        operator_detail=operator_detail,
+        status_code=status_code,
+    )
+    body: dict[str, Any] = {"detail": detail}
+    body.update(payload)
+    body["params"] = _json_safe_value(params if params is not None else _params_from(detail))
+    fallback = _fallback_message(detail)
+    if fallback:
+        body["fallback_message"] = fallback
+    return body
+
+
 def register_error_handlers(app: FastAPI) -> None:
     """Attach the product error envelope to a FastAPI application."""
 
-    @app.exception_handler(HTTPException)
-    async def _http_exception(request: Request, exc: HTTPException) -> JSONResponse:
-        code = _code_from_detail(exc.detail) or code_for_status(exc.status_code)
-        correlation_id = getattr(request.state, "request_id", None)
+    async def _http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         operator = _is_operator_request(request)
-        payload = error_payload(
-            code,
-            correlation_id=correlation_id,
+        body = error_body(
+            exc.status_code,
+            exc.detail,
+            code=getattr(exc, "code", None),
+            params=getattr(exc, "params", None),
+            correlation_id=getattr(request.state, "request_id", None),
             operator=operator,
             operator_detail=_operator_detail(exc.detail, operator=operator),
         )
-        body: dict[str, Any] = {"detail": exc.detail}
-        body.update(payload)
         return JSONResponse(
             status_code=exc.status_code,
             content=body,
             headers=dict(exc.headers or {}) or None,
         )
+
+    # Starlette's class covers the router's own 404/405; FastAPI's subclass is named too so
+    # the lookup never reaches FastAPI's default handler first.
+    app.add_exception_handler(StarletteHTTPException, _http_exception)
+    app.add_exception_handler(HTTPException, _http_exception)
 
     @app.exception_handler(RequestValidationError)
     async def _request_validation_error(
@@ -97,11 +155,22 @@ def register_error_handlers(app: FastAPI) -> None:
         existing_id = getattr(request.state, "request_id", None)
         correlation_id = existing_id or uuid4().hex
         payload = error_payload("validation_failed", correlation_id=correlation_id)
+        errors = _jsonable_detail(exc.errors())
+        # The fields refused, so a client can name them in its own language.
+        fields = [
+            ".".join(str(part) for part in item.get("loc", ()) if part not in {"body", "query"})
+            for item in errors
+            if isinstance(item, dict)
+        ]
         return JSONResponse(
             status_code=422,
             # `exc.errors()` is what FastAPI's own 422 body carries, cleaned only where an
             # exception object would not serialise.
-            content={"detail": _jsonable_detail(exc.errors()), **payload},
+            content={
+                "detail": errors,
+                **payload,
+                "params": {"fields": [field for field in fields if field]},
+            },
             # The request reached the middleware that stamps an id, so only a generated one is
             # echoed here; otherwise the header would carry the same id twice.
             headers={} if existing_id else {"X-Request-Id": correlation_id},
@@ -130,9 +199,26 @@ def register_error_handlers(app: FastAPI) -> None:
         }
         return JSONResponse(
             status_code=503,
-            content={"detail": detail, **payload},
+            content={
+                "detail": detail,
+                **payload,
+                "params": {"action": exc.action},
+                "fallback_message": detail["message"],
+            },
             headers={"X-Request-Id": correlation_id},
         )
+
+    @app.exception_handler(ReadBoundExceeded)
+    async def _read_bound_exceeded(request: Request, exc: ReadBoundExceeded) -> JSONResponse:
+        """A calculation whose inputs exceed its read bound refuses instead of using part."""
+
+        correlation_id = getattr(request.state, "request_id", None) or uuid4().hex
+        body = error_body(
+            422,
+            {"code": exc.code, "message": str(exc), "what": exc.what, "bound": exc.bound},
+            correlation_id=correlation_id,
+        )
+        return JSONResponse(status_code=422, content=body)
 
     @app.exception_handler(Exception)
     async def _unhandled_exception(request: Request, exc: Exception) -> JSONResponse:
@@ -154,7 +240,7 @@ def register_error_handlers(app: FastAPI) -> None:
         )
         return JSONResponse(
             status_code=500,
-            content={"detail": _SERVER_ERROR_DETAIL, **payload},
+            content={"detail": _SERVER_ERROR_DETAIL, **payload, "params": {}},
             headers={"X-Request-Id": correlation_id},
         )
 
@@ -171,10 +257,47 @@ def _code_from_detail(detail: Any) -> str | None:
     """The stable code an endpoint declared, when it declared one."""
 
     if isinstance(detail, dict):
-        for key in ("error", "code"):
+        # Three spellings grew up for the one field; all mean the endpoint's stable code.
+        for key in ("error", "code", "error_code"):
             value = detail.get(key)
             if isinstance(value, str) and value.strip():
                 return value.strip()
+    return None
+
+
+def _params_from(detail: Any) -> dict[str, Any]:
+    """Interpolation values of a dict ``detail``: its own ``params``, else its plain values.
+
+    Only what ``detail`` already carries to the same caller, so nothing new is disclosed.
+    """
+
+    if not isinstance(detail, dict):
+        return {}
+    explicit = detail.get("params")
+    if isinstance(explicit, dict):
+        return dict(explicit)
+    scalar = (str, int, float, bool, type(None))
+    return {
+        key: value
+        for key, value in detail.items()
+        if isinstance(key, str)
+        and key not in _NOT_PARAMS
+        and (
+            isinstance(value, scalar)
+            or (isinstance(value, list | tuple) and all(isinstance(v, scalar) for v in value))
+        )
+    }
+
+
+def _fallback_message(detail: Any) -> str | None:
+    """The endpoint's own English text: a string ``detail``, or a dict's ``message``."""
+
+    if isinstance(detail, str) and detail.strip():
+        return detail.strip()
+    if isinstance(detail, dict):
+        message = detail.get("message")
+        if isinstance(message, str) and message.strip():
+            return message.strip()
     return None
 
 

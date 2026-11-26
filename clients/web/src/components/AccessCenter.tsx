@@ -404,7 +404,7 @@ export function AccessCenter({ currentUser, t }: AccessCenterProps) {
                 {scopeFamilyRows(scopeCatalogue).map((row) => (
                   <div key={row.family} className="data-table-row two">
                     <strong>{t(`access.catalogue.family_${row.family}`)}</strong>
-                    <span title={row.scopes.join(", ")}>{row.scopes.map(sourceSystemLabel).join(", ")}</span>
+                    <span title={row.scopes.join(", ")}>{row.scopes.map((scope) => sourceSystemLabel(scope)).join(", ")}</span>
                   </div>
                 ))}
               </div>

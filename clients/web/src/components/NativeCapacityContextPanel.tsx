@@ -24,6 +24,7 @@ import {
   type NativeCapacityContext,
 } from "@/app/model/nativeCapacityContext";
 import { Button, Skeleton } from "@/components/ui";
+import { serverWarningText } from "@/app/warningLabel";
 
 export type NativeCapacityTranslate = (key: string) => string;
 
@@ -436,7 +437,7 @@ function MetaBlock({
       </dl>
       <h5>{t("nativeCapacity.warnings")}</h5>
       {warnings.length > 0 ? (
-        <ul>{warnings.map((warning, index) => <li key={`${warning}-${index}`}><code>{warning}</code></li>)}</ul>
+        <ul>{warnings.map((warning, index) => <li key={`${warning}-${index}`} title={warning}>{serverWarningText(warning, t)}</li>)}</ul>
       ) : (
         <p>{t("nativeCapacity.no_warnings")}</p>
       )}

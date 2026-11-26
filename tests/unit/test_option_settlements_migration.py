@@ -1,4 +1,4 @@
-"""Migration 0093 on SQLite: the option settlements table matches its model, up and down."""
+"""Migration 0094 on SQLite: the option settlements table matches its model, up and down."""
 
 from __future__ import annotations
 
@@ -16,12 +16,12 @@ def test_chain_up_down_and_model_match():
     from eurogas_nexus.db.models import OptionSettlementRecord
 
     spec = importlib.util.spec_from_file_location(
-        "tests.migration_0093", VERSIONS / "0093_option_settlements.py"
+        "tests.migration_0094", VERSIONS / "0094_option_settlements.py"
     )
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    assert module.revision == "0093_option_settlements"
-    assert module.down_revision == "0092_timescale_optional"
+    assert module.revision == "0094_option_settlements"
+    assert module.down_revision == "0093_timescale_optional"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
         module.op = Operations(MigrationContext.configure(connection=connection))

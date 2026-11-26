@@ -90,8 +90,9 @@ class OutageEvent(BaseModel):
         status: Lifecycle status of the outage event.
         start_utc: UTC start of the outage.
         end_utc: UTC end of the outage; None when still ongoing.
-        capacity_impact_mcm_d: Capacity removed by the outage in mcm per day (volume units
-            only; see ``unit`` and ``unavailable_capacity`` for the message's own figure).
+        capacity_impact_mcm_d: Capacity removed by the outage in mcm per day; None when the
+            message gives no volume figure (see ``unit`` and ``unavailable_capacity`` for
+            the message's own figure), never 0 for "unknown".
         description: Free-text description of the outage.
         asset_type: production, storage, lng, transmission, consumption or other.
         balancing_zone: Balancing zone(s) the message names.
@@ -110,7 +111,7 @@ class OutageEvent(BaseModel):
     status: str
     start_utc: str
     end_utc: str | None = None
-    capacity_impact_mcm_d: float = 0.0
+    capacity_impact_mcm_d: float | None = None
     description: str = ""
     asset_type: str = ""
     balancing_zone: str = ""

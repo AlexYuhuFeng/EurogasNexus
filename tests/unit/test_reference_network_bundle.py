@@ -47,7 +47,8 @@ def session():
 def test_shipped_bundle_passes_its_integrity_checks(bundle):
     assert bundle["schema"] == BUNDLE_SCHEMA
     assert validate_bundle(bundle) == []
-    assert bundle_path().stat().st_size < 600_000  # small enough to ship as package data
+    # All of Europe (every ENTSOG market area): still small enough to ship as package data.
+    assert bundle_path().stat().st_size < 1_300_000
     assert "transparency.entsog.eu" in bundle["source"]["attribution"]
 
 
@@ -183,7 +184,7 @@ def test_every_store_reads_the_adjacency_the_pricing_walks(session, bundle):
         for edge in bundle["edges"]
         if edge["type"] in {"market_area_link", "interconnector"}
     }
-    assert len(shipped) == 72
+    assert len(shipped) == 226  # every ENTSOG market area (bundle 2026-11-26)
 
     seed_reference_bundle(session, bundle=bundle, now=NOW)
     session.commit()

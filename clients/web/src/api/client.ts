@@ -4484,7 +4484,11 @@ export interface OutageEventDTO {
   balancing_zone: string;
   unit: string;
   unavailable_capacity: number | null;
-  capacity_impact_mcm_d: number;
+  /**
+   * Capacity removed in mcm/d; null when the message gives no volume figure (an outage in
+   * GWh/d). Unknown, never 0: show "unknown", or use `unavailable_gwh_d`/`unavailable_capacity`.
+   */
+  capacity_impact_mcm_d: number | null;
   description: string;
   market_participant: string;
   /** The daily figure through the unit authority; null where the message has none. */
@@ -4494,6 +4498,8 @@ export interface OutageEventDTO {
   direction?: string;
   source_system?: string;
   source_reference?: string;
+  /** True for the demo desk's invented messages (rule 17: never read as a real outage). */
+  simulated?: boolean;
   attribution?: string;
   /** With `grouped=true`: every message of the event, its operators and how many. */
   messages?: string[];
@@ -4571,6 +4577,8 @@ export interface MandateUsageRowDTO {
   furthest_month: string;
   legs: number;
   breaches: string;
+  /** The same breaches as declared notes, each naming its contract (newer servers). */
+  breach_notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
   valid_until: string | null;
   status: "ok" | "watch" | "breach" | "expired";
   hedge_policy: string;
@@ -4634,6 +4642,8 @@ export interface SellDownInput {
   short_penalty_per_mwh: number;
   long_discount_per_mwh: number;
   lot_mwh: number;
+  /** The unit the four prices are entered in (NBP in GBp/th); omitted, per MWh. */
+  price_unit?: string;
 }
 
 export interface DailyBalanceDayDTO {
@@ -4690,6 +4700,8 @@ export interface HedgeApprovalRowDTO {
   hedge_range: string | null;
   months: HedgeApprovalMonthDTO[];
   breaches: string[];
+  /** The same breaches as declared notes, each naming its contract (newer servers). */
+  breach_notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
   status: "ok" | "breach" | "expired";
   linked_trades: number;
   contract_found: boolean;
@@ -4749,6 +4761,8 @@ export interface DeliveryPerformanceRowDTO {
   cv_pct: number | null;
   trend_7d_vs_dcq_pct: number | null;
   flags: string;
+  /** The same flags as declared notes (newer servers). */
+  flag_notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
   status: "ok" | "watch";
 }
 
@@ -5220,6 +5234,8 @@ export interface PositionLadderDTO {
   /** Method notes keyed by the figure's field: mark_to_market, var_95_1d, tenor_exposure, scenario. */
   methods?: Record<string, RiskMethodNoteDTO>;
   warnings: string[];
+  /** The same warnings as codes with parameters, for the reader's language (newer servers). */
+  notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
 }
 
 export interface SpreadSeriesDTO {
@@ -5784,7 +5800,18 @@ export const api = {
 
   sources: (options?: ApiRequestOptions) => get<SourceSystemWire[]>("/sources", undefined, options).then(normalizeSourcesResponse),
 
-  marketObservations: () => get<MarketObsDTO[]>("/market/observations"),
+  /**
+   * One page of observations, newest first (`meta.continuation` says whether more follow and
+   * carries the cursor). The read is paged by range: ask for the range you need.
+   */
+  marketObservations: (range: { from_utc: string; to_utc?: string; product?: string; cursor?: string; limit?: number }) =>
+    get<MarketObsDTO[]>("/market/observations", {
+      from_utc: range.from_utc,
+      ...(range.to_utc ? { to_utc: range.to_utc } : {}),
+      ...(range.product ? { product: range.product } : {}),
+      ...(range.cursor ? { cursor: range.cursor } : {}),
+      ...(range.limit ? { limit: String(range.limit) } : {}),
+    }),
 
   normalizedMarketObservations: (options?: ApiRequestOptions, limit = 500) =>
     get<NormalizedMarketObsDTO[]>("/market/normalized", { limit: String(limit) }, options),
@@ -5993,7 +6020,15 @@ export const api = {
 
   lngObservations: (options?: ApiRequestOptions) => get<LngObsDTO[]>("/lng/observations", undefined, options),
 
-  fxRates: (options?: ApiRequestOptions) => get<FxRateDTO[]>("/market/fx", undefined, options),
+  /** The last ten days of fixings (the latest per pair is what the screens show); the read is
+   * paged by range, so the whole history is never fetched. */
+  fxRates: (options?: ApiRequestOptions) =>
+    get<FxRateDTO[]>(
+      "/market/fx",
+      // A whole UTC day, so the address (and its conditional-read cache) holds for the day.
+      { from_utc: `${new Date(Date.now() - 10 * 86_400_000).toISOString().slice(0, 10)}T00:00:00Z` },
+      options,
+    ),
 
   credentialProviders: (options?: ApiRequestOptions) => get<CredentialProviderDTO[]>("/credentials/providers", undefined, options),
 

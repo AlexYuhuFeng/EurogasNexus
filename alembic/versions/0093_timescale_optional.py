@@ -21,8 +21,8 @@ altered these three tables, has not been tried on a hypertable.
 
 from alembic import context, op
 
-revision = "0092_timescale_optional"
-down_revision = "0091_lng_berth_rules"
+revision = "0093_timescale_optional"
+down_revision = "0092_lng_berth_rules"
 branch_labels = None
 depends_on = None
 

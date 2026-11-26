@@ -57,7 +57,6 @@ test("no screen uses a native date, month or date-time input", () => {
     "components/strategy/StrategyBacktestWorkspace.tsx",
     "components/strategy/StrategyDesignWorkspace.tsx",
     "components/strategy/SpreadLabWorkspace.tsx",
-    "components/ReportsWorkspace.tsx",
   ]);
   const files = (dir: string): string[] =>
     readdirSync(dir).flatMap((name) => {

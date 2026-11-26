@@ -90,3 +90,55 @@ def test_unreadable_messages_refuse_the_whole_file():
         parse_umm_export('[{"messageId": "a", "eventStart": "tomorrow"}]', source_reference="x")
     with pytest.raises(UmmParseError):
         parse_umm_export("", source_reference="x")
+
+
+def test_an_energy_unit_outage_has_no_volume_impact_rather_than_zero() -> None:
+    """``capacity_impact_mcm_d`` was ``mcm_d or 0.0``: an outage published in GWh/d with no
+    volume figure read as an outage of zero mcm/d."""
+
+    from datetime import UTC, datetime, timedelta
+
+    from eurogas_nexus.domain.observations.remit_umm import UmmMessage, outage_view
+
+    now = datetime(2026, 11, 26, 12, tzinfo=UTC)
+    fields = UmmMessage.__dataclass_fields__
+    values = {
+        "message_id": "m1", "version": 1, "published_at_utc": now - timedelta(days=1),
+        "event_status": "active", "unavailability_type": "planned",
+        "event_start_utc": now - timedelta(hours=2), "event_stop_utc": now + timedelta(days=2),
+        "asset_name": "Storage X", "asset_eic": "21W000000000001X", "asset_type": "storage",
+        "balancing_zone": "THE", "direction": "withdrawal", "unit": "GWh/d",
+        "technical_capacity": None, "available_capacity": None,
+        "unavailable_capacity": 120.0, "unavailable_mcm_d": None, "unavailable_gwh_d": 120.0,
+        "reason": "maintenance", "market_participant": "SSO",
+        "remarks": "", "source_reference": "test",
+    }
+    message = UmmMessage(**{name: values.get(name) for name in fields if name in values})
+    (row,) = outage_view([message], now=now, horizon_days=30)
+    assert row["unavailable_gwh_d"] == 120.0
+    assert row["capacity_impact_mcm_d"] is None
+
+
+def test_a_demo_desk_message_is_marked_simulated_in_the_outage_list() -> None:
+    """The stored source (``DEMO``) was dropped between the store and the list."""
+
+    from datetime import UTC, datetime, timedelta
+
+    from eurogas_nexus.domain.observations.remit_umm import UmmMessage, outage_view
+
+    now = datetime(2026, 11, 26, 12, tzinfo=UTC)
+    base = {
+        "message_id": "m1", "version": 1, "published_at_utc": now - timedelta(days=1),
+        "event_status": "active", "unavailability_type": "planned",
+        "event_start_utc": now - timedelta(hours=2), "event_stop_utc": now + timedelta(days=2),
+        "asset_name": "Demo field", "asset_eic": "21W000000000002X", "asset_type": "production",
+        "balancing_zone": "NO", "direction": "exit", "unit": "mcm/d",
+        "technical_capacity": None, "available_capacity": None,
+        "unavailable_capacity": 20.0, "unavailable_mcm_d": 20.0, "unavailable_gwh_d": None,
+        "reason": "test", "market_participant": "Demo", "remarks": "",
+        "source_reference": "demo:umm",
+    }
+    (demo,) = outage_view([UmmMessage(**base, source_system="DEMO")], now=now, horizon_days=30)
+    (real,) = outage_view([UmmMessage(**base)], now=now, horizon_days=30)
+    assert demo["simulated"] is True and real["simulated"] is False
+    assert demo["source_system"] == real["source_system"] == "REMIT"  # entitlement family

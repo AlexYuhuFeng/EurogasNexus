@@ -325,8 +325,17 @@ def get_position_ladder(
             title="Position ladder",
             about=about,
         )
-    return _env(
-        payload, request, source="runtime-postgresql", warnings=[*warnings, *report.warnings]
+    from eurogas_nexus.application.manual_inputs import attach, manual_input
+
+    # Rule 19: each tenor shock is a price move typed by hand.
+    return attach(
+        _env(
+            payload, request, source="runtime-postgresql", warnings=[*warnings, *report.warnings]
+        ),
+        [
+            manual_input(f"shock:{hub}:{month}", delta, "per MWh (hub currency)")
+            for (hub, month), delta in sorted(tenor_shocks.items())
+        ],
     )
 
 
@@ -629,22 +638,38 @@ def map_situation(
 
 
 def _parse_tenor_shocks(values: list[str]) -> dict[tuple[str, str], float]:
-    """``HUB:YYYY-MM:delta`` items as {(hub, month): delta}; a malformed item is a 422."""
+    """``HUB:YYYY-MM:delta[:unit]`` items as {(hub, month): delta per MWh in the hub's currency}.
+
+    A shock is entered as the desk quotes the hub (NBP in p/th, AGENTS rule 17) and names its
+    unit; the unit authority (``domain.market.units``) converts it to the per-MWh figure the
+    ladder values with. Without a unit the delta is already per MWh in the hub's currency (the
+    earlier form). A malformed item, an unknown unit or a unit in another currency is a 422.
+    """
 
     import re
 
+    from eurogas_nexus.application.projections.daily_closes import per_mwh_in_hub_currency
+
+    def invalid(item: str, message: str) -> HTTPException:
+        return HTTPException(
+            status_code=422,
+            detail={"error_code": "tenor_shock_invalid", "message": f"shock {item!r} {message}"},
+        )
+
     shocks: dict[tuple[str, str], float] = {}
     for item in values:
-        match = re.fullmatch(r"([A-Za-z_]{2,16}):(\d{4}-\d{2}):(-?\d+(?:\.\d+)?)", item.strip())
+        match = re.fullmatch(
+            r"([A-Za-z_]{2,16}):(\d{4}-\d{2}):(-?\d+(?:\.\d+)?)(?::([A-Za-z/ ]{3,20}))?",
+            item.strip(),
+        )
         if not match:
-            raise HTTPException(
-                status_code=422,
-                detail={
-                    "error_code": "tenor_shock_invalid",
-                    "message": f"shock {item!r} is not HUB:YYYY-MM:delta",
-                },
-            )
-        shocks[(match.group(1).upper(), match.group(2))] = float(match.group(3))
+            raise invalid(item, "is not HUB:YYYY-MM:delta[:unit]")
+        hub, month = match.group(1).upper(), match.group(2)
+        try:
+            delta = per_mwh_in_hub_currency(hub, float(match.group(3)), match.group(4))
+        except ValueError as exc:
+            raise invalid(item, str(exc)) from exc
+        shocks[(hub, month)] = delta
     return shocks
 
 

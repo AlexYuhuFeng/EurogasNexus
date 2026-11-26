@@ -1,4 +1,4 @@
-"""TimescaleDB present (ADR Decision 39): migration 0092 converts the three planned tables, the
+"""TimescaleDB present (ADR Decision 39): migration 0093 converts the three planned tables, the
 writers keep working on compressed chunks, a second run changes nothing, and the downgrade
 leaves the hypertables as they are.
 
@@ -37,7 +37,7 @@ pytestmark = pytest.mark.skipif(
     reason="set EUROGAS_NEXUS_TEST_TIMESCALE_URL to a PostgreSQL server with TimescaleDB",
 )
 MIGRATION = Path(__file__).resolve().parents[2] / "alembic" / "versions" / (
-    "0092_timescale_optional.py"
+    "0093_timescale_optional.py"
 )
 PLANNED = [plan.table for plan in timescale.HYPERTABLE_PLANS]
 
@@ -69,7 +69,7 @@ def engine() -> Iterator[sa.Engine]:
 
 
 def _migration():
-    spec = importlib.util.spec_from_file_location("ts_0092_timescale_optional", MIGRATION)
+    spec = importlib.util.spec_from_file_location("ts_0093_timescale_optional", MIGRATION)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

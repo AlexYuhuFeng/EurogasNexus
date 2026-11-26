@@ -421,6 +421,18 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
 
 UNKNOWN_ERROR_CODE = "UNCLASSIFIED_ERROR"
 
+#: Codes that grew up separately for one failure, mapped to the catalogued name. Routes
+#: raised four spellings of "this needs the runtime database" (``runtime_db_required``,
+#: ``runtime_db_not_configured``, ``runtime_database_not_configured``,
+#: ``runtime_database_required``), so a client translating by code needed four entries for
+#: one sentence and an uncatalogued spelling fell back to a generic family text. The
+#: envelope reports the catalogued code; the endpoint's own ``detail`` keeps its spelling.
+CODE_ALIASES: dict[str, str] = {
+    "runtime_db_not_configured": "runtime_db_required",
+    "runtime_database_not_configured": "runtime_db_required",
+    "runtime_database_required": "runtime_db_required",
+}
+
 _SYSTEM_FALLBACK = ErrorDefinition(
     code=UNKNOWN_ERROR_CODE,
     family=ErrorFamily.SYSTEM,
@@ -490,28 +502,47 @@ def _infer_family(code: str) -> ErrorFamily | None:
     return None
 
 
-def error_definition(code: str) -> ErrorDefinition:
+def canonical_code(code: str) -> str:
+    """The catalogued name of a code (``CODE_ALIASES``), else the code itself, trimmed."""
+
+    normalized = (code or "").strip()
+    return CODE_ALIASES.get(normalized, normalized)
+
+
+def error_definition(code: str, *, status_code: int | None = None) -> ErrorDefinition:
     """Look up a code, falling back to a family inference and then to SYSTEM.
 
     An uncatalogued code keeps its own identifier - operators need the real string -
     but takes the family-level translation keys, so a client always has text to
     render instead of a missing-key placeholder.
+
+    ``status_code`` is what the HTTP envelope knows when the code's name says little: an
+    uncatalogued code takes the family the status implies when its name implies none (a
+    403 is an AUTH refusal), and the severity and recoverability of the status's own
+    catalogued code (a 404 is permanent), so an endpoint's own code such as
+    ``personal_keys_are_for_people`` keeps its name - which the client translates by -
+    instead of collapsing into ``UNCLASSIFIED_ERROR``.
     """
 
-    normalized = (code or "").strip()
+    normalized = canonical_code(code)
     catalogued = ERROR_CATALOGUE.get(normalized)
     if catalogued is not None:
         return catalogued
 
     family = _infer_family(normalized) if normalized else None
+    if family is None and normalized and status_code is not None:
+        family = family_for_status(status_code)
     if family is None:
         return _SYSTEM_FALLBACK
 
+    by_status = (
+        ERROR_CATALOGUE.get(code_for_status(status_code)) if status_code is not None else None
+    )
     return ErrorDefinition(
         code=normalized,
         family=family,
-        severity=ErrorSeverity.ERROR,
-        recoverability=Recoverability.UNKNOWN,
+        severity=by_status.severity if by_status else ErrorSeverity.ERROR,
+        recoverability=by_status.recoverability if by_status else Recoverability.UNKNOWN,
         message_key=f"errors.family.{family.value}.title",
         action_key=f"errors.family.{family.value}.action",
         operator_only=False,
@@ -531,6 +562,7 @@ def error_payload(
     message: str | None = None,
     operator_detail: str | None = None,
     operator: bool = False,
+    status_code: int | None = None,
 ) -> dict[str, object]:
     """Build the V2 error body.
 
@@ -541,7 +573,7 @@ def error_payload(
     confused with the endpoint's own ``detail`` payload.
     """
 
-    definition = error_definition(code)
+    definition = error_definition(code, status_code=status_code)
     payload: dict[str, object] = {
         "error": definition.code,
         "family": definition.family.value,
@@ -589,6 +621,7 @@ _STATUS_FALLBACK_CODES: dict[int, str] = {
     401: "unauthenticated",
     403: "permission_denied",
     404: "not_found",
+    405: "method_not_allowed",
     409: "conflict",
     422: "validation_failed",
     429: "rate_limited",
@@ -600,6 +633,30 @@ def code_for_status(status_code: int) -> str:
     """Best-effort code for an HTTP failure raised without one."""
 
     return _STATUS_FALLBACK_CODES.get(status_code, UNKNOWN_ERROR_CODE)
+
+
+#: The family an HTTP status implies, for an endpoint code whose name says nothing.
+_STATUS_FAMILIES: dict[int, ErrorFamily] = {
+    400: ErrorFamily.VALIDATION,
+    401: ErrorFamily.AUTH,
+    403: ErrorFamily.AUTH,
+    404: ErrorFamily.VALIDATION,
+    405: ErrorFamily.VALIDATION,
+    409: ErrorFamily.VALIDATION,
+    410: ErrorFamily.VALIDATION,
+    413: ErrorFamily.VALIDATION,
+    422: ErrorFamily.VALIDATION,
+    429: ErrorFamily.DEPENDENCY,
+    502: ErrorFamily.DEPENDENCY,
+    503: ErrorFamily.DEPENDENCY,
+    504: ErrorFamily.DEPENDENCY,
+}
+
+
+def family_for_status(status_code: int) -> ErrorFamily | None:
+    """The family an HTTP status implies, or ``None`` (a 500 implies nothing)."""
+
+    return _STATUS_FAMILIES.get(status_code)
 
 
 def catalogue_by_family() -> dict[ErrorFamily, tuple[str, ...]]:

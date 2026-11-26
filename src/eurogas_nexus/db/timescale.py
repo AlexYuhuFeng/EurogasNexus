@@ -22,7 +22,7 @@ The setting ``EUROGAS_NEXUS_TIMESCALE`` chooses:
     As ``auto``, but stop with :class:`TimescaleRequiredError` when the server cannot, so a
     production server that should have it does not silently run without it.
 
-Migration ``0092_timescale_optional`` calls :func:`apply` once. The same call is idempotent,
+Migration ``0093_timescale_optional`` calls :func:`apply` once. The same call is idempotent,
 so an operator who installs the extension later runs ``scripts/ops/timescale.py apply``
 instead of re-running a migration that is already recorded.
 

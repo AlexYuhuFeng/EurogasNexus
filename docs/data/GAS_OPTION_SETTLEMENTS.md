@@ -12,7 +12,7 @@ Implementation:
 - `src/eurogas_nexus/ingestion/option_settlements.py`: the licensed-file parser
 - `src/eurogas_nexus/ingestion/simulated_option_settlements.py`: the demo simulator
 - `src/eurogas_nexus/db/models/option_settlement.py` and migration
-  `alembic/versions/0093_option_settlements.py`: the `option_settlements` table
+  `alembic/versions/0094_option_settlements.py`: the `option_settlements` table
 - `src/eurogas_nexus/application/option_surface.py`: per-day source choice and summaries
 - `src/eurogas_nexus/api/routes/public/market_options.py`: the read API
 - `scripts/ops/import_option_settlements.py` and `scripts/ops/seed_simulated_option_settlements.py`

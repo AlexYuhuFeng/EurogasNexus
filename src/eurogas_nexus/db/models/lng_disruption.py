@@ -30,7 +30,7 @@ tables:
 * ``lng_berth_calls``: other users' ships due at a terminal's berth (the line-up, where the
   firm holds it), so an option that takes the berth carries the knock-on it causes.
 
-Migration ``0091_lng_berth_rules`` (ADR Decision 37, addendum of 2026-11-26, the owner's berth
+Migration ``0092_lng_berth_rules`` (ADR Decision 37, addendum of 2026-11-26, the owner's berth
 priority and third-party demurrage decisions) adds:
 
 * ``lng_terminal_berth_rules``: a terminal's berth access rule where the firm records one (the

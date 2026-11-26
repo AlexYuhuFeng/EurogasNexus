@@ -4,7 +4,7 @@
 与依赖注入）与 SQLAlchemy 适配器。所有适配器只做查询映射，不写库。
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Protocol
 
 from sqlalchemy import or_
@@ -18,9 +18,14 @@ from eurogas_nexus.db.models.reference_network import (
     ReferenceNode,
     ReferenceTsoAccessPoint,
 )
+from eurogas_nexus.reference_data.network_adjacency import (
+    RETIRED_TRADING_POINTS,
+    trading_point_country,
+)
 from eurogas_nexus.reference_data.network_bundle import (
     BUNDLE_EDGE_SOURCE,
     shipped_reference_edges,
+    shipped_zone_nodes,
 )
 
 # --- Domain-safe dataclasses -------------------------------------------------
@@ -255,7 +260,26 @@ class SqlAlchemyNodeRepository:
             q = q.filter(ReferenceNode.country == country)
         if node_type is not None:
             q = q.filter(ReferenceNode.node_type == node_type)
-        return [_node_to_dto(row) for row in q.all()]
+        stored = [
+            _served_node(row)
+            for row in q.all()
+            if str(row.source_record_id or "") not in RETIRED_TRADING_POINTS
+        ]
+        return stored + [
+            node
+            for node in self._shipped_zone_nodes()
+            if (country is None or node.country == country)
+            and (node_type is None or node.node_type == node_type)
+        ]
+
+    def _shipped_zone_nodes(self) -> list[NodeDTO]:
+        """Market-area nodes of the shipped bundle the store does not hold as current rows.
+
+        A live ENTSOG read holds connection points only; the zones ENTSOG publishes no trading
+        point for (``shipped_zone_nodes``) come from the bundle, so their adjacency is drawn.
+        """
+
+        return _missing_zone_nodes(self._session)
 
     def get_by_id(self, node_id: str) -> NodeDTO | None:
         """Fetch one node by id.
@@ -268,7 +292,38 @@ class SqlAlchemyNodeRepository:
         """
 
         row = self._session.get(ReferenceNode, node_id)
-        return _node_to_dto(row) if row else None
+        if row is not None and str(row.source_record_id or "") not in RETIRED_TRADING_POINTS:
+            return _served_node(row)
+        return next((node for node in self._shipped_zone_nodes() if node.id == node_id), None)
+
+
+def _served_node(row: ReferenceNode) -> NodeDTO:
+    """A stored node as read, with a trading point's country taken from its zone.
+
+    A store read before the live normaliser set it holds ENTSOG trading points as country
+    "EU" (TTF, OTE, GTF ...); the zone ENTSOG files each under gives the country.
+    """
+
+    dto = _node_to_dto(row)
+    if row.node_type == "hub" and (row.country or "EU") == "EU":
+        country = trading_point_country(str(row.source_record_id or ""))
+        if country:
+            return replace(dto, country=country)
+    return dto
+
+
+def _missing_zone_nodes(session: Session) -> list[NodeDTO]:
+    """The shipped zone nodes a store holding ENTSOG reference points lacks (none when empty)."""
+
+    held = {
+        node_id
+        for (node_id,) in session.query(ReferenceNode.id)
+        .filter(_current(ReferenceNode), ReferenceNode.source_system == "ENTSOG")
+        .all()
+    }
+    if not held:
+        return []
+    return [NodeDTO(**row) for row in shipped_zone_nodes() if row["id"] not in held]
 
 
 class SqlAlchemyEdgeRepository:
@@ -324,7 +379,7 @@ class SqlAlchemyEdgeRepository:
             for (node_id,) in self._session.query(ReferenceNode.id)
             .filter(_current(ReferenceNode))
             .all()
-        }
+        } | {node.id for node in _missing_zone_nodes(self._session)}
         return [
             EdgeDTO(**row)
             for row in shipped_reference_edges()

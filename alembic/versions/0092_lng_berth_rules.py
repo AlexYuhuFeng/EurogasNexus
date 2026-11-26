@@ -20,8 +20,8 @@ import sqlalchemy as sa
 
 from alembic import op
 
-revision = "0091_lng_berth_rules"
-down_revision = "0090_job_progress_steps"
+revision = "0092_lng_berth_rules"
+down_revision = "0091_hub_one_identity"
 branch_labels = None
 depends_on = None
 

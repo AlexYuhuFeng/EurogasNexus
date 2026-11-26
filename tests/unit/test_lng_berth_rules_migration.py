@@ -1,5 +1,5 @@
-"""Migration 0091 on SQLite: the terminal berth rules table and the quote columns on
-``lng_berth_calls`` match the models, up and down, and 0091 only expands."""
+"""Migration 0092 on SQLite: the terminal berth rules table and the quote columns on
+``lng_berth_calls`` match the models, up and down, and 0092 only expands."""
 
 from __future__ import annotations
 
@@ -26,9 +26,9 @@ def test_up_down_and_model_match():
 
     lng3 = _load("0086_lng_disruption.py")
     lng4 = _load("0087_lng4_options_demurrage_outages.py")
-    rules = _load("0091_lng_berth_rules.py")
-    assert rules.revision == "0091_lng_berth_rules"
-    assert rules.down_revision == "0090_job_progress_steps"
+    rules = _load("0092_lng_berth_rules.py")
+    assert rules.revision == "0092_lng_berth_rules"
+    assert rules.down_revision == "0091_hub_one_identity"
     assert len(rules.revision) <= 32  # alembic_version.version_num is VARCHAR(32)
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
@@ -49,15 +49,15 @@ def test_up_down_and_model_match():
         assert left == set(LngBerthCallRecord.__table__.columns.keys()) - ADDED
 
 
-def test_0091_only_expands():
-    """Every column 0091 adds to an existing table is nullable, and it drops or alters nothing
+def test_0092_only_expands():
+    """Every column 0092 adds to an existing table is nullable, and it drops or alters nothing
     on the way up."""
 
-    source = (VERSIONS / "0091_lng_berth_rules.py").read_text(encoding="utf-8")
+    source = (VERSIONS / "0092_lng_berth_rules.py").read_text(encoding="utf-8")
     upgrade = source[source.index("def upgrade") : source.index("def downgrade")]
     assert "drop_" not in upgrade and "alter_column" not in upgrade
     assert "nullable=True" in upgrade
-    rules = _load("0091_lng_berth_rules.py")
+    rules = _load("0092_lng_berth_rules.py")
     assert {(table, name) for table, name, _kind in rules._COLUMNS} == {
         ("lng_berth_calls", name) for name in ADDED
     }

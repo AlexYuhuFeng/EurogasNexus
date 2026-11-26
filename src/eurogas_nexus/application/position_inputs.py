@@ -14,6 +14,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any
 
+from eurogas_nexus.application.bounded_reads import read_bounded
 from eurogas_nexus.application.caller import caller_of
 from eurogas_nexus.core.config import demo_marks_allowed
 from eurogas_nexus.domain.ontology.identity import resolve_hub
@@ -61,7 +62,7 @@ def curve_quotes(who: Any, date_from, date_to) -> list:
             moment = datetime.combine(day, time.min, tzinfo=UTC)
             return moment.replace(tzinfo=None) if naive else moment
 
-        records = (
+        records = read_bounded(
             session.query(
                 MarketObservationRecord.product,
                 MarketObservationRecord.price,
@@ -82,9 +83,9 @@ def curve_quotes(who: Any, date_from, date_to) -> list:
             )
             .filter(MarketObservationRecord.observed_at_utc >= bound(date_from))
             .filter(MarketObservationRecord.observed_at_utc < bound(date_to + timedelta(days=1)))
-            .order_by(MarketObservationRecord.observed_at_utc)
-            .limit(20_000)
-            .all()
+            .order_by(MarketObservationRecord.observed_at_utc),
+            20_000,
+            what="market observation",
         )
     rows = []
     for record in records:
@@ -565,6 +566,7 @@ def ladder_inputs(
                 book_id=contract.book_id or "",
                 open_ended=(contract.gas_year or "").strip().endswith("+"),
                 source="contract",
+                label=contract.contract_name or contract.contract_id,
             )
         )
         if _cargo_of(terms):
@@ -598,6 +600,10 @@ def ladder_inputs(
                 reference=order.order_observation_id,
                 book_id=order_books.get(order.order_observation_id, ""),
                 source="trade",
+                label=" ".join(
+                    part for part in (str(order.venue or ""), str(order.side or "").lower(), hub)
+                    if part
+                ),
             )
         )
     with get_session_factory()() as session:

@@ -105,9 +105,9 @@ both bootstrap and full-envelope responses during transition.
 | `POST /api/scenarios/validate` | scenario missing-input check | planned |
 | `GET /api/sources/live-status` | ECB, ENTSOG, GIE, EEX, Trayport, ICE OCM, weather, LLM posture | planned |
 | `GET /api/capacity/contracts` | capacity/contract context | planned |
-| `GET /api/market/observations` | DB-backed gas price, assessment, index, FX-like observation rows | active |
+| `GET /api/market/observations` | DB-backed gas price, assessment, index, FX-like observation rows; keyset pages (`limit` default 1,000, `cursor`, `from_utc`/`to_utc`, `product`), `meta.continuation` | active |
 | `GET /api/market/normalized` | backend-normalized market view: per-row `hub`/`tenor`/`is_gas_price`/`price_gbp_mwh` (FX conversion owned by backend) | active |
-| `GET /api/market/fx` | DB-backed ECB FX reference rows | active |
+| `GET /api/market/fx` | DB-backed ECB FX reference rows; keyset pages like the observations (`pair` filter) | active |
 | `GET /api/market/quotes` | normalized DB-backed L1 bid/ask/depth quotes | active |
 | `GET /api/market/opportunities` | persisted route-adjusted intraday candidates, blockers, lineage, and expiry | active |
 | `GET /api/market/spreads` | backend-owned hub spreads (`from_hub`/`to_hub`/`spread_eur_mwh`) derived from persisted opportunities | active |

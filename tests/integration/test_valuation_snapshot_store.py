@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 
 from eurogas_nexus.application.caller import Caller
 from eurogas_nexus.application.valuation_snapshot import (
+    SNAPSHOT_PRICE_LOOKBACK_DAYS,
     SpotEcbFx,
     freeze_snapshot,
     open_valuation_snapshot,
@@ -374,3 +375,50 @@ def test_a_book_reads_its_own_approved_set_and_falls_back_to_the_firm_wide_one(s
     assert replay.assumption("capacity.load_factor", "book-a").value == Decimal("80")
     assert replay.assumption("capacity.load_factor", "book-b").value == Decimal("100")
     assert replay.replay_misses == []
+
+
+def test_one_price_book_serves_every_price_a_snapshot_reads(session) -> None:
+    """Backend audit P1: a book per (hub, period, side) re-read the quote and observation
+    tables for every input (96 queries on the spread board). One book now serves them, and
+    each answer is the one a book narrowed to that hub and period gives."""
+
+    from sqlalchemy import event
+
+    from eurogas_nexus.application.price_resolver import open_price_book
+
+    reader = open_valuation_snapshot(
+        session, caller=_caller(("*",)), as_of_utc=AS_OF, demo_desk=False
+    )
+    statements: list[str] = []
+
+    def count(_conn, _cursor, statement, *_args) -> None:
+        if "market_quotes" in statement or "market_observations" in statement:
+            statements.append(statement)
+
+    engine = session.get_bind()
+    event.listen(engine, "before_cursor_execute", count)
+    try:
+        answers = {
+            (hub, period.label, side): reader.price(hub, period, side)
+            for hub in ("THE", "TTF", "NBP")
+            for period in (JAN27, FEB27)
+            for side in ("bid", "ask", "mid")
+        }
+        first_load = len(statements)
+        reader.price("THE", JAN27, "bid")
+        assert len(statements) == first_load
+    finally:
+        event.remove(engine, "before_cursor_execute", count)
+    # One book load (plus the per-answer quote detail), not a book per input (18 here).
+    assert first_load < len(answers)
+    for (hub, _label, side), answer in answers.items():
+        period = JAN27 if _label == JAN27.label else FEB27
+        narrow = open_price_book(
+            session, reader.caller, now=AS_OF, hubs=[hub], allow_simulated=False,
+            lookback_days=SNAPSHOT_PRICE_LOOKBACK_DAYS, period_starts=[period.start],
+        ).resolve(hub, period.start, period.end, side=side)
+        if narrow is None:
+            assert answer.input_class is InputClass.MISSING, (hub, period.label, side)
+            continue
+        expected = reader._resolved_input("check", narrow, f"{hub} {period.label}", side)
+        assert (answer.value, answer.input_class) == (expected.value, expected.input_class)

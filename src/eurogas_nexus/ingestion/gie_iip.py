@@ -57,6 +57,9 @@ class IipRead:
     #: Set when the read stopped early on a refusal after some pages were read: the records
     #: are the newest part of the window and are kept, but the read is not complete.
     error: str = ""
+    #: The oldest submission read: with ``error`` set, the window from ``since`` up to this
+    #: instant was not read (stated in the report, never passed off as covered).
+    oldest_submitted: datetime | None = None
 
 
 def _submitted(record: Mapping[str, Any]) -> datetime | None:
@@ -104,6 +107,10 @@ def fetch_iip_messages(
         read.pages = page
         read.total = meta.get("total") if isinstance(meta.get("total"), int) else read.total
         stamps = [stamp for stamp in map(_submitted, data) if stamp is not None]
+        if stamps:
+            oldest = min(stamps)
+            if read.oldest_submitted is None or oldest < read.oldest_submitted:
+                read.oldest_submitted = oldest
         read.records.extend(record for record in data if isinstance(record, Mapping))
         if not data or (stamps and max(stamps) < since):
             read.stop = "window_exhausted"

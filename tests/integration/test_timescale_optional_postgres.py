@@ -1,4 +1,4 @@
-"""TimescaleDB absent (ADR Decision 39): on plain PostgreSQL migration 0092 changes nothing.
+"""TimescaleDB absent (ADR Decision 39): on plain PostgreSQL migration 0093 changes nothing.
 
 Run with ``EUROGAS_NEXUS_TEST_POSTGRES_URL`` set to a PostgreSQL server **without** the
 timescaledb extension (the test skips where the extension is available, because it proves
@@ -34,7 +34,7 @@ pytestmark = pytest.mark.skipif(
     reason="set EUROGAS_NEXUS_TEST_POSTGRES_URL to a PostgreSQL server without TimescaleDB",
 )
 MIGRATION = Path(__file__).resolve().parents[2] / "alembic" / "versions" / (
-    "0092_timescale_optional.py"
+    "0093_timescale_optional.py"
 )
 
 _CATALOGUE_SQL = """
@@ -97,7 +97,7 @@ def _catalogue(connection) -> list[tuple[str, str]]:
 
 
 def _migration():
-    spec = importlib.util.spec_from_file_location("pg_0092_timescale_optional", MIGRATION)
+    spec = importlib.util.spec_from_file_location("pg_0093_timescale_optional", MIGRATION)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module

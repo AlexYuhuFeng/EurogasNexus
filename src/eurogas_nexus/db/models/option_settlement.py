@@ -1,4 +1,4 @@
-"""End-of-day gas option settlements with their implied volatility. Migration 0093.
+"""End-of-day gas option settlements with their implied volatility. Migration 0094.
 
 One row per source, hub, contract (the underlying future's delivery period), trade date,
 strike and call/put. Rows come from a licensed exchange or vendor export

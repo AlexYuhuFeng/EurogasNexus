@@ -4,8 +4,8 @@ Presentation only. SciGRID_gas IGGIELGN (DLR Institute of Networked Energy Syste
 doi:10.5281/zenodo.4767098) is an abstracted European gas transmission network assembled from
 open sources. The bundle build reads its pipe segments once and keeps two things:
 
-- the trunk lines of north-west Europe, generalised, as a faint context layer the map draws
-  under the connections (``context_pipelines``);
+- the trunk lines of the bundle's scope (Europe), generalised, as a faint context layer
+  the map draws under the connections (``context_pipelines``);
 - for each drawn connection leg (interconnection point -> market area; not the subsea
   interconnectors, which stay straight between their landings), a path along those
   trunk lines when one runs close to both ends without a long detour
@@ -39,8 +39,9 @@ SOURCE = {
     "use": "presentation only: general direction of the drawn connections; never priced",
 }
 
-#: North-west Europe and the Norwegian shelf, with the neighbours the scope's borders reach.
-BBOX = (-11.0, 46.5, 16.0, 63.0)  # min lon, min lat, max lon, max lat
+#: The bundle's scope: every ENTSOG market area from Ireland and Iberia to Ukraine and Turkey,
+#: with the Norwegian shelf.
+BBOX = (-11.0, 35.0, 41.0, 66.0)  # min lon, min lat, max lon, max lat
 #: Trunk lines only: transmission pipes of at least this diameter.
 MIN_DIAMETER_MM = 600.0
 #: Douglas-Peucker tolerance in degrees (about 2 km) and the stored coordinate precision.

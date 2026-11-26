@@ -22,7 +22,7 @@ LNG4_COLUMNS = {
     "lng_capacity_offers": {"hub"},
     "lng_slot_terms": {"berth_days"},
 }
-#: The columns 0091 adds to a table 0087 creates (the berth rule's counterparty quote); this
+#: The columns 0092 adds to a table 0087 creates (the berth rule's counterparty quote); this
 #: test runs 0086 and 0087 only, so the model has them and the table does not.
 LATER_COLUMNS = {
     "lng_berth_calls": {"counterparty", "quote_amount", "quote_currency", "quote_reference"},

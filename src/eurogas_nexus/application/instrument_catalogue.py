@@ -32,7 +32,7 @@ PRODUCT_KINDS: tuple[str, ...] = ("spot", "rolling", "month", "quarter", "season
 SOURCE_CLASSES: tuple[str, ...] = ("simulated", "indicative", "sourced")
 #: Hubs in the order a NW European desk scans them; any other hub follows alphabetically.
 HUB_ORDER: tuple[str, ...] = (
-    "TTF", "NBP", "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF", "GTF", "HH", "JKM",
+    "TTF", "NBP", "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF", "HH", "JKM",
 )
 #: Fewer observations than this and the instrument is shown greyed with its count (D.2).
 THIN_SERIES_DAYS = 30

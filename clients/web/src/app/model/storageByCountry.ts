@@ -19,6 +19,9 @@ export interface SeasonLabels {
   mean: (years: number) => string;
   target: (pct: number) => string;
   xTitle: string;
+  /** The history and the band in the reader's words (`historyLabel`); the server's label else. */
+  history?: (history: SeasonEntity["history"]) => string;
+  range?: (years: readonly string[]) => string;
 }
 
 export interface SeasonChart {
@@ -32,7 +35,7 @@ export interface SeasonChart {
 /** What the seasonal chart needs of an entity: storage fill or LNG send-out alike. */
 export interface SeasonEntity {
   simulated: boolean;
-  history: { label: string };
+  history: { label: string; mode?: "none" | "lines" | "band"; years?: string[]; history_from?: string | null };
   target?: { pct: number } | null;
   season?: StorageEntityDTO["season"];
 }
@@ -56,13 +59,13 @@ export function seasonChart(entity: SeasonEntity, labels: SeasonLabels, compareL
     unit,
     series,
     bands: band
-      ? [{ id: "range", label: band.label, meanLabel: labels.mean(band.years.length), years: band.years, low: band.low, high: band.high, mean: band.mean }]
+      ? [{ id: "range", label: labels.range ? labels.range(band.years) : band.label, meanLabel: labels.mean(band.years.length), years: band.years, low: band.low, high: band.high, mean: band.mean }]
       : [],
     rules: entity.target ? [{ id: "target", value: entity.target.pct, label: labels.target(entity.target.pct), kind: "target" }] : [],
   };
   return {
     data,
-    subtitle: entity.history.label,
+    subtitle: labels.history ? labels.history(entity.history) : entity.history.label,
     compare: band ? { series: "this", against: "range", label: compareLabel } : { series: "this", against: "last", label: compareLabel },
   };
 }

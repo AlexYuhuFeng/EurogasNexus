@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, StrictBool, StrictStr
 
-from eurogas_nexus_sdk._transport import SdkResult, api_url, get_envelope
+from eurogas_nexus_sdk._transport import SdkResult, api_url, get_envelope, get_pages
 
 
 class MarketObservation(BaseModel):
@@ -363,7 +363,13 @@ class NormalizedMarketObservation(BaseModel):
     executable_quote: StrictBool | None = None
 
 
-def fetch_market_observations(base_url: str) -> list[MarketObservation]:
+def fetch_market_observations(
+    base_url: str,
+    *,
+    from_utc: str | None = None,
+    to_utc: str | None = None,
+    product: str | None = None,
+) -> list[MarketObservation]:
     """Fetch market observations, returning only the payload data.
 
     Args:
@@ -378,11 +384,20 @@ def fetch_market_observations(base_url: str) -> list[MarketObservation]:
     """
     # 薄封装只取 .data：meta 里的来源引用与警告大多数调用方用不到，
     # 需要溯源/审计时改用 fetch_market_observations_result。
-    return fetch_market_observations_result(base_url).data
+    return fetch_market_observations_result(
+        base_url, from_utc=from_utc, to_utc=to_utc, product=product
+    ).data
 
 
 def fetch_market_observations_result(
-    base_url: str, *, as_of: str | None = None
+    base_url: str,
+    *,
+    as_of: str | None = None,
+    from_utc: str | None = None,
+    to_utc: str | None = None,
+    product: str | None = None,
+    page_size: int = 1000,
+    max_pages: int = 100,
 ) -> SdkResult[list[MarketObservation]]:
     """Fetch market observations together with backend response metadata.
 
@@ -390,6 +405,10 @@ def fetch_market_observations_result(
         base_url: Operator-provided server root URL.
         as_of: ISO 8601 UTC instant; read each figure as known then, with its revision
             (DATA-1). None: the current read.
+        from_utc, to_utc: The range of observation instants (ISO 8601 with offset). The
+            server pages the read (``meta.continuation``); every page of the range is read,
+            and ``SdkPageLimitError`` is raised past ``max_pages`` instead of returning part.
+        product: A product, or a hub code for all its products (``TTF``).
 
     Returns:
         An SdkResult whose data holds the observations and whose meta carries
@@ -399,8 +418,17 @@ def fetch_market_observations_result(
     Raises:
         httpx.HTTPStatusError: If the backend responds with a non-2xx status.
     """
-    params = {"as_of": as_of} if as_of else None
-    data, meta = get_envelope(api_url(base_url, "market/observations"), params=params)
+    params = {
+        key: value
+        for key, value in {
+            "as_of": as_of, "from_utc": from_utc, "to_utc": to_utc, "product": product,
+            "limit": page_size,
+        }.items()
+        if value
+    }
+    data, meta = get_pages(
+        api_url(base_url, "market/observations"), params=params, max_pages=max_pages
+    )
     # 同时保留 data 与 meta：meta 携带 source_references/warnings 等审计与
     # 人工复核所需信息；只要结果数据的调用方请使用不带 _result 的变体。
     return SdkResult([MarketObservation.model_validate(row) for row in data], meta)
@@ -435,8 +463,9 @@ def fetch_fx_rates_result(base_url: str, *, as_of: str | None = None) -> SdkResu
     Raises:
         httpx.HTTPStatusError: If the backend responds with a non-2xx status.
     """
-    params = {"as_of": as_of} if as_of else None
-    data, meta = get_envelope(api_url(base_url, "market/fx"), params=params)
+    params = {"as_of": as_of} if as_of else {}
+    # Paged like the observations (``meta.continuation``); every page is read.
+    data, meta = get_pages(api_url(base_url, "market/fx"), params=params)
     return SdkResult([FxRate.model_validate(row) for row in data], meta)
 
 

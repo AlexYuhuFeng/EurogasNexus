@@ -336,10 +336,10 @@ SDK client for /api/market.
 
 | Function | Calls | Returns | Purpose |
 |---|---|---|---|
-| `fetch_market_observations` | `GET /api/market/observations` | `list[MarketObservation]` | Fetch market observations, returning only the payload data. |
-| `fetch_market_observations_result` | `GET /api/market/observations` | `SdkResult[list[MarketObservation]]` | Fetch market observations together with backend response metadata. |
-| `fetch_fx_rates` | `GET /api/market/fx` | `list[FxRate]` | Fetch foreign-exchange rates, returning only the payload data. |
-| `fetch_fx_rates_result` | `GET /api/market/fx` | `SdkResult[list[FxRate]]` | Fetch foreign-exchange rates together with backend response metadata. |
+| `fetch_market_observations` | `? /api/market/observations` | `list[MarketObservation]` | Fetch market observations, returning only the payload data. |
+| `fetch_market_observations_result` | `? /api/market/observations` | `SdkResult[list[MarketObservation]]` | Fetch market observations together with backend response metadata. |
+| `fetch_fx_rates` | `? /api/market/fx` | `list[FxRate]` | Fetch foreign-exchange rates, returning only the payload data. |
+| `fetch_fx_rates_result` | `? /api/market/fx` | `SdkResult[list[FxRate]]` | Fetch foreign-exchange rates together with backend response metadata. |
 | `fetch_market_quotes` | `GET /api/market/quotes` | `list[MarketQuote]` | Fetch market quotes, returning only the payload data. |
 | `fetch_market_quotes_result` | `GET /api/market/quotes` | `SdkResult[list[MarketQuote]]` | Fetch market quotes together with backend response metadata. |
 | `fetch_intraday_opportunities` | `GET /api/market/opportunities` | `list[IntradayOpportunity]` | Fetch intraday opportunities, returning only the payload data. |
@@ -359,8 +359,8 @@ SDK client for /api/market.
 Signatures:
 
 ```python
-fetch_market_observations(base_url: str) -> list[MarketObservation]
-fetch_market_observations_result(base_url: str, *, as_of: str | None = None) -> SdkResult[list[MarketObservation]]
+fetch_market_observations(base_url: str, *, from_utc: str | None = None, to_utc: str | None = None, product: str | None = None) -> list[MarketObservation]
+fetch_market_observations_result(base_url: str, *, as_of: str | None = None, from_utc: str | None = None, to_utc: str | None = None, product: str | None = None, page_size: int = 1000, max_pages: int = 100) -> SdkResult[list[MarketObservation]]
 fetch_fx_rates(base_url: str) -> list[FxRate]
 fetch_fx_rates_result(base_url: str, *, as_of: str | None = None) -> SdkResult[list[FxRate]]
 fetch_market_quotes(base_url: str) -> list[MarketQuote]

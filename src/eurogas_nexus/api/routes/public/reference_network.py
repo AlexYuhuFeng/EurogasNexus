@@ -4,6 +4,8 @@ from dataclasses import asdict
 
 from fastapi import APIRouter, HTTPException, Query, Request
 
+from eurogas_nexus.api.errors import ApiError
+
 router = APIRouter(tags=["reference-network"])
 
 
@@ -35,7 +37,12 @@ def get_node(node_id: str, request: Request) -> dict:
         return _envelope(node, request, source="postgresql")
 
     if _db_is_configured():
-        raise HTTPException(status_code=404, detail=f"Node '{node_id}' not found.")
+        raise ApiError(
+            404,
+            "reference_node_not_found",
+            f"Node '{node_id}' not found.",
+            params={"node_id": node_id},
+        )
 
     raise _db_not_configured("reference_nodes")
 
@@ -68,7 +75,12 @@ def get_edge(edge_id: str, request: Request) -> dict:
         return _envelope(edge, request, source="postgresql")
 
     if _db_is_configured():
-        raise HTTPException(status_code=404, detail=f"Edge '{edge_id}' not found.")
+        raise ApiError(
+            404,
+            "reference_edge_not_found",
+            f"Edge '{edge_id}' not found.",
+            params={"edge_id": edge_id},
+        )
 
     raise _db_not_configured("reference_edges")
 
@@ -104,7 +116,12 @@ def get_facility(facility_id: str, request: Request) -> dict:
         return _envelope(facility, request, source="postgresql")
 
     if _db_is_configured():
-        raise HTTPException(status_code=404, detail=f"Facility '{facility_id}' not found.")
+        raise ApiError(
+            404,
+            "reference_facility_not_found",
+            f"Facility '{facility_id}' not found.",
+            params={"facility_id": facility_id},
+        )
 
     raise _db_not_configured("reference_facilities")
 
@@ -147,6 +164,54 @@ def list_tso_access(
         return _runtime_not_configured_envelope([], request, table="reference_tso_access_points")
 
     return _envelope(rows[:limit], request, source="postgresql")
+
+
+# ---------------------------------------------------------------------------
+# Supply corridor route
+# ---------------------------------------------------------------------------
+
+
+@router.get("/api/reference-network/supply-corridors")
+def list_supply_corridors(request: Request) -> dict:
+    """Europe's main import supply corridors with each entry series' latest stored flow.
+
+    Shipped reference data (``reference_data/supply_corridors.json``: entry points, operator,
+    capacity and status from ENTSOG, each with its date); the latest flow per entry series is
+    read from the store when one is configured, else left ``null``.
+    """
+    from datetime import UTC, datetime
+
+    from eurogas_nexus.application.supply_corridors_read import corridors_read
+
+    sqlalchemy_error = _sqlalchemy_error_type()
+    session = _session_or_none()
+    try:
+        if session is None:
+            data = corridors_read(None, now=datetime.now(UTC))
+        else:
+            with session:
+                data = corridors_read(session, now=datetime.now(UTC))
+    except sqlalchemy_error as exc:
+        raise _db_unavailable(exc) from exc
+    source = data.get("source") or {}
+    return {
+        "data": data,
+        "meta": {
+            "research_only": True,
+            "human_review_required": True,
+            "source_references": ["ENTSOG", "SciGRID_gas IGGIELGN"],
+            "lineage": ["reference-data:supply_corridors", "runtime-postgresql"]
+            if session is not None
+            else ["reference-data:supply_corridors"],
+            "attribution": source.get("attribution"),
+            "assumptions": [
+                "Corridor status and capacity are ENTSOG's as of the file's gas day; the "
+                "latest flow is the store's newest closed gas day per entry series."
+            ],
+            "missing_inputs": [] if session is not None else ["RUNTIME_STORE_DATABASE_URL"],
+            "warnings": [],
+        },
+    }
 
 
 # ---------------------------------------------------------------------------

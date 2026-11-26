@@ -61,8 +61,8 @@ save; until they are filled the form says what is still needed. Anything the for
 hold yet (price review, heel, make-up) is kept word for word.
 
 1. **Delivery**: choose the delivery point from the list. It holds the hubs first (NBP,
-   TTF, THE, PEG, ZTP, PSV, CEGH, PVB, and the Danish ETF and GTF, which are distinct
-   markets), then the points of your route network. You cannot type a point that positions
+   TTF, THE, PEG, ZTP, PSV, CEGH, PVB, and the Danish hub ETF, which OTC calls GTF: one hub
+   under either name), then the points of your route network. You cannot type a point that positions
    and routing would not recognise. A stored point outside the list is kept and shown as
    "as recorded".
 2. **Quantity as written**: in the contract's own unit (an NBP contract in therms per day,

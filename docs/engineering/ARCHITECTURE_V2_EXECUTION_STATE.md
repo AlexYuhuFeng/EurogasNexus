@@ -9,8 +9,8 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
 ## 2026-11-26 — Half-built branches integrated (branch `halfbuilt`)
 
 - LNG berth priority (`wip/berth-rule-on-innovation`): migration renumbered
-  `0091_lng_berth_rules` on `0090_job_progress_steps` (both branches had taken 0090 from the same
-  base); engine and API as the branch left them, plus `approval_requests` on each option (the
+  `0092_lng_berth_rules` on `0091_hub_one_identity` (it was 0090 on 0089; the background-jobs and
+  hub-identity branches took 0090 and 0091 from the same base); engine and API as the branch left them, plus `approval_requests` on each option (the
   approvals as data). Web finished: the Options section lists the berth rules (folded, terminals
   on one rule on one line), words approvals, quotes and another company's delay from their data
   in EN and ZH, and tones "needs terminal approval" and "quote pending" as watch, not breach. Docs:
@@ -18,8 +18,8 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   call names its company. Not built: recording a terminal's rule, a call or a quote (no route or
   import writes them); the rest of the Options panel still shows the engine's English sentences
   (titles, reasons, notes, warnings) in ZH.
-- TimescaleDB (`wip/timescale-on-innovation`): migration renumbered `0092_timescale_optional`
-  on `0091`; off by default, a no-op on plain PostgreSQL and SQLite. The branch referenced an
+- TimescaleDB (`wip/timescale-on-innovation`): migration renumbered `0093_timescale_optional`
+  on `0092`; off by default, a no-op on plain PostgreSQL and SQLite. The branch referenced an
   ADR 39 and a deployment guide that did not exist: added ADR Decision 39 (amends Decision 24),
   `docs/deployment/TIMESCALEDB.md` (enable, leave, proof), the TimescaleDB sections of
   `BACKUP_RESTORE.md` and `DISASTER_RECOVERY.md`, the TSL review in
@@ -31,6 +31,27 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   past 0072, dump and restore. Not turned on anywhere: doc 19 found no measured need yet.
 - Migration tests no longer pin the schema head (merged from `inno-merge-test`); the head is
   checked once against the alembic chain in `tests/api/test_release_metadata_api.py`.
+## 2026-11-26 — Backend audit (branch `backend-audit`)
+
+- Findings, causes, other occurrences and the structural plan:
+  [BACKEND_AUDIT_2026-11-26](../assessments/BACKEND_AUDIT_2026-11-26.md).
+- One error envelope (`api/error_handlers.error_body`; the router's own 404/405 included);
+  `api/errors.ApiError(status, code, text, params)`; the envelope adds `params` and
+  `fallback_message`; 73 English-only refusals converted; gate
+  `tests/contract/test_api_error_codes.py`. Uncatalogued codes keep their name (family from
+  the status); `CODE_ALIASES` for the four runtime-database spellings.
+- No-store rule: `meta.runtime_store` on every enveloped read without a store (middleware).
+- `application/bounded_reads.read_bounded`: calculation inputs refuse past their bound (422
+  `read_bound_exceeded`) instead of using part (positions, Today storage, NWE prices, reports,
+  outages, news REMIT).
+- Ingestion: script failures classified by their report (`classify_script_failure`); EIA
+  and IIP report codes; demo catch-up ends the IIP partial-read loop; demo monitoring asks for
+  enrichment only with a service identity.
+- Provenance: `domain/ontology/provenance.is_simulated` (one rule, ratchet test); outage and
+  observation rows carry `simulated`; `capacity_impact_mcm_d` is `None` when unknown.
+- Performance: one price book per valuation snapshot (spread board 54 → 3 quote reads); one
+  source-state read on reconcile.
+- No route, migration, ADR or census change.
 
 ## 2026-11-26 — Commercial Intelligence V3, LNG-4: options with consequences, full cost, substitute supply, demurrage, REMIT
 

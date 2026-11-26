@@ -454,3 +454,46 @@ def test_a_bank_feed_that_is_not_connected_is_a_configuration_refusal() -> None:
     assert result.classification == FailureCategory.CONFIGURATION
     assert "not_connected:credential_missing" in result.error_message
     assert definition_for_source("src-bank-socgen").enabled_default is False
+
+
+@pytest.mark.parametrize(
+    ("source_id", "report", "category", "stored"),
+    [
+        # GIE IIP stopped by the platform's rate limit after storing the newest pages.
+        (
+            "src-remit-umm",
+            {"ok": False, "failures": [{"code": "iip_upstream_refused", "partial": True}],
+             "sources": {"gie_iip": {"records": 481, "inserted": 481, "updated": 0}}},
+            FailureCategory.RATE_LIMITED,
+            481,
+        ),
+        # EIA's gateway answering 502 during its own outage.
+        (
+            "src-eia",
+            {"ok": False, "failures": [{"code": "eia_http_502"}], "sources": {}},
+            FailureCategory.PROVIDER_UNAVAILABLE,
+            0,
+        ),
+        ("src-remit-umm", {"ok": False, "failures": [{"code": "iip_timeout"}], "sources": {}},
+         FailureCategory.NETWORK_TRANSIENT, 0),
+    ],
+)
+def test_a_failed_script_is_classified_by_its_own_report(source_id, report, category, stored):
+    """A script that exited non-zero used to be INTERNAL whatever its report said."""
+
+    def fake_runner(command, **kwargs):
+        return SimpleNamespace(returncode=1, stdout=json.dumps(report), stderr="refused")
+
+    result = run_ingestor_attempt(fake_runner)({"source_id": source_id, "run_id": "r"}, 1)
+    assert result.succeeded is False
+    assert result.classification == category
+    assert result.rows_accepted == stored
+    assert result.error_message.startswith(report["failures"][0]["code"])
+
+
+def test_a_failed_script_with_no_report_is_still_internal() -> None:
+    def fake_runner(command, **kwargs):
+        return SimpleNamespace(returncode=1, stdout="", stderr="Traceback ...")
+
+    result = run_ingestor_attempt(fake_runner)({"source_id": "src-eia", "run_id": "r"}, 1)
+    assert result.classification == FailureCategory.INTERNAL

@@ -18,7 +18,7 @@ from eurogas_nexus.domain.agents.contracts import (
     IdempotencyClass,
     SideEffectClass,
 )
-from eurogas_nexus.domain.ontology.markets import european_gas_hubs, market
+from eurogas_nexus.domain.ontology.markets import canonical_hub, european_gas_hubs, market
 from eurogas_nexus.domain.research.ontology import (
     CORE_CONCEPTS,
     canonical_entity_id,
@@ -241,7 +241,8 @@ def _register_ontology_capabilities(registry) -> None:
 
     def series_for_entity(arguments, _context):
         definition = registry.get("ontology.get_series_for_entity")
-        hub = str(arguments.get("hub") or "").strip().upper()
+        raw = str(arguments.get("hub") or "").strip().upper()
+        hub = canonical_hub(raw) or raw  # GTF is ETF, VTP is CEGH
         if hub not in _KNOWN_HUBS:
             return _blocked(definition, CapabilityFailureCode.ENTITY_NOT_FOUND, hub)
         return _result(

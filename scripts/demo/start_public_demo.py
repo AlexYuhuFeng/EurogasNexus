@@ -232,7 +232,7 @@ def configure_environment(environ: dict[str, str] | os._Environ) -> list[str]:
         "EUROGAS_NEXUS_DEMO_MARKS": "true",
         # The simulated intraday exchange feed: "on" (default) or "off", one meaning for the
         # start-up, the feed and the roll-forward. While it quotes it owns today's WD/DA quotes
-        # of every hub it quotes (all demo hubs but GTF) and the hourly roll-forward writes the
+        # of every hub it quotes (every demo hub) and the hourly roll-forward writes the
         # rest; outside its session, or when off, the roll-forward writes them all
         # (scripts/demo/seed_demo_desk.py, demo_exchange_feed_running).
         "EUROGAS_NEXUS_DEMO_EXCHANGE_FEED": "on",
@@ -525,10 +525,20 @@ DEMO_EVENTS_INTERVAL_SECONDS = 3600
 
 
 def monitoring_command() -> list[str]:
-    """One monitoring scan, as the production worker runs it; no model call unless AI is on."""
+    """One monitoring scan, as the production worker runs it; no model call unless AI is on.
+
+    Enrichment runs only under a named service identity (owner decision D7). The demo turns
+    the model provider on by default but provisions no ``EUROGAS_NEXUS_WORKER_PRINCIPAL``,
+    so every hourly scan printed ``degraded ... service_principal_not_configured`` (demo log,
+    2026-11-26): a configuration the demo itself chose, reported as a fault. Enrichment is
+    asked for only when both are set.
+    """
 
     command = [sys.executable, "scripts/ops/run_monitoring_worker.py", "--once"]
-    if (os.environ.get("EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED") or "").lower() != "true":
+    provider_on = (
+        (os.environ.get("EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED") or "").lower() == "true"
+    )
+    if not provider_on or not (os.environ.get("EUROGAS_NEXUS_WORKER_PRINCIPAL") or "").strip():
         command.append("--no-llm")
     return command
 
@@ -857,14 +867,51 @@ def _report_summary(stdout: str) -> tuple[bool | None, str]:
     return report.get("ok") is not False and not codes, text
 
 
-def run_catch_up_step(step: CatchUpStep) -> bool:
-    """Run one step in its own process and log one line: what it stored, or why it failed."""
+def _partial_read(stdout: str) -> str | None:
+    """For a step that stopped early but kept the newest rows (``failures[].partial`` with
+    rows stored): how far back it read, else ``None``."""
+
+    for text in [(stdout or "").strip(), *reversed((stdout or "").strip().splitlines())]:
+        try:
+            report = json.loads(text)
+        except ValueError:
+            continue
+        if not isinstance(report, dict):
+            continue
+        sources = report.get("sources") if isinstance(report.get("sources"), dict) else {}
+        stored = sum(
+            int(detail.get("inserted") or 0) + int(detail.get("updated") or 0)
+            + int(detail.get("unchanged") or 0)
+            for detail in sources.values() if isinstance(detail, dict)
+        )
+        for failure in report.get("failures") or []:
+            if isinstance(failure, dict) and failure.get("partial") and stored:
+                return str(failure.get("read_back_to") or "unknown")
+        return None
+    return None
+
+
+def run_catch_up_step(step: CatchUpStep) -> bool | str:
+    """Run one step in its own process and log one line: what it stored, or why it failed.
+
+    Returns True, False, or ``"partial"`` for a read that stopped early (a rate limit) after
+    storing the newest rows. A partial read counts as the step's good round, so the next
+    round reads only the gap since it: counting it as failed kept the window at its maximum
+    and every round re-read the same newest pages into the same limit (GIE IIP on the demo,
+    2026-11-26: 30 days, 7 pages, refused, 1,841 s, every round). What it did not read is
+    logged once, never passed off as covered.
+    """
 
     started = time.monotonic()
     result = subprocess.run(step.command, cwd=ROOT, check=False, capture_output=True, text=True)
     elapsed = time.monotonic() - started
     ok, summary = _report_summary(result.stdout)
     succeeded = result.returncode == 0 and ok is not False
+    read_back_to = None if succeeded else _partial_read(result.stdout)
+    if read_back_to is not None:
+        log(f"catch-up {step.name}: partial in {elapsed:.0f}s ({summary}); newest kept, "
+            f"submissions before {read_back_to} in the window were not read")
+        return "partial"
     if succeeded:
         log(f"catch-up {step.name}: ok in {elapsed:.0f}s ({summary or 'no report'})")
     else:
@@ -1015,10 +1062,14 @@ def catch_up() -> int:
     certify_public_sources(factory, now)
     ok: list[str] = []
     failed: list[str] = []
+    partial: list[str] = []
     steps = catch_up_steps(days, now, windows=windows)
     for index, step in enumerate(steps):
         write_catch_up_status(running=True, done=index, total=len(steps), step=step.name)
-        (ok if run_catch_up_step(step) else failed).append(step.key)
+        outcome = run_catch_up_step(step)
+        if outcome == "partial":
+            partial.append(step.key)
+        (ok if outcome else failed).append(step.key)
     write_catch_up_status(running=False, done=len(steps), total=len(steps))
     succeeded = sorted(set(ok) - set(failed))
     failed_keys = sorted(set(failed))
@@ -1035,7 +1086,8 @@ def catch_up() -> int:
                 resource="public_sources",
                 outcome="partial" if failed_keys else "success",
                 detail=f"days={days}; ok={','.join(succeeded)}; "
-                       f"failed={','.join(failed_keys) or 'none'}",
+                       f"failed={','.join(failed_keys) or 'none'}; "
+                       f"partial={','.join(sorted(set(partial))) or 'none'}",
                 event_ts_utc=now,
                 source_system="demo-start",
                 human_review_required=False,

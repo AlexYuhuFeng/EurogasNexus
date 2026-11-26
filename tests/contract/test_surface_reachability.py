@@ -217,6 +217,7 @@ DELIBERATE: dict[str, str] = {
     # Gas option settlements (docs/data/GAS_OPTION_SETTLEMENTS.md): the read API is first;
     # the option-surface view is a later package.
     "/api/market/options/surface": "option settlements read API; the web view is later",
+    "/api/reference-network/supply-corridors": "topology read API; the web view is later",
     "/api/market/options/metrics": "option smile metric series; the web view is later",
     "/api/market/valuation-snapshots/{snapshot_id}": (
         "CP-07 backend; read from an opportunity's evidence in the later Deals page"

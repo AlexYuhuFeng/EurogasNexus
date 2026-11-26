@@ -204,7 +204,7 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         ),
         default="off",
         notes=(
-            "Read by migration 0092 and scripts/ops/timescale.py. off (default): plain "
+            "Read by migration 0093 and scripts/ops/timescale.py. off (default): plain "
             "PostgreSQL. auto: convert where the server has the Community Edition. require: "
             "stop if it does not. See docs/deployment/TIMESCALEDB.md (ADR Decision 39).",
             "A conversion is not reversed by a downgrade.",

@@ -103,6 +103,13 @@ For settlements or FX, set `RelativePath` to `api/market/observations` or `api/m
 keep `format = "csv"` (and `as_of` if you want it), and type the `price` or `rate` column as a
 number instead.
 
+These two reads are paged (newest first, at most `limit` rows a page, default 1,000, up to
+10,000). Ask for the range the sheet needs with `from_utc` and `to_utc` (ISO 8601 with an
+offset, e.g. `2026-11-01T00:00:00Z`), and `product` for one hub or product (`TTF`). The
+response headers say whether the range was complete: `X-Eurogas-Has-More: false`. When it is
+`true`, narrow the range or raise `limit`; a sheet never receives part of a range without the
+header saying so.
+
 4. When Excel asks how to connect to the server, choose **Anonymous** in the credentials
    dialog. The query's own headers carry your credentials. Excel's Windows, Basic and
    organisational sign-ins are not used.

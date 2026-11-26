@@ -9,16 +9,16 @@
  */
 
 import type { RouteCandidateDTO } from "@/api/client";
+import { HUB_ALIASES } from "./hubAliases.ts";
 
 /**
- * European gas hubs, in desk order (matches the backend's market registry). The two Danish
- * markets are distinct: ETF (Exchange Transfer Facility, exchange-traded gas on EEX) and GTF
- * (Gas Transfer Facility, bilateral); neither is TTF.
+ * European gas hubs, in desk order (matches the backend's market registry). The Danish hub is
+ * one hub, ETF (its EEX name), which OTC and Energinet call GTF; it is not TTF.
  */
-export const GAS_HUBS = ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF", "GTF"] as const;
+export const GAS_HUBS = ["TTF", "NBP", "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF"] as const;
 
 /** Hubs whose code alone is ambiguous to a reader carry a named label (`contracts.hub.<code>`). */
-const NAMED_HUBS: ReadonlySet<string> = new Set(["ETF", "GTF"]);
+const NAMED_HUBS: ReadonlySet<string> = new Set(["ETF"]);
 
 /** The translation key of a hub's choice label, or null when the code is its own label. */
 export function hubLabelKey(code: string): string | null {
@@ -29,6 +29,15 @@ export function hubLabelKey(code: string): string | null {
 export function hubCurrency(hub: string | null): "GBP" | "EUR" | null {
   if (!hub) return null;
   return hub === "NBP" ? "GBP" : "EUR";
+}
+
+/**
+ * The unit the desk quotes a hub's price in (AGENTS rule 17): NBP in pence per therm, the
+ * continental hubs per MWh in their currency. A name only; conversions are the server's.
+ */
+export function hubQuoteUnit(hub: string | null): string {
+  if (!hub) return "EUR/MWh";
+  return hub === "NBP" ? "GBp/th" : `${hubCurrency(hub)}/MWh`;
 }
 
 /** Currencies a contract may be priced in. */
@@ -45,10 +54,13 @@ export function contractPriceCurrency(chosen: string | null | undefined, deliver
   return hubCurrency(hubOfPoint(deliveryPoint)) ?? "GBP";
 }
 
-/** The hub a point name belongs to ("NBP St Fergus" is NBP), or null when it names none. */
+/** The hub a point name belongs to ("NBP St Fergus" is NBP, "GTF" is ETF), or null when it names none. */
 export function hubOfPoint(point: string): string | null {
   const upper = (point || "").toUpperCase();
-  return GAS_HUBS.find((hub) => upper.includes(hub)) ?? null;
+  const hub = GAS_HUBS.find((code) => upper.includes(code));
+  if (hub) return hub;
+  const alias = Object.keys(HUB_ALIASES).find((name) => new RegExp(`(^|[^A-Z0-9])${name}([^A-Z0-9]|$)`).test(upper));
+  return alias ? HUB_ALIASES[alias] : null;
 }
 
 /** Hubs first, then every point the route network names, each once. */

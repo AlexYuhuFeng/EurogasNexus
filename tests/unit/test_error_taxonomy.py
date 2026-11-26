@@ -86,7 +86,6 @@ def test_an_uncatalogued_code_keeps_its_name_and_gains_an_inferred_family() -> N
     """The API raises dozens of specific codes; the envelope still classifies them."""
 
     cases = {
-        "runtime_db_not_configured": ErrorFamily.CONFIGURATION,
         "analysis_snapshot_not_found": ErrorFamily.VALIDATION,
         "gas_day_invalid": ErrorFamily.VALIDATION,
         "case_not_decidable": ErrorFamily.VALIDATION,
@@ -105,6 +104,14 @@ def test_an_uncatalogued_code_keeps_its_name_and_gains_an_inferred_family() -> N
         # An uncatalogued code takes family-level keys, so a client always has text.
         assert definition.message_key == f"errors.family.{family.value}.title", code
         assert definition.action_key == f"errors.family.{family.value}.action", code
+
+    # Spellings of a catalogued failure report the catalogued code (``CODE_ALIASES``).
+    for alias in (
+        "runtime_db_not_configured",
+        "runtime_database_not_configured",
+        "runtime_database_required",
+    ):
+        assert error_definition(alias).code == "runtime_db_required", alias
 
     # Catalogued codes keep their own keys and family.
     assert error_family("credential_store_not_configured") is ErrorFamily.CONFIGURATION

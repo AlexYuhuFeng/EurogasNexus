@@ -30,6 +30,8 @@ from eurogas_nexus.api.dependencies.sandbox import (
     SANDBOX_SCENARIO,
     require_sandbox_scenario,
 )
+from eurogas_nexus.application.manual_inputs import attach as attach_manual_inputs
+from eurogas_nexus.application.manual_inputs import from_request_body
 from eurogas_nexus.domain.ontology.actions import ActionKind
 from eurogas_nexus.domain.ontology.semantic_kernel import CanonicalId
 from eurogas_nexus.domain.research.allocation import (
@@ -678,7 +680,7 @@ def post_route_cost(body: RouteCostRequest, request: Request) -> dict:
         route_km=body.route_km,
     )
     result = compute_route_cost(input_)
-    return _envelope(result)
+    return attach_manual_inputs(_envelope(result), from_request_body(body, request))
 
 
 @router.post("/netback")
@@ -694,7 +696,7 @@ def post_netback(body: NetbackRequest, request: Request) -> dict:
         fx_pair=body.fx_pair,
     )
     result = compute_netback(input_)
-    return _envelope(result)
+    return attach_manual_inputs(_envelope(result), from_request_body(body, request))
 
 
 @router.post("/feasibility")
@@ -711,7 +713,7 @@ def post_feasibility(body: FeasibilityRequest, request: Request) -> dict:
         constraints=body.constraints,
     )
     result = check_feasibility(input_)
-    return _envelope(result)
+    return attach_manual_inputs(_envelope(result), from_request_body(body, request))
 
 
 @router.post("/allocation")
@@ -736,7 +738,7 @@ def post_allocation(body: AllocationRequest, request: Request) -> dict:
         candidates=candidates,
     )
     result = compute_allocation(input_)
-    return _envelope(result)
+    return attach_manual_inputs(_envelope(result), from_request_body(body, request))
 
 
 @router.post("/monitoring")
@@ -865,7 +867,7 @@ def post_cash_valuation(body: CashValuationRequest, request: Request) -> dict:
             ("The shared cash valuation engine refused the supplied inputs; nothing was computed."),
             list(exc.violations),
         ) from exc
-    return _cash_valuation_envelope(result)
+    return attach_manual_inputs(_cash_valuation_envelope(result), from_request_body(body, request))
 
 
 @router.post("/capacity-billing")
@@ -921,7 +923,9 @@ def post_capacity_billing(body: CapacityBillingRequest, request: Request) -> dic
             ),
             list(exc.violations),
         ) from exc
-    return _capacity_billing_envelope(result)
+    return attach_manual_inputs(
+        _capacity_billing_envelope(result), from_request_body(body, request)
+    )
 
 
 @router.post("/lng-economics-only")
@@ -983,7 +987,9 @@ def post_lng_economics_only(body: LngEconomicsOnlyRequest, request: Request) -> 
             ),
             list(exc.violations),
         ) from exc
-    return _lng_economics_only_envelope(result)
+    return attach_manual_inputs(
+        _lng_economics_only_envelope(result), from_request_body(body, request)
+    )
 
 
 # --- Helpers -----------------------------------------------------------------

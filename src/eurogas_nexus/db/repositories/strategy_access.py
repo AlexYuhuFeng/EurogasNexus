@@ -78,7 +78,10 @@ def require_strategy_access(
         query = query.where(StrategyRecord.owner_principal_id == principal_id).with_for_update()
     row = session.scalar(query)
     if row is None:
-        raise HTTPException(status_code=404, detail="Strategy not found")
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "strategy_not_found", "message": "Strategy not found"},
+        )
     return row
 
 
@@ -86,6 +89,9 @@ def require_named_principal(session: Session, principal_id: str | None) -> str:
     principal = session.get(IdentityPrincipalRecord, principal_id) if principal_id else None
     if principal is None or principal.status != "ACTIVE":
         raise HTTPException(
-            status_code=403, detail="A named active identity is required to own a strategy"
+            status_code=403, detail={
+                "code": "named_principal_required",
+                "message": "A named active identity is required to own a strategy",
+            }
         )
     return principal.principal_id

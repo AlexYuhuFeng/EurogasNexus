@@ -21,6 +21,7 @@ from eurogas_nexus.api.dependencies.acting_actor import acting_actor_name
 from eurogas_nexus.api.dependencies.analysis_snapshot import (
     require_known_analysis_snapshot,
 )
+from eurogas_nexus.api.errors import ApiError
 from eurogas_nexus.domain.backtest.contracts import (
     BacktestDecisionSchedule,
     BacktestEconomicAssumptions,
@@ -180,7 +181,7 @@ def _require_version(session, version_id: str, request: Request, *, write: bool 
 
     version = session.get(StrategyVersionRecord, version_id)
     if version is None:
-        raise HTTPException(status_code=404, detail="Strategy version not found")
+        raise ApiError(404, "strategy_version_not_found", "Strategy version not found")
     require_strategy_access(session, version.strategy_id, _principal_id(request), write=write)
     return version
 
@@ -199,9 +200,10 @@ def patch_strategy_sharing(
 
     group_ids = sorted(set(body.group_ids))
     if (body.visibility == "GROUPS") != bool(group_ids):
-        raise HTTPException(
-            status_code=422,
-            detail="GROUPS requires group_ids; PRIVATE and PUBLIC require no groups",
+        raise ApiError(
+            422,
+            "strategy_visibility_groups_invalid",
+            "GROUPS requires group_ids; PRIVATE and PUBLIC require no groups",
         )
     with _db_session() as session:
         row = require_strategy_access(session, strategy_id, _principal_id(request), write=True)
@@ -221,7 +223,11 @@ def patch_strategy_sharing(
                 )
             )
             if available != set(group_ids):
-                raise HTTPException(status_code=422, detail="Choose active groups you belong to")
+                raise ApiError(
+                    422,
+                    "strategy_groups_not_member",
+                    "Choose active groups you belong to",
+                )
         session.execute(
             delete(StrategyGroupShareRecord).where(
                 StrategyGroupShareRecord.strategy_id == strategy_id
@@ -308,7 +314,12 @@ def patch_strategy_metadata(
         from eurogas_nexus.db.repositories import strategy_registry
 
         if strategy_registry.get_strategy(session, strategy_id) is None:
-            raise HTTPException(status_code=404, detail=f"Unknown strategy: {strategy_id}")
+            raise ApiError(
+                404,
+                "strategy_not_found",
+                f'Unknown strategy: {strategy_id}',
+                params={"strategy_id": strategy_id},
+            )
         row = strategy_registry.update_strategy(
             session,
             strategy_id=strategy_id,
@@ -331,7 +342,12 @@ def get_strategy(strategy_id: str, request: Request) -> dict:
 
         row = strategy_registry.get_strategy(session, strategy_id)
         if row is None:
-            raise HTTPException(status_code=404, detail=f"Unknown strategy: {strategy_id}")
+            raise ApiError(
+                404,
+                "strategy_not_found",
+                f'Unknown strategy: {strategy_id}',
+                params={"strategy_id": strategy_id},
+            )
         data = _strategy_payload(session, row, request)
     return _env(data, request, source="runtime-postgresql")
 
@@ -349,7 +365,12 @@ def get_strategy_versions(
         from eurogas_nexus.db.repositories import strategy_registry
 
         if strategy_registry.get_strategy(session, strategy_id) is None:
-            raise HTTPException(status_code=404, detail=f"Unknown strategy: {strategy_id}")
+            raise ApiError(
+                404,
+                "strategy_not_found",
+                f'Unknown strategy: {strategy_id}',
+                params={"strategy_id": strategy_id},
+            )
         rows = strategy_registry.list_strategy_versions(session, strategy_id, limit=limit)
         data = [strategy_registry.strategy_version_payload(row) for row in rows]
     return _env(data, request, source="runtime-postgresql")
@@ -369,7 +390,12 @@ def post_strategy_version(
 
         strategy = strategy_registry.get_strategy(session, strategy_id)
         if strategy is None:
-            raise HTTPException(status_code=404, detail=f"Unknown strategy: {strategy_id}")
+            raise ApiError(
+                404,
+                "strategy_not_found",
+                f'Unknown strategy: {strategy_id}',
+                params={"strategy_id": strategy_id},
+            )
         row = strategy_registry.create_strategy_version(
             session,
             strategy_id=strategy_id,
@@ -403,7 +429,12 @@ def put_strategy_version_draft(
 
         row = strategy_registry.get_strategy_version(session, version_id)
         if row is None:
-            raise HTTPException(status_code=404, detail=f"Unknown strategy version: {version_id}")
+            raise ApiError(
+                404,
+                "strategy_version_not_found",
+                f'Unknown strategy version: {version_id}',
+                params={"version_id": version_id},
+            )
         try:
             row = strategy_registry.update_draft_version(
                 session,
@@ -421,7 +452,7 @@ def put_strategy_version_draft(
                 now_utc=datetime.now(UTC),
             )
         except ValueError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+            raise ApiError(409, "strategy_registry_conflict", str(exc)) from exc
         data = strategy_registry.strategy_version_payload(row)
     return _env(data, request, source="operator-input")
 
@@ -436,7 +467,12 @@ def get_strategy_version(version_id: str, request: Request) -> dict:
 
         row = strategy_registry.get_strategy_version(session, version_id)
         if row is None:
-            raise HTTPException(status_code=404, detail=f"Unknown strategy version: {version_id}")
+            raise ApiError(
+                404,
+                "strategy_version_not_found",
+                f'Unknown strategy version: {version_id}',
+                params={"version_id": version_id},
+            )
         data = strategy_registry.strategy_version_payload(row)
     return _env(data, request, source="runtime-postgresql")
 
@@ -454,7 +490,12 @@ def freeze_strategy_version(version_id: str, request: Request) -> dict:
         from eurogas_nexus.db.repositories import strategy_registry
 
         if strategy_registry.get_strategy_version(session, version_id) is None:
-            raise HTTPException(status_code=404, detail=f"Unknown strategy version: {version_id}")
+            raise ApiError(
+                404,
+                "strategy_version_not_found",
+                f'Unknown strategy version: {version_id}',
+                params={"version_id": version_id},
+            )
         row = strategy_registry.freeze_strategy_version(
             session,
             strategy_version_id=version_id,
@@ -479,7 +520,12 @@ def fork_strategy_version(
         from eurogas_nexus.db.repositories import strategy_registry
 
         if strategy_registry.get_strategy_version(session, version_id) is None:
-            raise HTTPException(status_code=404, detail=f"Unknown strategy version: {version_id}")
+            raise ApiError(
+                404,
+                "strategy_version_not_found",
+                f'Unknown strategy version: {version_id}',
+                params={"version_id": version_id},
+            )
         row = strategy_registry.fork_strategy_version(
             session,
             source_version_id=version_id,
@@ -535,9 +581,11 @@ def _post_evaluation_run(body: StrategyRunCreateRequest, request: Request) -> di
 
         version = strategy_registry.get_strategy_version(session, body.strategy_version_id)
         if version is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Unknown strategy version: {body.strategy_version_id}",
+            raise ApiError(
+                404,
+                "strategy_version_not_found",
+                f'Unknown strategy version: {body.strategy_version_id}',
+                params={"strategy_version_id": body.strategy_version_id},
             )
         if version.status != "FROZEN":
             _raise_version_not_frozen(version.status, version.strategy_version_id)
@@ -621,9 +669,11 @@ def _post_backtest_run(body: StrategyRunCreateRequest, request: Request) -> dict
 
         version = strategy_registry.get_strategy_version(session, body.strategy_version_id)
         if version is None:
-            raise HTTPException(
-                status_code=404,
-                detail=f"Unknown strategy version: {body.strategy_version_id}",
+            raise ApiError(
+                404,
+                "strategy_version_not_found",
+                f'Unknown strategy version: {body.strategy_version_id}',
+                params={"strategy_version_id": body.strategy_version_id},
             )
         if version.status != "FROZEN":
             _raise_version_not_frozen(version.status, version.strategy_version_id)
@@ -684,12 +734,18 @@ def post_backtest_experiment(body: BacktestExperimentCreateRequest, request: Req
 
         strategy = strategy_registry.get_strategy(session, body.strategy_id)
         if strategy is None:
-            raise HTTPException(status_code=404, detail=f"Unknown strategy: {body.strategy_id}")
+            raise ApiError(
+                404,
+                "strategy_not_found",
+                f'Unknown strategy: {body.strategy_id}',
+                params={"strategy_id": body.strategy_id},
+            )
         version = strategy_registry.get_strategy_version(session, body.base_strategy_version_id)
         if version is None or version.strategy_id != body.strategy_id:
-            raise HTTPException(
-                status_code=404,
-                detail="Unknown or mismatched base strategy version",
+            raise ApiError(
+                404,
+                "base_strategy_version_mismatch",
+                "Unknown or mismatched base strategy version",
             )
         if version.status != "FROZEN":
             _raise_version_not_frozen(version.status, version.strategy_version_id)
@@ -747,7 +803,12 @@ def get_backtest_experiment(experiment_id: str, request: Request) -> dict:
 
         row = backtest.get_experiment(session, experiment_id)
         if row is None:
-            raise HTTPException(status_code=404, detail=f"Unknown experiment: {experiment_id}")
+            raise ApiError(
+                404,
+                "strategy_experiment_not_found",
+                f'Unknown experiment: {experiment_id}',
+                params={"experiment_id": experiment_id},
+            )
         require_strategy_access(session, row.strategy_id, _principal_id(request))
         data = {
             "experiment_id": row.experiment_id,
@@ -806,7 +867,12 @@ def get_strategy_run(run_id: str, request: Request) -> dict:
 
         data = get_strategy_run(session, run_id)
         if data is None:
-            raise HTTPException(status_code=404, detail=f"Unknown strategy run: {run_id}")
+            raise ApiError(
+                404,
+                "strategy_run_not_found",
+                f'Unknown strategy run: {run_id}',
+                params={"run_id": run_id},
+            )
     _require_strategy_run_visible(request, data)
     return _env(data, request, source="runtime-postgresql")
 
@@ -821,7 +887,12 @@ def get_backtest_run_events(run_id: str, request: Request) -> dict:
 
         run_data = get_strategy_run(session, run_id)
         if run_data is None:
-            raise HTTPException(status_code=404, detail=f"Unknown strategy run: {run_id}")
+            raise ApiError(
+                404,
+                "strategy_run_not_found",
+                f'Unknown strategy run: {run_id}',
+                params={"run_id": run_id},
+            )
         _require_strategy_run_visible(request, run_data)
         data = backtest.list_backtest_events(session, run_id)
     return _env(
@@ -842,7 +913,12 @@ def get_backtest_run_series(run_id: str, request: Request) -> dict:
 
         run_data = get_strategy_run(session, run_id)
         if run_data is None:
-            raise HTTPException(status_code=404, detail=f"Unknown strategy run: {run_id}")
+            raise ApiError(
+                404,
+                "strategy_run_not_found",
+                f'Unknown strategy run: {run_id}',
+                params={"run_id": run_id},
+            )
         _require_strategy_run_visible(request, run_data)
         data = backtest.list_backtest_series(session, run_id)
     return _env(
@@ -863,7 +939,12 @@ def get_backtest_run_attribution(run_id: str, request: Request) -> dict:
 
         run_data = get_strategy_run(session, run_id)
         if run_data is None:
-            raise HTTPException(status_code=404, detail=f"Unknown strategy run: {run_id}")
+            raise ApiError(
+                404,
+                "strategy_run_not_found",
+                f'Unknown strategy run: {run_id}',
+                params={"run_id": run_id},
+            )
         _require_strategy_run_visible(request, run_data)
         data = backtest.list_backtest_attribution(session, run_id)
     return _env(
@@ -939,7 +1020,7 @@ def _db_session():
     if not _db_is_configured():
         raise HTTPException(
             status_code=503,
-            detail={"code": "runtime_db_unavailable", "message": "Runtime DB is not configured."},
+            detail={"code": "runtime_db_required", "message": "Runtime DB is not configured."},
         )
     from sqlalchemy.exc import SQLAlchemyError
 
@@ -955,7 +1036,7 @@ def _db_session():
         raise
     except StrategyRegistryError as exc:
         session.rollback()
-        raise HTTPException(status_code=409, detail=str(exc)) from exc
+        raise ApiError(409, "strategy_registry_conflict", str(exc)) from exc
     except SQLAlchemyError as exc:
         session.rollback()
         raise HTTPException(

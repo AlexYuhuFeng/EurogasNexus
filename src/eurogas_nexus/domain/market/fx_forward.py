@@ -92,7 +92,9 @@ class FxForwardError(ValueError):
 def is_simulated_source(source_system: str | None) -> bool:
     """Whether rows of this source are simulated (the ``*_Sim`` demo families)."""
 
-    return str(source_system or "").lower().endswith(_SIMULATED_SUFFIX)
+    from eurogas_nexus.domain.ontology.provenance import is_simulated
+
+    return is_simulated(source_system)
 
 
 @dataclass(frozen=True)

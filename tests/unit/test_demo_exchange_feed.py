@@ -168,7 +168,8 @@ def test_every_demo_hub_is_quoted_on_its_own_clock_every_one_to_five_seconds():
     feed, _market, screen = _screen()
     quotes, trades = _run(screen, NIGHT, 600)
     hubs = {"TTF", "NBP", "THE", "PEG", "ZTP", "PSV", "CEGH", "PVB", "ETF"}
-    assert set(screen.hubs) == hubs  # GTF: the tick intake does not accept it (roll-forward's)
+    # Every demo hub, the Danish one once: GTF is the OTC name of ETF, not a second hub.
+    assert set(screen.hubs) == hubs
     times: dict[tuple[str, str], list[datetime]] = {}
     for quote in quotes:
         times.setdefault((quote["hub"], quote["product"]), []).append(

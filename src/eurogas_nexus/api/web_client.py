@@ -141,18 +141,14 @@ class WebClientMiddleware:
         """
 
         if method not in {"GET", "HEAD"}:
-            return JSONResponse(
-                {"detail": {"error": "method_not_allowed", "message": "Method not allowed."}},
-                status_code=405,
-                headers={"Allow": "GET, HEAD"},
+            return _refusal(
+                405, "method_not_allowed", "Method not allowed.", {"Allow": "GET, HEAD"}
             )
         relative = path.lstrip("/")
         try:
             candidate = (self.directory / relative).resolve() if relative else self.index
         except (OSError, ValueError):
-            return JSONResponse(
-                {"detail": {"error": "not_found", "message": "Not found."}}, status_code=404
-            )
+            return _refusal(404, "not_found", "Not found.")
         inside = candidate == self.directory or self.directory in candidate.parents
         if inside and candidate.is_file():
             cache = (
@@ -177,10 +173,24 @@ class WebClientMiddleware:
             return served
         last_segment = relative.rsplit("/", 1)[-1]
         if not inside or "." in last_segment:
-            return JSONResponse(
-                {"detail": {"error": "not_found", "message": "Not found."}}, status_code=404
-            )
+            return _refusal(404, "not_found", "Not found.")
         return FileResponse(self.index, headers={"Cache-Control": "no-cache"})
+
+
+def _refusal(status: int, code: str, message: str, headers: dict | None = None) -> Response:
+    """The API's one error body (``error_handlers.error_body``) for a static-path refusal."""
+
+    from uuid import uuid4
+
+    from eurogas_nexus.api.error_handlers import error_body
+
+    correlation_id = uuid4().hex
+    body = error_body(
+        status, {"error": code, "message": message}, correlation_id=correlation_id
+    )
+    return JSONResponse(
+        body, status_code=status, headers={**(headers or {}), "X-Request-Id": correlation_id}
+    )
 
 
 class SecurityHeadersMiddleware:

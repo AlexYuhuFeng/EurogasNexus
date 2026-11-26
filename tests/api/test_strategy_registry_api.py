@@ -149,7 +149,9 @@ def test_registry_requires_configured_runtime_db(monkeypatch) -> None:
     response = client.get("/api/strategies")
 
     assert response.status_code == 503
-    assert response.json()["detail"]["code"] == "runtime_db_unavailable"
+    # Not configured is a configuration refusal, not a store that may come back on retry.
+    assert response.json()["detail"]["code"] == "runtime_db_required"
+    assert response.json()["recoverability"] == "after_user_action"
 
 
 def test_strategy_version_run_roundtrip_reproducible(tmp_path, monkeypatch) -> None:

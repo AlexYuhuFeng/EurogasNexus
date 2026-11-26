@@ -31,7 +31,7 @@ from eurogas_nexus.db.timescale import (
 )
 
 ROOT = Path(__file__).resolve().parents[2]
-MIGRATION = ROOT / "alembic" / "versions" / "0092_timescale_optional.py"
+MIGRATION = ROOT / "alembic" / "versions" / "0093_timescale_optional.py"
 COMMUNITY = ServerFacts(
     dialect="postgresql",
     available_version="2.17.2",
@@ -58,7 +58,7 @@ DOC19_HIGH_VOLUME = {
 
 
 def _migration():
-    spec = importlib.util.spec_from_file_location("test_0092_timescale_optional", MIGRATION)
+    spec = importlib.util.spec_from_file_location("test_0093_timescale_optional", MIGRATION)
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
     return module
@@ -371,11 +371,11 @@ def test_the_migration_is_a_no_op_on_sqlite_both_ways(monkeypatch, mode):
     assert _schema(engine) == before
 
 
-def test_the_migration_chains_after_0091():
+def test_the_migration_chains_after_0092():
     migration = _migration()
-    assert migration.revision == "0092_timescale_optional"
+    assert migration.revision == "0093_timescale_optional"
     assert len(migration.revision) <= 32
-    assert migration.down_revision == "0091_lng_berth_rules"
+    assert migration.down_revision == "0092_lng_berth_rules"
 
 
 def test_state_on_sqlite_and_on_an_unreachable_store():

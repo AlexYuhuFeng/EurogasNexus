@@ -21,6 +21,7 @@ from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 
+from eurogas_nexus.application.bounded_reads import read_bounded
 from eurogas_nexus.application.caller import Caller
 from eurogas_nexus.application.position_inputs import is_simulated_marks_warning
 from eurogas_nexus.application.reports import commentary as rules
@@ -172,8 +173,9 @@ def _aware(value: datetime | str | None) -> datetime | None:
 
 
 def is_simulated_source(source_system: str | None) -> bool:
-    value = str(source_system or "")
-    return value.endswith("_Sim") or value.lower().startswith("demo")
+    from eurogas_nexus.domain.ontology.provenance import is_simulated
+
+    return is_simulated(source_system)
 
 
 def is_licensed_source(source_system: str | None) -> bool:
@@ -619,15 +621,15 @@ def lng(ctx: Ctx) -> SectionResult:
     countries = (list(NWE_COUNTRIES) if ctx.plan.kind == "ask"
                  else ctx.plan.countries or list(NWE_COUNTRIES))
     first = min(ctx.chart_start, _same_day_last_year(ctx.start) - timedelta(days=7))
-    records = (
+    records = read_bounded(
         ctx.session.query(Lng.period_start_utc, Lng.country, Lng.source_system,
                           Lng.send_out_twh_d, Lng.observed_at_utc)
         .filter(Lng.country.in_(countries), Lng.send_out_twh_d.isnot(None))
         .filter(identity_clause(ctx.session, Lng))
         .filter(Lng.period_start_utc >= ctx.day_bound(first))
-        .filter(Lng.period_start_utc < ctx.day_bound(ctx.end + timedelta(days=1)))
-        .limit(60_000)
-        .all()
+        .filter(Lng.period_start_utc < ctx.day_bound(ctx.end + timedelta(days=1))),
+        60_000,
+        what="LNG observation",
     )
     allowed = [r for r in records if row_allowed(ctx.caller.principal, r.source_system)
                and (_aware(r.observed_at_utc) or ctx.now) <= ctx.now]
@@ -863,16 +865,16 @@ def power_burn(ctx: Ctx) -> SectionResult:
     zones = sorted({POWER_ZONES[c] for c in (ctx.plan.countries or NWE_COUNTRIES)
                     if c in POWER_ZONES})
     first = ctx.chart_start
-    records = (
+    records = read_bounded(
         ctx.session.query(Power.zone, Power.period_start_utc, Power.period_end_utc, Power.value,
                           Power.source_system, Power.published_at_utc)
         .filter(Power.metric == "gas_generation")
         .filter(identity_clause(ctx.session, Power))
         .filter(Power.zone.in_(zones + ["DK1", "DK2"]))
         .filter(Power.period_start_utc >= ctx.day_bound(first))
-        .filter(Power.period_start_utc < ctx.day_bound(ctx.end + timedelta(days=1)))
-        .limit(400_000)
-        .all()
+        .filter(Power.period_start_utc < ctx.day_bound(ctx.end + timedelta(days=1))),
+        400_000,
+        what="power generation",
     )
     rows = [r for r in records if row_allowed(ctx.caller.principal, r.source_system)
             and (_aware(r.published_at_utc) or ctx.now) <= ctx.now]
@@ -1518,8 +1520,7 @@ ZONE_EIC_HUBS = {
     "21YGB-UKGASGRIDW": "NBP", "21Y0000000001278": "PEG", "21Z000000000248J": "ZTP",
     "21Y---A001A003-5": "ETF",
 }
-HUB_COUNTRY = {"TTF": "NL", "THE": "DE", "NBP": "GB", "PEG": "FR", "ZTP": "BE", "ETF": "DK",
-               "GTF": "DK"}
+HUB_COUNTRY = {"TTF": "NL", "THE": "DE", "NBP": "GB", "PEG": "FR", "ZTP": "BE", "ETF": "DK"}
 
 
 def _zone_tokens(zone: str | None) -> list[str]:

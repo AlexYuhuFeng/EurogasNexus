@@ -569,11 +569,9 @@ def market_price_source_priority(source_system: str | None) -> int:
 def is_simulated_market_price(row) -> bool:
     """Whether a market row is simulator-produced rather than source-provided."""
 
-    metadata = row.metadata_json or {}
-    if metadata.get("simulated") is True:
-        return True
-    source_system = getattr(row, "source_system", None)
-    return isinstance(source_system, str) and source_system.endswith("_Sim")
+    from eurogas_nexus.domain.ontology.provenance import is_simulated_row
+
+    return is_simulated_row(row)
 
 
 def market_price_source_family(

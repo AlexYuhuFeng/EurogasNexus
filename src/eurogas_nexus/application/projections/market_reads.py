@@ -160,6 +160,52 @@ def market_observations(session: Session) -> list[dict[str, Any]]:
     return [market_observation_row(row) for row in rows.all()]
 
 
+def market_observation_keyset_page(
+    session: Session,
+    principal: AuthenticatedPrincipal | None,
+    page: Any,
+    *,
+    product: str | None = None,
+    market_venue: str | None = None,
+    source_system: str | None = None,
+) -> tuple[list[dict[str, Any]], dict[str, Any]]:
+    """One keyset page of ``/api/market/observations`` (``application/keyset_paging``).
+
+    Entitlement is a SQL predicate (the principal's source families present in the table), so
+    a page is never filled with rows the caller may not see and then cut. Returns the page's
+    API rows and its ``meta.continuation``.
+    """
+
+    from eurogas_nexus.application.keyset_paging import continuation, keyset_query
+    from eurogas_nexus.db.models import MarketObservationRecord
+
+    o = MarketObservationRecord
+    query = session.query(o)
+    if principal is not None and principal.auth_method != "legacy_public_token":
+        query = query.filter(o.source_system.in_(_entitled_observation_sources(session, principal)))
+    if product:
+        query = query.filter((o.product == product) | o.product.like(f"{product} %"))
+    if market_venue:
+        query = query.filter(o.market_venue == market_venue)
+    if source_system:
+        query = query.filter(o.source_system == source_system)
+    records = keyset_query(
+        query, page, ts_column=o.observed_at_utc, id_column=o.observation_id
+    ).all()
+    has_more = len(records) > page.limit
+    records = records[: page.limit]
+    last = (
+        (records[-1].observed_at_utc, str(records[-1].observation_id)) if records else None
+    )
+    return (
+        [market_observation_row(row) for row in records],
+        continuation(
+            page, returned=len(records), has_more=has_more, last=last,
+            first=records[0].observed_at_utc if records else None,
+        ),
+    )
+
+
 @dataclass(frozen=True)
 class ObservationPage:
     """A bounded observation read plus the counts a projection reports on it.
@@ -327,8 +373,10 @@ def market_quotes(
     product: str | None = None,
     source_system: str | None = None,
     limit: int = 500,
-) -> list[dict[str, Any]]:
-    """Return normalized L1 quotes newest first (repository filter semantics)."""
+    page: Any = None,
+) -> Any:
+    """Return normalized L1 quotes newest first (repository filter semantics); with ``page``
+    a keyset page and its ``meta.continuation``."""
 
     from eurogas_nexus.db.repositories.market_intelligence import list_market_quotes
 
@@ -338,6 +386,7 @@ def market_quotes(
         product=product,
         source_system=source_system,
         limit=limit,
+        page=page,
     )
 
 
@@ -566,6 +615,7 @@ def derive_intraday_spreads(
 def market_observation_row(row: Any) -> dict[str, Any]:
     """Shape one market observation ORM row into its API payload."""
 
+    from eurogas_nexus.domain.ontology.provenance import is_simulated_row
     from eurogas_nexus.governance.entitlement import entitlement_scope_for_source
 
     return {
@@ -586,6 +636,8 @@ def market_observation_row(row: Any) -> dict[str, Any]:
         "entitlement_scope": entitlement_scope_for_source(row.source_system),
         "research_only": row.research_only,
         "metadata_json": row.metadata_json or {},
+        # Rule 17: stated on the row, never left to the client to infer from a name.
+        "simulated": is_simulated_row(row),
     }
 
 

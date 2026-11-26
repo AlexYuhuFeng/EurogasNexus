@@ -18,6 +18,7 @@ from eurogas_nexus.api.middleware.licensed_use import LicensedUseMiddleware
 from eurogas_nexus.api.middleware.observability import HttpObservabilityMiddleware
 from eurogas_nexus.api.middleware.origin_csrf import OriginCsrfGuardMiddleware
 from eurogas_nexus.api.middleware.request_id import RequestIdMiddleware
+from eurogas_nexus.api.middleware.runtime_store_state import RuntimeStoreStateMiddleware
 from eurogas_nexus.api.middleware.warm_views import WarmViewWriteMiddleware
 from eurogas_nexus.api.route_profiles import assert_profile_allowed, get_route_profile
 from eurogas_nexus.api.route_registration import register_routes
@@ -97,7 +98,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # correlation id alongside it.
     register_error_handlers(app)
 
-    # Innermost: one licensed-data usage meter per API request (GOV-1, P6).
+    # Innermost: a read answered without a runtime database says so in its meta (one rule
+    # for every route; a deployment with a database never enters it).
+    app.add_middleware(RuntimeStoreStateMiddleware)
+    # One licensed-data usage meter per API request (GOV-1, P6).
     app.add_middleware(LicensedUseMiddleware)
     # A successful write makes the kept heavy reads due (application/warm_views.py).
     app.add_middleware(WarmViewWriteMiddleware)

@@ -134,7 +134,11 @@ def _latest_remit(session, *, since: datetime | None = None, open_at: datetime |
             RemitUmmRecord.ingested_at_utc >= (since.replace(tzinfo=None) if naive else since)
         )
     latest: dict[str, Any] = {}
-    for row in query.limit(20_000):
+    # An unordered ``.limit(20_000)`` here picked an arbitrary part of the versions, so past
+    # the bound a message's "latest" could be an older version; the bound now refuses.
+    from eurogas_nexus.application.bounded_reads import read_bounded
+
+    for row in read_bounded(query, 20_000, what="REMIT message version"):
         held = latest.get(row.message_id)
         if held is None or row.version > held.version:
             latest[row.message_id] = row

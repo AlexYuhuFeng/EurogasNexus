@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from eurogas_nexus.api.dependencies.acting_actor import acting_actor_name, require_acting_actor
+from eurogas_nexus.api.errors import ApiError
 
 router = APIRouter(tags=["shadow-runtime"])
 
@@ -47,12 +48,12 @@ def post_shadow_monitor(body: ShadowMonitorCreateRequest, request: Request) -> d
 
         version = session.get(StrategyVersionRecord, body.strategy_version_id)
         if version is None:
-            raise HTTPException(status_code=404, detail="Strategy version not found")
+            raise ApiError(404, "strategy_version_not_found", "Strategy version not found")
         _require_strategy(session, request, version.strategy_id, write=True)
         if body.baseline_run_id:
             baseline = session.get(StrategyRunRecord, body.baseline_run_id)
             if baseline is None:
-                raise HTTPException(status_code=404, detail="Strategy run not found")
+                raise ApiError(404, "strategy_run_not_found", "Strategy run not found")
             _require_strategy(session, request, baseline.strategy_id)
         try:
             data = create_shadow_monitor(
@@ -102,7 +103,12 @@ def get_shadow_monitor(monitor_id: str, request: Request) -> dict:
     with _session() as session:
         row = shadow.get_monitor(session, monitor_id)
         if row is None:
-            raise HTTPException(status_code=404, detail=f"Unknown shadow monitor: {monitor_id}")
+            raise ApiError(
+                404,
+                "shadow_monitor_not_found",
+                f'Unknown shadow monitor: {monitor_id}',
+                params={"monitor_id": monitor_id},
+            )
         _require_strategy(session, request, row.strategy_id)
         data = shadow.monitor_payload(row)
     return _env(data, request, source="runtime-postgresql")
@@ -119,7 +125,7 @@ def pause_shadow_monitor(monitor_id: str, request: Request) -> dict:
         try:
             data = pause_monitor(session, monitor_id=monitor_id)
         except ValueError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+            raise ApiError(409, "shadow_monitor_state_conflict", str(exc)) from exc
     _audit_action(request, "shadow.monitor.pause", f"shadow_monitor:{monitor_id}", "paused")
     return _env(data, request, source="operator-input")
 
@@ -135,7 +141,7 @@ def resume_shadow_monitor(monitor_id: str, request: Request) -> dict:
         try:
             data = resume_monitor(session, monitor_id=monitor_id)
         except ValueError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+            raise ApiError(409, "shadow_monitor_state_conflict", str(exc)) from exc
     _audit_action(request, "shadow.monitor.resume", f"shadow_monitor:{monitor_id}", "resumed")
     return _env(data, request, source="operator-input")
 
@@ -151,7 +157,7 @@ def retire_shadow_monitor(monitor_id: str, request: Request) -> dict:
         try:
             data = retire_monitor(session, monitor_id=monitor_id)
         except ValueError as exc:
-            raise HTTPException(status_code=409, detail=str(exc)) from exc
+            raise ApiError(409, "shadow_monitor_state_conflict", str(exc)) from exc
     _audit_action(request, "shadow.monitor.retire", f"shadow_monitor:{monitor_id}", "retired")
     return _env(data, request, source="operator-input")
 
@@ -168,7 +174,12 @@ def get_shadow_evaluations(
 
     with _session() as session:
         if shadow.get_monitor(session, monitor_id) is None:
-            raise HTTPException(status_code=404, detail=f"Unknown shadow monitor: {monitor_id}")
+            raise ApiError(
+                404,
+                "shadow_monitor_not_found",
+                f'Unknown shadow monitor: {monitor_id}',
+                params={"monitor_id": monitor_id},
+            )
         _require_monitor(session, request, monitor_id)
         data = [
             row
@@ -187,8 +198,11 @@ def get_shadow_evaluation(evaluation_id: str, request: Request) -> dict:
     with _session() as session:
         row = shadow.get_evaluation(session, evaluation_id)
         if row is None:
-            raise HTTPException(
-                status_code=404, detail=f"Unknown shadow evaluation: {evaluation_id}"
+            raise ApiError(
+                404,
+                "shadow_evaluation_not_found",
+                f'Unknown shadow evaluation: {evaluation_id}',
+                params={"evaluation_id": evaluation_id},
             )
         _require_monitor(session, request, row.shadow_monitor_id)
         data = shadow.evaluation_payload(row)
@@ -209,7 +223,12 @@ def get_shadow_drift(monitor_id: str, request: Request) -> dict:
 
     with _session() as session:
         if shadow.get_monitor(session, monitor_id) is None:
-            raise HTTPException(status_code=404, detail=f"Unknown shadow monitor: {monitor_id}")
+            raise ApiError(
+                404,
+                "shadow_monitor_not_found",
+                f'Unknown shadow monitor: {monitor_id}',
+                params={"monitor_id": monitor_id},
+            )
         _require_monitor(session, request, monitor_id)
         data = shadow.list_drift_snapshots(session, monitor_id=monitor_id)
     return _env(data, request, source="runtime-postgresql")
@@ -263,7 +282,7 @@ def acknowledge_shadow_alert(
 
         alert = session.get(StrategyShadowAlertRecord, alert_id)
         if alert is None:
-            raise HTTPException(status_code=404, detail="Shadow alert not found")
+            raise ApiError(404, "shadow_alert_not_found", "Shadow alert not found")
         _require_monitor(session, request, alert.shadow_monitor_id, write=True)
         try:
             data, transitioned = shadow.acknowledge_alert(
@@ -273,7 +292,7 @@ def acknowledge_shadow_alert(
                 now_utc=now_utc,
             )
         except ValueError as exc:
-            raise HTTPException(status_code=404, detail=str(exc)) from exc
+            raise ApiError(404, "shadow_alert_not_found", str(exc)) from exc
         if transitioned:
             # Same transaction as the state change: an acknowledgement without its audit row
             # must not survive, and a repeat/no-op writes no second success record.
@@ -322,7 +341,7 @@ def _require_monitor(session, request: Request, monitor_id: str, *, write: bool 
 
     row = get_monitor(session, monitor_id)
     if row is None:
-        raise HTTPException(status_code=404, detail="Shadow monitor not found")
+        raise ApiError(404, "shadow_monitor_not_found", "Shadow monitor not found")
     _require_strategy(session, request, row.strategy_id, write=write)
     return row
 
@@ -431,7 +450,7 @@ def _session():
     if resolve_database_url() is None:
         raise HTTPException(
             status_code=503,
-            detail={"code": "runtime_db_unavailable", "message": "Runtime DB is not configured."},
+            detail={"code": "runtime_db_required", "message": "Runtime DB is not configured."},
         )
     return _ShadowSession()
 
