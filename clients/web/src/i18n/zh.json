@@ -6561,5 +6561,7 @@
   "news.note.status.refused": "AI 说明未通过依据校验，因此显示规则说明。",
   "news.note.status.unavailable": "AI 说明暂不可用，因此显示规则说明。",
   "news.note.status.rule": "规则说明：由所引条目生成，未使用模型。",
-  "news.advisory": "决策支持：由人决定。不进行任何交易、提名或发送。"
+  "news.advisory": "决策支持：由人决定。不进行任何交易、提名或发送。",
+  "map.start_failed.title": "此浏览器无法启动地图",
+  "map.start_failed.body": "地图需要 WebGL，而此浏览器或电脑已将其关闭。本页的管网列表和数据仍可使用；如需查看地图，请换用其他浏览器或开启硬件加速。"
 }

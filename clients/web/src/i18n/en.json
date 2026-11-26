@@ -6561,5 +6561,7 @@
   "news.note.status.refused": "The AI note did not pass the grounding check, so the rule note is shown.",
   "news.note.status.unavailable": "The AI note is not available now, so the rule note is shown.",
   "news.note.status.rule": "Rule note, built from the cited lines without a model.",
-  "news.advisory": "Decision support: a person decides. Nothing is traded, nominated or sent."
+  "news.advisory": "Decision support: a person decides. Nothing is traded, nominated or sent.",
+  "map.start_failed.title": "The map can't start in this browser",
+  "map.start_failed.body": "It needs WebGL, which this browser or machine has switched off. The network lists and figures on this page still work; try another browser or turn on hardware acceleration to see the map."
 }
