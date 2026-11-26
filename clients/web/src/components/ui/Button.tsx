@@ -31,6 +31,13 @@ export interface ButtonProps extends Omit<ButtonHTMLAttributes<HTMLButtonElement
   size?: ControlSize;
   /** Busy: the button keeps its label and width, says it is busy and cannot be pressed again. */
   loading?: boolean;
+  /**
+   * A read whose next press replaces the running one (the caller aborts the older request, so
+   * a stale answer can never publish over the newer): it shows the busy ring but stays
+   * pressable, so a user who typed the wrong id need not wait for the slow read to finish.
+   * Never for a commit, which must not be sent twice.
+   */
+  supersedes?: boolean;
   type?: "button" | "submit" | "reset";
   children: ReactNode;
 }
@@ -43,6 +50,7 @@ export function Button({
   variant = "secondary",
   size = "sm",
   loading = false,
+  supersedes = false,
   type = "button",
   className,
   disabled,
@@ -55,7 +63,7 @@ export function Button({
       // A button inside a form never submits it by accident: the type is always explicit.
       type={type}
       className={buttonClass(variant, size, className)}
-      disabled={disabled || loading}
+      disabled={disabled || (loading && !supersedes)}
       aria-busy={loading || undefined}
       data-loading={loading ? "" : undefined}
     >

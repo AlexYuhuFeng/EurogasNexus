@@ -742,3 +742,23 @@ test("a failed read yields an error outcome and no result", async () => {
     assert.match(String((outcome.error as Error).message), /ENTSOG_READ_FAILED/);
   }
 });
+
+test("a busy query stays pressable so a newer query can supersede it; a busy commit does not", async () => {
+  // The session aborts the running read when a new one starts, so a stale answer never
+  // publishes. Disabling the submit while busy would trap a user behind a slow read for a
+  // mistyped point id (the browser acceptance's superseded-query walk caught exactly that).
+  const ui = (await vite.ssrLoadModule("/src/components/ui/Button.tsx")) as {
+    Button: (props: Record<string, unknown>) => unknown;
+  };
+  const busyRead = renderToStaticMarkup(
+    createElement(ui.Button as never, { type: "submit", loading: true, supersedes: true }, "Query"),
+  );
+  assert.match(busyRead, /aria-busy="true"/);
+  assert.doesNotMatch(busyRead, /disabled/);
+  const busyCommit = renderToStaticMarkup(
+    createElement(ui.Button as never, { type: "submit", loading: true }, "Save"),
+  );
+  assert.match(busyCommit, /disabled=""/);
+  const source = readFileSync(new URL("../src/components/NativeCapacityContextPanel.tsx", import.meta.url), "utf8");
+  assert.match(source, /loading=\{state === "loading"\} supersedes>/);
+});

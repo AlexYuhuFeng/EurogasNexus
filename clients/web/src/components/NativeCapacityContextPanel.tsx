@@ -677,7 +677,7 @@ export function NativeCapacityContextPanel({ t }: { t: NativeCapacityTranslate }
           spellCheck={false}
           data-native-window-to="true"
         />
-        <Button type="submit" variant="primary" size="md" loading={state === "loading"}>
+        <Button type="submit" variant="primary" size="md" loading={state === "loading"} supersedes>
           {t("nativeCapacity.query")}
         </Button>
       </form>
