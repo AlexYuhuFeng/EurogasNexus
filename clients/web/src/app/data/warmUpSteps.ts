@@ -18,6 +18,8 @@ export function warmUpSteps(language: string): WarmUpStep[] {
     // Desk -> Today (the landing page reads it too; a repeat is answered from what was kept).
     { id: "desk.today", permissions: market, read: (signal) => api.deskToday({ signal }) },
     { id: "today.forward", permissions: market, read: (signal) => api.fundamentalsForwardBalance({ summary: true }, { signal }) },
+    // Desk -> Network: the map's live picture, as useMapSituation first asks for it.
+    { id: "desk.network", permissions: book, read: (signal) => api.mapSituation(14, { signal }, 0) },
     // Desk -> Prices, Research -> Spreads.
     { id: "market.instruments", permissions: market, read: (signal) => api.marketInstruments({ signal }) },
     // Book -> Position and Limits; Deals -> Contracts.
