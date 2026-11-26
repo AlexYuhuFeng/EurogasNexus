@@ -1,5 +1,9 @@
 # API 契约演化策略
 
+2026-11-26 新增天然气期权结算价读取（自基于 main 的演示评审移植）：两条路径、两个操作，均为 READ：
+`GET /api/market/options/surface` 与 `GET /api/market/options/metrics`。创新分支接口统计：314 条路径 / 350 个操作
+（在 312 / 348 基础上 +2 / +2）。
+
 2026-11-26 新增 `GET /api/stream/live?topics=...`（服务器推送事件，按调用方自身权限过滤）：按订阅主题
 推送 `change` 变更通知（`topic`、`changed_at`，不含数据行与数值）。市场事件发件箱（`market_events`，经
 变更流读取）提供价格（含汇率、利率）、停运、费率、船货、账簿（合同、估值、限额、假设、运费）、容量、

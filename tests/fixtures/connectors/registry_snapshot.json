@@ -649,7 +649,8 @@
     "gas-futures",
     "gas-spot",
     "screen-trades",
-    "settlements"
+    "settlements",
+    "gas-option-settlements"
    ],
    "description": "European Energy Exchange gas market prices and screen observations.",
    "diagnostics": [],
@@ -948,9 +949,10 @@
     "ttf-nbp-futures",
     "eua-uka-futures",
     "api2-coal-futures",
-    "settlements"
+    "settlements",
+    "gas-option-settlements"
    ],
-   "description": "ICE Endex futures settlements: TTF and NBP gas, EUA and UKA carbon, API2 Rotterdam coal and power. Licensed; imported from the customer's ICE Report Center export until a connector is licensed.",
+   "description": "ICE Endex futures settlements: TTF and NBP gas, EUA and UKA carbon, API2 Rotterdam coal and power, and TTF option settlements. Licensed; imported from the customer's ICE Report Center export until a connector is licensed.",
    "diagnostics": [],
    "effective_last_success_at_utc": null,
    "effective_record_count": 0,
@@ -983,6 +985,45 @@
    "connectivity_status": "registered",
    "credential_last_test_status": null,
    "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "gas-option-settlements",
+    "simulated"
+   ],
+   "description": "ICE Endex-shaped simulated TTF option settlements (end of day, every strike, Black-76 implied volatility) for the demo. Synthetic numbers, never a market price; outranked by any exchange or vendor option settlement.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "ICE_ENDEX_Sim",
+   "entitlement_scope": "public",
+   "export_restrictions": [],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-ice-endex-sim",
+   "source_system": "ICE_ENDEX_Sim",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "price",
+   "category_label": "Prices",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
    "credential_provider_id": "CME",
    "credential_requirements": [
     "api_key"
@@ -991,9 +1032,10 @@
    "credential_status": null,
    "datasets": [
     "henry-hub-futures",
-    "settlements"
+    "settlements",
+    "gas-option-settlements"
    ],
-   "description": "CME NYMEX Henry Hub futures settlements. Licensed (CME DataMine).",
+   "description": "CME NYMEX Henry Hub futures settlements and gas option settlements. Licensed (CME DataMine).",
    "diagnostics": [],
    "effective_last_success_at_utc": null,
    "effective_record_count": 0,
@@ -2702,7 +2744,8 @@
     "gas-futures",
     "gas-spot",
     "screen-trades",
-    "settlements"
+    "settlements",
+    "gas-option-settlements"
    ],
    "description": "European Energy Exchange gas market prices and screen observations.",
    "enabled_default": false,
@@ -3135,9 +3178,10 @@
     "ttf-nbp-futures",
     "eua-uka-futures",
     "api2-coal-futures",
-    "settlements"
+    "settlements",
+    "gas-option-settlements"
    ],
-   "description": "ICE Endex futures settlements: TTF and NBP gas, EUA and UKA carbon, API2 Rotterdam coal and power. Licensed; imported from the customer's ICE Report Center export until a connector is licensed.",
+   "description": "ICE Endex futures settlements: TTF and NBP gas, EUA and UKA carbon, API2 Rotterdam coal and power, and TTF option settlements. Licensed; imported from the customer's ICE Report Center export until a connector is licensed.",
    "enabled_default": false,
    "entitlement_scope": "licensed",
    "freshness_policy": {
@@ -3184,6 +3228,65 @@
    "access_mode": "none",
    "adapter_version": "unversioned",
    "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "gas-option-settlements",
+   "datasets": [
+    "gas-option-settlements",
+    "simulated"
+   ],
+   "description": "ICE Endex-shaped simulated TTF option settlements (end of day, every strike, Black-76 implied volatility) for the demo. Synthetic numbers, never a market price; outranked by any exchange or vendor option settlement.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 4320
+   },
+   "integration": "api",
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "ICE_ENDEX_Sim",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "simulated",
+   "source_id": "src-ice-endex-sim"
+  },
+  {
+   "access_mode": "none",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
    "certification_required": true,
    "circuit_policy": {
     "degraded_after_failures": 3,
@@ -3196,9 +3299,10 @@
    "dataset": "henry-hub-futures",
    "datasets": [
     "henry-hub-futures",
-    "settlements"
+    "settlements",
+    "gas-option-settlements"
    ],
-   "description": "CME NYMEX Henry Hub futures settlements. Licensed (CME DataMine).",
+   "description": "CME NYMEX Henry Hub futures settlements and gas option settlements. Licensed (CME DataMine).",
    "enabled_default": false,
    "entitlement_scope": "licensed",
    "freshness_policy": {

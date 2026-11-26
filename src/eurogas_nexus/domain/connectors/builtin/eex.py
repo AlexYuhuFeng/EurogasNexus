@@ -9,7 +9,9 @@ MANIFEST = ConnectorManifest(
     source_id="src-eex",
     system="EEX",
     category="price",
-    datasets=("gas-futures", "gas-spot", "screen-trades", "settlements"),
+    datasets=(
+        "gas-futures", "gas-spot", "screen-trades", "settlements", "gas-option-settlements"
+    ),
     description="European Energy Exchange gas market prices and screen observations.",
     entitled=True,
     freshness_minutes=1,
