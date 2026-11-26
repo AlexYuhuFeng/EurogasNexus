@@ -280,6 +280,8 @@ export function uniqueSources(...lists: ReadonlyArray<readonly string[] | null |
 /** The URL search that opens an entry; another page's object ids are dropped. */
 export function glossaryTermSearch(search: string, term: string): string {
   const params = new URLSearchParams(workspaceTaskSearch(search, "glossary"));
+  // The map's place belongs to the map's page, whether or not the page lists it as its own.
+  params.delete(MAP_PLACE_PARAM);
   params.set("term", term);
   return params.toString();
 }
