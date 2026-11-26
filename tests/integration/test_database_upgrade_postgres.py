@@ -191,3 +191,55 @@ def test_create_index_nonblocking_builds_a_valid_index_concurrently(scratch_url)
         ).scalar()
     engine.dispose()
     assert valid is True
+
+
+def test_first_upgrade_from_before_the_audit_chain_seals_its_audit_rows(
+    scratch_url, caplog
+) -> None:
+    """A store at 0094 has audit_events but no audit_chain (migration 0095 creates it). The
+    'started' row is written after the migrations, so no seal fails ('relation audit_chain
+    does not exist'), and both rows are sealed in order with the start time kept."""
+
+    import logging
+
+    from eurogas_nexus.db.audit_chain import verify_chain
+
+    assert _upgrade(scratch_url, operator="Ops Tester")[0] == 0
+    _alembic(scratch_url, "0094_option_settlements")
+    engine = create_engine(scratch_url, future=True)
+    with engine.connect() as connection:
+        tables = set(
+            connection.execute(
+                text("SELECT tablename FROM pg_tables WHERE schemaname = 'public'")
+            ).scalars()
+        )
+    assert "audit_events" in tables and "audit_chain" not in tables
+
+    with caplog.at_level(logging.ERROR, logger="eurogas_nexus.audit"):
+        code, lines = _upgrade(
+            scratch_url, operator="Ops Tester", override_reason="scratch store, no data"
+        )
+    assert code == 0, lines
+    assert not [r for r in caplog.records if "seal failed" in r.getMessage()], caplog.text
+    assert _audit(scratch_url)[-2:] == [
+        ("Ops Tester", "database.upgrade", "started"),
+        ("Ops Tester", "database.upgrade", "succeeded"),
+    ]
+    with engine.connect() as connection:
+        unsealed = connection.execute(
+            text(
+                "SELECT count(*) FROM audit_events e LEFT JOIN audit_chain c "
+                "ON c.event_id = e.event_id WHERE c.event_id IS NULL"
+            )
+        ).scalar()
+        started_at, succeeded_at = connection.execute(
+            text(
+                "SELECT event_ts_utc FROM audit_events WHERE action = 'database.upgrade' "
+                "AND outcome IN ('started', 'succeeded') ORDER BY event_ts_utc DESC LIMIT 2"
+            )
+        ).scalars().all()[::-1]
+    assert unsealed == 0
+    assert started_at <= succeeded_at
+    with Session(engine) as session:
+        assert verify_chain(session)["ok"] is True
+    engine.dispose()

@@ -223,11 +223,15 @@ def ddl_refusal(engine) -> str | None:
     return f"the database role {role!r} may not change the schema; {OWNER_ROLE_HINT}"
 
 
-def _audit_table_exists(engine) -> bool:
+def _table_exists(engine, name: str) -> bool:
     from sqlalchemy import inspect
 
     with engine.connect() as connection:
-        return "audit_events" in inspect(connection).get_table_names()
+        return name in inspect(connection).get_table_names()
+
+
+def _audit_table_exists(engine) -> bool:
+    return _table_exists(engine, "audit_events")
 
 
 @dataclass(frozen=True)
@@ -324,7 +328,15 @@ def check_backup(
     )
 
 
-def _write_audit(engine, *, operator: str, outcome: str, detail: str, summary: dict) -> bool:
+def _write_audit(
+    engine,
+    *,
+    operator: str,
+    outcome: str,
+    detail: str,
+    summary: dict,
+    at_utc: datetime | None = None,
+) -> bool:
     """One upgrade audit row in its own transaction; False when there is no audit table yet."""
 
     from sqlalchemy.orm import Session
@@ -345,6 +357,7 @@ def _write_audit(engine, *, operator: str, outcome: str, detail: str, summary: d
             detail=detail[:4000],
             source_system=AUDIT_SOURCE,
             after_summary=summary,
+            now_utc=at_utc,
         )
         session.commit()
     return True
@@ -436,13 +449,21 @@ def run_upgrade(
             "lock_timeout": timeouts[0],
             "statement_timeout": timeouts[1],
         }
-        _write_audit(
-            engine,
-            operator=principal,
-            outcome="started",
-            detail=f"upgrade {plan.current} -> {plan.head}; {basis}",
-            summary=summary,
-        )
+        started = {
+            "operator": principal,
+            "outcome": "started",
+            "detail": f"upgrade {plan.current} -> {plan.head}; {basis}",
+            "summary": summary,
+            "at_utc": datetime.now(UTC),
+        }
+        # The first upgrade of a store older than migration 0095 has audit_events but no
+        # audit_chain yet: a row written now could not be sealed (the commit would log a
+        # 'relation audit_chain does not exist' traceback). The 'started' row is then written
+        # after the migrations, with the time the upgrade started, so it is sealed in order.
+        # (A store with no audit table at all records only the outcome, as before.)
+        started_deferred = _audit_table_exists(engine) and not _table_exists(engine, "audit_chain")
+        if not started_deferred:
+            _write_audit(engine, **started)
         try:
             command.upgrade(config, "head")
         except Exception as exc:  # noqa: BLE001 - reported, audited, exit code 1
@@ -453,6 +474,8 @@ def run_upgrade(
                 if lock_timeout_hit(exc)
                 else f"{exc.__class__.__name__}"
             )
+            if started_deferred:
+                _write_audit(engine, **started)
             _write_audit(
                 engine,
                 operator=principal,
@@ -462,6 +485,8 @@ def run_upgrade(
             )
             emit(f"FAILED at {reached}: {reason}")
             return 1
+        if started_deferred:
+            _write_audit(engine, **started)
         _write_audit(
             engine,
             operator=principal,
