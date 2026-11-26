@@ -34,6 +34,7 @@ from typing import Any
 
 from eurogas_nexus.application.caller import Caller
 from eurogas_nexus.application.position_inputs import is_method_note, is_simulated_marks_warning
+from eurogas_nexus.domain.ontology.notes import declare, split_notes
 
 MAX_ITEMS = 6
 #: The position ladder's default horizon: the day P&L change uses the same open position.
@@ -53,6 +54,10 @@ NEEDS_ME_ITEMS = 5
 #: Countries shown as small multiples under the Europe storage chart (E.2 row 4).
 STORAGE_COUNTRIES = 8
 LATE_STATES = frozenset({"late", "stale"})
+
+#: A part of Today that could not be read (the other rows stand): "book: not available (X)".
+DESK_READ_UNAVAILABLE = declare("DESK_READ_UNAVAILABLE", "{section}: not available ({error})")
+DESK_READ_UNRESOLVED = declare("DESK_READ_UNRESOLVED", "{section}: not resolved ({error})")
 
 
 def _held_back(session, systems) -> list[dict[str, str]]:
@@ -234,7 +239,9 @@ def _compose_today(session, caller, now, balance_reader, read, price_book) -> di
         # The hubs the page is about: the book's, then the board's (or the user's own list).
         "focus_hubs": focus,
         "stale_figures": stale,
+        # The same warnings as declared notes (domain/ontology/notes.py), said by the client.
         "warnings": read.warnings,
+        "notes": split_notes(read.warnings)[1],
     }
 
 

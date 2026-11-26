@@ -63,6 +63,14 @@ export function serverNoteText(note: ServerNote, t: Translate, names?: ReadonlyM
   const params: Record<string, unknown> = { ...(note.params ?? {}) };
   // A record is said by its name: the one the server sent, else one this page holds, else its id.
   if (params.ref !== undefined) params.ref = params.ref_name ?? names?.get(String(params.ref)) ?? params.ref;
+  // A parameter that is a word the desk says in its language ("book" in "book: not
+  // available") is translated through warning.param.<name>.<value>; names and figures stay.
+  for (const [name, value] of Object.entries(params)) {
+    if (typeof value !== "string" || !value) continue;
+    const paramKey = `warning.param.${name}.${value.trim().toLowerCase().replace(/[\s-]+/g, "_")}`;
+    const word = t(paramKey);
+    if (word !== paramKey) params[name] = word;
+  }
   const key = `warning.${note.code.toLowerCase()}`;
   const said = t(key, params);
   if (said !== key) return said;

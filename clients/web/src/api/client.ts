@@ -3078,6 +3078,8 @@ export interface DeskTodayDTO {
   /** Every late or stale figure by name (FRESH-02), instead of a page-wide "N feeds stale". */
   stale_figures: { key: string; label: string; state: FigureStateDTO; as_of: string | null }[];
   warnings: string[];
+  /** The same warnings as declared notes (newer servers). */
+  notes?: ServerNote[];
 }
 
 export interface MonitoringAlertDTO {

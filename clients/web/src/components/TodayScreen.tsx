@@ -48,12 +48,12 @@ import {
   formatChange,
   formatValue,
   isEmptyEntry,
+  todayNotes,
   spreadEmptyText,
   shortDay,
   stateWords,
 } from "@/app/model/todayModel";
 import { pnlClass } from "@/app/model/pnlColor";
-import { serverNoteText, shownServerNotes } from "@/app/model/serverNotes";
 import { MethodNote } from "@/components/MethodNote";
 import { StorageByCountryPanel } from "@/components/StorageByCountryPanel";
 import { WhyButton } from "@/components/WhyButton";
@@ -78,7 +78,7 @@ import {
   type FigureState,
 } from "@/components/ui";
 import { formatMeasure } from "@/app/time/valueFormat";
-import { serverWarningText } from "@/app/warningLabel";
+import { serverWarningText, warningKey } from "@/app/warningLabel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -816,7 +816,7 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
     fundamentals: () => (fundamentals ? <FundamentalsRow key="fundamentals" row={fundamentals} t={t} nowMs={nowMs} language={language} quiet={quiet} onOpenFundamentals={onOpenFundamentals} /> : null),
   };
   const scope = today.all_simulated ? "all" : today.simulated ? "mixed" : "none";
-  const notes = shownServerNotes(today.warnings);
+  const notes = todayNotes(today);
   return (
     <SimulatedScope scope={scope} notice={t("today.all_simulated")}>
     <div className="today" data-today="ready">
@@ -832,7 +832,7 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
       {notes.length > 0 && (
         <details className="today-warnings" data-today-warnings={notes.length}>
           <summary>{t("today.warnings", { count: notes.length })}</summary>
-          <ul>{notes.map((warning) => <li key={warning} title={warning}>{serverNoteText(warning, t, language)}</li>)}</ul>
+          <ul>{notes.map((warning) => <li key={warningKey(warning)} title={warningKey(warning)}>{serverWarningText(warning, t)}</li>)}</ul>
         </details>
       )}
       {gasDayStrip && canSeeBook && rows.includes("gas_day") && <GasDayStrip gasDay={gasDay} checklist={checklist} t={t} nowMs={nowMs} />}

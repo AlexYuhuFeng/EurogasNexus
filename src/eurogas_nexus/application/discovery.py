@@ -387,7 +387,7 @@ def discoveries(
     try:
         findings += strategy_findings(session, principal, moment)
     except Exception as exc:  # noqa: BLE001 - tracks unavailable hide only themselves
-        warnings.append(f"strategy findings unavailable: {type(exc).__name__}")
+        warnings.append(f"strategy findings: not available ({type(exc).__name__})")
     from eurogas_nexus.security.authorization import Permission, authorize
 
     if authorize(principal, Permission.PORTFOLIO_READ).allowed:
@@ -396,7 +396,8 @@ def discoveries(
                 findings += source(caller, moment.date())
             except Exception as exc:  # noqa: BLE001 - one source failing hides only itself
                 warnings.append(
-                    f"{source.__name__.split('_')[0]} findings unavailable: {type(exc).__name__}"
+                    f"{source.__name__.split('_')[0]} findings: not available "
+                    f"({type(exc).__name__})"
                 )
     ranked = rank(_grouped(findings), audience)[: max(1, min(limit, MAX_ITEMS))]
     items = [

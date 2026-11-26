@@ -7,7 +7,8 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { columnsWithValues } from "../src/components/ui/dataGridModel.ts";
-import { serverNoteText, shownServerNotes } from "../src/app/model/serverNotes.ts";
+import { serverWarningText } from "../src/app/warningLabel.ts";
+import { todayNotes } from "../src/app/model/todayModel.ts";
 import { blockerText, periodLabel, subjectWords } from "../src/app/model/opportunitiesModel.ts";
 
 const en = JSON.parse(readFileSync(new URL("../src/i18n/en.json", import.meta.url), "utf8")) as Record<string, string>;
@@ -75,17 +76,23 @@ test("every assumption label exists in both languages", () => {
 });
 
 test("Today's warnings: method notes are left out, failures are said in words", () => {
-  const notes = shownServerNotes([
-    "contract demo-tender-skarv: price floats with NBP day-ahead; volume only on the ladder",
-    "contract demo-mspa-atlantic-cn07: an FOB cargo is not on a European hub until it is sold or discharged",
-    "book: not available (OperationalError)",
-    "book: not available (OperationalError)",
-  ]);
-  assert.deepEqual(notes, ["book: not available (OperationalError)"]);
-  assert.equal(serverNoteText(notes[0], tEn, "en"), "The book could not be read.");
-  assert.equal(serverNoteText(notes[0], tZh, "zh"), "账簿未能读取。");
-  assert.equal(serverNoteText("strategy findings unavailable: KeyError", tZh, "zh"), zh["server_note.other"]);
-  assert.equal(serverNoteText("contract demo-x: gas year '2025' not understood", tEn, "en"), en["server_note.other"]);
+  const notes = todayNotes({
+    warnings: [
+      "contract demo-tender-skarv: price floats with NBP day-ahead; volume only on the ladder",
+      "contract demo-mspa-atlantic-cn07: an FOB cargo is not on a European hub until it is sold or discharged",
+      "book: not available (OperationalError)",
+      "book: not available (OperationalError)",
+      "strategy findings: not available (KeyError)",
+    ],
+  });
+  assert.equal(notes.length, 2);
+  assert.equal(serverWarningText(notes[0], tEn), "The book could not be read.");
+  assert.equal(serverWarningText(notes[0], tZh), "账簿未能读取。");
+  assert.equal(serverWarningText(notes[1], tZh), "策略发现未能读取。");
+  // A newer server's notes are used as sent.
+  const note = { code: "DESK_READ_UNAVAILABLE", params: { section: "prices", error: "X" }, text: "prices: not available (X)" };
+  assert.deepEqual(todayNotes({ warnings: ["prices: not available (X)"], notes: [note] }), [note]);
+  assert.equal(serverWarningText(note, tZh), "价格未能读取。");
 });
 
 test("a grid leaves out a column no row has a value in", () => {

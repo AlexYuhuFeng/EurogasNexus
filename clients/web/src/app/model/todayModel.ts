@@ -5,6 +5,7 @@
  * is empty.
  */
 import type { FigureStateDTO, TodayEmptyDTO, TodayFigureDTO } from "@/api/client";
+import type { ServerNote } from "../warningLabel.ts";
 import { formatGasDay } from "../time/timeFormat.ts";
 import { unitLabel } from "./instrumentPicker.ts";
 
@@ -127,4 +128,31 @@ export function spreadEmptyText(empty: TodayEmptyDTO, t: Translate, language: st
   const key = empty.code === "not_convertible" && empty.cause ? `today.spread.cause.${empty.cause}` : `today.spread.${empty.code}`;
   const fallback = empty.code === "not_convertible" ? t("today.spread.cause.not_convertible", values) : empty.reason;
   return t(key, { ...values, defaultValue: fallback });
+}
+
+/** How a contract is shown on the ladder: normal method, not a failure (server `is_method_note`). */
+const METHOD_NOTE_ENDINGS = [
+  "; volume only on the ladder",
+  ": an FOB cargo is not on a European hub until it is sold or discharged",
+];
+
+/** "book: not available (OperationalError)": the line an older server sends for a failed part. */
+const READ_LINE = /^(.+?): not (available|resolved) \((.+)\)$/;
+
+/**
+ * What Today could not read, as declared notes (`domain/ontology/notes.py`) rendered through the
+ * one `serverWarningText`: the server's `notes` when it sends them; for an older server its
+ * lines, method notes left out and "X: not available (E)" read as the same note.
+ */
+export function todayNotes(today: { warnings?: readonly string[]; notes?: readonly ServerNote[] }): Array<string | ServerNote> {
+  if (today.notes && today.notes.length > 0) return [...today.notes];
+  const out: Array<string | ServerNote> = [];
+  for (const text of new Set(today.warnings ?? [])) {
+    if (METHOD_NOTE_ENDINGS.some((ending) => text.endsWith(ending))) continue;
+    const read = READ_LINE.exec(text.trim());
+    out.push(read
+      ? { code: read[2] === "available" ? "DESK_READ_UNAVAILABLE" : "DESK_READ_UNRESOLVED", params: { section: read[1], error: read[3] }, text }
+      : text);
+  }
+  return out;
 }
