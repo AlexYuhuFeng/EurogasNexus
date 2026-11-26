@@ -733,6 +733,14 @@ def catch_up_steps(
              "--entsog-lookback-gas-days", str(ENTSOG_WEEK), "--entsog-window-anchor", anchor],
         ),
     ]
+    # GIE's outage platform first: it shares the GIE key's rate limit with AGSI/ALSI, and a
+    # storage catch-up of many gas days just before it left the outage read refused (demo,
+    # 2026-11-26: 7 pages read, the 8th refused for 15 minutes).
+    if _has(environ, "GIE_API_KEY", "GIE_API_KEY_FILE"):
+        window = _window("remit-iip", gap("remit-iip"))
+        steps.append(CatchUpStep("remit-iip", f"GIE REMIT storage and LNG outages ({window} days)",
+                                 script("ingest_remit_iip.py", "--commit", "--json",
+                                        "--days", str(window))))
     if _has(environ, "GIE_API_KEY", "GIE_API_KEY_FILE"):
         limit = _window("gie", gap("gie"))
         steps.append(CatchUpStep(
@@ -767,11 +775,6 @@ def catch_up_steps(
             script("ingest_interest_rates.py", "--json", "--benchmark", benchmark,
                    "--days", str(window)),
         ))
-    if _has(environ, "GIE_API_KEY", "GIE_API_KEY_FILE"):
-        window = _window("remit-iip", gap("remit-iip"))
-        steps.append(CatchUpStep("remit-iip", f"GIE REMIT storage and LNG outages ({window} days)",
-                                 script("ingest_remit_iip.py", "--commit", "--json",
-                                        "--days", str(window))))
     window = _window("entsog-umm", gap("entsog-umm"))
     steps.append(CatchUpStep("entsog-umm", f"ENTSOG REMIT transmission outages ({window} days)",
                              script("ingest_remit_entsog.py", "--commit", "--json",

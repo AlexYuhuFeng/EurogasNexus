@@ -480,8 +480,12 @@ def test_web_client_matches_design_reference_cockpit() -> None:
     ).read_text(encoding="utf-8")
 
     assert "fallback-network-map map-ready" in map_component
-    # Zoom sits bottom-right: the toolbar is a row above the map and the finder its top left.
-    assert 'NavigationControl({ visualizePitch: true }), "bottom-right"' in map_component
+    # Zoom sits top-right with the map's own control stack under it (2D/3D, fit our positions,
+    # the key); the toolbar is a row above the map and the finder its top left.
+    assert 'NavigationControl({ visualizePitch: true }), "top-right"' in map_component
+    assert "map-control-stack" in (
+        ROOT / "clients" / "web" / "src" / "components" / "mapScene" / "MapSceneControls.tsx"
+    ).read_text(encoding="utf-8")
     assert "coordinate_quality" in map_component
     assert "data_quality" in map_component
     assert "node-color-legend" in css
