@@ -1582,7 +1582,7 @@
   "sources.status.active_uncertified": "活跃但未认证",
   "sources.certification": "认证",
   "sources.certification.unverified": "未验证",
-  "sources.certification.simulation_matched": "仿真匹配",
+  "sources.certification.simulation_matched": "模拟匹配",
   "sources.certification.live_validated": "实盘验证",
   "sources.certified_live": "已认证（live）",
   "sources.action.certify": "认证 live 适配器（operator）",

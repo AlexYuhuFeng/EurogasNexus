@@ -41,7 +41,7 @@
 | FX as-of 换算 | `fx_observations`（value date 不晚于 `gas_day`） |
 
 市场价格只选择覆盖 `gas_day` 的观测，优先 day-ahead/within-day，同一基差下
-优先非仿真数据。价格年龄按 `min(now, gas-day end)` 计算，历史 gas day 的
+优先非模拟数据。价格年龄按 `min(now, gas-day end)` 计算，历史 gas day 的
 决策不会因为事后才评估而被误判为过期。
 
 ## 求解与归因
