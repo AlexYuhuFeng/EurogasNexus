@@ -115,6 +115,70 @@ export function authHeaders(): Record<string, string> {
 
 export interface ApiRequestOptions {
   signal?: AbortSignal;
+  /**
+   * Told when the read actually leaves for the server (after it waited for a free read lane), so
+   * a caller's wait bound measures the server's answer, not the browser's queue.
+   */
+  onDispatch?: () => void;
+}
+
+
+/**
+ * Reads in flight at once, across the whole client. A browser opens at most six connections to one
+ * HTTP/1.1 origin (the dev server, a preview, a plain reverse proxy); beyond that its requests wait
+ * unseen while their callers' timers run, so a page that issues its own reads beside the workspace
+ * batch used to time the batch's reads out before they had started. Reads wait here instead, in
+ * order, and are told when they leave (`onDispatch`). One connection stays free for the live
+ * stream and the writes, which do not wait.
+ */
+export const MAX_READS_IN_FLIGHT = 5;
+/** A read holds its lane at most this long; a read the server never answers cannot block the rest. */
+export const READ_LANE_LEASE_MS = 30_000;
+
+let readsInFlight = 0;
+const readLaneQueue: Array<() => void> = [];
+
+function abortError(): Error {
+  return typeof DOMException === "function"
+    ? new DOMException("The read was aborted while it waited for a lane.", "AbortError")
+    : Object.assign(new Error("The read was aborted while it waited for a lane."), { name: "AbortError" });
+}
+
+/** Wait for a read lane; the returned function gives it back (once, however often it is called). */
+export function acquireReadLane(signal?: AbortSignal): Promise<() => void> {
+  return new Promise((resolve, reject) => {
+    const grant = () => {
+      signal?.removeEventListener("abort", onAbort);
+      readsInFlight += 1;
+      let released = false;
+      const release = () => {
+        if (released) return;
+        released = true;
+        if (lease !== undefined) clearTimeout(lease);
+        readsInFlight -= 1;
+        readLaneQueue.shift()?.();
+      };
+      // (A sandbox without timers, as some tests load this module, simply holds no lease.)
+      const lease = typeof setTimeout === "function" ? setTimeout(release, READ_LANE_LEASE_MS) : undefined;
+      resolve(release);
+    };
+    const onAbort = () => {
+      const index = readLaneQueue.indexOf(grant);
+      if (index !== -1) readLaneQueue.splice(index, 1);
+      reject(abortError());
+    };
+    // A free lane is granted even to an aborted read: fetch itself then answers the abort.
+    if (readsInFlight < MAX_READS_IN_FLIGHT) {
+      grant();
+      return;
+    }
+    if (signal?.aborted) {
+      reject(abortError());
+      return;
+    }
+    signal?.addEventListener("abort", onAbort, { once: true });
+    readLaneQueue.push(grant);
+  });
 }
 
 function requestInit(init: RequestInit = {}): RequestInit {
@@ -510,10 +574,16 @@ async function get<T, M = ApiMeta>(
   } else if (params) {
     Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
   }
-  const res = await fetch(url.toString(), requestInit({ signal: options.signal }));
-  const parsed = await parseResponse<ApiResponse<T, M>>(res);
-  responseMetaObserver?.(path, (parsed as { meta?: unknown } | null)?.meta);
-  return parsed;
+  const release = await acquireReadLane(options.signal);
+  try {
+    options.onDispatch?.();
+    const res = await fetch(url.toString(), requestInit({ signal: options.signal }));
+    const parsed = await parseResponse<ApiResponse<T, M>>(res);
+    responseMetaObserver?.(path, (parsed as { meta?: unknown } | null)?.meta);
+    return parsed;
+  } finally {
+    release();
+  }
 }
 
 let responseMetaObserver: ((path: string, meta: unknown) => void) | null = null;
@@ -7990,6 +8060,8 @@ export interface AuditEventDTO {
 
 export interface RuntimeDependencyStateDTO {
   state: string; detail?: string; checked_at_utc?: string;
+  /** A stable code for `detail` (rendered through `runtime.dep_detail.<code>`). */
+  detail_code?: string;
   last_heartbeat_at_utc?: string; age_seconds?: number;
   missing_tables?: string[]; configured?: boolean;
 }

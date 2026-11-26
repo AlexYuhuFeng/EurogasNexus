@@ -113,7 +113,15 @@ export interface WorkspaceEndpointFailure {
 
 export type WorkspaceLoaderOptions = {
   signal?: AbortSignal;
+  /** Called when the read leaves for the server (api/client.ts read lanes). */
+  onDispatch?: () => void;
 };
+
+/**
+ * How long a workspace read may wait for a read lane before its own bound starts anyway: a loader
+ * that does not pass `onDispatch` through is still bounded (by this plus its timeout).
+ */
+export const WORKSPACE_READ_QUEUE_ALLOWANCE_MS = 20_000;
 
 export type WorkspaceLoader<T> = (options?: WorkspaceLoaderOptions) => Promise<T>;
 
@@ -269,13 +277,23 @@ export async function loadWorkspaceEndpoint<T>(
     let timedOut = false;
     const abortRequest = () => requestController.abort();
     parentSignal?.addEventListener("abort", abortRequest, { once: true });
-    const timeoutId = setTimeout(() => {
+    // The bound measures the server's answer: it starts when the read leaves for the server
+    // (`onDispatch`), not while it waits for a lane behind the page's other reads.
+    const expire = () => {
       timedOut = true;
       requestController.abort();
-    }, timeoutMs);
+    };
+    let timeoutId = setTimeout(expire, timeoutMs + WORKSPACE_READ_QUEUE_ALLOWANCE_MS);
+    let dispatched = false;
+    const onDispatch = () => {
+      if (dispatched) return;
+      dispatched = true;
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(expire, timeoutMs);
+    };
 
     try {
-      return { ok: true, value: await loader({ signal: requestController.signal }) };
+      return { ok: true, value: await loader({ signal: requestController.signal, onDispatch }) };
     } catch (error) {
       if (timedOut) {
         return {
