@@ -43,7 +43,10 @@ const RADIUS = 8;
 const CUTOFF = 0.25;
 
 const require = createRequire(import.meta.url);
-const { chromium } = require(process.env.EUROGAS_UAT_PLAYWRIGHT_PATH || "playwright");
+const { chromium } = require(
+  // A path from the environment is relative to the working directory, not to this file.
+  process.env.EUROGAS_UAT_PLAYWRIGHT_PATH ? path.resolve(process.env.EUROGAS_UAT_PLAYWRIGHT_PATH) : "playwright",
+);
 
 /** Runs in the page: render one character with Inter and return its distance field. */
 function renderRange({ start, size, buffer, radius, cutoff, covered }) {

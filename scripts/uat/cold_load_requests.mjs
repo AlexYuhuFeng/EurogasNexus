@@ -16,10 +16,14 @@
 // Two runs at once as the same identity are two tabs of one person.
 // The password is read from the environment and never printed.
 import { createRequire } from "node:module";
+import path from "node:path";
 import { writeFileSync } from "node:fs";
 
 const require = createRequire(import.meta.url);
-const { chromium } = require(process.env.EUROGAS_UAT_PLAYWRIGHT_PATH || "playwright");
+const { chromium } = require(
+  // A path from the environment is relative to the working directory, not to this file.
+  process.env.EUROGAS_UAT_PLAYWRIGHT_PATH ? path.resolve(process.env.EUROGAS_UAT_PLAYWRIGHT_PATH) : "playwright",
+);
 
 const BASE = (process.env.EUROGAS_UAT_BASE_URL || "http://127.0.0.1:8080").replace(/\/$/, "");
 const USER = process.env.EUROGAS_DEMO_IDENTITY || "demo.trader";

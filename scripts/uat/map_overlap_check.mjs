@@ -19,10 +19,14 @@
  * per size and language.
  */
 import { createRequire } from "node:module";
+import path from "node:path";
 import { mkdirSync } from "node:fs";
 
 const require = createRequire(import.meta.url);
-const playwright = require(process.env.EUROGAS_UAT_PLAYWRIGHT_PATH || "playwright");
+const playwright = require(
+  // A path from the environment is relative to the working directory, not to this file.
+  process.env.EUROGAS_UAT_PLAYWRIGHT_PATH ? path.resolve(process.env.EUROGAS_UAT_PLAYWRIGHT_PATH) : "playwright",
+);
 const BASE = process.env.EUROGAS_UAT_BASE_URL || "http://127.0.0.1:3000";
 const username = process.env.EUROGAS_NEXUS_DEV_LOGIN_USERNAME || "";
 const password = process.env.EUROGAS_NEXUS_DEV_LOGIN_PASSWORD || "";
