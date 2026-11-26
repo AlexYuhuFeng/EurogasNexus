@@ -1364,7 +1364,11 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
         load_holdings,
         normalise_value,
     )
-    from eurogas_nexus.application.route_tariff_cost import load_tariff_rows, route_cost
+    from eurogas_nexus.application.route_tariff_cost import (
+        load_route_capacity,
+        load_tariff_rows,
+        route_cost,
+    )
     from eurogas_nexus.application.spreads_board import spread_direction
     from eurogas_nexus.domain.market.fx_forward import Delivery
 
@@ -1372,6 +1376,8 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
     out: list[dict[str, Any]] = []
     holdings = None
     tariffs: list | None = None
+    bookings: list = []
+    orders: dict = {}
     for hub, reference in SPREAD_PAIRS:
         leg, base = fronts.get(hub), fronts.get(reference)
         label = f"{hub}–{reference}"
@@ -1426,13 +1432,15 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
         if tariffs is None:
             try:
                 tariffs = load_tariff_rows()
+                # TAR-2: the firm's booked capacity prices its part of a leg first.
+                bookings, orders = load_route_capacity()
             except Exception as exc:  # noqa: BLE001
                 read.warnings.append(f"tariffs: not available ({exc.__class__.__name__})")
-                tariffs = []
+                tariffs, bookings, orders = [], [], {}
         # The route runs from the cheaper hub to the dearer one, the rule Research > Spreads
         # uses, and the spread earns its absolute value less that cost (QA-R-06).
         start, end = spread_direction(spread, hub, reference)
-        route = route_cost(start, end, delivery, tariffs)
+        route = route_cost(start, end, delivery, tariffs, bookings=bookings, orders=orders)
         cost = route.total if route.currency == "EUR" else None
         if cost is not None:
             net = abs(spread) - cost

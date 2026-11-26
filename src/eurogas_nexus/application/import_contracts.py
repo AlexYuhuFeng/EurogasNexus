@@ -357,9 +357,88 @@ _INVOICES = ImportContract(
     notes="A reference for reconciliation; nothing is posted or paid from here.",
 )
 
+_CAPACITY_BOOKINGS = ImportContract(
+    name="etrm.capacity_bookings",
+    version=1,
+    title="Capacity the firm holds, from the ETRM or the booking platform's download (TAR-2)",
+    lands_in="capacity_bookings (its contracted cost prices what it covers before any public "
+    "tariff)",
+    key="(system, booking_id)",
+    columns=(
+        _c("booking_id", True, "The system's booking, contract or allocation id"),
+        _c("kind", True, "entry, exit (pipeline capacity), lng_slot, regas, send_out, storage"),
+        _c("facility", True, "Point key as the tariff register names it (ENTSOG point key), "
+           "terminal id or storage facility id"),
+        _c("first_gas_day", True, "First gas day the booking covers, YYYY-MM-DD"),
+        _c("last_gas_day", True, "Last gas day it covers, YYYY-MM-DD (inclusive)"),
+        _c("quantity", True, "Capacity held: per gas day, or the number of slots (lng_slot)"),
+        _c("quantity_unit", True, "MWh/d, kWh/h, kWh/d, MWh (storage space, send-out energy) "
+           "or slot"),
+        _c("acquired_via", True, "auction, long_term, allocation, secondary, fcfs or bilateral"),
+        _c("price", False, "Contracted price; blank: not recorded (the cost is then not "
+           "given, never zero)"),
+        _c("price_unit", False, "Tariff unit (EUR/(kWh/h)/y, p/kWh/d, EUR/MWh) or <CCY>/slot"),
+        _c("currency", False, "ISO 4217 (default: the price unit's)"),
+        _c("operator", False, "TSO or terminal operator, as the tariff register names it"),
+        _c("facility_name", False, "Point, terminal or site name"),
+        _c("product", False, "Capacity product booked: ANNUAL, QUARTERLY, MONTHLY, DAILY, "
+           "WITHIN_DAY, slot, bundled"),
+        _c("firmness", False, "FIRM (default) or INTERRUPTIBLE"),
+        _c("book_id", False, "Book the capacity serves; blank: held at firm level"),
+        _c("counterparty", False, "Seller of a secondary purchase or the terminal"),
+        _c("status", False, "RELEASED, CANCELLED, CANCELED or VOID ends the booking (its row "
+           "is kept for reads as of earlier instants)"),
+    ),
+    notes="A re-sent booking replaces its earlier version; a released one stays readable as of "
+    "the instants it was held. Nothing is booked or released from here.",
+)
+
+_BANK_FX = ImportContract(
+    name="bank.fx_rates",
+    version=1,
+    title="FX rates from the firm's own bank (clearing or account bank) (TAR-2)",
+    lands_in="fx_observations as BANK:<institution> (the contracted_bank tier, used before "
+    "published reference rates and the ECB)",
+    key="(institution, base_currency, quote_currency, rate_type, value_date)",
+    columns=(
+        _c("base_currency", True, "ISO 4217: one unit of it buys <rate> of the quote currency"),
+        _c("quote_currency", True, "ISO 4217"),
+        _c("rate", True, "Positive rate: quote currency per unit of base currency"),
+        _c("value_date", True, "Date the rate applies to, YYYY-MM-DD"),
+        _c("rate_type", False, "mid (default), buy or sell, as the bank states it"),
+        _c("published_at", False, "When the bank published it, ISO 8601 (default: the value "
+           "date's end)"),
+        _c("rate_id", False, "The bank's own reference for the rate"),
+    ),
+    notes="The system named on the import is the institution key configured in "
+    "financial_institutions. A re-sent rate replaces the earlier one. A file typed by hand in "
+    "this shape is the manual path; nothing is fetched from a bank.",
+)
+
+_BANK_RATES = ImportContract(
+    name="bank.interest_rates",
+    version=1,
+    title="Interest rates from the firm's own bank (TAR-2)",
+    lands_in="interest_rate_observations as BANK:<institution> (the contracted_bank tier)",
+    key="(institution, rate_id, value_date)",
+    columns=(
+        _c("rate_id", True, "The bank's name for the rate (e.g. EUR-ON, USD-1M), up to 9 "
+           "characters"),
+        _c("currency", True, "ISO 4217"),
+        _c("rate_pct", True, "Rate in percent a year, -5 to 50"),
+        _c("value_date", True, "Date the rate applies to, YYYY-MM-DD"),
+        _c("day_count", False, "ACT/360 (default), ACT/365F"),
+    ),
+    notes="The system named on the import is the institution key configured in "
+    "financial_institutions. A re-sent rate replaces the earlier one.",
+)
+
 CONTRACTS: dict[str, ImportContract] = {
     contract.contract_id: contract
-    for contract in (_DEALS, _POSITIONS, _NOMINATIONS, _CARGOES, _COUNTERPARTIES, _INVOICES)
+    for contract in (
+        _DEALS, _POSITIONS, _NOMINATIONS, _CARGOES, _COUNTERPARTIES, _INVOICES,
+        _CAPACITY_BOOKINGS, _BANK_FX, _BANK_RATES,
+    )
 }
 
 
@@ -820,6 +899,175 @@ def _parse_invoice(context: _Context, header, raw, cells) -> _Row:
     )
 
 
+_BOOKING_KINDS = ("entry", "exit", "lng_slot", "regas", "send_out", "storage")
+_ACQUIRED_VIA = ("auction", "long_term", "allocation", "secondary", "fcfs", "bilateral")
+_BOOKING_UNITS = {"mwh/d": "MWh/d", "kwh/h": "kWh/h", "kwh/d": "kWh/d", "mwh": "MWh",
+                  "slot": "slot", "slots": "slot"}
+_BOOKING_ENDED = ("released", "cancelled", "canceled", "void")
+
+
+def _parse_capacity_booking(context: _Context, header, raw, cells) -> _Row:
+    from eurogas_nexus.domain.route_cost.tariff_units import parse_unit
+
+    external = cells["booking_id"]
+    if not external or len(external) > 64:
+        raise RowError("value_required", "booking_id is required (at most 64 characters)")
+    kind = _choice(cells["kind"], "kind", _BOOKING_KINDS, "kind_unknown")
+    facility = cells["facility"]
+    if not facility or len(facility) > 128:
+        raise RowError("value_required", "facility is required (at most 128 characters)")
+    first = _date(cells["first_gas_day"], "first_gas_day")
+    last = _date(cells["last_gas_day"], "last_gas_day")
+    if last < first:
+        raise RowError("period_reversed", "last_gas_day is before first_gas_day")
+    quantity = _number(cells["quantity"], "quantity")
+    if quantity <= 0:
+        raise RowError("quantity_not_positive", "quantity must be positive")
+    unit = _BOOKING_UNITS.get(cells["quantity_unit"].strip().lower())
+    if unit is None:
+        raise RowError("unit_unknown", f"quantity_unit {cells['quantity_unit']!r} is not one of "
+                       "MWh/d, kWh/h, kWh/d, MWh, slot")
+    if (kind == "lng_slot") != (unit == "slot"):
+        raise RowError("unit_unknown", "an lng_slot booking is counted in slots, and only it")
+    acquired = _choice(cells["acquired_via"], "acquired_via", _ACQUIRED_VIA,
+                       "acquired_via_unknown")
+    price_text = cells.get("price") or ""
+    price = _number(price_text, "price") if price_text else None
+    if price is not None and price < 0:
+        raise RowError("number_invalid", "price must be zero or more")
+    price_unit = (cells.get("price_unit") or "").strip() or None
+    currency = None
+    if price is not None:
+        if price_unit is None:
+            raise RowError("value_required", "price_unit is required with a price")
+        per_slot = price_unit.lower().endswith("/slot")
+        parsed = None if per_slot else parse_unit(price_unit)
+        if not per_slot and parsed is None:
+            raise RowError("unit_unknown", f"price_unit {price_unit!r} is not understood")
+        if per_slot != (unit == "slot"):
+            raise RowError("unit_unknown", "a price per slot goes with a booking in slots")
+        currency = parsed.currency if parsed is not None else price_unit.split("/")[0].upper()
+    if cells.get("currency"):
+        currency = _currency(cells["currency"].upper())
+    firmness = (cells.get("firmness") or "FIRM").strip().upper()
+    if firmness not in ("FIRM", "INTERRUPTIBLE"):
+        raise RowError("firmness_invalid", "firmness must be FIRM or INTERRUPTIBLE")
+    book_id = cells.get("book_id") or None
+    _check_book(context, book_id)
+    status = (cells.get("status") or "").strip().lower()
+    key = f"{context.system_key}:{external}"[:96]
+    values = {
+        "booking_id": key,
+        "source_system": context.system[:32],
+        "external_id": external,
+        "book_id": book_id,
+        "kind": kind,
+        "facility_kind": {"entry": "point", "exit": "point", "storage": "storage"}.get(
+            kind, "terminal"
+        ),
+        "facility_id": facility,
+        "facility_name": (cells.get("facility_name") or None),
+        "operator": (cells.get("operator") or None),
+        "direction": kind.upper() if kind in ("entry", "exit") else None,
+        "product": ((cells.get("product") or "").strip() or None),
+        "firmness": firmness,
+        "acquired_via": acquired,
+        "first_gas_day": first,
+        "last_gas_day": last,
+        "quantity": quantity,
+        "quantity_unit": unit,
+        "quantity_basis": "pool" if unit == "slot" else "per_day",
+        "price": price,
+        "price_unit": price_unit,
+        "currency": currency,
+        "counterparty": (cells.get("counterparty") or None),
+        "source_reference": context.source_reference[:256],
+    }
+    if values["product"] and kind in ("entry", "exit"):
+        values["product"] = values["product"].upper()
+    values["content_hash"] = _digest(
+        {k: v for k, v in values.items() if k != "source_reference"}
+    )
+    return _Row(0, key, values, action="remove" if status in _BOOKING_ENDED else "upsert")
+
+
+_FX_RATE_TYPES = ("mid", "buy", "sell")
+_DAY_COUNTS = ("ACT/360", "ACT/365F")
+
+
+def _bank_system(context: _Context) -> str:
+    from eurogas_nexus.domain.pricing.financial_institutions import source_system
+
+    return source_system(context.system_key[:12])
+
+
+def _parse_bank_fx(context: _Context, header, raw, cells) -> _Row:
+    base = _currency(cells["base_currency"].upper(), "base_currency")
+    quote = _currency(cells["quote_currency"].upper(), "quote_currency")
+    if base == quote:
+        raise RowError("pair_invalid", "base_currency and quote_currency are the same")
+    rate = _number(cells["rate"], "rate")
+    if not rate > 0:
+        raise RowError("number_invalid", "rate must be positive")
+    value_date = _date(cells["value_date"], "value_date")
+    rate_type = _choice((cells.get("rate_type") or "mid").lower(), "rate_type", _FX_RATE_TYPES,
+                        "rate_type_unknown")
+    published = cells.get("published_at") or ""
+    observed = (
+        _instant(published, "published_at")
+        if published
+        else datetime.combine(value_date, datetime.max.time().replace(microsecond=0), UTC)
+    )
+    system = _bank_system(context)
+    key = f"bank:{system[5:]}:{base}{quote}:{rate_type}:{value_date.isoformat()}"[:64]
+    values = {
+        "observation_id": key,
+        "pair": f"{base}{quote}",
+        "base_currency": base,
+        "quote_currency": quote,
+        "rate": rate,
+        "rate_type": rate_type,
+        "value_date": value_date.isoformat(),
+        "observed_at_utc": observed,
+        "source_system": system,
+        "source_reference": context.source_reference[:128],
+        "source_record_id": (cells.get("rate_id") or None),
+        "freshness": "daily",
+        "research_only": True,
+        "metadata_json": {"institution": system[5:], "contract": "bank.fx_rates.v1"},
+    }
+    return _Row(0, key, values)
+
+
+def _parse_bank_rate(context: _Context, header, raw, cells) -> _Row:
+    rate_id = (cells["rate_id"] or "").strip().upper()
+    if not rate_id or len(rate_id) > 9:
+        raise RowError("value_required", "rate_id is required (at most 9 characters)")
+    currency = _currency(cells["currency"].upper())
+    rate = _number(cells["rate_pct"], "rate_pct")
+    if not -5.0 <= rate <= 50.0:
+        raise RowError("number_invalid", "rate_pct must be between -5 and 50")
+    value_date = _date(cells["value_date"], "value_date")
+    day_count = (cells.get("day_count") or "ACT/360").strip().upper()
+    if day_count not in _DAY_COUNTS:
+        raise RowError("day_count_unknown", f"day_count must be one of {', '.join(_DAY_COUNTS)}")
+    system = _bank_system(context)
+    benchmark = f"{system[5:11]}:{rate_id}"[:16]
+    key = f"bank:{benchmark}:{value_date.isoformat()}"[:64]
+    values = {
+        "observation_id": key,
+        "benchmark_id": benchmark,
+        "currency": currency,
+        "value_date": value_date,
+        "rate_pct": rate,
+        "day_count": day_count,
+        "source_system": system[:32],
+        "source_reference": context.source_reference[:128],
+        "ingested_at_utc": context.now,
+    }
+    return _Row(0, key, values)
+
+
 _PARSERS: dict[str, Callable[..., _Row]] = {
     "etrm.deals": _parse_deal,
     "etrm.physical_positions": _parse_position,
@@ -827,6 +1075,9 @@ _PARSERS: dict[str, Callable[..., _Row]] = {
     "etrm.cargo_schedule": _parse_cargo,
     "erp.counterparties": _parse_counterparty,
     "erp.invoices": _parse_invoice,
+    "etrm.capacity_bookings": _parse_capacity_booking,
+    "bank.fx_rates": _parse_bank_fx,
+    "bank.interest_rates": _parse_bank_rate,
 }
 
 
@@ -1009,6 +1260,70 @@ def _store_references(context: _Context, rows: list[_Row], report: ImportReport,
                 held.last_changed_at_utc = context.now
 
 
+def _store_capacity_bookings(context: _Context, rows: list[_Row], report: ImportReport,
+                             write: bool):
+    """Upsert by key; a released booking keeps its row with ``released_at_utc`` (reads as of
+    an earlier instant still find it). The same content again is unchanged."""
+
+    from eurogas_nexus.db.models import CapacityBookingRecord as Model
+
+    session = context.session
+    for row in rows:
+        held = session.get(Model, row.key)
+        if row.action == "remove":
+            if held is None or held.released_at_utc is not None:
+                report.unchanged += 1
+            else:
+                report.removed += 1
+                if write:
+                    held.released_at_utc = context.now
+                    held.updated_at_utc = context.now
+            continue
+        if held is None:
+            report.created += 1
+            if write:
+                session.add(Model(**row.values, recorded_at_utc=context.now,
+                                  updated_at_utc=context.now, released_at_utc=None))
+        elif held.content_hash == row.values["content_hash"] and held.released_at_utc is None:
+            report.unchanged += 1
+        else:
+            report.updated += 1
+            if write:
+                for name, value in row.values.items():
+                    setattr(held, name, value)
+                held.updated_at_utc = context.now
+                held.released_at_utc = None
+
+
+def _store_bank_rates(context: _Context, rows: list[_Row], report: ImportReport, write: bool):
+    """By (benchmark, value date), the table's unique key: a re-sent rate replaces the earlier
+    one; when its value changed, it is re-read as of the new ingestion instant."""
+
+    from eurogas_nexus.db.models import InterestRateObservationRecord as Model
+
+    session = context.session
+    for row in rows:
+        held = (
+            session.query(Model)
+            .filter(Model.benchmark_id == row.values["benchmark_id"])
+            .filter(Model.value_date == row.values["value_date"])
+            .one_or_none()
+        )
+        if held is None:
+            report.created += 1
+            if write:
+                session.add(Model(**row.values))
+        elif _same(held, row.values, ignore=("source_reference", "ingested_at_utc",
+                                              "observation_id")):
+            report.unchanged += 1
+        else:
+            report.updated += 1
+            if write:
+                for name, value in row.values.items():
+                    if name != "observation_id":
+                        setattr(held, name, value)
+
+
 _STORES: dict[str, Callable[..., None]] = {
     "etrm.deals": _store_deals,
     "etrm.physical_positions": _store_by_key(
@@ -1018,6 +1333,9 @@ _STORES: dict[str, Callable[..., None]] = {
     "etrm.cargo_schedule": _store_cargoes,
     "erp.counterparties": _store_references,
     "erp.invoices": _store_references,
+    "etrm.capacity_bookings": _store_capacity_bookings,
+    "bank.fx_rates": _store_by_key("FxObservationRecord", ("source_reference",)),
+    "bank.interest_rates": _store_bank_rates,
 }
 
 

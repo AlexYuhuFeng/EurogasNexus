@@ -465,6 +465,7 @@ def load_book(session, book_id: str, *, now: datetime) -> Book:
             )
         )
         inputs.append({"input": f"offer {o.offer_id}", "source": f"{o.basis} {o.source_reference}"})
+    offers.extend(_contracted_offers(session, book_id, today, moment, inputs, warnings))
 
     known = _sailing(session)
     sailing = {}
@@ -502,6 +503,55 @@ def load_book(session, book_id: str, *, now: datetime) -> Book:
         warnings=warnings,
         cargo_rows=cargo_rows,
     )
+
+
+#: The contracted price units a booking's send-out or storage cost is read in (EUR only).
+_CONTRACTED_UNITS = {"send_out": ("EUR/MWh",), "storage": ("EUR/MWh/d", "EUR/MWh/day")}
+
+
+def _contracted_offers(session, book_id: str, today: date, moment: datetime,
+                       inputs: list, warnings: list) -> list[CapacityOffer]:
+    """TAR-2: send-out and storage the firm has booked at a terminal, as offers ranked before
+    any public or quoted one, at their contracted cost. A booking without a contracted price
+    in a unit read here is named and not used (never priced at zero)."""
+
+    from eurogas_nexus.application.capacity_costs import bookings_as_of
+
+    try:
+        records = bookings_as_of(session, as_of=moment, kinds=("send_out", "storage"),
+                                 book_ids=[book_id])
+    except Exception:  # noqa: BLE001 - a store without the bookings table
+        return []
+    out = []
+    for record in records:
+        if record.last_gas_day < today:
+            continue
+        unit = (record.price_unit or "").replace(" ", "")
+        if record.price is None or unit not in _CONTRACTED_UNITS[record.kind]:
+            warnings.append(
+                f"booking {record.booking_id}: contracted {record.kind.replace('_', '-')} cost "
+                "not recorded in EUR/MWh (send-out) or EUR/MWh/d (storage); not used"
+            )
+            continue
+        per_day = record.quantity * (24 / 1000 if record.quantity_unit == "kWh/h" else (
+            1 / 1000 if record.quantity_unit == "kWh/d" else 1.0))
+        out.append(
+            CapacityOffer(
+                f"booking:{record.booking_id}",
+                record.facility_name or record.facility_id,
+                record.kind,
+                max(record.first_gas_day, today),
+                record.last_gas_day,
+                float(record.price),
+                max_mwh_per_day=per_day if record.kind == "send_out" else 0.0,
+                max_mwh=per_day if record.kind == "storage" else 0.0,
+                basis="contracted",
+                source=record.source_reference,
+            )
+        )
+        inputs.append({"input": f"booking {record.booking_id}",
+                       "source": f"contracted {record.source_reference}"})
+    return out
 
 
 def _with_curtailment(book: Book, curtail: dict[str, Any] | None) -> Book:

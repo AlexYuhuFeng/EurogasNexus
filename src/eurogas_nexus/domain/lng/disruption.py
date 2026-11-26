@@ -87,6 +87,7 @@ from itertools import product
 from typing import Any
 
 from eurogas_nexus.domain.lng.in_transit import last_trading_day
+from eurogas_nexus.domain.tariffs.precedence import offer_rank
 
 #: Below this an energy figure is rounding, not a position (MWh).
 EPS_MWH = 1.0
@@ -362,9 +363,11 @@ class Portfolio:
         raise DisruptionError(f"no supply {supply_id}")
 
     def offers_at(self, terminal: str, kind: str) -> list[CapacityOffer]:
+        # TAR-2: capacity the firm holds (basis "contracted") before any public or quoted
+        # offer, then the cheapest (domain/tariffs/precedence.offer_rank).
         return sorted(
             (o for o in self.offers if o.terminal == terminal and o.kind == kind),
-            key=lambda o: (o.price_eur_mwh, o.offer_id),
+            key=lambda o: (offer_rank(o.basis), o.price_eur_mwh, o.offer_id),
         )
 
 
