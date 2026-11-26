@@ -329,7 +329,7 @@
   border-radius: var(--ds-radius-pill);
   background: var(--ds-accent);
   vertical-align: middle;
-  animation: answer-live-pulse 1.2s ease-out 1;
+  animation: answer-live-pulse var(--ds-duration-pulse) ease-out 1;
 }
 
 @keyframes answer-live-pulse {
@@ -349,7 +349,7 @@
    flashes it. */
 .answer-busy[data-busy="true"] {
   background: linear-gradient(90deg, transparent, var(--ds-accent), transparent) -40% 0 / 40% 100% no-repeat;
-  animation: answer-busy-slide 1s linear 150ms infinite;
+  animation: answer-busy-slide var(--ds-duration-loop) linear var(--ds-duration-base) infinite;
 }
 
 @keyframes answer-busy-slide {

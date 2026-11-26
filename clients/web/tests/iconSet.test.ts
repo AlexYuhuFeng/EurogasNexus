@@ -45,8 +45,8 @@ test("no control is a bare glyph: close, chevrons and carets come from Icon", ()
   assert.deepEqual(over, []);
 });
 
-test("no component draws its own icon SVG; charts, the brand mark and map art are not icons", () => {
-  const allowed = new Set(["components/ui/BrandMark.tsx", "components/ui/charts/Chart.tsx", "components/ui/charts/Waterfall.tsx", "components/GasNetworkMap.tsx", "components/SignInScreen.tsx"]);
+test("no component draws its own icon SVG; charts, the progress ring, the brand mark and map art are not icons", () => {
+  const allowed = new Set(["components/ui/BrandMark.tsx", "components/ui/Spinner.tsx", "components/ui/charts/Chart.tsx", "components/ui/charts/Waterfall.tsx", "components/GasNetworkMap.tsx", "components/SignInScreen.tsx"]);
   const drawn = sources(SRC)
     .filter((file) => /<svg[\s>]/.test(readFileSync(file, "utf8")))
     .map((file) => path.relative(SRC, file).split(path.sep).join("/"))

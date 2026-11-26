@@ -32,6 +32,7 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "answer.outages.top": "a list of facility names and figures, no words",
   "answer.spread.legs": "two hub codes with their prices and unit codes, no words",
   "answer.tag.lng": "an acronym",
+  "glossary.cat.lng": "an acronym",
   "app.title": "the product's own name",
   "capacity.view_lng": "an acronym",
   "chart.csv": "a file format's name",
