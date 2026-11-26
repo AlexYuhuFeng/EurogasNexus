@@ -51,7 +51,8 @@ async def require_admin_rate_limit(request: Request) -> None:
 # --- per-principal quotas on writes and heavy computations (security review M7) -----------
 
 import os  # noqa: E402
-from collections.abc import AsyncGenerator, AsyncIterator  # noqa: E402
+import weakref  # noqa: E402
+from collections.abc import AsyncIterator  # noqa: E402
 
 HEAVY_LIMIT_ENV = "EUROGAS_NEXUS_RATE_LIMIT_HEAVY_PER_MINUTE"
 WRITE_LIMIT_ENV = "EUROGAS_NEXUS_RATE_LIMIT_WRITES_PER_MINUTE"
@@ -76,7 +77,7 @@ HEAVY_PREFIXES = (
     "/api/news/",
     "/api/opportunities/evaluations",
 )
-_STREAMS: dict[str, int] = {}
+_STREAMS: dict[str, weakref.WeakSet] = {}
 
 
 def _production() -> bool:
@@ -133,40 +134,56 @@ def stream_limit() -> int:
     return int(raw) if raw.isdigit() else 5
 
 
-def acquire_stream(principal_id: str) -> None:
-    """Reserve one open stream for a principal, or 429 (security review M7)."""
+class _CountedStream:
+    """An event stream that counts against its principal's cap while it is alive."""
+
+    def __init__(self, principal_id: str, stream: AsyncIterator[str]) -> None:
+        self.principal_id = principal_id
+        self.stream = stream
+
+    def __aiter__(self) -> _CountedStream:
+        return self
+
+    async def __anext__(self) -> str:
+        try:
+            return await self.stream.__anext__()
+        except BaseException:
+            self.release()
+            raise
+
+    async def aclose(self) -> None:
+        self.release()
+        closer = getattr(self.stream, "aclose", None)
+        if closer is not None:
+            await closer()
+
+    def release(self) -> None:
+        with _LOCK:
+            live = _STREAMS.get(self.principal_id)
+            if live is not None:
+                live.discard(self)
+
+
+def open_counted_stream(principal_id: str, stream: AsyncIterator[str]) -> AsyncIterator[str]:
+    """``stream`` as a counted stream of ``principal_id``, or 429 past the cap (review M7).
+
+    Open streams are held weakly: a stream whose response never started (the client left
+    first) is dropped by the garbage collector and stops counting; one that ran is released
+    when it ends or is closed.
+    """
 
     limit = stream_limit()
+    counted = _CountedStream(principal_id, stream)
     with _LOCK:
-        open_now = _STREAMS.get(principal_id, 0)
-        if limit and open_now >= limit:
+        live = _STREAMS.setdefault(principal_id, weakref.WeakSet())
+        if limit and len(live) >= limit:
             raise HTTPException(
                 status_code=429,
                 detail={"code": "too_many_streams",
                         "message": f"At most {limit} live streams per person at once."},
             )
-        _STREAMS[principal_id] = open_now + 1
-
-
-def release_stream(principal_id: str) -> None:
-    with _LOCK:
-        left = _STREAMS.get(principal_id, 0) - 1
-        if left > 0:
-            _STREAMS[principal_id] = left
-        else:
-            _STREAMS.pop(principal_id, None)
-
-
-async def counted_stream(
-    principal_id: str, stream: AsyncIterator[str]
-) -> AsyncGenerator[str, None]:
-    """Yield ``stream``'s events, releasing the principal's slot when it ends."""
-
-    try:
-        async for event in stream:
-            yield event
-    finally:
-        release_stream(principal_id)
+        live.add(counted)
+    return counted
 
 
 async def read_body_limited(request: Request, limit: int) -> bytes:

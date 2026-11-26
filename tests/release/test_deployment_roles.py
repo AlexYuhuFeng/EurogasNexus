@@ -63,7 +63,9 @@ def test_api_container_probe_accepts_actual_readiness_response(monkeypatch) -> N
 
     def urlopen(request, timeout):
         assert request.full_url == "http://127.0.0.1:8000/api/health/ready"
-        assert request.get_header("X-eurogas-api-key") == "synthetic-probe-token"
+        # The readiness probe needs no credential, so the token stays out of the health
+        # command and `docker inspect` (security review H3).
+        assert request.get_header("X-eurogas-api-key") is None
         assert timeout == 3
         return io.BytesIO(json.dumps(payload).encode())
 

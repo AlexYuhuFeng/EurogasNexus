@@ -535,12 +535,10 @@ def _stream_response(
     notices: tuple[tuple[str, FetchNotices], ...] = (),
 ) -> StreamingResponse:
     initial_cursor = _initial_cursor(request)
-    from eurogas_nexus.security.rate_limit import acquire_stream, counted_stream
+    from eurogas_nexus.security.rate_limit import open_counted_stream
 
-    who = _stream_owner(request)
-    acquire_stream(who)
     return StreamingResponse(
-        counted_stream(who, _event_stream(
+        open_counted_stream(_stream_owner(request), _event_stream(
             topic,
             fetch,
             ts_field,
@@ -872,12 +870,10 @@ async def stream_live(request: Request, topics: str = "") -> StreamingResponse:
     now = datetime.now(UTC)
     resume = request.headers.get("last-event-id") or request.query_params.get("last_event_id")
     resumed = _parse_live_id(resume, now)
-    from eurogas_nexus.security.rate_limit import acquire_stream, counted_stream
+    from eurogas_nexus.security.rate_limit import open_counted_stream
 
-    who = _stream_owner(request)
-    acquire_stream(who)
     return StreamingResponse(
-        counted_stream(who, _live_stream(
+        open_counted_stream(_stream_owner(request), _live_stream(
             parse_topics(topics),
             resumed[0] if resumed else now,
             resumed is not None,

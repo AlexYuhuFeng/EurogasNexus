@@ -172,6 +172,8 @@ def test_kinds_and_subject_narrow_the_feed(feed):
 
 def test_each_caller_sees_only_what_it_may_read(feed, monkeypatch):
     _, client = feed
+    # Isolation switched off explicitly first (it is on by default since security review H1).
+    monkeypatch.setenv("EUROGAS_NEXUS_PORTFOLIO_ISOLATION", "false")
     public, _ = _page(client("public").get("/api/market/changes"))
     # The EEX settlement is licensed and not this caller's; the cargo is the firm's book.
     assert [c["event_type"] for c in public] == ["fx.updated", "cargo.changed"]

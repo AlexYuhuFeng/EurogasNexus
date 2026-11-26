@@ -687,7 +687,16 @@ def _check_external_consumers(environ: Mapping[str, str]) -> list[Finding]:
     topology warning of its own, and reporting it twice would bury that.
     """
 
-    reported_elsewhere = {"EUROGAS_NEXUS_API_IMAGE", "FORWARDED_ALLOW_IPS"}
+    reported_elsewhere = {
+        "EUROGAS_NEXUS_API_IMAGE",
+        "FORWARDED_ALLOW_IPS",
+        # The separate database roles (docs/security/DATABASE_ROLES.md) fall back to
+        # POSTGRES_USER until they are set up, so their absence is not a finding.
+        "EUROGAS_NEXUS_APP_DB_USER",
+        "EUROGAS_NEXUS_APP_DB_PASSWORD",
+        "EUROGAS_NEXUS_OWNER_DB_USER",
+        "EUROGAS_NEXUS_OWNER_DB_PASSWORD",
+    }
     findings: list[Finding] = []
     for name, reader in sorted(EXTERNALLY_READ.items()):
         if name in reported_elsewhere:
