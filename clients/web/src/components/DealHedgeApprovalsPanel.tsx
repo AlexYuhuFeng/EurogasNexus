@@ -129,7 +129,7 @@ export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; 
           {/* Months breaching the same band are one line; every month is in the table's title. */}
           {row.breaches.length > 0 && (
             <small className="limit-breaches" title={row.breaches.map((text) => breachText(text, t, names.resources)).join("\n")}>
-              {" "}{breachSummary(row.breaches, t, names.resources).join("; ")}
+              {" "}{breachSummary(row.breach_notes?.length ? row.breach_notes : row.breaches, t, names.resources).join("; ")}
             </small>
           )}
           {pending.has(row.contract_id) && <StatusBadge tone="watch">{t("changes.awaiting")}</StatusBadge>}

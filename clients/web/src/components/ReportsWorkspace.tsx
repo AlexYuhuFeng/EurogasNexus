@@ -24,7 +24,7 @@ import {
 import { WorkProgress } from "@/components/ui/WorkProgress";
 import { layOutForPrint } from "@/app/model/reportPrintLayout";
 import { ReportSchedules } from "@/components/ReportSchedules";
-import { Button, DataGrid, Dialog, EmptyState, ExampleFrame, Field, Panel, PeriodPicker, Segmented, Select, StatusBadge, useExampleView, type DataGridColumn } from "@/components/ui";
+import { Button, DataGrid, Dialog, EmptyState, ExampleFrame, Field, Fold, Panel, PeriodPicker, Segmented, Select, StatusBadge, useExampleView, type DataGridColumn } from "@/components/ui";
 import { GAS_HUBS } from "@/app/contractChoices";
 import { exampleReports as exampleReportList } from "@/app/experience/examples";
 import {
@@ -411,10 +411,7 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
                 </Field>
               </div>
               {/* Hubs are chosen, not typed (AGENTS rule 19); none chosen means every hub held. */}
-              <details className="reports-fold">
-                <summary>
-                  {t("reports.hubs")}: <strong>{chosenHubs.length ? chosenHubs.join(", ") : t("reports.hubs_all")}</strong>
-                </summary>
+              <Fold quiet summary={t("reports.hubs")} meta={chosenHubs.length ? chosenHubs.join(", ") : t("reports.hubs_all")}>
                 <fieldset className="reports-sections">
                   <legend className="visually-hidden">{t("reports.hubs")}</legend>
                   {GAS_HUBS.map((hub) => (
@@ -424,12 +421,9 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
                     </label>
                   ))}
                 </fieldset>
-              </details>
+              </Fold>
               {/* Twelve sections are the catalogue's default: folded, opened to change them. */}
-              <details className="reports-fold">
-                <summary>
-                  {t("reports.sections")}: <strong>{t("reports.sections_chosen", { count: chosen.filter((key) => offered.some((section) => section.key === key)).length, total: offered.length })}</strong>
-                </summary>
+              <Fold quiet summary={t("reports.sections")} meta={t("reports.sections_chosen", { count: chosen.filter((key) => offered.some((section) => section.key === key)).length, total: offered.length })}>
               <fieldset className="reports-sections">
                 <legend className="visually-hidden">{t("reports.sections")}</legend>
                 {offered.map((section) => {
@@ -446,7 +440,7 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
                   );
                 })}
               </fieldset>
-              </details>
+              </Fold>
               {issueText("sections")}
               <label className="reports-annex">
                 <input

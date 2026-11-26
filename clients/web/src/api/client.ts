@@ -10,7 +10,7 @@ import type {
 import type { EvaluationDTO, InterpretationDTO, SpreadBoardDTO, StrategySpecDTO } from "./spreads";
 import type { PromptMarketDTO, StrategyTrackDTO } from "./strategyTracks";
 import type { ViewMetaDTO } from "@/app/data/viewFreshness";
-import type { ServerNotice } from "@/app/warningLabel";
+import type { ServerNote } from "@/app/warningLabel";
 
 const DEFAULT_BROWSER_BASE = "/api";
 const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";
@@ -327,9 +327,9 @@ export interface ApiMeta {
    */
   source_references?: string[];
   warnings?: string[];
-  /** The same warnings as data, `{code, params, text}` (`domain/notices.py`): render these
-   * through `serverWarningText` when present. */
-  notices?: ServerNotice[];
+  /** The same warnings as declared notes, `{code, params, text}` (`domain/ontology/notes.py`):
+   * render these through `serverWarningText` when present. */
+  notes?: ServerNote[];
   /**
    * Inputs the read needed and did not have - a missing runtime DB URL, a missing table. A surface
    * uses this to keep two statements apart: the read established nothing, and the read established
@@ -4580,6 +4580,8 @@ export interface MandateUsageRowDTO {
   furthest_month: string;
   legs: number;
   breaches: string;
+  /** The same breaches as declared notes, each naming its contract (newer servers). */
+  breach_notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
   valid_until: string | null;
   status: "ok" | "watch" | "breach" | "expired";
   hedge_policy: string;
@@ -4643,6 +4645,8 @@ export interface SellDownInput {
   short_penalty_per_mwh: number;
   long_discount_per_mwh: number;
   lot_mwh: number;
+  /** The unit the four prices are entered in (NBP in GBp/th); omitted, per MWh. */
+  price_unit?: string;
 }
 
 export interface DailyBalanceDayDTO {
@@ -4699,6 +4703,8 @@ export interface HedgeApprovalRowDTO {
   hedge_range: string | null;
   months: HedgeApprovalMonthDTO[];
   breaches: string[];
+  /** The same breaches as declared notes, each naming its contract (newer servers). */
+  breach_notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
   status: "ok" | "breach" | "expired";
   linked_trades: number;
   contract_found: boolean;
@@ -4758,6 +4764,8 @@ export interface DeliveryPerformanceRowDTO {
   cv_pct: number | null;
   trend_7d_vs_dcq_pct: number | null;
   flags: string;
+  /** The same flags as declared notes (newer servers). */
+  flag_notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
   status: "ok" | "watch";
 }
 
@@ -5230,7 +5238,7 @@ export interface PositionLadderDTO {
   methods?: Record<string, RiskMethodNoteDTO>;
   warnings: string[];
   /** The same warnings as codes with parameters, for the reader's language (newer servers). */
-  notes?: { code: string; params?: Record<string, unknown> }[];
+  notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
 }
 
 export interface SpreadSeriesDTO {
@@ -7731,8 +7739,8 @@ interface DisruptionResultDTO {
   costs: Record<string, number>;
   inputs: { input: string; source: string }[];
   warnings: string[];
-  /** The warnings as data (`domain/notices.py`), when the server sends them. */
-  notices?: ServerNotice[];
+  /** The warnings as declared notes (`domain/ontology/notes.py`), when the server sends them. */
+  notes?: ServerNote[];
   timeline: DisruptionRunDTO[];
   advisory: string;
 }

@@ -51,3 +51,10 @@ test("a hedge range reads in the reader's language", async () => {
   assert.equal(pctRangeText("0% to 44%", t), "0% 至 44%");
   assert.equal(pctRangeText("12%", t), "12%");
 });
+
+test("a breach note from the server names its contract without the page loading contracts", () => {
+  const note = { code: "MANDATE_HUB_OUTSIDE", params: { hub: "TTF", ref: "demo-kestrel-uk-6", ref_name: "Kestrel UK leg" }, text: "TTF is outside the mandate (demo-kestrel-uk-6)" };
+  assert.equal(breachText(note, t), "TTF 不在授权范围内（Kestrel UK leg）");
+  const months = ["2026-11", "2026-12"].map((at) => ({ code: "APPROVAL_HEDGED_UNDER", params: { at, pct: 0, limit: "60" }, text: "" }));
+  assert.deepEqual(breachSummary(months, t), ["2 个月低于批准的 60%（2026-11 至 2026-12）"]);
+});

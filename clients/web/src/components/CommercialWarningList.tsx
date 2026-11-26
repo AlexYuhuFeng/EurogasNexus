@@ -6,6 +6,7 @@ import { lineageNames, resourceName, type LineageLookup } from "@/app/model/line
 import { warningLabel } from "@/app/warningLabel";
 import { enumLabel, enumWordsIn, sourceSystemLabel } from "@/app/model/enumLabels";
 import { useApiStore } from "@/stores/api";
+import { Fold } from "@/components/ui/Fold";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -79,8 +80,7 @@ export function CommercialWarningList({
             </div>
             {/* Where it came from and what it rests on: folded, one line when opened (#owner: "you
                 can fold it"). The warning itself already names the contract or route. */}
-            <details className="commercial-diagnostic-detail">
-              <summary>{t("commercial.warning.details")}</summary>
+            <Fold quiet summary={t("commercial.warning.details")}>
               <div className="commercial-diagnostic-evidence">
                 <span>
                   {t("commercial.warning.origin")}:{" "}
@@ -105,7 +105,7 @@ export function CommercialWarningList({
                   <Lineage refs={item.sourceReference ? [item.sourceReference, ...item.sourceRefs] : item.sourceRefs} lookup={lookup} t={t} />
                 )}
               </div>
-            </details>
+            </Fold>
           </li>
         );
       })}

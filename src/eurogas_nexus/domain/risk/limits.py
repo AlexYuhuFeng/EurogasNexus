@@ -43,6 +43,33 @@ from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
 
+from eurogas_nexus.domain.ontology.notes import Note, declare, note
+
+# Breaches as declared notes (domain/ontology/notes.py); the English text is unchanged, so the
+# alerts and briefs that read ``breaches`` (application/desk_text.py) keep working.
+MANDATE_HUB_OUTSIDE = declare("MANDATE_HUB_OUTSIDE", "{hub} is outside the mandate ({ref})")
+MANDATE_PHYSICAL_NOT_ALLOWED = declare(
+    "MANDATE_PHYSICAL_NOT_ALLOWED", "physical supply is not allowed ({ref})"
+)
+MANDATE_FINANCIAL_NOT_ALLOWED = declare(
+    "MANDATE_FINANCIAL_NOT_ALLOWED", "financial trades are not allowed ({ref})"
+)
+MANDATE_INSTRUMENT_NOT_ALLOWED = declare(
+    "MANDATE_INSTRUMENT_NOT_ALLOWED", "{instrument} is not an allowed instrument ({ref})"
+)
+MANDATE_BEYOND_TENOR = declare(
+    "MANDATE_BEYOND_TENOR", "delivery to {month} is beyond {months} months ({ref})"
+)
+MANDATE_NET_OVER = declare("MANDATE_NET_OVER", "net {net} MWh in {at} is over {limit} MWh")
+MANDATE_HEDGED_ABOVE = declare("MANDATE_HEDGED_ABOVE", "{at} hedged {pct}%, above {limit}%")
+MANDATE_HEDGED_BELOW = declare("MANDATE_HEDGED_BELOW", "{at} hedged {pct}%, below {limit}%")
+APPROVAL_HEDGED_OVER = declare(
+    "APPROVAL_HEDGED_OVER", "{at} hedged {pct}%, over the approved {limit}%"
+)
+APPROVAL_HEDGED_UNDER = declare(
+    "APPROVAL_HEDGED_UNDER", "{at} hedged {pct}%, under the approved {limit}%"
+)
+
 WATCH_AT = 0.75
 
 
@@ -240,6 +267,8 @@ class MandateLeg:
     last_gas_day: date
     mwh_per_day: float
     instrument: str = ""  # physical, future, forward, swap, option
+    #: The leg as a person names it; a breach names it by this, never by ``reference`` alone.
+    label: str = ""
 
 
 @dataclass(frozen=True)
@@ -267,6 +296,8 @@ class MandateUsage:
     largest_at: str = ""
     furthest_month: str = ""
     breaches: list[str] = field(default_factory=list)
+    #: The same breaches as declared notes (code, params with the leg's name, text).
+    breach_notes: list[Note] = field(default_factory=list)
     status: str = "ok"
     lowest_hedge_pct: float | None = None
     highest_hedge_pct: float | None = None
@@ -301,6 +332,7 @@ class MandateUsage:
             else round(self.hedge_room_mwh, 0),
             "instruments": ", ".join(self.mandate.instruments) or "any",
             "breaches": "; ".join(self.breaches),
+            "breach_notes": [item.as_dict() for item in self.breach_notes],
             "valid_until": self.mandate.valid_until.isoformat()
             if self.mandate.valid_until
             else None,
@@ -354,10 +386,15 @@ def mandate_usage(
     )
     seen_rules: set[str] = set()
 
-    def breach(rule: str, text: str) -> None:
+    def breach(rule: str, item: Note) -> None:
         if rule not in seen_rules:
             seen_rules.add(rule)
-            usage.breaches.append(text)
+            usage.breaches.append(item.text)
+            usage.breach_notes.append(item)
+
+    def ref(leg: MandateLeg) -> dict[str, str]:
+        # The record a breach is about, by id and by the name a person knows.
+        return {"ref": leg.reference, "ref_name": leg.label or leg.reference}
 
     for leg in legs:
         mine = (leg.book_id and leg.book_id in books) or (
@@ -371,21 +408,25 @@ def mandate_usage(
         usage.legs += 1
         hub = leg.hub.upper()
         if hubs and hub not in hubs:
-            breach(f"hub:{hub}", f"{hub} is outside the mandate ({leg.reference})")
+            breach(f"hub:{hub}", note(MANDATE_HUB_OUTSIDE, hub=hub, **ref(leg)))
         if leg.kind == "physical" and not mandate.physical_allowed:
-            breach("physical", f"physical supply is not allowed ({leg.reference})")
+            breach("physical", note(MANDATE_PHYSICAL_NOT_ALLOWED, **ref(leg)))
         if leg.kind == "financial" and not mandate.financial_allowed:
-            breach("financial", f"financial trades are not allowed ({leg.reference})")
+            breach("financial", note(MANDATE_FINANCIAL_NOT_ALLOWED, **ref(leg)))
         if allowed_instruments and leg.instrument and leg.instrument not in allowed_instruments:
             breach(
                 f"instrument:{leg.instrument}",
-                f"{leg.instrument} is not an allowed instrument ({leg.reference})",
+                note(MANDATE_INSTRUMENT_NOT_ALLOWED, instrument=leg.instrument, **ref(leg)),
             )
         if tenor_end is not None and leg.last_gas_day > tenor_end:
             breach(
                 "tenor",
-                f"delivery to {_month(leg.last_gas_day)} is beyond "
-                f"{mandate.max_tenor_months} months ({leg.reference})",
+                note(
+                    MANDATE_BEYOND_TENOR,
+                    month=_month(leg.last_gas_day),
+                    months=mandate.max_tenor_months,
+                    **ref(leg),
+                ),
             )
         months = _days_by_month(max(leg.first_gas_day, today), leg.last_gas_day)
         for month, days in months.items():
@@ -400,7 +441,12 @@ def mandate_usage(
     if limit and abs(usage.largest_net_mwh) > limit:
         breach(
             "size",
-            f"net {usage.largest_net_mwh:,.0f} MWh in {usage.largest_at} is over {limit:,.0f} MWh",
+            note(
+                MANDATE_NET_OVER,
+                net=f"{usage.largest_net_mwh:,.0f}",
+                at=usage.largest_at,
+                limit=f"{limit:,.0f}",
+            ),
         )
     _check_hedge_policy(mandate, usage, physical, financial, breach)
     expired = mandate.valid_until is not None and mandate.valid_until < today
@@ -432,12 +478,14 @@ def _check_hedge_policy(mandate, usage, physical, financial, breach) -> None:
             if ratio > high + 1e-9:
                 breach(
                     f"over-hedged:{hub_month}",
-                    f"{hub_month} hedged {_whole(ratio)}%, above {high:.0f}%",
+                    note(
+                        MANDATE_HEDGED_ABOVE, at=hub_month, pct=_whole(ratio), limit=f"{high:.0f}"
+                    ),
                 )
         if low is not None and ratio < low - 1e-9:
             breach(
                 f"under-hedged:{hub_month}",
-                f"{hub_month} hedged {_whole(ratio)}%, below {low:.0f}%",
+                note(MANDATE_HEDGED_BELOW, at=hub_month, pct=_whole(ratio), limit=f"{low:.0f}"),
             )
     if ratios:
         usage.lowest_hedge_pct, usage.highest_hedge_pct = min(ratios), max(ratios)
@@ -508,7 +556,7 @@ def deal_hedge_usage(
     supply = _monthly(physical, today)
     cover = _monthly(hedges, today)
     months = []
-    breaches: list[str] = []
+    breach_notes: list[Note] = []
     low, high = approval.min_hedge_ratio_pct, approval.max_hedge_ratio_pct
     for month in sorted(supply):
         volume = supply[month]
@@ -526,9 +574,14 @@ def deal_hedge_usage(
             }
         )
         if high is not None and pct > high + 1e-6:
-            breaches.append(f"{month} hedged {_whole(pct)}%, over the approved {high:.0f}%")
+            breach_notes.append(
+                note(APPROVAL_HEDGED_OVER, at=month, pct=_whole(pct), limit=f"{high:.0f}")
+            )
         if low is not None and pct < low - 1e-6:
-            breaches.append(f"{month} hedged {_whole(pct)}%, under the approved {low:.0f}%")
+            breach_notes.append(
+                note(APPROVAL_HEDGED_UNDER, at=month, pct=_whole(pct), limit=f"{low:.0f}")
+            )
+    breaches = [item.text for item in breach_notes]
     expired = approval.valid_until is not None and approval.valid_until < today
     pcts = [row["hedge_pct"] for row in months]
     return {
@@ -540,5 +593,6 @@ def deal_hedge_usage(
         "hedge_range": _pct_range(min(pcts), max(pcts)) if pcts else None,
         "months": months,
         "breaches": breaches,
+        "breach_notes": [item.as_dict() for item in breach_notes],
         "status": "expired" if expired else "breach" if breaches else "ok",
     }

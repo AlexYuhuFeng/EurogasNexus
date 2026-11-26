@@ -5,7 +5,7 @@ import { hubCurrency } from "@/app/contractChoices";
 import { ReportExport } from "./ReportExport";
 import { MethodNote } from "./MethodNote";
 import { MarksAsOf, marksRowAttributes } from "./MarksAsOf";
-import { DataGrid, EmptyState, ExampleFrame, Field, KeyFigure, Segmented, Select, Skeleton, Toolbar, useExampleView, type DataGridColumn } from "@/components/ui";
+import { DataGrid, EmptyState, ExampleFrame, Field, Fold, KeyFigure, Segmented, Select, Skeleton, Toolbar, useExampleView, type DataGridColumn } from "@/components/ui";
 import { examplePositionLadder } from "@/app/experience/examples";
 import {
   barShare,
@@ -16,6 +16,7 @@ import {
 } from "@/app/model/positionLadderModel";
 import { pnlClass } from "@/app/model/pnlColor";
 import { ladderNotes } from "@/app/model/ladderNotes";
+import { unitLabel } from "@/app/model/instrumentPicker";
 import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -361,7 +362,12 @@ function TenorShockScenario({
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   if (keys.length === 0) return null;
-  const unit = (hub: string) => `${hubCurrency(hub) ?? ""}/MWh`;
+  // A shock is entered as the desk quotes the hub (NBP in p/th, AGENTS rule 17). The unit is
+  // the one the server quotes the hub's marks in (`mark_quote_unit`, from the unit authority);
+  // the server converts it, so no factor lives here.
+  const quoteUnit = (hub: string) =>
+    ladder.rows.find((row) => row.hub === hub && row.mark_quote_unit)?.mark_quote_unit ?? `${hubCurrency(hub) ?? ""}/MWh`;
+  const unit = (hub: string) => unitLabel(quoteUnit(hub));
   const effective = (key: string) => {
     const own = overrides[key];
     return own !== undefined && own.trim() !== "" ? own : hubShift[key.split(":")[0] ?? ""] ?? "";
@@ -376,7 +382,7 @@ function TenorShockScenario({
     try {
       const response = await api.positionLadder(months, undefined, {
         reportingCurrency: currency || undefined,
-        shocks: shocks.map(([key, value]) => `${key}:${Number(value)}`),
+        shocks: shocks.map(([key, value]) => `${key}:${Number(value)}:${quoteUnit(key.split(":")[0] ?? "")}`),
       });
       setResult(response.data.scenario ?? null);
     } catch (caught) {
@@ -391,8 +397,7 @@ function TenorShockScenario({
     return `${hub} ${ladderMonthLabel(month ?? "")}`;
   };
   return (
-    <details className="position-scenario" data-position-scenario="true">
-      <summary>{t("position.scenario_title")}</summary>
+    <Fold className="position-scenario" data-position-scenario="true" summary={t("position.scenario_title")}>
       <p className="muted">{t("position.scenario_help")}</p>
       <Toolbar label={t("position.scenario_title")} className="position-scenario-shift">
         <Segmented
@@ -423,8 +428,7 @@ function TenorShockScenario({
         ))}
         <button type="button" disabled={busy || shocks.length === 0} onClick={() => void run()}>{t("position.scenario_run")}</button>
       </Toolbar>
-      <details className="position-scenario-months">
-        <summary>{t("position.scenario_by_month", { count: keys.length })}</summary>
+      <Fold quiet className="position-scenario-months" summary={t("position.scenario_by_month", { count: keys.length })}>
         <div className="position-scenario-grid">
           {keys.map((key) => (
             <label key={key}>
@@ -443,7 +447,7 @@ function TenorShockScenario({
             </label>
           ))}
         </div>
-      </details>
+      </Fold>
       {failure && <p role="alert">{failure}</p>}
       {result && (
         <div className="position-scenario-result" role="status">
@@ -458,6 +462,6 @@ function TenorShockScenario({
           )}
         </div>
       )}
-    </details>
+    </Fold>
   );
 }

@@ -10,7 +10,26 @@
  * in limits.py matched here.
  */
 
+import type { ServerNote } from "../warningLabel.ts";
+
 type Translate = (key: string, options?: Record<string, unknown>) => string;
+
+/** A declared breach note (`domain/risk/limits.py`) as the kind this module says. */
+const KIND_OF_CODE: Record<string, string> = {
+  MANDATE_HUB_OUTSIDE: "outside_mandate",
+  MANDATE_PHYSICAL_NOT_ALLOWED: "physical_not_allowed",
+  MANDATE_FINANCIAL_NOT_ALLOWED: "financial_not_allowed",
+  MANDATE_INSTRUMENT_NOT_ALLOWED: "instrument_not_allowed",
+  MANDATE_BEYOND_TENOR: "beyond_tenor",
+  MANDATE_NET_OVER: "net_over",
+  MANDATE_HEDGED_ABOVE: "hedged_above",
+  MANDATE_HEDGED_BELOW: "hedged_below",
+  APPROVAL_HEDGED_OVER: "approved_over",
+  APPROVAL_HEDGED_UNDER: "approved_under",
+};
+
+/** A breach as sent: a declared note (newer servers) or its English sentence (older ones). */
+export type BreachItem = string | ServerNote;
 
 export interface ParsedBreach {
   kind: string;
@@ -32,9 +51,17 @@ const TEMPLATES: readonly [string, RegExp, readonly string[]][] = [
   ["approved_under", /^(\S+) hedged (-?\d+)%, under the approved (\d+)%$/, ["at", "pct", "limit"]],
 ];
 
-/** One breach sentence as its kind and parameters; kind "" when no template matches. */
-export function parseBreach(text: string): ParsedBreach {
-  const sentence = text.trim();
+/** One breach as its kind and parameters; kind "" when nothing matches. */
+export function parseBreach(item: BreachItem): ParsedBreach {
+  if (typeof item !== "string") {
+    const kind = KIND_OF_CODE[item.code] ?? "";
+    const params = Object.fromEntries(Object.entries(item.params ?? {}).map(([name, value]) => [name, String(value ?? "")]));
+    // The record is said by the name the server sent with it.
+    if (params.ref_name) params.ref = params.ref_name;
+    if (params.pct === "-0") params.pct = "0";
+    return { kind, params, text: item.text ?? "" };
+  }
+  const sentence = item.trim();
   for (const [kind, pattern, names] of TEMPLATES) {
     const match = pattern.exec(sentence);
     if (match) {
@@ -48,14 +75,14 @@ export function parseBreach(text: string): ParsedBreach {
 }
 
 /** The `"; "`-joined breaches of a mandate, or a list of them, as separate sentences. */
-export function splitBreaches(breaches: string | readonly string[] | null | undefined): string[] {
+export function splitBreaches(breaches: string | readonly BreachItem[] | null | undefined): BreachItem[] {
   if (!breaches) return [];
-  const list = typeof breaches === "string" ? breaches.split(/;\s+/) : [...breaches];
-  return list.map((item) => item.trim()).filter(Boolean);
+  const list: BreachItem[] = typeof breaches === "string" ? breaches.split(/;\s+/) : [...breaches];
+  return list.map((item) => (typeof item === "string" ? item.trim() : item)).filter(Boolean);
 }
 
 /** One breach in words; a contract reference is said by its name when the page holds it. */
-export function breachText(text: string, t: Translate, names?: ReadonlyMap<string, string>): string {
+export function breachText(text: BreachItem, t: Translate, names?: ReadonlyMap<string, string>): string {
   const parsed = parseBreach(text);
   if (!parsed.kind) return parsed.text;
   const params: Record<string, string> = { ...parsed.params };
@@ -70,13 +97,13 @@ export function breachText(text: string, t: Translate, names?: ReadonlyMap<strin
  * line ("26 months under the approved 60%: Nov-26 to Jan-29"), every other breach its own.
  */
 export function breachSummary(
-  breaches: string | readonly string[] | null | undefined,
+  breaches: string | readonly BreachItem[] | null | undefined,
   t: Translate,
   names?: ReadonlyMap<string, string>,
 ): string[] {
   const BANDED = new Set(["approved_under", "approved_over", "hedged_below", "hedged_above"]);
-  const lines: { group?: string; text: string }[] = [];
-  const groups = new Map<string, { kind: string; limit: string; texts: string[]; months: string[] }>();
+  const lines: { group?: string; text: BreachItem }[] = [];
+  const groups = new Map<string, { kind: string; limit: string; texts: BreachItem[]; months: string[] }>();
   for (const text of splitBreaches(breaches)) {
     const parsed = parseBreach(text);
     if (BANDED.has(parsed.kind)) {

@@ -442,6 +442,59 @@
     margin: var(--ds-space-2) 0;
   }
 
+  /* Fold (Fold.tsx): one summary line, the detail under it. Pages do not style their own
+     <details>; a fold is quiet inside a list or a form and framed as a section of its own. */
+  .ds-fold > .ds-fold-summary {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--ds-space-2);
+    width: fit-content;
+    max-width: 100%;
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-semibold);
+    cursor: pointer;
+  }
+
+  .ds-fold-meta {
+    color: var(--ds-text-3);
+    font-weight: var(--ds-weight-regular);
+  }
+
+  .ds-fold[open] > .ds-fold-summary {
+    margin-bottom: var(--ds-space-2);
+  }
+
+  .ds-fold-quiet > .ds-fold-summary {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-regular);
+  }
+
+  .ds-fold-quiet[open] > .ds-fold-summary {
+    margin-bottom: var(--ds-space-1);
+  }
+
+  .ds-fold-framed {
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+  }
+
+  .ds-fold-framed > .ds-fold-summary {
+    width: auto;
+    padding: var(--ds-space-3) var(--ds-space-4);
+  }
+
+  .ds-fold-framed[open] > .ds-fold-summary {
+    margin-bottom: 0;
+  }
+
+  .ds-fold-framed > .ds-fold-body {
+    padding: 0 var(--ds-space-3) var(--ds-space-3);
+  }
+
   /* "What it needs": only when something is missing; at most three items with their fix. */
   .readiness-checklist {
     display: grid;

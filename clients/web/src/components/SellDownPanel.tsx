@@ -1,10 +1,12 @@
-import { serverNotices, serverWarningText, warningKey, type ServerNotice } from "@/app/warningLabel";
+import { serverNotes, serverWarningText, warningKey, type ServerNote } from "@/app/warningLabel";
 import { useEffect, useState } from "react";
 
 import { api, type SellDownPlanDTO, type TodayKeyFiguresRowDTO } from "@/api/client";
 import { formatMoney, formatQuantity } from "@/app/model/riskLimitsModel";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 import { latestBoardPrice } from "@/app/model/boardInputs";
+import { hubQuoteUnit } from "@/app/contractChoices";
+import { unitLabel } from "@/app/model/instrumentPicker";
 import { sourceSystemLabel } from "@/app/model/enumLabels";
 import { formatGasDay } from "@/app/time/timeFormat";
 import { useApiStore } from "@/stores/api";
@@ -31,9 +33,12 @@ export function SellDownPanel({ t }: { t: Translate }) {
   const [longDiscount, setLongDiscount] = useState("0.3");
   const [lot, setLot] = useState("24");
   const [plan, setPlan] = useState<SellDownPlanDTO | null>(null);
-  const [warnings, setWarnings] = useState<Array<string | ServerNotice>>([]);
+  const [warnings, setWarnings] = useState<Array<string | ServerNote>>([]);
   const [message, setMessage] = useState<string | null>(null);
   const currency = hub === "NBP" ? "GBP" : "EUR";
+  // Prices are entered as the desk quotes the hub (NBP in p/th); the server converts them.
+  const quoteUnit = hubQuoteUnit(hub);
+  const unit = unitLabel(quoteUnit);
   const { i18n } = useTranslation();
   // The board's rows: the store's when the page loaded them, else this panel's own cached read
   // (Book does not load the market board for every task).
@@ -57,8 +62,8 @@ export function SellDownPanel({ t }: { t: Translate }) {
       : [],
   );
   const markets = [...(storeMarkets.length ? storeMarkets : marketRead.data?.data ?? []), ...todayCloses];
-  const boardDa = latestBoardPrice(markets, hub, "day-ahead", currency);
-  const boardWd = latestBoardPrice(markets, hub, "within-day", currency);
+  const boardDa = latestBoardPrice(markets, hub, "day-ahead", currency, quoteUnit);
+  const boardWd = latestBoardPrice(markets, hub, "within-day", currency, quoteUnit);
   const [typed, setTyped] = useState<{ da: boolean; wd: boolean }>({ da: false, wd: false });
   // A new hub, or a new board read, refills what was not typed by hand.
   useEffect(() => {
@@ -81,10 +86,11 @@ export function SellDownPanel({ t }: { t: Translate }) {
       short_penalty_per_mwh: Number(shortPenalty || 0),
       long_discount_per_mwh: Number(longDiscount || 0),
       lot_mwh: Number(lot || 24),
+      price_unit: quoteUnit,
     })
       .then((response) => {
         setPlan(response.data);
-        setWarnings(serverNotices(response.meta));
+        setWarnings(serverNotes(response.meta));
       })
       .catch((caught: unknown) => setMessage(caught instanceof Error ? caught.message : String(caught)));
   };
@@ -99,10 +105,10 @@ export function SellDownPanel({ t }: { t: Translate }) {
             {HUBS.map((code) => <option key={code} value={code}>{code}</option>)}
           </select>
         </label>
-        <label><span>{t("selldown.da", { currency })}</span><input inputMode="decimal" value={da} onChange={(event) => { setDa(event.target.value); setTyped((current) => ({ ...current, da: true })); }} /><small className="muted" data-input-source="da">{sourceLine(boardDa, typed.da)}</small></label>
-        <label><span>{t("selldown.wd", { currency })}</span><input inputMode="decimal" value={wd} onChange={(event) => { setWd(event.target.value); setTyped((current) => ({ ...current, wd: true })); }} /><small className="muted" data-input-source="wd">{sourceLine(boardWd ?? boardDa, typed.wd)}</small></label>
-        <label><span>{t("selldown.short_penalty")}</span><input inputMode="decimal" value={shortPenalty} onChange={(event) => setShortPenalty(event.target.value)} /></label>
-        <label><span>{t("selldown.long_discount")}</span><input inputMode="decimal" value={longDiscount} onChange={(event) => setLongDiscount(event.target.value)} /></label>
+        <label><span>{t("selldown.da", { unit })}</span><input inputMode="decimal" value={da} onChange={(event) => { setDa(event.target.value); setTyped((current) => ({ ...current, da: true })); }} /><small className="muted" data-input-source="da">{sourceLine(boardDa, typed.da)}</small></label>
+        <label><span>{t("selldown.wd", { unit })}</span><input inputMode="decimal" value={wd} onChange={(event) => { setWd(event.target.value); setTyped((current) => ({ ...current, wd: true })); }} /><small className="muted" data-input-source="wd">{sourceLine(boardWd ?? boardDa, typed.wd)}</small></label>
+        <label><span>{t("selldown.short_penalty", { unit })}</span><input inputMode="decimal" value={shortPenalty} onChange={(event) => setShortPenalty(event.target.value)} /></label>
+        <label><span>{t("selldown.long_discount", { unit })}</span><input inputMode="decimal" value={longDiscount} onChange={(event) => setLongDiscount(event.target.value)} /></label>
         <label><span>{t("selldown.lot")}</span><input inputMode="decimal" value={lot} onChange={(event) => setLot(event.target.value)} /></label>
         <button type="button" disabled={da === "" || wd === ""} onClick={run}>{t("selldown.run")}</button>
       </div>
@@ -119,7 +125,7 @@ export function SellDownPanel({ t }: { t: Translate }) {
           {(typed.da || typed.wd) && (
             <p className="muted" data-manual-inputs="true">
               {t("selldown.manual_inputs", {
-                inputs: [typed.da ? t("selldown.da", { currency }) : null, typed.wd ? t("selldown.wd", { currency }) : null].filter(Boolean).join(", "),
+                inputs: [typed.da ? t("selldown.da", { unit }) : null, typed.wd ? t("selldown.wd", { unit }) : null].filter(Boolean).join(", "),
               })}
             </p>
           )}

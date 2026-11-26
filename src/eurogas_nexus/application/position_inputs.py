@@ -579,6 +579,7 @@ def ladder_inputs(
                 book_id=contract.book_id or "",
                 open_ended=(contract.gas_year or "").strip().endswith("+"),
                 source="contract",
+                label=contract.contract_name or contract.contract_id,
             )
         )
         if _cargo_of(terms):
@@ -612,6 +613,10 @@ def ladder_inputs(
                 reference=order.order_observation_id,
                 book_id=order_books.get(order.order_observation_id, ""),
                 source="trade",
+                label=" ".join(
+                    part for part in (str(order.venue or ""), str(order.side or "").lower(), hub)
+                    if part
+                ),
             )
         )
     with get_session_factory()() as session:

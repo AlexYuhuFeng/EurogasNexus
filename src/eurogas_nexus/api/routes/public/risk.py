@@ -23,10 +23,27 @@ from eurogas_nexus.api.routes.public.portfolio_common import (
     sqlalchemy_error_type as _sqlalchemy_error_type,
 )
 from eurogas_nexus.application.warm_views import ViewSpec, not_json, warm_view
-from eurogas_nexus.domain.notices import Notice, notice
 from eurogas_nexus.domain.ontology.markets import quote_currency
+from eurogas_nexus.domain.ontology.notes import Note, declare, note
 
 router = APIRouter(tags=["portfolio"])
+
+NO_CASH_OUT_ASSUMPTION = declare(
+    "NO_CASH_OUT_ASSUMPTION",
+    "No approved cash-out premium or discount for this hub's books: the cost is not estimated "
+    "on the days marked.",
+)
+NO_DELIVERY_HISTORY = declare(
+    "NO_DELIVERY_HISTORY",
+    "No delivery history for these contracts; the nomination tolerance stands in for the "
+    "measured volatility. Load allocations to sharpen the plan.",
+)
+NO_TERMINAL_TERMS = declare(
+    "NO_TERMINAL_TERMS", "No terminal terms yet; the LNG desk enters them per terminal."
+)
+SIMULATED_NOT_FOR_BIDS = declare(
+    "SIMULATED_NOT_FOR_BIDS", "Simulated prices are never used to price a bid."
+)
 
 _FORMAT = "^(json|csv|xlsx|pdf)$"
 
@@ -690,7 +707,7 @@ def list_lng_terminal_terms(request: Request) -> dict:
         raise _db_unavailable(exc) from exc
     for row in rows:
         row["provenance"] = provenance.get(row["terminal_id"])
-    warnings = [] if rows else ["No terminal terms yet; the LNG desk enters them per terminal."]
+    warnings: list[str | Note] = [] if rows else [note(NO_TERMINAL_TERMS)]
     return _env({"rows": rows}, request, "runtime-postgresql", warnings)
 
 
@@ -829,10 +846,11 @@ def post_lng_cargo_bid(body: CargoBidBody, request: Request) -> dict:
         spot=spot,
         fx=fx,
     )
+    notes: list[str | Note] = list(warnings)
     if not terminals:
-        warnings.append("No terminal terms yet; the LNG desk enters them per terminal.")
+        notes.append(note(NO_TERMINAL_TERMS))
     if inputs.simulated_skipped:
-        warnings.append("Simulated prices are never used to price a bid.")
+        notes.append(note(SIMULATED_NOT_FOR_BIDS))
     return _env(
         {
             "cargo_mwh": round(cargo_mwh, 1),
@@ -844,7 +862,7 @@ def post_lng_cargo_bid(body: CargoBidBody, request: Request) -> dict:
         },
         request,
         "runtime-postgresql",
-        warnings,
+        notes,
     )
 
 
@@ -888,7 +906,7 @@ def get_daily_balance(
     today = date.fromisoformat(gas_day_label(now))
     gas_days = [today + timedelta(days=offset) for offset in range(days)]
     inputs = ladder_inputs(request, today, today, gas_days[-1])
-    warnings: list[str | Notice] = list(inputs.warnings)
+    warnings: list[str | Note] = list(inputs.warnings)
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
         from eurogas_nexus.db.models import ContractDeliveryRecord
@@ -920,11 +938,7 @@ def get_daily_balance(
     allocated = sum(r.allocated_mwh or 0.0 for r in records if r.nominated_mwh is not None)
     ratio = allocated / nominated if nominated > 0 else 1.0
     if any(row["cash_out"].get("basis") == "missing" for row in rows):
-        warnings.append(notice(
-            "no_cash_out_assumption",
-            "No approved cash-out premium or discount for this hub's books: the cost is not "
-            "estimated on the days marked.",
-        ))
+        warnings.append(note(NO_CASH_OUT_ASSUMPTION))
     payload = {
         "hub": hub,
         "currency": quote_currency(hub),
@@ -951,6 +965,9 @@ class SellDownBody(BaseModel):
     long_discount_per_mwh: float = Field(default=0.0, ge=0, le=500)
     lot_mwh: float = Field(default=24.0, gt=0, le=100_000)
     history_days: int = Field(default=60, ge=14, le=365)
+    #: The unit the four prices are entered in, as the desk quotes the hub (NBP in p/th);
+    #: omitted, they are per MWh in the hub's currency.
+    price_unit: str | None = Field(default=None, max_length=16)
 
 
 @router.post("/api/portfolio/sell-down-plan")
@@ -970,11 +987,29 @@ def post_sell_down_plan(body: SellDownBody, request: Request) -> dict:
     from statistics import pstdev
 
     from eurogas_nexus.api.positions import hub_from_text
+    from eurogas_nexus.application.projections.daily_closes import per_mwh_in_hub_currency
     from eurogas_nexus.domain.portfolio.sell_down import SellDownInputs, plan_sell_down
 
+    hub = body.hub.upper()
+    try:
+        # The desk enters NBP in p/th; the plan prices per MWh in the hub's currency.
+        body = body.model_copy(
+            update={
+                name: per_mwh_in_hub_currency(hub, getattr(body, name), body.price_unit)
+                for name in (
+                    "da_price",
+                    "wd_expected_price",
+                    "short_penalty_per_mwh",
+                    "long_discount_per_mwh",
+                )
+            }
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail={"code": "price_unit_invalid", "message": str(exc)}
+        ) from exc
     if not _db_is_configured():
         raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
-    hub = body.hub.upper()
     since = datetime.now(UTC).date() - timedelta(days=body.history_days)
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
@@ -1013,7 +1048,7 @@ def post_sell_down_plan(body: SellDownBody, request: Request) -> dict:
             status_code=422,
             detail={"code": "no_supply_at_hub", "message": f"No active supply contracts at {hub}."},
         )
-    warnings: list[str | Notice] = []
+    warnings: list[str | Note] = []
     dcq = sum(float(c.delivery_quantity_mwh_per_day) for c in contracts)
     daily: dict = {}
     ratios = []
@@ -1035,11 +1070,7 @@ def post_sell_down_plan(body: SellDownBody, request: Request) -> dict:
         expected = dcq
         sigma = dcq * tolerance / 1.645  # the tolerance taken as a 90 % two-sided band
         basis = "contract nomination tolerance (no delivery history)"
-        warnings.append(notice(
-            "no_delivery_history",
-            "No delivery history for these contracts; the nomination tolerance stands in for "
-            "the measured volatility. Load allocations to sharpen the plan.",
-        ))
+        warnings.append(note(NO_DELIVERY_HISTORY))
     plan = plan_sell_down(
         SellDownInputs(
             expected_supply_mwh=expected,

@@ -48,7 +48,7 @@ import {
 import { decisionPackPresentation } from "@/app/model/decisionPackModel";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
 import { DecisionPackPanel } from "@/components/decision/DecisionPackPanel";
-import { MetricStrip, PanelHeader, buttonClass, WorkspaceTabs, PeriodPicker, RecordPicker } from "@/components/ui";
+import { Fold, MetricStrip, PanelHeader, WorkspaceTabs, PeriodPicker, RecordPicker } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -320,16 +320,12 @@ export function DecisionCasePanel({
 
   return (
     <section className="decision-case-panel" aria-label={t("decision_case.title")}>
-      <PanelHeader
-        title={t("decision_case.title")}
-        actions={canPrepare && !creating ? (
-          <button type="button" className={buttonClass("secondary", "sm")} data-decision-case-new="" onClick={() => setCreating(true)}>
-            {t("decision_case.new")}
-          </button>
-        ) : undefined}
-      />
+      <PanelHeader title={t("decision_case.title")} />
 
-      {canPrepare && creating && <div className="decision-case-create">
+      {/* The new-case form folds under one line (ui/Fold); it closes again once a case opens. */}
+      {canPrepare && (
+      <Fold summary={t("decision_case.new")} quiet open={creating} onToggle={setCreating} data-decision-case-new="">
+      <div className="decision-case-create">
         <label>
           <span>{t("decision_case.objective")}</span>
           <input
@@ -348,10 +344,9 @@ export function DecisionCasePanel({
         <button type="button" disabled={busy || !objective.trim()} onClick={() => void openCase()}>
           {t("decision_case.create")}
         </button>
-        <button type="button" className={buttonClass("quiet", "md")} disabled={busy} onClick={() => setCreating(false)}>
-          {t("decision_case.cancel_new")}
-        </button>
-      </div>}
+      </div>
+      </Fold>
+      )}
 
       <WorkspaceTabs
         idPrefix="decision-case-view"

@@ -366,7 +366,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
         <span className="limit-status-cell">
           <LimitBadge status={row.status} t={t} />
           {row.status !== "ok" && <WhyButton subject="mandate" id={row.mandate_id} label={row.name} t={t} />}
-          {row.breaches && <small className="limit-breaches" title={row.breaches}>{breachSummary(row.breaches, t, names.resources).join("; ")}</small>}
+          {row.breaches && <small className="limit-breaches" title={row.breaches}>{breachSummary(row.breach_notes?.length ? row.breach_notes : row.breaches, t, names.resources).join("; ")}</small>}
           {/* A mandate is measured in MWh, not priced: shown only if the server ever dates it. */}
           <MarksAsOf row={row} t={t} quietWhenCurrent />
           {pendingMandates.has(row.mandate_id) && (

@@ -11,7 +11,7 @@ from fastapi import HTTPException, Request
 from eurogas_nexus.application.projections.market_reads import runtime_db_configured
 from eurogas_nexus.application.projections.portfolio_reads import pnl_snapshots, screen_orders
 from eurogas_nexus.domain.market_positioning import PortfolioPnlSnapshot, ScreenOrderObservation
-from eurogas_nexus.domain.notices import Notice, split_warnings
+from eurogas_nexus.domain.ontology.notes import Note, split_notes
 
 
 def load_screen_orders(
@@ -79,10 +79,10 @@ def db_unavailable(exc: Exception) -> HTTPException:
     )
 
 
-def env(data: object, _request: Request, source: str, warnings: list[str | Notice]) -> dict:
-    # English lines for older clients, and the same warnings as notices a client says in its
-    # own language (``domain/notices.py``).
-    lines, notices = split_warnings(warnings)
+def env(data: object, _request: Request, source: str, warnings: list[str | Note]) -> dict:
+    # English lines for older clients, and the same warnings as declared notes a client says
+    # in its own language (``domain/ontology/notes.py``).
+    lines, notes = split_notes(warnings)
     return {
         "data": data,
         "meta": {
@@ -90,6 +90,6 @@ def env(data: object, _request: Request, source: str, warnings: list[str | Notic
             "human_review_required": True,
             "source_references": [source],
             "warnings": lines,
-            "notices": notices,
+            "notes": notes,
         },
     }

@@ -36,6 +36,10 @@ function serverWarningCodes(): Set<string> {
   for (const file of pythonFiles(serverRoot)) {
     for (const match of readFileSync(file, "utf8").matchAll(pattern)) codes.add(match[1]);
   }
+  // Notes declared once on the server (domain/ontology/notes.py `declare("CODE", template)`).
+  for (const file of pythonFiles(serverRoot)) {
+    for (const match of readFileSync(file, "utf8").matchAll(/\bdeclare\(\s*"([A-Z][A-Z0-9_]+)"/g)) codes.add(match[1]);
+  }
   // `TARIFF_STATUS_{status}`: every non-final tariff status (domain/ontology/vocabulary.py).
   codes.delete("TARIFF_STATUS_");
   for (const status of ["INDICATIVE", "PROVISIONAL", "DRAFT", "SIMULATOR_ONLY"]) codes.add(`TARIFF_STATUS_${status}`);
@@ -82,13 +86,13 @@ test("lineage shows the records a trader knows by name; evidence lines and bare 
 });
 
 test("the position ladder's notes are said from their codes, also when an older server sends only sentences", () => {
-  const t = (key: string, options?: Record<string, unknown>) => (key.startsWith("position.note.") ? `${key}${JSON.stringify(options ?? {})}` : key);
+  const t = (key: string, options?: Record<string, unknown>) => (key.startsWith("warning.") ? `${key}${JSON.stringify(options ?? {})}` : key);
   assert.deepEqual(
     ladderNotes({ warnings: ["x"], notes: [{ code: "VAR_SHORT_HISTORY", params: { count: 4 } }] }, t),
-    ['position.note.var_short_history{"count":4}'],
+    ['warning.var_short_history{"count":4}'],
   );
   assert.deepEqual(
     ladderNotes({ warnings: ["3 leg-months have no mark or no price and are not valued.", "Something else entirely."] }, t),
-    ['position.note.leg_months_not_valued{"count":3}', "Something else entirely."],
+    ['warning.leg_months_not_valued{"count":3}', "Something else entirely."],
   );
 });

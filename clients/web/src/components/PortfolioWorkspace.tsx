@@ -3,7 +3,7 @@ import { PRODUCT_MODES } from "@/app/navigation/modeNavigation";
 import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUrlObject } from "@/app/navigation/useUrlView";
-import { DataGrid, PanelHeader, WorkspaceHeader } from "@/components/ui";
+import { DataGrid, Fold, PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { buttonClass } from "@/components/ui/Button";
 import { SimulatedScope } from "@/components/ui/SimulatedScope";
 import { FirstUseHints } from "@/components/ui/FirstUseHints";
@@ -66,24 +66,16 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
   // their warnings) is folded under one line, opened by the reader or by a blocker.
   const hasBlocker = diagnostics.some((item) => item.level === "blocker");
   return (
-    <details
-      className="commercial-overview-fold"
-      open={allocationOpen ?? hasBlocker}
-      // Only the reader's own toggle is remembered: the browser also fires "toggle" when a
-      // blocker opens the fold, and that must not keep it open once the blocker clears (the
-      // store's "not answered yet" blocker during the first load did exactly that).
-      onToggle={(event) => {
-        const open = (event.currentTarget as HTMLDetailsElement).open;
-        if (open !== (allocationOpen ?? hasBlocker)) setAllocationOpen(open);
-      }}
+    <Fold
+      framed
       data-allocation-fold="true"
+      open={allocationOpen ?? hasBlocker}
+      // Only the reader's own toggle is remembered (Fold reports no toggle its `open` caused),
+      // so the fold closes again once a loading blocker clears.
+      onToggle={setAllocationOpen}
+      summary={t("portfolio.allocation_fold")}
+      meta={t("portfolio.allocation_fold_meta", { resources: resources.length, warnings: diagnostics.length })}
     >
-    <summary>
-      <strong>{t("portfolio.allocation_fold")}</strong>
-      <span className="muted">
-        {t("portfolio.allocation_fold_meta", { resources: resources.length, warnings: diagnostics.length })}
-      </span>
-    </summary>
     <div className="commercial-overview">
       <section className="commercial-metric-strip" aria-label={t("portfolio.overview")}>
         <span><small>{t("portfolio.scope.quantity")}</small><strong>{totalVolume.toLocaleString()} MWh/d</strong></span>
@@ -153,7 +145,7 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
         <button type="button" className="link-button" onClick={() => navigation.openWorkspace("market")}>{t("portfolio.show_market_context")}</button>
       </nav>
     </div>
-    </details>
+    </Fold>
   );
 }
 

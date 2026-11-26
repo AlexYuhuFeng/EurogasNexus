@@ -1,20 +1,18 @@
 /** The position ladder's notes (server `notes`, or an older server's `warnings` sentences). */
 import type { PositionLadderDTO } from "../../api/client.ts";
+import { serverNoteText } from "../warningLabel.ts";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 /**
- * The ladder's notes in the reader's language: the server's codes (`notes`) through
- * `position.note.<code>`, its English sentence where a code is unknown or an older server sent
- * none.
+ * The ladder's notes in the reader's language: the server's declared notes (`notes`) through
+ * `warning.<code>`, its English sentence where a code is unknown or an older server sent none.
  */
 export function ladderNotes(ladder: Pick<PositionLadderDTO, "warnings" | "notes">, t: Translate): string[] {
   const notes = ladder.notes?.length ? ladder.notes : (ladder.warnings ?? []).map(noteFromSentence);
   return notes.map((note, index) => {
-    if (!note.code) return ladder.warnings?.[index] ?? "";
-    const key = `position.note.${note.code.toLowerCase()}`;
-    const text = t(key, note.params ?? {});
-    return text === key ? ladder.warnings?.[index] ?? note.code : text;
+    const text = (note as { text?: string }).text ?? ladder.warnings?.[index] ?? "";
+    return note.code ? serverNoteText({ ...note, text }, t) : text;
   });
 }
 

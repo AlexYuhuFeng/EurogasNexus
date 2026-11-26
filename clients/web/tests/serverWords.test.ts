@@ -102,15 +102,14 @@ test("a grid leaves out a column no row has a value in", () => {
   assert.equal(columnsWithValues(columns, []).length, columns.length);
 });
 
-test("a server notice is said by its code, with its params, English as the fallback", async () => {
-  const { serverWarningText, serverNotices } = await import("../src/app/warningLabel.ts");
-  const floating = { code: "contract_floating", params: { contract: "demo-x", index: "NBP DA" }, text: "contract demo-x: …" };
-  const names = new Map([["demo-x", "Skarv West tender"]]);
-  assert.equal(serverWarningText(floating, tZh, names), "Skarv West tender：价格随 NBP DA 浮动；头寸阶梯仅计气量");
-  assert.equal(serverWarningText({ code: "no_terminal_terms", text: "x" }, tZh), zh["server.sentence.no_terminal_terms"]);
-  assert.equal(serverWarningText({ code: "brand_new_code", text: "A new English line." }, tEn), "A new English line.");
-  assert.deepEqual(serverNotices({ warnings: ["a"], notices: [] }), ["a"]);
-  assert.deepEqual(serverNotices({ warnings: ["a"], notices: [floating] }), [floating]);
+test("a declared note is said by its code with its params; lines and notes are one list", async () => {
+  const { serverWarningText, serverNotes } = await import("../src/app/warningLabel.ts");
+  assert.equal(serverWarningText({ code: "SLOT_LEFT_OUT", params: { slot: "S-1" }, text: "slot S-1: …" }, tZh), "窗口 S-1：没有枢纽或外输速率，已略去。");
+  assert.equal(serverWarningText({ code: "NO_TERMINAL_TERMS", text: "x" }, tZh), zh["warning.no_terminal_terms"]);
+  assert.equal(serverWarningText({ code: "TEXT", text: "A new English line." }, tEn), "A new English line.");
+  const note = { code: "NO_TERMINAL_TERMS", params: {}, text: "x" };
+  assert.deepEqual(serverNotes({ warnings: ["a"], notes: [] }), ["a"]);
+  assert.deepEqual(serverNotes({ warnings: ["a"], notes: [note] }), [note]);
 });
 
 test("an opportunity's claim and arithmetic rows are said from their data", async () => {
