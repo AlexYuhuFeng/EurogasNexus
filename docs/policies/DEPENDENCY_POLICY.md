@@ -254,8 +254,16 @@ RECORD rows outside the site-packages tree (pip records installed console
 scripts at paths such as `../../Scripts/*.exe`) are disclosed and skipped,
 never followed; missing, duplicate, version-mismatched or metadata-broken
 distributions leave the package unresolved with an explicit recorded reason.
-A run that does not collect at least one text for every locked package exits
-non-zero, but still writes `manifest.json` plus any partial texts, clearly
+The lock is universal, so an entry can carry an environment marker that
+excludes the interpreter collecting the evidence (`async-timeout ;
+python_full_version < '3.11.3'` is never installed on 3.11.12). Such an entry
+is evaluated with a standard-library PEP 508 evaluator that refuses any
+marker it cannot decide, and it is disclosed in `runtime_lock.excluded_entries`
+with reason `environment-marker` and its marker, not counted as locked for
+that interpreter; the image verifier recomputes the same list. Run the
+collector with the interpreter whose site-packages it reads.
+A run that does not collect at least one text for every locked package that
+applies exits non-zero, but still writes `manifest.json` plus any partial texts, clearly
 marked `status: incomplete`. The manifest records only relative paths, the
 lock SHA-256, the exact lock name/version, the installed dist-info directory,
 the declared-license evidence and the SHA-256 of every copied file.
