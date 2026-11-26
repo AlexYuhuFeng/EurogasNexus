@@ -1234,6 +1234,136 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         ),
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_KEEP_SIMULATED_HOURS",
+        scope="OPERATOR",
+        purpose="Demo server: hours the simulated feed's quotes, prints and status runs are "
+        "kept before housekeeping removes them.",
+        default="48",
+        profiles=("development", "test"),
+        notes=(
+            "Read by scripts/demo/demo_housekeeping.py; matches the feed's own 48-hour "
+            "retention (scripts/demo/exchange_feed.py RETENTION). The low-disk floor is 24.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_KEEP_PUBLIC_DAYS",
+        scope="OPERATOR",
+        purpose="Demo server: rolling window, in days, for public-source observations the demo "
+        "ingests live (ENTSOG, GIE, REMIT, ECB/EIA, demand, power, news).",
+        default="120",
+        profiles=("development", "test"),
+        notes=(
+            "Read by scripts/demo/demo_housekeeping.py. Simulated history is never removed by "
+            "this window; the low-disk floor is 30 days.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_KEEP_INGESTION_DAYS",
+        scope="OPERATOR",
+        purpose="Demo server: days finished ingestion runs and their issues are kept.",
+        default="14",
+        profiles=("development", "test"),
+        notes=(
+            "A queued or running run is never removed (scripts/demo/demo_housekeeping.py). "
+            "The low-disk floor is 7 days.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_KEEP_RAW_PAGE_DAYS",
+        scope="OPERATOR",
+        purpose="Demo server: days raw source page bytes are kept before housekeeping removes "
+        "them outright (the demo has no object store).",
+        default="14",
+        profiles=("development", "test"),
+        notes=(
+            "The digest receipt stays so lineage rows keep their SHA-256; the low-disk floor "
+            "is 7 days.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_KEEP_ALERT_DAYS",
+        scope="OPERATOR",
+        purpose="Demo server: days acknowledged or resolved monitoring alerts are kept.",
+        default="30",
+        profiles=("development", "test"),
+        notes=("Open alerts are never removed; the low-disk floor is 14 days.",),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_KEEP_JOB_DAYS",
+        scope="OPERATOR",
+        purpose="Demo server: days terminal background job records are kept.",
+        default="14",
+        profiles=("development", "test"),
+        notes=(
+            "The product's job-retention path removes them; a job that has not finished is "
+            "never touched. The low-disk floor is 7 days.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_KEEP_SESSION_DAYS",
+        scope="OPERATOR",
+        purpose="Demo server: days a revoked session or consumed OIDC state is kept after it "
+        "ends.",
+        default="0",
+        profiles=("development", "test"),
+        notes=(
+            "Expired sessions go at the next run; zero removes a revoked or consumed row "
+            "immediately.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_KEEP_OUTBOX_DAYS",
+        scope="OPERATOR",
+        purpose="Demo server: days delivered notification and market-event outbox rows are "
+        "kept.",
+        default="14",
+        profiles=("development", "test"),
+        notes=(
+            "Only dispatched notifications and terminal deliveries are removed; an "
+            "undelivered event keeps its row. The low-disk floor is 7 days.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_KEEP_METER_DAYS",
+        scope="OPERATOR",
+        purpose="Demo server: days licensed-data use meter rows are kept.",
+        default="90",
+        profiles=("development", "test"),
+        notes=("The low-disk floor is 30 days.",),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_DISK_MIN_FREE_PCT",
+        scope="OPERATOR",
+        purpose="Demo server: free-space percentage below which housekeeping halves every "
+        "window (down to a floor per window).",
+        default="20",
+        profiles=("development", "test"),
+        notes=(
+            "Read by scripts/demo/demo_housekeeping.py; an unreadable disk path is reported "
+            "as not visible, never guessed.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_DISK_DATABASE_PATH",
+        scope="OPERATOR",
+        purpose="Demo server: filesystem path whose free space is the database volume's "
+        "(default: the local PostgreSQL data directory).",
+        default="/var/lib/postgresql/data",
+        profiles=("development", "test"),
+        notes=(
+            "Inside the demo container the PostgreSQL volume is not mounted, so the guard "
+            "reports it as not visible; point it at a path the container sees when the "
+            "database is local.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEMO_DISK_SYSTEM_PATH",
+        scope="OPERATOR",
+        purpose="Demo server: filesystem path whose free space is the system disk's.",
+        default="/",
+        profiles=("development", "test"),
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED",
         scope="TOOLING",
         purpose="Acknowledge that a UAT fixture seed may write to the runtime store.",
