@@ -210,9 +210,13 @@ year is the day-weighted average of its months (to the tick); DA mean-reverts to
 and BOM each follow DA with a small, bounded process of their own. The hubs of the market-area
 graph (TTF, THE, PEG, ZTP, NBP) are held inside the band no route can arbitrage at the simulated
 transport costs (TTF the reference), so a locational spread nets below its cost unless planted.
-Draws come from separate named streams (`scripts/demo/demo_market.py`), so the other demo
-series are unchanged. Everything is `DEMO_Sim`, marked simulated, and the roll-forward extends it
-day by day. It exists only in the demo image; the customer runtime does not ship `scripts/demo`.
+The monthly forward curve the ladder marks at and the Prices screen draws is the same market on
+the day of its snapshot: its front month is the hub's newest month-ahead close (what Today and
+the reports show) and every later month is priced as above, with a small month-on-month
+backwardation so no two years repeat. Draws come from separate named streams
+(`scripts/demo/demo_market.py`), so the other demo series are unchanged. Everything is
+`DEMO_Sim`, marked simulated, and the roll-forward extends it day by day. It exists only in the
+demo image; the customer runtime does not ship `scripts/demo`.
 
 **Today's prompt.** On gas day D the desk reads D's prompt market: the board quotes WD for gas
 day D and DA for the next day the market quotes (Monday's on a Friday; the weekend is WE). Every
