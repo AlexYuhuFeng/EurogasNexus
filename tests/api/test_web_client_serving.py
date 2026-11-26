@@ -10,7 +10,12 @@ import pytest
 from fastapi.testclient import TestClient
 
 from eurogas_nexus.api.app import create_app
-from eurogas_nexus.api.web_client import WEB_CLIENT_DIR_ENV, resolve_web_client_dir
+from eurogas_nexus.api.web_client import (
+    API_CONTENT_SECURITY_POLICY,
+    TILE_HOSTS,
+    WEB_CLIENT_DIR_ENV,
+    resolve_web_client_dir,
+)
 from eurogas_nexus.core.config import Settings
 
 INDEX = "<!doctype html><title>client</title>"
@@ -77,16 +82,29 @@ def test_missing_files_traversal_and_writes_are_refused(client):
 
 
 def test_security_headers_on_pages_and_api_answers(client):
+    # A page gets the client's CSP: it may load its own bundle and the configured tile host.
+    page = client.get("/").headers
+    assert page["content-security-policy"].startswith("default-src 'self'")
+    assert "script-src 'self'" in page["content-security-policy"]
+    assert TILE_HOSTS in page["content-security-policy"]
+    assert "frame-ancestors 'none'" in page["content-security-policy"]
+    assert page["x-content-type-options"] == "nosniff"
+    assert page["x-frame-options"] == "DENY"
+    assert page["referrer-policy"] == "strict-origin-when-cross-origin"
+    assert "strict-transport-security" not in page
+    # An API answer gets the strict CSP: nothing in JSON may load or be framed.
+    api = client.get("/api/health").headers
+    assert api["content-security-policy"] == API_CONTENT_SECURITY_POLICY
+    assert "script-src" not in api["content-security-policy"]
+    assert api["x-content-type-options"] == "nosniff"
+    assert api["x-frame-options"] == "DENY"
+    assert api["referrer-policy"] == "no-referrer"
+    assert "permissions-policy" not in api  # a page header never leaks onto an API answer
+    assert "strict-transport-security" not in api
+    # HSTS travels on HTTPS answers in both cases.
     for path in ("/", "/api/health"):
-        headers = client.get(path).headers
-        assert "frame-ancestors 'none'" in headers["content-security-policy"]
-        assert "script-src 'self'" in headers["content-security-policy"]
-        assert headers["x-content-type-options"] == "nosniff"
-        assert headers["x-frame-options"] == "DENY"
-        assert headers["referrer-policy"] == "strict-origin-when-cross-origin"
-        assert "strict-transport-security" not in headers
-    https = client.get("/", headers={"X-Forwarded-Proto": "https"}).headers
-    assert https["strict-transport-security"].startswith("max-age=")
+        https = client.get(path, headers={"X-Forwarded-Proto": "https"}).headers
+        assert https["strict-transport-security"].startswith("max-age=")
 
 
 def test_unset_means_no_pages_and_no_extra_headers(monkeypatch):
@@ -94,8 +112,15 @@ def test_unset_means_no_pages_and_no_extra_headers(monkeypatch):
     monkeypatch.setenv("EUROGAS_NEXUS_PUBLIC_API_TOKEN", "test-token-not-a-real-credential")
     client = TestClient(create_app(Settings(api_profile="release")))
     response = client.get("/")
+    # No client is configured, so "/" is a 404 API answer, never a page.
     assert response.status_code == 404
-    assert "content-security-policy" not in response.headers
+    assert response.headers["content-type"].startswith("application/json")
+    # Every API answer still carries the API hardening headers (security review M5), with the
+    # strict CSP; no page CSP and no page-only header leaks onto it.
+    assert response.headers["content-security-policy"] == API_CONTENT_SECURITY_POLICY
+    assert "script-src" not in response.headers["content-security-policy"]
+    assert "permissions-policy" not in response.headers
+    assert "cross-origin-opener-policy" not in response.headers
 
 
 def test_a_configured_directory_without_a_build_refuses_to_start(tmp_path):

@@ -244,7 +244,8 @@ class SecurityHeadersMiddleware:
             if message["type"] == "http.response.start":
                 headers = list(message.get("headers", []))
                 present = {key.lower() for key, _ in headers}
-                page = self.serves_pages and not str(scope.get("path", "")).startswith("/api/")
+                # ``/api`` itself is an API path too: only non-API paths can be a page.
+                page = self.serves_pages and not _is_api_path(str(scope.get("path", "")))
                 base = SECURITY_HEADERS if page else API_SECURITY_HEADERS
                 extra = [*base, *((HSTS_HEADER,) if https else ())]
                 headers.extend(item for item in extra if item[0] not in present)
