@@ -738,19 +738,6 @@
     font-weight: var(--ds-weight-regular);
   }
 
-  .ds-updating > i {
-    width: var(--ds-space-1);
-    height: var(--ds-space-1);
-    border-radius: var(--ds-radius-pill);
-    background: var(--ds-accent);
-  }
-
-  @media (prefers-reduced-motion: no-preference) {
-    .ds-updating > i {
-      animation: ds-work-pulse var(--ds-duration-pulse) var(--ds-ease-in-out) infinite;
-    }
-  }
-
   /* ----------------------------------------------------------------- Spinner */
   /* The busy ring: a track and an arc that starts at twelve o'clock. Still by default; it turns
      only when motion is allowed (a still quarter arc still reads as "working"). */
