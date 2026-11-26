@@ -38,11 +38,20 @@ def entsog_reference_nodes_from_connectionpoints(payload: dict[str, Any]) -> lis
             continue
 
         lon, lat = _entsog_map_to_lon_lat(record.get("tpMapX"), record.get("tpMapY"))
-        if lon is None or lat is None:
+        if lon is None or lat is None or _unplaced(record.get("tpMapX"), record.get("tpMapY")):
             continue
 
         node_type = _entsog_node_type(record)
         country = _infer_country(record)
+        if node_type == "hub":
+            from eurogas_nexus.reference_data.network_adjacency import (
+                RETIRED_TRADING_POINTS,
+                trading_point_country,
+            )
+
+            if point_key in RETIRED_TRADING_POINTS:
+                continue  # a trading point of a zone that no longer exists (PEG SUD)
+            country = trading_point_country(point_key) or country
         rows.append(
             {
                 "id": f"entsog-{point_key.lower()}",
@@ -266,6 +275,7 @@ def entsog_tso_access_points_from_json(payload: dict[str, Any]) -> list[dict[str
                     "tso_eic_code": record.get("tsoEicCode"),
                     "direction_key": direction,
                     "tso_country": record.get("tSOCountry"),
+                    "tso_balancing_zone": record.get("tSOBalancingZone"),
                     "adjacent_country": record.get("adjacentCountry"),
                     "adjacent_operator_key": record.get("adjacentOperatorKey"),
                     "connected_operators": record.get("connectedOperators"),
@@ -894,6 +904,13 @@ def _infer_country(record: dict[str, Any]) -> str:
     if match:
         return match.group(1)
     return "EU"
+
+
+def _unplaced(x_value: object, y_value: object) -> bool:
+    """ENTSOG writes map position 0/0 for a point it has not placed (Rough, Holford, PEG SUD):
+    transformed, it would read as a site in western Poland. Such a point has no position."""
+
+    return _to_float(x_value) == 0.0 and _to_float(y_value) == 0.0
 
 
 def _entsog_map_to_lon_lat(x_value: object, y_value: object) -> tuple[float | None, float | None]:
