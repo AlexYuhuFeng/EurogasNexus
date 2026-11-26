@@ -25,7 +25,7 @@ import { WorkProgress } from "@/components/ui/WorkProgress";
 import { useApiStore } from "@/stores/api";
 import { layOutForPrint } from "@/app/model/reportPrintLayout";
 import { ReportSchedules } from "@/components/ReportSchedules";
-import { Button, DataGrid, Dialog, EmptyState, ExampleFrame, Field, Panel, Segmented, Select, StatusBadge, useExampleView, type DataGridColumn } from "@/components/ui";
+import { Button, DataGrid, Dialog, EmptyState, ExampleFrame, Field, Panel, Segmented, Select, Skeleton, StatusBadge, useExampleView, type DataGridColumn } from "@/components/ui";
 import { exampleReports as exampleReportList } from "@/app/experience/examples";
 import {
   annexByDefault,
@@ -563,7 +563,7 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
               rows={reports ?? []}
               rowKey={(row) => row.report_id}
               loading={reports === null}
-              loadingLabel={t("status.loading")}
+              loadingLabel={t("reports.stored_loading")}
               selectedKey={selected}
               onRowAction={(row) => setSelected(row.report_id)}
               rowAttributes={(row) => ({ "data-record": "market-report", "data-record-id": row.report_id })}
@@ -774,7 +774,7 @@ function ReportViewer({ reportId, t, onRemoved, onRenamed }: {
     >
       {!reportId && <EmptyState compact reason={t("reports.pick")} />}
       {reportId && failed && <EmptyState compact reason={t("reports.open_failed")} />}
-      {reportId && !failed && !html && <p className="reports-note">{t("status.loading")}</p>}
+      {reportId && !failed && !html && <Skeleton label={t("reports.viewer_loading")} rows={6} variant="text" />}
       {html && (
         <iframe
           className="reports-frame"

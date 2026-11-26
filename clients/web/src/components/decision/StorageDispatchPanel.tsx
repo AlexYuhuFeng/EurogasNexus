@@ -176,7 +176,9 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
           <Button
             variant="primary"
             data-page-action="dispatch-assess"
-            disabled={!readiness.canRun || busy}
+            disabled={!readiness.canRun}
+            loading={busy}
+            aria-label={busy ? t("decision.dispatch.assessing") : undefined}
             title={t(readiness.firstBlockerKey ?? "decision.dispatch.ready")}
             onClick={() => void assessment.run()}
           >
@@ -186,7 +188,6 @@ export function StorageDispatchPanel({ t, assessment, record }: StorageDispatchP
         {readiness.firstBlockerKey && (
           <p className="strategy-error">{t(readiness.firstBlockerKey)}</p>
         )}
-        {busy && <p className="muted">{t("status.loading")}</p>}
         {failure && (
           <div className="alert">
             <strong>{failure.title}</strong>

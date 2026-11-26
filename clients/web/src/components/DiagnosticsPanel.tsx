@@ -27,7 +27,7 @@ import {
   type DiagnosticsComposition,
 } from "@/app/host/diagnosticsBundle";
 import { hostCapabilities, resolveHostKind } from "@/app/host/hostCapabilities";
-import { MetricStrip, PanelHeader } from "@/components/ui";
+import { Button, MetricStrip, PanelHeader } from "@/components/ui";
 import { useApiStore } from "@/stores/api";
 
 type Translate = (key: string) => string;
@@ -155,9 +155,9 @@ export function DiagnosticsPanel({ t }: DiagnosticsPanelProps) {
       )}
 
       <div className="diagnostics-actions">
-        <button type="button" disabled={busy} onClick={() => void prepare()}>
-          {busy ? t("diagnostics.action.preparing") : t("diagnostics.action.prepare")}
-        </button>
+        <Button loading={busy} aria-label={busy ? t("diagnostics.action.preparing") : undefined} onClick={() => void prepare()}>
+          {t("diagnostics.action.prepare")}
+        </Button>
         {composition && (
           <>
             <button type="button" onClick={() => void copyBundle()}>
