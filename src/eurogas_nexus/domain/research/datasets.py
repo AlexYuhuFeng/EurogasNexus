@@ -298,7 +298,9 @@ class DatasetBuildResult:
             "content_hash": self.content_hash,
             "quality_report": self.quality_report,
             "lineage": self.lineage,
-            "warnings": self.warnings,
+            # Leakage warnings carry the offending row, whose timestamps are datetimes;
+            # stored as JSON they must be made serializable like ``leakage_issues``.
+            "warnings": _json_safe(self.warnings),
             "temporal_integrity": self.quality_report.get("temporal_integrity"),
             "source_cutoff_utc": _json_safe(self.spec.end),
             "entitlement_envelope": _json_safe(entitlement_envelope),
@@ -858,9 +860,12 @@ def build_dataset(
             "supported": True,
         },
         warnings=[
-            f"EXPLORATORY_DATASET:{spec.point_in_time_policy.mode.value}"
-            if spec.point_in_time_policy.mode is DatasetMode.EXPLORATORY
-            else None,
+            # A STRICT build has no mode warning; it must not leave a ``None`` entry.
+            *(
+                [f"EXPLORATORY_DATASET:{spec.point_in_time_policy.mode.value}"]
+                if spec.point_in_time_policy.mode is DatasetMode.EXPLORATORY
+                else []
+            ),
             *warnings,
         ],
     )
