@@ -7,6 +7,7 @@ import { sourceRunReadiness, sourceRunReason } from "@/app/model/sourceRunModel"
 import { PageIntro, WorkspaceTabs } from "@/components/ui";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 import { GlossaryWiki } from "@/components/GlossaryWiki";
+import { openMapPlace } from "@/app/model/glossaryEntry";
 import { ManualWorkspace } from "@/components/ManualWorkspace";
 import { MarketPositioningWorkspace } from "@/components/MarketPositioningWorkspace";
 import { MarketCockpit } from "@/components/MarketCockpit";
@@ -218,24 +219,26 @@ export function WorkspaceRenderer({ controller }: WorkspaceRendererProps) {
       {activeWorkspace === "glossary" && (
         <GlossaryWiki
           terms={glossary.terms}
+          allTerms={api.glossaryTerms}
           context={api.glossaryContext}
           selectedTerm={glossary.selectedTermRecord}
           categories={glossary.categories}
           activeCategory={glossary.category}
           query={glossary.query}
           language={i18n.language}
-          durationStart={glossary.durationStart}
-          durationEnd={glossary.durationEnd}
-          shortcutTerms={glossary.shortcutTerms}
+          gasDay={glossary.gasDay}
+          nodes={api.nodes}
+          boardRows={api.normalizedMarkets}
           loading={api.workspaceLoading}
+          contextError={Boolean(api.error) && !api.loading}
           t={t}
           onCategoryChange={glossary.setCategory}
           onQueryChange={glossary.setQuery}
-          onDurationStartChange={glossary.setDurationStart}
-          onDurationEndChange={glossary.setDurationEnd}
+          onGasDayChange={glossary.setGasDay}
           onSelectTerm={glossary.selectTerm}
-          onOpenContext={glossary.openContext}
-          formatContextValue={glossary.formatContextValue}
+          onOpenTerm={glossary.openTerm}
+          // The map opens on the place, its card open (`place=<node id>`).
+          onShowOnMap={openMapPlace}
         />
       )}
 

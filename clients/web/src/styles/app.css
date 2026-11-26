@@ -4544,6 +4544,70 @@ button.glossary-related-chip {
   padding: 14px;
 }
 
+/* A glossary entity's figures: one gas-day choice, then each figure with its source and time. */
+.glossary-aliases {
+  margin: 2px 0 0;
+  font-size: var(--ds-text-sm);
+}
+
+.glossary-entity {
+  display: grid;
+  gap: 10px;
+  margin-top: 14px;
+  border-top: 1px solid var(--ds-border);
+  padding-top: 12px;
+}
+
+.glossary-entity-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.glossary-entity-head h3 {
+  margin: 0;
+  color: var(--ds-text-1);
+  font-size: var(--ds-text-md);
+}
+
+.glossary-entity-controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.glossary-figures {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 8px;
+}
+
+.glossary-figures .key-figure {
+  border: 1px solid var(--ds-border);
+  border-radius: var(--ds-radius-md);
+  background: var(--ds-bg);
+  padding: 8px 10px;
+}
+
+.glossary-figure-source {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 2px 8px;
+  color: var(--ds-text-3);
+  font-size: var(--ds-text-xs);
+}
+
+.glossary-no-figures {
+  margin: 0;
+}
+
+.map-detail-glossary p {
+  margin: 0 0 4px;
+}
+
 @media (max-width: 1200px) {
   .workspace-grid,
   .efet-section-grid,

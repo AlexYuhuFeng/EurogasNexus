@@ -10,6 +10,7 @@ import { usePortfolioDecisionModel } from "@/app/model/usePortfolioDecisionModel
 import { useCockpitControls } from "./useCockpitControls";
 import { useContractEditor } from "./useContractEditor";
 import { useGlossaryExplorer } from "./useGlossaryExplorer";
+import { glossaryMapPlace, isEntityTerm } from "@/app/model/glossaryEntry";
 import { useIdentitySignal } from "./useIdentitySignal";
 import { useReviewAnalysis } from "./useReviewAnalysis";
 import { useSourceCenterController } from "./useSourceCenterController";
@@ -75,6 +76,10 @@ export function useAppController() {
     glossaryTerms: api.glossaryTerms,
     fetchGlossaryContext: api.fetchGlossaryContext,
     language: i18n.language,
+    active: navigation.activeWorkspace === "glossary",
+    locationRevision: navigation.locationRevision,
+    // Only an entry that names an object (a hub, a venue, a point) reads figures.
+    needsContext: (term) => isEntityTerm(term, glossaryMapPlace(term, api.nodes)),
   });
   const sources = useSourceCenterController({
     sources: api.sources,

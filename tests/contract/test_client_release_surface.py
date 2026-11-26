@@ -1126,13 +1126,12 @@ def test_web_client_glossary_page_is_term_wiki_surface() -> None:
     assert "glossary-term-list" in glossary_wiki
     assert "glossary-term-card" in glossary_wiki
     assert "glossary-wiki-article" in glossary_wiki
-    assert "glossary-wiki-context" in glossary_wiki
     assert "glossary-related-chip" in glossary_wiki
-    assert "glossary-source-list" in glossary_wiki
-    assert "context_sections" in glossary_wiki
-    assert "matched_entities" in glossary_wiki
-    assert "related_sources" in glossary_wiki
-    assert "data_quality" in glossary_wiki
+    # An entity's figures come from the shared entry model, not from a dump of the context read.
+    assert "glossary-entity" in glossary_wiki
+    assert "entryPrices(" in glossary_wiki
+    assert "isEntityTerm(" in glossary_wiki
+    assert "glossaryMapPlace(" in glossary_wiki
     assert "onSelectTerm(term)" in glossary_wiki
     assert "selectedTerm?.term_id === term.term_id" in glossary_wiki
     assert "consistent backend-served vocabulary" in web_spec
@@ -1141,32 +1140,33 @@ def test_web_client_glossary_page_is_term_wiki_surface() -> None:
     assert "glossary-left-rail" in css
     assert "glossary-wiki-article" in css
     assert "glossary-term-card.active" in css
-    assert en["glossary.term_wiki"] == "Term wiki"
     assert en["glossary.all"] == "All"
-    assert en["glossary.operational_context"] == "Operational context"
-    assert en["glossary.source_refs"] == "Source references"
-    assert zh["glossary.term_wiki"] == "\u672f\u8bed\u7ef4\u57fa"
+    assert en["glossary.gas_day"] == "Gas day"
     assert zh["glossary.all"] == "\u5168\u90e8"
-    assert zh["glossary.operational_context"] == "\u8fd0\u884c\u4e0a\u4e0b\u6587"
+    assert zh["glossary.gas_day"] == "\u71c3\u6c14\u65e5"
     assert "wiki-style article" in web_spec
     assert "institutions, entities, venues, business models" in web_spec
+    assert "separate concepts from entities" in web_spec
 
 
 def test_web_client_glossary_context_values_do_not_render_raw_objects() -> None:
     glossary_wiki = (
         ROOT / "clients" / "web" / "src" / "components" / "GlossaryWiki.tsx"
     ).read_text(encoding="utf-8")
+    entry_model = (
+        ROOT / "clients" / "web" / "src" / "app" / "model" / "glossaryEntry.ts"
+    ).read_text(encoding="utf-8")
 
-    assert "function displayContextObject" in glossary_wiki
-    assert "function objectRecord" in glossary_wiki
-    assert '"entity_name"' in glossary_wiki
-    assert '"point_name"' in glossary_wiki
-    assert '"route_name"' in glossary_wiki
-    assert '"contract_name"' in glossary_wiki
-    assert '"source_reference"' in glossary_wiki
-    assert '"source_system"' in glossary_wiki
-    assert "entity.name ?? entity.term ?? entity.id ?? entity" not in glossary_wiki
-    assert "item.label ?? item.name ?? item.source_reference ?? item" not in glossary_wiki
+    # The page renders named figures (value, unit, source, as-of) from the entry model; the
+    # context read's records, sections and warning codes are never printed as they come.
+    assert "context_sections" not in glossary_wiki
+    assert "matched_entities" not in glossary_wiki
+    assert "data_quality" not in glossary_wiki
+    assert "export function entryPrices" in entry_model
+    assert "export function entryCapacity" in entry_model
+    assert "route_name" in entry_model
+    assert "contract_name" in entry_model
+    assert "source_reference" in entry_model
 
 
 def test_web_client_glossary_keeps_article_visible_while_browsing_terms() -> None:
