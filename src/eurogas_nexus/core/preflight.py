@@ -685,8 +685,8 @@ def _check_start_refusals(environ: Mapping[str, str], *, environment: str) -> li
     method, and dual control switched off in trial or release.
     """
 
-    from eurogas_nexus.api.dual_control import assert_dual_control_setting_allowed
     from eurogas_nexus.security.deployment_token import assert_token_settings_allowed
+    from eurogas_nexus.security.dual_control_policy import assert_dual_control_setting_allowed
     from eurogas_nexus.security.local_accounts_policy import assert_sign_in_configured
     from eurogas_nexus.security.portfolio_scope import assert_isolation_setting_allowed
 

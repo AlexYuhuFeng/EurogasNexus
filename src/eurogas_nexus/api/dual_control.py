@@ -66,15 +66,9 @@ def dual_control_enabled() -> bool:
     return _environment() in PRODUCTION
 
 
-def assert_dual_control_setting_allowed(environ=None) -> None:
-    env = os.environ if environ is None else environ
-    raw = (env.get(DUAL_CONTROL_ENV) or "").strip().lower()
-    if raw in {"off", "false", "0", "no"} and _environment(env) in PRODUCTION:
-        raise RuntimeError(
-            f"{DUAL_CONTROL_ENV}=off is refused in a {_environment(env)!r} environment: "
-            "security-relevant changes need a second administrator; use break-glass for an "
-            "emergency"
-        )
+from eurogas_nexus.security.dual_control_policy import (  # noqa: E402, F401 - re-exported
+    assert_dual_control_setting_allowed,
+)
 
 
 def break_glass_allowed() -> bool:
