@@ -141,7 +141,7 @@ from eurogas_nexus.db.models.opportunities import (
 from eurogas_nexus.db.models.optimization import OptimizationRunRecord
 from eurogas_nexus.db.models.option_settlement import OptionSettlementRecord
 from eurogas_nexus.db.models.power import PowerObservationRecord
-from eurogas_nexus.db.models.raw_archive import RawPayloadArchiveRecord
+from eurogas_nexus.db.models.raw_archive import RawPayloadArchiveRecord, RawPayloadContentRecord
 from eurogas_nexus.db.models.reference_network import (
     NodeFacilityMapping,
     ReferenceEdge,
@@ -166,6 +166,11 @@ from eurogas_nexus.db.models.research import (
     SeriesDefinitionRecord,
     SourceEntityMappingRecord,
     TargetDefinitionRecord,
+)
+from eurogas_nexus.db.models.retention import (
+    RetentionArchiveRecord,
+    RetentionPolicyRecord,
+    RetentionRunRecord,
 )
 from eurogas_nexus.db.models.review import ReviewDecisionRecord
 from eurogas_nexus.db.models.risk_controls import (
@@ -470,6 +475,10 @@ __all__ = [
     "ReviewDecisionRecord",
     "RouteCandidateRecord",
     "RawPayloadArchiveRecord",
+    "RawPayloadContentRecord",
+    "RetentionArchiveRecord",
+    "RetentionPolicyRecord",
+    "RetentionRunRecord",
     "ScreenOrderObservationRecord",
     "StorageFacilityMasterRecord",
     "StorageInventoryObservationRecord",

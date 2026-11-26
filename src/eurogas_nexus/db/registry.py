@@ -231,6 +231,10 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
     RequiredTable(name="functional_models", introduced_in="0059_functional_runs"),
     RequiredTable(name="functional_dependencies", introduced_in="0059_functional_runs"),
     RequiredTable(name="observation_revisions", introduced_in="0062_observation_revisions"),
+    RequiredTable(name="raw_payload_contents", introduced_in="0095_retention_by_class"),
+    RequiredTable(name="retention_policies", introduced_in="0095_retention_by_class"),
+    RequiredTable(name="retention_archives", introduced_in="0095_retention_by_class"),
+    RequiredTable(name="retention_runs", introduced_in="0095_retention_by_class"),
 )
 
 
