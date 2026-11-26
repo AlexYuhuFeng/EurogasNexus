@@ -38,6 +38,7 @@ import {
   networkPanelFromSearch,
   networkPanelToSearch,
   inScope,
+  networkPlaceFromSearch,
   outageListRows,
   selectionScope,
   type LonLat,
@@ -179,6 +180,20 @@ export function NetworkWorkspace({
   const book = useMemo(() => bookItems(rawSituation, nowMs), [nowMs, rawSituation]);
   const [focus, setFocus] = useState<{ refId?: string | null; cargoId?: string; at?: [number, number] | null; path?: Array<[number, number]> | null; nonce: number } | null>(null);
   const [replayCargo, setReplayCargo] = useState<MapCargoDTO | null>(null);
+  // An address that names a place (`place=<node id>`) opens the map on it once the network has
+  // loaded; Back and Forward between such addresses move the map again.
+  const [linkedPlace, setLinkedPlace] = useState<string | null>(() =>
+    typeof window === "undefined" ? null : networkPlaceFromSearch(window.location.search),
+  );
+  useEffect(() => {
+    const sync = () => setLinkedPlace(networkPlaceFromSearch(window.location.search));
+    window.addEventListener("popstate", sync);
+    return () => window.removeEventListener("popstate", sync);
+  }, []);
+  const hasPlace = Boolean(linkedPlace && nodes.some((node) => node.id === linkedPlace));
+  useEffect(() => {
+    if (hasPlace && linkedPlace) setFocus({ refId: linkedPlace, nonce: Date.now() });
+  }, [hasPlace, linkedPlace]);
   const replayPath = useMemo(() => (replayCargo ? replayTrack(replayCargo) : null), [replayCargo]);
   const replay = useReplay(replayPath);
   const focusItem = (item: BookItem) => {
