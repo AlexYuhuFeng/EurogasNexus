@@ -1,6 +1,6 @@
-# DRAFT ADR: Database standby, continuous backup, object storage and retention by data class
+# ADR: Database standby, continuous backup, object storage and retention by data class
 
-**Status:** DRAFT, awaiting owner review (2026-11-26). Proposed in
+**Status:** Accepted 2026-11-26 (owner). Proposed in
 [ARCHITECTURE_V3_PLAN.md](../ARCHITECTURE_V3_PLAN.md) section 3.2. On acceptance it is appended
 to [ARCHITECTURE_DECISION_RECORD.md](../ARCHITECTURE_DECISION_RECORD.md) as the next decision.
 It amends Decision 24 (retention) and Decision 22 (it brings the standby forward from "on
