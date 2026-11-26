@@ -200,6 +200,12 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/tariffs",
         "/api/tariffs/publishers",
         "/api/capacity/notices",
+        # TAR-2: tariff years, bookings, capacity cost, source precedence.
+        "/api/tariffs/years",
+        "/api/capacity/bookings",
+        "/api/capacity/cost",
+        "/api/pricing/fx-rate",
+        "/api/pricing/source-precedence",
         "/api/market/gas-for-power",
         "/api/market/nwe-balance",
         "/api/access/market-data-licences",

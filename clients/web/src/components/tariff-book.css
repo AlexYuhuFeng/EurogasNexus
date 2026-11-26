@@ -76,4 +76,106 @@
     font-size: var(--ds-text-sm);
     color: var(--ds-text-2);
   }
+
+  /* TAR-2: one facility's tariff years, indicative and final side by side. */
+  .tariff-years {
+    width: 100%;
+    margin-top: var(--ds-space-1);
+    border-collapse: collapse;
+    font-size: var(--ds-text-sm);
+    color: var(--ds-text-2);
+  }
+
+  .tariff-years th,
+  .tariff-years td {
+    padding: var(--ds-space-1) var(--ds-space-2);
+    border-top: 1px solid var(--ds-border);
+    text-align: start;
+    vertical-align: top;
+  }
+
+  .tariff-year-cell {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-1) var(--ds-space-2);
+  }
+
+  .tariff-year-cell[data-used="true"] {
+    color: var(--ds-text-1);
+  }
+
+  /* TAR-2: capacity cost in layers and the sources in the order in force. */
+  .capacity-cost-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: var(--ds-space-2);
+    margin: var(--ds-space-3) 0 var(--ds-space-2);
+    min-width: 0;
+  }
+
+  .capacity-cost-total {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: var(--ds-space-2);
+    margin: var(--ds-space-2) 0;
+    font-size: var(--ds-text-sm);
+    color: var(--ds-text-2);
+  }
+
+  .capacity-cost-total strong {
+    color: var(--ds-text-1);
+  }
+
+  .capacity-cost-total[data-state="incomplete"] span,
+  .capacity-cost-total[data-state="complete_indicative"] span {
+    color: var(--ds-status-watch);
+  }
+
+  .source-steps {
+    margin-top: var(--ds-space-2);
+  }
+
+  .source-steps h4 {
+    display: flex;
+    gap: var(--ds-space-2);
+    margin: 0 0 var(--ds-space-1);
+    font-size: var(--ds-text-sm);
+  }
+
+  .source-steps ol,
+  .source-order-list {
+    display: grid;
+    gap: var(--ds-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .source-steps li,
+  .source-order-list li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2);
+    font-size: var(--ds-text-sm);
+    color: var(--ds-text-3);
+  }
+
+  .source-steps li[data-used="true"] {
+    color: var(--ds-text-1);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .source-steps-position {
+    min-width: var(--ds-space-4);
+    font-variant-numeric: tabular-nums;
+  }
+
+  .source-steps-origin {
+    color: var(--ds-text-3);
+    font-weight: var(--ds-weight-regular);
+  }
 }

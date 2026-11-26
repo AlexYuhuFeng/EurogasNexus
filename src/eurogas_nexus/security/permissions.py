@@ -254,6 +254,13 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/tariffs", Permission.READ),
     ("/api/tariffs/publishers", Permission.READ),
     ("/api/capacity/notices", Permission.READ),
+    # TAR-2: tariff years side by side, the firm's bookings (book-scoped), capacity cost
+    # contracted before public, and the source-precedence reads (FX rate, order in force).
+    ("/api/tariffs/years", Permission.READ),
+    ("/api/capacity/bookings", Permission.READ),
+    ("/api/capacity/cost", Permission.READ),
+    ("/api/pricing/fx-rate", Permission.READ),
+    ("/api/pricing/source-precedence", Permission.READ),
     # Reviewed public transmission tariffs: an operator records, a second one reviews.
     ("/api/route-cost/tariff-entries", Permission.OPERATOR),
     ("/api/route-cost/tariff-entries/{entry_id}/review", Permission.OPERATOR),

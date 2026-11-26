@@ -61,7 +61,13 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **303 paths / 338 operations**
+- OpenAPI public surface: **308 paths / 343 operations**
+
+  (2026-11-25: TAR-2 capacity cost contracted before public, `GET /api/tariffs/years`,
+  `GET /api/capacity/bookings`, `GET /api/capacity/cost`, `GET /api/pricing/fx-rate` and
+  `GET /api/pricing/source-precedence` (READ, store nothing; bookings are scoped to the
+  caller's books; nothing is booked or nominated); previously 303 / 338 after
+  LNG-3 below.)
 
   (2026-11-25: LNG-3 disruption re-optimisation, `GET /api/lng/cargoes/{cargo_id}/disruption-options`,
   `GET /api/lng/cargoes/{cargo_id}/disruption-options/{option_id}` and

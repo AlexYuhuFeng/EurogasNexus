@@ -4827,7 +4827,7 @@ export interface TariffVersionDTO {
   version_id: string;
   change_kind: "first" | "revised" | "status_change" | "withdrawn";
   status: "INDICATIVE" | "FINAL";
-  /** Why it has that status: operator_stated, period_started, period_not_started, figures_disagree, reviewed, awaiting_review. */
+  /** Why it has that status: operator_stated, nc_tar_tariff_in_force, nc_tar_yearly_auction_held, nc_tar_before_yearly_auction (NC TAR Art. 29, re-read as of the instant asked), figures_disagree, reviewed, awaiting_review. */
   status_basis: string;
   status_change: string | null;
   data_class: "sourced" | "indicative";
@@ -4858,6 +4858,164 @@ export interface TariffVersionDTO {
   content_hash: string;
   event_id: string | null;
   withdrawn: boolean;
+  /** TAR-2: the tariff year it belongs to, e.g. "GY 2026/27" or "CY 2027". */
+  tariff_year?: string;
+  /** TAR-2: the rule that set the status, in words, when a rule set it. */
+  status_rule?: string | null;
+  /** TAR-2: recorded in the last few days (a first, revised or newly final figure). */
+  new?: boolean;
+  /** TAR-2: false when the publisher states no publication date (the record time stands in; none is invented). */
+  published_at_stated?: boolean;
+}
+
+/** TAR-2: one tariff year of one facility and product, both versions side by side (GET /api/tariffs/years). */
+export interface TariffYearDTO {
+  tariff_year: { label: string; convention: string; first_gas_day: string; last_gas_day: string };
+  direction: string | null;
+  product: string;
+  firmness: string | null;
+  operator: string;
+  period_from: string;
+  period_to: string | null;
+  INDICATIVE: TariffVersionDTO | null;
+  FINAL: TariffVersionDTO | null;
+  versions: number;
+  /** The version a valuation as of the instant asked uses: final once held, else indicative. */
+  used: "INDICATIVE" | "FINAL" | null;
+  used_version_id: string | null;
+}
+
+/** TAR-2: one source tier in precedence order, and whether it was the one used. */
+export interface SourceTierDTO {
+  tier: string;
+  label: string;
+  used: boolean;
+  /** not_held, stale, not_covering, not_configured, not_entitled, not_tried, or used. */
+  reason: string;
+  note: string | null;
+  quantity?: number;
+  value?: number;
+  source?: string;
+  reference?: string;
+  as_of?: string;
+  unit?: string;
+}
+
+/** TAR-2: capacity the firm holds, imported from its ETRM (GET /api/capacity/bookings). */
+export interface CapacityBookingDTO {
+  booking_id: string;
+  source_system: string;
+  external_id: string;
+  book_id: string | null;
+  kind: "entry" | "exit" | "lng_slot" | "regas" | "send_out" | "storage";
+  facility_kind: string;
+  facility_id: string;
+  facility_name: string | null;
+  operator: string | null;
+  direction: string | null;
+  product: string | null;
+  firmness: string | null;
+  acquired_via: string;
+  first_gas_day: string;
+  last_gas_day: string;
+  quantity: number;
+  quantity_unit: string;
+  quantity_basis: string;
+  price: number | null;
+  price_unit: string | null;
+  currency: string | null;
+  price_recorded: boolean;
+  counterparty: string | null;
+  source_reference: string;
+  recorded_at_utc: string;
+  updated_at_utc: string;
+  released_at_utc: string | null;
+}
+
+/** TAR-2: one layer of a capacity cost: contracted, public or not held. */
+export interface CapacityCostLayerDTO {
+  layer: "contracted" | "public" | "not_held";
+  reference: string | null;
+  quantity: number;
+  unit: string;
+  unit_cost: number | null;
+  cost: number | null;
+  currency: string | null;
+  first_gas_day?: string;
+  last_gas_day?: string;
+  /** CONTRACTED, FINAL, INDICATIVE or NOT_HELD. */
+  status: string;
+  status_basis?: string;
+  tariff_year?: string;
+  version_id?: string;
+  published_at?: string | null;
+  recorded_at?: string | null;
+  booking_id?: string;
+  acquired_via?: string;
+  contracted_price?: string;
+  public_price?: string;
+  how_bought?: string;
+  premium?: number;
+  source?: string;
+  reason?: string;
+}
+
+/** TAR-2: a capacity requirement priced contracted before public (GET /api/capacity/cost). */
+export interface CapacityCostDTO {
+  kind: "pipeline" | "terminal";
+  precedence?: string;
+  order?: string[];
+  order_source?: string;
+  sources?: SourceTierDTO[];
+  layers: CapacityCostLayerDTO[];
+  covered?: Record<string, number>;
+  unit?: string;
+  total_quantity?: number;
+  total_cost: number | null;
+  unit_cost?: number | null;
+  currency?: string | null;
+  complete: boolean;
+  indicative?: boolean;
+  issues?: string[];
+}
+
+/** TAR-2: one resolved figure (an FX rate) with the sources in precedence order (GET /api/pricing/fx-rate). */
+export interface ResolvedRateDTO {
+  kind: string;
+  context: string;
+  as_of: string;
+  value: number | null;
+  used_tier: string | null;
+  source: string | null;
+  order: string[];
+  order_source: string;
+  sources: SourceTierDTO[];
+  from?: string;
+  to?: string;
+}
+
+/** TAR-2: the source order in force per kind, and the firm's configured banks (GET /api/pricing/source-precedence). */
+export interface SourcePrecedenceDTO {
+  kinds: {
+    kind: string;
+    context: string | null;
+    order: string[];
+    order_source: string;
+    tiers: { tier: string; label: string }[];
+  }[];
+  institutions: {
+    key: string;
+    name: string;
+    source_system: string;
+    contracted: boolean;
+    provides: string[];
+    access: string;
+    agreement_recorded?: boolean;
+    contexts?: string[];
+    max_age_days?: number | null;
+    live_feed: string | null;
+  }[];
+  live_feed_terms: string;
 }
 
 export interface TariffBookDTO {
@@ -5542,6 +5700,15 @@ interface AgentArtifactEnvelopeBaseDTO {
   hidden_chain_of_thought: null;
 }
 
+/** Query parameters with the unset ones left out, as strings. */
+function definedQuery(query: Record<string, string | number | boolean | undefined>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(query)
+      .filter(([, value]) => value !== undefined && value !== "")
+      .map(([key, value]) => [key, String(value)]),
+  );
+}
+
 export const api = {
   health: async () =>
     parseResponse<HealthDTO>(await fetch(apiUrl("/health"), requestInit())),
@@ -6148,6 +6315,42 @@ export const api = {
         : undefined,
       options,
     ),
+  /** TAR-2: one facility's tariffs by tariff year, the indicative and final versions side by side. */
+  tariffYears: (
+    query: { facility: string; direction?: string; product?: string; as_of?: string },
+    options?: ApiRequestOptions,
+  ) =>
+    get<{ facility_id: string; as_of: string | null; years: TariffYearDTO[] }>(
+      "/tariffs/years",
+      definedQuery(query),
+      options,
+    ),
+  /** TAR-2: capacity the firm holds (imported bookings in the caller's books), as of an instant. */
+  capacityBookings: (query?: { kind?: string; facility?: string; as_of?: string }, options?: ApiRequestOptions) =>
+    get<{ rows: CapacityBookingDTO[]; as_of: string | null }>("/capacity/bookings", definedQuery(query ?? {}), options),
+  /** TAR-2: a capacity requirement priced contracted first, then the public tariff, else not held. */
+  capacityCost: (
+    query: {
+      kind: "pipeline" | "terminal";
+      facility: string;
+      direction?: string;
+      first?: string;
+      last?: string;
+      mwh_per_day?: number;
+      product?: string;
+      premium?: number;
+      arrival?: string;
+      cargo_mwh?: number;
+      as_of?: string;
+    },
+    options?: ApiRequestOptions,
+  ) => get<CapacityCostDTO>("/capacity/cost", definedQuery(query), options),
+  /** TAR-2: an FX rate resolved through the firm's source order, every tier listed. */
+  fxRate: (query: { from: string; to: string; as_of?: string; context?: string }, options?: ApiRequestOptions) =>
+    get<ResolvedRateDTO>("/pricing/fx-rate", definedQuery(query), options),
+  /** TAR-2: the source order in force per kind of figure, and the firm's configured banks. */
+  sourcePrecedence: (query?: { context?: string }, options?: ApiRequestOptions) =>
+    get<SourcePrecedenceDTO>("/pricing/source-precedence", definedQuery(query ?? {}), options),
   /** TAR-1: the tariff publisher registry with each publisher's read state. */
   tariffPublishers: (options?: ApiRequestOptions) =>
     get<{ rows: TariffPublisherDTO[] }>("/tariffs/publishers", undefined, options),

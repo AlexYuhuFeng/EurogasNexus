@@ -8,6 +8,7 @@ import { useInspectorStore } from "@/stores/inspector";
 import { WeatherForecastEvidence } from "@/components/WeatherForecastEvidence";
 import { DemoCatchUpLine, PublicSourceApprovals } from "@/components/PublicSourceApprovals";
 import { TariffBookPanel } from "@/components/TariffBookPanel";
+import { CapacityCostPanel } from "@/components/CapacityCostPanel";
 import { TariffPublicationsPanel } from "@/components/TariffPublicationsPanel";
 import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
 import { NativeCapacityContextPanel } from "@/components/NativeCapacityContextPanel";
@@ -957,6 +958,10 @@ export function SourceCenter({
         <details className="source-infrastructure-fold">
           <summary>{t("tariffBook.title")}</summary>
           <TariffBookPanel t={t} />
+        </details>
+        <details className="source-infrastructure-fold">
+          <summary>{t("capacityCost.title")}</summary>
+          <CapacityCostPanel t={t} />
         </details>
         <details className="source-infrastructure-fold">
           <summary>{t("tariffs.title")}</summary>
