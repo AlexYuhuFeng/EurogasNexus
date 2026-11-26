@@ -4112,6 +4112,12 @@
   "reports.section.book_pnl": "P&L",
   "reports.section.book_limits": "Limits",
   "reports.section.book_contracts": "Contracts in effect",
+  "reports.section.pf_supply": "Supply portfolio",
+  "reports.section.pf_trades": "Trades and sales",
+  "reports.section.pf_pnl": "Realised and unrealised",
+  "reports.section.pf_outlook": "Forward view",
+  "reports.section.pf_lng": "LNG cargoes and regas",
+  "reports.section.pf_strategies": "How the book is run",
   "reports.generate": "Generate",
   "reports.no_advice": "Decision support only: no trading advice, execution, nomination or settlement.",
   "reports.stored": "Stored reports",
@@ -6973,5 +6979,12 @@
   "reports.section_desc.book_position": "Net position today and by delivery month, per hub.",
   "reports.section_desc.book_pnl": "Day P&L change per hub and the latest indicative P&L.",
   "reports.section_desc.book_limits": "Utilisation and headroom; breaches and watches first.",
-  "reports.section_desc.book_contracts": "Delivery point, gas year, quantity and price of each contract in effect."
+  "reports.section_desc.book_contracts": "Delivery point, gas year, quantity and price of each contract in effect.",
+  "reports.section_desc.pf_supply": "Supply contracts by delivery type and counterparty: beach, pipeline entry, hub delivered and LNG.",
+  "reports.section_desc.pf_trades": "Filled trades and sales by hub, country and counterparty, with average prices.",
+  "reports.section_desc.pf_pnl": "Unrealised value of the forward book and realised prices on gas delivered this year.",
+  "reports.section_desc.pf_outlook": "Contracted against open volume by month, hedge bands, sensitivities and value at risk.",
+  "reports.section_desc.pf_lng": "LNG cargoes in plan and in transit, master agreements and regas slots.",
+  "reports.section_desc.pf_strategies": "Sale routes, hedges linked to supply contracts and cross-border flows.",
+  "reports.pdf_note": "PDF is produced by printing the HTML (Print / Save as PDF in the viewer or any browser); the print stylesheet sets A4 pages, repeated table headers and unclipped charts."
 }

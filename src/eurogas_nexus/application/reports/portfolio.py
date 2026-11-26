@@ -103,9 +103,15 @@ def _sign_money(amount: float, currency: str) -> str:
 
 
 def _marks_simulated(warnings: list[str]) -> bool:
-    """Whether the ladder read marked the book with prices from a simulated source."""
+    """Whether the ladder read marked the book with prices from a simulated source.
 
-    return any(w.startswith("DEMO") or w == "Marks from a simulated source." for w in warnings)
+    One test, the ladder's own (``is_simulated_marks_warning``): this module first matched the
+    warning's wording, which changed when the demo labels went, and then never said a mark was
+    simulated (AGENTS.md rule 17)."""
+
+    from eurogas_nexus.application.position_inputs import is_simulated_marks_warning
+
+    return any(is_simulated_marks_warning(w) for w in warnings)
 
 
 def _month_start(day: date, offset: int = 0) -> date:

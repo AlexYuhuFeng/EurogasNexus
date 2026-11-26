@@ -4112,6 +4112,12 @@
   "reports.section.book_pnl": "损益",
   "reports.section.book_limits": "限额",
   "reports.section.book_contracts": "生效合同",
+  "reports.section.pf_supply": "供应组合",
+  "reports.section.pf_trades": "交易与销售",
+  "reports.section.pf_pnl": "已实现与未实现",
+  "reports.section.pf_outlook": "远期展望",
+  "reports.section.pf_lng": "LNG 船货与气化",
+  "reports.section.pf_strategies": "账簿运作方式",
   "reports.generate": "生成",
   "reports.no_advice": "仅为决策支持：不构成交易建议，不涉及执行、提名或结算。",
   "reports.stored": "已存档报告",
@@ -6973,5 +6979,12 @@
   "reports.section_desc.book_position": "按枢纽的当日净头寸及按交割月份的净头寸。",
   "reports.section_desc.book_pnl": "按枢纽的当日损益变化及最新指示性损益。",
   "reports.section_desc.book_limits": "额度使用率与剩余空间；超限与关注项优先。",
-  "reports.section_desc.book_contracts": "每份生效合同的交割点、气年、数量与价格。"
+  "reports.section_desc.book_contracts": "每份生效合同的交割点、气年、数量与价格。",
+  "reports.section_desc.pf_supply": "按交付类型与交易对手的供应合同：岸边交付、管道入口、枢纽交付与 LNG。",
+  "reports.section_desc.pf_trades": "按枢纽、国家与交易对手的成交与销售及均价。",
+  "reports.section_desc.pf_pnl": "远期账簿的未实现价值，以及今年已交付天然气的实现价格。",
+  "reports.section_desc.pf_outlook": "按月份的合同量与敞口、对冲区间、敏感度与风险价值。",
+  "reports.section_desc.pf_lng": "计划中与运输中的 LNG 船货、主协议与气化窗口。",
+  "reports.section_desc.pf_strategies": "销售路径、与供应合同挂钩的对冲以及跨境流动。",
+  "reports.pdf_note": "PDF 由打印 HTML 生成（在查看器或任意浏览器中选择“打印 / 另存为 PDF”）；打印样式设定 A4 页面、每页重复表头且图表不被截断。"
 }

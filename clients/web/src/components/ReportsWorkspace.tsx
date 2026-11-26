@@ -734,7 +734,8 @@ function ReportViewer({ reportId, t, onRemoved, onRenamed }: {
           )}
         </details>
       )}
-      {meta && <p className="reports-note">{meta.pdf}</p>}
+      {/* The server's note is English; the reader's language comes from the client. */}
+      {meta && <p className="reports-note">{t("reports.pdf_note", { defaultValue: meta.pdf })}</p>}
       <Dialog
         open={dialog !== null}
         onClose={() => setDialog(null)}
