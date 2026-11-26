@@ -134,6 +134,9 @@ SECTIONS: tuple[tuple[str, tuple[str, ...]], ...] = (
             "EUROGAS_NEXUS_ENABLE_SIMULATED_SOURCES",
             "GIE_API_KEY",
             "GIE_API_KEY_FILE",
+            "EUROGAS_NEXUS_SOCGEN_API_CONFIG_FILE",
+            "EUROGAS_NEXUS_SOCGEN_API_SECRET",
+            "EUROGAS_NEXUS_SOCGEN_API_SECRET_FILE",
         ),
     ),
     (

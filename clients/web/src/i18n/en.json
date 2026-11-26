@@ -4745,6 +4745,8 @@
   "setup.item.src-bfix.purpose": "BFIX fixes where contracts reference them.",
   "setup.item.src-bank-rates.name": "The firm's bank rates",
   "setup.item.src-bank-rates.purpose": "FX and interest rates from the firm's own clearing or account bank, imported from its export; used before reference rates.",
+  "setup.item.src-bank-socgen.name": "Societe Generale rates (API)",
+  "setup.item.src-bank-socgen.purpose": "FX fixings and interest rates from Societe Generale's API, with the firm's own agreement and credentials; off until configured, used before reference rates.",
   "setup.item.etrm-trades.name": "ETRM trades",
   "setup.item.etrm-trades.purpose": "Positions, P&L and limits from the firm's own trades.",
   "setup.item.contracts.name": "Contracts",

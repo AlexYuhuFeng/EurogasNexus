@@ -422,7 +422,8 @@ _BANK_FX = ImportContract(
     ),
     notes="The system named on the import is the institution key configured in "
     "financial_institutions. A re-sent rate replaces the earlier one. A file typed by hand in "
-    "this shape is the manual path; nothing is fetched from a bank.",
+    "this shape is the manual path; the Societe Generale connector (src-bank-socgen) writes "
+    "its rows through this same contract.",
 )
 
 _BANK_RATES = ImportContract(
@@ -440,7 +441,8 @@ _BANK_RATES = ImportContract(
         _c("day_count", False, "ACT/360 (default), ACT/365F"),
     ),
     notes="The system named on the import is the institution key configured in "
-    "financial_institutions. A re-sent rate replaces the earlier one.",
+    "financial_institutions. A re-sent rate replaces the earlier one. The Societe Generale "
+    "connector (src-bank-socgen) writes its rows through this same contract.",
 )
 
 CONTRACTS: dict[str, ImportContract] = {

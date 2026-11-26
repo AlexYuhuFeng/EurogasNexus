@@ -57,6 +57,7 @@ BUILTIN_MODULES: tuple[str, ...] = (
     "wmr",
     "bfix",
     "financial_institution",
+    "bank_socgen",
 )
 
 

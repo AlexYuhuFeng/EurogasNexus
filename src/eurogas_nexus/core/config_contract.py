@@ -889,6 +889,51 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
             "the token is sent as a query parameter and never logged.",
         ),
     ),
+    # --- The firm's own bank (TAR-2): Societe Generale rate connector -------
+    ConfigVar(
+        name="EUROGAS_NEXUS_SOCGEN_API_CONFIG_FILE",
+        scope="OPERATOR",
+        purpose=(
+            "Path to the JSON endpoint configuration of the firm's Societe Generale rate API "
+            "(base URL, auth scheme, token URL, client id, paths, field mapping)."
+        ),
+        sensitivity="internal",
+        required_when=(
+            "the SOCGEN institution is configured with access api and the src-bank-socgen "
+            "feed is to fetch"
+        ),
+        example="",
+        notes=(
+            "Unset: the connector makes no network call and reports not connected.",
+            "Every value in it comes from the firm's agreement with the bank; it holds no "
+            "secret (a secret key in it is refused). Keep it outside the repository.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_SOCGEN_API_SECRET",
+        scope="OPERATOR",
+        purpose=(
+            "The firm's own Societe Generale API secret: the OAuth client secret or the API "
+            "key, as the endpoint configuration's auth scheme says."
+        ),
+        sensitivity="secret",
+        required_when="the src-bank-socgen feed is to fetch and no key file or stored key is set",
+        notes=(
+            "Precedence: this variable, then EUROGAS_NEXUS_SOCGEN_API_SECRET_FILE, then the "
+            "encrypted provider credential store (provider SOCGEN).",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_SOCGEN_API_SECRET_FILE",
+        scope="OPERATOR",
+        purpose="Path to a file holding the firm's Societe Generale API secret.",
+        sensitivity="internal",
+        example="",
+        notes=(
+            "Keep the file outside the repository and readable only by the runtime account; "
+            "its content is never logged.",
+        ),
+    ),
     ConfigVar(
         name="EUROGAS_NEXUS_COST_SOURCE_URL",
         scope="TOOLING",

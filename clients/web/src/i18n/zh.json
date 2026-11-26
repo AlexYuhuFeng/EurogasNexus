@@ -4745,6 +4745,8 @@
   "setup.item.src-bfix.purpose": "合同引用时使用的 BFIX 定盘价。",
   "setup.item.src-bank-rates.name": "本企业银行汇率",
   "setup.item.src-bank-rates.purpose": "来自企业自身结算或开户银行的汇率与利率，经文件导入；优先于参考汇率使用。",
+  "setup.item.src-bank-socgen.name": "法国兴业银行汇率（接口）",
+  "setup.item.src-bank-socgen.purpose": "经法国兴业银行接口获取的汇率定盘价与利率，须企业自有协议与凭据；配置前不启用，优先于参考汇率使用。",
   "setup.item.etrm-trades.name": "ETRM 交易",
   "setup.item.etrm-trades.purpose": "来自公司自身交易的头寸、损益与限额。",
   "setup.item.contracts.name": "合同",

@@ -7,9 +7,10 @@ them first. Each institution is configured in the organisation setting
 ``financial_institutions`` (``domain/pricing/financial_institutions.py``). Rates arrive by the
 firm's own export, imported through the ``bank.fx_rates.v1`` and ``bank.interest_rates.v1``
 contracts (``scripts/ops/import_contract_file.py``), or are entered by hand as a file of the
-same shape. A live feed from a bank's website or API needs the firm's own agreement with that
-bank and the firm's own credentials: none is connected in this build, and the platform holds
-no bank credential.
+same shape. A live feed from a bank's API needs the firm's own agreement with that bank and the
+firm's own credentials, held in the deployment, never in the settings: one bank has a
+connector in this build, Societe Generale (``src-bank-socgen``, ``builtin/bank_socgen.py``),
+off by default; every other bank comes in through the file import.
 """
 
 from __future__ import annotations
@@ -26,7 +27,8 @@ MANIFEST = ConnectorManifest(
         "The firm's own clearing or account bank's FX and interest rates, one institution per "
         "configured entry, imported from the firm's export (import contracts bank.fx_rates.v1 "
         "and bank.interest_rates.v1) or entered by hand. Used before published reference "
-        "rates and the ECB. A live bank feed needs the firm's own agreement and credentials."
+        "rates and the ECB. A live bank feed needs the firm's own agreement and credentials; "
+        "Societe Generale has a connector (src-bank-socgen), other banks use the file import."
     ),
     entitled=False,
     freshness_minutes=1440,
@@ -46,7 +48,8 @@ MANIFEST = ConnectorManifest(
             implemented=False,
             note=(
                 "A live feed needs the firm's own agreement with the bank and its own "
-                "credentials; none is connected in this build. Use the file import."
+                "credentials. Only Societe Generale has a connector (provider SOCGEN); "
+                "use the file import for any other bank."
             ),
         ),
     ),

@@ -5,7 +5,9 @@
   "EIA_API_KEY",
   "ENTSOE_SECURITY_TOKEN",
   "EUROGAS_NEXUS_LLM_API_KEY",
-  "DEEPSEEK_API_KEY"
+  "DEEPSEEK_API_KEY",
+  "EUROGAS_NEXUS_SOCGEN_API_SECRET",
+  "EUROGAS_NEXUS_SOCGEN_API_SECRET_FILE"
  ],
  "provider_credential_specs": [
   {
@@ -58,6 +60,16 @@
    "implemented": true,
    "note": "External calls stay off until EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED allows them.",
    "provider_id": "LLM"
+  },
+  {
+   "display_name": "Societe Generale API (the firm's own credential)",
+   "env_vars": [
+    "EUROGAS_NEXUS_SOCGEN_API_SECRET"
+   ],
+   "file_env": "EUROGAS_NEXUS_SOCGEN_API_SECRET_FILE",
+   "implemented": true,
+   "note": "The firm's own client secret or API key from its agreement with the bank. Also needs agreement_recorded on SOCGEN in financial_institutions and the endpoint configuration file (EUROGAS_NEXUS_SOCGEN_API_CONFIG_FILE).",
+   "provider_id": "SOCGEN"
   },
   {
    "display_name": "EEX",
@@ -128,7 +140,7 @@
    "env_vars": [],
    "file_env": null,
    "implemented": false,
-   "note": "A live feed needs the firm's own agreement with the bank and its own credentials; none is connected in this build. Use the file import.",
+   "note": "A live feed needs the firm's own agreement with the bank and its own credentials. Only Societe Generale has a connector (provider SOCGEN); use the file import for any other bank.",
    "provider_id": "BANK"
   }
  ],
@@ -1880,7 +1892,7 @@
     "bank-fx-rates",
     "bank-interest-rates"
    ],
-   "description": "The firm's own clearing or account bank's FX and interest rates, one institution per configured entry, imported from the firm's export (import contracts bank.fx_rates.v1 and bank.interest_rates.v1) or entered by hand. Used before published reference rates and the ECB. A live bank feed needs the firm's own agreement and credentials.",
+   "description": "The firm's own clearing or account bank's FX and interest rates, one institution per configured entry, imported from the firm's export (import contracts bank.fx_rates.v1 and bank.interest_rates.v1) or entered by hand. Used before published reference rates and the ECB. A live bank feed needs the firm's own agreement and credentials; Societe Generale has a connector (src-bank-socgen), other banks use the file import.",
    "diagnostics": [],
    "effective_last_success_at_utc": null,
    "effective_record_count": 0,
@@ -1902,6 +1914,47 @@
    "preview_substitute_status": null,
    "source_id": "src-bank-rates",
    "source_system": "BANK",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "fx",
+   "category_label": "FX",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "bank-fx-rates",
+    "bank-interest-rates"
+   ],
+   "description": "Societe Generale (the firm's own bank): FX fixings and interest rates over the bank's API, stored as BANK:SOCGEN rows of the bank.fx_rates.v1 and bank.interest_rates.v1 contracts and used before published reference rates and the ECB. Fetches only with the firm's agreement recorded, its endpoint configuration and its own credential.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "BANK:SOCGEN",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 1440,
+   "integration": "api",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-bank-socgen",
+   "source_system": "BANK:SOCGEN",
    "status": "registered",
    "workflow_ready": false
   }
@@ -4462,7 +4515,7 @@
     "bank-fx-rates",
     "bank-interest-rates"
    ],
-   "description": "The firm's own clearing or account bank's FX and interest rates, one institution per configured entry, imported from the firm's export (import contracts bank.fx_rates.v1 and bank.interest_rates.v1) or entered by hand. Used before published reference rates and the ECB. A live bank feed needs the firm's own agreement and credentials.",
+   "description": "The firm's own clearing or account bank's FX and interest rates, one institution per configured entry, imported from the firm's export (import contracts bank.fx_rates.v1 and bank.interest_rates.v1) or entered by hand. Used before published reference rates and the ECB. A live bank feed needs the firm's own agreement and credentials; Societe Generale has a connector (src-bank-socgen), other banks use the file import.",
    "enabled_default": false,
    "entitlement_scope": "public",
    "freshness_policy": {
@@ -4504,6 +4557,65 @@
    },
    "source_class": "public",
    "source_id": "src-bank-rates"
+  },
+  {
+   "access_mode": "keyed_http",
+   "adapter_version": "bank-rate-connector/1",
+   "calendar": "weekdays_only",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "bank-fx-rates",
+   "datasets": [
+    "bank-fx-rates",
+    "bank-interest-rates"
+   ],
+   "description": "Societe Generale (the firm's own bank): FX fixings and interest rates over the bank's API, stored as BANK:SOCGEN rows of the bank.fx_rates.v1 and bank.interest_rates.v1 contracts and used before published reference rates and the ECB. Fetches only with the firm's agreement recorded, its endpoint configuration and its own credential.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 5760,
+    "normal_max_age_minutes": 2880,
+    "stale_after_minutes": 8640
+   },
+   "integration": "api",
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "BANK:SOCGEN",
+   "rate_limit_policy": {
+    "interval_seconds": 3600.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": 4,
+    "min_spacing_seconds": 60.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 300.0,
+    "jitter": true,
+    "max_delay_seconds": 3600.0,
+    "retry_max": 3
+   },
+   "schedulable": true,
+   "schedule": {
+    "daily_at": "18:30",
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "DAILY",
+    "timezone": "Europe/Paris"
+   },
+   "source_class": "public",
+   "source_id": "src-bank-socgen"
   }
  ]
 }

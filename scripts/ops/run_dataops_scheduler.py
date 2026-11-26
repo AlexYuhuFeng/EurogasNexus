@@ -115,6 +115,12 @@ _SCRIPT_COMMANDS = {
     "src-ecb-estr": ("ingest_interest_rates.py", "--json", "--benchmark", "ESTR", "--days", "10"),
     "src-eia": ("ingest_eia.py", "--json", "--days", "14"),
     "src-nyfed": ("ingest_interest_rates.py", "--json", "--benchmark", "SOFR", "--days", "10"),
+    # TAR-2: the firm's own bank (Societe Generale) over its API. Off by default: it runs only
+    # once an administrator enables it, and the script itself refuses (exit 3, CONFIGURATION)
+    # without the firm's agreement recorded, the endpoint configuration and the credential.
+    "src-bank-socgen": (
+        "fetch_bank_rates.py", "--institution", "SOCGEN", "--commit", "--json",
+    ),
     # GIE AGSI and ALSI for the EU total and every country GIE publishes: five complete gas
     # years kept filled (at most 40 missing windows a run, so a new store fills in a few
     # runs), and the last week of each series re-read for provider revisions (up to 4 days
@@ -135,6 +141,20 @@ _ENTSOG_REFUSAL_CODES = (
     "entsog_revision_not_newer",
     "entsog_revision_requires_history",
 )
+
+
+def _configuration_refusal(stdout: str | None) -> tuple[str, str] | None:
+    """A script's own refusal for missing set-up (``configuration_code`` in its JSON report,
+    e.g. a bank feed not connected): recorded as CONFIGURATION, never retried as a failure."""
+
+    try:
+        report = json.loads(stdout or "{}")
+    except json.JSONDecodeError:
+        return None
+    code = report.get("configuration_code") if isinstance(report, dict) else None
+    if not isinstance(code, str) or not code:
+        return None
+    return code[:120], str(report.get("message") or "")[:300]
 
 
 def run_ingestor_attempt(
@@ -252,6 +272,21 @@ def run_ingestor_attempt(
                 details=window.metadata(),
             )
         completed = runner(command, text=True, capture_output=True)
+        if completed.returncode != 0 and (refusal := _configuration_refusal(completed.stdout)):
+            emit_event(
+                event="ingestion.attempt.blocked",
+                level="warning",
+                source_id=source_id,
+                run_id=str(payload.get("run_id") or ""),
+                error_category=FailureCategory.CONFIGURATION.value,
+                attempt=attempt,
+                details={"code": refusal[0]},
+            )
+            return IngestionAttemptResult(
+                succeeded=False,
+                classification=FailureCategory.CONFIGURATION,
+                error_message=f"CONFIGURATION {refusal[0]}: {refusal[1]}"[:500],
+            )
         if completed.returncode != 0:
             if source_id == "src-entsog":
                 try:

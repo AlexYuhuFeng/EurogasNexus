@@ -427,3 +427,30 @@ def test_without_the_flag_the_entsog_attempt_is_unchanged():
     run_ingestor_attempt(runner, entsog_from="2026-10-10", entsog_to="2026-10-11")(
         {"source_id": "src-entsog"}, 1)
     assert len(commands) == 1
+
+
+def test_a_bank_feed_that_is_not_connected_is_a_configuration_refusal() -> None:
+    """TAR-2: src-bank-socgen runs fetch_bank_rates.py; without the firm's agreement, endpoint
+    configuration or credential the script exits 3 and the attempt is CONFIGURATION."""
+
+    seen = []
+
+    def fake_runner(command, **kwargs):
+        seen.append(command)
+        return SimpleNamespace(
+            returncode=3,
+            stdout=json.dumps({
+                "ok": False, "connected": False, "code": "credential_missing",
+                "message": "the firm's own credential is not configured",
+                "configuration_code": "not_connected:credential_missing",
+            }),
+            stderr="",
+        )
+
+    result = run_ingestor_attempt(fake_runner)({"source_id": "src-bank-socgen", "run_id": "r"}, 1)
+    assert seen[0][1].endswith("fetch_bank_rates.py")
+    assert seen[0][2:] == ["--institution", "SOCGEN", "--commit", "--json"]
+    assert result.succeeded is False
+    assert result.classification == FailureCategory.CONFIGURATION
+    assert "not_connected:credential_missing" in result.error_message
+    assert definition_for_source("src-bank-socgen").enabled_default is False
