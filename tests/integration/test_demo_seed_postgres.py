@@ -150,7 +150,13 @@ def test_an_older_volume_is_topped_up_with_what_a_newer_seed_adds():
 
         counts = seed.roll_forward(session, later)
         session.commit()
-        assert counts["fixture_tariffs"] == len(seed.SIMULATED_TARIFFS)
+        from eurogas_nexus.application.simulated_tariffs import SIMULATED_PRODUCT_MULTIPLIERS
+
+        # One row per leg and capacity product (yearly, monthly, daily; quant review
+        # 2026-11-26). This expectation predated the short-term rows and missed the merge.
+        assert counts["fixture_tariffs"] == (
+            len(seed.SIMULATED_TARIFFS) * len(SIMULATED_PRODUCT_MULTIPLIERS)
+        )
         assert counts["fixture_review_case"] == 1
         assert counts["fixture_credit_lines"] == 1
         assert counts["market_quote_rows"] > 0
