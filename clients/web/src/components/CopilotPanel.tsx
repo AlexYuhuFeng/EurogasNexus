@@ -34,6 +34,7 @@ import {
   copilotGapLabelKey,
 } from "@/app/model/copilotModel";
 import { useCopilot, useCopilotSources, type CopilotController } from "@/app/hooks/useCopilot";
+import { Button } from "@/components/ui";
 import "./copilot-panel.css";
 
 type Translate = (key: string) => string;
@@ -208,9 +209,15 @@ export function CopilotPanel({
           </label>
           <p className="copilot-question-note">{t("experience.copilot.question_default")}</p>
           <div className="copilot-invoke-actions">
-            <button type="button" className="button-primary" disabled={!canRun} onClick={() => void run()}>
-              {state === "running" ? t("experience.copilot.running") : t("experience.copilot.run")}
-            </button>
+            <Button
+              variant="primary"
+              disabled={!canRun}
+              loading={state === "running"}
+              aria-label={state === "running" ? t("experience.copilot.running") : undefined}
+              onClick={() => void run()}
+            >
+              {t("experience.copilot.run")}
+            </Button>
             <span className="copilot-invoke-route">
               <code>
                 {t("experience.copilot.run_route")}: {COPILOT_REQUEST_ROUTE}
