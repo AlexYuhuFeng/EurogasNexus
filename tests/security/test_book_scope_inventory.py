@@ -346,3 +346,29 @@ def test_no_get_route_returns_another_entitys_rows(seeded, monkeypatch):
             leaks.append(f"{route_path}: {body[body.index(LEAK) - 80: body.index(LEAK) + 40]}")
     assert checked > 100
     assert leaks == []
+
+
+def test_a_core_insert_into_a_book_table_gets_the_flush_rule(seeded):
+    """A conflict-tolerant Core INSERT passes no before_flush event; the repository asks
+    ``check_core_insert`` first, so a regional caller is refused the same way as an ORM add
+    rather than writing a contract it then cannot read back."""
+
+    engine, _url = seeded
+    table = "upstream_resource_contracts"
+    token = portfolio_scope._current.set(_nl_scope())
+    try:
+        with Session(engine) as session:
+            book_scope.check_core_insert(session, table, NL_BOOK)
+            with pytest.raises(portfolio_scope.BookScopeViolation):
+                book_scope.check_core_insert(session, table, UK_BOOK)
+            with pytest.raises(portfolio_scope.BookScopeViolation):
+                book_scope.check_core_insert(session, table, None)
+            with pytest.raises(portfolio_scope.BookScopeViolation):
+                book_scope.check_core_insert(session, table, "no-such-book")
+            # Firm-wide shared reference rows with no book stay writable.
+            book_scope.check_core_insert(session, "assumption_sets", None)
+    finally:
+        portfolio_scope._current.reset(token)
+    # Outside a request (a worker) nothing is narrowed.
+    with Session(engine) as session:
+        book_scope.check_core_insert(session, table, None)

@@ -316,6 +316,32 @@ def _on_flush(session: Session, _context: Any, _instances: Any) -> None:
                 raise BookScopeViolation(table, obj.book_id)
 
 
+def check_core_insert(session: Session, table_name: str, book_id: str | None) -> None:
+    """The flush rule for a Core ``INSERT`` (``session.execute(insert(...))``), which no
+    ``before_flush`` event sees.
+
+    A repository that inserts a book-bearing row with Core (a conflict-tolerant create)
+    calls this first, so the write is refused with the same :class:`BookScopeViolation` as an
+    ORM add instead of being written and then not readable back by its own author.
+    """
+
+    scope = _restricted_scope({})
+    if scope is None or table_name not in book_column_tables():
+        return
+    if not book_id:
+        if table_name in NULL_BOOK_SHARED:
+            return
+        raise BookScopeViolation(table_name, "(no book)")
+    tb = _models().TradingBookRecord
+    with session.no_autoflush:
+        allowed = session.execute(
+            select(tb.book_id).where(tb.book_id == book_id, _book_clause(scope, tb)),
+            execution_options={"book_scope": "system"},
+        ).first()
+    if allowed is None:
+        raise BookScopeViolation(table_name, book_id)
+
+
 _INSTALLED = False
 
 
@@ -336,6 +362,7 @@ __all__ = [
     "NULL_BOOK_SHARED",
     "BookScopeViolation",
     "book_column_tables",
+    "check_core_insert",
     "install",
     "scoped_tables",
 ]

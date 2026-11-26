@@ -563,6 +563,11 @@ def _insert_contract_row_if_absent(
             "contract_create_dialect_unsupported",
             f"{dialect!r} has no reviewed conflict-tolerant contract insert",
         )
+    from eurogas_nexus.db.book_scope import check_core_insert
+
+    # A Core insert passes no before_flush book check: refuse a book outside the caller's
+    # scope here, or the row would be written and then not visible to its own author.
+    check_core_insert(session, UpstreamResourceContractRecord.__tablename__, values.get("book_id"))
     statement = (
         dialect_insert(UpstreamResourceContractRecord)
         .values(

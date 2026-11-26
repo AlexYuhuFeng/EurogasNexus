@@ -132,10 +132,12 @@ class _AcceptanceStore:
                 name=f"pt-accept-{label}-{uuid4().hex[:10]}",
                 display_name=f"PT acceptance {label}",
                 role=role,
-                data_scopes=scopes if scopes is not None else ["TTF"],
+                # Head-office callers: book isolation is on by default (security review H1),
+                # and a contract with no book is head-office data.
+                data_scopes=scopes if scopes is not None else ["TTF", "BOOKS:*"],
             )
             _key, bearer = create_identity_api_key(
-                session, principal.principal_id, display_name=f"pt-accept-{label}"
+                session, principal.principal_id, display_name=f"pt-accept-{label}", scopes=["*"]
             )
             session.commit()
             principal_id = principal.principal_id
@@ -151,11 +153,10 @@ class _AcceptanceStore:
 
     def cleanup(self) -> None:
         with Session(self.engine) as session:
+            # The audit trail is append-only on PostgreSQL (migration 0095: a row is deleted
+            # only by an approved, dual-controlled prune), so the fixture's audit rows stay;
+            # they name this run's unique contract and principal ids and touch no other test.
             for contract_id in self.contract_ids:
-                resource = f"upstream_contract:{contract_id}"[:128]
-                session.query(AuditEventRecord).filter(
-                    AuditEventRecord.resource == resource
-                ).delete(synchronize_session=False)
                 session.query(UpstreamContractRevisionRecord).filter(
                     UpstreamContractRevisionRecord.contract_id == contract_id
                 ).delete(synchronize_session=False)
@@ -163,9 +164,6 @@ class _AcceptanceStore:
                     UpstreamResourceContractRecord.contract_id == contract_id
                 ).delete(synchronize_session=False)
             for principal_id in self.principal_ids:
-                session.query(AuditEventRecord).filter(
-                    AuditEventRecord.principal == principal_id
-                ).delete(synchronize_session=False)
                 session.query(IdentityApiKeyRecord).filter(
                     IdentityApiKeyRecord.principal_id == principal_id
                 ).delete(synchronize_session=False)
@@ -554,6 +552,22 @@ def test_denied_identities_are_refused_without_any_write(store: _AcceptanceStore
     listed = _revision_list(analyst.client, contract_id)
     assert [item["revision_number"] for item in listed] == [1]
     assert listed[0]["schema_version"] == CONTRACT_REVISION_SCHEMA_VERSION_V2
+
+
+def test_a_caller_without_the_head_office_book_cannot_create_a_bookless_contract(
+    store: _AcceptanceStore,
+) -> None:
+    """Book isolation is on by default: a contract with no book is head-office data, so a
+    caller granted no book is refused before the insert (403 book_outside_scope), never
+    written and then reported as a conflict because its author cannot read it back."""
+
+    contract_id = store.labelled_contract_id("bookless")
+    regional = store.actor(role="ANALYST", label="bookless-analyst", scopes=["TTF"])
+    refused = regional.client.post(CONTRACT_PATH, json=_body(contract_id))
+    assert refused.status_code == 403, refused.text
+    assert "book_outside_scope" in refused.text
+    with store.session() as session:
+        assert session.get(UpstreamResourceContractRecord, contract_id) is None
 
 
 def test_malformed_declaration_is_refused_sanitized_before_any_write(
