@@ -814,3 +814,131 @@ def test_blocked_strict_snapshot_is_stored_blocked_and_never_exported(client, mo
     refused = client.post(f"/api/research/datasets/{snapshot_id}/export", json={"format": "csv"})
     assert refused.status_code == 409
     assert refused.json()["detail"]["code"] == "snapshot_blocked"
+
+
+def _analyst_client(client, monkeypatch, name: str = "research-bg-analyst"):
+    """A release-profile client signed in as a named analyst (background jobs are per user)."""
+
+    monkeypatch.setenv(PUBLIC_API_TOKEN_ENV, "test-public-api-token")
+    with Session(client.engine) as session:
+        analyst = create_identity_principal(
+            session, name=name, display_name="Background Analyst", role="ANALYST"
+        )
+        _, bearer = create_identity_api_key(session, analyst.principal_id)
+        session.commit()
+    headers = {"X-Eurogas-Api-Key": "test-public-api-token", "X-Eurogas-Identity": bearer}
+    return TestClient(create_app(Settings(api_profile="release"))), headers
+
+
+def test_a_background_build_answers_with_its_job_and_publishes_the_snapshot(
+    client, monkeypatch
+) -> None:
+    release_client, headers = _analyst_client(client, monkeypatch)
+
+    queued = release_client.post(
+        "/api/research/datasets",
+        headers=headers,
+        json={"dataset_spec": _spec_payload(), "background": True},
+    )
+
+    assert queued.status_code == 202
+    job = queued.json()["data"]
+    assert job["kind"] == "DATASET_BUILD"
+    assert job["status"] == "QUEUED"
+    assert (job["step"], job["step_total"]) == (0, 6)
+    # The test client runs the scheduled build before it hands the answer back.
+    done = release_client.get(f"/api/jobs/{job['job_id']}", headers=headers).json()["data"]
+    assert done["status"] == "SUCCEEDED", done
+    assert (done["step"], done["step_total"], done["step_label"]) == (6, 6, "dataset.save_snapshot")
+    snapshot_refs = [ref for ref in done["output_refs"] if ref.startswith("dataset_snapshot:")]
+    assert len(snapshot_refs) == 1
+    snapshot_id = snapshot_refs[0].split(":", 1)[1]
+    stored = release_client.get(f"/api/research/datasets/{snapshot_id}", headers=headers)
+    assert stored.status_code == 200
+    listed = release_client.get("/api/jobs", headers=headers).json()["data"]
+    assert [row["job_id"] for row in listed] == [job["job_id"]]
+
+
+def test_a_failed_background_build_records_a_code_and_a_reason(client, monkeypatch) -> None:
+    release_client, headers = _analyst_client(client, monkeypatch)
+    spec = {
+        **_spec_payload(),
+        "start": "2027-01-01T00:00:00+00:00",
+        "end": "2027-01-02T00:00:00+00:00",
+    }
+
+    queued = release_client.post(
+        "/api/research/datasets", headers=headers, json={"dataset_spec": spec, "background": True}
+    )
+
+    assert queued.status_code == 202
+    job_id = queued.json()["data"]["job_id"]
+    failed = release_client.get(f"/api/jobs/{job_id}", headers=headers).json()["data"]
+    assert failed["status"] == "FAILED"
+    assert failed["error_code"] == "dataset_no_observations"
+    assert "No eligible runtime observations" in failed["error_message"]
+    assert failed["output_refs"] == []
+    with Session(client.engine) as session:
+        assert session.query(DatasetSnapshotRecord).count() == 0
+
+
+def test_a_background_build_must_materialize_and_needs_a_named_user(client, monkeypatch) -> None:
+    release_client, headers = _analyst_client(client, monkeypatch)
+
+    refused = release_client.post(
+        "/api/research/datasets",
+        headers=headers,
+        json={"dataset_spec": _spec_payload(), "background": True, "materialize": False},
+    )
+    assert refused.status_code == 422
+    assert refused.json()["detail"]["error"] == "background_requires_materialize"
+
+    anonymous = client.post(
+        "/api/research/datasets", json={"dataset_spec": _spec_payload(), "background": True}
+    )
+    assert anonymous.status_code == 403
+    assert anonymous.json()["detail"]["error"] == "background_job_requires_named_identity"
+
+    invalid = release_client.post(
+        "/api/research/datasets",
+        headers=headers,
+        json={"dataset_spec": {**_spec_payload(), "target_ids": "x"}, "background": True},
+    )
+    assert invalid.status_code == 422  # a malformed spec is refused before any job exists
+    with Session(client.engine) as session:
+        from eurogas_nexus.db.models import JobRecord
+
+        assert session.query(JobRecord).count() == 0
+
+
+def test_a_cancelled_background_build_publishes_no_snapshot(client, monkeypatch) -> None:
+    from eurogas_nexus.api.routes.public import research_data
+    from eurogas_nexus.db.repositories.jobs import cancel_job
+    from eurogas_nexus.db.session import get_session_factory
+
+    release_client, headers = _analyst_client(client, monkeypatch)
+    original = research_data._build_from_runtime
+
+    def cancel_then_build(session, spec, **kwargs):
+        result = original(session, spec, **kwargs)
+        with get_session_factory()() as other:
+            from eurogas_nexus.db.models import JobRecord
+
+            job_id = other.query(JobRecord.job_id).one()[0]
+            cancel_job(other, job_id)
+            other.commit()
+        return result
+
+    monkeypatch.setattr(research_data, "_build_from_runtime", cancel_then_build)
+    queued = release_client.post(
+        "/api/research/datasets",
+        headers=headers,
+        json={"dataset_spec": _spec_payload(), "background": True},
+    )
+
+    job_id = queued.json()["data"]["job_id"]
+    cancelled = release_client.get(f"/api/jobs/{job_id}", headers=headers).json()["data"]
+    assert cancelled["status"] == "CANCELLED"
+    assert cancelled["output_refs"] == []
+    with Session(client.engine) as session:
+        assert session.query(DatasetSnapshotRecord).count() == 0
