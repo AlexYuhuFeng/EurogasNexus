@@ -97,6 +97,11 @@ class ViewSpec:
     max_stale_seconds: float = 600.0
     #: Refresh in the background while the entry was read within this long.
     keep_warm_seconds: float = 900.0
+    #: One result for every reader with the same scope (roles, data scopes, job functions,
+    #: office...; not the person's id, name or e-mail). Only for a read whose answer does
+    #: not depend on who reads it beyond that scope: no per-reader state (alert read marks,
+    #: dismissals, follows, "my" anything), no reader's name in it. Decision 2026-11-26.
+    shared_by_scope: bool = False
 
 
 @dataclass
@@ -265,10 +270,13 @@ class WarmViews:
             self._watermark, self._watermark_at = value, self._clock()
         return value
 
-    def note_write(self, owner: str | None) -> None:
-        """A write went through this API: everything is due, the writer's own at once."""
+    def note_write(self, owner: str | None, scope_owner: str | None = None) -> None:
+        """A write went through this API: everything is due, the writer's own at once (its
+        own entries and the entries it shares with readers of the same scope)."""
 
         self._generations.bump(owner)
+        if scope_owner:
+            self._generations.bump(scope_owner)
         with self._lock:
             # The next read of the outbox is not deferred by the poll interval.
             self._watermark_at = None
@@ -563,8 +571,36 @@ def serve_view(
     day = datetime.now(UTC).date().isoformat()
     store = views()
     store.start_keeper()
+    if spec.shared_by_scope:
+        # Readers of the same scope share one entry; a write by any of them makes it
+        # unservable until recomputed (``scope_owner``, noted by the write middleware).
+        shared = scope_of(principal)
+        key = (shared, resolve_database_url(), day, params)
+        return store.serve(spec, scope_owner(principal), key, compute)
     key = (principal, resolve_database_url(), day, params)
     return store.serve(spec, principal_id, key, compute)
+
+
+def scope_of(principal: Any) -> Hashable:
+    """The principal without who it is (id, name, e-mail): what a shared view is kept by."""
+
+    import dataclasses
+
+    if dataclasses.is_dataclass(principal) and not isinstance(principal, type):
+        present = {item.name for item in dataclasses.fields(principal)}
+        blank = {"principal_id": "", "name": "", "email": None}
+        return dataclasses.replace(
+            principal, **{name: value for name, value in blank.items() if name in present}
+        )
+    return principal
+
+
+def scope_owner(principal: Any) -> str:
+    """The write-signal owner of a scope's shared entries."""
+
+    import hashlib
+
+    return "scope:" + hashlib.sha256(repr(scope_of(principal)).encode("utf-8")).hexdigest()[:24]
 
 
 def _frozen(value: Any) -> Hashable:
@@ -626,6 +662,8 @@ __all__ = [
     "ViewSpec",
     "WarmViews",
     "as_of_read",
+    "scope_of",
+    "scope_owner",
     "enabled",
     "not_json",
     "owner_of",

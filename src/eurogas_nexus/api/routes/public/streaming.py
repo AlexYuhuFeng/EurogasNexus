@@ -682,7 +682,9 @@ def _admit(guard: StreamGuard) -> str | None:
         raise HTTPException(
             status_code=429,
             detail={
-                "code": "stream_limit_reached",
+                # The catalogued code (the client explains it): a concurrency limit.
+                "code": "rate_limited",
+                "reason": "stream_limit_reached",
                 "message": "Too many live-update connections for this identity.",
             },
         )
