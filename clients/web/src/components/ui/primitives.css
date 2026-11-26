@@ -436,6 +436,12 @@
     max-width: 72ch;
   }
 
+  /* Under a shell-drawn header (research, help, administration) the purpose line keeps the same
+     8 px above and below as on pages whose header is their own (a flex column with that gap). */
+  .workspace-page > .page-intro {
+    margin: var(--ds-space-2) 0;
+  }
+
   /* "What it needs": only when something is missing; at most three items with their fix. */
   .readiness-checklist {
     display: grid;
