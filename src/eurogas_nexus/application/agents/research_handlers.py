@@ -260,6 +260,12 @@ def _register_dataset_capabilities(registry) -> None:
                     CapabilityFailureCode.ENTITLEMENT_DENIED,
                     "Snapshot source provenance is not authorized for this identity",
                 )
+            if getattr(row, "status", None) == "BLOCKED":
+                return _blocked(
+                    definition,
+                    CapabilityFailureCode.TEMPORAL_INTEGRITY_INSUFFICIENT,
+                    "Snapshot failed its STRICT leakage checks and cannot be exported",
+                )
             policy = effective_entitlement_envelope(definitions)["export_policy"]
             if policy != "EXPORT_ALLOWED":
                 code = (

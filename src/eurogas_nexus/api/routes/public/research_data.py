@@ -598,6 +598,18 @@ def export_dataset(dataset_snapshot_id: str, body: DatasetExportRequest, request
         definitions = principal_can_read_snapshot(principal, row.metadata_json)
         if definitions is None:
             raise _source_access_denied()
+        if getattr(row, "status", None) == "BLOCKED":
+            raise HTTPException(
+                status_code=409,
+                detail={
+                    "code": "snapshot_blocked",
+                    "message": (
+                        "This snapshot failed its STRICT leakage checks and cannot be "
+                        "exported for training. See its quality report."
+                    ),
+                    "reason": "BUILD_BLOCKED",
+                },
+            )
         envelope = effective_entitlement_envelope(definitions)
         policy = envelope["export_policy"]
         if policy != "EXPORT_ALLOWED":
