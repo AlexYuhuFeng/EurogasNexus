@@ -308,9 +308,19 @@ _CARGOES = ImportContract(
         _c("volume_m3", False, "Cargo volume, m3"),
         _c("energy_gwh", False, "Cargo energy, GWh"),
         _c("book_id", False, "Book of the cargo; must exist here when given"),
+        _c("laytime_hours", False, "Laytime allowed at discharge, hours (the charter's or the "
+           "Confirmation Notice's)"),
+        _c("demurrage_rate_per_day", False, "Demurrage per day in demurrage_currency, as the "
+           "contract states it"),
+        _c("demurrage_currency", False, "ISO 4217 code of the demurrage rate (USD, EUR, GBP); "
+           "required with demurrage_rate_per_day"),
+        _c("demurrage_terms", False, "The laytime and demurrage terms as written, e.g. pro "
+           "rata per hour after laytime (at most 256 characters)"),
     ),
     notes="A blank cell keeps the stored value: a vessel feed never takes a cargo out of its "
-    "book. Positions and tracks come from the vessel feed, not from this contract.",
+    "book. Positions and tracks come from the vessel feed, not from this contract. The LNG-4 "
+    "laytime and demurrage columns are optional within v1 and land in lng_voyage_terms; the "
+    "rate stays in its own currency and is converted when read, at the reader's FX choice.",
 )
 
 _COUNTERPARTIES = ImportContract(
@@ -582,6 +592,8 @@ class _Row:
     key: str
     values: dict[str, Any]
     action: str = "upsert"  # or "remove"
+    #: Values a contract lands in a second table (etrm.cargo_schedule: the voyage terms).
+    extra: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass
@@ -768,7 +780,35 @@ def _parse_cargo(context: _Context, header, raw, cells) -> _Row:
     except LngImportError as exc:
         raise _row_error(exc) from None
     _check_book(context, values.get("book_id"))
-    return _Row(0, values["cargo_id"], values)
+    return _Row(0, values["cargo_id"], values, extra=_voyage_cells(cells))
+
+
+def _voyage_cells(cells: dict[str, str]) -> dict[str, Any]:
+    """LNG-4: the cargo's laytime and demurrage as the contract states them (optional)."""
+
+    voyage: dict[str, Any] = {}
+    if cells.get("laytime_hours"):
+        hours = _number(cells["laytime_hours"], "laytime_hours")
+        if not 0 <= hours <= 24 * 30:
+            raise RowError("number_invalid", "laytime_hours must be between 0 and 720")
+        voyage["laytime_hours"] = hours
+    if cells.get("demurrage_rate_per_day"):
+        rate = _number(cells["demurrage_rate_per_day"], "demurrage_rate_per_day")
+        if not 0 <= rate <= 10_000_000:
+            raise RowError("number_invalid", "demurrage_rate_per_day must be between 0 and 10m")
+        if not cells.get("demurrage_currency"):
+            raise RowError(
+                "value_required", "demurrage_currency is required with demurrage_rate_per_day"
+            )
+        voyage["demurrage_rate_per_day"] = rate
+    if cells.get("demurrage_currency"):
+        voyage["demurrage_currency"] = _currency(cells["demurrage_currency"], "demurrage_currency")
+    if cells.get("demurrage_terms"):
+        terms = cells["demurrage_terms"].strip()
+        if len(terms) > 256:
+            raise RowError("value_too_long", "demurrage_terms is at most 256 characters")
+        voyage["demurrage_terms"] = terms
+    return voyage
 
 
 _ISO_CURRENCY = re.compile(r"^[A-Z]{3}$")
@@ -1214,16 +1254,22 @@ def _store_nominations(context: _Context, rows: list[_Row], report: ImportReport
 
 def _store_cargoes(context: _Context, rows: list[_Row], report: ImportReport, write: bool):
     from eurogas_nexus.application.lng_positions_import import store_lng_rows
-    from eurogas_nexus.db.models import LngCargoRecord
+    from eurogas_nexus.db.models import LngCargoRecord, LngVoyageTermsRecord
 
     session = context.session
     changed: list[dict[str, Any]] = []
+    voyages: list[_Row] = []
     for row in rows:
         held = session.get(LngCargoRecord, row.key)
+        terms = session.get(LngVoyageTermsRecord, row.key) if row.extra else None
+        voyage_same = not row.extra or (terms is not None and _same(terms, row.extra))
+        if row.extra and not voyage_same:
+            voyages.append(row)
         if held is None:
             report.created += 1
-        elif _same(held, row.values, ignore=("source_reference", "updated_at_utc",
-                                              "source_system")):
+        elif voyage_same and _same(held, row.values, ignore=("source_reference",
+                                                              "updated_at_utc",
+                                                              "source_system")):
             report.unchanged += 1
             continue
         else:
@@ -1235,6 +1281,22 @@ def _store_cargoes(context: _Context, rows: list[_Row], report: ImportReport, wr
             report.notes.append(
                 f"{len(result['eta_disagreements'])} ETA(s) differ from another source's"
             )
+    if write and voyages:
+        # LNG-4: laytime and demurrage in the contract's currency, into the voyage terms.
+        for row in voyages:
+            terms = session.get(LngVoyageTermsRecord, row.key)
+            if terms is None:
+                terms = LngVoyageTermsRecord(
+                    cargo_id=row.key,
+                    source_reference=context.source_reference[:160],
+                    updated_at_utc=context.now,
+                )
+                session.add(terms)
+            for name, value in row.extra.items():
+                setattr(terms, name, value)
+            terms.source_reference = context.source_reference[:160]
+            terms.updated_at_utc = context.now
+        report.notes.append(f"laytime or demurrage terms of {len(voyages)} cargo(es) recorded")
 
 
 def _store_references(context: _Context, rows: list[_Row], report: ImportReport, write: bool):

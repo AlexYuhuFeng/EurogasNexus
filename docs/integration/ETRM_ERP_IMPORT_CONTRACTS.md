@@ -127,6 +127,7 @@ come from the vessel feed, not from this contract.
 | `cargo_id`, `vessel_name`, `status`, `load_port` | yes | `status`: `loading`, `laden`, `discharging`, `delivered`, `ballast` (`status_invalid`) |
 | `eta`, `eta_basis`, `eta_confidence` | no | ISO 8601. The basis is one of `master_notice`, `ais_declared`, `feed_estimate`, `schedule`, `manual`. The confidence is `high`, `medium` or `low` |
 | `vessel_imo`, `load_country`, `departed_at`, `destination_terminal`, `destination_country`, `volume_m3`, `energy_gwh`, `book_id` | no | `book_id` must exist here |
+| `laytime_hours`, `demurrage_rate_per_day`, `demurrage_currency`, `demurrage_terms` | no | LNG-4, optional within v1. The laytime and demurrage as the charter or Confirmation Notice states them, into `lng_voyage_terms`. The rate stays in its own currency (ISO 4217, `currency_invalid`; required with a rate, `value_required`) and is converted when read, at the reader's FX choice (ECB by default). `laytime_hours` 0 to 720, the rate 0 to 10m (`number_invalid`), the terms at most 256 characters (`value_too_long`) |
 
 ### `etrm.capacity_bookings.v1`: capacity the firm holds (TAR-2)
 

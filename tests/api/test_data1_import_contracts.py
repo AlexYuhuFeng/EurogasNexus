@@ -202,6 +202,42 @@ def test_the_cargo_schedule_lands_in_the_cargo_plan_and_a_re_import_publishes_no
     assert _count(store, MarketEventRecord) == events
 
 
+CARGO_TERMS = """cargo_id,vessel_name,status,load_port,book_id,laytime_hours,\
+demurrage_rate_per_day,demurrage_currency,demurrage_terms
+SAB-0420,Aurora,laden,Sabine Pass,GAS-1,36,76000,usd,pro rata per hour after laytime
+SAB-0422,Calypso,laden,Sabine Pass,GAS-1,,65000,,
+SAB-0423,Dione,laden,Sabine Pass,GAS-1,,65000,US$,
+"""
+
+
+def test_the_cargo_schedule_carries_laytime_and_demurrage_in_the_contract_currency(store):
+    """LNG-4: optional columns; the rate is kept in its own currency for the voyage terms."""
+
+    from eurogas_nexus.db.models import LngVoyageTermsRecord
+
+    report = _run(store, "etrm.cargo_schedule.v1", CARGO_TERMS, commit=True, on_error=SKIP_ROWS)
+    assert [(r.line, r.reason_code) for r in report.refused] == [
+        (3, "value_required"),
+        (4, "currency_invalid"),
+    ]
+    with Session(store) as session:
+        terms = session.get(LngVoyageTermsRecord, "SAB-0420")
+        assert (
+            terms.laytime_hours,
+            terms.demurrage_rate_per_day,
+            terms.demurrage_currency,
+            terms.demurrage_terms,
+        ) == (36.0, 76_000.0, "USD", "pro rata per hour after laytime")
+        assert terms.demurrage_eur_per_day is None  # converted when read, never stored
+    again = _run(store, "etrm.cargo_schedule.v1", CARGO_TERMS, commit=True, on_error=SKIP_ROWS)
+    assert (again.created, again.updated, again.unchanged) == (0, 0, 1)
+    changed = CARGO_TERMS.replace(",76000,", ",80000,")
+    third = _run(store, "etrm.cargo_schedule.v1", changed, commit=True, on_error=SKIP_ROWS)
+    assert third.updated == 1
+    with Session(store) as session:
+        assert session.get(LngVoyageTermsRecord, "SAB-0420").demurrage_rate_per_day == 80_000
+
+
 COUNTERPARTIES = """erp_id,name,counterparty_id,country,currency,payment_terms_days,blocked
 100234,Kestrel Energy BV,KESTREL,NL,EUR,20,false
 100235,Osprey Gas Ltd,,GB,GBP,30,x
