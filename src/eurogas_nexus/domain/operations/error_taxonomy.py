@@ -222,6 +222,17 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
             ErrorFamily.VALIDATION,
             recoverability=Recoverability.AFTER_USER_ACTION,
         ),
+        # Background dataset builds record these on the job (api/routes/public/research_data.py).
+        _definition(
+            "dataset_no_observations",
+            ErrorFamily.DATA,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
+        _definition(
+            "dataset_build_failed",
+            ErrorFamily.CALCULATION,
+            recoverability=Recoverability.RETRY,
+        ),
         # The analysis and report routes refuse a selection the pipeline cannot apply
         # (Architecture V2 Wave 7 section 16). Catalogued rather than left to the
         # code-shape rules so the caller is told the request itself has to change.
