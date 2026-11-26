@@ -20,6 +20,8 @@ import {
   buildPaletteCommands,
   filterPaletteCommands,
   glossaryCommands,
+  hubCommands,
+  orderPaletteResults,
   inspectionCommands,
   isPaletteDismissKey,
   isPaletteShortcut,
@@ -30,6 +32,7 @@ import {
   type PaletteCommand,
 } from "@/app/experience/commandPalette";
 import type { InspectorSubjectKind } from "@/app/experience/vocabulary";
+import { HUBS } from "@/app/answer/intent";
 import { copilotEvidenceRefs, type CopilotEvidenceRef } from "@/app/model/copilotModel";
 import type { WorkspacePageId } from "@/workspaceNavigation";
 
@@ -114,6 +117,8 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
       ...inspectionCommands(options.context, options.activeWorkspace),
       // Glossary terms are found by name or alias (#34); they never show for an empty query.
       ...glossaryCommands(options.glossaryTerms ?? []),
+      // Hubs by code: "NBP" offers NBP · Prices (found only, where the Prices task is offered).
+      ...hubCommands(HUBS).filter((command) => (visible ? visible(command) : true)),
     ],
     [
       offersAiCommands,
@@ -149,8 +154,8 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
 
   const results = useMemo(() => {
     const filtered = filterPaletteCommands(commands, query, options.labels, Number.MAX_SAFE_INTEGER, options.aliases);
-    return [...filtered]
-      .sort((left, right) => GROUP_ORDER.indexOf(left.group) - GROUP_ORDER.indexOf(right.group))
+    // An exact match leads whatever its group ("NBP": NBP · Prices, then the NBP glossary entry).
+    return orderPaletteResults(filtered, query, options.labels, GROUP_ORDER, options.aliases)
       .slice(0, DEFAULT_PALETTE_LIMIT * 3);
   }, [commands, query, options.labels, options.aliases]);
 

@@ -79,6 +79,28 @@ export interface PaletteCommand {
     readonly inspector?: InspectorSubjectKind;
     readonly utility?: "access-identity" | "sign-out" | "brief-morning" | "brief-eod" | "report-problem" | "help";
   };
+  /** Found by a query only, never listed for an empty one (a glossary term, a hub). */
+  readonly findOnly?: boolean;
+}
+
+/**
+ * Each hub as a palette result: "NBP" offers "NBP · Prices" (Desk · Prices) beside the NBP
+ * glossary entry, before anything that merely contains the letters. Found by a query only.
+ */
+export function hubCommands(hubs: readonly string[]): PaletteCommand[] {
+  return hubs.map((hub) => ({
+    id: `hub.${hub}`,
+    group: "navigate" as const,
+    kind: "task" as const,
+    labelKey: "nav.mode.desk",
+    label: hub,
+    subLabelKey: "nav.mode.desk.prices",
+    keywords: [hub],
+    consequence: "read" as const,
+    placement: actionPlacement("read"),
+    findOnly: true,
+    target: { mode: "desk" as ModeId, modeTask: "prices", page: "market" as WorkspacePageId, view: "curves" },
+  }));
 }
 
 /** Glossary terms as palette results (#34): "NBP" finds the NBP entry, aliases included. */
@@ -191,7 +213,8 @@ export function paletteTagKey(command: PaletteCommand): string {
 
 /** The text a command is listed under, translated. */
 export function paletteLabel(command: PaletteCommand, t: (key: string) => string): string {
-  if (command.label) return command.label;
+  // A named object (a hub) with the task it opens: "NBP · Prices".
+  if (command.label) return command.subLabelKey ? `${command.label} · ${t(command.subLabelKey)}` : command.label;
   const main = t(command.labelKey);
   return command.subLabelKey ? `${main} · ${t(command.subLabelKey)}` : main;
 }
@@ -401,7 +424,7 @@ export function filterPaletteCommands(
     return true;
   });
   const needle = query.trim().toLowerCase();
-  if (!needle) return unique.filter((command) => command.group !== "glossary").slice(0, limit);
+  if (!needle) return unique.filter((command) => command.group !== "glossary" && !command.findOnly).slice(0, limit);
   const prefix: PaletteCommand[] = [];
   const contains: PaletteCommand[] = [];
   for (const command of unique) {
@@ -419,6 +442,40 @@ export function filterPaletteCommands(
     }
   }
   return [...prefix, ...contains].slice(0, limit);
+}
+
+/**
+ * 0 when a command is exactly what was typed (its name, the name before " · ", a keyword or an
+ * alias): "NBP" puts the NBP glossary entry and NBP · Prices above everything that merely
+ * starts with or contains the letters, whatever their group. 1 otherwise.
+ */
+export function paletteMatchRank(
+  command: PaletteCommand,
+  query: string,
+  labelFor: (command: PaletteCommand) => string,
+  aliasesFor: (command: PaletteCommand) => readonly string[] = () => [],
+): 0 | 1 {
+  const needle = query.trim().toLowerCase();
+  if (!needle) return 1;
+  const label = labelFor(command).toLowerCase();
+  if (label === needle || label.split(" · ")[0] === needle) return 0;
+  return [...(command.keywords ?? []), ...aliasesFor(command)].some((word) => word.toLowerCase() === needle) ? 0 : 1;
+}
+
+/**
+ * The results in the order the palette lists them: exact matches first, then by group in
+ * `groupOrder` (stable, so the filter's prefix-then-contains order holds within each).
+ */
+export function orderPaletteResults(
+  filtered: readonly PaletteCommand[],
+  query: string,
+  labelFor: (command: PaletteCommand) => string,
+  groupOrder: readonly string[],
+  aliasesFor: (command: PaletteCommand) => readonly string[] = () => [],
+): PaletteCommand[] {
+  const rank = new Map(filtered.map((command) => [command, paletteMatchRank(command, query, labelFor, aliasesFor)]));
+  return [...filtered].sort((left, right) =>
+    (rank.get(left) ?? 1) - (rank.get(right) ?? 1) || groupOrder.indexOf(left.group) - groupOrder.indexOf(right.group));
 }
 
 export interface PaletteKeyEvent {
