@@ -73,9 +73,7 @@ def upgrade() -> None:
         sa.Column("created_at_utc", sa.DateTime(timezone=True), nullable=False),
         sa.Column("verified_at_utc", sa.DateTime(timezone=True), nullable=False),
         sa.Column("restored_at_utc", sa.DateTime(timezone=True), nullable=True),
-        sa.UniqueConstraint(
-            "data_class", "table_name", "range_start_utc", name="uq_retention_archive_range"
-        ),
+        sa.UniqueConstraint("object_key", name="uq_retention_archive_object"),
     )
     op.create_index(
         "ix_retention_archives_class_range",

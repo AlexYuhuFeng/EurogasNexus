@@ -23,7 +23,7 @@ import pytest
 import sqlalchemy as sa
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 import eurogas_nexus.db.models  # noqa: F401 - registers every model
 from eurogas_nexus.db import timescale
@@ -146,9 +146,9 @@ def test_the_catalogue_shows_no_blocker_and_the_status_reads_absent(engine):
     assert report["would_convert"] is False
 
 
-def test_writers_keep_working_against_the_widened_primary_key(engine):
+def test_writers_keep_working_against_the_widened_primary_key(engine, tmp_path):
     from eurogas_nexus.application.market_ticks import ingest_ticks
-    from eurogas_nexus.application.retention import prune_expired_rows
+    from eurogas_nexus.application.retention import run_retention
     from eurogas_nexus.db.models import (
         MarketQuoteRecord,
         MarketTradeRecord,
@@ -156,6 +156,7 @@ def test_writers_keep_working_against_the_widened_primary_key(engine):
     )
     from eurogas_nexus.db.repositories.market_intelligence import upsert_market_quotes
     from eurogas_nexus.db.repositories.raw_archive import archive_raw_payload
+    from eurogas_nexus.runtime_store.object_store import FilesystemObjectStore
 
     with engine.begin() as connection:
         for plan in timescale.HYPERTABLE_PLANS:
@@ -189,18 +190,26 @@ def test_writers_keep_working_against_the_widened_primary_key(engine):
                for column in MarketQuoteRecord.__table__.columns}
         row["bid_price"] = 29.9
         upsert_market_quotes(session, [row])  # ORM merge by quote_id updates in place
-        old = dict(row, quote_id="old-quote",
-                   observed_at_utc=now - timedelta(days=60))
-        upsert_market_quotes(session, [old])
+        # Two ticks of one minute past the 90-day hot period: retention keeps the last.
+        old_minute = (now - timedelta(days=100)).replace(second=0)
+        upsert_market_quotes(session, [
+            dict(row, quote_id="old-quote-1", observed_at_utc=old_minute + timedelta(seconds=10)),
+            dict(row, quote_id="old-quote-2", observed_at_utc=old_minute + timedelta(seconds=20)),
+        ])
         session.commit()
 
         assert session.query(RawPayloadArchiveRecord).count() == 1
         assert session.get(RawPayloadArchiveRecord, "raw-widened-1") is not None
         assert session.query(MarketTradeRecord).count() == 1
-        assert session.query(MarketQuoteRecord).count() == 2
+        assert session.query(MarketQuoteRecord).count() == 3
         assert session.get(MarketQuoteRecord, quote.quote_id).bid_price == 29.9
 
-        summary = prune_expired_rows(session, now_utc=now)
-        session.commit()
-        assert summary["market_quotes_deleted"] == 1
-        assert session.query(MarketQuoteRecord).count() == 1
+    # The retention delete (archive, then thin to one-minute bars) works on the widened key.
+    report = run_retention(
+        sessionmaker(bind=engine), mode="enforce", now_utc=now,
+        object_store=FilesystemObjectStore(tmp_path / "objects"),
+    )
+    assert report["classes"]["live_ticks"]["rows_removed"] == 1
+    with Session(engine) as session:
+        assert session.query(MarketQuoteRecord).count() == 2
+        assert session.get(MarketQuoteRecord, "old-quote-2") is not None

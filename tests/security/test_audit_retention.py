@@ -35,7 +35,7 @@ def test_prune_audit_events_dry_run_counts_only(tmp_path) -> None:
     engine = create_engine(f"sqlite+pysqlite:///{tmp_path.as_posix()}/audit.sqlite")
     Base.metadata.create_all(engine)
     with Session(engine) as session:
-        session.add(_row(2000))
+        session.add(_row(2600))
         session.add(_row(10))
         session.commit()
 
@@ -50,7 +50,7 @@ def test_prune_audit_events_commit_deletes_only_expired(tmp_path) -> None:
     engine = create_engine(f"sqlite+pysqlite:///{tmp_path.as_posix()}/audit.sqlite")
     Base.metadata.create_all(engine)
     with Session(engine) as session:
-        session.add(_row(2100))
+        session.add(_row(2700))
         session.add(_row(5))
         session.commit()
 
@@ -70,7 +70,13 @@ def test_prune_rejects_unsafe_retention_window(tmp_path) -> None:
             prune_expired_audit_events(session, retention_days=1)
             raise AssertionError("expected ValueError")
         except ValueError as exc:
-            assert "between 30 and 3650" in str(exc)
+            assert "between 2557 and 3650" in str(exc)
+        # Nothing a regulation requires may be deleted by a setting: five years is refused.
+        try:
+            prune_expired_audit_events(session, retention_days=1827)
+            raise AssertionError("expected ValueError")
+        except ValueError:
+            pass
 
 
 def test_prune_script_without_db_url_returns_2(monkeypatch) -> None:
@@ -81,4 +87,4 @@ def test_prune_script_without_db_url_returns_2(monkeypatch) -> None:
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
 
     assert script.main([]) == 2
-    assert DEFAULT_AUDIT_RETENTION_DAYS == 1827  # five years
+    assert DEFAULT_AUDIT_RETENTION_DAYS == 2557  # seven years

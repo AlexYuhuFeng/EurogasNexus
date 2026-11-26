@@ -51,9 +51,9 @@ class RetentionArchiveRecord(Base):
 
     __tablename__ = "retention_archives"
     __table_args__ = (
-        UniqueConstraint(
-            "data_class", "table_name", "range_start_utc", name="uq_retention_archive_range"
-        ),
+        # One record per archive object: a day's file has a fixed key, so a day is archived
+        # once; a raw-page batch's key is its manifest, named by run.
+        UniqueConstraint("object_key", name="uq_retention_archive_object"),
         Index("ix_retention_archives_class_range", "data_class", "range_start_utc"),
     )
 

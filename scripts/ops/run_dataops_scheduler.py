@@ -24,6 +24,7 @@ from eurogas_nexus.application.dataops_runtime import (
     execute_claimed_runs,
     scan_scheduler,
 )
+from eurogas_nexus.application.retention import run_retention_if_due
 from eurogas_nexus.application.scheduled_source_keys import (
     activate_keyed_sources,
     key_configured,
@@ -788,6 +789,9 @@ def run_loop(
             execution["strategy_tracking"] = track_strategies_if_due(
                 session_factory, now_utc=now_utc
             )
+            # Retention by data class, once a day after its hour (application/retention.py).
+            # Never raises: a failure is reported in the summary and audited by the run.
+            execution["retention"] = run_retention_if_due(session_factory, now_utc=now_utc)
             failures = [
                 outcome
                 for outcome in execution.get("outcomes", [])

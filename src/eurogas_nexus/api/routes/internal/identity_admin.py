@@ -36,7 +36,8 @@ class ApiKeyCreateRequest(BaseModel):
 class AuditPruneRequest(BaseModel):
     """Operator-controlled audit retention prune (dry-run by default)."""
 
-    retention_days: int = Field(default=365, ge=30, le=3650)
+    # Seven years is the floor and the default (application/audit_retention.py).
+    retention_days: int = Field(default=2557, ge=2557, le=3650)
     dry_run: bool = True
 
 
