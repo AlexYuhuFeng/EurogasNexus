@@ -6960,5 +6960,18 @@
   "view.refreshing": "Figures from {{time}}, updating",
   "view.refreshing.detail": "Some figures on this page are the last ones computed, at {{time}}. Newer data has arrived and they are being recomputed; the page updates when they are ready.",
   "map.start_failed.title": "The map can't start in this browser",
-  "map.start_failed.body": "It needs WebGL, which this browser or machine has switched off. The network lists and figures on this page still work; try another browser or turn on hardware acceleration to see the map."
+  "map.start_failed.body": "It needs WebGL, which this browser or machine has switched off. The network lists and figures on this page still work; try another browser or turn on hardware acceleration to see the map.",
+  "reports.section_desc.situation_event": "What happened, where, how large, since when and until when.",
+  "reports.section_desc.prices": "Close, day change, change over the period, range and a year earlier.",
+  "reports.section_desc.alerts": "Critical and watch alerts open now (market alerts only when shareable).",
+  "reports.section_desc.pipeline_supply": "Landed energy per gas day: continental landings and UK terminals.",
+  "reports.section_desc.lng": "Regasified LNG sent out per gas day, by country.",
+  "reports.section_desc.storage": "NW Europe fill against the same days a year earlier and the EU target.",
+  "reports.section_desc.power_burn": "Electricity generated from gas per day, by bidding zone.",
+  "reports.section_desc.outages": "Active and upcoming unavailability with its size and dates.",
+  "reports.section_desc.balance": "The supply call on Norway, LNG and storage, its sources and uses, and the forecast.",
+  "reports.section_desc.book_position": "Net position today and by delivery month, per hub.",
+  "reports.section_desc.book_pnl": "Day P&L change per hub and the latest indicative P&L.",
+  "reports.section_desc.book_limits": "Utilisation and headroom; breaches and watches first.",
+  "reports.section_desc.book_contracts": "Delivery point, gas year, quantity and price of each contract in effect."
 }

@@ -6960,5 +6960,18 @@
   "view.refreshing": "数据截至 {{time}}，正在更新",
   "view.refreshing.detail": "本页部分数据为 {{time}} 计算的最近结果。已有新数据到达，正在重新计算，完成后页面会更新。",
   "map.start_failed.title": "此浏览器无法启动地图",
-  "map.start_failed.body": "地图需要 WebGL，而此浏览器或电脑已将其关闭。本页的管网列表和数据仍可使用；如需查看地图，请换用其他浏览器或开启硬件加速。"
+  "map.start_failed.body": "地图需要 WebGL，而此浏览器或电脑已将其关闭。本页的管网列表和数据仍可使用；如需查看地图，请换用其他浏览器或开启硬件加速。",
+  "reports.section_desc.situation_event": "发生了什么、在哪里、规模多大、起止时间。",
+  "reports.section_desc.prices": "收盘价、日变化、期间变化、区间及一年前水平。",
+  "reports.section_desc.alerts": "当前未结的严重与关注告警（仅可对外时含市场告警）。",
+  "reports.section_desc.pipeline_supply": "按燃气日的到岸能量：欧洲大陆到岸点与英国接收站。",
+  "reports.section_desc.lng": "按国家的每燃气日 LNG 气化外输量。",
+  "reports.section_desc.storage": "西北欧储气率，对比一年前同期与欧盟充注目标。",
+  "reports.section_desc.power_burn": "按竞价区的每日燃气发电量。",
+  "reports.section_desc.outages": "当前及即将发生的停运，含规模与起止日期。",
+  "reports.section_desc.balance": "挪威、LNG 与储气的供应缺口、来源与去向，以及预测。",
+  "reports.section_desc.book_position": "按枢纽的当日净头寸及按交割月份的净头寸。",
+  "reports.section_desc.book_pnl": "按枢纽的当日损益变化及最新指示性损益。",
+  "reports.section_desc.book_limits": "额度使用率与剩余空间；超限与关注项优先。",
+  "reports.section_desc.book_contracts": "每份生效合同的交割点、气年、数量与价格。"
 }
