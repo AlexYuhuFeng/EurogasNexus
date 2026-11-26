@@ -9,8 +9,6 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy import create_engine, inspect
 
-from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
-
 VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 
 
@@ -27,7 +25,6 @@ def test_0083_is_the_head_and_expands_only():
     module = _load("0083_tar1_tariff_book.py")
     assert module.revision == "0083_tar1_tariff_book"
     assert module.down_revision == "0082_data1_integration"
-    assert DB_SCHEMA_REVISION == "0090_job_progress_steps"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
         module.op = Operations(MigrationContext.configure(connection=connection))

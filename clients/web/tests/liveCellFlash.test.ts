@@ -56,3 +56,18 @@ test("the grid keys the flash to row, column and instrument, and the board passe
   const board = readFileSync(new URL("../src/components/MarketTerminal.tsx", import.meta.url), "utf8");
   assert.match(board, /flash: true,[\s\S]{0,200}flashIdentity: \(row\) => row\.tenor,/);
 });
+
+test("the position ladder and the spread board re-read on price notices and flash what moved", () => {
+  const ladder = readFileSync(new URL("../src/components/PositionLadderPanel.tsx", import.meta.url), "utf8");
+  // Marks and the mark-to-market move with a live price; positions with the trades and book.
+  assert.match(ladder, /useLiveTopics\(\["prices", "trades", "book"\], reread, \{ minIntervalMs: LADDER_LIVE_MS \}\)/);
+  assert.match(ladder, /export const LADDER_LIVE_MS = 5_000;/);
+  assert.match(ladder, /live=\{\{ watch: ladder\.mark_to_market, identity: `ladder\|mtm\|/);
+  assert.match(ladder, /id: "mark",[\s\S]{0,300}flash: true,/);
+  const workbench = readFileSync(new URL("../src/components/research/SpreadsWorkbench.tsx", import.meta.url), "utf8");
+  assert.match(workbench, /useLiveTopics\(\["prices"\], rereadBoard, \{ minIntervalMs: SPREADS_BOARD_LIVE_MS \}\)/);
+  assert.match(workbench, /export const SPREADS_BOARD_LIVE_MS = 5_000;/);
+  const board = readFileSync(new URL("../src/components/research/SpreadsBoard.tsx", import.meta.url), "utf8");
+  assert.match(board, /<LiveValue watch=\{tenor\.gross \?\? null\} identity=\{`\$\{identity\}\|gross`\}>/);
+  assert.match(board, /<LiveValue watch=\{tenor\.net\} identity=\{`\$\{identity\}\|net`\}>/);
+});

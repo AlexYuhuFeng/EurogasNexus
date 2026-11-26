@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { Button, DataGrid, EvidenceBlock, PanelHeader, PeriodPicker } from "@/components/ui";
 import { displayTime } from "@/app/time/displayTime";
 import { describeFailure, presentError } from "@/app/experience/errorPresentation";
@@ -15,6 +16,8 @@ import type {
 } from "@/app/model/useOptimizationAssessment";
 import type { NominationScheduleResultDTO } from "@/api/client";
 import { PanelHelp } from "@/components/ui/PanelHelp";
+import { serverWarningText } from "@/app/warningLabel";
+import { enumLabel } from "@/app/model/enumLabels";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -48,10 +51,16 @@ function formatQuantity(value: number | null | undefined): string {
  */
 export function NominationWindowPanel({ t, assessment, record }: NominationWindowPanelProps) {
   const { draft, updateDraft, readiness, result, busy, error, runId, recorded } = assessment;
+  // A blocker is said once the user has started, not on an untouched form.
+  const [touched, setTouched] = useState(false);
+  const edit: typeof updateDraft = (change) => {
+    setTouched(true);
+    updateDraft(change);
+  };
   const failure = error ? presentError(t, describeFailure(error)) : null;
 
   function updateInstruction(index: number, patch: Partial<NominationInstructionDraft>): void {
-    updateDraft((current) => ({
+    edit((current) => ({
       ...current,
       instructions: current.instructions.map((instruction, position) =>
         position === index ? { ...instruction, ...patch } : instruction,
@@ -60,7 +69,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
   }
 
   function updateWindow(index: number, patch: Partial<NominationWindowDraft>): void {
-    updateDraft((current) => ({
+    edit((current) => ({
       ...current,
       windows: current.windows.map((window, position) =>
         position === index ? { ...window, ...patch } : window,
@@ -90,7 +99,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
               inputMode="decimal"
               value={draft.initialQuantity}
               onChange={(event) =>
-                updateDraft((current) => ({ ...current, initialQuantity: event.target.value }))
+                edit((current) => ({ ...current, initialQuantity: event.target.value }))
               }
             />
           </span>
@@ -98,7 +107,6 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
 
         <div className="section-heading">
           <span className="eyebrow">{t("decision.nomination.windows")}</span>
-          <strong>{draft.windows.length}</strong>
         </div>
         <DataGrid
           id="nomination-windows"
@@ -126,7 +134,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
             type="button"
             disabled={draft.windows.length >= MAX_NOMINATION_WINDOWS}
             onClick={() =>
-              updateDraft((current) => ({
+              edit((current) => ({
                 ...current,
                 windows: [
                   ...current.windows,
@@ -141,7 +149,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
             type="button"
             disabled={draft.windows.length <= 1}
             onClick={() =>
-              updateDraft((current) => ({
+              edit((current) => ({
                 ...current,
                 windows: current.windows.slice(0, -1),
               }))
@@ -153,7 +161,6 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
 
         <div className="section-heading">
           <span className="eyebrow">{t("decision.nomination.instructions")}</span>
-          <strong>{draft.instructions.length}</strong>
         </div>
         <DataGrid
           id="nomination-instructions"
@@ -176,7 +183,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
             type="button"
             disabled={draft.instructions.length >= MAX_NOMINATION_INSTRUCTIONS}
             onClick={() =>
-              updateDraft((current) => ({
+              edit((current) => ({
                 ...current,
                 instructions: [
                   ...current.instructions,
@@ -191,7 +198,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
             type="button"
             disabled={draft.instructions.length <= 1}
             onClick={() =>
-              updateDraft((current) => ({
+              edit((current) => ({
                 ...current,
                 instructions: current.instructions.slice(0, -1),
               }))
@@ -213,7 +220,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
             {t("decision.nomination.assess")}
           </Button>
         </div>
-        {readiness.firstBlockerKey && (
+        {touched && readiness.firstBlockerKey && (
           <p className="strategy-error">{t(readiness.firstBlockerKey)}</p>
         )}
         {busy && <p className="muted">{t("status.loading")}</p>}
@@ -229,7 +236,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
         <section className="workspace-panel span-3 decision-nomination-result">
           <PanelHeader
             title={t("decision.nomination.result")}
-            meta={`${result.status} · ${formatQuantity(result.final_quantity_mwh)} MWh`}
+            meta={`${enumLabel(result.status, t)} · ${formatQuantity(result.final_quantity_mwh)} MWh`}
           />
           <EvidenceBlock
             ariaLabel={t("decision.nomination.result")}
@@ -250,7 +257,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
               },
               {
                 label: t("decision.assessment.engine_status"),
-                value: result.status,
+                value: enumLabel(result.status, t),
                 detail: `${t("decision.nomination.final_quantity")}: ${formatQuantity(result.final_quantity_mwh)} MWh`,
               },
               {
@@ -284,7 +291,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
                   render: (row) => <span className={row.accepted_instruction ? "" : "status-badge status-blocked"}>{formatQuantity(row.accepted)}</span>,
                 },
                 { id: "window", header: t("decision.nomination.window_applied"), value: (row) => row.windowId ?? t("decision.nomination.outside_any_window") },
-                { id: "reason", header: t("decision.nomination.reason"), value: (row) => row.reason, cellClassName: () => "muted" },
+                { id: "reason", header: t("decision.nomination.reason"), value: (row) => row.reason, format: (value) => serverWarningText(String(value ?? ""), t), cellClassName: () => "muted" },
               ]}
             />
           )}
@@ -294,7 +301,7 @@ export function NominationWindowPanel({ t, assessment, record }: NominationWindo
               <strong>{t("strategy.warnings")}</strong>
               <ul>
                 {result.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
+                  <li key={warning} title={warning}>{serverWarningText(warning, t)}</li>
                 ))}
               </ul>
             </div>

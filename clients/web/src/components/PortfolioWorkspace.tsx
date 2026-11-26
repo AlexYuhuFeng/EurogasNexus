@@ -3,7 +3,7 @@ import { PRODUCT_MODES } from "@/app/navigation/modeNavigation";
 import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useUrlObject } from "@/app/navigation/useUrlView";
-import { DataGrid, PanelHeader, WorkspaceHeader } from "@/components/ui";
+import { DataGrid, Fold, PanelHeader, WorkspaceHeader } from "@/components/ui";
 import { buttonClass } from "@/components/ui/Button";
 import { SimulatedScope } from "@/components/ui/SimulatedScope";
 import { FirstUseHints } from "@/components/ui/FirstUseHints";
@@ -41,6 +41,7 @@ function money(value: number | null | undefined, suffix = ""): string {
 
 function PortfolioOverview({ controller }: { controller: AppController }) {
   const { api, portfolio, selection, navigation, t } = controller;
+  const [allocationOpen, setAllocationOpen] = useState<boolean | null>(null);
   const resources = portfolio.portfolioResources;
   const totalVolume = portfolio.totalPoolVolume;
   // The pool metrics are statements about the current inputs, so they read the provenanced
@@ -61,7 +62,20 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
     portfolio.resultsContextMismatch &&
     (api.resourcePoolResult !== null || api.routeRecommendation !== null);
 
+  // Position is the ladder; the supply allocation behind it (register, allocation figures and
+  // their warnings) is folded under one line, opened by the reader or by a blocker.
+  const hasBlocker = diagnostics.some((item) => item.level === "blocker");
   return (
+    <Fold
+      framed
+      data-allocation-fold="true"
+      open={allocationOpen ?? hasBlocker}
+      // Only the reader's own toggle is remembered (Fold reports no toggle its `open` caused),
+      // so the fold closes again once a loading blocker clears.
+      onToggle={setAllocationOpen}
+      summary={t("portfolio.allocation_fold")}
+      meta={t("portfolio.allocation_fold_meta", { resources: resources.length, warnings: diagnostics.length })}
+    >
     <div className="commercial-overview">
       <section className="commercial-metric-strip" aria-label={t("portfolio.overview")}>
         <span><small>{t("portfolio.scope.quantity")}</small><strong>{totalVolume.toLocaleString()} MWh/d</strong></span>
@@ -131,6 +145,7 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
         <button type="button" className="link-button" onClick={() => navigation.openWorkspace("market")}>{t("portfolio.show_market_context")}</button>
       </nav>
     </div>
+    </Fold>
   );
 }
 

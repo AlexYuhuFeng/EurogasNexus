@@ -100,7 +100,7 @@ class MarketAreaGraph:
                 "type": node.get("type"),
             }
             if node.get("type") == "hub":
-                code = _market_hub_code(node["name"], node["point_key"])
+                code = node.get("hub_code") or _market_hub_code(node["name"], node["point_key"])
                 graph.hub_codes[code] = node["point_key"]
                 graph.hub_names[node["point_key"]] = code
         graph.operator_names = {

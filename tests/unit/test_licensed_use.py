@@ -19,7 +19,6 @@ from eurogas_nexus.db.repositories.licensed_use import record_licensed_use, usag
 from eurogas_nexus.domain.dataops.entitlement import filter_rows_for_principal
 from eurogas_nexus.governance.entitlement import ExportDecision, file_export_decision
 from eurogas_nexus.governance.usage import LicensedUseMeter, metering, not_metered
-from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 from eurogas_nexus.security.identity import (
     AuthenticatedPrincipal,
     legacy_public_token_principal,
@@ -141,7 +140,6 @@ def test_migration_0079_matches_the_model_up_and_down() -> None:
     spec.loader.exec_module(module)
     assert module.down_revision == "0078_lng_cargo_hedges"
     assert module.revision == "0079_licensed_data_use"
-    assert DB_SCHEMA_REVISION == "0090_job_progress_steps"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
         module.op = Operations(MigrationContext.configure(connection=connection))

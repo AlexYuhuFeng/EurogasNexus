@@ -24,7 +24,8 @@ import {
 import { WorkProgress } from "@/components/ui/WorkProgress";
 import { layOutForPrint } from "@/app/model/reportPrintLayout";
 import { ReportSchedules } from "@/components/ReportSchedules";
-import { Button, DataGrid, Dialog, EmptyState, ExampleFrame, Field, Panel, Segmented, Select, StatusBadge, useExampleView, type DataGridColumn } from "@/components/ui";
+import { Button, DataGrid, Dialog, EmptyState, ExampleFrame, Field, Fold, Panel, PeriodPicker, Segmented, Select, StatusBadge, useExampleView, type DataGridColumn } from "@/components/ui";
+import { GAS_HUBS } from "@/app/contractChoices";
 import { exampleReports as exampleReportList } from "@/app/experience/examples";
 import {
   annexByDefault,
@@ -150,6 +151,9 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
   const sectionTypes = useMemo(() => catalogue?.sections ?? [], [catalogue]);
   const defaults = catalogue?.default_sections[form.kind] ?? [];
   const chosen = form.sections ?? defaults;
+  const chosenHubs = form.hubs.split(/[\s,]+/).map((hub) => hub.trim().toUpperCase()).filter(Boolean);
+  const toggleHub = (hub: string) =>
+    update({ hubs: (chosenHubs.includes(hub) ? chosenHubs.filter((item) => item !== hub) : [...chosenHubs, hub]).join(", ") });
   const offered = sectionTypes.filter(
     (section) => section.key !== "situation_event" && (form.audience === "internal" || !section.internal_only),
   );
@@ -398,18 +402,30 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
               {issueText("period")}
               {issueText("hubs")}
               <div className="reports-row">
+                {/* The app's own date control, in the reader's language (not the browser's mm/dd/yyyy). */}
                 <Field label={t("reports.period_start")}>
-                  <input type="date" value={form.periodStart} max={offer?.period.latest_end} onChange={(event) => update({ periodStart: event.target.value })} />
+                  <PeriodPicker kind="day" label={t("reports.period_start")} value={form.periodStart} max={offer?.period.latest_end} clearable onChange={(value) => update({ periodStart: value })} />
                 </Field>
                 <Field label={t("reports.period_end")}>
-                  <input type="date" value={form.periodEnd} max={offer?.period.latest_end} onChange={(event) => update({ periodEnd: event.target.value })} />
-                </Field>
-                <Field label={t("reports.hubs")} hint={t("reports.hubs_hint")}>
-                  <input value={form.hubs} maxLength={80} onChange={(event) => update({ hubs: event.target.value })} />
+                  <PeriodPicker kind="day" label={t("reports.period_end")} value={form.periodEnd} max={offer?.period.latest_end} clearable onChange={(value) => update({ periodEnd: value })} />
                 </Field>
               </div>
+              {/* Hubs are chosen, not typed (AGENTS rule 19); none chosen means every hub held. */}
+              <Fold quiet summary={t("reports.hubs")} meta={chosenHubs.length ? chosenHubs.join(", ") : t("reports.hubs_all")}>
+                <fieldset className="reports-sections">
+                  <legend className="visually-hidden">{t("reports.hubs")}</legend>
+                  {GAS_HUBS.map((hub) => (
+                    <label key={hub}>
+                      <input type="checkbox" checked={chosenHubs.includes(hub)} onChange={() => toggleHub(hub)} />
+                      <span>{hub}</span>
+                    </label>
+                  ))}
+                </fieldset>
+              </Fold>
+              {/* Twelve sections are the catalogue's default: folded, opened to change them. */}
+              <Fold quiet summary={t("reports.sections")} meta={t("reports.sections_chosen", { count: chosen.filter((key) => offered.some((section) => section.key === key)).length, total: offered.length })}>
               <fieldset className="reports-sections">
-                <legend>{t("reports.sections")}</legend>
+                <legend className="visually-hidden">{t("reports.sections")}</legend>
                 {offered.map((section) => {
                   const state = offer?.sections[section.key];
                   const notHeld = state && state.state !== "ok";
@@ -424,6 +440,7 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
                   );
                 })}
               </fieldset>
+              </Fold>
               {issueText("sections")}
               <label className="reports-annex">
                 <input

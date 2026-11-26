@@ -61,6 +61,8 @@ import { contractOptions } from "@/app/model/recordOptions";
 import type { UpstreamContractDTO } from "@/api/client";
 import { Chart, Waterfall, type ChartData } from "@/components/ui/charts";
 import { formatMeasure } from "@/app/time/valueFormat";
+import { serverWarningText } from "@/app/warningLabel";
+import { useApiStore } from "@/stores/api";
 
 const fixed = (value: number | null | undefined, decimals = 2): string =>
   formatMeasure("ratio", value, { decimals });
@@ -129,10 +131,15 @@ export function CargoStudy() {
       setForm(initial);
       void run(initial);
     });
-    api.upstreamContracts().then(
-      (response) => { if (live) setConfirmations((response.data ?? []).filter((item) => item.contract_kind === "LNG_CARGO")); },
-      () => undefined,
-    );
+    // The firm's cargo confirmations are book data: read only by a caller who may read the book
+    // (a research or finance identity got a 403 here on every visit).
+    const permissions = useApiStore.getState().currentUser?.permissions;
+    if (!Array.isArray(permissions) || permissions.includes("portfolio.read")) {
+      api.upstreamContracts().then(
+        (response) => { if (live) setConfirmations((response.data ?? []).filter((item) => item.contract_kind === "LNG_CARGO")); },
+        () => undefined,
+      );
+    }
     return () => { live = false; };
   }, [run]);
 
@@ -764,7 +771,7 @@ function HistoryLine({ result, cargo }: { result: CargoEconomicsDTO; cargo: Carg
         t={t}
         height={220}
         simulated={chart.simulated}
-        note={`${t("cargo.history.note", { arb: signed(chart.last?.arb_per_mwh), unit, day: chart.last ? shortDay(chart.last.day) : "" })} ${source} ${history.fx ? `${history.fx}.` : ""}`}
+        note={`${t("cargo.history.note", { arb: signed(chart.last?.arb_per_mwh), unit, day: chart.last ? shortDay(chart.last.day) : "" })} ${source} ${history.fx ? `${serverWarningText(history.fx, t)}.` : ""}`}
       />
     </section>
   );
@@ -857,7 +864,7 @@ function CostStack({ cargo, row }: { cargo: CargoResultDTO; row: CargoTerminalDT
           {t("cargo.stack.fx", {
             pair: stack.fx.pair,
             rate: fixed(stack.fx.usd_per_unit ?? stack.fx.rate ?? null, 4),
-            source: stack.fx.source,
+            source: serverWarningText(String(stack.fx.source ?? ""), t),
           })}
         </p>
       )}
@@ -884,7 +891,7 @@ function MarginWaterfall({ row }: { row: CargoTerminalDTO }) {
       t={t}
       decimals={2}
       simulated={!pills}
-      note={row.fx_usd_per_unit ? t("cargo.waterfall.fx", { rate: fixed(row.fx_usd_per_unit, 4), pair: `${row.currency}/USD`, source: row.fx_source ?? "" }) : undefined}
+      note={row.fx_usd_per_unit ? t("cargo.waterfall.fx", { rate: fixed(row.fx_usd_per_unit, 4), pair: `${row.currency}/USD`, source: serverWarningText(row.fx_source ?? "", t) }) : undefined}
     />
   );
 }
@@ -1077,7 +1084,7 @@ function InputsFold({ cargo, fxMethod }: { cargo: CargoResultDTO; fxMethod: stri
         </tbody>
       </table>
       </div>
-      {fxMethod && <p className="cargo-note">{t("cargo.inputs.fx", { method: fxMethod })}</p>}
+      {fxMethod && <p className="cargo-note">{t("cargo.inputs.fx", { method: serverWarningText(fxMethod, t) })}</p>}
     </details>
   );
 }

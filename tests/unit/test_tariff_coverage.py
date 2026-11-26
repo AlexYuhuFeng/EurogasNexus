@@ -216,4 +216,7 @@ def test_reviewed_and_awaiting_entries_say_where_they_come_from(graph):
 def test_supply_entry_outside_the_reference_network_cannot_be_entered():
     entries = {e["point"]: e for e in supply_coverage([], on=ON)}
     assert entries["LNG-00027"]["can_be_entered"] is True  # Gate, GTS in the network
-    assert entries["LNG-00012"]["can_be_entered"] is False  # Barcelona, outside NWE
+    # Barcelona: Spain is in the network since the all-Europe bundle (2026-11-26).
+    assert entries["LNG-00012"]["can_be_entered"] is True
+    # Dunkerque LNG: ENTSOG names only the terminal operator there, no TSO.
+    assert entries["LNG-00047"]["can_be_entered"] is False

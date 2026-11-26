@@ -422,6 +422,28 @@ def test_sell_down_plan_uses_measured_delivery_and_falls_back_to_tolerance(tmp_p
         "/api/portfolio/sell-down-plan", json={**body, "hub": "TTF"}, headers=_h(who, "analyst")
     )
     assert none.status_code == 422 and none.json()["detail"]["code"] == "no_supply_at_hub"
+    # The desk enters NBP in p/th (AGENTS rule 17); the same plan in p/th agrees with GBP/MWh.
+    from eurogas_nexus.domain.market.units import convert_price
+
+    in_pth = {
+        **body,
+        "price_unit": "p/th",
+        **{
+            name: round(convert_price(body[name], "GBP/MWh", "GBp/th"), 6)
+            for name in ("da_price", "wd_expected_price", "short_penalty_per_mwh",
+                         "long_discount_per_mwh")
+        },
+    }
+    native = client.post(
+        "/api/portfolio/sell-down-plan", json=in_pth, headers=_h(who, "analyst")
+    ).json()["data"]
+    assert native["sell_day_ahead_mwh"] == measured["sell_day_ahead_mwh"]
+    wrong = client.post(
+        "/api/portfolio/sell-down-plan",
+        json={**body, "price_unit": "EUR/MWh"},
+        headers=_h(who, "analyst"),
+    )
+    assert wrong.status_code == 422 and wrong.json()["detail"]["code"] == "price_unit_invalid"
 
 
 def test_risk_approves_a_hedge_band_per_deal(tmp_path, monkeypatch):

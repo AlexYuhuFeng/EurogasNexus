@@ -257,3 +257,16 @@ def test_an_evergreen_contract_is_owed_only_to_the_end_of_the_gas_year():
     firm = credit_exposure(line(), [fixed], today=TODAY, mark=lambda h, m: flat.get((h, m)), fx=FX)
     assert firm.remaining_mwh > result.remaining_mwh  # a fixed term is owed in full
     assert firm.open_ended_legs == 0
+
+
+def test_a_breach_travels_as_a_note_naming_the_leg() -> None:
+    mandate = Mandate("M1", "jdoe", "J. Doe", hubs=("TTF",))
+    leg = MandateLeg("O3", "financial", "NBP", "", "jdoe", date(2026, 11, 1),
+                     date(2026, 11, 30), 1000.0, label="ICE Endex sell NBP")
+    row = mandate_usage(mandate, [leg], today=TODAY).as_row()
+    assert row["breaches"] == "NBP is outside the mandate (O3)"
+    assert row["breach_notes"] == [{
+        "code": "MANDATE_HUB_OUTSIDE",
+        "params": {"hub": "NBP", "ref": "O3", "ref_name": "ICE Endex sell NBP"},
+        "text": "NBP is outside the mandate (O3)",
+    }]

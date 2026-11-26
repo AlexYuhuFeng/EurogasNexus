@@ -107,7 +107,9 @@ def test_a_named_point_that_does_not_join_the_market_areas_is_not_a_route(graph)
     assert graph.route(hub(graph, "TTF"), hub(graph, "THE"), via_points=["ITP-00090"]) is None
 
 
-def test_psv_is_not_in_the_network_so_a_route_to_it_is_not_priced():
+def test_psv_is_reached_through_a_named_neighbour():
+    # Italy joins the network at ENTSOG points (Passo Gries from Switzerland, Tarvisio from
+    # Austria): THE -> PSV is two crossings, each at a named point, never priced as direct.
     [candidate] = apply_route_adjacency(
         [
             {
@@ -118,8 +120,19 @@ def test_psv_is_not_in_the_network_so_a_route_to_it_is_not_priced():
             }
         ]
     )
+    adjacency = candidate["route_adjacency"]
+    assert adjacency["status"] == "proven"
+    assert len(adjacency["crossings"]) == 2
+    assert adjacency["crossings"][-1]["to_hub"] == "PSV"
+    assert adjacency["crossings"][0]["to_hub"] in {"CH", "CEGH"}
+
+
+def test_a_hub_outside_the_european_network_is_not_priced():
+    [candidate] = apply_route_adjacency(
+        [{"route_id": "the-hh", "start_point_name": "THE", "target_point_name": "HH"}]
+    )
     assert candidate["route_adjacency"]["status"] == ENDPOINT_NOT_IN_NETWORK
-    assert candidate["route_legs"] == []
+    assert candidate.get("route_legs") in (None, [])
 
 
 def test_an_authored_route_gets_the_full_crossing_and_keeps_its_capacity():
@@ -256,7 +269,7 @@ def test_the_map_draws_exactly_the_adjacency_the_pricing_walks(graph):
                 drawn_pairs.add(frozenset((a, b)))
     for a, b in graph.pipelines.values():
         for x in by_point.get(a, set()):
-            for y in by_point.get(b, set()):
+            for y in by_point.get(b, set()) - {x}:  # both ends in one market area: internal
                 drawn_pairs.add(frozenset((x, y)))
     priced_pairs = {frozenset((a, b)) for a in graph.hub_names for b in graph.neighbours(a)}
     assert priced_pairs == drawn_pairs

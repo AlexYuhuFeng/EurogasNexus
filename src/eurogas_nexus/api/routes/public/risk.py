@@ -956,6 +956,9 @@ class SellDownBody(BaseModel):
     long_discount_per_mwh: float = Field(default=0.0, ge=0, le=500)
     lot_mwh: float = Field(default=24.0, gt=0, le=100_000)
     history_days: int = Field(default=60, ge=14, le=365)
+    #: The unit the four prices are entered in, as the desk quotes the hub (NBP in p/th);
+    #: omitted, they are per MWh in the hub's currency.
+    price_unit: str | None = Field(default=None, max_length=16)
 
 
 @router.post("/api/portfolio/sell-down-plan")
@@ -981,11 +984,29 @@ def post_sell_down_plan(body: SellDownBody, request: Request) -> dict:
     from statistics import pstdev
 
     from eurogas_nexus.api.positions import hub_from_text
+    from eurogas_nexus.application.projections.daily_closes import per_mwh_in_hub_currency
     from eurogas_nexus.domain.portfolio.sell_down import SellDownInputs, plan_sell_down
 
+    hub = body.hub.upper()
+    try:
+        # The desk enters NBP in p/th; the plan prices per MWh in the hub's currency.
+        body = body.model_copy(
+            update={
+                name: per_mwh_in_hub_currency(hub, getattr(body, name), body.price_unit)
+                for name in (
+                    "da_price",
+                    "wd_expected_price",
+                    "short_penalty_per_mwh",
+                    "long_discount_per_mwh",
+                )
+            }
+        )
+    except ValueError as exc:
+        raise HTTPException(
+            status_code=422, detail={"code": "price_unit_invalid", "message": str(exc)}
+        ) from exc
     if not _db_is_configured():
         raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
-    hub = body.hub.upper()
     since = datetime.now(UTC).date() - timedelta(days=body.history_days)
     sqlalchemy_error = _sqlalchemy_error_type()
     try:

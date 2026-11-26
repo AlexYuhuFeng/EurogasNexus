@@ -1,12 +1,34 @@
 #!/usr/bin/env python
-"""Demo exchange feed: bursty two-sided quotes and trade prints for TTF and NBP WD/DA.
+"""Demo exchange feed: a simulated live exchange screen for every demo hub, and a TTF/NBP replay.
 
-Demo profile only. Every tick is invented, stored under ``EEX_Sim`` (the EEX family, simulated)
-and labelled simulated; it is never a market price (AGENTS.md rule 17). It exists so the
-intraday path (tick ingestion, strategy evaluation on arrival, the paper book) can be seen and
-measured without a licensed feed.
+Demo profile only. Every tick is invented, stored as simulated (``DEMO_Sim`` by the continuous
+feed, ``EEX_Sim`` by the API replay) and labelled simulated wherever it travels; it is never a
+market price (AGENTS.md rule 17). It exists so the screens that read prices (the Prices board,
+Today, marks and P&L, spreads, the prompt desk, strategy evaluation on arrival) move as they
+would on a licensed feed, and can be seen and measured without one.
 
-How the session is made (one ``random.Random`` stream of its own, ``demo-exchange-feed-v1``):
+**Continuous (``--continuous``, the demo server's feed, :class:`LiveScreen`).** Every demo hub
+the tick intake accepts (TTF, NBP, THE, PEG, ZTP, PSV, CEGH, PVB, ETF) is quoted on WD, DA, WE
+and the front month, quarter and season, each instrument on its own clock (a fresh draw of
+1-5 seconds after each quote), small moves on the hub's tick, the odd print, with session
+statistics (open/high/low, VWAP, volume, count, prior settlement). The rest of each hub's curve
+(months to M+12, quarters, the next winter, two calendar years) requotes with the front in whole
+curve moves, so a strip stays its months' average: no arbitrage within a hub. The prices start
+on the demo board of the gas day (``seed_demo_desk.demo_board_now``, priced by
+``demo_market.py``) and revert to it, a common factor moves the hubs together and each hub's
+own part is bounded so a locational spread stays inside the demo market's arbitrage band; the
+planted P1/P2 prompt cases are laid on the path on their schedule. It writes straight through
+``application.market_ticks.ingest_ticks`` (the path a licensed connector's batches take), so
+the live stream's ``prices`` notices fire as for a real feed.
+
+Session (``--session`` or ``EUROGAS_NEXUS_DEMO_FEED_SESSION``): ``exchange`` (default),
+simulated trading hours 07:00-19:00 CET/CEST every day; ``24h``, a demo-only session that never
+closes so a demo opened at 03:00 still moves (the hosted demo sets it). Neither is a real
+venue's timetable: ICE Endex and EEX gas sessions differ, and the feed's status line says so.
+
+**Replay (default, ``/api/market/ticks``).** Bursty two-sided quotes and prints for TTF and NBP
+WD/DA (:func:`session_events`, one ``random.Random`` stream of its own,
+``demo-exchange-feed-v1``):
 
 * **Anchor.** Each instrument starts at the demo market's own mid for the day (the stored
   ``DEMO_Sim`` board quote), so the session sits on the demo market's daily path.
@@ -28,6 +50,7 @@ the way a feed adapter delivers, either in real time or as a compressed ``--repl
 
     python scripts/demo/exchange_feed.py --minutes 10                 # real time
     python scripts/demo/exchange_feed.py --minutes 120 --replay       # compressed session
+    python scripts/demo/exchange_feed.py --continuous --session 24h   # the demo server's feed
 """
 
 from __future__ import annotations
@@ -75,8 +98,9 @@ class Book:
                                                  "pv": 0.0, "volume": 0.0, "count": 0,
                                                  "last": None, "last_qty": None})
 
-    def quote(self, rng: random.Random, at: datetime, sequence: int) -> dict:
-        half = self.half * (1.0 + 0.6 * rng.random())
+    def quote(self, rng: random.Random, at: datetime, sequence: int,
+              jitter: float = 0.6) -> dict:
+        half = self.half * (1.0 + jitter * rng.random())
         bid = math.floor((self.mid - half) / self.tick) * self.tick
         ask = math.ceil((self.mid + half) / self.tick) * self.tick
         if ask - bid < self.tick:
@@ -302,8 +326,8 @@ class TradeBooker:
 
         hub, product = self.rng.choice([("TTF", "WD"), ("TTF", "DA"), ("NBP", "WD"),
                                         ("NBP", "DA")])
-        book = books[(hub, product)]
-        if not hasattr(book, "bid"):
+        book = books.get((hub, product))
+        if book is None or not hasattr(book, "bid"):
             return
         buy = self.rng.random() < 0.5
         improve = self.rng.choice((0, 0, 1)) * book.tick
@@ -348,14 +372,62 @@ class TradeBooker:
 
 FEED_SOURCE = "DEMO_Sim"
 FEED_SOURCE_ID = "src-demo-exchange-feed"
+FEED_REFERENCE = "feed:simulated-exchange"
 #: How long the continuous feed keeps its own rows (quotes, prints, status runs, booked
 #: simulated trades): the demo's small PostgreSQL must not fill.
 RETENTION = timedelta(hours=48)
+#: Every quote of the last hour is kept; older quotes are thinned to the last one of each
+#: instrument in each :data:`THIN_BUCKET` (the intraday chart's resolution), so 48 hours of a
+#: screen that ticks every few seconds stays a few hundred thousand rows (measured in
+#: ``docs/deployment/SELF_HOSTED_DEMO.md``).
+RAW_KEEP = timedelta(hours=1)
+THIN_BUCKET = timedelta(minutes=10)
 STATUS_EVERY = timedelta(seconds=60)
 PRUNE_EVERY = timedelta(minutes=10)
 BOOK_EVERY_SECONDS = 900.0
 #: One advisory lock: two feeds never run against one demo database.
 ADVISORY_LOCK = 0x45474E46  # "EGNF"
+
+#: The feed's session. ``exchange`` (the default anywhere but the hosted demo): simulated
+#: trading hours 07:00-19:00 CET/CEST every day. ``24h``: a demo-only session that never
+#: closes, so a demo opened at any hour shows a moving screen; the hosted demo start-up sets
+#: it. Neither is a real venue's timetable: ICE Endex and EEX gas sessions differ.
+SESSION_SETTING = "EUROGAS_NEXUS_DEMO_FEED_SESSION"
+SESSION_LABELS = {
+    "exchange": "simulated trading hours 07:00-19:00 CET/CEST",
+    "24h": "simulated 24-hour demo session (demo only; real ICE Endex and EEX sessions differ)",
+}
+
+#: What the live screen quotes for every demo hub the tick intake accepts: the prompt and the
+#: front month, quarter and season, each on its own clock (:data:`CADENCE_SECONDS`); the rest
+#: of the curve moves with the front in whole-curve moves (:data:`CURVE_MOVE_SECONDS`).
+PROMPT_PRODUCTS = ("WD", "DA", "WE")
+FRONT_CURVE = ("M+1", "Q+1", "S+1")
+BACK_CURVE = (*(f"M+{n}" for n in range(2, 13)), "Q+2", "Q+3", "Q+4", "S+2", "Cal+1", "Cal+2")
+CURVE_PRODUCTS = (*FRONT_CURVE, *BACK_CURVE)
+FAST_PRODUCTS = (*PROMPT_PRODUCTS, *FRONT_CURVE)
+#: Seconds between two quotes of one instrument: drawn uniformly, per instrument and quote.
+CADENCE_SECONDS = (1.0, 5.0)
+#: Seconds between two moves of a hub's curve level (the whole curve requotes then).
+CURVE_MOVE_SECONDS = (20.0, 60.0)
+#: The live factors, in EUR/MWh (NBP converted at the demo fixing): a common prompt factor
+#: (TTF's), a curve factor that follows it in part, and a small bounded part of each hub's own,
+#: so locational spreads stay inside the demo market's arbitrage band (its margin is 0.25).
+LIVE_SIGMA_EUR = 0.0025
+CURVE_KAPPA = 1 / 1800
+CURVE_FOLLOWS = 0.6
+OWN_SIGMA_EUR = 0.0008
+OWN_KAPPA = 1 / 300
+OWN_BOUND_EUR = 0.08
+#: Hubs whose WD carries its own mean-reverting premium over DA (and the planted cases).
+PREMIUM_HUBS = ("TTF", "NBP")
+#: Chance that a quote comes with a print, by where it trades most.
+PRINT_CHANCE = {"core_prompt": 0.12, "prompt": 0.02, "curve": 0.01}
+QUOTE_JITTER = 0.3
+#: The feed writes at most this often (one tick-intake call per batch, as an adapter batches).
+BATCH_SECONDS = 0.5
+#: Behind by more than this (a paused machine): reschedule instead of replaying the gap.
+MAX_CATCH_UP = timedelta(seconds=30)
 
 
 def feed_enabled(environ=os.environ) -> bool:
@@ -368,20 +440,259 @@ def feed_enabled(environ=os.environ) -> bool:
         "off", "false", "0", "no"}
 
 
-def _db_anchors(session) -> dict:
+def feed_session(environ=os.environ) -> str:
+    """``24h`` when ``EUROGAS_NEXUS_DEMO_FEED_SESSION`` asks for it, else ``exchange``."""
+
+    value = (environ.get(SESSION_SETTING) or "exchange").strip().lower()
+    return "24h" if value in {"24h", "24", "24-hour", "always", "continuous"} else "exchange"
+
+
+def in_session(at: datetime, session: str) -> bool:
+    return session == "24h" or in_trading_hours(at)
+
+
+@dataclass(frozen=True)
+class Anchor:
+    """Where an instrument is quoted around: the demo board's mid, tick and half-width (native)."""
+
+    mid: float
+    tick: float
+    half: float
+
+
+def _seed_module():
+    import importlib.util
+    from pathlib import Path
+
+    if "seed_demo_desk" in sys.modules:
+        return sys.modules["seed_demo_desk"]
+    path = Path(__file__).with_name("seed_demo_desk.py")
+    spec = importlib.util.spec_from_file_location("seed_demo_desk", path)
+    module = importlib.util.module_from_spec(spec)
+    sys.modules["seed_demo_desk"] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+def feed_hubs() -> frozenset[str]:
+    from eurogas_nexus.ingestion.licensed_quote_import import SUPPORTED_HUBS
+
+    return frozenset(SUPPORTED_HUBS)
+
+
+def anchors_from_quotes(rows) -> dict[tuple[str, str], Anchor]:
+    """Anchors from demo board quotes (dicts or stored rows), newest first; first one wins."""
+
+    hubs = feed_hubs()
+    wanted = {*PROMPT_PRODUCTS, *CURVE_PRODUCTS}
+    out: dict[tuple[str, str], Anchor] = {}
+    for row in rows:
+        get = row.get if isinstance(row, dict) else (lambda name, r=row: getattr(r, name))
+        meta = get("metadata_json") or {}
+        hub, code = str(get("hub") or "").upper(), meta.get("rolling_code")
+        mid, tick = meta.get("native_mid"), meta.get("tick")
+        if hub not in hubs or code not in wanted or (hub, code) in out or not mid or not tick:
+            continue
+        bid, ask = meta.get("native_bid"), meta.get("native_ask")
+        half = (float(ask) - float(bid)) / 2 if bid is not None and ask is not None else 0.0
+        out[(hub, code)] = Anchor(float(mid), float(tick), max(float(tick), half))
+    return out
+
+
+def _db_anchors(session) -> dict[tuple[str, str], Anchor]:
+    """The newest stored demo board quote per hub and product (when the board cannot be priced)."""
+
     from eurogas_nexus.db.models import MarketQuoteRecord
 
-    out = {}
     rows = (session.query(MarketQuoteRecord)
             .filter(MarketQuoteRecord.source_system == FEED_SOURCE,
                     MarketQuoteRecord.source_reference == "demo:market")
-            .order_by(MarketQuoteRecord.observed_at_utc.desc()).limit(400).all())
-    for row in rows:
-        meta = row.metadata_json or {}
-        key = (row.hub, meta.get("product_label"))
-        if key in INSTRUMENTS and key not in out and meta.get("native_mid"):
-            out[key] = float(meta["native_mid"])
-    return out
+            .order_by(MarketQuoteRecord.observed_at_utc.desc()).limit(4000).all())
+    return anchors_from_quotes(rows)
+
+
+def load_anchors(session, now: datetime) -> dict[tuple[str, str], Anchor]:
+    """The demo board of the gas day at ``now`` (``seed_demo_desk.demo_board_now``), else the
+    newest stored board quotes, else the TTF and NBP prompt fallbacks."""
+
+    try:
+        anchors = anchors_from_quotes(_seed_module().demo_board_now(session, now))
+    except Exception as exc:  # noqa: BLE001 - the stored board is the fallback
+        session.rollback()
+        print(json.dumps({"feed": "demo board not priced", "error": type(exc).__name__}),
+              flush=True)
+        anchors = {}
+    if not anchors:
+        anchors = _db_anchors(session)
+    if not anchors:
+        anchors = {key: Anchor(FALLBACK[key], tick, half)
+                   for key, (tick, half) in INSTRUMENTS.items()}
+    return anchors
+
+
+def _to_native(hub: str, eur_mwh: float) -> float:
+    return _eur_to_pth(eur_mwh) if hub == "NBP" else eur_mwh
+
+
+class LiveScreen:
+    """The demo exchange screen of one gas day: every instrument on its own clock.
+
+    * **Cadence.** Each prompt (WD, DA, WE) and front-curve (M+1, Q+1, S+1) instrument of
+      every hub requotes after a fresh uniform draw from :data:`CADENCE_SECONDS`; a quote
+      sometimes comes with a print (:data:`PRINT_CHANCE`).
+    * **Path.** A common prompt factor (an Ornstein-Uhlenbeck walk around zero, TTF's
+      volatility) moves every hub's prompt; a curve factor follows it in part and reverts
+      more slowly; each hub adds a small part of its own, bounded by :data:`OWN_BOUND_EUR`,
+      so a locational spread stays inside the demo market's arbitrage band. TTF and NBP WD
+      carry their own premium over DA with rare dislocations, and the planted P1/P2 cases
+      are laid on the path on their schedule.
+    * **Curve.** A hub's curve moves as one level, at moves drawn from
+      :data:`CURVE_MOVE_SECONDS`: every curve product (months, quarters, seasons, years) is
+      requoted at that level then, and the front products requote at the same level until
+      the next move. A strip is therefore always its months' average plus the demo market's
+      own tick rounding: no arbitrage within a hub.
+    * **Anchor.** Every mid starts on the demo board (``demo_market``) and reverts to it.
+
+    Deterministic for a given ``rng`` and sequence of :meth:`step` times.
+    """
+
+    def __init__(self, anchors: dict[tuple[str, str], Anchor], rng: random.Random,
+                 start: datetime, *, dislocations_per_hour: float = 6.0,
+                 planted: bool = True) -> None:
+        self.rng = rng
+        self.t = start
+        self.planted = planted
+        self.dislocations = dislocations_per_hour
+        self.books: dict[tuple[str, str], Book] = {}
+        for (hub, code), anchor in sorted(anchors.items()):
+            digits = 3 if anchor.tick < 0.01 else 2
+            self.books[(hub, code)] = Book(hub, code, anchor.mid, anchor.mid, anchor.tick,
+                                           anchor.half, prior_settlement=round(anchor.mid, digits))
+        self.hubs = sorted({hub for hub, _code in self.books})
+        self.prompt_common = 0.0
+        self.curve_common = 0.0
+        self.prompt_own = dict.fromkeys(self.hubs, 0.0)
+        self.curve_own = dict.fromkeys(self.hubs, 0.0)
+        self.level = dict.fromkeys(self.hubs, 0.0)
+        self.premium = {hub: 0.0 for hub in PREMIUM_HUBS
+                        if (hub, "WD") in self.books and (hub, "DA") in self.books}
+        self.shock = dict.fromkeys(self.premium, 0.0)
+        self.sequence = 0
+        self.due = {key: start + timedelta(seconds=rng.uniform(0.0, CADENCE_SECONDS[1]))
+                    for key in self.books if key[1] in FAST_PRODUCTS}
+        self.curve_due = {hub: start + timedelta(seconds=rng.uniform(*CURVE_MOVE_SECONDS))
+                          for hub in self.hubs
+                          if any(code in CURVE_PRODUCTS for h, code in self.books if h == hub)}
+
+    # -------------------------------------------------------------- path
+    def advance(self, to: datetime) -> None:
+        dt = (to - self.t).total_seconds()
+        if dt <= 0:
+            return
+        self.t = to
+        rng, root = self.rng, math.sqrt(dt)
+        draw = rng.gauss(0.0, LIVE_SIGMA_EUR * root)
+        self.prompt_common = self.prompt_common * math.exp(-KAPPA * dt) + draw
+        self.curve_common = (self.curve_common * math.exp(-CURVE_KAPPA * dt) + CURVE_FOLLOWS * draw
+                             + rng.gauss(0.0, (1 - CURVE_FOLLOWS) * LIVE_SIGMA_EUR * root))
+        for hub in self.hubs:
+            if hub == "TTF":
+                continue  # the common factor is TTF's own
+            for own in (self.prompt_own, self.curve_own):
+                value = own[hub] * math.exp(-OWN_KAPPA * dt) + rng.gauss(0.0, OWN_SIGMA_EUR * root)
+                own[hub] = max(-OWN_BOUND_EUR, min(OWN_BOUND_EUR, value))
+        for hub in self.premium:
+            # NBP in pence per therm: about three times the EUR/MWh figure.
+            scale = 3.0 if hub == "NBP" else 1.0
+            if rng.random() < self.dislocations / 3600 * dt:
+                self.shock[hub] += rng.choice((-1, 1)) * rng.uniform(0.12, 0.2) * scale
+            self.shock[hub] *= math.exp(-dt / 180)
+            self.premium[hub] = (self.premium[hub] * math.exp(-WD_PREMIUM_KAPPA * dt)
+                                 + rng.gauss(0.0, WD_PREMIUM_SIGMA * scale * root))
+
+    def mid(self, key: tuple[str, str]) -> float:
+        """The instrument's mid now (native unit), before the touch is put on the tick."""
+
+        hub, code = key
+        anchor = self.books[key].anchor
+        if code not in PROMPT_PRODUCTS:
+            return anchor + _to_native(hub, self.level[hub])
+        if code == "WD" and hub in self.premium:
+            day_ahead = self.books[(hub, "DA")].anchor
+            mid = self.mid((hub, "DA")) + (anchor - day_ahead) + self.premium[hub] + self.shock[hub]
+            if self.planted and hub == "TTF":
+                mid += planted_p1(self.t)
+            return mid
+        mid = anchor + _to_native(hub, self.prompt_common + self.prompt_own[hub])
+        if self.planted and key == ("NBP", "DA") and ("TTF", "DA") in self.books:
+            ttf = self.mid(("TTF", "DA"))
+            eur = _pth_to_eur(mid)
+            if planted_p2(self.t):
+                eur = ttf + BBL_ROUTE_COST + P2_EXCESS
+            else:
+                eur = min(eur, ttf + BBL_ROUTE_COST - P2_OUTSIDE_MARGIN)
+            mid = _eur_to_pth(eur)
+        return mid
+
+    # -------------------------------------------------------------- ticks
+    def _print_chance(self, key: tuple[str, str]) -> float:
+        hub, code = key
+        if code in PROMPT_PRODUCTS:
+            return PRINT_CHANCE["core_prompt" if hub in PREMIUM_HUBS and code != "WE"
+                                else "prompt"]
+        return PRINT_CHANCE["curve"]
+
+    def _tick(self, key: tuple[str, str], at: datetime, quotes: list, trades: list,
+              printable: bool = True) -> None:
+        book = self.books[key]
+        book.mid = self.mid(key)
+        self.sequence += 1
+        if printable and self.rng.random() < self._print_chance(key):
+            printed = book.trade(self.rng, at, self.sequence)
+            if printed:
+                trades.append(printed)
+        quotes.append(book.quote(self.rng, at, self.sequence, jitter=QUOTE_JITTER))
+
+    def next_due(self) -> datetime:
+        return min([*self.due.values(), *self.curve_due.values()])
+
+    def step(self, now: datetime) -> tuple[list[dict], list[dict]]:
+        """Every quote and print due up to ``now``, in time order, each at its own time."""
+
+        quotes: list[dict] = []
+        trades: list[dict] = []
+        if now - self.t > MAX_CATCH_UP:
+            # Far behind (a paused machine): start the clocks again from now.
+            self.advance(now)
+            for key in self.due:
+                self.due[key] = now + timedelta(seconds=self.rng.uniform(0.0, CADENCE_SECONDS[1]))
+            for hub in self.curve_due:
+                self.curve_due[hub] = now + timedelta(seconds=self.rng.uniform(*CURVE_MOVE_SECONDS))
+        while True:
+            key, due = min(self.due.items(), key=lambda item: (item[1], item[0]),
+                           default=(None, None))
+            hub, move = min(self.curve_due.items(), key=lambda item: (item[1], item[0]),
+                            default=(None, None))
+            if move is not None and (due is None or move < due):
+                if move > now:
+                    break
+                self.advance(move)
+                self.level[hub] = self.curve_common + self.curve_own[hub]
+                for code in CURVE_PRODUCTS:
+                    if (hub, code) in self.books:
+                        self._tick((hub, code), move, quotes, trades, printable=code in FRONT_CURVE)
+                        if code in FRONT_CURVE:
+                            self.due[(hub, code)] = move + timedelta(
+                                seconds=self.rng.uniform(*CADENCE_SECONDS))
+                self.curve_due[hub] = move + timedelta(
+                    seconds=self.rng.uniform(*CURVE_MOVE_SECONDS))
+                continue
+            if due is None or due > now:
+                break
+            self.advance(due)
+            self._tick(key, due, quotes, trades)
+            self.due[key] = due + timedelta(seconds=self.rng.uniform(*CADENCE_SECONDS))
+        return quotes, trades
 
 
 def _status(session, at: datetime, since: datetime, counts: dict, note: str) -> None:
@@ -414,7 +725,7 @@ def _prune(session, now: datetime) -> dict:
     return {
         "quotes": session.query(MarketQuoteRecord).filter(
             MarketQuoteRecord.source_system == FEED_SOURCE,
-            MarketQuoteRecord.source_reference == "feed:simulated-exchange",
+            MarketQuoteRecord.source_reference == FEED_REFERENCE,
             MarketQuoteRecord.observed_at_utc < cutoff).delete(synchronize_session=False),
         "trades": session.query(MarketTradeRecord).filter(
             MarketTradeRecord.source_system == FEED_SOURCE,
@@ -433,23 +744,69 @@ def _prune(session, now: datetime) -> dict:
     }
 
 
-def run_continuous(dislocations: float, *, max_rate: float = 4.0,
-                   clock=lambda: datetime.now(UTC), sleeper=time.sleep,
-                   stop_after: float | None = None) -> int:
-    """The demo server's feed: through the tick ingestion, during simulated trading hours.
+def _bucket(at: datetime) -> datetime:
+    at = at.replace(tzinfo=UTC) if at.tzinfo is None else at.astimezone(UTC)
+    size = int(THIN_BUCKET.total_seconds())
+    return datetime.fromtimestamp(int(at.timestamp()) // size * size, UTC)
+
+
+def _thin(session, now: datetime, since: datetime | None) -> tuple[int, datetime]:
+    """Thin the feed's quotes older than :data:`RAW_KEEP` to the last of each instrument and
+    delivery in each :data:`THIN_BUCKET`; returns (rows removed, where the next pass starts).
+
+    Whole buckets only, each once: ``since`` is where the previous pass stopped (``None``:
+    the retention window's start).
+    """
+
+    from eurogas_nexus.db.models import MarketQuoteRecord as Q
+
+    start = _bucket(since or now - RETENTION)
+    until = _bucket(now - RAW_KEEP)
+    if until <= start:
+        return 0, start
+    naive = session.get_bind().dialect.name == "sqlite"
+
+    def bound(value: datetime) -> datetime:
+        return value.replace(tzinfo=None) if naive else value
+
+    rows = (session.query(Q.quote_id, Q.instrument_id, Q.delivery_start_utc, Q.observed_at_utc)
+            .filter(Q.source_system == FEED_SOURCE, Q.source_reference == FEED_REFERENCE,
+                    Q.observed_at_utc >= bound(start), Q.observed_at_utc < bound(until))
+            .order_by(Q.observed_at_utc, Q.quote_id).all())
+    last: dict[tuple, str] = {}
+    for quote_id, instrument, delivery, observed in rows:
+        last[(instrument, delivery, _bucket(observed))] = quote_id
+    keep = set(last.values())
+    drop = [quote_id for quote_id, *_rest in rows if quote_id not in keep]
+    for offset in range(0, len(drop), 500):
+        session.query(Q).filter(Q.quote_id.in_(drop[offset:offset + 500])).delete(
+            synchronize_session=False)
+    return len(drop), until
+
+
+def run_continuous(dislocations: float, *, clock=lambda: datetime.now(UTC),
+                   sleeper=time.sleep, stop_after: float | None = None,
+                   session_mode: str | None = None) -> int:
+    """The demo server's feed: a live screen through the tick ingestion, in its session.
 
     Writes as ``DEMO_Sim`` through ``application.market_ticks.ingest_ticks`` (the path a
     licensed connector's batches take: validation, entitlement family, the inputs-changed
-    hook), a status run a minute for Admin → Data feeds, and prunes its own rows after
-    :data:`RETENTION`. One advisory lock keeps it single. Returns when ``stop_after`` seconds
-    have passed (tests), else never.
+    hook), one batch at most every :data:`BATCH_SECONDS`, a status run a minute for Admin →
+    Data feeds; thins its quotes after :data:`RAW_KEEP` and prunes its own rows after
+    :data:`RETENTION`. ``session_mode`` (``exchange`` or ``24h``; default from
+    :data:`SESSION_SETTING`) decides when it quotes. One advisory lock keeps it single.
+    Returns when ``stop_after`` seconds have passed (tests), else never.
     """
 
     from sqlalchemy import text
 
     from eurogas_nexus.application.market_ticks import ingest_ticks
     from eurogas_nexus.db.session import get_session_factory
+    from eurogas_nexus.domain.market.feed import FeedError
+    from eurogas_nexus.domain.market.gas_day import gas_day_label
 
+    mode = session_mode or feed_session()
+    label = SESSION_LABELS[mode]
     factory = get_session_factory()
     with factory() as probe:
         engine = probe.get_bind()
@@ -464,14 +821,15 @@ def run_continuous(dislocations: float, *, max_rate: float = 4.0,
             print(json.dumps({"feed": "another demo exchange feed holds the lock; exiting"}))
             return 0
     started = clock()
+    print(json.dumps({"feed": "started", "session": mode, "label": label, "simulated": True}),
+          flush=True)
     rng = random.Random(f"{STREAM}:live:{started:%Y%m%d%H%M%S}")
     booker = TradeBooker(BOOK_EVERY_SECONDS, random.Random(f"{STREAM}:book:live"))
-    books: dict | None = None
-    events = None
+    screen: LiveScreen | None = None
     gas_day = None
     counts = {"quotes": 0, "trades": 0, "last": None}
     status_since = last_prune = started
-    minimum_gap = 1.0 / max_rate
+    thinned_until: datetime | None = None
     while True:
         now = clock()
         if stop_after is not None and (now - started).total_seconds() >= stop_after:
@@ -479,47 +837,53 @@ def run_continuous(dislocations: float, *, max_rate: float = 4.0,
         if now - last_prune >= PRUNE_EVERY:
             with factory() as session:
                 removed = _prune(session, now)
+                removed["thinned"], thinned_until = _thin(session, now, thinned_until)
                 session.commit()
             print(json.dumps({"feed": "pruned", **removed}), flush=True)
             last_prune = now
-        if not in_trading_hours(now):
+        if not in_session(now, mode):
             if now - status_since >= STATUS_EVERY * 5:
                 with factory() as session:
-                    _status(session, now, status_since, counts,
-                            "paused outside simulated trading hours 07:00-19:00 CET")
+                    _status(session, now, status_since, counts, f"paused outside {label}")
                     session.commit()
                 status_since, counts = now, {"quotes": 0, "trades": 0, "last": counts["last"]}
-            books = events = None
+            screen = None
             sleeper(30)
             continue
-        day = _local(now).date()
-        if books is None or day != gas_day:
+        day = gas_day_label(now)
+        if screen is None or day != gas_day:
             with factory() as session:
-                held_anchors = _db_anchors(session)
-            books = {}
-            for (hub, product), (tick, half) in INSTRUMENTS.items():
-                anchor = held_anchors.get((hub, product), FALLBACK[(hub, product)])
-                books[(hub, product)] = Book(hub, product, anchor, anchor, tick, half,
-                                             prior_settlement=round(anchor, 3))
-            events = session_events(rng, books, now, 24 * 60, dislocations, planted=True)
+                anchors = load_anchors(session, now)
+            screen = LiveScreen(anchors, rng, now, dislocations_per_hour=dislocations,
+                                planted=True)
             gas_day = day
-        at, quotes, trades = next(events)
-        wait = max((at - clock()).total_seconds(), minimum_gap)
-        sleeper(wait)
-        with factory() as session:
-            ingest_ticks(session, source_system=FEED_SOURCE, quotes=quotes, trades=trades,
-                         simulated_allowed=True)
-            session.commit()
-        booker.maybe_book(at, books)
-        counts["quotes"] += len(quotes)
-        counts["trades"] += len(trades)
-        counts["last"] = at.isoformat(timespec="seconds")
+            print(json.dumps({"feed": "session", "gas_day": day, "hubs": screen.hubs,
+                              "instruments": len(screen.books)}), flush=True)
+        quotes, trades = screen.step(now)
+        if quotes or trades:
+            with factory() as session:
+                try:
+                    ingest_ticks(session, source_system=FEED_SOURCE, quotes=quotes,
+                                 trades=trades, simulated_allowed=True)
+                    session.commit()
+                except FeedError as exc:  # one refused batch never stops the screen
+                    session.rollback()
+                    print(json.dumps({"feed": "batch refused", "error": str(exc)[:300]}),
+                          flush=True)
+                    quotes, trades = [], []
+            counts["quotes"] += len(quotes)
+            counts["trades"] += len(trades)
+            if quotes:
+                counts["last"] = quotes[-1]["exchange_time"][:19]
+        booker.maybe_book(now, screen.books)
         if clock() - status_since >= STATUS_EVERY:
             with factory() as session:
                 _status(session, clock(), status_since, counts,
-                        "running; planted P1/P2 on schedule")
+                        f"running; {label}; {len(screen.books)} instruments across "
+                        f"{len(screen.hubs)} hubs; planted P1/P2 on schedule")
                 session.commit()
             status_since, counts = clock(), {"quotes": 0, "trades": 0, "last": counts["last"]}
+        sleeper(max(BATCH_SECONDS, (screen.next_due() - clock()).total_seconds()))
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -541,14 +905,19 @@ def main(argv: list[str] | None = None) -> int:
                         help="book a simulated prompt trade every N session seconds (demo "
                              "database access needed); 0: none")
     parser.add_argument("--continuous", action="store_true",
-                        help="the demo server's feed: straight through the tick ingestion "
-                             "into the demo database, during simulated trading hours, forever")
+                        help="the demo server's feed: a live screen of every demo hub straight "
+                             "through the tick ingestion into the demo database, in its "
+                             "session, forever")
+    parser.add_argument("--session", choices=sorted(SESSION_LABELS), default=None,
+                        help="continuous only: 'exchange' (07:00-19:00 CET/CEST, the default) "
+                             "or '24h' (demo only; real ICE Endex and EEX sessions differ); "
+                             f"default from {SESSION_SETTING}")
     args = parser.parse_args(argv)
     if args.continuous:
         if not feed_enabled():
             print(json.dumps({"feed": "disabled by EUROGAS_NEXUS_DEMO_EXCHANGE_FEED"}))
             return 0
-        return run_continuous(args.dislocations)
+        return run_continuous(args.dislocations, session_mode=args.session)
     password = os.environ.get("EUROGAS_NEXUS_DEV_LOGIN_PASSWORD") or ""
     if not password:
         print("EUROGAS_NEXUS_DEV_LOGIN_PASSWORD is not set", file=sys.stderr)

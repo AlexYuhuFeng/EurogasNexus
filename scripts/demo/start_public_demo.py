@@ -23,9 +23,10 @@ See ``docs/deployment/SELF_HOSTED_DEMO.md`` for the operator guide.
    demo test accounts ``EUROGAS_NEXUS_DEMO_TEST_ACCOUNTS`` lists (local accounts with their
    own, possibly weak, password; created through the product's local-account code path,
    re-applied on a reset, disabled when no longer listed; logged loudly);
-7. start the demo exchange feed (``scripts/demo/exchange_feed.py --continuous``: simulated
-   WD/DA quotes, prints and session statistics through the tick ingestion; off with
-   ``EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=off``);
+7. start the demo exchange feed (``scripts/demo/exchange_feed.py --continuous``: a simulated
+   live screen of every demo hub, quotes every few seconds, prints and session statistics
+   through the tick ingestion, in a demo-only 24-hour session by default
+   (``EUROGAS_NEXUS_DEMO_FEED_SESSION``); off with ``EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=off``);
 8. when live public sources are on (``EUROGAS_NEXUS_DEMO_LIVE_SOURCES``: ``auto`` turns them
    on when a public-source key is set), start a low-priority background process that waits
    until the server answers, catches up the gap since the last successful round (at most
@@ -230,11 +231,16 @@ def configure_environment(environ: dict[str, str] | os._Environ) -> list[str]:
         # Demo prices value the demo book; every valued response says they are demo prices.
         "EUROGAS_NEXUS_DEMO_MARKS": "true",
         # The simulated intraday exchange feed: "on" (default) or "off", one meaning for the
-        # start-up, the feed and the roll-forward. While it quotes (07:00-19:00 CET) it owns
-        # today's TTF and NBP WD/DA quotes and the hourly roll-forward writes the other hubs';
-        # outside those hours, or when off, the roll-forward writes them all
+        # start-up, the feed and the roll-forward. While it quotes it owns today's WD/DA quotes
+        # of every hub it quotes (all demo hubs but GTF) and the hourly roll-forward writes the
+        # rest; outside its session, or when off, the roll-forward writes them all
         # (scripts/demo/seed_demo_desk.py, demo_exchange_feed_running).
         "EUROGAS_NEXUS_DEMO_EXCHANGE_FEED": "on",
+        # The feed's session on the hosted demo: "24h", a demo-only session that never closes,
+        # so the screens move whatever the hour a tester opens them (scripts/demo/
+        # exchange_feed.py; real ICE Endex and EEX sessions differ). "exchange" keeps the
+        # feed's own default, simulated trading hours 07:00-19:00 CET/CEST.
+        "EUROGAS_NEXUS_DEMO_FEED_SESSION": "24h",
         # AI only when the operator supplied a model key.
         "EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED": "true" if llm_key else "false",
         "EUROGAS_NEXUS_WEB_CLIENT_DIR": str(ROOT / "web"),
@@ -558,12 +564,15 @@ def start_demo_events() -> None:
 
 
 def start_exchange_feed() -> None:
-    """Spawn the demo exchange feed (simulated WD/DA quotes, prints and session statistics).
+    """Spawn the demo exchange feed (a simulated live screen: quotes, prints, session statistics).
 
-    It writes through the tick ingestion a licensed feed adapter uses, during simulated trading
-    hours (07:00-19:00 CET), keeps 48 hours of its own rows and holds an advisory lock so a
-    second start never runs two. ``EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=off`` disables it (the
-    roll-forward then writes the day's prompt snapshot). Demo image only.
+    Every demo hub the tick intake accepts, WD, DA, WE and the front month, quarter and season
+    every 1-5 seconds and the rest of the curve with them, written through the tick ingestion a
+    licensed feed adapter uses, in the session ``EUROGAS_NEXUS_DEMO_FEED_SESSION`` names
+    (``24h`` here by default, a demo-only session; ``exchange``: 07:00-19:00 CET/CEST). It keeps
+    every quote of the last hour, one per instrument per ten minutes for 48 hours, and holds an
+    advisory lock so a second start never runs two. ``EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=off``
+    disables it (the roll-forward then writes the day's prompt snapshot). Demo image only.
     """
 
     if (os.environ.get("EUROGAS_NEXUS_DEMO_EXCHANGE_FEED") or "on").strip().lower() in {
@@ -575,7 +584,11 @@ def start_exchange_feed() -> None:
         cwd=ROOT,
         start_new_session=True,
     )
-    log("demo exchange feed: simulated WD/DA quotes and prints, 07:00-19:00 CET, 48 h kept")
+    session = (os.environ.get("EUROGAS_NEXUS_DEMO_FEED_SESSION") or "exchange").strip().lower()
+    hours = ("24-hour demo session (real ICE Endex/EEX sessions differ)"
+             if session in {"24h", "24", "24-hour", "always", "continuous"}
+             else "07:00-19:00 CET/CEST")
+    log(f"demo exchange feed: simulated live screen of every demo hub, {hours}, 48 h kept")
 
 
 def demo_events_loop() -> int:
