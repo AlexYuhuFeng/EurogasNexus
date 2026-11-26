@@ -1,13 +1,30 @@
-"""Lazy SQLAlchemy engine and session factory helpers."""
+"""Lazy SQLAlchemy engine and session factory helpers.
+
+Pool sizing (several API processes; ``docs/operations/API_SERVING_AND_SHARED_CACHE.md``):
+every process holds its own pool of ``EUROGAS_NEXUS_DB_POOL_SIZE`` connections plus at most
+``EUROGAS_NEXUS_DB_MAX_OVERFLOW`` more. Sum over every process that connects (API processes on
+every server, the workers, an operator's session) must stay under PostgreSQL's
+``max_connections`` less its reserved connections. Inside an API process the request threads
+(:func:`api_thread_limit`) are sized from the pool, so a request waits for a thread rather than
+for a connection (a connection wait ends in an error after ``EUROGAS_NEXUS_DB_POOL_TIMEOUT``).
+
+Every API connection carries a ``statement_timeout`` (:func:`use_api_statement_timeout`), so a
+runaway read is cancelled instead of holding a connection while every other request queues.
+The pool counts its checkouts, the ones that had to wait and the ones that timed out
+(:func:`pool_counters`, published as ``eurogas_db_pool_*`` metrics).
+"""
 
 import os
 import re
+import threading
+import time
 from collections.abc import Mapping
 from functools import lru_cache
 
 from sqlalchemy import create_engine
 from sqlalchemy.engine import Engine, make_url
 from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import QueuePool
 
 from eurogas_nexus.db.connection_url import pg8000_ssl_arguments
 
@@ -16,6 +33,165 @@ DB_URL_ENV_VARS = (
     "DATABASE_URL",
     "EUROGAS_NEXUS_DB_DSN",
 )
+
+
+#: Connections an API process uses beside its request threads: the live-update poller, the
+#: warm views' two background refreshes and the two identity threads (``api/stream_hub.py``,
+#: ``application/warm_views.py``, ``api/dependencies/identity.py``).
+API_BACKGROUND_CONNECTIONS = 5
+#: The statement timeout an API process applies when none is configured (milliseconds).
+API_STATEMENT_TIMEOUT_MS = 30_000
+
+#: Set by the API application (:func:`use_api_statement_timeout`).
+_API_PROCESS = False
+
+
+class PoolCounters:
+    """Checkouts, waits and timeouts of every pool in this process (thread-safe)."""
+
+    def __init__(self) -> None:
+        self._lock = threading.Lock()
+        self.checkouts = 0
+        self.waits = 0
+        self.timeouts = 0
+        self.wait_seconds = 0.0
+
+    def record(self, waited: float, *, timed_out: bool, exhausted: bool) -> None:
+        """One checkout: ``exhausted`` when no connection was idle and none could be opened,
+        so it had to wait for one to come back (opening a new connection is not a wait)."""
+
+        with self._lock:
+            if timed_out:
+                self.timeouts += 1
+            else:
+                self.checkouts += 1
+            if exhausted:
+                self.waits += 1
+                self.wait_seconds += waited
+
+    def snapshot(self) -> dict[str, float]:
+        with self._lock:
+            return {
+                "checkouts": self.checkouts,
+                "waits": self.waits,
+                "timeouts": self.timeouts,
+                "wait_seconds": self.wait_seconds,
+            }
+
+
+_POOL_COUNTERS = PoolCounters()
+
+
+def pool_counters() -> PoolCounters:
+    return _POOL_COUNTERS
+
+
+def _pool_number(pool, name: str) -> int:
+    value = getattr(pool, name, None)
+    if value is None:
+        return 0
+    if callable(value):
+        try:
+            value = value()
+        except Exception:  # noqa: BLE001 - a metric must never break the scrape
+            return 0
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def pool_occupancy(pools) -> tuple[int, int, int]:
+    """``(checked_out, size, overflow)`` summed over SQLAlchemy pools.
+
+    ``QueuePool.checkedout``/``size`` are methods, so they are called (an earlier exporter
+    printed the bound method's ``repr``, which made Prometheus reject the whole scrape).
+    """
+
+    checked_out = size = overflow = 0
+    for pool in pools:
+        inner = getattr(pool, "_pool", None)
+        checked_out += _pool_number(pool, "checkedout")
+        size += _pool_number(pool, "size") or _pool_number(inner, "maxsize")
+        overflow += max(0, _pool_number(pool, "_max_overflow"))
+    return checked_out, size, overflow
+
+
+def pool_state(pools=None) -> dict[str, float]:
+    """This process's pool state, the one source the pool metrics read: occupancy of
+    ``pools`` (default: every cached engine's pool) and the :func:`pool_counters` totals."""
+
+    checked_out, size, overflow = pool_occupancy(
+        cached_engine_pools() if pools is None else pools
+    )
+    return {
+        "checked_out": checked_out,
+        "size": size,
+        "overflow": overflow,
+        **_POOL_COUNTERS.snapshot(),
+    }
+
+
+class CountingQueuePool(QueuePool):
+    """SQLAlchemy's queue pool, counting waits for a connection and pool timeouts."""
+
+    def _do_get(self):  # noqa: ANN202 - SQLAlchemy's signature
+        from sqlalchemy.exc import TimeoutError as PoolTimeout
+
+        exhausted = self._pool.qsize() == 0 and self._overflow >= self._max_overflow
+        started = time.monotonic()
+        try:
+            connection = super()._do_get()
+        except PoolTimeout:
+            _POOL_COUNTERS.record(time.monotonic() - started, timed_out=True, exhausted=True)
+            raise
+        _POOL_COUNTERS.record(time.monotonic() - started, timed_out=False, exhausted=exhausted)
+        return connection
+
+
+def use_api_statement_timeout() -> None:
+    """Called by the API application: its connections cancel a statement after
+    ``EUROGAS_NEXUS_DB_STATEMENT_TIMEOUT_MS`` (default :data:`API_STATEMENT_TIMEOUT_MS`).
+
+    Workers and operator scripts do not call it, so the setting (in the same environment file)
+    does not reach them: an ingestion or a migration may legitimately run longer."""
+
+    global _API_PROCESS
+    _API_PROCESS = True
+
+
+def statement_timeout_ms(environ: Mapping[str, str] | None = None) -> int | None:
+    """The statement timeout new connections get (None: PostgreSQL's own, unlimited)."""
+
+    if not _API_PROCESS:
+        return None
+    env = os.environ if environ is None else environ
+    raw = (env.get("EUROGAS_NEXUS_DB_STATEMENT_TIMEOUT_MS") or "").strip()
+    if not raw:
+        return API_STATEMENT_TIMEOUT_MS
+    try:
+        value = int(raw)
+    except ValueError:
+        return API_STATEMENT_TIMEOUT_MS
+    return value if value > 0 else None
+
+
+def api_thread_limit(environ: Mapping[str, str] | None = None) -> int:
+    """Request threads per API process: ``EUROGAS_NEXUS_API_THREADS``, else the pool's
+    connections less the background ones, so no request thread waits for a connection."""
+
+    env = os.environ if environ is None else environ
+    raw = (env.get("EUROGAS_NEXUS_API_THREADS") or "").strip()
+    if raw:
+        try:
+            value = int(raw)
+        except ValueError:
+            value = 0
+        if value > 0:
+            return value
+    pool = max(1, _env_int("EUROGAS_NEXUS_DB_POOL_SIZE", 10, env))
+    overflow = max(0, _env_int("EUROGAS_NEXUS_DB_MAX_OVERFLOW", 20, env))
+    return max(4, pool + overflow - API_BACKGROUND_CONNECTIONS)
 
 
 def resolve_database_url(environ: Mapping[str, str | None] | None = None) -> str | None:
@@ -115,8 +291,22 @@ def get_engine(
             if pool_recycle_seconds is not None
             else _env_int("EUROGAS_NEXUS_DB_POOL_RECYCLE", 1800),
         )
+        engine_options["poolclass"] = CountingQueuePool
 
     engine = create_engine(parsed_url, **engine_options)
+    timeout_ms = statement_timeout_ms()
+    if parsed_url.get_backend_name() == "postgresql" and timeout_ms:
+        from sqlalchemy import event
+
+        def _set_statement_timeout(connection, _record) -> None:
+            cursor = connection.cursor()
+            try:
+                cursor.execute(f"SET statement_timeout = {int(timeout_ms)}")
+            finally:
+                cursor.close()
+            connection.commit()
+
+        event.listen(engine, "connect", _set_statement_timeout)
     if parsed_url.drivername.endswith("+pg8000"):
         from sqlalchemy import event
 
@@ -183,8 +373,8 @@ def get_session_factory(
     return _cached_session_factory(resolved_url)
 
 
-def _env_int(name: str, default: int) -> int:
-    raw = os.environ.get(name, "").strip()
+def _env_int(name: str, default: int, environ: Mapping[str, str] | None = None) -> int:
+    raw = (os.environ if environ is None else environ).get(name, "").strip()
     if not raw:
         return default
     try:

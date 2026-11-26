@@ -247,6 +247,66 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         purpose="Seconds after which a pooled connection is recycled.",
         default="1800",
     ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DB_STATEMENT_TIMEOUT_MS",
+        scope="OPERATOR",
+        purpose=(
+            "Milliseconds after which PostgreSQL cancels one statement of the API "
+            "(0: no limit)."
+        ),
+        default="30000",
+        notes=(
+            "Applies to the API processes only; workers and migrations keep PostgreSQL's own "
+            "setting",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_API_THREADS",
+        scope="OPERATOR",
+        purpose="Request threads per API process (default: pool size + overflow - 5).",
+        default=None,
+        notes=(
+            "Keep it at or below the pool's connections less 5 (the live-update poller, two "
+            "warm-view refreshes and two identity threads), so requests queue for a thread, "
+            "not for a connection",
+        ),
+    ),
+    # --- Several API processes ------------------------------------------------
+    ConfigVar(
+        name="EUROGAS_NEXUS_SHARED_CACHE_URL",
+        scope="OPERATOR",
+        purpose=(
+            "Valkey server shared by every API process (rate limits, warm-view "
+            "invalidation, revocation notes); unset: each process keeps its own."
+        ),
+        default=None,
+        sensitivity="secret",
+        required_when="the API runs as more than one process",
+        profiles=("trial", "release"),
+        example="valkey://valkey:6379/0",
+        notes=(
+            "valkey://, valkeys:// (TLS), redis:// or rediss://; Valkey or Redis 7.2 or "
+            "earlier (later Redis licences are refused). A password belongs in the URL, kept "
+            "outside the repository",
+        ),
+    ),
+    ConfigVar(
+        name="UVICORN_WORKERS",
+        scope="OPERATOR",
+        purpose="API processes per server (read by uvicorn); more than one needs the shared cache.",
+        default="1",
+        external_reader="uvicorn",
+        notes=(
+            "deploy/runtime/compose.scale.yaml runs 4 with a Valkey; size each process's pool "
+            "with docs/operations/API_SERVING_AND_SHARED_CACHE.md",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL",
+        scope="OPERATOR",
+        purpose="Live-update streams one identity may hold open on one API process.",
+        default="8",
+    ),
     # --- Caller identity ----------------------------------------------------
     ConfigVar(
         name="EUROGAS_NEXUS_PUBLIC_API_TOKEN",

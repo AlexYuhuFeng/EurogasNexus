@@ -62,6 +62,19 @@ digest. Local `.dnx*` working data is excluded from the Docker context.
 These content checks do not certify an existing database as simulation-free;
 customer data acceptance must inspect database provenance separately.
 
+## Several API processes (production shape)
+
+`compose.yaml` runs one API process with no shared cache. For a production server add
+`compose.scale.yaml`: it starts a password-protected Valkey on the internal network and runs
+four API processes that share it (`VALKEY_PASSWORD` must be set in the environment file):
+
+    docker compose -f compose.yaml -f compose.scale.yaml --env-file .env up -d
+
+The preflight refuses more than one API process without a shared cache. Each process runs
+its own live-update poller; the scheduler and the other workers stay single containers (the
+scheduler also holds a database lock), and database upgrades stay the gated step below. Pool
+sizing, what to watch and what happens when Valkey is down: `docs/operations/API_SERVING_AND_SHARED_CACHE.md`.
+
 ## Upgrades and monitoring
 
 - **Database upgrades** are a gated operator step, never automatic in this stack:
@@ -69,7 +82,10 @@ customer data acceptance must inspect database provenance separately.
   "<name>"` after a recorded backup (`docs/operations/DATABASE_UPGRADE.md`).
 - **Metrics**: set `EUROGAS_NEXUS_METRICS_SCRAPE_TOKEN` and/or
   `EUROGAS_NEXUS_METRICS_ALLOWED_NETWORKS` and scrape `http://<api>:8000/metrics` from the
-  monitoring network; the gateway answers `/metrics` with 404. Alert rules ship in
+  monitoring network; the gateway answers `/metrics` with 404. Every API process writes its
+  samples to one shared directory (`PROMETHEUS_MULTIPROC_DIR`, a tmpfs of the `api` container),
+  so one scrape returns the sum over all processes, including the pool and live-update
+  metrics of `compose.scale.yaml`. Alert rules ship in
   `deploy/monitoring/prometheus/` (`docs/operations/MONITORING.md`,
   `docs/operations/ALERT_RESPONSES.md`).
 - **Logs** are JSON lines on standard error, rotated by Docker (5 x 20 MB per container).

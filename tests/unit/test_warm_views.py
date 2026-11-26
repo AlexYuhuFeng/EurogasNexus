@@ -284,7 +284,11 @@ def test_a_successful_write_through_the_api_makes_views_due(monkeypatch):
     from eurogas_nexus.api.middleware.warm_views import WarmViewWriteMiddleware
 
     seen = []
-    monkeypatch.setattr(wv, "_VIEWS", SimpleNamespace(note_write=seen.append))
+    monkeypatch.setattr(
+        wv,
+        "_VIEWS",
+        SimpleNamespace(note_write=lambda owner, scope_owner=None: seen.append(owner)),
+    )
     monkeypatch.setattr("eurogas_nexus.api.middleware.warm_views.views", lambda: wv._VIEWS)
 
     def app_answering(status):
@@ -348,3 +352,47 @@ def test_view_meta_does_not_change_a_conditional_reads_tag() -> None:
     kept = content_etag(body("refreshing", "2026-11-26T09:41:00Z"))
     assert kept == content_etag(body("fresh", "2026-11-26T09:42:00Z"))
     assert kept != content_etag(body("fresh", "2026-11-26T09:42:00Z", value=2))
+
+
+def test_a_view_shared_by_scope_is_one_entry_for_readers_of_one_scope(monkeypatch):
+    """Readers whose principals differ only in who they are share a shared-by-scope view; a
+    different scope never does; a write by any reader of the scope is never answered from
+    before it, for that reader or the others."""
+
+    from dataclasses import dataclass as _dataclass
+
+    @_dataclass(frozen=True)
+    class Person:
+        principal_id: str
+        name: str
+        email: str | None = None
+        role: str = "TRADER"
+        data_scopes: tuple[str, ...] = ()
+
+    store = WarmViews(watermark=lambda: 1, watermark_poll_seconds=0)
+    monkeypatch.setattr(wv, "_VIEWS", store)
+    monkeypatch.setattr(store, "start_keeper", lambda *a, **k: None)
+    monkeypatch.setenv("EUROGAS_NEXUS_WARM_VIEWS", "on")
+    shared = ViewSpec("shared.view", shared_by_scope=True)
+    calls = {"n": 0}
+
+    def compute():
+        calls["n"] += 1
+        return {"data": calls["n"], "meta": {}}
+
+    def request(principal):
+        return SimpleNamespace(state=SimpleNamespace(identity=principal))
+
+    anna = Person("p-anna", "Anna", "anna@example.com", data_scopes=("BOOKS:*",))
+    ben = Person("p-ben", "Ben", "ben@example.com", data_scopes=("BOOKS:*",))
+    clara = Person("p-clara", "Clara", data_scopes=("BOOKS:BOOK:nl-ttf",))
+    assert wv.serve_view(request(anna), shared, (), compute)["data"] == 1
+    assert wv.serve_view(request(ben), shared, (), compute)["data"] == 1  # same scope
+    assert wv.serve_view(request(clara), shared, (), compute)["data"] == 2  # another scope
+    # Ben writes: neither he nor Anna is answered from before it.
+    store.note_write(ben.principal_id, wv.scope_owner(ben))
+    assert wv.serve_view(request(anna), shared, (), compute)["data"] == 3
+    assert wv.serve_view(request(ben), shared, (), compute)["data"] == 3
+    # A view not marked shared stays per person.
+    assert wv.serve_view(request(anna), SPEC, (), compute)["data"] == 4
+    assert wv.serve_view(request(ben), SPEC, (), compute)["data"] == 5

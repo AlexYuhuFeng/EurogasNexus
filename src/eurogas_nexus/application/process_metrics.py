@@ -1,4 +1,4 @@
-"""Per-process metrics (HTTP latency, database pool, open streams), safe with N workers.
+"""Per-process metrics (HTTP latency, database pool, live updates), safe with N workers.
 
 The API may run as several worker processes. Prometheus scrapes one of them per scrape, so
 a counter kept in one process's memory would show a different, partial number each time.
@@ -98,6 +98,47 @@ def _metrics() -> dict[str, Any]:
             registry=registry,
             multiprocess_mode="livesum",
         ),
+        # The pool's own counts (``db.session.pool_counters``), published by observe_pools.
+        "pool_checkouts": Counter(
+            "eurogas_db_pool_checkouts",
+            "Connections handed out by the API processes' pools.",
+            registry=registry,
+        ),
+        "pool_waits": Counter(
+            "eurogas_db_pool_waits",
+            "Checkouts that waited for a connection (the pool was exhausted).",
+            registry=registry,
+        ),
+        "pool_timeouts": Counter(
+            "eurogas_db_pool_timeouts",
+            "Checkouts that gave up after the pool timeout.",
+            registry=registry,
+        ),
+        "pool_wait_seconds": Counter(
+            "eurogas_db_pool_wait_seconds",
+            "Time spent waiting for a connection.",
+            registry=registry,
+        ),
+        "stream_polls": Counter(
+            "eurogas_stream_polls",
+            "Polls of the live-update pollers (one poller per API process).",
+            registry=registry,
+        ),
+        "stream_poll_seconds": Counter(
+            "eurogas_stream_poll_seconds",
+            "Time spent in those polls.",
+            registry=registry,
+        ),
+        "stream_poll_failures": Counter(
+            "eurogas_stream_poll_failures",
+            "Polls that could not reach the store.",
+            registry=registry,
+        ),
+        "stream_refused": Counter(
+            "eurogas_stream_refused",
+            "Live-update streams refused over the per-caller cap.",
+            registry=registry,
+        ),
         "streams": Gauge(
             "eurogas_stream_connections",
             "Open live-update (server-sent events) connections by topic.",
@@ -145,39 +186,24 @@ def observe_request(route_path: str | None, method: str, status_code: int, secon
 _METHODS = {"GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"}
 
 
-def _pool_number(pool: Any, name: str) -> int:
-    value = getattr(pool, name, None)
-    if value is None:
-        return 0
-    if callable(value):
-        try:
-            value = value()
-        except Exception:  # noqa: BLE001 - a metric must never break the scrape
-            return 0
-    try:
-        return int(value)
-    except (TypeError, ValueError):
-        return 0
-
-
-def pool_numbers(pools: Iterable[Any]) -> tuple[int, int, int]:
-    """``(checked_out, size, overflow)`` summed over SQLAlchemy pools.
-
-    ``QueuePool.checkedout``/``size`` are methods, so they are called (an earlier exporter
-    printed the bound method's ``repr``, which made Prometheus reject the whole scrape).
-    """
-
-    checked_out = size = overflow = 0
-    for pool in pools:
-        inner = getattr(pool, "_pool", None)
-        checked_out += _pool_number(pool, "checkedout")
-        size += _pool_number(pool, "size") or _pool_number(inner, "maxsize")
-        overflow += max(0, _pool_number(pool, "_max_overflow"))
-    return checked_out, size, overflow
+#: ``db.session.pool_counters`` totals -> the counter that publishes them.
+_POOL_COUNTER_METRICS = {
+    "checkouts": "pool_checkouts",
+    "waits": "pool_waits",
+    "timeouts": "pool_timeouts",
+    "wait_seconds": "pool_wait_seconds",
+}
+#: The totals already added to this process's counters.
+_pool_published: dict[str, float] = dict.fromkeys(_POOL_COUNTER_METRICS, 0)
 
 
 def observe_pools(pools: Iterable[Any] | None = None, *, force: bool = False) -> None:
-    """Publish this process's pool state (at most once a second unless forced)."""
+    """Publish this process's pool state (at most once a second unless forced).
+
+    The state comes from ``db.session.pool_state`` (one source for the gauges and the
+    counters): the gauges are set, and the counters grow by what ``pool_counters`` counted
+    since the last publication, so every worker's own counter file sums correctly.
+    """
 
     global _pool_sampled_at
     now = time.monotonic()
@@ -186,19 +212,46 @@ def observe_pools(pools: Iterable[Any] | None = None, *, force: bool = False) ->
             return
         _pool_sampled_at = now
     try:
-        if pools is None:
-            # Not imported here: a process that never opened the database has no pools, and
-            # serving a request must not load the database layer (product boundary contract).
-            session_module = sys.modules.get("eurogas_nexus.db.session")
-            if session_module is None:
-                return
-            pools = session_module.cached_engine_pools()
-        checked_out, size, overflow = pool_numbers(pools)
+        # Not imported here: a process that never opened the database has no pools, and
+        # serving a request must not load the database layer (product boundary contract).
+        session_module = sys.modules.get("eurogas_nexus.db.session")
+        if session_module is None:
+            return
+        state = session_module.pool_state(None if pools is None else list(pools))
         metrics = _metrics()
-        metrics["pool_checked_out"].set(checked_out)
-        metrics["pool_size"].set(size)
-        metrics["pool_overflow"].set(overflow)
+        metrics["pool_checked_out"].set(state["checked_out"])
+        metrics["pool_size"].set(state["size"])
+        metrics["pool_overflow"].set(state["overflow"])
+        with _pool_lock:
+            for key, name in _POOL_COUNTER_METRICS.items():
+                delta = float(state[key]) - float(_pool_published[key])
+                if delta > 0:
+                    metrics[name].inc(delta)
+                # A reset (tests) restarts the comparison; a counter never goes down.
+                _pool_published[key] = state[key]
     except Exception:  # noqa: BLE001 - a metric must never fail a request
+        return
+
+
+def stream_poll(seconds: float, *, failed: bool) -> None:
+    """One poll of this process's live-update poller (``api/stream_hub.py``)."""
+
+    try:
+        metrics = _metrics()
+        metrics["stream_polls"].inc()
+        metrics["stream_poll_seconds"].inc(max(0.0, seconds))
+        if failed:
+            metrics["stream_poll_failures"].inc()
+    except Exception:  # noqa: BLE001
+        return
+
+
+def stream_refused() -> None:
+    """A stream refused over the per-caller cap."""
+
+    try:
+        _metrics()["stream_refused"].inc()
+    except Exception:  # noqa: BLE001
         return
 
 
@@ -293,11 +346,12 @@ __all__ = [
     "multiprocess_dir",
     "observe_pools",
     "observe_request",
-    "pool_numbers",
     "prepare_process",
     "render",
     "route_group",
     "status_class",
     "stream_closed",
     "stream_opened",
+    "stream_poll",
+    "stream_refused",
 ]

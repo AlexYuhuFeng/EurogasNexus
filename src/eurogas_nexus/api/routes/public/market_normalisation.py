@@ -268,7 +268,7 @@ def normalise(body: NormaliseInput, request: Request) -> dict:
 
 
 @router.get("/api/market/instruments")
-@warm_view(ViewSpec("market.instruments", max_age_seconds=300))
+@warm_view(ViewSpec("market.instruments", max_age_seconds=300, shared_by_scope=True))
 def list_instruments(request: Request) -> dict:
     """The caller's entitled daily price series as hub → product kind → tenor.
 

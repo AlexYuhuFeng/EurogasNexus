@@ -11,8 +11,12 @@ router = APIRouter(tags=["health"])
 
 
 @router.get("/api/health", response_model=HealthResponse)
-def health(request: Request) -> HealthResponse:
-    """Return import-safe service health (process liveness)."""
+async def health(request: Request) -> HealthResponse:
+    """Return import-safe service health (process liveness).
+
+    Answered on the event loop (it reads settings only, never the database): a load balancer's
+    check measures the process, not the queue of request threads behind a busy minute.
+    """
 
     settings = getattr(request.app.state, "settings", Settings())
     # People read the display spelling (1.0.0-beta); /api/runtime/release carries the
@@ -28,7 +32,7 @@ def health(request: Request) -> HealthResponse:
 
 
 @router.get("/api/health/live")
-def health_live(request: Request) -> dict:
+async def health_live(request: Request) -> dict:
     """Process liveness only. Never depends on PostgreSQL or providers."""
 
     settings = getattr(request.app.state, "settings", Settings())

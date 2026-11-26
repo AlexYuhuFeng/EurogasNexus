@@ -30,6 +30,49 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   `tests/integration/test_demo_seed_clear_postgres.py` (added to
   `scripts/ci/run_postgres_ci.sh`). Two stale tariff expectations (34; the quantfix merge
   made 34 legs x 3 capacity products) were corrected in the demo seed tests.
+## 2026-11-26 — Phase 1, P1-A merged onto P1-C (branch `p1-int`, not pushed)
+
+- Conflicts resolved keeping both sides: both runtime dependencies (`prometheus-client` 0.26.0,
+  `valkey` 6.2.0 with `async-timeout` below Python 3.11.3), both hash pins unchanged in both
+  locks; `THIRD_PARTY_NOTICES.md` regenerated (34 python-runtime packages); licence review 48.
+- **Metrics, one mechanism.** P1-A's hand-written exposition lines are gone; its pool counters
+  (`eurogas_db_pool_{checkouts,waits,timeouts,wait_seconds}_total`) and poller counters
+  (`eurogas_stream_{polls,poll_seconds,poll_failures,refused}_total`) are `prometheus_client`
+  counters in `application/process_metrics.py`, summed over workers. Pool gauges and counters
+  read one source, `db.session.pool_state` (`pool_counters` plus occupancy); `observe_pools`
+  still never imports the database layer. `eurogas_stream_open` dropped for P1-C's
+  `eurogas_stream_connections{topic}`.
+- New alert EurogasDbPoolExhausted (timeouts, or over 10 % of checkouts waited; 13 rules,
+  promtool tests pass). Preflight warns when several API processes have no shared metrics
+  directory. The poller logs a poll that cannot reach the store (JSON, throttled); before,
+  the usual outage was answered with warning events and logged nothing.
+- Checked: compose.scale.yaml multiplies only the API (scheduler and workers stay single,
+  release never upgrades on start); only the API lifespan sets the 30 s statement timeout.
+  Real 2-worker uvicorn with scratch PostgreSQL 16 and Valkey 8: one scrape, each family once,
+  counters equal to the sum of the two workers' files (checkouts 92 + 98 = 190).
+- Fixed tests that failed on one branch alone: four preflight tests (p1-C) and the liveness
+  test (p1-A, `health_live` is async).
+
+## 2026-11-26 — Phase 1, P1-A serving: one poller per process, several processes, Valkey (branch `p1-A`, not pushed)
+
+- Decision record accepted and renamed:
+  [2026-11-26-multi-process-api-and-shared-cache.md](../architecture/decisions/2026-11-26-multi-process-api-and-shared-cache.md)
+  (Decision 40 in the decision log).
+- Built: the per-process live-update poller (`api/stream_hub.py`, shared reads in
+  `application/live_topics.Reads`, per-connection entitlement kept); no synchronous database call
+  on the event loop (identity resolution, contract intake, import validation, entitlement
+  audits, lifespan; a contract test guards it); the shared-cache seam with an in-process and a
+  Valkey backend (rate limits, sign-in throttle, warm-view write signal, revocation notes on
+  open streams); nine reader-independent warm views kept once per scope; pool sizing, request
+  threads from the pool, a 30 s API statement timeout, pool and poller metrics; the load test
+  `scripts/ops/load_test_desk.py`; `deploy/runtime/compose.scale.yaml` (4 processes + Valkey).
+- New runtime dependency: `valkey` 6.2 (MIT), hash-pinned; no other pin moved.
+- Measured on a shared 4-core machine: see
+  [API_SERVING_AND_SHARED_CACHE.md](../operations/API_SERVING_AND_SHARED_CACHE.md#results-2026-11-26).
+- Not done here: `LISTEN/NOTIFY` early wake of the poller (pg8000 delivers notices only on a
+  round trip, so it would cost the same as the 1.5 s poll), warm-view values in Valkey (the
+  write signal is shared, values stay per process), per-person views kept by scope (seven views
+  read per-person state), cross-process stream caps (the cap is per process).
 
 ## 2026-11-26 — Quant review fixes (branch `quantfix`)
 
@@ -54,6 +97,7 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   daily) EUR/MWh with 1.80 sunk; Rhinmark replacement 19,377,360 -> 19,228,594 EUR.
 - Not built (plan work, `ARCHITECTURE_V3_PLAN.md`): storage extrinsic value, swing/ToP,
   options, PFE, P&L attribution, power, the stored EOD ladder/VaR run.
+
 ## 2026-11-26 — P1-C: observability, scheduler safety, gated upgrades (branch `p1-C`, not pushed)
 
 Plan v3 section 3.10 (and 3.2 for migrations), phase 1. Built:

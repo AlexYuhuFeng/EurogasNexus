@@ -1,9 +1,14 @@
 """Server-sent event streams for near-real-time decision feeds.
 
-Design: PostgreSQL IS the event log. These endpoints are faster READERS — each
-polls for rows newer than a per-connection cursor (~1.5s cadence) and pushes
-only deltas. No in-memory truth, no new dependencies; clients keep HTTP polling
-as a fallback.
+Design: PostgreSQL IS the event log. These endpoints are faster READERS: each
+connection holds its own cursor (~1.5s cadence) and receives only deltas. No
+in-memory truth, no new dependencies; clients keep HTTP polling as a fallback.
+
+Serving: a connection does not query the database itself. The process's one poller
+(``api.stream_hub``) reads every source once per interval in a thread, off the event loop,
+and hands each connection its own events (its cursor, its caller's entitlement) through an
+in-memory queue. The stream states below (:class:`_RowStream`, :class:`_LiveStream`) are what
+that poller runs for each connection.
 
 Entitlement: a stream outlives the request that opened it, so every poll passes its rows
 through a guard built from the caller: quotes by licensed data scope (as the REST read
@@ -20,7 +25,6 @@ watermark could permanently skip rows).
 
 from __future__ import annotations
 
-import asyncio
 import json
 from collections.abc import AsyncGenerator, Callable
 from datetime import UTC, datetime
@@ -89,6 +93,139 @@ def _event_id(ts_field_value: object, pk: object) -> str:
     return f"{_iso(ts_field_value)}|{pk}"
 
 
+def refused_event() -> str:
+    """What a stream sends when the caller already holds the most streams allowed; it ends."""
+
+    return _sse({"type": "refused", "message": "STREAM_LIMIT_REACHED"}, event="refused")
+
+
+def warning_event() -> str:
+    """What a stream sends while the database is unavailable (it keeps trying)."""
+
+    return _sse({"type": "warning", "message": "RUNTIME_POSTGRESQL_UNAVAILABLE"}, event="warning")
+
+
+def _reads_keys(fetch_notices) -> tuple[str, ...]:
+    return tuple(getattr(fetch_notices, "reads_keys", ()))
+
+
+class _RowStream:
+    """One row stream's cursor, guard and notice cursors; run by the poller thread.
+
+    Each poll sends the rows after the cursor that the guard lets through; the cursor still
+    moves past the others, so a withheld row is never retried, and a caller who may no longer
+    stream gets one ``revoked`` event and the stream ends. Database unavailability sends an
+    explicit warning event (never a silent fallback) and the stream keeps trying.
+    """
+
+    def __init__(
+        self,
+        topic: str,
+        fetch: FetchRows,
+        ts_field: str,
+        pk_field: str,
+        initial_cursor: Cursor,
+        guard: RowGuard | None,
+        notices: tuple[tuple[str, FetchNotices], ...],
+    ) -> None:
+        self.topic = topic
+        self.fetch = fetch
+        self.ts_field = ts_field
+        self.pk_field = pk_field
+        self.cursor: Cursor = initial_cursor
+        self.guard = guard
+        self.notices = notices
+        # Change notices ride on the same connection (a browser holds few per host): each from
+        # now, without an id (a reconnecting client re-reads what they announce anyway).
+        self.notice_cursors: dict[str, Cursor] = {
+            name: (datetime.now(UTC), "") for name, _ in notices
+        }
+        self.last_heartbeat = datetime.now(UTC)
+        self.started = False
+
+    def _cursor_of(self, row: dict) -> Cursor:
+        return _row_cursor(row, self.ts_field, self.pk_field)
+
+    def want(self, reads) -> None:
+        if isinstance(self.guard, StreamGuard):
+            self.guard.want(reads)
+        reads.want(("rows", self.fetch), self.cursor)
+        for name, fetch_notices in self.notices:
+            cursor = self.notice_cursors[name]
+            for key in _reads_keys(fetch_notices):
+                reads.want(key, _notice_since(key, cursor, reads))
+
+    def poll(self, reads) -> tuple[list[str], bool]:
+        self.started = True
+        out: list[str] = []
+        rows: list[dict] = []
+        allowed: list[dict] | None = []
+        announced: list[tuple[str, dict]] = []
+        try:
+            rows = reads.ascending(
+                ("rows", self.fetch), self.fetch, self.cursor, self._cursor_of, PAGE_SIZE
+            )
+            guard = self.guard
+            if guard is None:
+                allowed = rows
+            else:
+                allowed = guard(reads if isinstance(guard, StreamGuard) else reads.session, rows)
+            caller = getattr(guard, "principal", None)
+            for name, fetch_notices in self.notices:
+                for notice in fetch_notices(reads, self.notice_cursors[name], caller):
+                    moved = notice.get("cursor") or notice.get("changed_at")
+                    if isinstance(moved, datetime):
+                        current = self.notice_cursors[name]
+                        if current is None or _as_utc(moved) > current[0]:
+                            self.notice_cursors[name] = (_as_utc(moved), "")
+                    # What the caller may not see moves the cursor and is not announced.
+                    if notice.get("visible", True):
+                        announced.append(
+                            (
+                                name,
+                                {
+                                    **(notice.get("detail") or {}),
+                                    "group": notice["group"],
+                                    "changed_at": notice["changed_at"],
+                                },
+                            )
+                        )
+        except Exception:
+            reads.recover()
+            rows, allowed, announced = [], [], []
+            out.append(warning_event())
+        if allowed is None:
+            out.append(_sse({"type": "revoked", "message": "ACCESS_REVOKED"}, event="revoked"))
+            return out, True
+        for row in allowed:
+            out.append(
+                _sse(
+                    row,
+                    event=self.topic,
+                    event_id=_event_id(row.get(self.ts_field), row.get(self.pk_field)),
+                )
+            )
+        for name, notice in announced:
+            out.append(_sse(notice, event=name))
+        for row in rows:
+            self.cursor = self._cursor_of(row) or self.cursor
+        now = datetime.now(UTC)
+        if (now - self.last_heartbeat).total_seconds() >= HEARTBEAT_SECONDS:
+            out.append(": ping\n\n")
+            self.last_heartbeat = now
+        return out, False
+
+
+def _notice_since(key: str, cursor: Cursor, reads):
+    """The cursor a notice source reads ``key`` from (see each source's ``reads_keys``)."""
+
+    if key == "expiries":
+        return (cursor[0] if cursor is not None else reads.now, "")
+    if key == "evaluations":
+        return None if cursor is None else (cursor[0], "")
+    return cursor[0] if cursor is not None else None
+
+
 async def _event_stream(
     topic: str,
     fetch: FetchRows,
@@ -97,8 +234,9 @@ async def _event_stream(
     initial_cursor: Cursor,
     guard: RowGuard | None = None,
     notices: tuple[tuple[str, FetchNotices], ...] = (),
+    principal_id: str | None = None,
 ) -> AsyncGenerator[str, None]:
-    """Poll PostgreSQL for rows after the cursor and yield them as SSE events.
+    """The connection's events: rows after the cursor and notices, from the process's poller.
 
     Database unavailability emits an explicit warning event (never a silent
     fallback) and the stream keeps retrying. With a ``guard``, only the rows the caller
@@ -107,61 +245,11 @@ async def _event_stream(
     the stream ends.
     """
 
-    cursor: Cursor = initial_cursor
-    # Change notices ride on the same connection (a browser holds few per host): each from
-    # now, without an id (a reconnecting client re-reads what they announce anyway).
-    notice_cursors: dict[str, Cursor] = {name: (datetime.now(UTC), "") for name, _ in notices}
-    last_heartbeat = datetime.now(UTC)
-    while True:
-        rows: list[dict] = []
-        allowed: list[dict] | None = []
-        announced: list[tuple[str, dict]] = []
-        try:
-            from eurogas_nexus.db.session import get_session_factory
+    from eurogas_nexus.api.stream_hub import get_hub
 
-            with get_session_factory()() as session:
-                rows = fetch(session, cursor)
-                allowed = rows if guard is None else guard(session, rows)
-                caller = getattr(guard, "principal", None)
-                for name, fetch_notices in notices:
-                    for notice in fetch_notices(session, notice_cursors[name], caller):
-                        moved = notice.get("cursor") or notice.get("changed_at")
-                        if isinstance(moved, datetime):
-                            current = notice_cursors[name]
-                            if current is None or _as_utc(moved) > current[0]:
-                                notice_cursors[name] = (_as_utc(moved), "")
-                        # What the caller may not see moves the cursor and is not announced.
-                        if notice.get("visible", True):
-                            announced.append(
-                                (
-                                    name,
-                                    {
-                                        **(notice.get("detail") or {}),
-                                        "group": notice["group"],
-                                        "changed_at": notice["changed_at"],
-                                    },
-                                )
-                            )
-        except Exception:
-            rows, allowed = [], []
-            yield _sse(
-                {"type": "warning", "message": "RUNTIME_POSTGRESQL_UNAVAILABLE"},
-                event="warning",
-            )
-        if allowed is None:
-            yield _sse({"type": "revoked", "message": "ACCESS_REVOKED"}, event="revoked")
-            return
-        for row in allowed:
-            yield _sse(row, event=topic, event_id=_event_id(row.get(ts_field), row.get(pk_field)))
-        for name, notice in announced:
-            yield _sse(notice, event=name)
-        for row in rows:
-            cursor = _row_cursor(row, ts_field, pk_field) or cursor
-        now = datetime.now(UTC)
-        if (now - last_heartbeat).total_seconds() >= HEARTBEAT_SECONDS:
-            yield ": ping\n\n"
-            last_heartbeat = now
-        await asyncio.sleep(POLL_SECONDS)
+    state = _RowStream(topic, fetch, ts_field, pk_field, initial_cursor, guard, notices)
+    async for chunk in get_hub().stream(state, principal_id):
+        yield chunk
 
 
 def _row_cursor(row: dict, ts_field: str, pk_field: str) -> Cursor:
@@ -272,18 +360,19 @@ def _fetch_new_opportunities(session: Session, cursor: Cursor) -> list[dict]:
 
 
 def _opportunity_visible(session, principal):
-    """The opportunity read rule for one caller (``listing.visible_to``), as a dict predicate."""
+    """The opportunity read rule for one caller (``listing.visible_to``), as a dict predicate.
+
+    ``session`` is a session or the poll's shared reads (the caller's books once per poll)."""
 
     from types import SimpleNamespace
 
+    from eurogas_nexus.application.live_topics import as_reads
     from eurogas_nexus.application.opportunities.listing import visible_to
     from eurogas_nexus.application.projections.market_reads import row_allowed
 
     if principal is None:
         return lambda change: True
-    from eurogas_nexus.security.portfolio_scope import scope_for_principal, visible_book_ids
-
-    books = visible_book_ids(session, scope_for_principal(principal.data_scopes))
+    books = as_reads(session).books(principal)
 
     def visible(change: dict) -> bool:
         row = SimpleNamespace(
@@ -298,23 +387,37 @@ def _opportunity_visible(session, principal):
 
 def _fetch_opportunity_expiries(session: Session, cursor: Cursor, principal=None) -> list[dict]:
     """Listed opportunities whose validity ended after the cursor: withdrawn at their expiry,
-    not at the engine's next run (which records ``expired`` and sends it again, harmlessly)."""
+    not at the engine's next run (which records ``expired`` and sends it again, harmlessly).
 
+    ``session`` is a session or the poll's shared reads."""
+
+    from eurogas_nexus.application.live_topics import as_reads
     from eurogas_nexus.db.models import OpportunityRecord
 
-    now = datetime.now(UTC)
+    reads = as_reads(session)
+    now = reads.now
     since = cursor[0] if cursor is not None else now
-    rows = (
-        session.query(OpportunityRecord)
-        .filter(OpportunityRecord.state.in_(sorted(LISTED_OPPORTUNITY_STATES)))
-        .filter(OpportunityRecord.surfaced.is_(True))
-        .filter(OpportunityRecord.expires_at_utc > since)
-        .filter(OpportunityRecord.expires_at_utc <= now)
-        .order_by(OpportunityRecord.expires_at_utc.asc())
-        .limit(NOTICE_PAGE)
-        .all()
+
+    def fetch(db, at):
+        return (
+            db.query(OpportunityRecord)
+            .filter(OpportunityRecord.state.in_(sorted(LISTED_OPPORTUNITY_STATES)))
+            .filter(OpportunityRecord.surfaced.is_(True))
+            .filter(OpportunityRecord.expires_at_utc > at[0])
+            .filter(OpportunityRecord.expires_at_utc <= now)
+            .order_by(OpportunityRecord.expires_at_utc.asc())
+            .limit(NOTICE_PAGE)
+            .all()
+        )
+
+    rows = reads.ascending(
+        "expiries",
+        fetch,
+        (since, ""),
+        lambda row: (_as_utc(row.expires_at_utc), ""),
+        NOTICE_PAGE,
     )
-    visible = _opportunity_visible(session, principal)
+    visible = _opportunity_visible(reads, principal)
     out = []
     for row in rows:
         change = _opportunity_change(row, withdrawn_reason="expired")
@@ -333,20 +436,38 @@ def _fetch_opportunity_expiries(session: Session, cursor: Cursor, principal=None
     return out
 
 
+_fetch_opportunity_expiries.reads_keys = ("expiries",)  # type: ignore[attr-defined]
+
+
 def _fetch_evaluations(session: Session, cursor: Cursor, principal=None) -> list[dict]:
     """Opportunity evaluations finished after the cursor: the page's "as of" moves and it
     re-reads (a re-evaluation can change figures without changing a state). The run is
-    firm-wide; the notice names when and why it ran, not what it found."""
+    firm-wide; the notice names when and why it ran, not what it found.
 
+    ``session`` is a session or the poll's shared reads."""
+
+    from eurogas_nexus.application.live_topics import as_reads
     from eurogas_nexus.db.models import OpportunityEvaluationRecord
 
-    since = cursor[0] if cursor is not None else None
-    query = session.query(OpportunityEvaluationRecord).filter(
-        OpportunityEvaluationRecord.finished_at_utc.is_not(None)
+    def fetch(db, at):
+        query = db.query(OpportunityEvaluationRecord).filter(
+            OpportunityEvaluationRecord.finished_at_utc.is_not(None)
+        )
+        if at is not None:
+            query = query.filter(OpportunityEvaluationRecord.finished_at_utc > at[0])
+        return (
+            query.order_by(OpportunityEvaluationRecord.finished_at_utc.asc())
+            .limit(NOTICE_PAGE)
+            .all()
+        )
+
+    rows = as_reads(session).ascending(
+        "evaluations",
+        fetch,
+        None if cursor is None else (cursor[0], ""),
+        lambda row: (_as_utc(row.finished_at_utc), ""),
+        NOTICE_PAGE,
     )
-    if since is not None:
-        query = query.filter(OpportunityEvaluationRecord.finished_at_utc > since)
-    rows = query.order_by(OpportunityEvaluationRecord.finished_at_utc.asc()).limit(NOTICE_PAGE)
     return [
         {
             "group": "evaluation",
@@ -359,8 +480,11 @@ def _fetch_evaluations(session: Session, cursor: Cursor, principal=None) -> list
                 "as_of_utc": _as_utc(row.as_of_utc),
             },
         }
-        for row in rows.all()
+        for row in rows
     ]
+
+
+_fetch_evaluations.reads_keys = ("evaluations",)  # type: ignore[attr-defined]
 
 
 def _fetch_new_alerts(session: Session, cursor: Cursor) -> list[dict]:
@@ -417,67 +541,47 @@ def _fetch_map_changes(session: Session, cursor: Cursor, principal=None) -> list
     visibility. Without a principal (an internal caller) every change counts.
     """
 
-    from eurogas_nexus.application.identity_resolution import identity_clause
-    from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
-    from eurogas_nexus.db.models import (
-        FlowObservationRecord,
-        LngCargoRecord,
-        OpportunityRecord,
-        RegasSlotRecord,
-        RemitUmmRecord,
+    from eurogas_nexus.application.live_topics import as_reads
+    from eurogas_nexus.application.opportunities.listing import visible_to
+    from eurogas_nexus.application.projections.market_reads import (
+        filter_entitled_rows,
+        row_allowed,
     )
-    from eurogas_nexus.security.portfolio_scope import scope_for_principal, visible_book_ids
+    from eurogas_nexus.domain.opportunities.model import OpportunityState
 
+    reads = as_reads(session)
     since = cursor[0] if cursor is not None else None
-
-    def changed(query, stamp):
-        if since is not None:
-            query = query.filter(stamp > since)
-        return query.order_by(stamp.desc()).limit(NOTICE_PAGE).all()
 
     def entitled(rows: list[dict]) -> list[dict]:
         if principal is None:
             return rows
         return filter_entitled_rows(principal, rows, source_key="source_system")
 
-    books = (
-        None
-        if principal is None
-        else visible_book_ids(session, scope_for_principal(principal.data_scopes))
-    )
+    books = reads.books(principal)
 
     def own_book(book_id) -> bool:
         return books is None or (book_id is not None and book_id in books)
 
     found: dict[str, list[tuple[datetime, bool]]] = {group: [] for group in MAP_CHANGE_GROUPS}
     flows = [
-        {"changed_at": at, "source_system": source}
-        for at, source in changed(
-            session.query(
-                FlowObservationRecord.observed_at_utc, FlowObservationRecord.source_system
-            ).filter(identity_clause(session, FlowObservationRecord)),
-            FlowObservationRecord.observed_at_utc,
-        )
+        {"changed_at": row.observed_at_utc, "source_system": row.source_system}
+        for row in reads.newest("map_flows", since)
     ]
     seen = {id(row) for row in entitled(flows)}
     found["flows"] = [(row["changed_at"], id(row) in seen) for row in flows]
     outages = [
-        {"changed_at": at, "source_system": source}
-        for at, source in changed(
-            session.query(RemitUmmRecord.ingested_at_utc, RemitUmmRecord.source_system),
-            RemitUmmRecord.ingested_at_utc,
-        )
+        {"changed_at": row.ingested_at_utc, "source_system": row.source_system}
+        for row in reads.newest("map_outages", since)
     ]
     seen = {id(row) for row in entitled(outages)}
     found["outages"] = [(row["changed_at"], id(row) in seen) for row in outages]
     cargoes = [
-        {"changed_at": at, "book_id": book, "source_system": source}
-        for at, book, source in changed(
-            session.query(
-                LngCargoRecord.updated_at_utc, LngCargoRecord.book_id, LngCargoRecord.source_system
-            ),
-            LngCargoRecord.updated_at_utc,
-        )
+        {
+            "changed_at": row.updated_at_utc,
+            "book_id": row.book_id,
+            "source_system": row.source_system,
+        }
+        for row in reads.newest("map_cargoes", since)
     ]
     market = {id(row) for row in entitled([row for row in cargoes if row["book_id"] is None])}
     found["cargoes"] = [
@@ -485,24 +589,22 @@ def _fetch_map_changes(session: Session, cursor: Cursor, principal=None) -> list
         for row in cargoes
     ]
     found["slots"] = [
-        (at, own_book(book) if book else books is None)
-        for at, book in changed(
-            session.query(RegasSlotRecord.updated_at_utc, RegasSlotRecord.book_id),
-            RegasSlotRecord.updated_at_utc,
-        )
+        (row.updated_at_utc, own_book(row.book_id) if row.book_id else books is None)
+        for row in reads.newest("map_slots", since)
     ]
-    opportunities = changed(
-        session.query(OpportunityRecord.last_changed_utc, OpportunityRecord.opportunity_id),
-        OpportunityRecord.last_changed_utc,
-    )
-    if opportunities and principal is not None:
-        from eurogas_nexus.application.opportunities.listing import visible_records
+    # An opportunity counts for a caller who may read it while it is live (``listing.
+    # visible_records``: book scope and entitlement), decided per changed row.
+    ended = {OpportunityState.EXPIRED.value, OpportunityState.CONVERTED.value}
 
-        mine = {row.opportunity_id for row in visible_records(session, principal)}
-    else:
-        mine = None
+    def mine(row) -> bool:
+        if principal is None:
+            return True
+        if row.state in ended:
+            return False
+        return visible_to(row, books, lambda family: row_allowed(principal, family))
+
     found["opportunities"] = [
-        (at, mine is None or opportunity_id in mine) for at, opportunity_id in opportunities
+        (row.last_changed_utc, mine(row)) for row in reads.newest("map_opportunities", since)
     ]
 
     out: list[dict] = []
@@ -522,6 +624,15 @@ def _fetch_map_changes(session: Session, cursor: Cursor, principal=None) -> list
     return sorted(out, key=lambda item: (item["changed_at"], item["group"]))
 
 
+_fetch_map_changes.reads_keys = (  # type: ignore[attr-defined]
+    "map_flows",
+    "map_outages",
+    "map_cargoes",
+    "map_slots",
+    "map_opportunities",
+)
+
+
 def _columns_payload(row) -> dict:
     return {column.name: getattr(row, column.name) for column in row.__table__.columns}
 
@@ -535,6 +646,7 @@ def _stream_response(
     notices: tuple[tuple[str, FetchNotices], ...] = (),
 ) -> StreamingResponse:
     initial_cursor = _initial_cursor(request)
+    guard = _guard_for(topic, request)
     return StreamingResponse(
         _event_stream(
             topic,
@@ -542,12 +654,41 @@ def _stream_response(
             ts_field,
             pk_field,
             initial_cursor,
-            guard=_guard_for(topic, request),
+            guard=guard,
             notices=notices,
+            principal_id=_admit(guard),
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+def _admit(guard: StreamGuard) -> str | None:
+    """The caller's id for the per-caller stream cap, or 429 when the cap is reached.
+
+    A browser opens one stream per tab; the cap (``EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL`` per
+    process) stops one caller from holding the process's poller with hundreds. The shared
+    deployment token has no identity of its own and is not capped here.
+    """
+
+    from fastapi import HTTPException
+
+    from eurogas_nexus.api.stream_hub import get_hub, streams_per_principal
+
+    principal = guard.principal
+    if principal is None or principal.auth_method == "legacy_public_token":
+        return None
+    if get_hub().streams_of(principal.principal_id) >= streams_per_principal():
+        raise HTTPException(
+            status_code=429,
+            detail={
+                # The catalogued code (the client explains it): a concurrency limit.
+                "code": "rate_limited",
+                "reason": "stream_limit_reached",
+                "message": "Too many live-update connections for this identity.",
+            },
+        )
+    return principal.principal_id
 
 
 def _guard_for(topic: str, request: Request) -> RowGuard:
@@ -555,19 +696,56 @@ def _guard_for(topic: str, request: Request) -> RowGuard:
 
     from eurogas_nexus.api.dependencies.row_entitlement import current_principal
 
-    return StreamGuard(topic, current_principal(request))
+    return StreamGuard(
+        topic,
+        current_principal(request),
+        session_hash=getattr(request.state, "session_token_hash", None),
+    )
 
 
 class StreamGuard:
-    """Filters each poll's rows for one caller and keeps that caller's access current."""
+    """Filters each poll's rows for one caller and keeps that caller's access current.
 
-    def __init__(self, topic: str, principal) -> None:
+    Access is re-read from the database every ``REAUTH_SECONDS`` (the identity's status and
+    scopes and, for a stream opened with a session, that session); between those reads every
+    poll consults the revocation notes (``security/session_revocation.py``), so a sign-out or a
+    disabled identity ends the stream at the next poll on whichever process holds it.
+    """
+
+    def __init__(self, topic: str, principal, session_hash: str | None = None) -> None:
         self.topic = topic
         self.principal = principal
+        self.session_hash = session_hash
+        self.opened_at = datetime.now(UTC)
         self._checked_at = datetime.now(UTC)
 
+    def want(self, reads) -> None:
+        if self._noted():
+            reads.want_revocation(
+                self.session_hash, self.principal.principal_id, self.opened_at
+            )
+
+    def _noted(self) -> bool:
+        return self.principal is not None and self.principal.auth_method != "legacy_public_token"
+
+    def still_allowed(self, session) -> bool:
+        """Revocation notes (every poll, when given the poll's reads), then the database."""
+
+        from eurogas_nexus.application.live_topics import Reads
+
+        if isinstance(session, Reads):
+            if self._noted() and session.revoked(
+                self.session_hash, self.principal.principal_id, self.opened_at
+            ):
+                return False
+            session = session.session
+        return self._still_authorised(session)
+
     def __call__(self, session, rows: list[dict]) -> list[dict] | None:
-        if not self._still_authorised(session):
+        """``session`` is a session or the poll's shared reads (books read once per caller)."""
+
+
+        if not self.still_allowed(session):
             return None
         if not rows:
             return rows
@@ -579,14 +757,9 @@ class StreamGuard:
             visible = _opportunity_visible(session, self.principal)
             return [row for row in rows if row.get("sent", True) and visible(row)]
         if self.topic == "alerts":
-            from eurogas_nexus.application.alert_scope import alert_visibility
-            from eurogas_nexus.security.portfolio_scope import scope_for_principal
+            from eurogas_nexus.application.live_topics import alert_predicate, as_reads
 
-            visible = alert_visibility(
-                session,
-                scope=scope_for_principal(self.principal.data_scopes),
-                principal=self.principal,
-            )
+            visible = alert_predicate(as_reads(session), self.principal)
             return [row for row in rows if visible(row)]
         return []  # an unknown topic sends nothing
 
@@ -606,8 +779,24 @@ class StreamGuard:
         record = session.get(IdentityPrincipalRecord, self.principal.principal_id)
         if record is None or str(record.status).upper() != "ACTIVE":
             return False
+        if self.session_hash and not _session_active(session, self.session_hash, now):
+            return False
         self.principal = replace(self.principal, data_scopes=tuple(record.data_scopes or ()))
         return True
+
+
+def _session_active(session, session_hash: str, now: datetime) -> bool:
+    """Whether the session the stream was opened with is still signed in (not revoked or
+    expired)."""
+
+    from eurogas_nexus.db.models import UserSessionRecord
+
+    row = (
+        session.query(UserSessionRecord.revoked_at_utc, UserSessionRecord.expires_at_utc)
+        .filter(UserSessionRecord.session_token_hash == session_hash)
+        .one_or_none()
+    )
+    return row is not None and row[0] is None and _as_utc(row[1]) > now
 
 
 def _initial_cursor(request: Request) -> Cursor:
@@ -717,14 +906,150 @@ def _parse_live_id(value: str | None, now: datetime) -> tuple[datetime, str | No
     return min(at, now), outbox or None
 
 
+class _LiveStream:
+    """One live stream's topics, cursors, outbox position and guard; run by the poller."""
+
+    def __init__(
+        self,
+        topics: tuple[str, ...],
+        start: datetime,
+        resumed: bool,
+        guard: StreamGuard | None,
+        outbox_after: str | None,
+    ) -> None:
+        self.topics = topics
+        self.start = start
+        self.resumed = resumed
+        self.guard = guard
+        self.notice_topics = tuple(topic for topic in topics if topic != "jobs")
+        self.cursors: dict = dict.fromkeys(self.notice_topics, start)
+        self.outbox = outbox_after
+        self.jobs_seen: dict[str, tuple] = {}
+        self.jobs_since = start
+        self.last_heartbeat = datetime.now(UTC)
+        self.started = False
+
+    def _principal(self):
+        return None if self.guard is None else self.guard.principal
+
+    def event_id(self) -> str:
+        return _live_event_id(min(self.cursors.values(), default=datetime.now(UTC)), self.outbox)
+
+    def want(self, reads) -> None:
+        from eurogas_nexus.application.live_topics import OUTBOX_TOPICS, want_topics
+
+        if isinstance(self.guard, StreamGuard):
+            self.guard.want(reads)
+        want_topics(reads, self.notice_topics, self.cursors)
+        kinds = [kind for kind, topic in OUTBOX_TOPICS.items() if topic in self.notice_topics]
+        if kinds:
+            reads.want_outbox(self.outbox, kinds)
+        if "jobs" in self.topics:
+            reads.want_jobs(getattr(self._principal(), "principal_id", None), self.jobs_since)
+
+    def poll(self, reads) -> tuple[list[str], bool]:
+        from eurogas_nexus.application.live_topics import (
+            job_events,
+            outbox_changes,
+            topic_changes,
+        )
+
+        out: list[str] = []
+        if not self.started:
+            self.started = True
+            if self.outbox is None and self.notice_topics:
+                try:
+                    self.outbox = reads.outbox_latest()
+                except Exception:
+                    reads.recover()
+                    self.outbox = None  # the first poll that reaches the store starts it
+            ready_id = self.event_id()
+            out.append(
+                _sse(
+                    {
+                        "topics": list(self.topics),
+                        "resumed_from": self.start if self.resumed else None,
+                        "poll_seconds": POLL_SECONDS,
+                        "heartbeat_seconds": LIVE_HEARTBEAT_SECONDS,
+                        # In the payload too (as every live event): a browser's EventSource
+                        # keeps the id to itself, and the client resumes from the last one.
+                        "event_id": ready_id,
+                    },
+                    event="ready",
+                    event_id=ready_id,
+                )
+            )
+            self.last_heartbeat = datetime.now(UTC)
+        announced: dict[str, dict] = {}
+        jobs: list[dict] = []
+        try:
+            if self.guard is not None and not (
+                self.guard.still_allowed(reads)
+                if isinstance(self.guard, StreamGuard)
+                else self.guard._still_authorised(reads.session)
+            ):
+                out.append(_sse({"type": "revoked", "message": "ACCESS_REVOKED"}, event="revoked"))
+                return out, True
+            principal = self._principal()
+            found = topic_changes(
+                reads, self.notice_topics, self.cursors, principal, _fetch_map_changes
+            )
+            if self.outbox is None:
+                self.outbox = reads.outbox_latest()
+            else:
+                events, self.outbox = outbox_changes(
+                    reads, self.notice_topics, self.outbox, principal
+                )
+                found.extend(events)
+            for notice in found:
+                topic = notice["topic"]
+                moved = notice.get("cursor")
+                if isinstance(moved, datetime) and _as_utc(moved) > self.cursors[topic]:
+                    self.cursors[topic] = _as_utc(moved)
+                if not notice.get("visible", True):
+                    continue
+                held = announced.get(topic)
+                if held is None or _as_utc(notice["changed_at"]) > _as_utc(held["changed_at"]):
+                    announced[topic] = notice
+            if "jobs" in self.topics:
+                jobs = job_events(reads, principal, self.jobs_since, self.jobs_seen)
+        except Exception:
+            reads.recover()
+            announced, jobs = {}, []
+            out.append(warning_event())
+        current = self.event_id()
+        for notice in announced.values():
+            out.append(
+                _sse(
+                    {
+                        "topic": notice["topic"],
+                        "changed_at": notice["changed_at"],
+                        "event_id": current,
+                    },
+                    event="change",
+                    event_id=current,
+                )
+            )
+        for job in jobs:
+            out.append(_sse({**job, "event_id": current}, event="jobs", event_id=current))
+        now = datetime.now(UTC)
+        if (now - self.last_heartbeat).total_seconds() >= LIVE_HEARTBEAT_SECONDS:
+            out.append(
+                _sse({"at": now, "event_id": current}, event="heartbeat", event_id=current)
+            )
+            self.last_heartbeat = now
+        return out, False
+
+
 async def _live_stream(
     topics: tuple[str, ...],
     start: datetime,
     resumed: bool,
     guard: StreamGuard | None,
     outbox_after: str | None = None,
+    principal_id: str | None = None,
 ) -> AsyncGenerator[str, None]:
-    """Poll the subscribed topics and send a ``change`` notice per topic that moved.
+    """The subscribed topics' ``change`` notices, from the process's poller.
 
     Market events come from the outbox (``market_events``, through ``change_feed``); what the
     outbox does not carry (screen quotes, booked trades, nominations, alerts, the map's fast
@@ -747,102 +1072,11 @@ async def _live_stream(
     was away.
     """
 
-    from eurogas_nexus.application.live_topics import (
-        job_events,
-        outbox_changes,
-        outbox_start,
-        topic_changes,
-    )
+    from eurogas_nexus.api.stream_hub import get_hub
 
-    notice_topics = tuple(topic for topic in topics if topic != "jobs")
-    cursors: dict = dict.fromkeys(notice_topics, start)
-    outbox = outbox_after
-    jobs_seen: dict[str, tuple] = {}
-    jobs_since = start
-
-    def event_id() -> str:
-        return _live_event_id(min(cursors.values(), default=datetime.now(UTC)), outbox)
-
-    if outbox is None and notice_topics:
-        try:
-            from eurogas_nexus.db.session import get_session_factory
-
-            with get_session_factory()() as session:
-                outbox = outbox_start(session)
-        except Exception:
-            outbox = None  # the first poll that reaches the store starts it
-    ready_id = event_id()
-    yield _sse(
-        {
-            "topics": list(topics),
-            "resumed_from": start if resumed else None,
-            "poll_seconds": POLL_SECONDS,
-            "heartbeat_seconds": LIVE_HEARTBEAT_SECONDS,
-            # In the payload too (as every live event): a browser's EventSource keeps the id to
-            # itself, and the client resumes from the last one it was given.
-            "event_id": ready_id,
-        },
-        event="ready",
-        event_id=ready_id,
-    )
-    last_heartbeat = datetime.now(UTC)
-    while True:
-        announced: dict[str, dict] = {}
-        jobs: list[dict] = []
-        revoked = False
-        try:
-            from eurogas_nexus.db.session import get_session_factory
-
-            with get_session_factory()() as session:
-                if guard is not None and not guard._still_authorised(session):
-                    revoked = True
-                else:
-                    principal = None if guard is None else guard.principal
-                    found = topic_changes(
-                        session, notice_topics, cursors, principal, _fetch_map_changes
-                    )
-                    if outbox is None:
-                        outbox = outbox_start(session)
-                    else:
-                        events, outbox = outbox_changes(session, notice_topics, outbox, principal)
-                        found.extend(events)
-                    for notice in found:
-                        topic = notice["topic"]
-                        moved = notice.get("cursor")
-                        if isinstance(moved, datetime) and _as_utc(moved) > cursors[topic]:
-                            cursors[topic] = _as_utc(moved)
-                        if not notice.get("visible", True):
-                            continue
-                        held = announced.get(topic)
-                        if held is None or _as_utc(notice["changed_at"]) > _as_utc(
-                            held["changed_at"]
-                        ):
-                            announced[topic] = notice
-                    if "jobs" in topics:
-                        jobs = job_events(session, principal, jobs_since, jobs_seen)
-        except Exception:
-            announced, jobs = {}, []
-            yield _sse(
-                {"type": "warning", "message": "RUNTIME_POSTGRESQL_UNAVAILABLE"},
-                event="warning",
-            )
-        if revoked:
-            yield _sse({"type": "revoked", "message": "ACCESS_REVOKED"}, event="revoked")
-            return
-        current = event_id()
-        for notice in announced.values():
-            yield _sse(
-                {"topic": notice["topic"], "changed_at": notice["changed_at"], "event_id": current},
-                event="change",
-                event_id=current,
-            )
-        for job in jobs:
-            yield _sse({**job, "event_id": current}, event="jobs", event_id=current)
-        now = datetime.now(UTC)
-        if (now - last_heartbeat).total_seconds() >= LIVE_HEARTBEAT_SECONDS:
-            yield _sse({"at": now, "event_id": current}, event="heartbeat", event_id=current)
-            last_heartbeat = now
-        await asyncio.sleep(POLL_SECONDS)
+    state = _LiveStream(topics, start, resumed, guard, outbox_after)
+    async for chunk in get_hub().stream(state, principal_id):
+        yield chunk
 
 
 @router.get("/api/stream/live")
@@ -863,13 +1097,15 @@ async def stream_live(request: Request, topics: str = "") -> StreamingResponse:
     now = datetime.now(UTC)
     resume = request.headers.get("last-event-id") or request.query_params.get("last_event_id")
     resumed = _parse_live_id(resume, now)
+    guard = _guard_for("live", request)
     return StreamingResponse(
         _live_stream(
             parse_topics(topics),
             resumed[0] if resumed else now,
             resumed is not None,
-            _guard_for("live", request),
+            guard,
             outbox_after=resumed[1] if resumed else None,
+            principal_id=_admit(guard),
         ),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},

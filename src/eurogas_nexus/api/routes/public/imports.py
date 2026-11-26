@@ -12,6 +12,7 @@ ETRM/ERP 导入契约：列出契约、校验文件（不写入）。
 from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from starlette.concurrency import run_in_threadpool
 
 router = APIRouter(tags=["imports"])
 
@@ -56,8 +57,6 @@ async def validate_import_file(
     stored, booked, nominated or sent.
     """
 
-    from eurogas_nexus.application.import_contracts import ImportContractError, run_import
-
     body = await request.body()
     if len(body) > MAX_VALIDATE_BYTES:
         raise HTTPException(
@@ -71,22 +70,31 @@ async def validate_import_file(
         raise HTTPException(
             status_code=422, detail={"code": "encoding_invalid", "message": "send UTF-8"}
         ) from None
+    # Parsing and the dry-run against the store block: the thread pool, not the event loop.
+    report = await run_in_threadpool(_validate_import, contract_id, text, system, on_error)
+    return {"data": report.as_dict(), "meta": _meta(stores_nothing=True)}
+
+
+def _validate_import(contract_id: str, text: str, system: str, on_error: str):
+    """Check the file against its contract (blocking: run in the thread pool)."""
+
+    from eurogas_nexus.application.import_contracts import ImportContractError, run_import
+
     session_factory = _session_factory()
     try:
         if session_factory is None:
-            report = run_import(contract_id, text, system=system, on_error=on_error)
-        else:
-            with session_factory() as session:
-                report = run_import(
-                    contract_id, text, system=system, on_error=on_error, session=session
-                )
-                session.rollback()
+            return run_import(contract_id, text, system=system, on_error=on_error)
+        with session_factory() as session:
+            report = run_import(
+                contract_id, text, system=system, on_error=on_error, session=session
+            )
+            session.rollback()
+            return report
     except ImportContractError as exc:
         status = 404 if exc.code == "contract_unknown" else 422
         raise HTTPException(
             status_code=status, detail={"code": exc.code, "message": exc.message}
         ) from exc
-    return {"data": report.as_dict(), "meta": _meta(stores_nothing=True)}
 
 
 def _session_factory():

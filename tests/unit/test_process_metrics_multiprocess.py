@@ -16,6 +16,23 @@ _WORKER = textwrap.dedent(
     """
 )
 
+# One API worker: its pool counted (db.session.pool_counters) and its poller polled.
+_SERVING_WORKER = textwrap.dedent(
+    """
+    from eurogas_nexus.application import process_metrics
+    from eurogas_nexus.db import session
+    counters = session.pool_counters()
+    for _ in range(3):
+        counters.record(0.0, timed_out=False, exhausted=False)
+    counters.record(0.25, timed_out=False, exhausted=True)
+    counters.record(1.0, timed_out=True, exhausted=True)
+    process_metrics.observe_pools([], force=True)
+    process_metrics.stream_poll(0.5, failed=False)
+    process_metrics.stream_poll(0.5, failed=True)
+    process_metrics.stream_refused()
+    """
+)
+
 _SCRAPER = textwrap.dedent(
     """
     from eurogas_nexus.application import process_metrics
@@ -67,3 +84,24 @@ def test_a_dead_workers_live_gauges_are_dropped_at_start(tmp_path) -> None:
     )
     assert 'eurogas_stream_connections{topic="quotes"} 1.0' not in text
     assert _value(text, _COUNT) == 2.0
+
+
+def test_pool_and_poller_counters_of_two_workers_are_summed_once(tmp_path) -> None:
+    directory = str(tmp_path / "metrics")
+    _run(_SERVING_WORKER, directory)
+    _run(_SERVING_WORKER, directory)
+    text = _run(_SCRAPER, directory)
+    expected = {
+        "eurogas_db_pool_checkouts_total": 8.0,
+        "eurogas_db_pool_waits_total": 4.0,
+        "eurogas_db_pool_timeouts_total": 2.0,
+        "eurogas_db_pool_wait_seconds_total": 2.5,
+        "eurogas_stream_polls_total": 4.0,
+        "eurogas_stream_poll_seconds_total": 2.0,
+        "eurogas_stream_poll_failures_total": 2.0,
+        "eurogas_stream_refused_total": 2.0,
+    }
+    for name, value in expected.items():
+        assert _value(text, name + " ") == value, name
+        # One family per metric (the multi-process exposition names it with ``_total``).
+        assert text.count(f"# TYPE {name} counter") == 1, name

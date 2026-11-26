@@ -14,7 +14,9 @@ reachable through the public HTTPS gateway (the shipped gateways answer `/metric
 | --- | --- |
 | `eurogas_http_request_duration_seconds` (histogram), `eurogas_http_requests_total` | Request latency and count per route group (`/api/market`, `/api/portfolio`, ...), method and status class (2xx, 4xx, 5xx) |
 | `eurogas_db_pool_checked_out`, `eurogas_db_pool_size`, `eurogas_db_pool_overflow` | Database connections in use and available, summed over the API's worker processes |
+| `eurogas_db_pool_checkouts_total`, `eurogas_db_pool_waits_total`, `eurogas_db_pool_timeouts_total`, `eurogas_db_pool_wait_seconds_total` | Connections handed out, checkouts that had to wait because the pool was exhausted, checkouts that gave up after the pool timeout, and the time spent waiting (all from the pool's own counts, `db/session.py`) |
 | `eurogas_stream_connections{topic}` | Open live-update connections (quotes, alerts, opportunities ...) |
+| `eurogas_stream_polls_total`, `eurogas_stream_poll_seconds_total`, `eurogas_stream_poll_failures_total`, `eurogas_stream_refused_total` | The live-update pollers (one per API process): polls, time spent in them, polls that could not reach the store, streams refused over the per-caller cap |
 | `eurogas_source_freshness_seconds{source_id}`, `eurogas_source_stale_after_seconds{source_id}` | How old each enabled source's data is, and the age its own freshness rule calls stale |
 | `eurogas_source_consecutive_failures`, `eurogas_source_stale`, `eurogas_source_enabled`, `eurogas_source_scheduler_overdue`, `eurogas_source_certification_state` | Per-source health |
 | `eurogas_ingestion_runs_total`, `eurogas_ingestion_failures_total`, `eurogas_ingestion_failures_last_hour{source_id}` | Ingestion outcomes |
@@ -34,7 +36,8 @@ sign-in.
 `PROMETHEUS_MULTIPROC_DIR` to an empty directory the workers share (the runtime compose file
 mounts an empty `tmpfs` at `/run/eurogas-metrics`, emptied at every start). Each worker writes
 its samples there and whichever worker answers a scrape adds them all up. Without it, each
-process reports only its own requests, which is right only with a single worker.
+process reports only its own requests, which is right only with a single worker. The preflight
+(`config-check`) warns when `UVICORN_WORKERS` is above 1 and the directory is not set.
 
 ## Step 1: let Prometheus scrape
 
@@ -84,6 +87,7 @@ labels for Alertmanager routing, and a `runbook_url` that points at its section 
 | EurogasMarketEventsBacklog | warning | an event consumer is more than 10 minutes behind |
 | EurogasApiDown | critical | an API server cannot be scraped for 2 minutes |
 | EurogasMetricsDatabaseUnavailable | critical | the API cannot read the database for 5 minutes |
+| EurogasDbPoolExhausted | critical | a pool checkout timed out, or over 10 % of checkouts waited, for 2 minutes |
 | EurogasDbPoolNearlyExhausted | warning | over 90 % of the pool in use for 5 minutes |
 | EurogasApiErrorRate | critical | over 5 % server errors for 10 minutes |
 | EurogasApiSlowP95 | warning | p95 latency of a route group over 1 s for 15 minutes |
@@ -110,6 +114,10 @@ Every process writes one JSON object per line to standard error (`EUROGAS_NEXUS_
 `json` by default in trial and release, `text` elsewhere; `EUROGAS_NEXUS_LOG_LEVEL`, default
 `INFO`). The runtime compose file keeps at most five 20 MB files per container
 (`docker compose logs`); ship them to the firm's log platform with its usual collector.
+
+The API's live-update poller (`logger` `eurogas_nexus.api.stream_hub`) logs a poll that cannot
+reach the store as an `error` record with `error_type` and `stack`, then at most once a minute
+while the store stays unreachable, and one `info` record when it recovers.
 
 Fields: `timestamp`, `level`, `logger`, `service`, `message`; while a request is served
 `request_id` (the `X-Request-Id` response header) and, once the caller is known,

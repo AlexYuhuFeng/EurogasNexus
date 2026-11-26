@@ -548,8 +548,8 @@ event loop. A cap on streams per person. Kafka only at its trigger: three or mor
 consumers needing replay, or a firm's mandate to publish on its own bus, in which case Nexus
 publishes to the firm's broker rather than running one.
 
-**Path.** Part of phase 1's serving fix. Draft decision:
-[DRAFT-multi-process-api-and-shared-cache.md](decisions/DRAFT-multi-process-api-and-shared-cache.md).
+**Path.** Part of phase 1's serving fix. Decision (accepted 2026-11-26):
+[2026-11-26-multi-process-api-and-shared-cache.md](decisions/2026-11-26-multi-process-api-and-shared-cache.md).
 
 ### 3.7 Clients and information architecture
 

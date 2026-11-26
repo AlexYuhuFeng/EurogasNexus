@@ -205,6 +205,25 @@ def _desk_visible(principal) -> bool:
     )
 
 
+def change_allowed(principal, event_type: str, source_id: str) -> bool:
+    """Whether an explicit caller (a long-lived stream, not the current request) may see an
+    event: the rule :func:`read_changes` applies, with the firm-level test taken from the
+    caller's own data scopes rather than the request in flight."""
+
+    from eurogas_nexus.application.projections.market_reads import row_allowed
+
+    if principal is None or principal.auth_method == "legacy_public_token":
+        return True
+    if is_desk_event(event_type, source_id):
+        from eurogas_nexus.security.authorization import Permission, permissions_for_principal
+        from eurogas_nexus.security.portfolio_scope import scope_for_principal
+
+        scope = scope_for_principal(principal.data_scopes)
+        firm_level = scope is None or scope.all_books
+        return firm_level and Permission.PORTFOLIO_READ in permissions_for_principal(principal)
+    return row_allowed(principal, source_id)
+
+
 def change_row(record, cursor: Cursor) -> dict[str, Any]:
     """One event as a change digest (never its payload)."""
 
@@ -345,6 +364,7 @@ __all__ = [
     "ChangeFeedError",
     "ChangePage",
     "Cursor",
+    "change_allowed",
     "change_row",
     "horizon",
     "is_desk_event",

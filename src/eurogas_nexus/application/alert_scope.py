@@ -78,6 +78,15 @@ def alert_visibility(session, *, principal: Any = _UNSET, **scope: Any) -> Calla
 
     allowed = visible_book_ids(session, **scope)
     reader = _request_principal.get() if principal is _UNSET else principal
+    return alert_rule(allowed, reader)
+
+
+def alert_rule(allowed: set[str] | None, reader: Any) -> Callable[[Any], bool]:
+    """The predicate of :func:`alert_visibility` for books already read (``None``: every book).
+
+    The live-update poll reads each caller's books once and decides every stream's alerts in
+    memory with it.
+    """
 
     def visible(row: Any) -> bool:
         get = row.get if isinstance(row, dict) else lambda key: getattr(row, key, None)

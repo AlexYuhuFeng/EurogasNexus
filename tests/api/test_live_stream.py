@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 import pytest
 from sqlalchemy import Boolean, DateTime, Float, Integer, create_engine
 from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
 import eurogas_nexus.db.models  # noqa: F401  (registers every table)
 from eurogas_nexus.api.routes.public import streaming
@@ -78,7 +79,12 @@ def _record(model, **values):
 
 @pytest.fixture
 def session():
-    engine = create_engine("sqlite+pysqlite:///:memory:")
+    # One connection for every thread: the stream is polled by the process's poller thread.
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(engine)
     with Session(engine) as db:
         yield db

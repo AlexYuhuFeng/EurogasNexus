@@ -136,6 +136,22 @@ themselves stay correct when read.
    whether the database accepts connections (`max_connections`).
 4. For a lost or damaged database follow [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md).
 
+## EurogasDbPoolExhausted
+
+**Means.** An API server's database pool ran out in the last 5 minutes (summed over its worker
+processes): a request gave up after `EUROGAS_NEXUS_DB_POOL_TIMEOUT` and failed with 503
+(`eurogas_db_pool_timeouts_total` grew), or more than 10 % of connection checkouts had to wait
+for a connection (`eurogas_db_pool_waits_total` against `eurogas_db_pool_checkouts_total`).
+
+**Do.**
+
+1. The same steps as EurogasDbPoolNearlyExhausted (next section): slow statements, long reports,
+   then pool size.
+2. A runaway API read is cancelled after `EUROGAS_NEXUS_DB_STATEMENT_TIMEOUT_MS` (30 s by
+   default); many cancellations in the API log point at the query to fix.
+3. Before raising the pool, check the sum over every process against PostgreSQL's
+   `max_connections` ([API_SERVING_AND_SHARED_CACHE.md](API_SERVING_AND_SHARED_CACHE.md)).
+
 ## EurogasDbPoolNearlyExhausted
 
 **Means.** More than 90 % of an API server's database connections are in use for 5 minutes.

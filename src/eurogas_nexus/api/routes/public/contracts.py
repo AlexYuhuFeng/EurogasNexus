@@ -1,6 +1,7 @@
 """DB-first /api/contracts routes for capacity and route context."""
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from starlette.concurrency import run_in_threadpool
 
 router = APIRouter(tags=["contracts"])
 
@@ -296,34 +297,13 @@ def get_contract_price(
         raise _db_unavailable(exc) from exc
 
 
-@router.post("/api/contracts/intake")
-async def post_contract_intake(
-    request: Request,
-    file_name: str = Query("contract.pdf", max_length=200),
-) -> dict:
-    """Read a contract or confirmation PDF into a draft for review (nothing is stored).
-
-    合同 PDF 导入：提取文本（扫描件在服务器装有 Tesseract 时做 OCR），识别合同条款并给出
-    页码与原文证据；只返回草稿，由人工核对后经受治理的合同写入保存。
-
-    The body is the PDF itself (``Content-Type: application/pdf``). The response holds the
-    draft ``record`` the contract workbench loads, every recognised term with its page and
-    the words it came from, and warnings for scans, conversions and terms not found. The
-    upload is audited by its SHA-256 only; the document is not kept.
-    """
+def _read_contract_pdf(content: bytes, file_name: str, actor: str | None):
+    """Read the PDF and audit the upload by its digest (blocking: run in the thread pool)."""
 
     import hashlib
 
-    from eurogas_nexus.application.contract_intake import (
-        MAX_PDF_BYTES,
-        IntakeError,
-        intake_pdf,
-    )
+    from eurogas_nexus.application.contract_intake import IntakeError, intake_pdf
 
-    declared = int(request.headers.get("content-length") or 0)
-    if declared > MAX_PDF_BYTES:
-        raise HTTPException(status_code=413, detail={"code": "pdf_too_large"})
-    content = await request.body()
     try:
         result = intake_pdf(content, file_name=file_name)
     except IntakeError as exc:
@@ -336,7 +316,6 @@ async def post_contract_intake(
             from eurogas_nexus.db.repositories.audit import record_audit_event
             from eurogas_nexus.db.session import get_session_factory
 
-            actor = getattr(getattr(request.state, "identity", None), "principal_id", None)
             with get_session_factory()() as session:
                 record_audit_event(
                     session,
@@ -353,4 +332,32 @@ async def post_contract_intake(
             raise _db_unavailable(exc) from exc
     payload = result.as_dict()
     payload["sha256"] = digest
+    return result, payload
+
+
+@router.post("/api/contracts/intake")
+async def post_contract_intake(
+    request: Request,
+    file_name: str = Query("contract.pdf", max_length=200),
+) -> dict:
+    """Read a contract or confirmation PDF into a draft for review (nothing is stored).
+
+    合同 PDF 导入：提取文本（扫描件在服务器装有 Tesseract 时做 OCR），识别合同条款并给出
+    页码与原文证据；只返回草稿，由人工核对后经受治理的合同写入保存。
+
+    The body is the PDF itself (``Content-Type: application/pdf``). The response holds the
+    draft ``record`` the contract workbench loads, every recognised term with its page and
+    the words it came from, and warnings for scans, conversions and terms not found. The
+    upload is audited by its SHA-256 only; the document is not kept.
+    """
+
+    from eurogas_nexus.application.contract_intake import MAX_PDF_BYTES
+
+    declared = int(request.headers.get("content-length") or 0)
+    if declared > MAX_PDF_BYTES:
+        raise HTTPException(status_code=413, detail={"code": "pdf_too_large"})
+    content = await request.body()
+    actor = getattr(getattr(request.state, "identity", None), "principal_id", None)
+    # Parsing (and OCR) and the audit write block: the thread pool, not the event loop.
+    result, payload = await run_in_threadpool(_read_contract_pdf, content, file_name, actor)
     return _env(payload, request, source="contract-intake", warnings=result.warnings)

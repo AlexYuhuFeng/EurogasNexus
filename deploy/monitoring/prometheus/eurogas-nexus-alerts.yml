@@ -143,6 +143,25 @@ groups:
             out. When none is left, requests wait and then fail with 503.
           runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasdbpoolnearlyexhausted"
 
+      # Exhaustion itself, from the pool's own counters (summed over the API processes): a
+      # checkout gave up after the pool timeout, or more than 10 % of checkouts had to wait.
+      - alert: EurogasDbPoolExhausted
+        expr: >-
+          sum by (instance) (increase(eurogas_db_pool_timeouts_total[5m])) > 0
+          or
+          sum by (instance) (rate(eurogas_db_pool_waits_total[5m]))
+          / sum by (instance) (rate(eurogas_db_pool_checkouts_total[5m])) > 0.1
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "API requests on {{ $labels.instance }} wait for or fail to get a database connection"
+          description: >-
+            The database pool ran out: requests either waited for a connection or gave up
+            after the pool timeout and failed with 503.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasdbpoolexhausted"
+
       - alert: EurogasApiErrorRate
         expr: >-
           sum by (instance) (rate(eurogas_http_requests_total{status_class="5xx"}[5m]))

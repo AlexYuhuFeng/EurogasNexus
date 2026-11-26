@@ -12,6 +12,7 @@ from decimal import Decimal
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
+from sqlalchemy.pool import StaticPool
 
 import eurogas_nexus.db.session as db_session
 from eurogas_nexus.api.routes.public import streaming
@@ -23,7 +24,13 @@ NOW = datetime.now(UTC).replace(microsecond=0)
 
 @pytest.fixture()
 def engine():
-    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    # One connection for every thread: the stream is polled by the process's poller thread.
+    engine = create_engine(
+        "sqlite+pysqlite:///:memory:",
+        future=True,
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
     Base.metadata.create_all(engine)
     return engine
 

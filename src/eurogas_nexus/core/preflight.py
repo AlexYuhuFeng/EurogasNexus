@@ -687,7 +687,13 @@ def _check_external_consumers(environ: Mapping[str, str]) -> list[Finding]:
     topology warning of its own, and reporting it twice would bury that.
     """
 
-    reported_elsewhere = {"EUROGAS_NEXUS_API_IMAGE", "FORWARDED_ALLOW_IPS"}
+    reported_elsewhere = {
+        "EUROGAS_NEXUS_API_IMAGE",
+        "FORWARDED_ALLOW_IPS",
+        "UVICORN_WORKERS",
+        # Needed only with several API processes: _check_serving reports it then.
+        "PROMETHEUS_MULTIPROC_DIR",
+    }
     findings: list[Finding] = []
     for name, reader in sorted(EXTERNALLY_READ.items()):
         if name in reported_elsewhere:
@@ -701,6 +707,69 @@ def _check_external_consumers(environ: Mapping[str, str]) -> list[Finding]:
                     message=f"not set; read by {reader}",
                 )
             )
+    return findings
+
+
+def _check_serving(environ: Mapping[str, str]) -> list[Finding]:
+    """Several API processes need the shared cache (its URL one the backend takes) and a
+    shared metrics directory, so one scrape sums every process (docs/operations/MONITORING.md).
+
+    Without it each process keeps its own write signal, so a caller's own write could be
+    answered from before it by another process, and every rate limit would be multiplied by
+    the number of processes (docs/operations/API_SERVING_AND_SHARED_CACHE.md).
+    """
+
+    from eurogas_nexus.core.shared_cache import SCHEMES
+
+    findings: list[Finding] = []
+    raw_workers = _value(environ, "UVICORN_WORKERS") or "1"
+    try:
+        workers = int(raw_workers)
+    except ValueError:
+        findings.append(
+            Finding(
+                severity="error",
+                code="api_workers_invalid",
+                variable="UVICORN_WORKERS",
+                message="must be a whole number of API processes",
+            )
+        )
+        workers = 1
+    url = _value(environ, "EUROGAS_NEXUS_SHARED_CACHE_URL")
+    if url and not url.startswith(SCHEMES):
+        findings.append(
+            Finding(
+                severity="error",
+                code="shared_cache_url_invalid",
+                variable="EUROGAS_NEXUS_SHARED_CACHE_URL",
+                message=f"must start with one of {', '.join(SCHEMES)}",
+            )
+        )
+    if workers > 1 and not _value(environ, "PROMETHEUS_MULTIPROC_DIR"):
+        findings.append(
+            Finding(
+                severity="warning",
+                code="metrics_directory_missing",
+                variable="PROMETHEUS_MULTIPROC_DIR",
+                message=(
+                    f"{workers} API processes without a shared metrics directory: each scrape "
+                    "reports only the process that answered it"
+                ),
+                remedy="set it to an empty directory every API process shares (a tmpfs)",
+            )
+        )
+    if workers > 1 and not url:
+        findings.append(
+            Finding(
+                severity="error",
+                code="shared_cache_required",
+                variable="EUROGAS_NEXUS_SHARED_CACHE_URL",
+                message=(
+                    f"{workers} API processes need a shared cache (Valkey): without it a "
+                    "caller's own write can be answered from before it by another process"
+                ),
+            )
+        )
     return findings
 
 
@@ -747,6 +816,7 @@ def check_environment(
     report.findings.extend(_check_local_accounts(source))
     report.findings.extend(_check_security_posture(source))
     report.findings.extend(_check_external_consumers(source))
+    report.findings.extend(_check_serving(source))
     return report
 
 
