@@ -29,8 +29,15 @@ NOW = datetime.now(UTC).replace(microsecond=0)
 
 def _client(engine, role: str) -> TestClient:
     with Session(engine) as session:
+        # Book isolation is on by default (security review H1): a person with no BOOKS:
+        # scope sees no bookings. This is a caller entitled to the book, so it holds the
+        # head-office scope (BOOKS:* includes firm-level rows, which these bookings are).
         principal = create_identity_principal(
-            session, name=f"tar2-{role.lower()}", display_name=role, role=role, data_scopes=[]
+            session,
+            name=f"tar2-{role.lower()}",
+            display_name=role,
+            role=role,
+            data_scopes=["BOOKS:*"],
         )
         _, bearer = create_identity_api_key(session, principal.principal_id, scopes=["*"])
         session.commit()
