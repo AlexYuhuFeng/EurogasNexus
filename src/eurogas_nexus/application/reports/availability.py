@@ -60,6 +60,7 @@ def probe_sections(session, caller: Caller, now: datetime,
     """Each section's state for today's daily scope: ``ok`` or ``not_held`` with the reason
     the report would print, or ``unavailable`` when the read failed."""
 
+    from eurogas_nexus.application.projections.daily_closes import shared_daily_rows
     from eurogas_nexus.application.reports.catalogue import SECTIONS, validate_plan
     from eurogas_nexus.application.reports.engine import book_scope_of
     from eurogas_nexus.application.reports.sections import BUILDERS, Ctx
@@ -68,7 +69,9 @@ def probe_sections(session, caller: Caller, now: datetime,
     keys = [s.key for s in SECTIONS if s.key != "situation_event"]
     plan = validate_plan({"kind": "daily", "audience": "internal", "sections": keys}, now=now)
     ctx = Ctx(session=session, caller=caller, now=now, plan=plan, balance_reader=balance_reader)
-    with book_scope_of(caller):
+    # Prices, the book, its limits and the balance each read the caller's closes: one read
+    # of them for the whole probe (five identical reads of ~35k rows before, 2026-11-26).
+    with book_scope_of(caller), shared_daily_rows():
         for key in keys:
             try:
                 built = BUILDERS[key](ctx)
