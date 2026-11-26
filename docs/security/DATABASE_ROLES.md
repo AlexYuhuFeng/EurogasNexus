@@ -15,6 +15,11 @@ roles and explains how the audit trail is protected.
 
 ## Setting them up (existing installation)
 
+The script is in the source release (`deploy/runtime/database_roles.sql`); the operator ZIP
+refuses `*.sql` files by policy, so the delivery team hands it over with the release. Database
+upgrades (`scripts/ops/upgrade_database.py upgrade`, run through the `migrate` service) run as
+the owner role.
+
 1. Back up the database (`scripts/ops/backup_runtime.py`).
 2. Run the migrations to head (they add the audit chain tables and the guard triggers).
 3. As the PostgreSQL superuser, run `deploy/runtime/database_roles.sql`:

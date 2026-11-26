@@ -50,7 +50,8 @@ def test_release_start_refuses_an_old_schema_and_says_what_to_run(
 
 def test_plan_changes_nothing_and_exits_zero(empty_sqlite, capsys) -> None:
     assert upgrade_database.main(["plan"]) == 0
-    assert "pending revisions : 94" in capsys.readouterr().out
+    # Every revision of the chain is pending on an empty store (0095 is the security hardening).
+    assert "pending revisions : 95" in capsys.readouterr().out
 
 
 def test_upgrade_needs_confirmation_in_a_script(empty_sqlite, monkeypatch, capsys) -> None:

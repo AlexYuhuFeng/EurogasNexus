@@ -696,6 +696,8 @@ def _check_external_consumers(environ: Mapping[str, str]) -> list[Finding]:
         "EUROGAS_NEXUS_APP_DB_PASSWORD",
         "EUROGAS_NEXUS_OWNER_DB_USER",
         "EUROGAS_NEXUS_OWNER_DB_PASSWORD",
+        # Set by the compose file for the API's own metric files, never by the operator.
+        "PROMETHEUS_MULTIPROC_DIR",
     }
     findings: list[Finding] = []
     for name, reader in sorted(EXTERNALLY_READ.items()):
