@@ -21,6 +21,13 @@ services:
     volumes:
       - demo-postgres:/var/lib/postgresql/data
     # No published port: only the demo service on this stack's network reaches it.
+    logging:
+      driver: json-file
+      options:
+        # Container logs cannot grow without bound (host_housekeeping.sh falls back to
+        # truncating only for a container that lacks this cap).
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U eurogas_demo -d eurogas_demo"]
       interval: 5s
@@ -56,6 +63,20 @@ services:
       # The simulated live exchange screen (on) in a demo-only 24-hour session (24h).
       EUROGAS_NEXUS_DEMO_EXCHANGE_FEED: ${EUROGAS_NEXUS_DEMO_EXCHANGE_FEED:-on}
       EUROGAS_NEXUS_DEMO_FEED_SESSION: ${EUROGAS_NEXUS_DEMO_FEED_SESSION:-24h}
+      # Demo housekeeping: the rolling windows and the disk guard. Defaults are safe; a
+      # low-disk run halves every window down to a floor. See SELF_HOSTED_DEMO.md.
+      EUROGAS_NEXUS_DEMO_KEEP_SIMULATED_HOURS: ${EUROGAS_NEXUS_DEMO_KEEP_SIMULATED_HOURS:-48}
+      EUROGAS_NEXUS_DEMO_KEEP_PUBLIC_DAYS: ${EUROGAS_NEXUS_DEMO_KEEP_PUBLIC_DAYS:-120}
+      EUROGAS_NEXUS_DEMO_KEEP_INGESTION_DAYS: ${EUROGAS_NEXUS_DEMO_KEEP_INGESTION_DAYS:-14}
+      EUROGAS_NEXUS_DEMO_KEEP_RAW_PAGE_DAYS: ${EUROGAS_NEXUS_DEMO_KEEP_RAW_PAGE_DAYS:-14}
+      EUROGAS_NEXUS_DEMO_KEEP_ALERT_DAYS: ${EUROGAS_NEXUS_DEMO_KEEP_ALERT_DAYS:-30}
+      EUROGAS_NEXUS_DEMO_KEEP_JOB_DAYS: ${EUROGAS_NEXUS_DEMO_KEEP_JOB_DAYS:-14}
+      EUROGAS_NEXUS_DEMO_KEEP_SESSION_DAYS: ${EUROGAS_NEXUS_DEMO_KEEP_SESSION_DAYS:-0}
+      EUROGAS_NEXUS_DEMO_KEEP_OUTBOX_DAYS: ${EUROGAS_NEXUS_DEMO_KEEP_OUTBOX_DAYS:-14}
+      EUROGAS_NEXUS_DEMO_KEEP_METER_DAYS: ${EUROGAS_NEXUS_DEMO_KEEP_METER_DAYS:-90}
+      EUROGAS_NEXUS_DEMO_DISK_MIN_FREE_PCT: ${EUROGAS_NEXUS_DEMO_DISK_MIN_FREE_PCT:-20}
+      EUROGAS_NEXUS_DEMO_DISK_DATABASE_PATH: ${EUROGAS_NEXUS_DEMO_DISK_DATABASE_PATH:-/var/lib/postgresql/data}
+      EUROGAS_NEXUS_DEMO_DISK_SYSTEM_PATH: ${EUROGAS_NEXUS_DEMO_DISK_SYSTEM_PATH:-/}
       EUROGAS_NEXUS_CORS_ORIGINS: ${EUROGAS_NEXUS_CORS_ORIGINS:-}
       EUROGAS_NEXUS_LLM_API_KEY: ${EUROGAS_NEXUS_LLM_API_KEY:-}
       GIE_API_KEY: ${GIE_API_KEY:-}
@@ -65,6 +86,11 @@ services:
       # Loopback by default: reach it from other devices through the https profile below
       # or a private tunnel, never by opening this port to the internet.
       - "${DEMO_BIND_ADDRESS:-127.0.0.1}:${DEMO_PORT:-8080}:8080"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     healthcheck:
       test:
         - CMD
@@ -90,6 +116,11 @@ services:
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - demo-caddy:/data
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
     depends_on:
       demo:
         condition: service_healthy

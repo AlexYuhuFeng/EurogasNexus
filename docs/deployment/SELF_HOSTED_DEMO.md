@@ -138,6 +138,8 @@ Planted prompt cases (CET/CEST, while the feed quotes), so a test session of any
 | `EUROGAS_NEXUS_DEMO_SCHEDULER` | `on` (default): after the first catch-up round the product's data-operations scheduler runs (its lock and heartbeat show on the Runtime page) and the refresh interval only renews approvals and retires covered simulated series; `off`: catch-up rounds repeat every refresh interval and the Runtime page says no scheduler runs | no |
 | `EUROGAS_NEXUS_DEMO_EXCHANGE_FEED` | `on` (default) or `off`: the simulated live exchange screen | no |
 | `EUROGAS_NEXUS_DEMO_FEED_SESSION` | `24h` (default here: demo-only, real ICE Endex/EEX sessions differ) or `exchange` (07:00-19:00 CET/CEST) | no |
+| `EUROGAS_NEXUS_DEMO_KEEP_*_DAYS`, `EUROGAS_NEXUS_DEMO_KEEP_SIMULATED_HOURS` | Housekeeping windows: public data 120 days, ingestion/raw pages/jobs/outbox 14 days, alerts 30 days, meter 90 days, simulated feed 48 hours; floors apply when the disk is low (see "Keeping the demo's disk from filling") | no |
+| `EUROGAS_NEXUS_DEMO_DISK_MIN_FREE_PCT`, `EUROGAS_NEXUS_DEMO_DISK_DATABASE_PATH`, `EUROGAS_NEXUS_DEMO_DISK_SYSTEM_PATH` | Disk guard: the low-space threshold (20 %) and the paths read (a path the container cannot see is reported as not visible) | no |
 | `EUROGAS_NEXUS_CORS_ORIGINS` | Only if saving fails with `origin_not_allowed` | no |
 
 The image sets the rest: `EUROGAS_NEXUS_ENV=development` (the demo seed refuses trial and
@@ -356,6 +358,104 @@ browser shows, for example `https://demo.lan`.
 - Operator tools inside the container: run them through the start script so the database
   URL is mapped the same way, for example
   `docker compose exec demo python scripts/demo/start_public_demo.py run -- python scripts/ops/check_config.py`.
+
+## Keeping the demo's disk from filling
+
+The demo runs on a small server (a 16 GB system disk and a 20 GB data disk on the owner's
+host), and the simulated exchange feed writes about 22 quotes a second. The product's own
+retention job does **not** help here: it never removes a row without a verified archive in
+object storage and keeps seven-year floors, and the demo has no object store, so it removes
+nothing. The demo therefore has its own bounded housekeeping:
+`scripts/demo/demo_housekeeping.py`, started by the demo start-up after the seed and the first
+catch-up, then every six hours. It refuses to run outside the demo profile, and a failure is
+logged without stopping the demo.
+
+Everything it removes is scoped by a rule, never "everything older than". The audit trail is
+**left alone** (see below).
+
+| What | Rule (default) | Why this much |
+|---|---|---|
+| Simulated quotes, prints, the feed's status runs, booked simulated orders and nominations | Older than the feed's horizon, **48 h** (`EUROGAS_NEXUS_DEMO_KEEP_SIMULATED_HOURS`); the feed's own `RETENTION` | The feed keeps the last hour in full and thins older quotes to ten-minute bars for 48 h. This is the backstop if the feed was stopped or wedged. The seed/feed advisory lock is held while they go, so a live feed pauses instead of writing into the tables being cleared. |
+| Public-source observations: ENTSOG flows and capacity, GIE and National Gas storage/LNG, REMIT messages, ECB/EIA prices and rates, demand, power, Elexon/ENTSO-E, news | Older than a rolling **120 days** (`EUROGAS_NEXUS_DEMO_KEEP_PUBLIC_DAYS`) | Enough for the demo's screens and revisions, and far less data than the quote table. Only non-simulated sources are touched: the demo's simulated daily history (400 days of closes, six gas years of storage) is what its screens and risk read. |
+| Ingestion runs and their issues | Finished runs older than **14 days** (`EUROGAS_NEXUS_DEMO_KEEP_INGESTION_DAYS`) | A queued or running run is never removed. |
+| Raw source page bytes | Older than **14 days** (`EUROGAS_NEXUS_DEMO_KEEP_RAW_PAGE_DAYS`) | The demo has no object store, so the page bytes are deleted outright; the digest receipt stays, and inline pages on old receipts are cleared. |
+| Monitoring alerts | Acknowledged or resolved alerts older than **30 days** (`EUROGAS_NEXUS_DEMO_KEEP_ALERT_DAYS`) | Open alerts are never removed. |
+| Background job records | Terminal jobs older than **14 days** (`EUROGAS_NEXUS_DEMO_KEEP_JOB_DAYS`) | Uses the product's job-retention path; active work is never touched. |
+| Sessions and OIDC login states | Expired sessions and consumed/expired login states (`EUROGAS_NEXUS_DEMO_KEEP_SESSION_DAYS`, default 0 = at the next run) | Sign-in state only; never a person's data. |
+| Notification and market-event outbox | Delivered notifications and terminal deliveries older than **14 days** (`EUROGAS_NEXUS_DEMO_KEEP_OUTBOX_DAYS`) | An event with an undelivered consumer keeps its row. |
+| Licensed-data use meter | Older than **90 days** (`EUROGAS_NEXUS_DEMO_KEEP_METER_DAYS`) | Supports a vendor's usage declaration. |
+
+**The audit trail stays.** Its one prune path is dual-controlled (an approved `audit_prune`
+privileged change, `application/audit_retention.py`) and cannot run unattended; pruning it
+outside that path would break the hash chain. On a demo whose audit grows without bound, the
+supported answer is still that path on a customer installation, not a setting here.
+
+After deleting, the job runs `VACUUM (ANALYZE)` on the affected tables - plain `VACUUM`, never
+`VACUUM FULL` while the server serves - and its report carries table and database size before
+and after. Plain VACUUM reuses free space for future rows; it does not return it to the
+operating system, and it writes the free-space/visibility maps, so a table's reported size can
+even grow by a few pages while its row count falls. That is why the report pairs the sizes with
+the rows removed per table.
+
+### The disk guard
+
+Every run reads the free space of the database volume
+(`EUROGAS_NEXUS_DEMO_DISK_DATABASE_PATH`) and the system disk
+(`EUROGAS_NEXUS_DEMO_DISK_SYSTEM_PATH`). Inside the demo container the PostgreSQL volume is not
+mounted (the database runs in the `postgres` service), so it is reported as **not visible** -
+the job never guesses. The system disk (`/`) is visible. When free space is below
+`EUROGAS_NEXUS_DEMO_DISK_MIN_FREE_PCT` (default 20 %), every window is halved down to a floor
+per window (48 h -> 24 h simulated; 120 -> 60 public days; 14 -> 7 ingestion/raw/outbox/job
+days; 30 -> 15 alert days; 90 -> 45 meter days), and one warning alert
+(`demo.housekeeping.disk_low`) appears in the alert centre, updated in place on later runs and
+resolved when space is back. It is one alert, never one per run.
+
+### Run it by hand and check it
+
+```bash
+# What would it remove now, and why? Prints the plan and deletes nothing.
+docker compose exec demo python scripts/demo/demo_housekeeping.py --dry-run
+
+# One enforced run (the scheduled loop runs this every six hours).
+docker compose exec demo python scripts/demo/demo_housekeeping.py
+
+# What happened: one structured line and one audit event per run.
+docker compose logs demo | grep demo.housekeeping
+# The audit trail still verifies (the job never prunes it).
+docker compose exec demo python scripts/ops/verify_audit_chain.py
+# The events themselves: Admin -> Audit in the UI (action demo.housekeeping).
+```
+
+The JSON report lists, per table, the rule and the rows removed, then the database and table
+sizes before and after, and the disk paths. A `skipped_locked` status means another run holds
+the housekeeping lock (a manual run beside the scheduled one is safe).
+
+### Host-level clean-up (daily cron)
+
+Images, build cache and container logs live outside PostgreSQL, so a separate small script
+cleans them. Install it as a daily cron on the demo host (root, or a user in the `docker`
+group):
+
+```cron
+17 3 * * * /opt/eurogas-nexus/deploy/demo/host_housekeeping.sh >> /var/log/eurogas-demo-housekeeping.log 2>&1
+```
+
+`deploy/demo/host_housekeeping.sh`:
+
+* removes **unused** Docker images and build cache older than 24 hours
+  (`docker image prune --filter until=24h`, `docker builder prune --filter until=24h`). A
+  running container's image is in use and is never removed; no `docker system prune` and no
+  volume prune are run;
+* never removes a volume (the database volume `eurogas-nexus-demo-postgres` is only inspected,
+  for the disk report) and never stops or removes a container;
+* truncates a log only as a fallback: `deploy/demo/compose.yaml` caps every service's json-file
+  log at 10 MB x 3 files, so logs cannot grow without bound. A container started before that
+  cap has its log truncated instead;
+* prints `df -h` for the system disk and the Docker root, the database volume's use, and
+  `docker system df` before and after, so the daily log shows the effect.
+
+The two layers are independent: the in-app job bounds PostgreSQL, the host script bounds
+Docker's images, build cache and logs.
 
 ## Back up and restore
 
