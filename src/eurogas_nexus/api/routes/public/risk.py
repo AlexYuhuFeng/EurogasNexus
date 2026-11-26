@@ -811,7 +811,18 @@ def post_lng_cargo_bid(body: CargoBidBody, request: Request) -> dict:
         raise HTTPException(status_code=422, detail={"code": "arrival_in_the_past"})
     month_after = (arrival + timedelta(days=62)).replace(day=1) - timedelta(days=1)
     inputs = ladder_inputs(request, today, today, max(month_after, today))
-    fx = fx_lookup(inputs.eur_rates)
+    spot_fx = fx_lookup(inputs.eur_rates)
+    # The cargo is priced for its arrival month: convert at that month's forward FX (quant
+    # review 2026-11-26: valuations used spot although a forward-FX module exists); the spot
+    # reference rate only where no forward can be derived.
+    forward = inputs.valuation("EUR", today)
+
+    def fx(source: str, target: str) -> float | None:
+        if forward is not None:
+            rate = forward.fx(source, target, body.arrival_month)
+            if rate is not None:
+                return rate
+        return spot_fx(source, target)
 
     def spot(hub: str) -> float | None:
         # Spot is the latest day-ahead close, never the month-ahead close of the risk series.

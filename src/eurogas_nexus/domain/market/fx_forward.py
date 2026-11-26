@@ -556,6 +556,20 @@ def _benchmark_rate(holdings: FxHoldings, currency: str, as_of: date, days: int)
     )
 
 
+def discount_factor(holdings: FxHoldings, currency: str, as_of: date, pay_date: date) -> float:
+    """``1 / growth`` of ``currency``'s overnight benchmark from ``as_of`` to ``pay_date``.
+
+    Simple interest up to a year, annual compounding beyond (as the forward). A flat overnight
+    fixing, not a term curve. Raises :class:`FxForwardError` when no fixing is held.
+    """
+
+    days = (pay_date - as_of).days
+    if days <= 0:
+        return 1.0
+    rate = _benchmark_rate(holdings, currency.upper(), as_of, days)
+    return 1.0 / rate.growth(days > SIMPLE_INTEREST_DAYS)
+
+
 def _licensed_for(
     holdings: FxHoldings, base: str, quote: str, delivery: Delivery, target: date
 ) -> tuple[LicensedForward, float] | None:

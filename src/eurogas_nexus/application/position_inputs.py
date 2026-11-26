@@ -407,7 +407,9 @@ def fx_by_hub_for(hubs, reporting_currency: str, eur_rates: dict[str, float]):
     return fx, missing
 
 
-def rollup(legs, books, level, *, horizon_start, horizon_end, marks, fx_by_hub) -> list[dict]:
+def rollup(
+    legs, books, level, *, horizon_start, horizon_end, marks, fx_by_hub, valuation=None
+) -> list[dict]:
     """Totals per group at ``level`` (firm, legal entity, region, business or book)."""
 
     from eurogas_nexus.domain.portfolio.books import group_key
@@ -429,6 +431,7 @@ def rollup(legs, books, level, *, horizon_start, horizon_end, marks, fx_by_hub) 
             horizon_start=horizon_start,
             horizon_end=horizon_end,
             fx_by_hub=fx_by_hub,
+            valuation=valuation,
         )
         rollup.append(
             {
@@ -603,6 +606,19 @@ class LadderInputs:
     close_series: dict = field(default_factory=dict)
     #: Per hub: (day, price per MWh) of the latest day-ahead close (the spot price).
     day_ahead: dict = field(default_factory=dict)
+    #: The FX reference rates, licensed forwards and benchmark fixings the caller may read
+    #: (``market_normalisation.load_holdings``), for a forward, discounted valuation.
+    fx_holdings: Any = None
+
+    def valuation(self, reporting_currency: str, as_of):
+        """Forward FX and discounting for a mark-to-market in ``reporting_currency``
+        (``domain.portfolio.mtm_valuation``); ``None`` when no FX facts could be read."""
+
+        from eurogas_nexus.domain.portfolio.mtm_valuation import ForwardValuation
+
+        if self.fx_holdings is None:
+            return None
+        return ForwardValuation(self.fx_holdings, reporting_currency.upper(), as_of)
 
 
 #: The product a hub's risk series is read from, in order of preference: the month-ahead
@@ -773,6 +789,10 @@ def ladder_inputs(
             HUB_CURRENCY.get(hub),
             eur_rates,
         )
+        agreed_currency = (contract.contract_price_currency or "GBP").upper()
+        # A price agreed in another currency is converted at each month's forward when the
+        # valuation is forward (``mtm_valuation``); ``price`` holds it at spot for the rest.
+        foreign = agreed_currency != HUB_CURRENCY.get(hub)
         if price_warning:
             warnings.append(f"contract {contract.contract_id}: {price_warning}")
         basis = kinds.price_basis(contract.contract_kind, terms)
@@ -801,6 +821,9 @@ def ladder_inputs(
                 label=contract.contract_name or contract.contract_id,
                 index_hub=index_hub,
                 index_differential=differential,
+                price_native=float(contract.contract_price_gbp_mwh)
+                if foreign and price is not None else None,
+                price_currency=agreed_currency if foreign and price is not None else None,
             )
         )
         if _cargo_of(terms):
@@ -831,6 +854,9 @@ def ladder_inputs(
                 last_gas_day=last,
                 mwh_per_day=sign * filled / days,
                 price=float(order.price) if currency_matches else None,
+                # A trade in another currency is valued only by a forward valuation.
+                price_native=None if currency_matches else float(order.price),
+                price_currency=None if currency_matches else (order.currency or "").upper(),
                 reference=order.order_observation_id,
                 book_id=order_books.get(order.order_observation_id, ""),
                 source="trade",
@@ -930,7 +956,14 @@ def ladder_inputs(
             # desk, explain, alerts and reports find it with ``is_simulated_marks_warning``.
             SIMULATED_MARKS_WARNING
         )
+    try:
+        from eurogas_nexus.application.market_normalisation import load_holdings
+
+        fx_holdings = load_holdings(caller)
+    except Exception:  # noqa: BLE001 - the valuation then says it is spot and undiscounted
+        fx_holdings = None
     return LadderInputs(
+        fx_holdings=fx_holdings,
         legs=legs,
         warnings=warnings,
         books=books,

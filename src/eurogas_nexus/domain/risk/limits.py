@@ -42,6 +42,7 @@ from collections import defaultdict
 from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date, timedelta
+from typing import Any
 
 from eurogas_nexus.domain.ontology.notes import Note, declare, note
 
@@ -198,8 +199,15 @@ def credit_exposure(
     today: date,
     mark: Callable[[str, str], float | None],
     fx: Callable[[str, str], float | None],
+    valuation: Any = None,
 ) -> CreditExposure:
-    """Exposure to one counterparty. ``mark(hub, month)``; ``fx(from, to)`` multiplier."""
+    """Exposure to one counterparty. ``mark(hub, month)``; ``fx(from, to)`` multiplier.
+
+    With ``valuation`` (``domain.portfolio.mtm_valuation.ForwardValuation`` in the line's
+    currency) each month's replacement value is converted at the forward FX for the delivery
+    month and discounted to its payment date, as the ladder's mark-to-market (quant review
+    2026-11-26); receivables (gas already delivered) stay at the spot rate.
+    """
 
     result = CreditExposure(
         counterparty_id=line.counterparty_id,
@@ -220,7 +228,8 @@ def credit_exposure(
             result.unvalued_legs += 1
             continue
         valued = True
-        replacement = 0.0
+        replacement = 0.0  # in the leg's currency, converted at spot below
+        in_line = 0.0  # already in the line's currency (forward valuation)
         start = max(leg.first_gas_day, today)
         committed_last = leg.last_gas_day
         if leg.open_ended:
@@ -234,6 +243,16 @@ def credit_exposure(
                     break
                 volume = leg.mwh_per_day * days
                 result.remaining_mwh += abs(volume)
+                if valuation is not None:
+                    forward = valuation.fx(leg.currency, line.currency, month)
+                    if forward is None:
+                        valued = False
+                        break
+                    # Present value in the line's currency at the month's forward.
+                    in_line += (
+                        volume * (price - leg.price) * forward * valuation.discount(month)
+                    )
+                    continue
                 replacement += volume * (price - leg.price)
         receivable = 0.0
         if leg.mwh_per_day < 0:  # sold to the counterparty: delivered, unpaid gas
@@ -244,7 +263,7 @@ def credit_exposure(
         if not valued:
             result.unvalued_legs += 1
             continue
-        net_replacement += replacement * rate
+        net_replacement += replacement * rate + in_line
         result.receivable_exposure += receivable * rate
     result.replacement_exposure = max(0.0, net_replacement)
     expired = line.valid_until is not None and line.valid_until < today

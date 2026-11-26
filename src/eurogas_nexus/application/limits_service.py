@@ -65,6 +65,8 @@ class CreditInputs:
     simulated_marks: bool
     #: Hub -> {close day: price}: the daily closes the marks fall back to, for per-row as-of.
     closes: dict = field(default_factory=dict)
+    #: ``valuation(currency, as_of)``: forward FX and discounting (``LadderInputs.valuation``).
+    valuation: Any = None
 
 
 def credit_inputs(caller: Caller, today: date) -> CreditInputs:
@@ -159,6 +161,7 @@ def credit_inputs(caller: Caller, today: date) -> CreditInputs:
         marks_as_of=latest_close_day(inputs.closes),
         simulated_marks=demo_marks_allowed(),
         closes=inputs.closes,
+        valuation=inputs.valuation,
     )
 
 
@@ -203,7 +206,8 @@ def credit_exposure_rows(caller: Caller, today: date) -> LimitRows:
     newest = date.fromisoformat(built.marks_as_of) if built.marks_as_of else None
     for item in built.lines:
         row = credit_exposure(
-            item.line, item.legs, today=today, mark=built.mark, fx=built.fx
+            item.line, item.legs, today=today, mark=built.mark, fx=built.fx,
+            valuation=built.valuation(item.line.currency, today) if built.valuation else None,
         ).as_row()
         hubs = {leg.hub for leg in item.legs}
         day = marks_as_of(hubs, built.closes) if hubs else newest

@@ -224,6 +224,9 @@ def get_position_ladder(
             "positions in those currencies are not valued."
         )
     tenor_shocks = _parse_tenor_shocks(shock)
+    # Quant review 2026-11-26: each month's value at the forward FX for its delivery month,
+    # discounted to its payment date (``domain.portfolio.mtm_valuation``).
+    valuation = inputs.valuation(reporting_currency, today)
     report = ladder_report(
         legs,
         horizon_start=horizon_start,
@@ -235,6 +238,7 @@ def get_position_ladder(
         tenor_shocks=tenor_shocks or None,
         today=today,
         close_contracts_by_hub=inputs.close_contracts,
+        valuation=valuation,
     )
     if flat_months:
         warnings.append(
@@ -264,6 +268,13 @@ def get_position_ladder(
         {**point, "unit": f"{quote_currency(point['hub'])}/MWh"}
         for point in curve.as_dict()["points"]
     ]
+    if valuation is not None:
+        warnings += valuation.notes()
+    else:
+        warnings.append(
+            "Mark-to-market at the spot reference rate and undiscounted: no FX or benchmark "
+            "rates could be read."
+        )
     payload["horizon"] = {"start": horizon_start.isoformat(), "end": horizon_end.isoformat()}
     # Which product and source each hub's VaR and freshness read (one series per hub).
     payload["close_series"] = inputs.close_series
@@ -290,6 +301,7 @@ def get_position_ladder(
             horizon_end=horizon_end,
             marks=marks,
             fx_by_hub=fx_by_hub,
+            valuation=valuation,
         )
         payload["group_by"] = group_by
     if format != "json":

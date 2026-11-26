@@ -62,8 +62,9 @@ _NOTES: tuple[MethodNote, ...] = (
     MethodNote(
         "mark_to_market",
         "Each leg valued as (mark minus contract price) times its remaining MWh, month by "
-        "month, at the forward-curve mark for its hub and month, in the reporting currency "
-        "at the ECB rate.",
+        "month, at the forward-curve mark for its hub and month, converted into the reporting "
+        "currency at the forward FX for the delivery month and discounted to the month's "
+        "payment date (the 20th of the month after) at that currency's overnight benchmark.",
         includes=(
             ("legs", "Physical contracts and filled screen trades in the books you can see"),
             ("curve", "Forward curve from one snapshot of entitled quotes per hub: one "
@@ -73,6 +74,9 @@ _NOTES: tuple[MethodNote, ...] = (
                       "another product's close"),
             ("index", "Index-priced contracts valued on their premium over the index's mark, "
                       "and on the basis when the index is another hub's"),
+            ("rates", "Forward FX derived from the ECB reference rates and SONIA, €STR and "
+                      "SOFR (a licensed forward first); where none can be derived, the spot "
+                      "rate, and where no benchmark is held, undiscounted, as the read says"),
         ),
         excludes=(
             ("unpriced", "Legs without a mark, a contract price or an FX rate: counted as "
@@ -116,6 +120,8 @@ _NOTES: tuple[MethodNote, ...] = (
             ("legs", "The counterparty's supply contracts and ETRM trades in the books you "
                      "can see, marked as the position ladder marks them"),
             ("evergreen", "Evergreen contracts only to the end of the current gas year"),
+            ("rates", "Replacement value at the forward FX for each delivery month, discounted "
+                      "to its payment date, as the ladder's mark-to-market"),
         ),
         excludes=(
             ("pfe", "Potential future exposure: today's exposure only"),

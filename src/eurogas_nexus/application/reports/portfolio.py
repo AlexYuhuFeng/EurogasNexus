@@ -655,10 +655,15 @@ def _ladder(data: dict[str, Any], legs, *, start: date, end: date, fx=None, curr
     from eurogas_nexus.domain.portfolio.position_ladder import ladder_report
 
     inputs = data["inputs"]
+    valuation = (
+        inputs.valuation(currency, data["w"]["today"])
+        if currency and hasattr(inputs, "valuation") else None
+    )
     return ladder_report(legs, horizon_start=start, horizon_end=end, marks=inputs.marks,
                          daily_closes_by_hub=inputs.closes, fx_by_hub=fx,
                          reporting_currency=currency,
-                         close_contracts_by_hub=getattr(inputs, "close_contracts", None))
+                         close_contracts_by_hub=getattr(inputs, "close_contracts", None),
+                         valuation=valuation)
 
 
 def _mtm(data: dict[str, Any], legs, start: date, end: date) -> float | None:
@@ -666,8 +671,18 @@ def _mtm(data: dict[str, Any], legs, start: date, end: date) -> float | None:
 
     if not legs:
         return None
-    value, _missing = mark_to_market(legs, data["inputs"].marks, horizon_start=start,
-                                     horizon_end=end)
+    from eurogas_nexus.domain.ontology.markets import quote_currency
+
+    inputs = data["inputs"]
+    currencies = {quote_currency(leg.hub) for leg in legs}
+    # One hub currency (each table row is one hub): discounted, at the forward for any price
+    # agreed in another currency (``mtm_valuation``).
+    valuation = (
+        inputs.valuation(currencies.pop(), data["w"]["today"])
+        if len(currencies) == 1 and hasattr(inputs, "valuation") else None
+    )
+    value, _missing = mark_to_market(legs, inputs.marks, horizon_start=start,
+                                     horizon_end=end, valuation=valuation)
     return value
 
 

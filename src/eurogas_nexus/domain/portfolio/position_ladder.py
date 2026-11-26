@@ -34,6 +34,7 @@ from datetime import date, timedelta
 from eurogas_nexus.domain.market.returns import Contract, contract_move
 from eurogas_nexus.domain.ontology.markets import quote_currency
 from eurogas_nexus.domain.ontology.notes import declare, note
+from eurogas_nexus.domain.portfolio.mtm_valuation import ForwardValuation
 
 INDICATIVE_PRICE_RISK_ONLY = declare(
     "INDICATIVE_PRICE_RISK_ONLY",
@@ -106,6 +107,11 @@ class PositionLeg:
     #: The fixed premium (+) or discount (-) over the index, in the hub's currency per MWh;
     #: ``None`` when not known in that currency (the leg is then not valued).
     index_differential: float | None = None
+    #: A fixed price agreed in another currency than the hub's: the price as agreed and its
+    #: currency. ``price`` holds it at the spot rate; a forward valuation converts it at the
+    #: forward for each delivery month instead.
+    price_native: float | None = None
+    price_currency: str | None = None
 
     @property
     def from_cargo(self) -> bool:
@@ -367,6 +373,7 @@ def mark_to_market(
     horizon_start: date,
     horizon_end: date,
     fx_by_hub: Mapping[str, float] | None = None,
+    valuation: ForwardValuation | None = None,
 ) -> tuple[float | None, int]:
     """Value of each leg against the mark for its hub and month: (mark − price) × MWh.
 
@@ -379,6 +386,10 @@ def mark_to_market(
     without a rate is left unvalued; without it all hubs must share one currency.
     Returns the total (``None`` when no leg-month could be valued) and the number of
     leg-months without a mark, a leg price or an FX rate.
+
+    With ``valuation`` (``domain.portfolio.mtm_valuation``) each month's value is a present
+    value in its reporting currency: converted at the forward FX for the delivery month (a
+    price agreed in a third currency too) and discounted to the month's payment date.
     """
 
     if horizon_end < horizon_start:
@@ -388,9 +399,16 @@ def mark_to_market(
     for leg in legs:
         hub = leg.hub.upper()
         fx = 1.0 if fx_by_hub is None else fx_by_hub.get(hub)
+        hub_currency = quote_currency(hub)
         for month, mwh in _leg_months(leg, horizon_start, horizon_end):
             mark = marks.get((hub, month))
             price = leg.price
+            if valuation is not None:
+                to_reporting = valuation.fx(hub_currency, valuation.reporting_currency, month)
+                fx = None if to_reporting is None else to_reporting * valuation.discount(month)
+                if leg.price_native is not None and leg.price_currency:
+                    rate = valuation.fx(leg.price_currency, hub_currency, month)
+                    price = None if rate is None else leg.price_native * rate
             if leg.index_hub:
                 index_mark = marks.get((leg.index_hub.upper(), month))
                 same_currency = quote_currency(leg.index_hub.upper()) == quote_currency(hub)
@@ -407,7 +425,7 @@ def mark_to_market(
             total += (mark - price) * mwh * fx
             valued += 1
             valued_hubs.add(hub)
-    if fx_by_hub is None:
+    if fx_by_hub is None and valuation is None:
         # Without FX the hubs that were valued must share one currency (GBP + EUR is no sum).
         _single_currency(valued_hubs)
     # Nothing valued is unknown, not zero.
@@ -487,6 +505,7 @@ def ladder_report(
     tenor_shocks: Mapping[tuple[str, str], float] | None = None,
     today: date | None = None,
     close_contracts_by_hub: Mapping[str, Mapping[date, Contract]] | None = None,
+    valuation: ForwardValuation | None = None,
 ) -> LadderResult:
     """The ladder, its mark-to-market and VaR, with each row's marks date and state.
 
@@ -513,7 +532,8 @@ def ladder_report(
     result.note(INDICATIVE_PRICE_RISK_ONLY)
     if marks is not None:
         value, missing = mark_to_market(
-            legs, marks, horizon_start=horizon_start, horizon_end=horizon_end, fx_by_hub=fx_by_hub
+            legs, marks, horizon_start=horizon_start, horizon_end=horizon_end,
+            fx_by_hub=fx_by_hub, valuation=valuation,
         )
         result.mark_to_market, result.unpriced_rows = value, missing
         if missing:
