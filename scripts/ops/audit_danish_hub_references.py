@@ -1,18 +1,20 @@
 """Audit stored rows that name a Danish hub (ETF, GTF, Gaspoint Nordic): before and after.
 
 Until 2026-11-15 the market registry listed ``ETF`` as an alias of TTF, so a contract,
-screen trade or quote written "ETF" was resolved to the Dutch hub and valued at TTF. ETF is
-the Danish Exchange Transfer Facility and GTF the Danish bilateral Gas Transfer Facility;
-neither is TTF and they are not each other. This lists every stored row whose text names
-ETF, GTF, Gaspoint Nordic or the facilities' full names, with:
+screen trade or quote written "ETF" was resolved to the Dutch hub and valued at TTF. ETF
+(the EEX name) and GTF (Energinet's and the OTC name) are the one Danish trading point of
+the joint DK/SE balancing zone, coded ETF with GTF and Gaspoint Nordic as aliases (owner
+decision 2026-11-26); it is never TTF. This lists every stored row whose text names ETF,
+GTF, Gaspoint Nordic or the facilities' full names, with:
 
 - ``before``: the hub the old rule resolved it to (ETF -> TTF; GTF and Gaspoint unresolved);
 - ``after``: the hub the ontology resolves it to now (with the deployment's mappings);
 - ``stored_hub``: the row's own hub column, where the table has one.
 
-Read-only by default. A stored hub column is corrected only where it holds TTF while the
-row's own text resolves to a Danish hub, and only with ``--commit``; contracts store a
-delivery-point name, not a hub, and are resolved at read time, so they need no write.
+Read-only by default. A stored hub column is corrected only where it holds TTF, or the
+alias GTF, while the row's own text resolves to the Danish hub, and only with ``--commit``
+(migration 0091 already moved stored GTF codes); contracts store a delivery-point name, not
+a hub, and are resolved at read time, so they need no write.
 
     python scripts/ops/audit_danish_hub_references.py            # JSON report, no write
     python scripts/ops/audit_danish_hub_references.py --commit   # also correct hub columns
@@ -35,7 +37,9 @@ DANISH = re.compile(
     r"|exchange transfer facility|gas transfer facility|gaspoint nordic",
     re.IGNORECASE,
 )
-DANISH_HUBS = frozenset({"ETF", "GTF"})
+DANISH_HUBS = frozenset({"ETF"})
+#: Stored hub codes a Danish row may hold wrongly: the old TTF alias, or the alias GTF.
+_WRONG_STORED = frozenset({"TTF", "GTF"})
 
 
 def legacy_hub(text: str | None, after: str | None) -> str | None:
@@ -47,8 +51,6 @@ def legacy_hub(text: str | None, after: str | None) -> str | None:
     if after == "ETF":
         named_etf = re.search(r"(?<![A-Za-z0-9])ETF(?![A-Za-z0-9])", str(text or ""), re.I)
         return "TTF" if named_etf else None
-    if after == "GTF":
-        return None
     return after
 
 
@@ -108,7 +110,7 @@ def audit(session, *, commit: bool = False) -> dict:
                 stored = str(getattr(record, hub_column) or "").upper()
                 entry["stored_hub"] = stored
                 product_hub = resolver.hub(" ".join(texts[:2])).hub
-                if stored == "TTF" and product_hub in DANISH_HUBS:
+                if stored in _WRONG_STORED and product_hub in DANISH_HUBS:
                     report["corrections"].append(
                         {"table": model.__tablename__, "id": entry["id"],
                          "column": hub_column, "from": stored, "to": product_hub}
@@ -131,7 +133,7 @@ def audit(session, *, commit: bool = False) -> dict:
 def main(argv: Sequence[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     parser.add_argument("--commit", action="store_true",
-                        help="Correct stored hub columns that hold TTF for a Danish product.")
+                        help="Correct stored hub columns holding TTF or GTF for a Danish product.")
     args = parser.parse_args(argv)
     if resolve_database_url() is None:
         print(json.dumps({"ok": False, "error": "database_url_missing"}))

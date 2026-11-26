@@ -16,7 +16,7 @@ network and loads it at install time.
 | with a position | 267 | ENTSOG's map position transformed to approximate lon/lat (`display_approximation`, never `verified`) |
 | without a position | 51 | ENTSOG publishes no map position (Dornum ITP-00126/00188, Emden ITP-00080/00081/00160 and others): no coordinate, counted as not located |
 | Operator point directions | 683 | operators, adjacent operators, booking platform and product flags |
-| Zone links (`virtual`) | 288 | each point to the trading point of its operator's entry-exit zone (TTF, THE, NBP, ZTP, PEG, GTF, IBP); membership of a market area, never drawn as lines |
+| Zone links (`virtual`) | 288 | each point to the trading point of its operator's entry-exit zone (TTF, THE, NBP, ZTP, PEG, GTF, IBP; GTF, ENTSOG's name for the Danish trading point, is loaded as the hub ETF); membership of a market area, never drawn as lines |
 | Market-area links (`market_area_link`) | 70 | an interconnection point to each market area it joins (37 points); what route pricing walks and the map draws |
 | Pipelines (`interconnector`) | 2 | the two ends of a two-point pipeline: IUK (Bacton - Zeebrugge IZT), BBL (Balgzand - Bacton) |
 

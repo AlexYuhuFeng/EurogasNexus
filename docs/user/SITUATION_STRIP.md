@@ -61,7 +61,7 @@ defaults under **Organisation defaults**.
 | Or share of the asset out | 25 %, 50 %, 75 % | 50 % |
 | Price move that counts (vs prior close) | 2 %, 3 %, 5 %, 10 % | 5 % |
 | When nothing is urgent | Show one standing fact; Hide the strip | Show |
-| Focus hubs | Up to six of TTF, NBP, THE, PEG, ZTP, PSV, CEGH, PVB, ETF, GTF | None: the hubs where your book holds a position, and the hub in your context |
+| Focus hubs | Up to six of TTF, NBP, THE, PEG, ZTP, PSV, CEGH, PVB, ETF (GTF is the same Danish hub) | None: the hubs where your book holds a position, and the hub in your context |
 
 An outage qualifies when it reaches either size. Raising the threshold makes the strip quieter;
 lowering it brings smaller outages onto it. Nothing here changes what you may read.
