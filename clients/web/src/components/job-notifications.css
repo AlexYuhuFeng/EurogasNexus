@@ -131,11 +131,6 @@
     font-weight: var(--ds-weight-medium);
   }
 
-  .job-notice-open:focus-visible {
-    outline: 2px solid var(--ds-focus);
-    outline-offset: 2px;
-  }
-
   /* The mark beside the alerts trigger. */
   .job-activity {
     display: inline-flex;
@@ -176,7 +171,8 @@
     }
 
     .job-activity-ring {
-      animation: job-activity-spin 0.9s linear infinite;
+      /* One turn every four slow beats (about a second), from the duration tokens. */
+      animation: job-activity-spin calc(var(--ds-duration-slow) * 4) linear infinite;
     }
   }
 
