@@ -176,3 +176,70 @@ test("an assumption set picked from the firm's records leaves its figures to the
   assert.equal(body.cargoes[0].hire_per_day, undefined, "the set's hire applies");
   assert.equal("assumption_set_id" in cargoRequest(exampleForm(TODAY)), false);
 });
+
+test("DES quoted per MMBtu or in p/th is sent with its unit; p/th is GBP; carbon and port inputs are sent", async () => {
+  const { desUnitLabel } = await import("../src/app/model/cargoStudy.ts");
+  const form = { ...exampleForm(TODAY), term: "DES" as const, desPrice: "100", desPriceUnit: "p_th" as const, desCurrency: "EUR" as const, dischargePortCost: "150000", eua: "72.5" };
+  const body = cargoRequest(form);
+  const [cargo] = body.cargoes;
+  assert.equal(cargo.des_price_unit, "p_th");
+  assert.equal(cargo.des_currency, "GBP", "pence per therm is a sterling quote");
+  assert.equal(cargo.discharge_port_cost, 150000);
+  assert.equal(body.eua_eur_t, 72.5);
+  assert.equal(desUnitLabel("per_mmbtu", "USD"), "USD/MMBtu");
+  assert.equal(desUnitLabel("p_th", "GBP"), "p/th");
+  assert.equal("eua_eur_t" in cargoRequest(exampleForm(TODAY)), false, "an empty EUA is the server's");
+});
+
+test("the cost stack reads value down to netback, the purchase up to its cost, then the net value", async () => {
+  const { stackRows, stackVersion } = await import("../src/app/model/cargoStudy.ts");
+  const version = {
+    charge_id: "attm7-montoir-tna", period: "ATTM7, 1 Apr 2025 - 31 Mar 2027", valid_from: "2025-04-01", valid_to: "2027-03-31",
+    status: "FINAL" as const, published_on: "2025-02-06", read_on: "2026-11-26", source_title: "CRE deliberation 2025-41",
+    source_url: "https://www.cre.fr/", terms: "public sector information", published_unit: "EUR per berthing", published_value: 90000,
+    carried_forward: false, note: "",
+  };
+  const item = (key: string, per: number, extra = {}) => ({ key, per_mwh: per, total: per * 1e6, input_class: "sourced", source: "s", ...extra });
+  const row: CargoTerminalDTO = {
+    ...ROW,
+    cost_stack: {
+      currency: "EUR", q_del_mwh: 1e6,
+      value: [item("hub", 43.19), item("gas_in_kind", -0.22), item("entry", 0, { excluded: true }), item("regas", -0.8, { versions: [version] }), item("netback", 42.17)],
+      cost: [item("des", 100), item("cost", 100)],
+      fx: null, net: item("margin", -57.83), excluded: ["entry"],
+    },
+  };
+  const rows = stackRows(row);
+  assert.deepEqual(rows.map((line) => `${line.section}:${line.key}`), [
+    "value:hub", "value:gas_in_kind", "value:entry", "value:regas", "value:netback", "cost:des", "cost:cost", "net:margin",
+  ]);
+  assert.deepEqual(rows.filter((line) => line.total).map((line) => line.key), ["netback", "cost", "margin"]);
+  const value = rows.filter((line) => line.section === "value" && !line.total).reduce((sum, line) => sum + (line.item.per_mwh ?? 0), 0);
+  assert.ok(Math.abs(value - 42.17) < 1e-9);
+  const v = stackVersion(row.cost_stack!.value[3])!;
+  assert.equal(v.status, "FINAL");
+  assert.equal(v.publishedOn, "2025-02-06");
+  assert.deepEqual(v.figures, ["90000 EUR per berthing"]);
+  assert.equal(stackVersion(item("hub", 1)), null);
+  assert.equal(stackVersion({ ...row.cost_stack!.value[3], versions: [{ ...version, carried_forward: true }] })!.status, "INDICATIVE");
+  assert.deepEqual(stackRows(ROW), [], "a row without a stack has none");
+});
+
+test("the study says when every terminal loses, names the least-bad, and keeps zh desk terms", () => {
+  const study = readFileSync(new URL("../src/components/research/CargoStudy.tsx", import.meta.url), "utf8");
+  assert.match(study, /cargo\.verdict\.all_negative_des/);
+  assert.match(study, /<CostStack /);
+  assert.match(study, /data-side="down"/);
+  const en = JSON.parse(readFileSync(new URL("../src/i18n/en.json", import.meta.url), "utf8")) as Record<string, string>;
+  const zh = JSON.parse(readFileSync(new URL("../src/i18n/zh.json", import.meta.url), "utf8")) as Record<string, string>;
+  for (const key of Object.keys(en).filter((k) => k.startsWith("cargo."))) assert.ok(zh[key] !== undefined, `zh lacks ${key}`);
+  assert.match(en["cargo.verdict.all_negative_des"], /nets below your DES price; least bad is/);
+  assert.equal(zh["cargo.form.cargo"], "LNG 船货");
+  assert.match(zh["cargo.stack.netback"], /净回值/);
+  assert.match(zh["cargo.stack.regas"], /再气化/);
+  assert.match(zh["cargo.stack.regas"], /外输/);
+  assert.match(zh["cargo.form.boil_off"], /蒸发损耗（BOG）/);
+  assert.equal(zh["cargo.headline.cost"], "到岸成本（DES 等值）");
+  const cargoZh = Object.entries(zh).filter(([k]) => k.startsWith("cargo.")).map(([, v]) => v).join("\n");
+  assert.doesNotMatch(cargoZh, /船舷成本|桌面标准/);
+});
