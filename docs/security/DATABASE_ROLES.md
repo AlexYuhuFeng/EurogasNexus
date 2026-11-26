@@ -35,6 +35,14 @@ the owner role.
    application role. Until these are set both fall back to `POSTGRES_USER`.
 5. Restart and check `GET /api/health/ready` and `python scripts/ops/verify_audit_chain.py`.
 
+**Upgrades after the split** run as the owner through the `migrate` service
+(`scripts/ops/upgrade_database.py upgrade`, [DATABASE_UPGRADE.md](../operations/DATABASE_UPGRADE.md)).
+Run as the application role the command refuses before it starts and names the owner setting;
+the application role has no CREATE on the schema and owns no table, so it could not run a
+migration anyway. New tables are granted to the application by the owner's default
+privileges. `tests/integration/test_upgrade_with_roles_postgres.py` applies this script on a
+scratch PostgreSQL and runs the gated upgrade as each role.
+
 Checked on PostgreSQL 16 (2026-11-26): migrations to head as the owner, a business write and
 an audit row as the application role, the chain verifying, and UPDATE, DELETE and TRUNCATE of
 the audit tables and any DDL refused for the application role. Should a later migration ever

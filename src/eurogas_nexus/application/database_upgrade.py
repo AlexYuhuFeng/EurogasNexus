@@ -103,6 +103,9 @@ def alembic_config(database_url: str, **attributes: Any):
     config.set_main_option("script_location", str(ROOT / "alembic"))
     config.set_main_option("sqlalchemy.url", database_url.replace("%", "%%"))
     config.attributes["configure_logger"] = False
+    # alembic/env.py migrates this URL, not the environment's (they differ when the upgrade
+    # runs as the schema owner from a shell that also names the application role).
+    config.attributes["explicit_database_url"] = True
     config.attributes.update(attributes)
     return config
 
@@ -169,6 +172,38 @@ def plan_lines(plan: UpgradePlan) -> list[str]:
             "going back below " + ", ".join(irreversible) + " needs the pre-upgrade backup"
         )
     return lines
+
+
+OWNER_ROLE_HINT = (
+    "connect as the schema owner: the migrate service uses EUROGAS_NEXUS_OWNER_DB_USER "
+    "(docs/security/DATABASE_ROLES.md); the application role cannot change the schema"
+)
+
+
+def ddl_refusal(engine) -> str | None:
+    """Why the connected role cannot run the migrations, or None (PostgreSQL only).
+
+    With the roles split (``deploy/runtime/database_roles.sql``) the services connect as
+    ``eurogas_app``, which has no CREATE on the schema and owns no table: a migration run as it
+    would fail at its first DDL statement. The upgrade refuses before it starts instead.
+    """
+
+    if engine.dialect.name != "postgresql":
+        return None
+    from sqlalchemy import text
+
+    with engine.connect() as connection:
+        role, may_create, owns_version = connection.execute(
+            text(
+                "SELECT current_user, has_schema_privilege(current_user, 'public', 'CREATE'), "
+                "COALESCE((SELECT pg_has_role(current_user, tableowner, 'USAGE') "
+                "FROM pg_tables WHERE schemaname = 'public' AND tablename = 'alembic_version'),"
+                " true)"
+            )
+        ).one()
+    if may_create and owns_version:
+        return None
+    return f"the database role {role!r} may not change the schema; {OWNER_ROLE_HINT}"
 
 
 def _audit_table_exists(engine) -> bool:
@@ -342,6 +377,10 @@ def run_upgrade(
             emit(line)
         if plan.up_to_date:
             return 0
+        refusal = ddl_refusal(engine)
+        if refusal:
+            emit(f"REFUSED: {refusal}")
+            return 2
         try:
             if _audit_table_exists(engine):
                 with Session(engine) as session:

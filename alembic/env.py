@@ -37,7 +37,14 @@ def _configured_database_url() -> str:
 
     from eurogas_nexus.db.session import default_driver_url
 
-    url = resolve_database_url() or config.get_main_option("sqlalchemy.url")
+    # A caller that binds the config to a URL (the gated upgrade's ``alembic_config``) means
+    # that database and that role: the environment's URL must not silently replace it (an
+    # upgrade planned and audited as the schema owner would otherwise migrate as whoever the
+    # environment names). The ``alembic`` command line keeps reading the environment first.
+    explicit = config.attributes.get("explicit_database_url")
+    url = (explicit and config.get_main_option("sqlalchemy.url")) or (
+        resolve_database_url() or config.get_main_option("sqlalchemy.url")
+    )
     # ``postgresql://`` means the runtime's driver (pg8000), as for the server's engine.
     return default_driver_url(url) if url else url
 

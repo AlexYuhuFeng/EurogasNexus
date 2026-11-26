@@ -12,6 +12,27 @@ compose stack, run it through the one-shot `migrate` service, which has the data
 docker compose run --rm migrate python scripts/ops/upgrade_database.py <command> ...
 ```
 
+## Which database role runs it
+
+With the separate database roles ([DATABASE_ROLES.md](../security/DATABASE_ROLES.md)) the
+schema belongs to `eurogas_owner` and the services connect as `eurogas_app`, which may not
+change the schema. The upgrade runs as the **owner**: the `migrate` service connects with
+`EUROGAS_NEXUS_OWNER_DB_USER` / `_PASSWORD`, every other service with the application role.
+Run every command on this page through `migrate`, as shown.
+
+- Run as the application role, `upgrade` stops before it starts:
+  `REFUSED: the database role 'eurogas_app' may not change the schema; connect as the schema
+  owner ...` (exit code 2; nothing changed, nothing audited as a start).
+- `plan`, `check` and the stack's start-up check only read, so they work as either role.
+- Tables a migration creates get the application's grants automatically (the owner's default
+  privileges). Should a migration ever recreate an audit table, run the two audit lines of
+  `database_roles.sql` again.
+- The command migrates exactly the database and role it was given: a URL in the shell's
+  environment does not replace it.
+
+Tested on PostgreSQL 16 with `deploy/runtime/database_roles.sql` applied
+(`tests/integration/test_upgrade_with_roles_postgres.py`, in the PostgreSQL CI job).
+
 ## What happens when the stack starts
 
 The `migrate` step runs `upgrade_database.py on-start` before the API:
