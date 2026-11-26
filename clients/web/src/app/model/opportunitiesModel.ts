@@ -545,3 +545,40 @@ export function blockerText(
   }
   return { text: language.startsWith("zh") ? t("opportunities.blocked.other") : blocked.text, fix };
 }
+
+/** Claim fields that are words, not names or figures: said in the reader's language. */
+const CLAIM_WORD_FIELDS = new Set(["side", "relation"]);
+
+/**
+ * The claim in the reader's language: `claim.<claim_key>` from the claim's fields (a newer
+ * server sends them), else the server's English sentence. A field that is a word ("long",
+ * "below") is translated; names and figures stay as sent.
+ */
+export function claimText(
+  item: { claim: string; claim_key?: string; claim_fields?: Record<string, string> },
+  t: Words,
+): string {
+  if (!item.claim_key || !item.claim_fields) return item.claim;
+  const fields: Record<string, string> = {};
+  for (const [name, value] of Object.entries(item.claim_fields)) {
+    fields[name] = CLAIM_WORD_FIELDS.has(name) ? t(`opportunities.word.${value}`, { defaultValue: value }) : value;
+  }
+  return t(`claim.${item.claim_key}`, { ...fields, defaultValue: item.claim });
+}
+
+/**
+ * A row of the arithmetic in the reader's language: `opportunities.leg.<label_key>` with the
+ * row's params. A template that names values is used only when the server sent them (an older
+ * server's row keeps its English label).
+ */
+export function legLabel(leg: { label_key: string; label: string; label_params?: Record<string, string> }, t: Words): string {
+  if (LEG_KEYS_WITH_VALUES.has(leg.label_key) && !leg.label_params) return leg.label;
+  return t(`opportunities.leg.${leg.label_key}`, { ...(leg.label_params ?? {}), defaultValue: leg.label });
+}
+
+/** The leg templates that name values (`label_params` from the evaluators). */
+const LEG_KEYS_WITH_VALUES = new Set([
+  "locational.buy", "locational.sell", "locational.volume", "storage.inject", "storage.withdraw",
+  "sell_down.da_bid", "sell_down.da_ask", "hedge_gap.band_edge", "hedge_gap.cover_held",
+  "event.volume", "event.contract_price", "prompt.lot", "seasonal.lot",
+]);

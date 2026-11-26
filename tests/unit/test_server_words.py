@@ -40,3 +40,43 @@ def test_method_notes_are_not_failures() -> None:
         "contract c2: an FOB cargo is not on a European hub until it is sold or discharged"
     )
     assert not is_method_note("contract c3: gas year '2025' not understood")
+
+
+def test_every_claim_template_is_said_in_both_languages_with_the_same_fields() -> None:
+    import json
+    import re
+    from pathlib import Path
+
+    from eurogas_nexus.domain.opportunities.claims import CLAIM_TEMPLATES
+
+    root = Path(__file__).resolve().parents[2] / "clients" / "web" / "src" / "i18n"
+    locales = {
+        language: json.loads((root / f"{language}.json").read_text(encoding="utf-8"))
+        for language in ("en", "zh")
+    }
+    for key, template in CLAIM_TEMPLATES.items():
+        if key.startswith(("blocked.", "harness.")):
+            continue  # blockers render through opportunities.blocked.*; the harness is a test
+        fields = set(re.findall(r"\{(\w+)\}", template))
+        for language, keys in locales.items():
+            said = keys.get(f"claim.{key}")
+            assert said, f"claim.{key} missing in {language}"
+            assert set(re.findall(r"\{\{(\w+)\}\}", said)) == fields, (language, key)
+
+
+def test_a_leg_carries_the_values_its_label_names() -> None:
+    from decimal import Decimal
+
+    from eurogas_nexus.domain.opportunities.model import Leg, LegKind, Measure
+
+    leg = Leg(
+        LegKind.VOLUME,
+        "locational.volume",
+        "Volume 1,000 MWh/d x 30 d",
+        quantity=Measure(Decimal(30000), "MWh"),
+        label_params={"mwh_d": "1,000", "days": "30"},
+    )
+    payload = leg.to_json()
+    assert payload["label_key"] == "locational.volume"
+    assert payload["label_params"] == {"mwh_d": "1,000", "days": "30"}
+    assert payload["label"] == "Volume 1,000 MWh/d x 30 d"

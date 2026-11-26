@@ -217,6 +217,9 @@ class Leg:
     as_of_utc: datetime | None = None
     input_keys: tuple[str, ...] = ()
     note: str = ""
+    #: The values ``label`` names (a hub, a period, a volume), so a client says the row through
+    #: its own template (``opportunities.leg.<label_key>``); ``label`` stays the English fallback.
+    label_params: Mapping[str, str] = field(default_factory=dict)
 
     def to_json(self) -> dict[str, Any]:
         """The row as the API and the frozen case evidence carry it."""
@@ -239,6 +242,7 @@ class Leg:
             "as_of_utc": None if self.as_of_utc is None else self.as_of_utc.isoformat(),
             "input_keys": list(self.input_keys),
             "note": self.note,
+            "label_params": {key: str(value) for key, value in self.label_params.items()},
         }
 
 

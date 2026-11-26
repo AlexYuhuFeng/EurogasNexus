@@ -2721,6 +2721,9 @@ export interface OpportunityRowDTO {
   first_seen_utc: string;
   last_evaluated_utc: string;
   reasons: string[];
+  /** The claim as data, for `claim.<claim_key>` (newer servers); `claim` is the English. */
+  claim_key?: string;
+  claim_fields?: Record<string, string>;
   blocked: { code: string; subject: string; text: string; fix: string; detail?: string } | null;
   rank: { position: number; reason: string } | null;
   user_state: { state: string; reason: string | null; at_version: number; changed_since: boolean } | Record<string, never> | null;
@@ -2818,6 +2821,8 @@ export interface OpportunityLegDTO {
   as_of_utc: string | null;
   input_keys: string[];
   note: string;
+  /** The values `label` names, for `opportunities.leg.<label_key>` (newer servers). */
+  label_params?: Record<string, string>;
 }
 
 /** The frozen object of one version: what the arithmetic was when it was evaluated. */

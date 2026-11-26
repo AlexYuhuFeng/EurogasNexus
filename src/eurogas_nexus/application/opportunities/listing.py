@@ -169,6 +169,10 @@ def summary(row, *, user_state: dict | None = None, ranked=None) -> dict[str, An
         "lane": row.lane,
         "state": row.state,
         "claim": row.claim_text,
+        # The claim as data: a client says it through its own template (claim.<key>) from the
+        # fields; ``claim`` is the English sentence and the fallback.
+        "claim_key": row.claim_key,
+        "claim_fields": {key: str(value) for key, value in dict(row.claim_fields or {}).items()},
         "headline": {"value": _num(row.headline_value), "unit": row.headline_unit},
         "value": None
         if row.value_amount is None

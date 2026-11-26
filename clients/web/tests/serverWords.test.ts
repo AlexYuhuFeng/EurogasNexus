@@ -112,3 +112,22 @@ test("a server notice is said by its code, with its params, English as the fallb
   assert.deepEqual(serverNotices({ warnings: ["a"], notices: [] }), ["a"]);
   assert.deepEqual(serverNotices({ warnings: ["a"], notices: [floating] }), [floating]);
 });
+
+test("an opportunity's claim and arithmetic rows are said from their data", async () => {
+  const { claimText, legLabel } = await import("../src/app/model/opportunitiesModel.ts");
+  const row = {
+    claim: "NBP gas day 2026-11-26: long residual …",
+    claim_key: "sell_down.residual",
+    claim_fields: { hub: "NBP", gas_day: "2026-11-26", side: "long", volume: "23,000", relation: "below", penalty: "1.20 GBP/MWh", value: "GBP 27,600.00" },
+  };
+  assert.equal(
+    claimText(row, tZh),
+    "NBP 燃气日 2026-11-26：多头余量 23,000 MWh 未平；按交易台 1.20 GBP/MWh 的平衡结算价（低于日前价）计，成本 GBP 27,600.00。",
+  );
+  assert.equal(claimText({ claim: "As sent." }, tZh), "As sent.");
+  assert.equal(legLabel({ label_key: "locational.volume", label: "Volume 1 MWh/d x 3 d", label_params: { mwh_d: "1", days: "3" } }, tZh), "量 1 MWh/d × 3 天");
+  // An older server sends no params: a template that names values keeps the English label.
+  assert.equal(legLabel({ label_key: "locational.volume", label: "Volume 1 MWh/d x 3 d" }, tZh), "Volume 1 MWh/d x 3 d");
+  assert.equal(legLabel({ label_key: "locational.gross", label: "Gross spread" }, tZh), "毛价差");
+  assert.equal(legLabel({ label_key: "capacity.sunk", label: "exit at X: capacity held" }, tZh), "exit at X: capacity held");
+});

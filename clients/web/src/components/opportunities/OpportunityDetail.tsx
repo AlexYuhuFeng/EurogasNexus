@@ -26,6 +26,8 @@ import {
   qualityMarker,
   assumptionLabel,
   blockerText,
+  claimText,
+  legLabel,
 } from "@/app/model/opportunitiesModel";
 import i18n from "@/i18n";
 import { Button, EmptyState, Select, StatusBadge } from "@/components/ui";
@@ -130,7 +132,7 @@ export function OpportunityDetail({ t, opportunityId, onClose, onChanged, onOpen
     <aside className="opportunity-detail" aria-labelledby="opportunity-claim" data-opportunity={detail.opportunity_id}>
       <header className="opportunity-detail-head">
         <p id="opportunity-claim" className="opportunity-claim">
-          {detail.claim}
+          {claimText(detail, t)}
         </p>
         <Button variant="quiet" onClick={onClose} aria-label={t("opportunities.detail.close")}>
           ×
@@ -204,8 +206,8 @@ export function OpportunityDetail({ t, opportunityId, onClose, onChanged, onOpen
             <tbody>
               {object.legs.map((leg, index) => (
                 <tr key={`${leg.label_key}-${index}`} data-kind={leg.kind} className={legIsTotal(leg) ? "is-total" : undefined}>
-                  <th scope="row">
-                    {leg.label}
+                  <th scope="row" title={leg.label}>
+                    {legLabel(leg, t)}
                     {leg.note && <span className="opportunity-leg-note">{leg.note}</span>}
                   </th>
                   <td className="opportunity-num">{legFigure(leg)}</td>
