@@ -12,7 +12,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.application.ai_style import DESK_NOTE_RULES, ENRICHMENT_CALL
-from eurogas_nexus.application.desk_text import credit_lines, mandate_lines, money
+from eurogas_nexus.application.desk_text import breaches_text, credit_lines, mandate_lines, money
 from eurogas_nexus.application.service_identity import (
     ServiceAuthority,
     bind_service_actor,
@@ -714,6 +714,11 @@ OUTAGE_CRITICAL_SHARE = 0.5
 OUTAGE_WARNING_SHARE = 0.25
 OUTAGE_WARNING_GWH_D = 100.0
 OUTAGE_LOOKAHEAD = timedelta(hours=24)
+# An outage that has been running this long is a known restriction the market already prices
+# (a permanently reduced point, a long rebuild): it stays listed as information, dated from
+# when it began, instead of reading as fresh "out now" news every day.
+OUTAGE_LONG_RUNNING = timedelta(days=30)
+OUTAGE_TYPE_ZH = {"planned": "计划", "unplanned": "非计划"}
 
 
 def _outage_candidates(session: Session, now: datetime) -> list[MonitoringCandidate]:
@@ -749,28 +754,44 @@ def _outage_candidates(session: Session, now: datetime) -> list[MonitoringCandid
         else:
             continue
         asset = str(row["facility_name"])
-        zone = str(row.get("balancing_zone") or "")
+        zone = str(row.get("balancing_zone") or "").strip()
         active = row.get("status") == "active"
+        long_running = active and now - start >= OUTAGE_LONG_RUNNING
+        if long_running:
+            severity = "info"
         volume = f"{gwh:,.0f} GWh/d" if gwh is not None else f"{unavailable} {row.get('unit')}"
         share_text = f" ({share:.0%} of capacity)" if share is not None else ""
-        when_en = "out now" if active else f"from {start:%d %b %H:%M} UTC"
-        when_zh = "目前停运" if active else f"自 {start:%m-%d %H:%M} UTC 起"
+        share_zh = f"（占技术容量 {share:.0%}）" if share is not None else ""
+        if long_running:
+            when_en = f"out since {start:%d %b %Y}"
+            when_zh = f"自 {start:%Y-%m-%d} 起停运"
+        elif active:
+            when_en, when_zh = "out now", "目前停运"
+        else:
+            when_en = f"from {start:%d %b %H:%M} UTC"
+            when_zh = f"自 {start:%m-%d %H:%M} UTC 起"
+        # No zone, no empty brackets ("Asset () ..." read as a missing field).
+        zone_en = f" ({zone})" if zone else ""
+        zone_zh = f"（{zone}）" if zone else ""
+        event_type = str(row.get("event_type") or "unspecified").lower()
+        type_zh = OUTAGE_TYPE_ZH.get(event_type, "")
         candidates.append(
             MonitoringCandidate(
                 fingerprint=f"outage:{row['event_id']}",
                 category="physical",
                 alert_type="outage",
                 severity=severity,
-                title_en=f"{asset} ({zone}) {volume} {when_en}",
-                title_zh_cn=f"{asset}（{zone}）{volume} {when_zh}",
+                title_en=f"{asset}{zone_en} {volume} {when_en}",
+                title_zh_cn=f"{asset}{zone_zh} {volume} {when_zh}",
                 message_en=(
-                    f"{row.get('event_type', 'unspecified').capitalize()} outage at {asset}: "
+                    f"{event_type.capitalize()} outage at {asset}: "
                     f"{volume}{share_text} unavailable, {when_en}. "
                     f"Reason: {row.get('description') or 'not stated'}."
                 ),
                 message_zh_cn=(
-                    f"{asset} 停运：不可用 {volume}{share_text}，{when_zh}。"
-                    f"原因：{row.get('description') or '未说明'}。"
+                    f"{asset} {type_zh}停运：不可用 {volume}{share_zh}，{when_zh}。"
+                    # The reason is the operator's own REMIT text, quoted as published.
+                    f"运营方说明：{row.get('description') or '未说明'}。"
                 ),
                 entity_type="outage",
                 entity_id=str(row["event_id"]),
@@ -979,6 +1000,10 @@ def _shortfall_candidates(session: Session, now: datetime) -> list[MonitoringCan
 FUNDAMENTALS_BAND_PCT = 30.0
 #: ...and at least this far in its own unit, so a near-zero average does not alarm.
 FUNDAMENTALS_FLOOR = {"storage_change": 0.3, "lng_sendout": 0.1}
+#: A surprise this large (or larger) is a warning; between the band and this it is information.
+#: A winter withdrawal a third faster than last week is worth knowing; twice as fast moves
+#: prompt prices.
+FUNDAMENTALS_WARNING_PCT = 60.0
 
 
 def _fundamentals_candidates(session: Session, now: datetime) -> list[MonitoringCandidate]:
@@ -1047,7 +1072,7 @@ def _fundamentals_candidates(session: Session, now: datetime) -> list[Monitoring
                 fingerprint=f"fundamentals:{series}:{latest_day.isoformat()}",
                 category="fundamentals",
                 alert_type=series,
-                severity="warning",
+                severity="warning" if abs(deviation) >= FUNDAMENTALS_WARNING_PCT else "info",
                 title_en=(
                     f"NW Europe {label_en} {latest:+,.2f} {unit} on {latest_day:%d %b} "
                     f"against a 7-day average of {average:+,.2f} {unit}"
@@ -1063,7 +1088,8 @@ def _fundamentals_candidates(session: Session, now: datetime) -> list[Monitoring
                 message_zh_cn=f"{label_zh} {latest:,.2f} {unit}，7 日均值 {average:,.2f} {unit}。",
                 entity_type="fundamentals_series",
                 entity_id=series,
-                event_time_utc=now,
+                # The day the figure is for, not the scan: a rescan is not a new event.
+                event_time_utc=datetime.combine(latest_day, datetime.min.time(), tzinfo=UTC),
                 evidence_snapshot={
                     "series": series,
                     "value": round(latest, 3),
@@ -1264,7 +1290,9 @@ def _mandate_candidate(row: dict, books: tuple[str, ...], now: datetime):
     if status == "breach":
         severity = "critical"
         title_en = f"{name} mandate breach: {row['breaches'] or used_text}"
-        title_zh = f"{name} 授权超限：{row['breaches'] or used_text}"
+        # The breach texts are written in English by the mandate check; the Chinese title
+        # reads them in Chinese, as the desk's own mandate lines do.
+        title_zh = f"{name} 授权超限：{breaches_text(row['breaches'], True) or used_text}"
     elif status == "expired":
         severity = "warning"
         title_en = f"{name} mandate expired {row['valid_until']}"
@@ -1284,7 +1312,10 @@ def _mandate_candidate(row: dict, books: tuple[str, ...], now: datetime):
         title_en=title_en,
         title_zh_cn=title_zh,
         message_en=message,
-        message_zh_cn=f"规模占用 {used_text}；账簿：{row['books']}。",
+        message_zh_cn=(
+            (f"超限：{breaches_text(row['breaches'], True)}。" if row.get("breaches") else "")
+            + f"规模占用 {used_text}；账簿：{row['books']}。"
+        ),
         entity_type="trader_mandate",
         entity_id=str(row["mandate_id"]),
         event_time_utc=now,
