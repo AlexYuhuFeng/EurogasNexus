@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import date
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from eurogas_nexus.domain.research.spread_analysis import (
     SpreadAnalysisError,
@@ -85,6 +85,16 @@ class SpreadAnalysisInput(BaseModel):
     route_cost: RouteCostInput | None = None
     #: ``spot`` converts every day at that day's spot; ``forward`` (default) per delivery.
     fx: str | None = Field(default=None, max_length=8)
+
+    @model_validator(mode="after")
+    def _dates_in_order(self) -> SpreadAnalysisInput:
+        # A reversed window read no rows and was answered "no entitled daily series", which
+        # sent the user to check their data entitlements instead of their dates.
+        if self.date_from and self.date_to and self.date_from > self.date_to:
+            raise ValueError(
+                f"date_from {self.date_from} is after date_to {self.date_to}"
+            )
+        return self
 
 
 def daily_rows_for(
