@@ -46,6 +46,8 @@ interface Quantity {
   code: string;
   /** Hours the rate is over: 1 for /h, 24 for /d, null for an amount. */
   per: number | null;
+  /** Typed as power (MW, GW): never read as a per-hour rate of an amount typed after it. */
+  power?: boolean;
 }
 
 interface PriceUnit {
@@ -79,10 +81,30 @@ const MONEY_ALIASES: Record<string, { currency: string; divisor: number }> = {
   usd: { currency: "USD", divisor: 1 }, $: { currency: "USD", divisor: 1 }, 美元: { currency: "USD", divisor: 1 },
 };
 
+/** Spelled-out units as their codes: "gigawatt hours a day" is GWh/d, "cubic metres" m3. */
+const SPELLED: Array<[RegExp, string]> = [
+  [/\b(kilo|mega|giga|tera)[\s-]?watt[\s-]?hours?\b/g, "$1wh"],
+  [/\b(kilo|mega|giga|tera)[\s-]?watts?\b/g, "$1w"],
+  [/\bmillion\s+(?:british\s+thermal\s+units|btu)\b/g, "mmbtu"],
+  [/\bmillion\s+cubic\s+met(?:re|er)s?\b/g, "mcm"],
+  [/\bbillion\s+cubic\s+met(?:re|er)s?\b/g, "bcm"],
+  [/\bcubic\s+met(?:re|er)s?\b/g, "m3"],
+  [/\b(?:a|an|per|each|every)\s+(day|hour)\b/g, "/$1"],
+  [/\b(?:daily)\b/g, "/day"],
+  [/\b(?:hourly)\b/g, "/hour"],
+];
+const SI_WORDS: Record<string, string> = { kilowh: "kwh", megawh: "mwh", gigawh: "gwh", terawh: "twh", megaw: "mw", gigaw: "gw" };
+
+function spelledOut(raw: string): string {
+  let text = raw.toLowerCase();
+  for (const [pattern, code] of SPELLED) text = text.replace(pattern, code);
+  return text.replace(/\b(kilo|mega|giga|tera)(wh?)\b/g, (word) => SI_WORDS[word] ?? word);
+}
+
 function quantityUnit(raw: string, reference: UnitsReferenceDTO): Quantity | null {
-  let text = raw.trim().toLowerCase().replace(/\s+per\s+/g, "/").replace(/\s+/g, "");
-  if (text === "mw") return { dimension: "energy", code: "MWh", per: 1 };
-  if (text === "gw") return { dimension: "energy", code: "GWh", per: 1 };
+  let text = spelledOut(raw.trim()).replace(/\s+per\s+/g, "/").replace(/\s+/g, "");
+  if (text === "mw") return { dimension: "energy", code: "MWh", per: 1, power: true };
+  if (text === "gw") return { dimension: "energy", code: "GWh", per: 1, power: true };
   let per: number | null = null;
   const slash = text.lastIndexOf("/");
   if (slash > 0) {
@@ -136,7 +158,7 @@ export function priceConversionParts(
   reference: UnitsReferenceDTO | null,
 ): { value: number; from: { label: string; currency: string }; to: { label: string; currency: string } } | null {
   if (!reference) return null;
-  const text = normalizeTyped(raw).trim().replace(/[?？]$/, "").trim();
+  const text = canonicalConversion(normalizeTyped(raw).trim());
   const number = readNumber(text);
   if (!number) return null;
   const parts = text.slice(number.length).trim().split(CONNECTOR);
@@ -164,8 +186,28 @@ function quantityLabel(quantity: Quantity): string {
   return quantity.per === null ? unit : `${unit}/${quantity.per === 1 ? "h" : "d"}`;
 }
 
-const CONNECTOR = /\s+(?:to|in|into|as|in\s+terms\s+of)\s+|\s*(?:->|→|=>|=|换算成|换算为|换成|转换为|转换成|转为|折合|合)\s*/i;
-const GCV_CLAUSE = /\s*(?:at|@|按|热值)\s*(\d+(?:\.\d+)?)\s*(?:kwh\/m(?:3|³)|千瓦时\/立方米)?\s*/i;
+const CONNECTOR = /\s+(?:is\s+how\s+many|is\s+equivalent\s+to|is\s+equal\s+to|equivalent\s+to|equals?|to|in|into|as|in\s+terms\s+of|is)\s+|\s*(?:->|→|=>|=|等于多少|等于|是多少|相当于多少|相当于|换算成|换算为|换成|转换为|转换成|转为|折合|合)\s*/i;
+const GCV_CLAUSE = /\s*(?:at|@|按|热值|with\s+(?:a\s+)?gcv(?:\s+of)?|gcv(?:\s+of|\s*=)?)\s*(\d+(?:\.\d+)?)\s*(?:kwh\/m(?:3|³)|千瓦时\/立方米)?\s*/i;
+
+/**
+ * A conversion as people type it into Spotlight, as `<number> <unit> to <unit>`:
+ * "how many MMBtu is 800 GWh/d", "convert 40 €/MWh to p/th", "€40/MWh in p/th",
+ * "800 GWh/d = ? MMBtu", "800 GWh/d is equivalent to what MMBtu".
+ */
+function canonicalConversion(text: string): string {
+  let out = text
+    .replace(/^(?:convert|conversion(?:\s+of)?|换算|转换)\s*/i, "")
+    .replace(/\s*(?:\?|？)\s*/g, " ")
+    .replace(/\s+(?:what|how\s+many|how\s+much)\s+(?=\S)/gi, " ")
+    .replace(/\s+多少\s*/g, " ")
+    .trim();
+  const howMany = /^how\s+(?:many|much)\s+(.+?)\s+(?:is|are|in|for|=)\s+(.+)$/i.exec(out);
+  if (howMany) out = `${howMany[2]} to ${howMany[1]}`;
+  // A currency sign before the number goes after it: "€40/MWh" is "40 €/MWh".
+  const money = /^([€£$]|eur|gbp|usd)\s*(\d[\d,]*(?:\.\d+)?)\s*(\/.+)$/i.exec(out);
+  if (money) out = `${money[2]} ${money[1]}${money[3]}`;
+  return out.replace(/\s+/g, " ").trim();
+}
 
 /**
  * The conversion `raw` asks for, or null when it is not clearly one. `raw` reads
@@ -177,7 +219,7 @@ export function convertQuery(
   fx: FxHeld | null,
 ): Conversion | null {
   if (!reference) return null;
-  let text = normalizeTyped(raw).trim().replace(/[?？]$/, "").trim();
+  let text = canonicalConversion(normalizeTyped(raw).trim());
   let statedGcv: number | null = null;
   const gcv = GCV_CLAUSE.exec(text);
   if (gcv) {
@@ -198,21 +240,24 @@ export function convertQuery(
   if (fromPrice || toPrice) return null;
 
   const from = quantityUnit(fromText, reference);
-  const to = quantityUnit(toText, reference);
-  if (!from || !to) return null;
-  // A rate converts only to a rate, an amount only to an amount.
+  const typedTo = quantityUnit(toText, reference);
+  if (!from || !typedTo) return null;
+  // "800 GWh/d in MMBtu" asks for the same rate in MMBtu (MMBtu/d); an amount still converts
+  // only to an amount ("800 GWh in MMBtu/d" gives no answer).
+  const to = from.per !== null && !from.power && typedTo.per === null ? { ...typedTo, per: from.per } : typedTo;
   if ((from.per === null) !== (to.per === null)) return null;
   const rateFactor = from.per === null || to.per === null ? 1 : to.per / from.per;
   const base = (quantity: Quantity) =>
     quantity.dimension === "energy" ? reference.energy_in_mwh[quantity.code] : reference.volume_in_m3[quantity.code];
   const input = { value, unit: quantityLabel(from) };
   if (from.dimension === to.dimension) {
+    const factor = (base(from) / base(to)) * rateFactor;
     return {
       kind: "energy",
       input,
-      value: (value * base(from)) / base(to) * rateFactor,
+      value: value * factor,
       unit: quantityLabel(to),
-      notes: [],
+      notes: [factorLine(input.unit, factor, quantityLabel(to))],
     };
   }
   if (statedGcv === null && gcv) return null;
@@ -242,6 +287,7 @@ export function convertQuery(
       statedGcv === null
         ? { key: "answer.convert.gcv_assumed", values: { gcv: used, conditions: assumption.reference_conditions } }
         : { key: "answer.convert.gcv_stated", values: { gcv: used, conditions: assumption.reference_conditions } },
+      ...(value !== 0 ? [factorLine(input.unit, (result * rateFactor) / value, quantityLabel(to))] : []),
     ],
   };
 }
@@ -251,6 +297,18 @@ function shortDate(iso: string | null): string {
   const parsed = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
   if (Number.isNaN(parsed.getTime())) return iso;
   return parsed.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
+}
+
+/** "1 GWh/d = 3,412.142 MMBtu/d": the factor the answer used, written as the desk writes it. */
+function factorLine(from: string, factor: number, to: string): ConversionLine {
+  return { key: "answer.convert.factor", values: { from, factor: formatFactor(factor), to } };
+}
+
+function formatFactor(factor: number): string {
+  if (!Number.isFinite(factor)) return "–";
+  const magnitude = Math.abs(factor);
+  if (magnitude !== 0 && (magnitude < 1e-4 || magnitude >= 1e9)) return factor.toExponential(4).replace("e+", "e");
+  return Number(factor.toPrecision(7)).toLocaleString("en-GB", { maximumFractionDigits: magnitude >= 1 ? 4 : 8 });
 }
 
 function convertPrice(
@@ -290,12 +348,38 @@ function convertPrice(
       }
     }
   }
+  const factor = (inTarget * reference.energy_in_mwh[to.energy] * to.divisor) / (value || 1);
   return {
     kind: "price",
     input,
     value: inTarget * reference.energy_in_mwh[to.energy] * to.divisor,
     unit: deskUnitLabel(to.label),
-    notes,
+    notes: [...notes, ...(value !== 0 ? [factorLine(input.unit, factor, deskUnitLabel(to.label))] : [])],
+  };
+}
+
+/**
+ * A price in EUR/MWh, by the authority's factors and the held ECB rates: how the answer bar
+ * puts two hubs' quotations side by side for a spread. Null when the unit is unknown or no
+ * rate is held for its currency.
+ */
+export function priceInEurMwh(
+  value: number,
+  unit: string,
+  reference: UnitsReferenceDTO | null,
+  fx: FxHeld | null,
+): { value: number; fx: { pair: string; rate: number; date: string | null; source: string } | null } | null {
+  if (!reference || !Number.isFinite(value)) return null;
+  const from = priceUnit(unit, reference);
+  const to = priceUnit("EUR/MWh", reference);
+  if (!from || !to) return null;
+  const perMwh = value / from.divisor / reference.energy_in_mwh[from.energy];
+  if (from.currency === "EUR") return { value: perMwh, fx: null };
+  const held = fx?.rates[from.currency];
+  if (!held) return null;
+  return {
+    value: perMwh / held.rate,
+    fx: { pair: `EUR${from.currency}`, rate: held.rate, date: held.date, source: fx?.source ?? "ECB" },
   };
 }
 
