@@ -746,3 +746,19 @@ def test_decision_times_are_explicit_not_bar_frequency() -> None:
 
     assert len(times) == 1
     assert times[0] == datetime(2026, 7, 1, 5, 0, tzinfo=UTC)
+
+
+def test_a_strategy_lab_run_is_labelled_a_signal_study_on_decision_time_margin() -> None:
+    """Quant review 3.4: the paper P&L is the reference price at the decision less cost, so it
+    is known when the decision is made. No market outcome is realised: the run says so."""
+
+    result = run_backtest(
+        version=_version(),
+        pool=_pool(1),
+        definition=_definition(days=1, assumptions=_modeled_assumptions()),
+        run_id="run-label",
+        requested_by="operator",
+    )
+    assert result.evaluation_kind == "signal_study"
+    assert result.pnl_basis == "decision_time_margin"
+    assert "SIGNAL_STUDY_DECISION_TIME_MARGIN" in result.warnings

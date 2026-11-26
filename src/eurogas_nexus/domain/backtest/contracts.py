@@ -391,8 +391,18 @@ class BacktestRunDefinition(BaseModel):
         return self
 
 
+#: What a strategy-lab run is (quant review 2026-11-26): its paper P&L is the reference price
+#: *at the decision* less the resource cost (``evaluate_strategy_lab``), known when the
+#: decision is made, so no market outcome is realised against it. The evidence holds no fills
+#: and no price at which the allocated volume would have traded after the decision, so the
+#: run is a signal study of the decision-time margin, not a backtest.
+STRATEGY_LAB_EVALUATION_KIND = "signal_study"
+STRATEGY_LAB_PNL_BASIS = "decision_time_margin"
+SIGNAL_STUDY_WARNING = "SIGNAL_STUDY_DECISION_TIME_MARGIN"
+
+
 class BacktestResult(BaseModel):
-    """Complete semantic result of one backtest run."""
+    """Complete semantic result of one strategy-lab run (a signal study; see above)."""
 
     run_id: str
     strategy_id: str
@@ -410,6 +420,9 @@ class BacktestResult(BaseModel):
     source_refs: list[str] = Field(default_factory=list)
     research_only: bool = True
     human_review_required: bool = True
+    #: ``signal_study``: the P&L is a decision-time margin, not a realised outcome.
+    evaluation_kind: str = STRATEGY_LAB_EVALUATION_KIND
+    pnl_basis: str = STRATEGY_LAB_PNL_BASIS
 
 
 def _default_cost_components() -> list[BacktestCostComponent]:
