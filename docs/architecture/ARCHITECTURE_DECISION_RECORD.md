@@ -997,3 +997,16 @@ the status derived on the day of reading (wrong for an earlier or later instant)
 bank connector (needs the firm's own agreement and credentials, which this product does not
 hold). Tests: `tests/domain/test_tar2_tariff_year_and_precedence.py`,
 `tests/unit/test_tar2_capacity_costs.py`, `tests/api/test_tar2_api.py`.
+
+Amended 2026-11-26 (owner): one live bank connector is built, for Société Générale
+(institution key `SOCGEN`, source `src-bank-socgen`, `ingestion/connectors/socgen.py`); other
+banks still arrive by file. It writes through `bank.fx_rates.v1` and `bank.interest_rates.v1`
+as `BANK:SOCGEN` rows, so no table, migration, tier or route is added and the order (contracted
+bank, published reference, ECB) is unchanged. The agreement requirement stands: it fetches only
+with `access: api` and `agreement_recorded` true on `SOCGEN`; the credential is still never in
+the setting, it is the firm's own, held in the deployment (environment, key file or the
+encrypted credential store, provider `SOCGEN`), and the endpoint, auth scheme and field mapping
+are a configuration file the firm sets from its agreement with the bank. Without all of them it
+makes no network call and reports not connected. The scheduled source is off by default. The
+earlier rejection of a live bank connector now applies to every bank but this one. Tests:
+`tests/unit/test_socgen_bank_connector.py`.

@@ -59,7 +59,7 @@ def test_sources_are_grouped_for_source_center(client: TestClient) -> None:
     )
     # ECB reference rates by API; WM/Reuters and BFIX by licensed file import (#33); the
     # firm's own bank by file or by hand (TAR-2, no live feed).
-    assert by_category["fx"] == {"ECB", "WMR", "BFIX", "BANK"}
+    assert by_category["fx"] == {"ECB", "WMR", "BFIX", "BANK", "BANK:SOCGEN"}
     assert {"ENTSOG", "GIE"}.issubset(by_category["infrastructure"])
     assert {
         "NationalGasNTS",

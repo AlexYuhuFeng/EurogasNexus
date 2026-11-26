@@ -13,17 +13,21 @@ twelve capital letters or digits) to its terms::
 * ``provides``: ``fx`` and/or ``interest``.
 * ``access``: ``file`` (the firm's export imported through ``bank.fx_rates.v1`` /
   ``bank.interest_rates.v1``), ``manual`` (a person types the rates into a file of the same
-  shape) or ``api`` (a live feed from the bank's website or API). ``api`` is accepted only with
+  shape) or ``api`` (a live feed from the bank's API). ``api`` is accepted only with
   ``agreement_recorded`` true, because a live feed needs the firm's own agreement with the
-  bank and the firm's own credentials, and even then nothing is fetched in this build: the
-  platform holds no bank credential and connects to no bank.
+  bank and the firm's own credentials. The credentials and the bank's endpoint configuration
+  are the deployment's (environment or key file, or the encrypted credential store), never
+  this setting. One bank has a connector in this build: Société Générale, key ``SOCGEN``
+  (``ingestion/connectors/socgen.py``, source ``src-bank-socgen``, off by default), which
+  fetches only with the agreement recorded, the endpoint configuration and the credentials in
+  place, and otherwise reports "not connected" without a network call. An ``api`` entry for any other bank stays unconnected; use the file import.
 * ``contexts`` (optional): the calculations this bank's rates apply to (none listed: all).
 * ``max_age_days`` (optional, 1 to 31): how old a fixing may be before it is stale.
 
 Rates imported for an institution carry ``source_system`` ``BANK:<KEY>``.
 
 TAR-2：企业的结算或开户银行作为汇率与利率来源，按机构配置；实时接口须企业自有协议与凭据，
-本版本不连接任何银行。
+本版本仅提供法国兴业银行（SOCGEN）连接器，默认关闭，其他银行经文件导入。
 """
 
 from __future__ import annotations
@@ -41,10 +45,14 @@ DEFAULT_MAX_AGE_DAYS = 5
 _KEY = re.compile(r"^[A-Z0-9]{2,12}$")
 _CONTEXT = re.compile(r"^[a-z0-9_]{1,48}$")
 
+#: The one institution key with a live-feed connector in this build (Société Générale).
+CONNECTED_INSTITUTIONS = ("SOCGEN",)
+
 LIVE_FEED_TERMS = (
-    "A live feed from a bank's website or API needs the firm's own agreement with that bank "
-    "and the firm's own credentials; none is connected in this build. Rates come in through "
-    "the file import."
+    "A live feed from a bank's API needs the firm's own agreement with that bank "
+    "(agreement_recorded) and the firm's own credentials, held in the deployment, never in "
+    "this setting. Only Societe Generale (SOCGEN) has a connector in this build, off until it "
+    "is configured; other banks' rates come in through the file import."
 )
 
 
@@ -81,10 +89,19 @@ class Institution:
             "contexts": list(self.contexts),
             "max_age_days": self.max_age_days,
             "source_system": self.source_system,
-            "live_feed": "not connected (the firm's own agreement and credentials needed)"
-            if self.access == "api"
-            else None,
+            "live_feed": _live_feed(self),
         }
+
+
+def _live_feed(institution: Institution) -> str | None:
+    if institution.access != "api":
+        return None
+    if institution.key in CONNECTED_INSTITUTIONS:
+        return (
+            "connector available (src-bank-socgen): fetches only with the deployment's endpoint "
+            "configuration and the firm's own credentials; not connected until they are set"
+        )
+    return "not connected (no connector for this bank in this build; use the file import)"
 
 
 def source_system(key: str) -> str:
@@ -185,6 +202,7 @@ def institutions(setting: Any) -> list[Institution]:
 
 __all__ = [
     "ACCESS",
+    "CONNECTED_INSTITUTIONS",
     "DEFAULT_MAX_AGE_DAYS",
     "LIVE_FEED_TERMS",
     "PROVIDES",
