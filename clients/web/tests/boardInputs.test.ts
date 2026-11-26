@@ -23,7 +23,18 @@ test("the latest day-ahead close in the hub's currency per MWh, with its day and
 
 test("sell-down prefills from the board and says which inputs were typed", () => {
   const panel = readFileSync(new URL("../src/components/SellDownPanel.tsx", import.meta.url), "utf8");
-  assert.match(panel, /latestBoardPrice\(markets, hub, "day-ahead", currency\)/);
+  assert.match(panel, /latestBoardPrice\(markets, hub, "day-ahead", currency, quoteUnit\)/);
+  assert.match(panel, /price_unit: quoteUnit/);
   assert.match(panel, /data-manual-inputs="true"/);
   assert.match(panel, /t\("selldown\.from_board"/);
+});
+
+test("NBP is taken from the board in p/th, as the desk quotes it, without a factor here", async () => {
+  const { latestBoardPrice } = await import("../src/app/model/boardInputs.ts");
+  const { hubQuoteUnit } = await import("../src/app/contractChoices.ts");
+  const rows = [{ hub: "NBP", product: "NBP day-ahead", price: 104.2, unit: "p/th", price_gbp_mwh: 35.56, period_start_utc: "2026-11-26T05:00:00Z", source_system: "ICE_ENDEX" }];
+  assert.equal(hubQuoteUnit("NBP"), "GBp/th");
+  assert.equal(hubQuoteUnit("TTF"), "EUR/MWh");
+  assert.equal(latestBoardPrice(rows as never, "NBP", "day-ahead", "GBP", "GBp/th")?.value, 104.2);
+  assert.equal(latestBoardPrice(rows as never, "NBP", "day-ahead", "GBP")?.value, 35.56);
 });

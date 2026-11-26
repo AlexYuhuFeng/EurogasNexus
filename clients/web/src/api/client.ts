@@ -4571,6 +4571,8 @@ export interface MandateUsageRowDTO {
   furthest_month: string;
   legs: number;
   breaches: string;
+  /** The same breaches as declared notes, each naming its contract (newer servers). */
+  breach_notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
   valid_until: string | null;
   status: "ok" | "watch" | "breach" | "expired";
   hedge_policy: string;
@@ -4634,6 +4636,8 @@ export interface SellDownInput {
   short_penalty_per_mwh: number;
   long_discount_per_mwh: number;
   lot_mwh: number;
+  /** The unit the four prices are entered in (NBP in GBp/th); omitted, per MWh. */
+  price_unit?: string;
 }
 
 export interface DailyBalanceDayDTO {
@@ -4690,6 +4694,8 @@ export interface HedgeApprovalRowDTO {
   hedge_range: string | null;
   months: HedgeApprovalMonthDTO[];
   breaches: string[];
+  /** The same breaches as declared notes, each naming its contract (newer servers). */
+  breach_notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
   status: "ok" | "breach" | "expired";
   linked_trades: number;
   contract_found: boolean;
@@ -4749,6 +4755,8 @@ export interface DeliveryPerformanceRowDTO {
   cv_pct: number | null;
   trend_7d_vs_dcq_pct: number | null;
   flags: string;
+  /** The same flags as declared notes (newer servers). */
+  flag_notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
   status: "ok" | "watch";
 }
 
@@ -5220,6 +5228,8 @@ export interface PositionLadderDTO {
   /** Method notes keyed by the figure's field: mark_to_market, var_95_1d, tenor_exposure, scenario. */
   methods?: Record<string, RiskMethodNoteDTO>;
   warnings: string[];
+  /** The same warnings as codes with parameters, for the reader's language (newer servers). */
+  notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
 }
 
 export interface SpreadSeriesDTO {

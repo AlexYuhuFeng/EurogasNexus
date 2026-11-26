@@ -35,6 +35,10 @@ _BREACH_ZH = (
      "{1}净头寸{0} MWh，超过{2} MWh"),
     (re.compile(r"^(.+) hedged (\d+)%, above (\d+)%$"), "{0}套保比例{1}%，高于{2}%"),
     (re.compile(r"^(.+) hedged (\d+)%, below (\d+)%$"), "{0}套保比例{1}%，低于{2}%"),
+    (re.compile(r"^(\S+) hedged (-?\d+)%, over the approved (\d+)%$"),
+     "{0}套保比例{1}%，高于批准的{2}%"),
+    (re.compile(r"^(\S+) hedged (-?\d+)%, under the approved (\d+)%$"),
+     "{0}套保比例{1}%，低于批准的{2}%"),
 )
 
 

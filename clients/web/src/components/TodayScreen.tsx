@@ -76,6 +76,7 @@ import {
   type FigureState,
 } from "@/components/ui";
 import { formatMeasure } from "@/app/time/valueFormat";
+import { serverWarningText } from "@/app/warningLabel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -825,7 +826,7 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
         </div>
       )}
       {today.warnings.length > 0 && (
-        <ul className="today-warnings">{today.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+        <ul className="today-warnings">{today.warnings.map((warning) => <li key={warning}>{serverWarningText(warning, t)}</li>)}</ul>
       )}
       {gasDayStrip && canSeeBook && rows.includes("gas_day") && <GasDayStrip gasDay={gasDay} checklist={checklist} t={t} nowMs={nowMs} />}
       {quiet && !rows.includes("fundamentals") && <p className="today-quiet" data-today-quiet="">{t("today.needs.quiet")}</p>}

@@ -209,7 +209,7 @@ export function ReviewWorkspace({
         <h2>{t("review.warning_register")}</h2>
         <div className="review-warning-list">
           {reviewWarnings.length > 0
-            ? reviewWarnings.slice(0, 6).map((warning) => <span key={`review-warning-${warning}`} title={warning}>{warningLabel(warning, t)}</span>)
+            ? reviewWarnings.slice(0, 6).map((warning, index) => <span key={`review-warning-${index}-${warning}`} title={warning}>{warningLabel(warning, t)}</span>)
             : <span>{t("review.no_warnings")}</span>}
         </div>
       </div>

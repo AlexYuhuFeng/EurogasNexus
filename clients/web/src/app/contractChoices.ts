@@ -31,6 +31,15 @@ export function hubCurrency(hub: string | null): "GBP" | "EUR" | null {
   return hub === "NBP" ? "GBP" : "EUR";
 }
 
+/**
+ * The unit the desk quotes a hub's price in (AGENTS rule 17): NBP in pence per therm, the
+ * continental hubs per MWh in their currency. A name only; conversions are the server's.
+ */
+export function hubQuoteUnit(hub: string | null): string {
+  if (!hub) return "EUR/MWh";
+  return hub === "NBP" ? "GBp/th" : `${hubCurrency(hub)}/MWh`;
+}
+
 /** Currencies a contract may be priced in. */
 export const PRICE_CURRENCIES = ["GBP", "EUR", "USD"] as const;
 export type PriceCurrency = (typeof PRICE_CURRENCIES)[number];

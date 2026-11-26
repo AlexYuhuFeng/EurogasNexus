@@ -1,7 +1,8 @@
 @layer legacy {
 /* Research → Reports (tokens only; see docs/product/DESIGN_TOKENS.md). */
 .reports-page {
-  padding: var(--ds-space-3) var(--ds-space-4);
+  /* The shell sets the page gutter; a page adds none of its own. */
+  padding: 0;
 }
 
 .reports-layout {

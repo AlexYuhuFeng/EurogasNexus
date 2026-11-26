@@ -21,6 +21,7 @@ import { formatGasDay } from "@/app/time/timeFormat";
 import { DataGrid, EmptyState, Skeleton, StatusBadge, type DataGridColumn } from "@/components/ui";
 import { Chart, PercentileStrip, Sparkline, formatSigned, type ChartData } from "@/components/ui/charts";
 import { CountryMultiples } from "./CountryMultiples";
+import { historyLabel } from "@/app/model/historyLabel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -59,7 +60,7 @@ function TotalFigures({ entity, t, language }: { entity: FlowEntityDTO; t: Trans
             <dd>
               <PercentileStrip t={t} position={average.range_position} outside={average.outside}
                 caption={t("storage_panel.range_position", { pct: Math.round(average.range_position) })}
-                window={entity.history.label} lowLabel={num(average.low_gwh_d)} highLabel={num(average.high_gwh_d)} />
+                window={historyLabel(entity.history, t)} lowLabel={num(average.low_gwh_d)} highLabel={num(average.high_gwh_d)} />
             </dd>
           )}
         </div>
@@ -124,6 +125,8 @@ export function FlowsPanel({ t, language }: { t: Translate; language: string }) 
       lastYear: (year) => t("storage_panel.last_year", { year }),
       thisYear: (year) => year,
       mean: (count) => t("chart.history.mean", { count }),
+      history: (history) => historyLabel(history, t),
+      range: (years) => t("chart.history.range", { count: years.length, first: years[0] ?? "", last: years[years.length - 1] ?? "" }),
       target: (pct) => String(pct),
       xTitle: t("storage_panel.day_of_gas_year"),
     },
@@ -142,7 +145,7 @@ export function FlowsPanel({ t, language }: { t: Translate; language: string }) 
     },
     { id: "flow", header: t("lng_panel.send_out_short"), headerTitle: t("flows_panel.flow_7d"), unit: "GWh/d", type: "number", sortable: true, priority: "primary", value: (row) => row.flow_7d_gwh_d, format: (v) => num(v as number | null) },
     { id: "last-year", header: t("storage_panel.vs_last_year_short"), unit: "GWh/d", type: "number", sortable: true, priority: "secondary", value: (row) => row.vs_last_year.diff_gwh_d, format: (v) => signed(v as number | null) },
-    { id: "average", header: t("storage_panel.vs_avg_column"), unit: "GWh/d", type: "number", sortable: true, value: (row) => row.vs_average.diff_gwh_d, format: (v) => signed(v as number | null), cellTitle: (row) => row.history.label },
+    { id: "average", header: t("storage_panel.vs_avg_column"), unit: "GWh/d", type: "number", sortable: true, value: (row) => row.vs_average.diff_gwh_d, format: (v) => signed(v as number | null), cellTitle: (row) => historyLabel(row.history, t) },
     {
       id: "trend", header: t("storage_panel.trend"), width: "120px",
       render: (row) => <Sparkline {...sparkOf(row)} label={t("flows_panel.spark_label", { name: row.name })} unit="GWh/d" decimals={0} simulated={row.simulated} height={20} t={t} />,

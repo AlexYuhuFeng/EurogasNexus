@@ -169,8 +169,10 @@ const SURFACE_SIGNALS = {
   // own id (`portfolio_resource_from_contract` maps `contract_id` to `resource_id`), so one group
   // covers both views. `rowLimit` 25 mirrors the overview's own bound. The deep link lands on the
   // overview task, which declares no empty-state row, so an empty read is reported as unmeasured
-  // rather than against an empty state this view does not render.
-  contracts: { heading: /portfolio|contract/i, apiPath: "/api/route-cost/upstream-contracts", readToRender: [{ label: "upstream contracts", rowsPath: "data", recordIdField: "contract_id", rowSelectors: ['[data-record="portfolio-resource"]', '[data-record="upstream-contract"]'], rowLimit: 25 }] },
+  // rather than against an empty state this view does not render. The overview now folds the
+  // pool under "Supply allocation", so the probe measures the contract library (Deals →
+  // Contracts), where the same contracts are the page's subject.
+  contracts: { heading: /portfolio|contract/i, apiPath: "/api/route-cost/upstream-contracts", readToRender: [{ label: "upstream contracts", rowsPath: "data", recordIdField: "contract_id", rowSelectors: ['[data-record="portfolio-resource"]', '[data-record="upstream-contract"]'], rowLimit: 25 }] , task: "resources" },
   // Compare the Review workspace's actual projection and its bounded history rows.
   // Unrelated unavailable evidence elsewhere on the page must not turn a rendered decision
   // into a missing-row finding; exact record identity is the authority.

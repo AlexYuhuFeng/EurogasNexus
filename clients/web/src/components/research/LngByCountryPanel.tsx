@@ -20,6 +20,8 @@ import { formatGasDay } from "@/app/time/timeFormat";
 import { DataGrid, EmptyState, Skeleton, StatusBadge, type DataGridColumn } from "@/components/ui";
 import { Chart, PercentileStrip, Sparkline, formatSigned } from "@/components/ui/charts";
 import { CountryMultiples } from "./CountryMultiples";
+import { historyLabel } from "@/app/model/historyLabel";
+import { placeName } from "@/app/model/placeName";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -60,6 +62,8 @@ export function LngByCountryPanel({ t, language }: { t: Translate; language: str
       lastYear: (year) => t("storage_panel.last_year", { year }),
       thisYear: (year) => year,
       mean: (count) => t("chart.history.mean", { count }),
+      history: (history) => historyLabel(history, t),
+      range: (years) => t("chart.history.range", { count: years.length, first: years[0] ?? "", last: years[years.length - 1] ?? "" }),
       target: (pct) => String(pct),
       xTitle: t("storage_panel.day_of_gas_year"),
     },
@@ -69,10 +73,10 @@ export function LngByCountryPanel({ t, language }: { t: Translate; language: str
 
   const columns = useMemo<DataGridColumn<LngEntityDTO>[]>(() => [
     {
-      id: "country", header: t("storage_panel.country"), rowHeader: true, sortable: true, priority: "primary", value: (row) => row.name,
+      id: "country", header: t("storage_panel.country"), rowHeader: true, sortable: true, priority: "primary", value: (row) => placeName(row, t),
       render: (row) => (
         <>
-          {row.name} <small className="muted">{row.code}</small>
+          {placeName(row, t)} <small className="muted">{row.code}</small>
           {row.simulated && <span className="ds-cell-mark" data-state="simulated" title={t("today.simulated_long")}> {t("today.simulated_short")}</span>}
         </>
       ),
@@ -81,12 +85,12 @@ export function LngByCountryPanel({ t, language }: { t: Translate; language: str
     { id: "last-year", header: t("storage_panel.vs_last_year_short"), unit: "GWh/d", type: "number", sortable: true, priority: "secondary", value: (row) => row.vs_last_year.diff_gwh_d, format: (v) => signed(v as number | null) },
     {
       id: "average", header: t("storage_panel.vs_avg_column"), unit: "GWh/d", type: "number", sortable: true,
-      value: (row) => row.vs_average.diff_gwh_d, format: (v) => signed(v as number | null), cellTitle: (row) => row.history.label,
+      value: (row) => row.vs_average.diff_gwh_d, format: (v) => signed(v as number | null), cellTitle: (row) => historyLabel(row.history, t),
     },
     { id: "inventory", header: t("lng_panel.inventory"), unit: "%", type: "number", sortable: true, value: (row) => row.inventory_pct_of_dtmi, format: (v) => num(v as number | null, 1) },
     {
       id: "trend", header: t("storage_panel.trend"), width: "120px",
-      render: (row) => <Sparkline {...sparkOf(row)} label={t("lng_panel.spark_label", { name: row.name })} unit="GWh/d" decimals={0} simulated={row.simulated} height={20} t={t} />,
+      render: (row) => <Sparkline {...sparkOf(row)} label={t("lng_panel.spark_label", { name: placeName(row, t) })} unit="GWh/d" decimals={0} simulated={row.simulated} height={20} t={t} />,
     },
   ], [t]);
 
@@ -121,7 +125,7 @@ export function LngByCountryPanel({ t, language }: { t: Translate; language: str
               <dd>
                 <PercentileStrip t={t} position={average.range_position} outside={average.outside}
                   caption={t("storage_panel.range_position", { pct: Math.round(average.range_position) })}
-                  window={region.history.label} lowLabel={num(average.low_gwh_d)} highLabel={num(average.high_gwh_d)} />
+                  window={historyLabel(region.history, t)} lowLabel={num(average.low_gwh_d)} highLabel={num(average.high_gwh_d)} />
               </dd>
             )}
           </div>
@@ -137,7 +141,7 @@ export function LngByCountryPanel({ t, language }: { t: Translate; language: str
       {shown && chart && (
         <Chart
           id="lng-season"
-          title={t("lng_panel.chart_title", { name: shown.name })}
+          title={t("lng_panel.chart_title", { name: placeName(shown, t) })}
           data={chart.data}
           subtitle={chart.subtitle}
           compare={chart.compare}
@@ -146,7 +150,7 @@ export function LngByCountryPanel({ t, language }: { t: Translate; language: str
           simulated={shown.simulated}
           asOf={shown.as_of}
           controls={selected ? (
-            <button type="button" className="ds-inline-link" onClick={() => setSelected(null)}>{t("storage_panel.back_to_region", { name: region?.name ?? "EU" })}</button>
+            <button type="button" className="ds-inline-link" onClick={() => setSelected(null)}>{t("storage_panel.back_to_region", { name: placeName(region, t) || "EU" })}</button>
           ) : undefined}
           note={[t("lng_panel.note"), attribution && !shown.simulated ? attribution : null].filter(Boolean).join(" · ")}
         />

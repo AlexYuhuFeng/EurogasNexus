@@ -52,7 +52,10 @@ export function useModeHeader(
     tabLabel: mode ? t("nav.mode.tasks", { mode: t(mode.labelKey) }) : "",
     activeTask: location?.task ?? null,
     purpose: (() => {
-      const key = purposeKey(mode?.id ?? null, location?.task.id);
+      // The purpose names the page the user is on, so it follows the location, not the caller's
+      // task list: while the identity is still loading (or a role reaches a task by its address)
+      // the line is still drawn. It grants nothing.
+      const key = purposeKey(location?.mode.id ?? null, location?.task.id);
       return key && i18n.exists(key) ? t(key) : "";
     })(),
     onActivate: (id) => {
