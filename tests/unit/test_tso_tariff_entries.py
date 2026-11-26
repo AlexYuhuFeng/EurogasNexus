@@ -243,7 +243,10 @@ def test_a_reviewed_entry_retires_a_simulated_leg_and_a_candidate_does_not(sessi
     made = entries.record_entry(session, national_gas_exit(), actor="a", now_utc=NOW)
     assert simulated_tariffs.retire_simulated_tariffs(session) == 0
     entries.review_entry(session, made["entry_id"], reviewer="b", now_utc=NOW)
-    assert simulated_tariffs.retire_simulated_tariffs(session) == 1
+    # The leg's yearly, monthly and daily simulated rows all go.
+    assert simulated_tariffs.retire_simulated_tariffs(session) == len(
+        simulated_tariffs.SIMULATED_PRODUCT_MULTIPLIERS
+    )
     left = {
         (row.tso, row.point_id, row.direction)
         for row in session.query(TsoTariffRecord).filter(
