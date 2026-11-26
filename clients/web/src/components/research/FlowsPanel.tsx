@@ -32,7 +32,7 @@ const sparkOf = (entity: FlowEntityDTO) => ({
   days: entity.spark.map((point) => point.day),
 });
 export const LANDING_CODES = ["norway", "uk_terminal", "dornum", "emden", "zeebrugge", "dunkerque", "nybro", "easington", "st_fergus"];
-const SHARE_DAYS = 365;
+export const SHARE_DAYS = 365;
 
 function TotalFigures({ entity, t, language }: { entity: FlowEntityDTO; t: Translate; language: string }) {
   const average = entity.vs_average;

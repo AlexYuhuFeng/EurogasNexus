@@ -4,7 +4,10 @@
  * the one the page asks for.
  */
 import { api } from "@/api/client";
-import { LANDING_CODES } from "@/components/research/FlowsPanel";
+import { DAILY_BALANCE_FIRST } from "@/components/DailyBalancePanel";
+import { LANDING_CODES, SHARE_DAYS } from "@/components/research/FlowsPanel";
+import { STORAGE_MULTIPLE_CODES } from "@/components/research/FundamentalsWorkbench";
+import { LNG_COUNTRY_CODES } from "@/components/research/LngByCountryPanel";
 import { focusHubs } from "@/app/model/spreadsBoard";
 import type { WarmUpStep } from "@/app/data/warmUp";
 
@@ -22,6 +25,8 @@ export function warmUpSteps(language: string): WarmUpStep[] {
     { id: "book.credit", permissions: book, read: (signal) => api.creditExposure({ signal }) },
     { id: "book.mandates", permissions: book, read: (signal) => api.mandateUsage({ signal }) },
     { id: "book.hedges", permissions: book, read: (signal) => api.hedgeApprovals({ signal }) },
+    // Book -> Delivery.
+    { id: "book.daily", permissions: book, read: (signal) => api.dailyBalance({ ...DAILY_BALANCE_FIRST }, { signal }) },
     // Research -> Spreads: the board for the user's focus hubs, as the page asks for it.
     {
       id: "research.spreads",
@@ -34,6 +39,12 @@ export function warmUpSteps(language: string): WarmUpStep[] {
     // Research -> Fundamentals.
     { id: "research.balance", permissions: market, read: (signal) => api.fundamentalsForwardBalance({}, { signal }) },
     { id: "research.flows", permissions: market, read: (signal) => api.fundamentalsFlows(LANDING_CODES, { signal }) },
+    { id: "research.storage", permissions: market, read: (signal) => api.fundamentalsStorage({ region: "eu", season: STORAGE_MULTIPLE_CODES }, { signal }) },
+    { id: "research.storage.eu", permissions: market, read: (signal) => api.fundamentalsStorage({ region: "eu" }, { signal }) },
+    { id: "research.lng", permissions: market, read: (signal) => api.fundamentalsLng(LNG_COUNTRY_CODES, { signal }) },
+    { id: "research.nwe", permissions: market, read: (signal) => api.nweBalance(14, { signal }) },
+    { id: "research.nwe.share", permissions: market, read: (signal) => api.nweBalanceHistory(SHARE_DAYS, { signal }) },
+    { id: "research.power", permissions: market, read: (signal) => api.gasForPower("DE_LU", 14, { signal }) },
     // Research -> Reports: the catalogue probes every section, the heaviest read of all.
     { id: "research.reports", permissions: market, read: (signal) => api.reportCatalogue(language.startsWith("zh") ? "zh-CN" : "en", { signal }) },
   ];
