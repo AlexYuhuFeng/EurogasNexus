@@ -69,7 +69,13 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
     <details
       className="commercial-overview-fold"
       open={allocationOpen ?? hasBlocker}
-      onToggle={(event) => setAllocationOpen((event.currentTarget as HTMLDetailsElement).open)}
+      // Only the reader's own toggle is remembered: the browser also fires "toggle" when a
+      // blocker opens the fold, and that must not keep it open once the blocker clears (the
+      // store's "not answered yet" blocker during the first load did exactly that).
+      onToggle={(event) => {
+        const open = (event.currentTarget as HTMLDetailsElement).open;
+        if (open !== (allocationOpen ?? hasBlocker)) setAllocationOpen(open);
+      }}
       data-allocation-fold="true"
     >
     <summary>
