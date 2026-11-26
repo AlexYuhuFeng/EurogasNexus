@@ -351,8 +351,10 @@ test("legacy batches, retries and streams cannot widen an already focused projec
   await store.getState().retryFailedWorkspaceEndpoints();
   assert.deepEqual(quoteIds(store.getState().marketQuotes), ["focused"]);
   assert.equal(store.getState().endpointErrors.marketQuotes, undefined);
+  // No stream carries rows any more (the tab's live connection carries notices only), so
+  // nothing a stream sends can write an unfiltered quote over the focused projection.
   store.getState().subscribeDecisionStreams();
-  apiRegistry().streams["/stream/quotes"].quotes({ quote_id: "unfiltered-stream" });
+  assert.equal(apiRegistry().streams["/stream/quotes"], undefined);
   assert.deepEqual(quoteIds(store.getState().marketQuotes), ["focused"]);
 });
 

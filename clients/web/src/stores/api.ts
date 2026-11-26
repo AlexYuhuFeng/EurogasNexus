@@ -1,6 +1,6 @@
 import { needsCommercialWorkspaceReads, workspaceReadNeeded, workspaceReadOrder } from "./workspaceReadScope";
 import { create } from "zustand";
-import { setLiveEnabled } from "@/app/data/liveStream";
+import { onLiveStatus, setLiveEnabled } from "@/app/data/liveStream";
 import {
   CLIENT_RELEASE_METADATA,
   ReleaseCompatibility,
@@ -110,10 +110,8 @@ import {
   UpstreamContractDTO,
   UpstreamContractInputDTO,
   TypedContractInputDTO,
-  openEventStream,
 } from "@/api/client";
 import { setDeploymentMapDefault } from "@/app/mapTileProviders";
-import { publishChangeNotice, setChangeStreamOpen, setTopicStreamOpen } from "@/app/data/changeNotices";
 import {
   DEFAULT_WORKSPACE_READ_TIMEOUT_MS,
   DEFAULT_LOGOUT_TIMEOUT_MS,
@@ -154,7 +152,6 @@ import {
   type AuthStatusSnapshot,
 } from "./authGate";
 
-let decisionStreamClosers: Array<() => void> = [];
 /** One context-change re-read pass at a time, with a later change queued behind it. */
 let projectionRefetchActive = false;
 let projectionRefetchQueued = false;
@@ -230,10 +227,6 @@ function connectionTestMessage(
 }
 
 function closeDecisionStreams() {
-  decisionStreamClosers.forEach((close) => close());
-  decisionStreamClosers = [];
-  setChangeStreamOpen(false);
-  setTopicStreamOpen("opportunities", false);
   setLiveEnabled(false);
 }
 
@@ -576,22 +569,6 @@ function reReadPortfolioSnapshot(query: ProjectionRequestContext): Promise<void>
         : {}),
     }));
   });
-}
-
-function mergeMarketQuotes(
-  current: MarketQuoteDTO[],
-  incoming: MarketQuoteDTO[],
-): MarketQuoteDTO[] {
-  const byId = new Map(current.map((quote) => [quote.quote_id, quote]));
-  incoming.forEach((quote) => {
-    const existing = byId.get(quote.quote_id);
-    if (!existing || timestampMs(quote.observed_at_utc) >= timestampMs(existing.observed_at_utc)) {
-      byId.set(quote.quote_id, quote);
-    }
-  });
-  return Array.from(byId.values())
-    .sort((left, right) => timestampMs(right.observed_at_utc) - timestampMs(left.observed_at_utc))
-    .slice(0, 500);
 }
 
 /**
@@ -1997,84 +1974,16 @@ export const useApiStore = create<ApiState>((set, get) => ({
     // Streams carry protected market and monitoring payloads, so they open only
     // for an authenticated session and are closed by every identity change.
     if (!isIdentityGateOpen(get().authState)) return;
-    closeDecisionStreams();
-    if (!needsCommercialWorkspaceReads(get().currentUser)) return;
-    const streamGeneration = identityReadCoordinator.capture();
-    const streamIsCurrent = () => identityReadCoordinator.isCurrent(streamGeneration);
-    const onStatus = (status: "open" | "error") => {
-      if (streamIsCurrent()) set({ streamingActive: status === "open" });
-    };
-
-    decisionStreamClosers.push(
-      openEventStream(
-        "/stream/quotes",
-        {
-          quotes: (payload) => {
-            if (!streamIsCurrent()) return;
-            // These streams are unfiltered. The regular projection poll owns scoped rows.
-            if (projectionLanes.marketContext.requested) return;
-            const quote = payload as MarketQuoteDTO;
-            if (!quote || typeof quote !== "object" || !("quote_id" in quote)) return;
-            set((state) => ({
-              marketQuotes: mergeMarketQuotes(state.marketQuotes, [quote]),
-              marketLastUpdatedAtUtc: latestTimestamp([
-                state.marketLastUpdatedAtUtc,
-                // Never later than the server received it (QA-R-05).
-                latestUpdateStamp([quote]),
-              ]),
-            }));
-          },
-        },
-        onStatus,
-      ).close,
-    );
-
-    // The opportunity engine's stream (M7): an opportunity opened or withdrawn, and each finished
-    // evaluation. A notice carries no figure; the Opportunities page re-reads its list on it
-    // (app/hooks/useOpportunityStream.ts) and polls while this stream is down.
-    decisionStreamClosers.push(
-      openEventStream(
-        "/stream/opportunities",
-        {
-          opportunity: (payload) => {
-            if (streamIsCurrent()) publishChangeNotice("opportunities", { event: "opportunity", ...(payload as object) });
-          },
-          evaluated: (payload) => {
-            if (streamIsCurrent()) publishChangeNotice("opportunities", { event: "evaluated", ...(payload as object) });
-          },
-        },
-        (status) => {
-          if (streamIsCurrent()) setTopicStreamOpen("opportunities", status === "open");
-        },
-      ).close,
-    );
-
-    decisionStreamClosers.push(
-      openEventStream(
-        "/stream/alerts",
-        {
-          alerts: (payload) => {
-            if (!streamIsCurrent()) return;
-            const alert = payload as MonitoringAlertDTO;
-            if (!alert || typeof alert !== "object" || !("alert_id" in alert)) return;
-            set((state) => ({
-              monitoringAlerts: [
-                alert,
-                ...state.monitoringAlerts.filter((item) => item.alert_id !== alert.alert_id),
-              ],
-            }));
-          },
-          // The map's change notices share this connection (app/data/changeNotices.ts).
-          map: (payload) => {
-            if (streamIsCurrent()) publishChangeNotice("map", payload);
-          },
-        },
-        (status) => {
-          if (streamIsCurrent()) setChangeStreamOpen(status === "open");
-        },
-      ).close,
-    );
-    // The live stream (app/data/liveStream.ts) opens once a page subscribes to a topic.
+    if (!needsCommercialWorkspaceReads(get().currentUser)) {
+      closeDecisionStreams();
+      return;
+    }
+    // Called after every workspace load: an open connection is kept (an identity change has
+    // closed it already, invalidateIdentitySession), never re-opened.
+    // ONE connection per browser tab (app/data/liveStream.ts): the market, the alerts, the
+    // map's changes, the opportunity engine's events and the caller's jobs all ride on it, and
+    // pages attach to it. The server caps live streams per person, so a tab never opens a
+    // second one; its state ("live" or not) is `streamingActive`.
     setLiveEnabled(true);
   },
 
@@ -2872,3 +2781,10 @@ export const useApiStore = create<ApiState>((set, get) => ({
     }
   },
 }));
+
+// "Push connected" or "Polling fallback" (the runtime page, the monitoring poll): whether the
+// tab's one live connection is up.
+onLiveStatus((status) => {
+  const live = status.state === "live";
+  if (useApiStore.getState().streamingActive !== live) useApiStore.setState({ streamingActive: live });
+});

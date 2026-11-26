@@ -5,7 +5,10 @@
  * `minIntervalMs` (the first notice at once, the rest of a burst once at the end of the
  * interval), never while the browser tab is hidden (once when it is shown again), and once
  * after the stream comes back from a drop. While the stream is not live it falls back to a
- * poll every `fallbackMs` (when given), so a page never depends on the push alone.
+ * poll every `fallbackMs` (when given); without one, while the tab's connection is down
+ * (`offline`, `stale`, or `paused` when the server would not open it), every
+ * `LIVE_FALLBACK_MS`: a page never depends on the push alone, and degrades to timed re-reads
+ * without a word of its own (the top bar says once that live updates are paused).
  */
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
@@ -17,6 +20,10 @@ import {
   type LiveStatus,
   type LiveTopic,
 } from "@/app/data/liveStream";
+
+/** The timed re-read of a page that gave no `fallbackMs`, while its live connection is down. */
+export const LIVE_FALLBACK_MS = 60_000;
+const DEGRADED = new Set(["offline", "stale", "paused"]);
 
 export function useLiveStatus(): LiveStatus {
   return useSyncExternalStore(onLiveStatus, liveStatus, liveStatus);
@@ -82,20 +89,24 @@ export function useLiveTopics(
     }, minIntervalMs);
     const stops = key.split(",").map((topic) => subscribeLive(topic as Exclude<LiveTopic, "jobs">, () => throttle.call()));
     let wasLive = liveStatus().state === "live";
+    let pollEvery = 0;
     let poll: ReturnType<typeof setInterval> | undefined;
-    const setPoll = (live: boolean) => {
+    const setPoll = (status: LiveStatus) => {
+      const every = status.state === "live" ? 0 : fallbackMs ?? (DEGRADED.has(status.state) ? LIVE_FALLBACK_MS : 0);
+      if (every === pollEvery) return;
       if (poll) clearInterval(poll);
       poll = undefined;
-      if (!live && fallbackMs) poll = setInterval(() => throttle.call(), fallbackMs);
+      pollEvery = every;
+      if (every) poll = setInterval(() => throttle.call(), every);
     };
-    setPoll(wasLive);
+    setPoll(liveStatus());
     const stopStatus = onLiveStatus((status) => {
+      setPoll(status);
       const live = status.state === "live";
       if (live === wasLive) return;
       // Back from a drop: whatever changed meanwhile (the server resumes too; this is cheap).
       if (live) throttle.call();
       wasLive = live;
-      setPoll(live);
     });
     const shown = () => {
       if (document.visibilityState === "visible" && dirty) {

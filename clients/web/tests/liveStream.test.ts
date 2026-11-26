@@ -1,7 +1,8 @@
 /**
- * The live stream (app/data/liveStream.ts): one connection for the topics pages subscribe to,
- * resumed from the last event id after a drop, with a published state (live, stale, offline)
- * that the top bar shows with the time of the last update. And the throttle that coalesces a
+ * The live stream (app/data/liveStream.ts): ONE connection per browser tab, for every topic,
+ * that pages attach to and detach from without re-opening it; resumed from the last event id
+ * after a drop; paused (not retried per page) when the server refuses it; with a published state
+ * (live, stale, offline, paused) that the top bar shows with the time of the last update. And the throttle that coalesces a
  * burst of notices into a leading and a trailing re-read (app/hooks/useLive.ts).
  */
 import assert from "node:assert/strict";
@@ -19,7 +20,7 @@ after(closeApiStoreHarness);
 interface Opened {
   path: string;
   handlers: Record<string, (payload: unknown) => void>;
-  onStatus?: (status: "open" | "error") => void;
+  onStatus?: (status: "open" | "error" | "refused") => void;
   closed: boolean;
 }
 
@@ -31,7 +32,7 @@ async function liveModule(): Promise<LiveModule> {
   return harness.load<LiveModule>("/src/app/data/liveStream.ts");
 }
 
-function open(path: string, handlers: Record<string, (payload: unknown) => void>, onStatus?: (status: "open" | "error") => void) {
+function open(path: string, handlers: Record<string, (payload: unknown) => void>, onStatus?: (status: "open" | "error" | "refused") => void) {
   const entry: Opened = { path, handlers, onStatus, closed: false };
   opened.push(entry);
   return {
@@ -77,25 +78,72 @@ test("nothing opens until the session turns it on and a page subscribes; then on
   assert.equal(opened.length, 0, "off until an authenticated session turns it on");
   live.setLiveEnabled(true);
   assert.equal(opened.length, 1);
-  assert.equal(params(current()).get("topics"), "prices");
+  assert.deepEqual(params(current()).get("topics")?.split(","), [...live.LIVE_TAB_TOPICS]);
   assert.equal(live.liveStatus().state, "connecting");
-
-  // A second page's topics are asked for on the same stream (one re-open, after a short debounce).
-  const stopAlerts = live.subscribeLive("alerts", () => undefined);
-  live.subscribeLive("trades", () => undefined);
-  mock.timers.tick(60);
-  assert.equal(opened.length, 2);
-  assert.equal(opened[0].closed, true);
-  assert.equal(params(current()).get("topics"), "alerts,prices,trades");
-
-  current().handlers.ready({ topics: ["alerts", "prices", "trades"], event_id: "live|2026-11-26T09:00:00+00:00" });
+  current().handlers.ready({ topics: live.LIVE_TAB_TOPICS, event_id: "live|2026-11-26T09:00:00+00:00" });
   assert.equal(live.liveStatus().state, "live");
 
+  // Pages come and go (a page change): they attach to the same connection; nothing re-opens.
+  const stopAlerts = live.subscribeLive("alerts", () => undefined);
+  const stopTrades = live.subscribeLive("trades", () => undefined);
   stopPrices();
   stopAlerts();
-  mock.timers.tick(60);
-  assert.equal(params(current()).get("topics"), "trades");
+  mock.timers.tick(5_000);
+  assert.equal(opened.length, 1, "one connection for the tab's whole life");
+  assert.equal(live.liveSubscriberCount(), 1);
+
+  // The last listener leaves: the connection lingers for a page that attaches within it...
+  stopTrades();
+  mock.timers.tick(live.LIVE_LINGER_MS - 1_000);
+  assert.equal(opened[0].closed, false);
+  const stopAgain = live.subscribeLive("prices", () => undefined);
+  current().handlers.heartbeat({ event_id: "live|2026-11-26T09:00:00+00:00" });
+  mock.timers.tick(live.LIVE_LINGER_MS);
+  assert.equal(opened.length, 1);
+  assert.equal(opened[0].closed, false);
+  // ...and closes once nothing attached for that long.
+  stopAgain();
+  mock.timers.tick(live.LIVE_LINGER_MS);
+  assert.equal(opened[0].closed, true);
+  assert.equal(live.liveStatus().state, "idle");
+  // The next listener opens it again, resuming.
+  live.subscribeLive("prices", () => undefined);
+  assert.equal(opened.length, 2);
   assert.equal(params(current()).get("last_event_id"), "live|2026-11-26T09:00:00+00:00", "a re-open resumes");
+});
+
+test("a refused stream (the person's streams at their limit) pauses quietly and is tried again after minutes", () => {
+  live.subscribeLive("prices", () => undefined);
+  live.setLiveEnabled(true);
+  current().onStatus?.("refused");
+  assert.equal(live.liveStatus().state, "paused");
+  assert.equal(live.liveStatus().retryAt, Date.now() + 60_000);
+  assert.equal(opened.filter((item) => !item.closed).length, 0);
+  // A page change in the meantime does not try again (one attempt per tab, never per page).
+  const stop = live.subscribeLive("alerts", () => undefined);
+  stop();
+  mock.timers.tick(59_000);
+  assert.equal(opened.length, 1);
+  mock.timers.tick(1_000);
+  assert.equal(opened.length, 2);
+  assert.equal(live.liveStatus().state, "paused", "paused until the server opens it");
+  current().onStatus?.("refused");
+  assert.equal(live.liveStatus().retryAt, Date.now() + 120_000, "the wait doubles");
+  mock.timers.tick(120_000);
+  current().handlers.ready({ event_id: "live|back" });
+  assert.equal(live.liveStatus().state, "live");
+  assert.equal(live.livePausedMs(9, 0.5), 300_000, "at most five minutes");
+});
+
+test("the opportunity engine's events reach their listeners on the same connection", () => {
+  const seen: unknown[] = [];
+  live.subscribeLiveEvent("opportunity", (payload) => seen.push(payload));
+  live.subscribeLiveEvent("evaluated", (payload) => seen.push(payload));
+  live.setLiveEnabled(true);
+  assert.equal(opened.length, 1);
+  current().handlers.opportunity({ opportunity_id: "o-1", status: "withdrawn", reason: "expired" });
+  current().handlers.evaluated({ evaluation_id: "e-1" });
+  assert.deepEqual(seen, [{ opportunity_id: "o-1", status: "withdrawn", reason: "expired" }, { evaluation_id: "e-1" }]);
 });
 
 test("a change reaches only its topic's listeners and moves the last-change time", () => {
@@ -165,9 +213,8 @@ test("a store the server cannot read says stale; a late callback of a closed con
   first.handlers.heartbeat({ event_id: "live|two" });
   assert.equal(live.liveStatus().state, "live");
 
-  live.subscribeLive("alerts", () => undefined);
-  mock.timers.tick(60);
-  assert.equal(first.closed, true);
+  mock.timers.tick(live.LIVE_STALE_AFTER_MS + 2_000);
+  assert.equal(first.closed, true, "a silent connection is replaced");
   first.onStatus?.("error");
   assert.notEqual(live.liveStatus().state, "offline", "the old connection's error is not this one's");
 });
@@ -194,7 +241,7 @@ test("jobs events reach job listeners with their shape", () => {
   const jobs: { job_id: string; progress: number }[] = [];
   live.subscribeLive("jobs", (job) => jobs.push(job));
   live.setLiveEnabled(true);
-  assert.equal(params(current()).get("topics"), "jobs");
+  assert.ok(params(current()).get("topics")?.split(",").includes("jobs"));
   current().handlers.jobs({ job_id: "job-1", kind: "BACKTEST", status: "RUNNING", progress: 0.4, step: null, event_id: "live|j" });
   current().handlers.jobs({ nonsense: true });
   assert.deepEqual(jobs.map((job) => [job.job_id, job.progress]), [["job-1", 0.4]]);
@@ -252,7 +299,7 @@ test("the store turns the live stream on with the decision streams and off at ev
   harness.store.getState().subscribeDecisionStreams();
   const registry = apiRegistry();
   const livePath = () => Object.keys(registry.streams).find((path) => path.startsWith("/stream/live?"));
-  assert.match(livePath() ?? "", /topics=prices/);
+  assert.match(livePath() ?? "", /topics=[^&]*prices/);
   harness.answer("me", () => Promise.reject(new Error("API 401: session expired")));
   await harness.store.getState().fetchMe();
   await settle();
