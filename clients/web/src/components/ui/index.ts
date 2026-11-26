@@ -22,6 +22,8 @@ export { Panel } from "./Panel";
 export type { PanelProps } from "./Panel";
 export { Skeleton } from "./Skeleton";
 export type { SkeletonProps } from "./Skeleton";
+export { Spinner } from "./Spinner";
+export type { SpinnerProps } from "./Spinner";
 export { Tabs, tabId } from "./Tabs";
 export type { TabItem, TabsProps } from "./Tabs";
 export { Segmented } from "./Segmented";

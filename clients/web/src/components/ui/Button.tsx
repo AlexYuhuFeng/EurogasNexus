@@ -1,4 +1,5 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
+import { Spinner } from "./Spinner";
 
 /**
  * The one button (UX-02). Four meanings, two heights:
@@ -9,7 +10,8 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
  * - `danger`    the confirm step of a destructive action (quiet until then: see COMPONENTS.md)
  *
  * `sm` is 28 px (tables, toolbars, panel headers); `md` is 32 px (forms). Disabled and loading
- * look disabled, never like a live grey button. The emitted class names are the ones the rest of
+ * look disabled, never like a live grey button; loading also shows the busy ring (Spinner) in
+ * place of the label, which stays in the button for its width and its accessible name. The emitted class names are the ones the rest of
  * the stylesheet already knows (`button-primary`, `secondary-button`, `danger`), so a migrated
  * call site keeps its selectors and acceptance hooks.
  */
@@ -56,6 +58,7 @@ export function Button({
       aria-busy={loading || undefined}
       data-loading={loading ? "" : undefined}
     >
+      {loading && <Spinner className="ds-button-spinner" />}
       {children}
     </button>
   );

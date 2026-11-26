@@ -191,8 +191,11 @@ exact copy, so that presentation can improve without weakening a gate.
     stages with a moving bar (`WorkProgress`: "Reading prices and curves", "Reading outages and
     flows", "Writing the draft"), current stage marked, never complete before the answer arrives;
     the button that started it shows its busy state and cannot be pressed twice
-    (`Button loading`, `useBusyAction`); the result area keeps the height the result will take, so
-    nothing jumps when it arrives. Nothing appears for a wait shorter than 300 ms (no flicker).
+    (`Button loading`, `useBusyAction`: the busy ring in place of its label); the result area keeps
+    the height the result will take, so nothing jumps when it arrives. A place too small for rows
+    or stages (a picker's trigger, a panel title while it re-reads) shows the busy ring
+    (`Spinner`, filled to the value when progress is known), never a bare "Loading…". Words stay
+    only where they tell the user something: a stage name, a count, an error and its reason. Nothing appears for a wait shorter than 300 ms (no flicker).
     Motion stops under `prefers-reduced-motion`; the words still change. Pages use
     `app/hooks/useWorkProgress.ts` and `components/ui/WorkProgress.tsx` rather than their own.
 19. **Coming back is instant; nothing blanks.** A panel reads through the client read cache
