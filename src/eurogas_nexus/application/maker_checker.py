@@ -147,9 +147,24 @@ def authority_refusal(identity: Any, kind: str) -> dict[str, str] | None:
     return None
 
 
-def _approval_refusal(identity: Any, change: Any) -> ChangeRequestError | None:
+def _approval_refusal(
+    identity: Any, change: Any, session: Any = None
+) -> ChangeRequestError | None:
     from eurogas_nexus.security.segregation import names_of
 
+    if session is not None and not _is_own(identity, change):
+        # An approver the proposer provisioned is not a second person (H7).
+        from eurogas_nexus.application.sock_puppet import sock_puppet_refusal
+
+        reason = sock_puppet_refusal(
+            session,
+            {str(v) for v in (getattr(identity, "principal_id", None),
+                              getattr(identity, "name", None)) if v},
+            {str(change.proposed_by)},
+            getattr(identity, "principal_id", None),
+        )
+        if reason is not None:
+            return ChangeRequestError("four_eyes_same_person", reason, status=403)
     if _is_own(identity, change):
         return ChangeRequestError(
             "four_eyes_required",
@@ -508,7 +523,7 @@ def approve_change(
     now = now_utc or datetime.now(UTC)
     change = _load_for_decision(session, change_id)
     _require_pending(change)
-    refusal = _approval_refusal(identity, change)
+    refusal = _approval_refusal(identity, change, session)
     if refusal is not None:
         raise refusal
     kind = _kind(change.kind)

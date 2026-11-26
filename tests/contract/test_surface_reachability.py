@@ -219,6 +219,15 @@ DELIBERATE: dict[str, str] = {
     "/api/market/options/surface": "option settlements read API; the web view is later",
     "/api/reference-network/supply-corridors": "topology read API; the web view is later",
     "/api/market/options/metrics": "option smile metric series; the web view is later",
+    # Security review 2026-11 (H5, H7): control-plane acts called by administrators and their
+    # tooling; the approval screen in Admin is a later package (the client shows the 409).
+    "/api/access/privileged-changes": "dual control: pending changes; approval screen later",
+    "/api/access/privileged-changes/{change_id}/approve": "dual control: a second admin's act",
+    "/api/access/privileged-changes/{change_id}/reject": "dual control: a second admin's act",
+    "/api/access/privileged-changes/{change_id}/withdraw": "dual control: the requester's act",
+    "/api/audit/verify": "audit hash-chain verification, read by operators and monitoring",
+    "/api/audit/checkpoint": "signed audit chain checkpoint, exported by operators to the SIEM",
+    "/api/audit/prune": "dual-controlled audit prune, an operator act",
     "/api/market/valuation-snapshots/{snapshot_id}": (
         "CP-07 backend; read from an opportunity's evidence in the later Deals page"
     ),

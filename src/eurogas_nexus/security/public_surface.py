@@ -10,6 +10,19 @@ from __future__ import annotations
 
 REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
     {
+        # Security review 2026-11: dual control (H7), audit chain (H5), second factor (H6).
+        "/api/access/privileged-changes",
+        "/api/access/privileged-changes/{change_id}/approve",
+        "/api/access/privileged-changes/{change_id}/reject",
+        "/api/access/privileged-changes/{change_id}/withdraw",
+        "/api/access/users/{principal_id}/mfa/reset",
+        "/api/audit/checkpoint",
+        "/api/audit/prune",
+        "/api/audit/verify",
+        "/api/auth/mfa/verify",
+        "/api/me/mfa",
+        "/api/me/mfa/confirm",
+        "/api/me/mfa/enrol",
         "/api/functional-models",
         "/api/functional-models/{model_id}",
         "/api/functional-models/{model_id}/predict",

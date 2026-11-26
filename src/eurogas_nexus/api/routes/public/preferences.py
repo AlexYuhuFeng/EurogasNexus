@@ -136,6 +136,26 @@ def read_organisation_settings(request: Request) -> dict:
         return _env(_organisation(session))
 
 
+def _security_relevant(accepted: dict[str, Any]) -> list[str]:
+    """The security-relevant parts of an organisation change (security review H7).
+
+    A four-eyes switch turned off, and an AI use turned on (which sends the firm's data to a
+    model provider). Turning a control back on, or an AI use off, needs no second person.
+    """
+
+    from eurogas_nexus.domain.ai.register import AI_FEATURES_SETTING
+    from eurogas_nexus.governance.four_eyes import FOUR_EYES_SETTING
+
+    parts = []
+    for name, value in (accepted.get(FOUR_EYES_SETTING) or {}).items():
+        if value is False:
+            parts.append(f"four eyes off for {name}")
+    for name, value in (accepted.get(AI_FEATURES_SETTING) or {}).items():
+        if value is True:
+            parts.append(f"AI use {name} on")
+    return parts
+
+
 @router.put("/api/settings/organisation")
 def write_organisation_settings(body: dict[str, Any], request: Request) -> dict:
     """Set organisation defaults (platform administrators only); audited.
@@ -155,6 +175,17 @@ def write_organisation_settings(body: dict[str, Any], request: Request) -> dict:
         raise HTTPException(
             status_code=422, detail={"code": "setting_invalid", "message": str(exc)}
         ) from exc
+    sensitive = _security_relevant(accepted)
+    if sensitive:
+        # Switching four eyes off or an AI use on is itself four-eyed (H7).
+        from eurogas_nexus.api.dual_control import require_dual_control
+
+        require_dual_control(
+            request,
+            kind="organisation_security_setting",
+            body=body,
+            summary="organisation settings: " + ", ".join(sensitive),
+        )
     with _session() as session:
         before = _organisation(session)
         now = datetime.now(UTC)

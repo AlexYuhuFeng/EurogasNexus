@@ -16,6 +16,8 @@ from uuid import uuid4
 from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from eurogas_nexus.api import dual_control as _dual_control
+from eurogas_nexus.api.dual_control import require_dual_control
 from eurogas_nexus.governance.audit import GovernedAuditError
 from eurogas_nexus.security.authorization import (
     Permission,
@@ -524,6 +526,52 @@ def _account_error(exc) -> HTTPException:
     return HTTPException(status_code=exc.status_code, detail=detail)
 
 
+@router.get("/api/access/privileged-changes")
+def list_privileged_changes(request: Request) -> dict:
+    """Security-relevant changes requested, approved, applied or refused (H7)."""
+
+    _require_admin(request, Permission.IDENTITY_MANAGE)
+    _require_db()
+    return _env(
+        {
+            "dual_control": _dual_control.dual_control_enabled(),
+            "cooling_days": _dual_control.cooling_days(),
+            "changes": _dual_control.list_changes(),
+        }
+    )
+
+
+class PrivilegedDecision(BaseModel):
+    note: str | None = Field(default=None, max_length=500)
+
+
+@router.post("/api/access/privileged-changes/{change_id}/approve")
+def approve_privileged_change(
+    change_id: str, body: PrivilegedDecision, request: Request
+) -> dict:
+    """A second administrator approves; the requester then repeats the call with the id."""
+
+    admin = _require_admin(request, Permission.IDENTITY_MANAGE)
+    _require_db()
+    return _env(_dual_control.decide(change_id, admin, approve=True, note=body.note))
+
+
+@router.post("/api/access/privileged-changes/{change_id}/reject")
+def reject_privileged_change(
+    change_id: str, body: PrivilegedDecision, request: Request
+) -> dict:
+    admin = _require_admin(request, Permission.IDENTITY_MANAGE)
+    _require_db()
+    return _env(_dual_control.decide(change_id, admin, approve=False, note=body.note))
+
+
+@router.post("/api/access/privileged-changes/{change_id}/withdraw")
+def withdraw_privileged_change(change_id: str, request: Request) -> dict:
+    admin = _require_admin(request, Permission.IDENTITY_MANAGE)
+    _require_db()
+    return _env(_dual_control.withdraw(change_id, admin))
+
+
 @router.post("/api/access/users")
 def create_user(body: UserCreateRequest, request: Request) -> dict:
     """Add a person (ADMIN). A local account answers its one-time password exactly once.
@@ -539,6 +587,16 @@ def create_user(body: UserCreateRequest, request: Request) -> dict:
 
     admin = _require_admin(request, Permission.IDENTITY_MANAGE)
     _require_db()
+    # Creating an account grants its roles and scopes: a second administrator approves (H7).
+    require_dual_control(
+        request,
+        kind="account_create",
+        body=body.model_dump(mode="json"),
+        summary=(
+            f"add {body.username or body.email or body.subject} with roles "
+            f"{sorted(body.roles)} and scopes {sorted(body.data_scopes)}"
+        ),
+    )
     grants = local_accounts.AccountGrants(
         roles=tuple(body.roles),
         data_scopes=tuple(body.data_scopes),
@@ -605,6 +663,13 @@ def reset_user_password(principal_id: str, request: Request) -> dict:
 
     admin = _require_admin(request, Permission.IDENTITY_MANAGE)
     _require_db()
+    # A reset password lets the resetter sign in as the person first (H7).
+    require_dual_control(
+        request,
+        kind="password_reset",
+        body={"principal_id": principal_id},
+        summary=f"reset the password of {principal_id}",
+    )
     with _session() as session:
         try:
             secret = local_accounts.reset_password(
@@ -622,6 +687,30 @@ def reset_user_password(principal_id: str, request: Request) -> dict:
             "warning": "Shown once. Every session of this person has ended.",
         }
     )
+
+
+@router.post("/api/access/users/{principal_id}/mfa/reset")
+def reset_user_mfa(principal_id: str, request: Request) -> dict:
+    """Remove a person's second factor (ADMIN, dual control, audited); their sessions end.
+
+    For a person who lost their authenticator and their recovery codes; they enrol again at
+    their next sign-in.
+    """
+
+    from eurogas_nexus.application import mfa
+
+    admin = _require_admin(request, Permission.IDENTITY_MANAGE)
+    _require_db()
+    require_dual_control(
+        request,
+        kind="mfa_reset",
+        body={"principal_id": principal_id},
+        summary=f"remove the second factor of {principal_id}",
+    )
+    with _session() as session:
+        removed = mfa.reset(session, principal_id, actor=admin.principal_id)
+        session.commit()
+    return _env({"principal_id": principal_id, "reset": removed})
 
 
 @router.delete("/api/access/users/{principal_id}")
@@ -649,6 +738,16 @@ def patch_user(principal_id: str, body: AccessUpdateRequest, request: Request) -
 
     admin = _require_admin(request, Permission.IDENTITY_MANAGE)
     _require_db()
+    if body.roles is not None or body.data_scopes is not None:
+        # A grant of roles or data scopes needs a second administrator (H7).
+        require_dual_control(
+            request,
+            kind="access_grant",
+            body={"principal_id": principal_id, **body.model_dump(mode="json")},
+            summary=(
+                f"change {principal_id}: roles {body.roles}, scopes {body.data_scopes}"
+            ),
+        )
 
     with _session() as session:
         row = identity_repository.get_identity_principal(session, principal_id)
@@ -1065,6 +1164,13 @@ def list_api_keys(request: Request) -> dict:
 def post_api_key(body: ApiKeyCreateRequest, request: Request) -> dict:
     admin = _require_admin(request, Permission.API_KEYS_MANAGE)
     _require_db()
+    # A key acts as its principal: issuing one for a service grants that access (H7).
+    require_dual_control(
+        request,
+        kind="api_key_issue",
+        body=body.model_dump(mode="json"),
+        summary=f"issue an API key for {body.principal_id}",
+    )
     try:
         from eurogas_nexus.db.repositories import identity as identity_repository
 
@@ -1153,6 +1259,76 @@ def revoke_api_key(key_id: str, request: Request) -> dict:
         )
         session.commit()
     return _env({"key_id": key_id, "revoked": True})
+
+
+@router.get("/api/audit/verify")
+def verify_audit(request: Request) -> dict:
+    """Recompute the audit hash chain and report the first break (security review H5)."""
+
+    from eurogas_nexus.db import audit_chain
+
+    _require_admin(request, Permission.AUDIT_READ)
+    _require_db()
+    with _session() as session:
+        return _env(audit_chain.verify_chain(session))
+
+
+@router.post("/api/audit/checkpoint")
+def checkpoint_audit(request: Request) -> dict:
+    """Seal, verify and record a signed digest of the chain head, for export (H5)."""
+
+    from eurogas_nexus.db import audit_chain
+
+    admin = _require_admin(request, Permission.AUDIT_READ)
+    _require_db()
+    with _session() as session:
+        result = audit_chain.checkpoint(session, by=admin.principal_id)
+        session.commit()
+    return _env(result)
+
+
+class AuditPruneBody(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    retention_days: int = Field(ge=365, le=3650)
+    dry_run: bool = True
+
+
+@router.post("/api/audit/prune")
+def prune_audit(body: AuditPruneBody, request: Request) -> dict:
+    """Prune audit rows beyond the configured retention: a dry run counts; a deletion needs a
+    second administrator's approval (H5/H7) and keeps the chain verifiable."""
+
+    from eurogas_nexus.application.audit_retention import (
+        AuditPruneRefused,
+        prune_expired_audit_events,
+    )
+
+    admin = _require_admin(request, Permission.AUDIT_READ)
+    _require_db()
+    change_id = None
+    if not body.dry_run:
+        require_dual_control(
+            request,
+            kind="audit_prune",
+            body=body.model_dump(mode="json"),
+            summary=f"prune audit rows older than {body.retention_days} days",
+        )
+        change_id = request.headers.get(_dual_control.APPROVAL_HEADER) or "break-glass"
+    with _session() as session:
+        try:
+            summary = prune_expired_audit_events(
+                session,
+                retention_days=body.retention_days,
+                dry_run=body.dry_run,
+                approved_change_id=change_id,
+                by=admin.principal_id,
+            )
+        except AuditPruneRefused as exc:
+            raise HTTPException(
+                status_code=422, detail={"code": "audit_prune_refused", "message": str(exc)}
+            ) from exc
+        session.commit()
+    return _env(summary)
 
 
 @router.get("/api/audit")
