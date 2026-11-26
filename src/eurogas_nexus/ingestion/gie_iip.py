@@ -71,7 +71,7 @@ def fetch_iip_messages(
     *,
     since: datetime,
     max_pages: int,
-    pause_seconds: float = 3.0,
+    pause_seconds: float = 20.0,
     sleep: Callable[[float], None] = time.sleep,
 ) -> IipRead:
     """Pages from the newest until a page holds nothing submitted at or after ``since``.
@@ -201,8 +201,11 @@ def acer_messages(records: Iterable[Mapping[str, Any]]) -> list[dict[str, Any]]:
 
 
 #: Waits after a rate-limit refusal: 60 s, then 120 s ... capped at 300 s. The platform's
-#: limit is per key and clears within minutes (live 2026-11-25: refused on page 1, the
-#: next request two seconds later answered), so a long read waits rather than gives up.
+#: limit is per key and about one request every 15 to 20 seconds (measured 2026-11-26:
+#: requests 3 s apart were refused after the first, 16 to 20 s apart mostly answered), so
+#: pages are read 20 s apart and a refusal waits rather than gives up. A page of 50 covers
+#: 2 to 8 days, so a 45-day catch-up is about seven pages (some 2 to 3 minutes) and the
+#: scheduler's 2-day round one page.
 REFUSAL_BACKOFF_SECONDS = 60.0
 REFUSAL_BACKOFF_CAP_SECONDS = 300.0
 
