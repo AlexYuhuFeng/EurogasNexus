@@ -1,8 +1,9 @@
-# DRAFT ADR: Several API processes, one live-update poller per process, and a shared cache
+# ADR: Several API processes, one live-update poller per process, and a shared cache
 
-**Status:** DRAFT, awaiting owner review (2026-11-26). Proposed in
+**Status:** Accepted 2026-11-26 (owner). Implemented on branch `p1-A` (phase 1, work package
+P1-A); see "Implementation" below. Proposed in
 [ARCHITECTURE_V3_PLAN.md](../ARCHITECTURE_V3_PLAN.md) sections 3.6 and 3.10. On acceptance it is
-appended to [ARCHITECTURE_DECISION_RECORD.md](../ARCHITECTURE_DECISION_RECORD.md). It adds one
+appended to [ARCHITECTURE_DECISION_RECORD.md](../ARCHITECTURE_DECISION_RECORD.md) (Decision 40). It adds one
 small component (Valkey); it keeps Decision 28 (outbox, no broker).
 
 **Context.** The API runs as one uvicorn process (`deploy/runtime/Dockerfile.api`; the demo pins
@@ -58,3 +59,68 @@ servers.
 **Measured acceptance.** A load test of 50 users with three tabs each, including live streams,
 meets a 95th-percentile budget of 1 second on the main reads and keeps the event loop's lag under
 100 ms; repeated with two servers and Valkey on.
+
+## Implementation (2026-11-26, phase 1 work package P1-A)
+
+What was built, against the decision's points:
+
+1. **Live updates.** `api/stream_hub.py`: one poller thread per API process. Each poll opens
+   one session, lets every open stream say what it needs, reads each source once from the
+   oldest cursor any stream holds (`application/live_topics.Reads`: newest-first notice
+   sources, oldest-first row streams, the outbox, jobs, revocation notes), and lets each stream
+   take the rows after its own cursor and apply its own caller's rule in memory. The caller's
+   books are read once per poll per distinct caller. Events reach each connection through an
+   in-memory queue owned by its event loop; a stream that falls 200 batches behind is ended
+   (it resumes from its last event id). Streams per person: `EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL`
+   (8) per process, 429 past it. The stream's entitlement now takes the firm-level test and the
+   opportunity read rule from the caller's own scopes, not from the request context a poller
+   thread does not have. **Not built: the `LISTEN/NOTIFY` early wake.** The driver (pg8000)
+   delivers a notification only on a round trip, so waking early would need its own
+   sub-second query loop on a dedicated connection, costing what the 1.5 s poll already costs;
+   polling stays authoritative and is the only mechanism. Revisit if the poll interval must
+   drop below a second.
+2. **No database work on the event loop.** Identity resolution (keys, sessions, OIDC key
+   fetches, gateway directory sync, failure audits), contract intake, import validation,
+   entitlement denial audits and the lifespan's sweep and disposal run in threads; credentials
+   on their own two threads so they never queue behind busy request threads;
+   `/api/health` and `/api/health/live` answer on the loop. `tests/contract/
+   test_no_blocking_db_on_event_loop.py` scans every `async def` under `api/`.
+3. **Several processes.** `UVICORN_WORKERS` (default 1); `deploy/runtime/compose.scale.yaml`
+   runs 4 with a Valkey; the preflight refuses more than one process without a shared cache.
+   The schedulers, the market-events listener and the monitoring worker were already separate
+   services; the API process starts none of them (only per-process helpers: the stream poller
+   and the warm views' keeper).
+4. **Shared cache.** `core/shared_cache.py`: `MemoryCache` (default) and `ValkeyCache`
+   (`EUROGAS_NEXUS_SHARED_CACHE_URL`), a fast failure for 2 s after an outage. Used for (b) the
+   sign-in and administration rate limits and the per-address sign-in throttle (each process
+   counts for itself while Valkey is down) and (c) session revocation notes read by open streams
+   every poll. The database remains the authority on sessions: every request re-reads its
+   session row, and a stream now also re-reads its session every `REAUTH_SECONDS`, so a cache
+   that is down delays the end of a revoked stream to at most 30 s and never lets a revoked
+   request through; the decision did not ask for a refusal when the cache is down, and none is
+   made. There is no separate SSE ticket store in this codebase (streams authenticate with the
+   session like every other request). For (a) warm views: the **write signal** is shared (a write
+   through any process makes every process's entries due and the writer's own unservable; with
+   the signal unreadable a process drops what it holds and computes every read), and nine
+   audited reader-independent views are kept **by scope rather than by person**
+   (`ViewSpec(shared_by_scope=True)`); the seven views that read per-person state (saved hubs,
+   mandates, strategy-shared trades, per-section availability) stay per person. **Not built:
+   the views' values in Valkey** (each process still computes its own copy, so 4 processes may
+   compute a view 4 times); it needs a serialisation of every view's payload and was not needed
+   for correctness.
+5. **Driver.** pg8000 stays; no profile has yet shown it above 30 % of request time.
+
+Pool sizing per process (`db/session.py`, `docs/operations/API_SERVING_AND_SHARED_CACHE.md`):
+processes x (pool + overflow) + workers + 5 <= `max_connections` - 3; request threads = pool +
+overflow - 5; API statements time out after 30 s (`EUROGAS_NEXUS_DB_STATEMENT_TIMEOUT_MS`,
+workers unaffected); pool checkouts, waits, timeouts and wait time, and the poller's counters,
+are published by `/api/runtime/metrics`.
+
+New runtime dependency: `valkey` 6.2.0 (valkey-py, MIT, pure Python), with `async-timeout`
+5.0.1 (Apache-2.0) on Python below 3.11.3 only; hash-pinned in `requirements-runtime.lock` and
+`requirements.lock` by `uv pip compile` without `--upgrade` (no other pin moved);
+`THIRD_PARTY_NOTICES.md` regenerated; licence line in `docs/legal/DEPENDENCY_LICENSE_REVIEW.md`.
+
+Measured acceptance: see the results in
+[API_SERVING_AND_SHARED_CACHE.md](../../operations/API_SERVING_AND_SHARED_CACHE.md#results-2026-11-26).
+The two-server repetition was not run (one machine).
