@@ -4,6 +4,7 @@ import type {
   ScreenOrderObservationDTO,
 } from "@/api/client";
 import { pnlClass } from "@/app/model/pnlColor";
+import { enumLabel } from "@/app/model/enumLabels";
 import { DataGrid, type DataGridColumn } from "@/components/ui";
 import { WhyButton } from "./WhyButton";
 import { api } from "@/api/client";
@@ -46,7 +47,8 @@ export function MarketPositioningWorkspace({
   const bookNames = new Map((booksRead.data?.data.books ?? []).map((book) => [book.book_id, book.name]));
   const orderColumns: DataGridColumn<ScreenOrderObservationDTO>[] = [
     { id: "venue", header: t("orders.col.venue"), rowHeader: true, sortable: true, value: (order) => order.venue },
-    { id: "side", header: t("orders.col.side"), sortable: true, value: (order) => order.side },
+    // Side and status in words (UX_REFERENCE rule 21); the code stays sortable.
+    { id: "side", header: t("orders.col.side"), sortable: true, value: (order) => order.side, format: (value) => enumLabel(String(value), t) },
     { id: "hub", header: t("orders.col.hub"), sortable: true, value: (order) => order.hub },
     {
       id: "quantity",
@@ -61,7 +63,7 @@ export function MarketPositioningWorkspace({
     },
     // Prices are quoted per order in the venue's unit, so the unit is in the cell.
     { id: "price", header: t("orders.col.price"), type: "number", sortable: true, value: (order) => order.price, render: (order) => <>{formatMeasure("price", order.price)} <small className="ds-grid-unit">{order.unit}</small></> },
-    { id: "status", header: t("orders.col.status"), sortable: true, value: (order) => order.status },
+    { id: "status", header: t("orders.col.status"), sortable: true, value: (order) => order.status, format: (value) => enumLabel(String(value), t) },
   ];
   const pnlColumns: DataGridColumn<PortfolioPnlSnapshotDTO>[] = [
     // The book by name; its id on hover (owner: no internal ids on screen).

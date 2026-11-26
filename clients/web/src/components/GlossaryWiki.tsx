@@ -44,6 +44,12 @@ interface GlossaryWikiProps {
   onShowOnMap: (nodeId: string) => void;
 }
 
+/** The term's name in the reader's language (`glossary.term.<id>`); the industry's English name
+ *  stays beside it in Chinese, since that is what a counterparty writes. */
+function termName(term: Pick<GlossaryTermDTO, "term_id" | "term">, t: Translate): string {
+  return t(`glossary.term.${term.term_id}`, { defaultValue: term.term });
+}
+
 function localizedDefinition(term: GlossaryTermDTO, language: string): string {
   return language.startsWith("zh") ? term.definition_zh_cn || term.definition_en : term.definition_en;
 }
@@ -178,7 +184,7 @@ export function GlossaryWiki({
               onClick={() => onSelectTerm(term)}
             >
               <span>{categoryLabel(term.category, t)}</span>
-              <strong>{term.term}</strong>
+              <strong>{termName(term, t)}</strong>
               <p>{localizedDefinition(term, language)}</p>
             </button>
           ))}
@@ -207,7 +213,8 @@ export function GlossaryWiki({
           <>
             <div className="panel-title-row">
               <div>
-                <h2>{selectedTerm.term}</h2>
+                <h2>{termName(selectedTerm, t)}</h2>
+                {termName(selectedTerm, t) !== selectedTerm.term && <p className="glossary-aliases muted" lang="en">{selectedTerm.term}</p>}
                 {selectedTerm.aliases.length > 0 && (
                   <p className="glossary-aliases muted">{selectedTerm.aliases.join(" · ")}</p>
                 )}
@@ -276,7 +283,7 @@ export function GlossaryWiki({
                           className="glossary-related-chip"
                           onClick={() => onOpenTerm(related)}
                         >
-                          {related}
+                          {(() => { const found = resolveGlossaryTerm(related, allTerms); return found ? termName(found, t) : related; })()}
                         </button>
                       ) : (
                         <span key={`related-${selectedTerm.term_id}-${related}`} className="glossary-related-chip">

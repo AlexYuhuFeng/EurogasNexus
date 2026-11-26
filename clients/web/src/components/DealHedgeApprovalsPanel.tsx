@@ -8,6 +8,8 @@ import { pendingByTarget, saveOutcome } from "@/app/model/makerCheckerModel";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 import { FigureProvenance } from "./FigureProvenance";
 import { PENDING_CHANGES_KEY } from "./PendingChangesPanel";
+import { useLineageLookup } from "./CommercialWarningList";
+import { breachSummary, breachText, pctRangeText } from "@/app/model/limitBreaches";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -28,6 +30,7 @@ export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; 
   // P-17: a band change waits for a second person in the risk function; its row says so.
   const pendingRead = useCachedRead(PENDING_CHANGES_KEY, () => api.changeRequests("pending"));
   const pending = useMemo(() => pendingByTarget(pendingRead.data?.data.changes, "hedge_approval"), [pendingRead.data]);
+  const names = useLineageLookup();
   const load = useCallback(() => {
     api.hedgeApprovals()
       .then((response) => {
@@ -102,7 +105,7 @@ export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; 
       id: "hedged",
       header: t("hedgeapproval.hedged"),
       value: (row) => row.hedge_range ?? null,
-      render: (row) => <>{row.hedge_range ?? "–"} <small className="muted">{t("hedgeapproval.trades", { count: row.linked_trades })}</small></>,
+      render: (row) => <>{row.hedge_range ? pctRangeText(row.hedge_range, t) : "–"} <small className="muted">{t("hedgeapproval.trades", { count: row.linked_trades })}</small></>,
     },
     {
       id: "room",
@@ -123,7 +126,12 @@ export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; 
       render: (row) => (
         <>
           <span className="limit-badge" data-status={row.status === "ok" ? "ok" : "breach"}>{t(`hedgeapproval.status_${row.status}`)}</span>
-          {row.breaches.length > 0 && <small className="limit-breaches"> {row.breaches.join("; ")}</small>}
+          {/* Months breaching the same band are one line; every month is in the table's title. */}
+          {row.breaches.length > 0 && (
+            <small className="limit-breaches" title={row.breaches.map((text) => breachText(text, t, names.resources)).join("\n")}>
+              {" "}{breachSummary(row.breaches, t, names.resources).join("; ")}
+            </small>
+          )}
           {pending.has(row.contract_id) && <StatusBadge tone="watch">{t("changes.awaiting")}</StatusBadge>}
           <FigureProvenance provenance={row.provenance} t={t} />
         </>

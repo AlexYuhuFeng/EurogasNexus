@@ -48,6 +48,7 @@ import {
   pointOptions,
 } from "@/app/contractChoices";
 import { formatMeasure } from "@/app/time/valueFormat";
+import { serverWarningText } from "@/app/warningLabel";
 
 /** A select over closed options, keeping a recorded value that is not one of them. */
 function ChoiceSelect({ value, options, onChange, blank, recordedLabel, labelFor }: {
@@ -390,7 +391,7 @@ export function ContractWorkbench({
           </div>
           {contractIntake.warnings.length > 0 && (
             <ul className="contract-intake-warnings">
-              {contractIntake.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+              {contractIntake.warnings.map((warning) => <li key={warning}>{serverWarningText(warning, t)}</li>)}
             </ul>
           )}
           <DataGrid

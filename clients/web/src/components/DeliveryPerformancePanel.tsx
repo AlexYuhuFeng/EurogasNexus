@@ -6,6 +6,7 @@ import { ReportExport } from "./ReportExport";
 import { DataGrid, Field, Select, type DataGridColumn } from "@/components/ui";
 import { AlignedPanels, type ChartData } from "@/components/ui/charts";
 import { formatMeasure } from "@/app/time/valueFormat";
+import { serverWarningText } from "@/app/warningLabel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -70,7 +71,7 @@ export function DeliveryPerformancePanel({ t }: { t: Translate }) {
       render: (row) => (
         <>
           <span className="limit-badge" data-status={row.status}>{t(`delivery.status_${row.status}`)}</span>
-          {row.flags && <span className="limit-breaches"> {row.flags}</span>}
+          {row.flags && <span className="limit-breaches" title={row.flags}> {row.flags.split(/;\s+/).map((flag) => serverWarningText(flag, t)).join("; ")}</span>}
           {row.missing_days > 0 && <small> {t("delivery.missing", { count: row.missing_days })}</small>}
         </>
       ),

@@ -94,6 +94,9 @@ class LadderResult:
     var_95_1d: float | None = None
     var_observations: int = 0
     warnings: list[str] = field(default_factory=list)
+    #: The same warnings as stable codes with their parameters (``{"code", "params"}``), so a
+    #: client says them in the reader's language; ``warnings`` keeps the English sentence.
+    notes: list[dict[str, object]] = field(default_factory=list)
     reporting_currency: str | None = None
     # Hubs whose months are long in one delivery month and short in another (#53).
     offsetting_hubs: list[str] = field(default_factory=list)
@@ -101,6 +104,11 @@ class LadderResult:
     #: Per hub: (newest daily close behind its marks, its state) when closes were given
     #: (QA-R-07); the totals carry the least current hub's.
     marks_by_hub: dict[str, tuple[date | None, str]] = field(default_factory=dict)
+
+    def note(self, code: str, text: str, **params: object) -> None:
+        """Record a warning once as English text and once as a translatable code."""
+        self.warnings.append(text)
+        self.notes.append({"code": code, "params": params})
 
     def _marks(self, hub: str) -> dict[str, object]:
         if not self.marks_by_hub:
@@ -153,6 +161,7 @@ class LadderResult:
             "var_observations": self.var_observations,
             "reporting_currency": self.reporting_currency,
             "warnings": list(self.warnings),
+            "notes": [dict(item) for item in self.notes],
         }
 
 
@@ -387,9 +396,10 @@ def ladder_report(
     result.offsetting_hubs = sorted(long_by_hub & short_by_hub)
     if tenor_shocks:
         result.scenario = tenor_scenario(rows, tenor_shocks, fx_by_hub=fx_by_hub)
-    result.warnings.append(
+    result.note(
+        "INDICATIVE_PRICE_RISK_ONLY",
         "Indicative: price risk on the open position only; volume, basis, shape and credit "
-        "risk are not included. Not a substitute for the risk system."
+        "risk are not included. Not a substitute for the risk system.",
     )
     if marks is not None:
         value, missing = mark_to_market(
@@ -397,8 +407,10 @@ def ladder_report(
         )
         result.mark_to_market, result.unpriced_rows = value, missing
         if missing:
-            result.warnings.append(
-                f"{missing} leg-months have no mark or no price and are not valued."
+            result.note(
+                "LEG_MONTHS_NOT_VALUED",
+                f"{missing} leg-months have no mark or no price and are not valued.",
+                count=missing,
             )
     if daily_closes_by_hub is not None:
         net_by_hub: dict[str, float] = {}
@@ -413,18 +425,22 @@ def ladder_report(
         offsetting_hubs = long_hubs & short_hubs
         if offsetting_hubs:
             hubs = ", ".join(sorted(offsetting_hubs))
-            result.warnings.append(
+            result.note(
+                "VAR_OFFSETTING_MONTHS",
                 f"VaR unavailable: offsetting delivery months at {hubs} require tenor-level "
                 "price history. Gross tenor exposure and a tenor shock scenario are shown "
-                "instead."
+                "instead.",
+                hubs=hubs,
             )
             return result
         result.var_95_1d, result.var_observations = historical_var(
             net_by_hub, daily_closes_by_hub, fx_by_hub=fx_by_hub
         )
         if result.var_95_1d is None:
-            result.warnings.append(
+            result.note(
+                "VAR_SHORT_HISTORY",
                 f"VaR needs at least 20 daily price changes on every hub held; "
-                f"{result.var_observations} available."
+                f"{result.var_observations} available.",
+                count=result.var_observations,
             )
     return result

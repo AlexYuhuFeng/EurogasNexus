@@ -21,6 +21,12 @@ export interface LineageName {
   ref: string;
   /** What a trader reads. */
   name: string;
+  /**
+   * Whether the name is one the trader knows (a contract, route or price this page can name). A
+   * fallback (kind and id, or a free-text evidence line the server lists with its references) is
+   * kept for the identifiers disclosure, not shown as a name.
+   */
+  named: boolean;
 }
 
 const KIND_KEY: Record<string, string> = {
@@ -39,23 +45,26 @@ function observationName(id: string): string | null {
   return `${match[1].toUpperCase()} ${match[2].toUpperCase()}`;
 }
 
-function nameFor(kind: string, id: string, lookup: LineageLookup, t: Translate): string {
+function nameFor(kind: string, id: string, lookup: LineageLookup, t: Translate): { name: string; named: boolean } {
   const kindWord = KIND_KEY[kind] ? t(KIND_KEY[kind]) : null;
   if (kind === "upstream_resource_contract" || kind === "portfolio_resource") {
     const name = lookup.resources?.get(id);
-    if (name) return kindWord && kind === "upstream_resource_contract" ? `${name} ${kindWord.toLowerCase()}` : name;
+    if (name) return { name: kindWord && kind === "upstream_resource_contract" ? `${name} ${kindWord.toLowerCase()}` : name, named: true };
   }
   if (kind === "route_candidate") {
     const name = lookup.routes?.get(id);
-    if (name) return name;
+    if (name) return { name, named: true };
   }
   if (kind === "market_observation") {
     const name = observationName(id);
-    if (name) return t("lineage.price_of", { name });
+    if (name) return { name: t("lineage.price_of", { name }), named: true };
   }
   // Unknown to this page: the kind in words and the id, never the raw `kind:id` pair.
-  return kindWord ? `${kindWord} ${id}` : id || kind;
+  return { name: kindWord ? `${kindWord} ${id}` : id || kind, named: false };
 }
+
+/** A record reference is `snake_case_kind:id`; anything else is an evidence line, not a record. */
+const RECORD_KIND = /^[a-z][a-z0-9_]*$/;
 
 /** The names of a list of lineage references, in order, without duplicates. */
 export function lineageNames(refs: readonly string[], lookup: LineageLookup, t: Translate): LineageName[] {
@@ -67,8 +76,13 @@ export function lineageNames(refs: readonly string[], lookup: LineageLookup, t: 
     const colon = ref.indexOf(":");
     const kind = colon > 0 ? ref.slice(0, colon) : ref;
     const id = colon > 0 ? ref.slice(colon + 1) : "";
-    const bare = KIND_KEY[kind] ? t(KIND_KEY[kind]) : kind.replace(/_/g, " ");
-    result.push({ ref, name: colon > 0 ? nameFor(kind, id, lookup, t) : bare });
+    if (colon > 0 && RECORD_KIND.test(kind)) {
+      result.push({ ref, ...nameFor(kind, id, lookup, t) });
+    } else if (colon < 0 && RECORD_KIND.test(kind)) {
+      result.push({ ref, name: KIND_KEY[kind] ? t(KIND_KEY[kind]) : kind.replace(/_/g, " "), named: Boolean(KIND_KEY[kind]) });
+    } else {
+      result.push({ ref, name: "", named: false });
+    }
   }
   return result;
 }

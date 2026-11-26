@@ -408,6 +408,12 @@ def mandate_usage(
     return usage
 
 
+def _whole(pct: float) -> int:
+    """A percentage to the whole number, never "-0" for a zero (or near-zero) hedge."""
+
+    return round(pct) + 0
+
+
 def _check_hedge_policy(mandate, usage, physical, financial, breach) -> None:
     """Hedge ratio per hub-month against the policy band, and the room left to the cap."""
 
@@ -426,11 +432,12 @@ def _check_hedge_policy(mandate, usage, physical, financial, breach) -> None:
             if ratio > high + 1e-9:
                 breach(
                     f"over-hedged:{hub_month}",
-                    f"{hub_month} hedged {ratio:.0f}%, above {high:.0f}%",
+                    f"{hub_month} hedged {_whole(ratio)}%, above {high:.0f}%",
                 )
         if low is not None and ratio < low - 1e-9:
             breach(
-                f"under-hedged:{hub_month}", f"{hub_month} hedged {ratio:.0f}%, below {low:.0f}%"
+                f"under-hedged:{hub_month}",
+                f"{hub_month} hedged {_whole(ratio)}%, below {low:.0f}%",
             )
     if ratios:
         usage.lowest_hedge_pct, usage.highest_hedge_pct = min(ratios), max(ratios)
@@ -519,9 +526,9 @@ def deal_hedge_usage(
             }
         )
         if high is not None and pct > high + 1e-6:
-            breaches.append(f"{month} hedged {pct:.0f}%, over the approved {high:.0f}%")
+            breaches.append(f"{month} hedged {_whole(pct)}%, over the approved {high:.0f}%")
         if low is not None and pct < low - 1e-6:
-            breaches.append(f"{month} hedged {pct:.0f}%, under the approved {low:.0f}%")
+            breaches.append(f"{month} hedged {_whole(pct)}%, under the approved {low:.0f}%")
     expired = approval.valid_until is not None and approval.valid_until < today
     pcts = [row["hedge_pct"] for row in months]
     return {

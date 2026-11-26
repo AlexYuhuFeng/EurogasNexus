@@ -69,7 +69,7 @@ export function SellDownPanel({ t }: { t: Translate }) {
     wasTyped
       ? t("selldown.typed")
       : price
-        ? t("selldown.from_board", { day: formatGasDay(price.day, i18n.language), source: price.source ? sourceSystemLabel(price.source) : "" }) + (price.simulated ? ` · ${t("today.simulated_short")}` : "")
+        ? t("selldown.from_board", { day: formatGasDay(price.day, i18n.language), source: price.simulated ? t("today.simulated_short") : price.source ? sourceSystemLabel(price.source, t) : "" })
         : t("selldown.no_board");
   const run = () => {
     setMessage(null);

@@ -41,7 +41,7 @@ test("every commercial task has a purpose line in both languages, at most 110 ch
 });
 
 test("the purpose line is drawn by the one header every task uses", () => {
-  assert.match(read("../src/app/navigation/useModeHeader.ts"), /purposeKey\(mode\?\.id \?\? null, location\?\.task\.id\)/);
+  assert.match(read("../src/app/navigation/useModeHeader.ts"), /purposeKey\(location\?\.mode\.id \?\? null, location\?\.task\.id\)/);
   assert.match(read("../src/components/ui/WorkspaceHeader.tsx"), /<PageIntro purpose=\{purpose\} id=\{activeId\} \/>/);
   assert.match(read("../src/app/workspaces/WorkspaceRenderer.tsx"), /!usesConsolidatedHeader && <PageIntro purpose=\{mode\.purpose\}/);
   for (const file of ["MarketCockpit", "PortfolioWorkspace", "DecisionWorkspace"]) {

@@ -78,6 +78,7 @@ import {
   type FigureState,
 } from "@/components/ui";
 import { formatMeasure } from "@/app/time/valueFormat";
+import { serverWarningText } from "@/app/warningLabel";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 

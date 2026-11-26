@@ -5,7 +5,7 @@ import { hubCurrency } from "@/app/contractChoices";
 import { ReportExport } from "./ReportExport";
 import { MethodNote } from "./MethodNote";
 import { MarksAsOf, marksRowAttributes } from "./MarksAsOf";
-import { DataGrid, EmptyState, ExampleFrame, Field, KeyFigure, Select, Skeleton, Toolbar, useExampleView, type DataGridColumn } from "@/components/ui";
+import { DataGrid, EmptyState, ExampleFrame, Field, KeyFigure, Segmented, Select, Skeleton, Toolbar, useExampleView, type DataGridColumn } from "@/components/ui";
 import { examplePositionLadder } from "@/app/experience/examples";
 import {
   barShare,
@@ -15,6 +15,7 @@ import {
   overallHedgeRatio,
 } from "@/app/model/positionLadderModel";
 import { pnlClass } from "@/app/model/pnlColor";
+import { ladderNotes } from "@/app/model/ladderNotes";
 import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -239,7 +240,7 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
           />
           <TenorShockScenario ladder={ladder} months={months} currency={currency} t={t} />
           <ul className="position-notes">
-            {ladder.warnings.map((warning) => <li key={warning}>{warning}</li>)}
+            {ladderNotes(ladder, t).map((note) => <li key={note}>{note}</li>)}
           </ul>
         </>
       )}
@@ -328,10 +329,14 @@ function useLadderColumns(ladder: PositionLadderDTO | null, t: Translate) {
   }, [ladder, t]);
 }
 
+/** One move for every hub, per MWh in the hub's quote currency: the usual first question. */
+const SHOCK_PRESETS = ["-5", "-2", "-1", "1", "2", "5"] as const;
+
 /**
- * A price shock per hub and delivery month applied to the open position (#53). Each month moves
- * on its own, so a calendar spread that is flat at the hub shows the loss a curve twist causes.
- * Months held without a shock are listed, never assumed to move by zero silently.
+ * A price shock applied to the open position (#53). It opens on one move per hub (or a preset for
+ * every hub); "By month" folds out the per-month grid, prefilled from the hub's move, so a
+ * calendar spread that is flat at the hub can still show the loss a curve twist causes. Months
+ * held without a shock are listed, never assumed to move by zero silently.
  */
 function TenorShockScenario({
   ladder,
@@ -348,22 +353,30 @@ function TenorShockScenario({
     () => ladder.rows.filter((row) => Math.abs(row.net_mwh) > 1e-9).map((row) => `${row.hub}:${row.month}`),
     [ladder],
   );
-  const [shocks, setShocks] = useState<Record<string, string>>({});
+  const hubs = useMemo(() => [...new Set(keys.map((key) => key.split(":")[0] ?? ""))].filter(Boolean), [keys]);
+  const [hubShift, setHubShift] = useState<Record<string, string>>({});
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [preset, setPreset] = useState<string | null>(null);
   const [result, setResult] = useState<PositionLadderDTO["scenario"]>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState<string | null>(null);
   if (keys.length === 0) return null;
+  const unit = (hub: string) => `${hubCurrency(hub) ?? ""}/MWh`;
+  const effective = (key: string) => {
+    const own = overrides[key];
+    return own !== undefined && own.trim() !== "" ? own : hubShift[key.split(":")[0] ?? ""] ?? "";
+  };
+  const shocks = keys
+    .map((key) => [key, effective(key)] as const)
+    .filter(([, value]) => value.trim() !== "" && Number.isFinite(Number(value)));
   const run = async () => {
-    const list = Object.entries(shocks)
-      .filter(([, value]) => value.trim() !== "" && Number.isFinite(Number(value)))
-      .map(([key, value]) => `${key}:${Number(value)}`);
-    if (list.length === 0) return;
+    if (shocks.length === 0) return;
     setBusy(true);
     setFailure(null);
     try {
       const response = await api.positionLadder(months, undefined, {
         reportingCurrency: currency || undefined,
-        shocks: list,
+        shocks: shocks.map(([key, value]) => `${key}:${Number(value)}`),
       });
       setResult(response.data.scenario ?? null);
     } catch (caught) {
@@ -372,29 +385,65 @@ function TenorShockScenario({
       setBusy(false);
     }
   };
+  const monthKey = (key: string) => {
+    // "NBP:2026-11" here, "NBP 2026-11" in the scenario's unshocked list.
+    const [hub, month] = key.split(/[: ]/);
+    return `${hub} ${ladderMonthLabel(month ?? "")}`;
+  };
   return (
     <details className="position-scenario" data-position-scenario="true">
       <summary>{t("position.scenario_title")}</summary>
       <p className="muted">{t("position.scenario_help")}</p>
-      <div className="position-scenario-grid">
-        {keys.map((key) => {
-          const [hub, month] = key.split(":");
-          return (
+      <Toolbar label={t("position.scenario_title")} className="position-scenario-shift">
+        <Segmented
+          label={t("position.scenario_presets")}
+          options={SHOCK_PRESETS.map((value) => ({ value, label: Number(value) > 0 ? `+${value}` : `−${value.slice(1)}` }))}
+          value={preset as (typeof SHOCK_PRESETS)[number] | null}
+          onChange={(value) => {
+            setPreset(value);
+            setHubShift(Object.fromEntries(hubs.map((hub) => [hub, value])));
+            setOverrides({});
+          }}
+        />
+        {hubs.map((hub) => (
+          <Field key={hub} inline label={`${hub} ${unit(hub)}`}>
+            <input
+              type="number"
+              step="0.01"
+              inputMode="decimal"
+              value={hubShift[hub] ?? ""}
+              placeholder="0.00"
+              data-shock-hub={hub}
+              onChange={(event) => {
+                setPreset(null);
+                setHubShift((current) => ({ ...current, [hub]: event.target.value }));
+              }}
+            />
+          </Field>
+        ))}
+        <button type="button" disabled={busy || shocks.length === 0} onClick={() => void run()}>{t("position.scenario_run")}</button>
+      </Toolbar>
+      <details className="position-scenario-months">
+        <summary>{t("position.scenario_by_month", { count: keys.length })}</summary>
+        <div className="position-scenario-grid">
+          {keys.map((key) => (
             <label key={key}>
-              <span>{hub} {ladderMonthLabel(month ?? "")}</span>
+              <span>{monthKey(key)}</span>
               <input
                 type="number"
                 step="0.01"
                 inputMode="decimal"
-                value={shocks[key] ?? ""}
-                placeholder="0.00"
-                onChange={(event) => setShocks((current) => ({ ...current, [key]: event.target.value }))}
+                value={overrides[key] ?? ""}
+                placeholder={hubShift[key.split(":")[0] ?? ""] || "0.00"}
+                onChange={(event) => {
+                  setPreset(null);
+                  setOverrides((current) => ({ ...current, [key]: event.target.value }));
+                }}
               />
             </label>
-          );
-        })}
-      </div>
-      <button type="button" disabled={busy} onClick={() => void run()}>{t("position.scenario_run")}</button>
+          ))}
+        </div>
+      </details>
       {failure && <p role="alert">{failure}</p>}
       {result && (
         <div className="position-scenario-result" role="status">
@@ -402,7 +451,7 @@ function TenorShockScenario({
             {t("position.scenario_pnl")}: {money(result.pnl)} {ladder.reporting_currency ?? ""}
           </strong>
           {result.unshocked.length > 0 && (
-            <small className="muted">{t("position.scenario_unshocked")}: {result.unshocked.join(", ")}</small>
+            <small className="muted">{t("position.scenario_unshocked")}: {result.unshocked.map(monthKey).join(", ")}</small>
           )}
           {result.excluded_no_fx.length > 0 && (
             <small className="muted">{t("position.scenario_no_fx")}: {result.excluded_no_fx.join(", ")}</small>
