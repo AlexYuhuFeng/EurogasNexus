@@ -358,6 +358,14 @@ def test_all_canonical_oidc_values_reach_customer_containers() -> None:
     assert all(effective[key] == value for key, value in values.items())
 
 
+#: Migrations that rewrite existing rows (a data correction, not seeding). Only UPDATE and
+#: DELETE are permitted in them; INSERT and COPY stay forbidden in every migration.
+#: 0091_hub_one_identity rewrites existing hub codes and product labels to the single
+#: identity (GTF/GASPOINT -> ETF, VTP -> CEGH) and deletes the demo's duplicate GTF series;
+#: it inserts no rows.
+ROW_REWRITE_MIGRATIONS = frozenset({"0091_hub_one_identity.py"})
+
+
 def test_customer_postgres_has_no_fixture_initialization_and_migrations_do_not_seed() -> None:
     compose = yaml.safe_load((ROOT / "deploy/runtime/compose.yaml").read_text(encoding="utf-8"))
     postgres = compose["services"]["postgres"]
@@ -372,8 +380,12 @@ def test_customer_postgres_has_no_fixture_initialization_and_migrations_do_not_s
                 name = getattr(node.func, "attr", getattr(node.func, "id", ""))
                 assert not re.search(r"seed|fixture|bulk_insert|^insert$", name, re.I), path.name
             if isinstance(node, ast.Constant) and isinstance(node.value, str):
-                assert not re.match(r"\s*(INSERT|COPY|UPDATE|DELETE)\s", node.value, re.I), (
-                    path.name
+                statement = re.match(r"\s*(INSERT|COPY|UPDATE|DELETE)\s", node.value, re.I)
+                allowed = (
+                    path.name in ROW_REWRITE_MIGRATIONS
+                    and statement is not None
+                    and statement.group(1).upper() in {"UPDATE", "DELETE"}
                 )
+                assert statement is None or allowed, path.name
             if isinstance(node, ast.ImportFrom):
                 assert not re.search(r"simulated|seed|fixture", node.module or "", re.I), path.name

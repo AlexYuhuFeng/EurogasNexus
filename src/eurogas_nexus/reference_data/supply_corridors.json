@@ -29,6 +29,7 @@
  "corridors": [
   {
    "id": "langeled",
+   "shared_entry_point": true,
    "name": "Langeled",
    "group": "norway",
    "source_country": "NO",
@@ -232,6 +233,7 @@
   },
   {
    "id": "vesterled",
+   "shared_entry_point": true,
    "name": "Vesterled",
    "group": "norway",
    "source_country": "NO",

@@ -6,6 +6,24 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — Architecture plan version 3 proposed (branch `archplan`, docs only, not pushed)
+
+- Seven professional reviews (front office, middle and back office, technology, multinational,
+  security, operations and governance, quant) are kept as written in
+  [docs/assessments/professional-review-2026-11-26/](../assessments/professional-review-2026-11-26/README.md).
+- The response is [docs/architecture/ARCHITECTURE_V3_PLAN.md](../architecture/ARCHITECTURE_V3_PLAN.md):
+  six root causes, a target per layer, removals, six phases with exit criteria, hardware, twelve
+  owner decisions and a traceability table of every blocker and major finding. Ten draft decision
+  records are in `docs/architecture/decisions/DRAFT-*.md`; none is accepted.
+- Status: **awaiting the owner's decisions** (plan section 8). Until then no work starts from the
+  plan, except what is already under way: the risk-formula fixes (branch `quantfix`) and the
+  security remediation of H1 to H7 and the mediums (branch `secfix`), which the plan does not
+  re-plan.
+- Checked in code while writing: two reviews' claims are outdated (TimescaleDB is merged as an
+  optional extension, Decision 39; option settlements and Black-76 implied volatility are merged,
+  migration 0094); the suggested psycopg 3 driver is LGPL and refused by the dependency gate; two
+  LNG cargo-economics engines exist (desk and research copy).
+
 ## 2026-11-26 — Half-built branches integrated (branch `halfbuilt`)
 
 - LNG berth priority (`wip/berth-rule-on-innovation`): migration renumbered

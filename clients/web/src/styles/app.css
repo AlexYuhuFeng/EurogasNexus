@@ -2001,7 +2001,7 @@ body {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 719px) {
   .cockpit-app {
     overflow: auto;
   }
@@ -4831,7 +4831,7 @@ button.glossary-related-chip {
     max-width: calc(100vw - 24px);
   }
 }
-@media (max-width: 900px) {
+@media (max-width: 719px) {
   .cockpit-app {
     overflow: auto;
   }
@@ -5452,7 +5452,7 @@ button.glossary-related-chip {
   color: #ccfbf1;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 719px) {
   .workspace-menu {
     top: 78px;
     left: 12px;
@@ -6186,7 +6186,7 @@ button.glossary-related-chip {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 719px) {
   .cockpit-app .cockpit-topbar > * {
     min-width: 0;
     max-width: 100%;
@@ -7230,7 +7230,7 @@ button.glossary-related-chip {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 719px) {
   .cockpit-app .workspace-topbar-only.has-map-search {
     grid-template-areas: "workspace" "task" "search" "context-disclosure";
     grid-template-columns: minmax(0, 1fr);

@@ -49,13 +49,29 @@ export function corridorLines(corridors: readonly SupplyCorridorDTO[]): Corridor
     });
 }
 
-/** "Langeled · 61 GWh/d", "Nord Stream 1 · out of service since 2022", "Norpipe · not published". */
+/**
+ * "Langeled · 61 GWh/d", "Nord Stream 1 · out of service since 2022", "Norpipe · not published".
+ * A shared entry point carries no figure on the map: the point's flow is not the corridor's.
+ */
 export function corridorLabel(corridor: SupplyCorridorDTO, t: Translate): string {
   if (corridor.status === "out_of_service") {
     return `${corridor.name} · ${corridor.since ? t("map.corridor.out_since", { year: corridor.since.slice(0, 4) }) : t("map.corridor.out_of_service")}`;
   }
   if (corridor.latest_flow_gwh_d === null) return `${corridor.name} · ${t("map.corridor.not_published")}`;
+  if (corridor.shared_entry_point) return `${corridor.name} · ${t("map.corridor.shared")}`;
   return `${corridor.name} · ${Math.round(corridor.latest_flow_gwh_d).toLocaleString("en-GB")} GWh/d`;
+}
+
+/**
+ * The side panel's latest-flow line. At a shared entry point it names the point and says so,
+ * so the point's whole flow is never read as the corridor's own.
+ */
+export function corridorFlowText(corridor: SupplyCorridorDTO, t: Translate): string {
+  if (corridor.latest_flow_gwh_d === null) return t("map.corridor.not_published");
+  const flow = `${Math.round(corridor.latest_flow_gwh_d).toLocaleString("en-GB")} GWh/d`;
+  if (!corridor.shared_entry_point) return flow;
+  const point = corridor.landing_points[0]?.name ?? "–";
+  return t("map.corridor.card.shared_flow", { point, flow });
 }
 
 /** The newest gas day among the corridor's stored flows, or null. */

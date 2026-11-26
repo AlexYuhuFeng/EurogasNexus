@@ -207,6 +207,7 @@ def corridor_record(
     operator = operators.get(corridor.operator_key or "") or {}
     return {
         "id": corridor.id,
+        "shared_entry_point": corridor.shared_entry_point,
         "name": corridor.name,
         "group": corridor.group,
         "source_country": corridor.source_country,

@@ -4402,32 +4402,26 @@
     margin-right: 0;
   }
 
-  /* Search names itself in words where the bar has room; a phone keeps the magnifier, which
-     still carries its name (aria-label, tooltip). */
+  /* Search names itself in words where the bar has room; a compact bar (COMPACT_MAX_PX = 719
+     in app/shell/useShellLayout.ts) keeps the magnifier, which still carries its name
+     (aria-label, tooltip) and cannot crowd the alerts chip. */
   .cockpit-app .app-header .topbar-command .topbar-command-label {
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  @media (min-width: 420px) {
-    [data-width-class="compact"] .cockpit-app .app-header .topbar-command {
-      width: auto;
-      padding: 0 var(--ds-space-3);
-      gap: var(--ds-space-1);
-      display: inline-flex;
-      align-items: center;
-    }
-  }
-
-  @media (max-width: 419px) {
+  @media (max-width: 719px) {
     .cockpit-app .app-header .topbar-command .topbar-command-label {
       display: none;
     }
 
     [data-width-class="compact"] .cockpit-app .app-header .topbar-command {
       flex: 0 0 auto;
+      display: inline-grid;
+      place-items: center;
       width: var(--ds-control-touch);
       min-width: var(--ds-control-touch);
+      gap: 0;
       padding: 0;
     }
   }

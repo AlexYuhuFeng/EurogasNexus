@@ -1410,7 +1410,7 @@ def test_web_client_market_terminal_surfaces_simulated_source_and_tenor_context(
     assert zh["market.tenor_day_ahead"] == "\u65e5\u524d"
     assert zh["market.tenor_weekend"] == "周末"
     assert zh["market.tenor_month_ahead"] == "\u6708\u524d"
-    assert zh["market.simulated_source"] == "\u4eff\u771f\u6570\u636e\u6e90"
+    assert zh["market.simulated_source"] == "\u6a21\u62df\u6570\u636e\u6e90"
 
 
 def test_source_center_surfaces_preview_substitute_feeds() -> None:

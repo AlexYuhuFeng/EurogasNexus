@@ -13,6 +13,7 @@ import {
   situationSummary,
   slotTerminalFeatures,
 } from "../src/app/mapSituation.ts";
+import { seaRoute } from "../src/app/seaLanes.ts";
 
 const identity = (lon: number, lat: number): [number, number] => [lon, lat];
 const escape = (value: unknown) => String(value ?? "").replace(/</g, "&lt;");
@@ -69,7 +70,12 @@ test("cargoes: sailed track, indicative leg only for laden cargoes, own flag kep
   assert.equal(sailed.features.length, 1);
   assert.equal(ahead.features.length, 1);
   assert.equal(ahead.features[0].properties.indicative, true);
-  assert.deepEqual(ahead.features[0].geometry.coordinates, [[4.5, 62], [4, 51.95]]);
+  // The remaining leg follows the indicative sea lanes, not a straight line over land.
+  const coordinates = ahead.features[0].geometry.coordinates;
+  assert.deepEqual(coordinates[0], [4.5, 62]);
+  assert.deepEqual(coordinates[coordinates.length - 1], [4, 51.95]);
+  assert.ok(coordinates.length > 2);
+  assert.deepEqual(coordinates, seaRoute([4.5, 62], [4, 51.95]).coordinates);
 });
 
 test("outage radius follows the share of capacity out; slots highlight their terminal", () => {

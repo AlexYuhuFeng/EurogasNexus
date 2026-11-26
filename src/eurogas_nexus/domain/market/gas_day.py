@@ -21,7 +21,7 @@ This module is the single backend implementation used by ingestion,
 simulation and analysis so that no caller re-implements gas-day boundaries.
 
 本模块是全仓气体日（gas day）边界的唯一后端实现：任何调用方（采集、
-仿真、分析）都不得自行推算边界；日历以冻结版本引用，DST 切换由
+模拟、分析）都不得自行推算边界；日历以冻结版本引用，DST 切换由
 zoneinfo 保证正确。旧版本只读保留，新数据默认使用更正后的
 ``EU-CAM-UTC-2025``。
 """

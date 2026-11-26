@@ -34,6 +34,7 @@ from eurogas_nexus.application.reports.sections import (
     source,
     table,
 )
+from eurogas_nexus.domain.ontology.quantity import convert as _convert_units
 
 #: Hub to the country its market area serves (sales by country).
 HUB_COUNTRY = {"TTF": "NL", "THE": "DE", "NBP": "GB", "PEG": "FR", "ZTP": "BE", "ETF": "DK",
@@ -61,7 +62,7 @@ SALE_MODES = {
                            "经持有的运输容量在其他枢纽出售"),
     "REROUTE_SALE": ("may be rerouted to another exit point", "可改道至其他出口点"),
 }
-MMBTU_MWH = 0.29307107
+MMBTU_MWH = _convert_units(1.0, "MMBtu", "MWh")
 
 
 def _gwh(mwh: float | None) -> float | None:

@@ -8,6 +8,7 @@ import type {
   MapSituationDTO,
 } from "@/api/client";
 import { cargoHeading } from "./mapCargo.ts";
+import { seaRoute } from "./seaLanes.ts";
 
 /**
  * The live map's situation layers as GeoJSON, built from `/api/portfolio/map-situation`.
@@ -16,8 +17,8 @@ import { cargoHeading } from "./mapCargo.ts";
  * - an item is drawn only where a source located it; nothing is snapped or guessed;
  * - colour carries meaning, not decoration: red = capacity out now, amber = scheduled,
  *   accent = the firm's own positions, grey = market information;
- * - the leg from a cargo's last reported position to its destination is drawn dashed and
- *   labelled as indicative: it is not the vessel's route.
+ * - the leg from a cargo's last reported position to its destination is drawn dashed along the
+ *   indicative sea lanes and labelled as such: it is not the vessel's sailed route.
  */
 
 export type Project = (lon: number, lat: number) => [number, number];
@@ -187,15 +188,16 @@ export function cargoFeatures(
         geometry: { type: "LineString", coordinates: cargo.track.map(([lon, lat]) => project(lon, lat)) },
       });
     }
-    // The leg still to go: a straight dashed line from the last position to the terminal, styled
-    // and named as the direction to the destination, not as a route.
+    // The leg still to go: a dashed run along the indicative sea lanes from the last position
+    // to the terminal, named as an indicative sea route, not as the route sailed.
     if (at && cargo.destination && cargo.status === "laden") {
+      const route = seaRoute([at.lon, at.lat], [cargo.destination.lon, cargo.destination.lat]);
       ahead.push({
         type: "Feature",
         properties: { ...props, indicative: true },
         geometry: {
           type: "LineString",
-          coordinates: [project(at.lon, at.lat), project(cargo.destination.lon, cargo.destination.lat)],
+          coordinates: route.coordinates.map(([lon, lat]) => project(lon, lat)),
         },
       });
     }
