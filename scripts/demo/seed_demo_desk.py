@@ -191,12 +191,28 @@ _CURVE_SHAPE = {hub: (base, swing) for hub, _, base, swing in DEMO_HUB_CURVES}
 ORIGINAL_DEMO_HUBS = frozenset({"TTF", "NBP"})
 
 
+#: The seasonal shape's skew: winter peaks in January and eases more slowly into spring than it
+#: builds in autumn (Feb above Dec, Mar above Nov), as a gas curve does.
+_SEASON_SKEW = 0.15
+#: A small deterministic level drift per gas year (per MWh at TTF's level), so no two gas years
+#: of the curve repeat exactly; bounded and smooth, so a spread across a gas-year turn stays
+#: seasonal (the planted T1 case is the only winter-summer spread above the storage cost).
+_GAS_YEAR_DRIFT = 0.25
+
+
 def _curve_price(hub: str, month: date) -> float:
-    """A smooth winter-premium curve; invented, never a market price."""
+    """The hub's seasonal shape for a delivery month; invented, never a market price.
+
+    A shape, not a curve on a day: the curve on a day is this shape moved to that day's
+    month-ahead close (:func:`_anchored_curve`), so its front month is the close.
+    """
 
     base, swing = _CURVE_SHAPE[hub]
-    season = math.cos((month.month - 1) / 12 * 2 * math.pi)  # +1 in January, -1 in July
-    return round(base + swing * season, 3)
+    angle = (month.month - 1) / 12 * 2 * math.pi
+    season = math.cos(angle) + _SEASON_SKEW * math.sin(angle)  # +1 in January, -1 in July
+    gas_year = month.year if month.month >= 10 else month.year - 1
+    year_drift = _GAS_YEAR_DRIFT * math.sin(1.1 * gas_year) * base / 38.0
+    return round(base + swing * season + year_drift, 3)
 
 
 def _gas_year_label(kind: str, today: date) -> str:
@@ -424,36 +440,11 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
             )
         )
 
-    # Prices: a full monthly curve for the risk horizon and 400 days of month-ahead history.
-    marks: dict[tuple[str, str], float] = {}
+    # Prices: 400 days of month-ahead history, then a full monthly curve for the risk horizon
+    # anchored to each hub's newest close (its front month is that close).
     ttf_drift: dict[int, float] = {}
+    last_closes: dict[str, tuple[float, date]] = {}
     for hub, currency in DEMO_PRICE_HUBS:
-        for offset in range(HORIZON_MONTHS):
-            first = _month_start(today, offset)
-            price = _curve_price(hub, first)
-            marks[(hub, f"{first.year:04d}-{first.month:02d}")] = price
-            session.add(
-                MarketObservationRecord(
-                    observation_id=f"demo-{hub}-{first:%Y-%m}",
-                    market_venue="Demo",
-                    product=f"{hub} {first:%b-%y}",
-                    price=price,
-                    unit=f"{currency}/MWh",
-                    currency=currency,
-                    period_start_utc=datetime(first.year, first.month, 1, tzinfo=UTC),
-                    period_end_utc=datetime.combine(
-                        _month_start(first, 1), datetime.min.time(), tzinfo=UTC
-                    ),
-                    observed_at_utc=now - timedelta(hours=1),
-                    source_system=SOURCE,
-                    source_reference="demo:curve",
-                    freshness="end_of_day",
-                    quality_score=0.0,
-                    research_only=True,
-                    metadata_json={"hub": hub, "tenor": f"{first:%Y-%m}", "simulated": True,
-                                   **_native(hub, price)},
-                )
-            )
         # A random walk around the seasonal curve; each day's month-ahead is the month after it.
         # The hubs added later walk on their own generator, so the original two (and every
         # series drawn after them) are exactly as before.
@@ -470,6 +461,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
                 basis = 0.9 * basis + walk.gauss(0, 0.05)
                 drift = ttf_drift.get(back, 0.0) + basis
             price = round(_curve_price(hub, front) + drift - back * 0.003, 3)
+            last_closes[hub] = (price, today - timedelta(days=back))
             session.add(
                 MarketObservationRecord(
                     observation_id=f"demo-{hub}-ma-{today - timedelta(days=back):%Y%m%d}",
@@ -492,6 +484,13 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
                                    **_native(hub, price)},
                 )
             )
+
+    marks: dict[tuple[str, str], float] = {}
+    for hub, months in _anchored_curve(last_closes, today).items():
+        currency = dict(DEMO_PRICE_HUBS)[hub]
+        for first, price in months.items():
+            marks[(hub, f"{first.year:04d}-{first.month:02d}")] = price
+            session.add(_curve_row(hub, currency, first, price, now, f"demo-{hub}-{first:%Y-%m}"))
 
     # Demo FX (EUR base), used only with demo marks on; a real ECB fixing always wins.
     for quote, rate in (("GBP", 0.853), ("USD", 1.087)):
@@ -1884,8 +1883,9 @@ def roll_forward(session, now: datetime) -> dict[str, int]:
     * physical series (flows, storage, LNG, power): the missing gas days and hours, keyed by
       date, so a stored day is never rewritten (``skip_existing``);
     * month-ahead history: the missing days, continuing the random walk from the last price;
-    * the forward curve: a new end-of-day snapshot of the same invented seasonal curve when
-      the newest is older than a day (the newest snapshot wins, as with a real settlement);
+    * the forward curve: a new end-of-day snapshot when the newest is older than a day (the
+      newest snapshot wins, as with a real settlement), anchored to each hub's newest
+      month-ahead close (``_anchored_curve``: its front month is that close);
     * demo FX: a new daily fixing row when the newest is older than a day;
     * deliveries of the demo contracts that still exist: the missing gas days, and the
       allocation of a day that was still pending;
@@ -1947,8 +1947,10 @@ def roll_forward(session, now: datetime) -> dict[str, int]:
         )
         counts["physical_rows"] = written.get("written", 0)
 
-    counts["curve_rows"] = _roll_curve(session, now)
     counts["month_ahead_rows"] = _roll_month_ahead(session, now, rng)
+    session.flush()
+    # After the month-ahead: the curve is anchored to each hub's newest close.
+    counts["curve_rows"] = _roll_curve(session, now)
     session.flush()
     counts.update(seed_demo_market(session, now, _demo_market_gap(session, now)))
     counts["fx_rows"] = _roll_fx(session, now)
@@ -1983,39 +1985,81 @@ def _roll_curve(session, now: datetime) -> int:
     if newest is not None and now - newest < timedelta(hours=20):
         return 0
     today = now.date()
-    rows = []
     real = _real_price_hubs(session)
-    for hub, currency in DEMO_PRICE_HUBS:
-        if hub in real:
-            continue
-        for offset in range(HORIZON_MONTHS):
-            first = _month_start(today, offset)
-            price = _curve_price(hub, first)
-            rows.append(
-                MarketObservationRecord(
-                    observation_id=f"demo-{hub}-{first:%Y-%m}-c{today:%Y%m%d}",
-                    market_venue="Demo",
-                    product=f"{hub} {first:%b-%y}",
-                    price=price,
-                    unit=f"{currency}/MWh",
-                    currency=currency,
-                    period_start_utc=datetime(first.year, first.month, 1, tzinfo=UTC),
-                    period_end_utc=datetime.combine(
-                        _month_start(first, 1), datetime.min.time(), tzinfo=UTC
-                    ),
-                    observed_at_utc=now - timedelta(hours=1),
-                    source_system=SOURCE,
-                    source_reference="demo:curve",
-                    freshness="end_of_day",
-                    quality_score=0.0,
-                    research_only=True,
-                    metadata_json={"hub": hub, "tenor": f"{first:%Y-%m}", "simulated": True,
-                                   **_native(hub, price)},
-                )
-            )
+    last_closes = {}
+    for hub, _currency in DEMO_PRICE_HUBS:
+        last = None if hub in real else _last_history(session, hub)
+        if last is not None:
+            last_closes[hub] = (float(last.price), _aware(last.observed_at_utc).date())
+    currencies = dict(DEMO_PRICE_HUBS)
+    rows = [
+        _curve_row(hub, currencies[hub], first, price, now,
+                   f"demo-{hub}-{first:%Y-%m}-c{today:%Y%m%d}")
+        for hub, months in _anchored_curve(last_closes, today).items()
+        for first, price in months.items()
+    ]
     rows = _new_rows_only(session, rows)
     session.add_all(rows)
     return len(rows)
+
+
+def _carried_month_ahead(hub: str, month_ahead: float, stored_day: date, day: date) -> float:
+    """The month-ahead close of ``stored_day`` carried to ``day``: the close itself, or across
+    a month turn the new front month moved by the same drift over the seasonal shape."""
+
+    if stored_day >= day or _month_start(stored_day, 1) == _month_start(day, 1):
+        return month_ahead
+    drift = month_ahead - _curve_price(hub, _month_start(stored_day, 1))
+    return _curve_price(hub, _month_start(day, 1)) + drift
+
+
+def _anchored_curve(last_closes: dict[str, tuple[float, date]],
+                    today: date) -> dict[str, dict[date, float]]:
+    """Each hub's monthly curve on ``today`` for the risk horizon, anchored to its newest
+    month-ahead close (``hub -> (close, day of the close)``).
+
+    The front month (the month-ahead) is the close; every other month is priced as the demo
+    market prices it (``DemoMarket.month_price``: the seasonal shape moved by the close's
+    drift, held in the arbitrage band across hubs), so the curve, the board, the strips and
+    the marks agree. A hub without a close (a provider prices it) gets no curve. Invented,
+    simulated.
+    """
+
+    market = _demo_market(_load_demo_market())
+    front = _month_start(today, 1)
+    anchors = {hub: _carried_month_ahead(hub, close, day, today)
+               for hub, (close, day) in last_closes.items()}
+    market.set_anchors(today, anchors)
+    return {
+        hub: {
+            first: round(month_ahead if first == front
+                         else market.month_price(hub, today, month_ahead, first), 3)
+            for first in (_month_start(today, offset) for offset in range(HORIZON_MONTHS))
+        }
+        for hub, month_ahead in anchors.items()
+    }
+
+
+def _curve_row(hub: str, currency: str, first: date, price: float, now: datetime,
+               observation_id: str) -> MarketObservationRecord:
+    return MarketObservationRecord(
+        observation_id=observation_id,
+        market_venue="Demo",
+        product=f"{hub} {first:%b-%y}",
+        price=price,
+        unit=f"{currency}/MWh",
+        currency=currency,
+        period_start_utc=datetime(first.year, first.month, 1, tzinfo=UTC),
+        period_end_utc=datetime.combine(_month_start(first, 1), datetime.min.time(), tzinfo=UTC),
+        observed_at_utc=now - timedelta(hours=1),
+        source_system=SOURCE,
+        source_reference="demo:curve",
+        freshness="end_of_day",
+        quality_score=0.0,
+        research_only=True,
+        metadata_json={"hub": hub, "tenor": f"{first:%Y-%m}", "simulated": True,
+                       **_native(hub, price)},
+    )
 
 
 def _last_history(session, hub: str):
@@ -2792,12 +2836,8 @@ def demo_board_rows(market_module, market, last_closes, now: datetime, outages) 
     anchors: dict[str, float] = {}
     currencies: dict[str, str] = {}
     for (hub, currency), (month_ahead, observed) in last_closes.items():
-        stored_day = _aware(observed).date()
-        if stored_day >= board_day:
-            anchors[hub] = month_ahead
-        else:
-            drift = month_ahead - _curve_price(hub, _month_start(stored_day, 1))
-            anchors[hub] = _curve_price(hub, _month_start(board_day, 1)) + drift
+        anchors[hub] = _carried_month_ahead(hub, month_ahead, _aware(observed).date(),
+                                            board_day)
         currencies[hub] = currency
     market.set_anchors(board_day, anchors)
     outage = any(first <= board_day <= last for first, last in outages)

@@ -347,3 +347,28 @@ def test_simulated_is_said_once_when_every_price_and_mark_is_simulated():
     assert _all_simulated(prices + real_inputs)
     assert not _all_simulated([*prices, item("spread.NBP.TTF", False)])  # genuinely mixed prices
     assert not _all_simulated(real_inputs)  # no prices at all: nothing to say
+
+
+def test_the_ladder_marks_the_front_month_at_the_close_today_shows(desk):
+    """One number: the curve's front month is the month-ahead close Today shows, and the
+    ladder marks at that curve (not at a seasonal shape of its own)."""
+
+    from datetime import date
+
+    from eurogas_nexus.application.position_inputs import ladder_inputs
+
+    caller = _principal("DEMO", "BOOKS:*")
+    prices = {item["hub"]: item for item in _today(desk, caller)["rows"][0]["prices"]}
+    today = NOW.date()
+    inputs = ladder_inputs(caller, today, today.replace(day=1), date(2029, 12, 1))
+    for hub, unit_mwh in (("TTF", "EUR/MWh"), ("NBP", "GBP/MWh")):
+        shown = convert_price(prices[hub]["value"], prices[hub]["unit"], unit_mwh)
+        assert inputs.mark_method[(hub, "2026-12")] == "quoted"
+        assert inputs.marks[(hub, "2026-12")] == pytest.approx(shown, abs=1e-3), hub
+        curve = {point.month: point.price for point in inputs.curve.points if point.hub == hub}
+        assert curve["2026-12"] == inputs.marks[(hub, "2026-12")]
+        # A seasonal term structure, not one year repeated: winter over summer, January the
+        # peak, February above December, and no two Decembers alike.
+        assert curve["2027-01"] > curve["2026-12"] > curve["2027-07"]
+        assert curve["2027-02"] > curve["2026-12"]
+        assert len({curve["2026-12"], curve["2027-12"], curve["2028-12"], curve["2029-12"]}) == 4
