@@ -315,6 +315,11 @@ class _Route:
                 label_key=f"locational.{side}",
                 label=f"{'Sell' if side == 'sell' else 'Buy'} {hub} {period_label(period.label)}"
                 f" {'bid' if side == 'sell' else 'offer'} ({item.label or item.source_family})",
+                label_params={
+                    "hub": hub,
+                    "period": period_label(period.label),
+                    "source": str(item.label or item.source_family),
+                },
                 rate=Measure(item.value, item.unit),
                 fx=None if fx is None else Measure(fx.value, fx.unit),
                 contribution=Measure(contribution, UNIT),
@@ -367,7 +372,9 @@ class _Route:
             per_mwh, how = tariff_per_mwh(item)
             if per_mwh is None:
                 blockers.append(
-                    Blocker("input_missing", spec.point_name, f"Cannot evaluate: {how}.")
+                    # The template's own words ("Cannot evaluate: {subject}."), so a client
+                    # can render it from code and subject.
+                    Blocker("evaluator", how, f"Cannot evaluate: {how}.")
                 )
                 continue
             if item.currency and item.currency != EUR:
@@ -452,6 +459,7 @@ class _Route:
                 "locational.volume",
                 f"Volume {grouped(volume_per_day)} MWh/d x {period.days} d",
                 quantity=Measure(volume, "MWh"),
+                label_params={"mwh_d": grouped(volume_per_day), "days": str(period.days)},
             )
         )
         legs.append(Leg(LegKind.VALUE, "locational.value", "Value", quantity=Measure(value, EUR)))

@@ -34,7 +34,7 @@ test("the server's English notes on the book are said in Chinese, contracts by n
 
 test("a simulated feed's identifier is never on screen; the quiet simulated mark is", async () => {
   const { sourceSystemLabel } = await import("../src/app/model/enumLabels.ts");
-  assert.equal(sourceSystemLabel("DEMO_Sim", t), "仿真数据源");
-  assert.equal(sourceSystemLabel("EEX_Sim", t), "仿真数据源");
+  assert.equal(sourceSystemLabel("DEMO_Sim", t), "模拟数据源");
+  assert.equal(sourceSystemLabel("EEX_Sim", t), "模拟数据源");
   assert.equal(sourceSystemLabel("ICE_ENDEX", t), "ICE Endex");
 });

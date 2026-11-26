@@ -10,6 +10,7 @@ import type {
 import type { EvaluationDTO, InterpretationDTO, SpreadBoardDTO, StrategySpecDTO } from "./spreads";
 import type { PromptMarketDTO, StrategyTrackDTO } from "./strategyTracks";
 import type { ViewMetaDTO } from "@/app/data/viewFreshness";
+import type { ServerNote } from "@/app/warningLabel";
 
 const DEFAULT_BROWSER_BASE = "/api";
 const DEFAULT_DESKTOP_BASE = "http://127.0.0.1:8000/api";
@@ -390,6 +391,9 @@ export interface ApiMeta {
    */
   source_references?: string[];
   warnings?: string[];
+  /** The same warnings as declared notes, `{code, params, text}` (`domain/ontology/notes.py`):
+   * render these through `serverWarningText` when present. */
+  notes?: ServerNote[];
   /**
    * Inputs the read needed and did not have - a missing runtime DB URL, a missing table. A surface
    * uses this to keep two statements apart: the read established nothing, and the read established
@@ -2787,7 +2791,10 @@ export interface OpportunityRowDTO {
   first_seen_utc: string;
   last_evaluated_utc: string;
   reasons: string[];
-  blocked: { code: string; subject: string; text: string; fix: string } | null;
+  /** The claim as data, for `claim.<claim_key>` (newer servers); `claim` is the English. */
+  claim_key?: string;
+  claim_fields?: Record<string, string>;
+  blocked: { code: string; subject: string; text: string; fix: string; detail?: string } | null;
   rank: { position: number; reason: string } | null;
   user_state: { state: string; reason: string | null; at_version: number; changed_since: boolean } | Record<string, never> | null;
   /** What it is about, in words ("Haldor supply (Easington)", "TTF → THE"). */
@@ -2884,6 +2891,8 @@ export interface OpportunityLegDTO {
   as_of_utc: string | null;
   input_keys: string[];
   note: string;
+  /** The values `label` names, for `opportunities.leg.<label_key>` (newer servers). */
+  label_params?: Record<string, string>;
 }
 
 /** The frozen object of one version: what the arithmetic was when it was evaluated. */
@@ -3139,6 +3148,8 @@ export interface DeskTodayDTO {
   /** Every late or stale figure by name (FRESH-02), instead of a page-wide "N feeds stale". */
   stale_figures: { key: string; label: string; state: FigureStateDTO; as_of: string | null }[];
   warnings: string[];
+  /** The same warnings as declared notes (newer servers). */
+  notes?: ServerNote[];
 }
 
 export interface MonitoringAlertDTO {
@@ -7833,6 +7844,8 @@ interface DisruptionResultDTO {
   costs: Record<string, number>;
   inputs: { input: string; source: string }[];
   warnings: string[];
+  /** The warnings as declared notes (`domain/ontology/notes.py`), when the server sends them. */
+  notes?: ServerNote[];
   timeline: DisruptionRunDTO[];
   advisory: string;
 }

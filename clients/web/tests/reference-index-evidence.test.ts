@@ -252,7 +252,7 @@ test("keeps distinct periods and filters on the backend hub", () => {
 
   const nbp = render(rows, en, "NBP");
   assert.equal(rowCount(nbp), 0);
-  assert.ok(nbp.includes("match the focused backend hub"));
+  assert.ok(nbp.includes("for the focused hub"));
   assert.ok(nbp.includes("NBP"));
 
   const ttf = render(rows, en, "TTF");
@@ -260,7 +260,7 @@ test("keeps distinct periods and filters on the backend hub", () => {
 
   const none = render([], en);
   assert.equal(rowCount(none), 0);
-  assert.ok(none.includes("This market read contains no receipt-bound EEX TTF NGP reference observations"));
+  assert.ok(none.includes("This market read holds no EEX TTF NGP reference values."));
 
   const legacy = render([
     observation({ metadata_json: { normalizer_version: null } }),

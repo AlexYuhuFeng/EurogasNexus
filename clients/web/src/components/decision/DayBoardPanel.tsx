@@ -217,18 +217,20 @@ export function DayBoardPanel({ t, model, onOpenTask, onOpenAlerts }: DayBoardPa
               </ul>
             )}
 
-            {clock.gasDay && (
-              <p className="day-board-note">
-                {t("day_board.clock.time_basis")}: {clock.timeBasis ?? t("day_board.not_declared")}
-                {clock.calendar ? ` · ${clock.calendar}` : ""}
-                {clock.assessedAtUtc
-                  ? ` · ${t("day_board.clock.assessed_at")}: ${displayTime(
-                      clock.assessedAtUtc,
-                    )}`
-                  : ""}
+            {/* The declared basis and calendar are identifiers: evidence in the title, not copy
+                (UX rule 3). The line says only when the windows were read. */}
+            {clock.gasDay && clock.assessedAtUtc && (
+              <p
+                className="day-board-note"
+                title={[
+                  `${t("day_board.clock.time_basis")}: ${clock.timeBasis ?? t("day_board.not_declared")}`,
+                  clock.calendar,
+                  t("day_board.clock.time_basis_help"),
+                ].filter(Boolean).join(" · ")}
+              >
+                {t("day_board.clock.assessed_at")}: {displayTime(clock.assessedAtUtc)}
               </p>
             )}
-            {clock.gasDay && <p className="day-board-note">{t("day_board.clock.time_basis_help")}</p>}
           </div>
 
           <div className="day-board-section day-board-decisions">

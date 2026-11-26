@@ -34,7 +34,8 @@ from typing import Any
 
 from eurogas_nexus.application.bounded_reads import read_bounded
 from eurogas_nexus.application.caller import Caller
-from eurogas_nexus.application.position_inputs import is_simulated_marks_warning
+from eurogas_nexus.application.position_inputs import is_method_note, is_simulated_marks_warning
+from eurogas_nexus.domain.ontology.notes import declare, split_notes
 
 MAX_ITEMS = 6
 #: The position ladder's default horizon: the day P&L change uses the same open position.
@@ -54,6 +55,10 @@ NEEDS_ME_ITEMS = 5
 #: Countries shown as small multiples under the Europe storage chart (E.2 row 4).
 STORAGE_COUNTRIES = 8
 LATE_STATES = frozenset({"late", "stale"})
+
+#: A part of Today that could not be read (the other rows stand): "book: not available (X)".
+DESK_READ_UNAVAILABLE = declare("DESK_READ_UNAVAILABLE", "{section}: not available ({error})")
+DESK_READ_UNRESOLVED = declare("DESK_READ_UNRESOLVED", "{section}: not resolved ({error})")
 
 
 def _held_back(session, systems) -> list[dict[str, str]]:
@@ -235,7 +240,9 @@ def _compose_today(session, caller, now, balance_reader, read, price_book) -> di
         # The hubs the page is about: the book's, then the board's (or the user's own list).
         "focus_hubs": focus,
         "stale_figures": stale,
+        # The same warnings as declared notes (domain/ontology/notes.py), said by the client.
         "warnings": read.warnings,
+        "notes": split_notes(read.warnings)[1],
     }
 
 
@@ -323,7 +330,11 @@ def _book(caller: Caller, today: date, read: _Read, *, now: datetime | None = No
     except Exception as exc:  # noqa: BLE001 - the other rows stand without the book
         read.warnings.append(f"book: not available ({exc.__class__.__name__})")
         return _Book()
-    read.warnings += [w for w in inputs.warnings if not is_simulated_marks_warning(w)]
+    # Method notes (a floating price on the ladder by volume only) belong to the position's
+    # method, not to Today's warnings: Today lists only what failed or was left out.
+    read.warnings += [
+        w for w in inputs.warnings if not is_simulated_marks_warning(w) and not is_method_note(w)
+    ]
     return _Book(
         inputs=inputs,
         positions=net_positions(inputs.legs, today),
@@ -1584,8 +1595,13 @@ def _needs_me(
             str(item).upper() for item in getattr(caller.principal, "job_functions", ()) or ()
         ]
         function = held_functions[0] if held_functions else None
-        found = discoveries(session, caller, function=function, language="en", now=now)
-        found_zh = discoveries(session, caller, function=function, language="zh", now=now)
+        # Each item carries its own simulated mark on Today: the sentence does not repeat it.
+        found = discoveries(
+            session, caller, function=function, language="en", now=now, simulated_marked=True
+        )
+        found_zh = discoveries(
+            session, caller, function=function, language="zh", now=now, simulated_marked=True
+        )
         chinese = {item["finding_id"]: item["sentence"] for item in found_zh["items"]}
         read.warnings.extend(found.get("warnings") or [])
         for item in found["items"]:

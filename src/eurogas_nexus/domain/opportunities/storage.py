@@ -133,10 +133,12 @@ class StorageSpreadEvaluator:
         assumptions: list[AssumptionUse] = []
         legs = [
             self._term(
-                "storage.withdraw", f"Sell {hub} {period_label(second.label)} bid", sell, p2, unit
+                "storage.withdraw", f"Sell {hub} {period_label(second.label)} bid", sell, p2, unit,
+                {"hub": hub, "period": period_label(second.label)},
             ),
             self._term(
-                "storage.inject", f"Buy {hub} {period_label(first.label)} offer", buy, -p1, unit
+                "storage.inject", f"Buy {hub} {period_label(first.label)} offer", buy, -p1, unit,
+                {"hub": hub, "period": period_label(first.label)},
             ),
             Leg(
                 LegKind.SUBTOTAL,
@@ -376,11 +378,12 @@ class StorageSpreadEvaluator:
         )
 
     @staticmethod
-    def _term(key, label, item, contribution, unit) -> Leg:
+    def _term(key, label, item, contribution, unit, params=None) -> Leg:
         return Leg(
             kind=LegKind.TERM,
             label_key=key,
             label=label,
+            label_params=params or {},
             rate=None if item is None or item.value is None else Measure(item.value, item.unit),
             contribution=Measure(contribution, unit),
             input_class=None if item is None else item.input_class,

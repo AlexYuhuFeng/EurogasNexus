@@ -143,6 +143,7 @@ class EventExposureEvaluator:
                 kind=LegKind.TERM,
                 label_key="event.contract_price",
                 label=f"Contract price of {contract.detail.get('contract_name')}",
+                label_params={"contract": str(contract.detail.get("contract_name") or "")},
                 rate=Measure(p_contract, unit),
                 contribution=Measure(-p_contract, unit),
                 input_class=contract.input_class,
@@ -181,6 +182,7 @@ class EventExposureEvaluator:
                 "event.volume",
                 f"{grouped(affected, 0)} MWh/d x {days} d",
                 quantity=Measure(volume, "MWh"),
+                label_params={"mwh_d": grouped(affected, 0), "days": str(days)},
             ),
             Leg(LegKind.VALUE, "event.value", "Cover cost", quantity=Measure(value, currency)),
         )

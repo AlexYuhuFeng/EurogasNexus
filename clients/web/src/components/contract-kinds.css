@@ -160,6 +160,15 @@
   align-items: center;
   gap: var(--ds-space-2);
   min-width: 0;
+  /* Text never touches the box it sits in. */
+  padding: var(--ds-space-2) var(--ds-space-3);
+}
+
+/* One control height across the row: search, kind filter and the page's two actions. */
+.contract-list-command > :is(input, select),
+.contract-list-command .contract-command-actions > button {
+  box-sizing: border-box;
+  height: var(--ds-control);
 }
 
 .contract-list-count {

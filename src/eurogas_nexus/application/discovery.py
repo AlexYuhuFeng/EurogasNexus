@@ -344,8 +344,13 @@ def discoveries(
     language: str = "en",
     limit: int = MAX_ITEMS,
     now: datetime | None = None,
+    simulated_marked: bool = False,
 ) -> dict[str, Any]:
-    """The caller's findings ranked for ``function`` (one of their job functions)."""
+    """The caller's findings ranked for ``function`` (one of their job functions).
+
+    ``simulated_marked``: the caller shows each item's simulated mark itself, so the sentences
+    leave out "on simulated prices" (see :func:`phrase`).
+    """
 
     from eurogas_nexus.application.caller import caller_of
     from eurogas_nexus.application.opportunities.listing import latest_evaluation
@@ -382,7 +387,7 @@ def discoveries(
     try:
         findings += strategy_findings(session, principal, moment)
     except Exception as exc:  # noqa: BLE001 - tracks unavailable hide only themselves
-        warnings.append(f"strategy findings unavailable: {type(exc).__name__}")
+        warnings.append(f"strategy findings: not available ({type(exc).__name__})")
     from eurogas_nexus.security.authorization import Permission, authorize
 
     if authorize(principal, Permission.PORTFOLIO_READ).allowed:
@@ -391,7 +396,8 @@ def discoveries(
                 findings += source(caller, moment.date())
             except Exception as exc:  # noqa: BLE001 - one source failing hides only itself
                 warnings.append(
-                    f"{source.__name__.split('_')[0]} findings unavailable: {type(exc).__name__}"
+                    f"{source.__name__.split('_')[0]} findings: not available "
+                    f"({type(exc).__name__})"
                 )
     ranked = rank(_grouped(findings), audience)[: max(1, min(limit, MAX_ITEMS))]
     items = [
@@ -400,7 +406,7 @@ def discoveries(
             "kind": item.kind,
             "severity": item.severity,
             "relevance": weight(item.kind, audience),
-            "sentence": phrase(item, audience, language)
+            "sentence": phrase(item, audience, language, simulated_marked=simulated_marked)
             + (
                 ""
                 if not item.facts.get("more")

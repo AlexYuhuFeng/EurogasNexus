@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { displayTime } from "@/app/time/displayTime";
 import { warningLabel } from "@/app/warningLabel";
+import { enumLabel } from "@/app/model/enumLabels";
 import { reviewEvidenceFor } from "@/app/model/reviewContextModel";
 import type { AnalysisSnapshotReadiness } from "@/app/model/analysisSnapshotModel";
 import { copilotOffers } from "@/app/model/copilotModel";
@@ -22,7 +23,7 @@ import { useCachedRead } from "@/app/data/readCache";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 import { formatMeasure } from "@/app/time/valueFormat";
 
-type Translate = (key: string) => string;
+type Translate = (key: string, options?: Record<string, unknown>) => string;
 
 interface ReviewWorkspaceProps {
   allocations: PortfolioOptimizationResultDTO["allocations"];
@@ -223,15 +224,15 @@ export function ReviewWorkspace({
           <div className="review-evidence-grid" aria-label={t("review.evidence_pack")}>
             <div className="review-evidence-row">
               <span className="review-evidence-key">{t("review.status")}</span>
-              <strong className="review-evidence-value">{poolResult.status}</strong>
+              <strong className="review-evidence-value" title={poolResult.status}>{enumLabel(poolResult.status, t)}</strong>
             </div>
             <div className="review-evidence-row">
               <span className="review-evidence-key">{t("review.algorithm")}</span>
-              <strong className="review-evidence-value">{poolResult.algorithm}</strong>
+              <strong className="review-evidence-value" title={poolResult.algorithm}>{enumLabel(poolResult.algorithm, t)}</strong>
             </div>
             <div className="review-evidence-row">
               <span className="review-evidence-key">{t("review.optimality")}</span>
-              <strong className="review-evidence-value">{poolResult.optimality}</strong>
+              <strong className="review-evidence-value" title={poolResult.optimality}>{enumLabel(poolResult.optimality, t)}</strong>
             </div>
             <div className="review-evidence-row">
               <span className="review-evidence-key">{t("review.allocated_volume")}</span>
@@ -260,8 +261,10 @@ export function ReviewWorkspace({
                 items={[
                   {
                     label: t("evidence.lineage"),
+                    // Record identifiers are evidence for support, not copy: a count on screen,
+                    // the identifiers in the title.
                     value: poolResult.source_refs.length > 0
-                      ? poolResult.source_refs.slice(0, 8).join(" · ")
+                      ? <span title={poolResult.source_refs.join("\n")}>{t("review.lineage_count", { count: poolResult.source_refs.length })}</span>
                       : t("review.none"),
                     wide: true,
                   },

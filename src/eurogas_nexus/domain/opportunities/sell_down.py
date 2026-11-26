@@ -48,11 +48,19 @@ MONEY = Decimal("0.01")
 Q = Decimal("0.000001")
 
 
-def _leg(key, label, item: SnapshotInput | None, contribution: Decimal, unit: str) -> Leg:
+def _leg(
+    key,
+    label,
+    item: SnapshotInput | None,
+    contribution: Decimal,
+    unit: str,
+    params: dict[str, str] | None = None,
+) -> Leg:
     return Leg(
         kind=LegKind.TERM,
         label_key=key,
         label=label,
+        label_params=params or {},
         rate=None if item is None else Measure(item.value, item.unit),
         contribution=Measure(contribution, unit),
         input_class=None if item is None else item.input_class,
@@ -121,7 +129,8 @@ class SellDownEvaluator:
             if long:
                 terms = [
                     _leg(
-                        "sell_down.da_bid", f"Day-ahead bid {hub} ({price.label})", price, p, unit
+                        "sell_down.da_bid", f"Day-ahead bid {hub} ({price.label})", price, p, unit,
+                        {"hub": hub, "source": str(price.label)},
                     ),
                     _leg(
                         "sell_down.cash_out",
@@ -160,6 +169,7 @@ class SellDownEvaluator:
                         price,
                         -p,
                         unit,
+                        {"hub": hub, "source": str(price.label)},
                     ),
                 ]
             net = sum((leg.contribution.value for leg in terms), Decimal(0))

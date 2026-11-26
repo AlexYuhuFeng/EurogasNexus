@@ -221,6 +221,7 @@ class MarketScanEvaluator:
                 "prompt.lot",
                 f"Stated lot {grouped(lot)} MWh",
                 quantity=Measure(lot, "MWh"),
+                label_params={"mwh": grouped(lot)},
             ),
             Leg(LegKind.VALUE, "prompt.value", "Value on the lot", quantity=Measure(value, EUR)),
         )
@@ -378,6 +379,7 @@ class MarketScanEvaluator:
                 "seasonal.lot",
                 f"Stated lot {grouped(lot)} MWh",
                 quantity=Measure(lot, "MWh"),
+                label_params={"mwh": grouped(lot)},
             ),
             Leg(LegKind.VALUE, "seasonal.value", "Value on the lot", quantity=Measure(value, EUR)),
         )

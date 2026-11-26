@@ -311,6 +311,10 @@ export function CargoBoard({ t, language, canRecordHedges }: { t: Translate; lan
     />
   );
 
+  // Nothing in transit: one line saying what would fill the board (UX rule 4), no strip of
+  // dashes, no unit switch and no keyboard keys for rows that are not there.
+  const nothing = !board.loading && !failure && lines.length === 0;
+
   return (
     <section className="cargo-board" aria-labelledby="cargo-board-title" data-cargo-board="">
       <header className="cargo-board-head">
@@ -318,24 +322,26 @@ export function CargoBoard({ t, language, canRecordHedges }: { t: Translate; lan
           <h2 id="cargo-board-title">{t("lng.cargo.title")}</h2>
           <span className="cargo-board-sub">
             {board.readAt ? <Instant value={board.readAt} prefix={t("lng.cargo.as_of")} /> : null}
-            {" · "}
-            {t(board.live ? "lng.cargo.live" : "lng.cargo.polling")}
+            {/* Polling is normal operation and earns no words; only a live stream says so. */}
+            {board.live && ` · ${t("lng.cargo.live")}`}
             <UpdatingMark active={board.updating} label={t("lng.cargo.updating")} />
           </span>
         </div>
         <div className="cargo-board-actions">
-          <Segmented
-            label={t("lng.cargo.unit_label")}
-            options={ENERGY_DISPLAY_UNITS.map((value) => ({ value, label: value, title: t(`lng.cargo.unit.${value}`) }))}
-            value={unit}
-            onChange={setUnit}
-          />
+          {!nothing && (
+            <Segmented
+              label={t("lng.cargo.unit_label")}
+              options={ENERGY_DISPLAY_UNITS.map((value) => ({ value, label: value, title: t(`lng.cargo.unit.${value}`) }))}
+              value={unit}
+              onChange={setUnit}
+            />
+          )}
           <Button variant="quiet" onClick={board.refresh} loading={board.updating}>{t("lng.cargo.refresh")}</Button>
         </div>
       </header>
       <PanelHelp label={t("lng.cargo.help_label")} text={t("lng.cargo.help")} />
 
-      <HeaderStripView strip={strip} t={t} language={language} unit={unit} nowMs={nowMs} energy={energy} />
+      {!nothing && <HeaderStripView strip={strip} t={t} language={language} unit={unit} nowMs={nowMs} energy={energy} />}
 
       {failure && (
         <div className="cargo-board-error" role="alert" data-cargo-board-error="">
@@ -345,6 +351,8 @@ export function CargoBoard({ t, language, canRecordHedges }: { t: Translate; lan
         </div>
       )}
 
+      {nothing ? empty : (
+      <>
       <div className="cargo-board-grid" onKeyDown={onKeyDown} onFocus={(event) => {
         const row = (event.target as HTMLElement).closest?.("tr[data-row-key]") as HTMLTableRowElement | null;
         if (row?.dataset.rowKey) setFocused(row.dataset.rowKey);
@@ -366,6 +374,8 @@ export function CargoBoard({ t, language, canRecordHedges }: { t: Translate; lan
       </div>
       <p className="cargo-board-keys">{t("lng.cargo.keys")}</p>
       <p className="cargo-board-advisory">{t("lng.cargo.advice_only")}</p>
+      </>
+      )}
 
       <CargoPlanSheet
         cargoId={openCargo}

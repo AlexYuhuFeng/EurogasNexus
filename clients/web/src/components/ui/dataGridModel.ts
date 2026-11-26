@@ -87,6 +87,30 @@ export interface PhoneColumn {
   priority?: "primary" | "secondary";
 }
 
+/** A column the empty-column rule can judge: its raw value and whether it draws its own cell. */
+export interface ValueColumn<R> {
+  value?: (row: R) => SortValue;
+  render?: (row: R) => unknown;
+  rowHeader?: boolean;
+  keepWhenEmpty?: boolean;
+}
+
+/**
+ * The columns that carry a value in at least one row (owner, 2026-11-26: a column of dashes is
+ * not information). Only a column that shows its raw value is judged: one that renders its own
+ * cell, the row header, a column marked `keepWhenEmpty`, and any column of an empty grid stay.
+ */
+export function columnsWithValues<R, C extends ValueColumn<R>>(columns: readonly C[], rows: readonly R[]): C[] {
+  if (rows.length === 0) return [...columns];
+  return columns.filter((column) => {
+    if (!column.value || column.render || column.rowHeader || column.keepWhenEmpty) return true;
+    return rows.some((row) => {
+      const value = column.value?.(row);
+      return value !== null && value !== undefined && value !== "";
+    });
+  });
+}
+
 /** The columns a phone keeps in the row, and the ones it folds into Details. */
 export function phoneColumnSplit<C extends PhoneColumn>(
   columns: readonly C[],
