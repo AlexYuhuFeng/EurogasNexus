@@ -257,8 +257,14 @@ def evaluate_decision_event(
     decision_time_utc: datetime,
     previous_cumulative_net: float,
     previous_exposure: float,
+    target_definition: StrategyVersionDefinition | None = None,
 ) -> BacktestDecisionEvent:
-    """Evaluate one decision with the exact shared shadow/backtest engine."""
+    """Evaluate one decision with the exact shared shadow/backtest engine.
+
+    ``target_definition`` is the frozen per-leg target mapping: pass it for a version whose
+    historical backtest runs target-aware (engine/2), so a shadow decision selects evidence by
+    the same rules; ``None`` keeps the legacy name-only selection.
+    """
 
     return _evaluate_decision_event(
         version=version,
@@ -270,6 +276,7 @@ def evaluate_decision_event(
         decision_time_utc=decision_time_utc,
         previous_cumulative_net=previous_cumulative_net,
         previous_exposure=previous_exposure,
+        target_definition=target_definition,
     )
 
 

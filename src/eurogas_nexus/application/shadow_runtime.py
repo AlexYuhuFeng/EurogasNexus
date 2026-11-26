@@ -239,7 +239,11 @@ def _evaluate_one(
         if version is None:
             raise ValueError("Monitored version no longer exists")
         definition_payload = version.definition_json or {}
-        economic = _economic_assumptions(definition_payload)
+        economic = _economic_assumptions(
+            definition_payload,
+            baseline=_baseline_assumptions(session, monitor.baseline_run_id),
+        )
+        target_definition = _declared_target_definition(version)
         decision = _as_utc(decision_time_utc)
         period = BacktestPeriod(
             start_utc=decision - timedelta(seconds=1),
@@ -310,6 +314,7 @@ def _evaluate_one(
             decision_time_utc=decision,
             previous_cumulative_net=monitor.cumulative_shadow_pnl_gbp,
             previous_exposure=monitor.current_exposure_mwh_per_day,
+            target_definition=target_definition,
         )
         _finalize_evaluation(
             session,
@@ -874,18 +879,66 @@ def _validate_schedule(schedule: dict) -> None:
         raise ValueError(f"Unsupported missed policy: {missed}")
 
 
-def _economic_assumptions(definition: dict) -> BacktestEconomicAssumptions:
+#: Registry strategy-definition policy names (``EconomicAssumptions``) that the backtest engine
+#: spells differently. ``BLOCK_OR_PARTIAL`` is the registry's default and blocks a decision whose
+#: required series is missing, which is the engine's ``FAIL``.
+_REGISTRY_MISSING_DATA_POLICIES = {"BLOCK_OR_PARTIAL": "FAIL"}
+
+
+def _economic_assumptions(
+    definition: dict, *, baseline: dict | None = None
+) -> BacktestEconomicAssumptions:
+    """The assumptions one shadow evaluation runs under.
+
+    A monitor with a baseline backtest replays that run's assumptions exactly as its manifest
+    recorded them, so the shadow P&L and the drift against the baseline compare like with like.
+    Without one, the version's own assumptions are read: registry policy names are mapped to
+    the engine's, and a version that lists no cost line keeps the engine's default cost contract
+    (the costs a backtest of the same version would carry), never a silent zero.
+    """
+
+    if baseline:
+        return BacktestEconomicAssumptions.model_validate(baseline)
     raw = definition.get("economic_assumptions") or {}
-    return BacktestEconomicAssumptions(
-        fill_price_policy=raw.get("fill_price_policy", "NEXT_ELIGIBLE"),
-        missing_data_policy=raw.get("missing_data_policy", "FAIL"),
-        carry_forward_max_age_seconds=int(
-            raw.get("carry_forward_max_age_seconds", 86_400)
-        ),
-        require_historical_fx=bool(raw.get("require_historical_fx", True)),
-        fallback_sources=dict(raw.get("fallback_sources") or {}),
-        cost_components=list(raw.get("cost_components") or []),
-    )
+    policy = str(raw.get("missing_data_policy", "FAIL"))
+    values: dict = {
+        "fill_price_policy": raw.get("fill_price_policy", "NEXT_ELIGIBLE"),
+        "missing_data_policy": _REGISTRY_MISSING_DATA_POLICIES.get(policy, policy),
+        "carry_forward_max_age_seconds": int(raw.get("carry_forward_max_age_seconds", 86_400)),
+        "require_historical_fx": bool(raw.get("require_historical_fx", True)),
+        "fallback_sources": dict(raw.get("fallback_sources") or {}),
+    }
+    cost_components = list(raw.get("cost_components") or [])
+    if cost_components:
+        values["cost_components"] = cost_components
+    return BacktestEconomicAssumptions(**values)
+
+
+def _baseline_assumptions(session: Session, baseline_run_id: str | None) -> dict | None:
+    """The economic assumptions the baseline backtest recorded in its manifest, if any."""
+
+    if not baseline_run_id:
+        return None
+    run = session.get(StrategyRunRecord, baseline_run_id)
+    manifest = (run.manifest_json if run is not None else None) or {}
+    value = manifest.get("economic_assumptions")
+    return value if isinstance(value, dict) and value else None
+
+
+def _declared_target_definition(version: StrategyVersionRecord):
+    """The frozen per-leg target mapping a historical backtest of this version would use.
+
+    A shadow evaluation of a version whose targets are declared must select evidence the way
+    its backtest does (engine/2); an undeclared version keeps the legacy name-only selection,
+    which is all a backtest of it could ever have used.
+    """
+
+    from eurogas_nexus.application.backtest_service import _require_declared_evidence_targets
+
+    try:
+        return _require_declared_evidence_targets(version)
+    except ValueError:
+        return None
 
 
 def _resource_cost(definition: dict) -> float | None:
