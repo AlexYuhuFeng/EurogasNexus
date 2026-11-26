@@ -19,6 +19,7 @@ raw path, and unmatched paths share ``unmatched``.
 from __future__ import annotations
 
 import os
+import sys
 import threading
 import time
 from collections.abc import Iterable
@@ -186,9 +187,12 @@ def observe_pools(pools: Iterable[Any] | None = None, *, force: bool = False) ->
         _pool_sampled_at = now
     try:
         if pools is None:
-            from eurogas_nexus.db.session import cached_engine_pools
-
-            pools = cached_engine_pools()
+            # Not imported here: a process that never opened the database has no pools, and
+            # serving a request must not load the database layer (product boundary contract).
+            session_module = sys.modules.get("eurogas_nexus.db.session")
+            if session_module is None:
+                return
+            pools = session_module.cached_engine_pools()
         checked_out, size, overflow = pool_numbers(pools)
         metrics = _metrics()
         metrics["pool_checked_out"].set(checked_out)

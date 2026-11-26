@@ -35,7 +35,7 @@ x-runtime-environment: &runtime-environment
   EUROGAS_NEXUS_LOG_FORMAT: ${EUROGAS_NEXUS_LOG_FORMAT:-json}
   EUROGAS_NEXUS_OTEL_ENABLED: ${EUROGAS_NEXUS_OTEL_ENABLED:-0}
 
-# One JSON log line per record on stdout; Docker rotates the files (5 x 20 MB per container).
+# One JSON log line per record (stderr); Docker rotates the files (5 x 20 MB per container).
 x-logging: &default-logging
   driver: json-file
   options:

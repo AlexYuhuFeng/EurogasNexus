@@ -72,4 +72,4 @@ customer data acceptance must inspect database provenance separately.
   monitoring network; the gateway answers `/metrics` with 404. Alert rules ship in
   `deploy/monitoring/prometheus/` (`docs/operations/MONITORING.md`,
   `docs/operations/ALERT_RESPONSES.md`).
-- **Logs** are JSON lines on standard output, rotated by Docker (5 x 20 MB per container).
+- **Logs** are JSON lines on standard error, rotated by Docker (5 x 20 MB per container).

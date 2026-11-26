@@ -106,7 +106,7 @@ running" when no scheduler has ever reported, the age of the last report otherwi
 
 ## Logs
 
-Every process writes one JSON object per line to standard output (`EUROGAS_NEXUS_LOG_FORMAT`:
+Every process writes one JSON object per line to standard error (`EUROGAS_NEXUS_LOG_FORMAT`:
 `json` by default in trial and release, `text` elsewhere; `EUROGAS_NEXUS_LOG_LEVEL`, default
 `INFO`). The runtime compose file keeps at most five 20 MB files per container
 (`docker compose logs`); ship them to the firm's log platform with its usual collector.

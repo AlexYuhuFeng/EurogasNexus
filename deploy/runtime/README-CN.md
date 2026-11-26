@@ -61,4 +61,4 @@ API wheel 排除可执行市场模拟器；镜像只复制
   `EUROGAS_NEXUS_METRICS_ALLOWED_NETWORKS`，从监控网络抓取 `http://<api>:8000/metrics`；
   网关对 `/metrics` 返回 404。告警规则位于 `deploy/monitoring/prometheus/`
   （见 `docs/operations/MONITORING.md`、`docs/operations/ALERT_RESPONSES.md`）。
-- **日志**为标准输出上的 JSON 行，由 Docker 轮转（每个容器 5 x 20 MB）。
+- **日志**为标准错误输出上的 JSON 行，由 Docker 轮转（每个容器 5 x 20 MB）。

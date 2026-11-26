@@ -790,11 +790,12 @@ FORBIDDEN_LAYER_IMPORTS: dict[str, frozenset[str]] = {
 
 # Documented reverse edges: application modules that import the API layer. The
 # list is frozen so a new reverse edge fails this test instead of being added
-# silently; both entries are recorded as gaps in the W0-03 gap inventory.
+# silently; the entry is recorded as a gap in the W0-03 gap inventory.
+# (application/dataops_observability.py left the list on 2026-11-26, P1-C: it no longer reads
+# the HTTP metrics from the API middleware; both use application/process_metrics.py.)
 API_LAYER_IMPORT_EXCEPTIONS = frozenset(
     {
         "application/agents/research_handlers.py",
-        "application/dataops_observability.py",
     }
 )
 

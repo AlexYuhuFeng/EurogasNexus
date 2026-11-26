@@ -1,6 +1,7 @@
 """Structured JSON logs with the request id and the principal id.
 
-One line per record on standard output, so the container runtime collects and rotates it
+One line per record on standard error (standard output stays for a tool's own report, which
+other tools parse), so the container runtime collects and rotates it
 (the runtime compose file caps each container's log files). Every record written while a
 request is served carries ``request_id`` (also the ``X-Request-Id`` response header) and,
 once the caller is known, ``principal_id``. Nothing else about the caller is logged: no
@@ -186,7 +187,7 @@ def configure_logging(*, service: str = "eurogas-nexus", force: bool = False) ->
         return chosen
     level_name = (os.environ.get("EUROGAS_NEXUS_LOG_LEVEL") or "INFO").strip().upper()
     level = getattr(logging, level_name, logging.INFO)
-    handler = logging.StreamHandler(sys.stdout)
+    handler = logging.StreamHandler(sys.stderr)
     handler.setFormatter(JsonFormatter(service) if chosen == "json" else TextFormatter())
     handler.set_name(_HANDLER_NAME)
     root = logging.getLogger()

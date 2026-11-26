@@ -35,14 +35,9 @@ def scratch_url(monkeypatch):
     monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
     yield url
     with admin.connect() as connection:
-        connection.execute(
-            text(
-                "SELECT pg_terminate_backend(pid) FROM pg_stat_activity WHERE datname = :name "
-                "AND pid <> pg_backend_pid()"
-            ),
-            {"name": name},
-        )
-        connection.execute(text(f'DROP DATABASE IF EXISTS "{name}"'))
+        # FORCE ends the remaining sessions atomically (a terminated backend that is still
+        # exiting would otherwise make the drop fail under load).
+        connection.execute(text(f'DROP DATABASE IF EXISTS "{name}" WITH (FORCE)'))
     admin.dispose()
 
 
