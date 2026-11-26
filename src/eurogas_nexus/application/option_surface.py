@@ -31,6 +31,7 @@ from eurogas_nexus.domain.market.options import (
     SmileQuote,
     choose_option_source,
     option_source_tier,
+    put_call_oi_ratio,
     smile_metrics,
 )
 
@@ -131,22 +132,24 @@ def contract_summary(
         )
         for row in rows
     ]
-    metrics = (
-        smile_metrics(quotes, float(forward), float(tenor)).as_dict()
-        if forward and tenor and tenor > 0
-        else {
+    if forward and tenor and tenor > 0:
+        metrics = smile_metrics(quotes, float(forward), float(tenor)).as_dict()
+    else:
+        # Open interest needs no underlying or tenor, so it is still stated.
+        ratio, ratio_reason = put_call_oi_ratio(quotes)
+        reasons = {"metrics": "expired" if tenor is not None and tenor <= 0 else "no_underlying"}
+        if ratio_reason:
+            reasons["put_call_oi_ratio"] = ratio_reason
+        metrics = {
             "atm_iv_pct": None,
             "call_25d_iv_pct": None,
             "put_25d_iv_pct": None,
             "rr25_vol_pts": None,
             "bf25_vol_pts": None,
-            "put_call_oi_ratio": None,
+            "put_call_oi_ratio": None if ratio is None else round(ratio, 6),
             "strikes_used": 0,
-            "reasons": {
-                "metrics": "expired" if tenor is not None and tenor <= 0 else "no_underlying"
-            },
+            "reasons": reasons,
         }
-    )
     strikes: dict[float, dict[str, Any]] = {}
     for row in sorted(rows, key=lambda item: (item["strike"], item["option_type"])):
         side = "call" if row["option_type"] == "C" else "put"

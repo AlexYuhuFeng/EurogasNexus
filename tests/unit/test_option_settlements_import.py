@@ -239,7 +239,12 @@ def test_an_unchanged_reimport_keeps_the_first_receipt_time() -> None:
 
     first = datetime(2026, 11, 20, 18, 0, tzinfo=UTC)
     again = datetime(2026, 11, 22, 18, 0, tzinfo=UTC)
-    row = {"settlement_id": "s1", "settlement_price": 1.25, "strike": 30.0, "ingested_at_utc": again}
+    row = {
+        "settlement_id": "s1",
+        "settlement_price": 1.25,
+        "strike": 30.0,
+        "ingested_at_utc": again,
+    }
 
     class Session:
         def __init__(self, stored):
@@ -248,8 +253,12 @@ def test_an_unchanged_reimport_keeps_the_first_receipt_time() -> None:
         def get(self, _model, key):
             return self.stored if key == "s1" else None
 
-    stored = SimpleNamespace(settlement_id="s1", settlement_price=1.25, strike=30.0, ingested_at_utc=first)
+    stored = SimpleNamespace(
+        settlement_id="s1", settlement_price=1.25, strike=30.0, ingested_at_utc=first
+    )
     assert script.keep_first_receipt(Session(stored), row)["ingested_at_utc"] == first
-    changed = SimpleNamespace(settlement_id="s1", settlement_price=1.30, strike=30.0, ingested_at_utc=first)
+    changed = SimpleNamespace(
+        settlement_id="s1", settlement_price=1.30, strike=30.0, ingested_at_utc=first
+    )
     assert script.keep_first_receipt(Session(changed), row)["ingested_at_utc"] == again
     assert script.keep_first_receipt(Session(None), row)["ingested_at_utc"] == again
