@@ -274,7 +274,7 @@ GIE_ATTRIBUTION = "Source: GIE (Gas Infrastructure Europe), AGSI+ transparency p
 
 
 @router.get("/api/fundamentals/storage")
-@warm_view(ViewSpec("fundamentals.storage", max_age_seconds=300))
+@warm_view(ViewSpec("fundamentals.storage", max_age_seconds=300, shared_by_scope=True))
 def get_fundamentals_storage(
     request: Request,
     region: str = Query("eu", pattern="^(eu|nwe)$", description="eu (GIE EU aggregate) or nwe"),
@@ -340,7 +340,7 @@ def get_fundamentals_storage(
 
 
 @router.get("/api/fundamentals/lng")
-@warm_view(ViewSpec("fundamentals.lng", max_age_seconds=300))
+@warm_view(ViewSpec("fundamentals.lng", max_age_seconds=300, shared_by_scope=True))
 def get_fundamentals_lng(
     request: Request,
     season: str | None = Query(
@@ -394,7 +394,7 @@ def get_fundamentals_lng(
 
 
 @router.get("/api/fundamentals/forward-balance")
-@warm_view(ViewSpec("fundamentals.forward_balance", max_age_seconds=300))
+@warm_view(ViewSpec("fundamentals.forward_balance", max_age_seconds=300, shared_by_scope=True))
 def get_fundamentals_forward_balance(
     request: Request,
     hub: str = Query("nwe", max_length=16, description="Balance region; nwe is held."),
@@ -440,7 +440,7 @@ def get_fundamentals_forward_balance(
 
 
 @router.get("/api/fundamentals/flows")
-@warm_view(ViewSpec("fundamentals.flows", max_age_seconds=300))
+@warm_view(ViewSpec("fundamentals.flows", max_age_seconds=300, shared_by_scope=True))
 def get_fundamentals_flows(
     request: Request,
     season: str | None = Query(

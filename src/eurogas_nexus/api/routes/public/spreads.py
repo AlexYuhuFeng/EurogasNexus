@@ -67,7 +67,10 @@ class InterpretInput(BaseModel):
 
 
 @router.get("/api/research/spreads/board")
-@warm_view(ViewSpec("research.spreads_board", max_age_seconds=120), skip=as_of_read)
+@warm_view(
+    ViewSpec("research.spreads_board", max_age_seconds=120, shared_by_scope=True),
+    skip=as_of_read,
+)
 def spreads_board(
     request: Request, hubs: str | None = None, as_of: date | None = None
 ) -> dict:

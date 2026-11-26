@@ -578,7 +578,7 @@ def put_book(book_id: str, body: BookRequest, request: Request) -> dict:
 
 
 @router.get("/api/portfolio/map-situation")
-@warm_view(ViewSpec("portfolio.map_situation", max_age_seconds=60))
+@warm_view(ViewSpec("portfolio.map_situation", max_age_seconds=60, shared_by_scope=True))
 def map_situation(
     request: Request,
     outage_horizon_days: int = Query(14, ge=1, le=90),

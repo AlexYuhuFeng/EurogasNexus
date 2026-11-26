@@ -168,7 +168,9 @@ def _gas_closes(request: Request, hub: str, first: date, last: date) -> dict[dat
 
 
 @router.get("/api/market/gas-for-power")
-@warm_view(ViewSpec("market.gas_for_power", max_age_seconds=300), skip=not_json)
+@warm_view(
+    ViewSpec("market.gas_for_power", max_age_seconds=300, shared_by_scope=True), skip=not_json
+)
 def get_gas_for_power(
     request: Request,
     zone: str = Query("DE_LU", max_length=16),
@@ -506,7 +508,7 @@ def calculate_nwe_balance_scenario(payload: NweBalanceRequest, request: Request)
 
 
 @router.get("/api/market/nwe-balance")
-@warm_view(ViewSpec("market.nwe_balance", max_age_seconds=300), skip=not_json)
+@warm_view(ViewSpec("market.nwe_balance", max_age_seconds=300, shared_by_scope=True), skip=not_json)
 def get_nwe_balance(
     request: Request,
     days: int = Query(14, ge=1, le=31),
