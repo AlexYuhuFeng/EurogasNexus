@@ -61,7 +61,7 @@ def list_market_quotes(
 ) -> list[dict] | tuple[list[dict], dict]:
     """List market quotes with optional filters, newest first.
 
-    With ``page`` (``application.keyset_paging.PageRequest``) the read is one keyset page and
+    With ``page`` (``core.keyset_paging.PageRequest``) the read is one keyset page and
     the return is ``(rows, meta.continuation)``.
 
     列出规范化 L1 报价（可按 hub/product/来源过滤，按观测时间倒序）。
@@ -88,7 +88,7 @@ def list_market_quotes(
     if source_system:
         query = query.filter(MarketQuoteRecord.source_system == source_system)
     if page is not None:
-        from eurogas_nexus.application.keyset_paging import continuation, keyset_query
+        from eurogas_nexus.core.keyset_paging import continuation, keyset_query
 
         found = keyset_query(
             query, page, ts_column=MarketQuoteRecord.observed_at_utc,

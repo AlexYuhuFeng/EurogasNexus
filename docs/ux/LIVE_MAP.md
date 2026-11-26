@@ -149,7 +149,7 @@ no key; "© OpenStreetMap contributors, © OpenMapTiles" sits in the map's corne
 |---|---|---|
 | Normal | OpenStreetMap (OpenFreeMap) | Detail to street level, commercial use allowed |
 | Offline, or OpenFreeMap unreachable | Bundled outline (Natural Earth, public domain) | Automatic; the map says it is showing the outline |
-| Mainland China installation | Bundled outline | Published maps of China need an approved provider; the outline draws no borders |
+| Mainland China installation | Bundled outline | Published maps of China need an approved provider; the outline draws no borders and no place names |
 
 There is no provider choice in Settings. `EUROGAS_NEXUS_MAP_DEFAULT_PROVIDER=outline` forces the
 outline (an air-gapped site). The outline is rebuilt with `scripts/ui/build_offline_basemap.py`

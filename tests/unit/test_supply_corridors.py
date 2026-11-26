@@ -49,6 +49,19 @@ def test_the_owners_corridors_are_all_there(by_id):
     } == set(by_id)
 
 
+def test_a_shared_entry_point_is_marked_so_its_flow_is_not_the_corridors(data, by_id):
+    # Langeled lands at Easington and Vesterled at St Fergus; both points also carry UK shelf
+    # gas, so the point's whole flow must not be presented as the corridor's.
+    marked = {corridor.id for corridor in CORRIDORS if corridor.shared_entry_point}
+    assert marked == {"langeled", "vesterled"}
+    for corridor in CORRIDORS:
+        if not corridor.shared_entry_point:
+            continue
+        assert corridor.notes and "also receives" in corridor.notes, corridor.id
+    for cid, item in by_id.items():
+        assert item.get("shared_entry_point", False) == (cid in marked), cid
+
+
 @pytest.mark.parametrize(
     ("corridor", "point"),
     [

@@ -312,8 +312,11 @@ export function WorkspaceTopBar({
           aria-keyshortcuts={keyboardHints ? "Control+K Meta+K" : undefined}
         >
           <Icon name="search" className="topbar-command-icon" />
-          {/* Search says so in words wherever there is room (a magnifier alone was unclear). */}
-          <span className="topbar-command-label">{widthClass === "wide" ? t("topbar.command") : t("topbar.search")}</span>
+          {/* Search says so in words where the bar has room; at compact width it is the
+              magnifier alone (the aria-label keeps its name). */}
+          {!compact && (
+            <span className="topbar-command-label">{widthClass === "wide" ? t("topbar.command") : t("topbar.search")}</span>
+          )}
           {keyboardHints && <kbd aria-hidden="true">{shortcutLabel}</kbd>}
         </button>
       )}

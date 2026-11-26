@@ -3,22 +3,15 @@
     npm pack world-atlas@2.0.2 && tar xzf world-atlas-2.0.2.tgz
     python scripts/ui/build_offline_basemap.py package/land-50m.json
 
-Borders and place labels for the bundled basemap (the ``bundled`` provider), from the Natural
-Earth 1:50m GeoJSON (public domain; github.com/nvkelso/natural-earth-vector, ``geojson/``):
-``ne_50m_admin_0_boundary_lines_land``, ``ne_50m_admin_0_countries`` (label points and names)
-and ``ne_50m_populated_places`` (cities, with English and Chinese names):
-
-    python scripts/ui/build_offline_basemap.py --natural-earth <folder with those three files>
-
-These land in ``clients/web/public/basemaps/`` beside the land polygons; the glyphs their
-labels are drawn with are built from the bundled Inter by ``scripts/ui/build_map_glyphs.mjs``.
+The output lands in ``clients/web/public/basemaps/``; its label glyphs are built from the
+bundled Inter by ``scripts/ui/build_map_glyphs.mjs``.
 
 Natural Earth is public domain (commercial use allowed, no attribution required; credited
 anyway); world-atlas packages it as TopoJSON under ISC. The output is land polygons only,
-with no country borders, clipped to Europe, North Africa and the Middle East
-(``BBOX``). It therefore draws no Chinese territory and no disputed boundary, which keeps
-it usable in a mainland China installation, where published maps of China need approval
-(审图号), and in air-gapped networks, where no tile service is reachable.
+with no country borders and no place names, clipped to Europe, North Africa and the Middle
+East (``BBOX``). It therefore draws no Chinese territory and no disputed boundary, which
+keeps it usable in a mainland China installation, where published maps of China need
+approval (审图号), and in air-gapped networks, where no tile service is reachable.
 """
 
 from __future__ import annotations
@@ -206,118 +199,7 @@ def build(source: Path) -> dict:
     }
 
 
-#: Place labels kept: cities up to this Natural Earth scale rank (0 = most prominent).
-MAX_PLACE_RANK = 7
-BORDERS_OUTPUT = OUTPUT.with_name("borders-trading-region.geojson")
-PLACES_OUTPUT = OUTPUT.with_name("places-trading-region.geojson")
-
-
-def _inside(lon: float, lat: float) -> bool:
-    west, south, east, north = BBOX
-    return west <= lon <= east and south <= lat <= north
-
-
-def _clip_line(line: list[tuple[float, float]]) -> list[list[tuple[float, float]]]:
-    """The parts of a line inside the bounding box (a part leaving it is cut at the edge)."""
-
-    parts: list[list[tuple[float, float]]] = []
-    current: list[tuple[float, float]] = []
-    for point in line:
-        if _inside(*point):
-            current.append(point)
-        elif current:
-            parts.append(current)
-            current = []
-    if current:
-        parts.append(current)
-    return [part for part in parts if len(part) >= 2]
-
-
-def build_borders(natural_earth: Path) -> dict:
-    """Land boundaries between countries (de facto, as Natural Earth draws them), in region."""
-
-    source = json.loads((natural_earth / "ne_50m_admin_0_boundary_lines_land.geojson").read_text())
-    lines = []
-    for feature in source["features"]:
-        geometry = feature["geometry"]
-        parts = (
-            geometry["coordinates"]
-            if geometry["type"] == "MultiLineString"
-            else [geometry["coordinates"]]
-        )
-        for part in parts:
-            for clipped in _clip_line([(float(x), float(y)) for x, y in part]):
-                simplified = _simplify_line(clipped)
-                lines.append([[round(x, 3), round(y, 3)] for x, y in simplified])
-    return {
-        "type": "FeatureCollection",
-        "features": [
-            {
-                "type": "Feature",
-                "properties": {"source": "Natural Earth 1:50m boundary lines (public domain)"},
-                "geometry": {"type": "MultiLineString", "coordinates": lines},
-            }
-        ],
-    }
-
-
-def build_places(natural_earth: Path) -> dict:
-    """Country names at their label point and the region's main cities, English and Chinese."""
-
-    features = []
-    countries = json.loads((natural_earth / "ne_50m_admin_0_countries.geojson").read_text())
-    for feature in countries["features"]:
-        props = feature["properties"]
-        lon, lat = float(props["LABEL_X"]), float(props["LABEL_Y"])
-        if not _inside(lon, lat):
-            continue
-        features.append(
-            {
-                "type": "Feature",
-                "properties": {
-                    "kind": "country",
-                    "name_en": props.get("NAME_EN") or props["NAME"],
-                    "name_zh": props.get("NAME_ZH") or props.get("NAME_EN") or props["NAME"],
-                    "rank": int(props.get("LABELRANK") or 5),
-                },
-                "geometry": {"type": "Point", "coordinates": [round(lon, 3), round(lat, 3)]},
-            }
-        )
-    places = json.loads((natural_earth / "ne_50m_populated_places.geojson").read_text())
-    for feature in places["features"]:
-        props = feature["properties"]
-        lon, lat = float(props["LONGITUDE"]), float(props["LATITUDE"])
-        rank = int(props.get("SCALERANK") or 10)
-        if not _inside(lon, lat) or rank > MAX_PLACE_RANK:
-            continue
-        features.append(
-            {
-                "type": "Feature",
-                "properties": {
-                    "kind": "capital" if props.get("ADM0CAP") else "city",
-                    "name_en": props.get("NAME_EN") or props["NAME"],
-                    "name_zh": props.get("NAME_ZH") or props.get("NAME_EN") or props["NAME"],
-                    "rank": rank,
-                },
-                "geometry": {"type": "Point", "coordinates": [round(lon, 3), round(lat, 3)]},
-            }
-        )
-    features.sort(
-        key=lambda item: (item["properties"]["kind"] != "country", item["properties"]["rank"])
-    )
-    return {"type": "FeatureCollection", "features": features}
-
-
 def main(argv: list[str]) -> int:
-    if len(argv) == 3 and argv[1] == "--natural-earth":
-        folder = Path(argv[2])
-        for path, data in (
-            (BORDERS_OUTPUT, build_borders(folder)),
-            (PLACES_OUTPUT, build_places(folder)),
-        ):
-            path.write_text(json.dumps(data, separators=(",", ":"), ensure_ascii=False) + "\n")
-            print(f"wrote {path} ({path.stat().st_size // 1024} KiB)")
-        return 0
     if len(argv) != 2:
         print(__doc__)
         return 2

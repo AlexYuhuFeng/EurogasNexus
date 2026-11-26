@@ -78,7 +78,9 @@ test("without a reported ETA one is computed from distance and speed, and says s
   assert.ok(speed > 9 && speed < 11, String(speed));
   const eta = cargoEta(cargo(), NOW);
   assert.equal(eta.basis, "computed");
-  assert.ok(eta.distanceNm! > 750 && eta.distanceNm! < 900, String(eta.distanceNm));
+  // The remaining leg follows the indicative sea lanes (Ushant, Dover), not a straight line.
+  assert.ok(eta.distanceNm! > 900 && eta.distanceNm! < 1000, String(eta.distanceNm));
+  assert.ok(eta.distanceNm! > distanceNm([-10, 40], [3.2, 51.33]));
   assert.ok(eta.remainingMs! > 0);
   assert.match(etaBasisPhrase(eta, t), /^map\.cargo\.basis\.computed\(speed=\d+\.\d,distance=\d+\)$/);
   // A vessel not under way, or with no timed fixes, gets no invented ETA.

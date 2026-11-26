@@ -4,7 +4,7 @@ import { useApiStore } from "@/stores/api";
 import { api, type EdgeDTO, type NodeDTO, type RouteEligibilityDTO, type TodayNeedsMeItemDTO } from "@/api/client";
 import { buildVisibleMapNetworkLines } from "@/app/networkMapLines";
 import { legPaths, zoneMemberIds } from "@/app/mapLineGeometry";
-import { corridorFlowDay } from "@/app/mapCorridors";
+import { corridorFlowDay, corridorFlowText } from "@/app/mapCorridors";
 import { readKey, useCachedRead } from "@/app/data/readCache";
 import { INTENSITY_METRICS, rankIntensity, intensityPoints, type IntensityDatum, type IntensityMetric } from "@/app/mapIntensity";
 import type { SupplyCorridorDTO } from "@/api/client";
@@ -558,9 +558,7 @@ export function NetworkWorkspace({
         </dd>
         <dt>{t("map.corridor.card.flow")}</dt>
         <dd>
-          {pickedCorridor.latest_flow_gwh_d === null
-            ? t("map.corridor.not_published")
-            : `${Math.round(pickedCorridor.latest_flow_gwh_d).toLocaleString("en-GB")} GWh/d`}
+          {corridorFlowText(pickedCorridor, tr)}
           {pickedCorridor.latest_flow_gwh_d !== null && corridorFlowDay(pickedCorridor)
             ? <small className="muted"> · {tr("map.intensity.gas_day", { day: corridorFlowDay(pickedCorridor) })}</small>
             : null}

@@ -34,6 +34,7 @@ from eurogas_nexus.domain.market.options import (
     put_call_oi_ratio,
     smile_metrics,
 )
+from eurogas_nexus.domain.ontology.provenance import is_simulated
 
 #: Metrics a series can carry, with their desk unit (``options.<metric>.<hub>.M<n>``).
 OPTION_SERIES_METRICS = {
@@ -164,7 +165,7 @@ def contract_summary(
             "open_interest": row.get("open_interest"),
             "volume": row.get("volume"),
         }
-    simulated = any(row.get("simulated") for row in rows) or source.endswith("_Sim")
+    simulated = is_simulated(source) or any(is_simulated(source, row) for row in rows)
     return {
         "hub": first["hub"],
         "contract": first["contract"],
