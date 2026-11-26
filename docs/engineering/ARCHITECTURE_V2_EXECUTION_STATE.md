@@ -6,6 +6,29 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — Phase 1, P1-A merged onto P1-C (branch `p1-int`, not pushed)
+
+- Conflicts resolved keeping both sides: both runtime dependencies (`prometheus-client` 0.26.0,
+  `valkey` 6.2.0 with `async-timeout` below Python 3.11.3), both hash pins unchanged in both
+  locks; `THIRD_PARTY_NOTICES.md` regenerated (34 python-runtime packages); licence review 48.
+- **Metrics, one mechanism.** P1-A's hand-written exposition lines are gone; its pool counters
+  (`eurogas_db_pool_{checkouts,waits,timeouts,wait_seconds}_total`) and poller counters
+  (`eurogas_stream_{polls,poll_seconds,poll_failures,refused}_total`) are `prometheus_client`
+  counters in `application/process_metrics.py`, summed over workers. Pool gauges and counters
+  read one source, `db.session.pool_state` (`pool_counters` plus occupancy); `observe_pools`
+  still never imports the database layer. `eurogas_stream_open` dropped for P1-C's
+  `eurogas_stream_connections{topic}`.
+- New alert EurogasDbPoolExhausted (timeouts, or over 10 % of checkouts waited; 13 rules,
+  promtool tests pass). Preflight warns when several API processes have no shared metrics
+  directory. The poller logs a poll that cannot reach the store (JSON, throttled); before,
+  the usual outage was answered with warning events and logged nothing.
+- Checked: compose.scale.yaml multiplies only the API (scheduler and workers stay single,
+  release never upgrades on start); only the API lifespan sets the 30 s statement timeout.
+  Real 2-worker uvicorn with scratch PostgreSQL 16 and Valkey 8: one scrape, each family once,
+  counters equal to the sum of the two workers' files (checkouts 92 + 98 = 190).
+- Fixed tests that failed on one branch alone: four preflight tests (p1-C) and the liveness
+  test (p1-A, `health_live` is async).
+
 ## 2026-11-26 — Phase 1, P1-A serving: one poller per process, several processes, Valkey (branch `p1-A`, not pushed)
 
 - Decision record accepted and renamed:
