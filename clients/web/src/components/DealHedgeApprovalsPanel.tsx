@@ -9,7 +9,7 @@ import { PanelHelp } from "@/components/ui/PanelHelp";
 import { FigureProvenance } from "./FigureProvenance";
 import { PENDING_CHANGES_KEY } from "./PendingChangesPanel";
 import { useLineageLookup } from "./CommercialWarningList";
-import { breachSummary, breachText } from "@/app/model/limitBreaches";
+import { breachSummary, breachText, pctRangeText } from "@/app/model/limitBreaches";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -105,7 +105,7 @@ export function DealHedgeApprovalsPanel({ t, canMaintainRisk }: { t: Translate; 
       id: "hedged",
       header: t("hedgeapproval.hedged"),
       value: (row) => row.hedge_range ?? null,
-      render: (row) => <>{row.hedge_range ?? "–"} <small className="muted">{t("hedgeapproval.trades", { count: row.linked_trades })}</small></>,
+      render: (row) => <>{row.hedge_range ? pctRangeText(row.hedge_range, t) : "–"} <small className="muted">{t("hedgeapproval.trades", { count: row.linked_trades })}</small></>,
     },
     {
       id: "room",

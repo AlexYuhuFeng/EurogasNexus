@@ -104,3 +104,12 @@ export function breachSummary(
     });
   });
 }
+
+/** "12% to 87%" (`limits.py` `_pct_range`) in the reader's language; anything else as sent. */
+export function pctRangeText(text: string | null | undefined, t: Translate): string {
+  const match = /^(-?\d+)% to (-?\d+)%$/.exec(String(text ?? "").trim());
+  if (!match) return String(text ?? "");
+  const key = "limits.pct_range";
+  const said = t(key, { low: match[1], high: match[2] });
+  return said === key ? String(text) : said;
+}

@@ -2994,6 +2994,7 @@
   "limits.net": "净敞口",
   "limits.used": "占用",
   "limits.status": "状态",
+  "limits.pct_range": "{{low}}% 至 {{high}}%",
   "limits.breach.outside_mandate": "{{hub}} 不在授权范围内（{{ref}}）",
   "limits.breach.physical_not_allowed": "不允许实物供应（{{ref}}）",
   "limits.breach.financial_not_allowed": "不允许金融交易（{{ref}}）",

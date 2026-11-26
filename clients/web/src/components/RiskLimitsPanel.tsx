@@ -27,7 +27,7 @@ import { ConvertedValue } from "@/components/ui/ConvertedValue";
 import { useApiStore } from "@/stores/api";
 import { serverWarningText } from "@/app/warningLabel";
 import { useLineageLookup } from "./CommercialWarningList";
-import { breachSummary } from "@/app/model/limitBreaches";
+import { breachSummary, pctRangeText } from "@/app/model/limitBreaches";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -352,7 +352,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
       header: t("limits.hedge"),
       render: (row) => (
         <>
-          {row.hedge_ratio_range ?? "–"}
+          {row.hedge_ratio_range ? pctRangeText(row.hedge_ratio_range, t) : "–"}
           {row.hedge_policy && <small className="muted"> / {row.hedge_policy}</small>}
           {row.hedge_room_mwh !== null && <small className="muted"> · {t("limits.hedge_room", { room: formatQuantity(row.hedge_room_mwh) })}</small>}
           {row.instruments !== "any" && <small className="muted"> · {row.instruments}</small>}

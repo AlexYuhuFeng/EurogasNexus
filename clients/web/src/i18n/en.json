@@ -2994,6 +2994,7 @@
   "limits.net": "Net exposure",
   "limits.used": "Used",
   "limits.status": "Status",
+  "limits.pct_range": "{{low}}% to {{high}}%",
   "limits.breach.outside_mandate": "{{hub}} is outside the mandate ({{ref}})",
   "limits.breach.physical_not_allowed": "Physical supply is not allowed ({{ref}})",
   "limits.breach.financial_not_allowed": "Financial trades are not allowed ({{ref}})",

@@ -45,3 +45,9 @@ test("a contract reference is named, -0% reads 0%, and a band breached month aft
   assert.deepEqual(breachSummary(many, t), ["3 个月低于批准的 60%（2026-11 至 2027-01）"]);
   assert.deepEqual(breachSummary("something new; TTF is outside the mandate (X)", t), ["something new", "TTF 不在授权范围内（X）"]);
 });
+
+test("a hedge range reads in the reader's language", async () => {
+  const { pctRangeText } = await import("../src/app/model/limitBreaches.ts");
+  assert.equal(pctRangeText("0% to 44%", t), "0% 至 44%");
+  assert.equal(pctRangeText("12%", t), "12%");
+});
