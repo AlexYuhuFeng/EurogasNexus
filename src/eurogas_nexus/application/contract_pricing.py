@@ -115,7 +115,7 @@ class IndexLookup:
             unit=f"{currency}/MWh",
             input_class="simulated" if demo_marks_allowed() else "indicative",
             source_ref=f"forward curve: {code} {delivery} (an estimate, not the index)",
-            as_of=self.today.isoformat(),
+            as_of=(self._curve.as_of.get(code) or self.today).isoformat(),
         )
 
     # ---- Henry Hub, Brent, JKM

@@ -75,6 +75,25 @@ class Holdings:
     #: TAR-2: the firm's pipeline bookings and its configured source order.
     bookings: list[Any] = field(default_factory=list)
     orders: dict[str, Any] = field(default_factory=dict)
+    #: Reads the register's rows of one capacity product (``load_tariff_rows``); ``None``
+    #: (fixtures) takes them from ``tariffs``.
+    tariff_loader: Any = None
+    _by_product: dict[str, list[dict[str, Any]]] = field(default_factory=dict, repr=False)
+
+    def tariff_rows_for(self, product: str) -> list[dict[str, Any]]:
+        """The register rows of one capacity product (a row naming none counts for any)."""
+
+        product = product.upper()
+        if product not in self._by_product:
+            if self.tariff_loader is not None and product != "ANNUAL":
+                rows = list(self.tariff_loader(product))
+            else:
+                rows = [
+                    row for row in self.tariffs
+                    if str(row.get("capacity_product") or "").upper() in {"", product}
+                ]
+            self._by_product[product] = rows
+        return self._by_product[product]
 
     def hubs(self) -> list[str]:
         return [hub["hub"] for hub in self.catalogue.get("hubs", [])]
@@ -574,4 +593,5 @@ def load_holdings(who: Any, *, today: date | None = None) -> Holdings:
     rows = daily_rows(who)
     bookings, orders = load_route_capacity()
     return Holdings(rows, load_fx(who), load_tariff_rows(), today,
-                    build_catalogue(rows, today=today), bookings, orders)
+                    build_catalogue(rows, today=today), bookings, orders,
+                    tariff_loader=lambda product: load_tariff_rows(product=product))

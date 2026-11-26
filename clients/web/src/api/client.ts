@@ -2315,7 +2315,25 @@ export interface TodaySpreadDTO extends TodayFigureDTO {
     net?: number;
     via?: string[];
     reason?: string;
+    /** The capacity product the cost is priced on (MONTHLY for the front month): the
+     * marginal cost, with the flow charges and the yearly capacity sunk beside it. */
+    product?: string;
+    marginal?: MarginalRouteCostDTO;
   };
+}
+
+/** The marginal transport cost of a prompt spread (quant review 2026-11-26). */
+export interface MarginalRouteCostDTO {
+  product: string;
+  capacity: number | null;
+  commodity: number | null;
+  fuel_pct: number | null;
+  fuel: number | null;
+  flow_not_held: string[];
+  total: number | null;
+  /** What a desk that already holds capacity pays: the flow charges only. */
+  holder: number | null;
+  sunk_capacity: { product: string; load_factor: number; value: number | null; complete: boolean } | null;
 }
 
 /** Design basis 2, E.2 row 1: my market. */
@@ -3832,12 +3850,19 @@ export interface PositionLadderRowDTO {
   month: string;
   physical_mwh: number;
   financial_mwh: number;
+  /** Net volume: physical plus financial MWh. */
   net_mwh: number;
+  /** Flat-price exposure index-priced contracts hand to this hub's index (opposite sign). */
+  index_mwh?: number;
+  /** Net flat-price exposure (physical + index + financial): what the net position, the hedge
+   * ratio and VaR read. Equals `net_mwh` when no contract is index-priced. */
+  price_exposure_mwh?: number;
+  /** Share of the physical legs' flat-price exposure offset by financial trades. */
   hedge_ratio: number | null;
   /** Price the month is marked at, in the hub's unit; null when nothing marks it. */
   mark?: number | null;
   /** "quoted" (a tick or settlement), "firm_mark", "derived" (from a quarter, season or
-   * year), "front" (prompt) or "flat". */
+   * year) or "front" (balance of month); null for a month no quote prices. */
   mark_method?: string | null;
   /** The unit of `mark`: the hub's currency per MWh. */
   mark_unit?: string;
@@ -4594,6 +4619,8 @@ export interface LadderRollupDTO {
   physical_mwh: number;
   financial_mwh: number;
   net_mwh: number;
+  /** Net flat-price exposure (an index-priced contract on its index). */
+  price_exposure_mwh?: number;
   hedge_ratio: number | null;
   mark_to_market: number | null;
   legs: number;
@@ -5279,15 +5306,22 @@ export interface TradingBookInput {
 export interface ForwardCurvePointDTO {
   hub: string;
   month: string;
-  price: number;
+  /** null for a month no quote prices (`method` "not_available"). */
+  price: number | null;
+  /** "quoted", "derived", "front" (balance of month) or "not_available". */
   method: string;
+  /** How the point was obtained, in words: "quoted", "derived from Q1-27", "not available". */
+  basis?: string;
   source: string;
+  /** The quote's trade date and its age in days against the hub's curve as-of. */
+  as_of?: string | null;
+  age_days?: number | null;
   warning: string | null;
 }
 
 export interface PositionLadderDTO {
   rows: PositionLadderRowDTO[];
-  totals: { physical_mwh: number; financial_mwh: number; net_mwh: number; gross_tenor_mwh?: number };
+  totals: { physical_mwh: number; financial_mwh: number; net_mwh: number; price_exposure_mwh?: number; index_mwh?: number; gross_tenor_mwh?: number };
   /** Per hub: net and gross (sum of |net| over months) MWh (#53). */
   tenor_exposure?: { hub: string; net_mwh: number; gross_mwh: number; months_held: number }[];
   /** Hubs long in one delivery month and short in another; hub-net VaR is withheld for them. */

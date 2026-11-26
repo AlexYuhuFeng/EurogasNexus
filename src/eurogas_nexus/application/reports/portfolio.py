@@ -656,9 +656,15 @@ def _ladder(data: dict[str, Any], legs, *, start: date, end: date, fx=None, curr
     from eurogas_nexus.domain.portfolio.position_ladder import ladder_report
 
     inputs = data["inputs"]
+    valuation = (
+        inputs.valuation(currency, data["w"]["today"])
+        if currency and hasattr(inputs, "valuation") else None
+    )
     return ladder_report(legs, horizon_start=start, horizon_end=end, marks=inputs.marks,
                          daily_closes_by_hub=inputs.closes, fx_by_hub=fx,
-                         reporting_currency=currency)
+                         reporting_currency=currency,
+                         close_contracts_by_hub=getattr(inputs, "close_contracts", None),
+                         valuation=valuation)
 
 
 def _mtm(data: dict[str, Any], legs, start: date, end: date) -> float | None:
@@ -666,8 +672,18 @@ def _mtm(data: dict[str, Any], legs, start: date, end: date) -> float | None:
 
     if not legs:
         return None
-    value, _missing = mark_to_market(legs, data["inputs"].marks, horizon_start=start,
-                                     horizon_end=end)
+    from eurogas_nexus.domain.ontology.markets import quote_currency
+
+    inputs = data["inputs"]
+    currencies = {quote_currency(leg.hub) for leg in legs}
+    # One hub currency (each table row is one hub): discounted, at the forward for any price
+    # agreed in another currency (``mtm_valuation``).
+    valuation = (
+        inputs.valuation(currencies.pop(), data["w"]["today"])
+        if len(currencies) == 1 and hasattr(inputs, "valuation") else None
+    )
+    value, _missing = mark_to_market(legs, inputs.marks, horizon_start=start,
+                                     horizon_end=end, valuation=valuation)
     return value
 
 
@@ -892,7 +908,7 @@ def outlook(ctx: Ctx) -> SectionResult:
                 continue
             out["supply"] += max(row.physical_mwh, 0.0) + max(row.financial_mwh, 0.0)
             out["sold"] += -min(row.physical_mwh, 0.0) - min(row.financial_mwh, 0.0)
-            out["net"] += row.net_mwh
+            out["net"] += row.price_exposure_mwh  # open = flat-price exposure
         return out
 
     bucket_rows = []
@@ -936,7 +952,7 @@ def outlook(ctx: Ctx) -> SectionResult:
     result.charts.append({
         "id": "fig.pf_outlook", "type": "stacked_bar", "months": True,
         "title": T("Open position by delivery month", "按交付月的敞口"), "unit": "GWh",
-        "series": [{"name": hub, "points": [[m + "-01", _gwh(cell[(hub, m)].net_mwh)
+        "series": [{"name": hub, "points": [[m + "-01", _gwh(cell[(hub, m)].price_exposure_mwh)
                                              if (hub, m) in cell else 0.0] for m in months]}
                    for hub in hubs],
     })
@@ -1080,7 +1096,8 @@ def _hedge_bands(data: dict[str, Any]) -> list[dict[str, Any]]:
 
         def volume(item, last=until):
             return VolumeLeg(item.reference, item.first_gas_day, min(item.last_gas_day, last),
-                             item.mwh_per_day)
+                             item.mwh_per_day,
+                             floating=getattr(item, "index_hub", None) is not None)
 
         usage = deal_hedge_usage(
             HedgeApproval(contract_id=approval.contract_id,

@@ -242,6 +242,11 @@ def test_tender_and_des_cargo_reach_the_ladder_and_the_master_does_not(
     first_month = tender["period_start"][:7]
     nbp = next(r for r in data["rows"] if r["hub"] == "NBP" and r["month"] == first_month)
     assert nbp["physical_mwh"] > 0
+    # The tender is priced at the NBP day-ahead index: its volume is on the ladder, its
+    # flat-price exposure on the index (quant review 2026-11-26), so nothing to hedge.
+    assert nbp["index_mwh"] == -nbp["physical_mwh"]
+    assert nbp["price_exposure_mwh"] == 0
+    assert nbp["hedge_ratio"] is None
     cargo = cargo_terms(TODAY)
     ttf = next(
         r for r in data["rows"] if r["hub"] == "TTF" and r["month"] == cargo["window_start"][:7]

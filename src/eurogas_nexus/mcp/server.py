@@ -335,7 +335,9 @@ def _tool_optimize_storage_dispatch_sandbox(arguments: dict[str, Any]) -> Any:
         _base_url(),
         facility=arguments.get("facility"),
         periods=arguments.get("periods"),
-        inventory_step_mwh=float(arguments.get("inventory_step_mwh") or 1.0),
+        inventory_step_mwh=(
+            float(arguments["inventory_step_mwh"]) if arguments.get("inventory_step_mwh") else None
+        ),
         decision_context="SANDBOX_SCENARIO",
         max_periods=int(arguments.get("max_periods") or 5),
     )

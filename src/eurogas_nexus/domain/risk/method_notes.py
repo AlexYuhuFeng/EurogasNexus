@@ -40,10 +40,17 @@ _NOTES: tuple[MethodNote, ...] = (
         "var_proxy",
         "One-day 95% historical-simulation proxy over {observations} one-day changes of "
         "daily closes: the net open position per hub times each day's change in that hub's "
-        "close, summed across hubs, and the loss at the 5th percentile.",
+        "close, summed across hubs, and the loss at the 5th percentile. Given only with at "
+        "least 250 changes (one year of trading days); with fewer it says not enough history.",
         includes=(
             ("legs", "Physical contracts and filled screen trades in the books you can see"),
-            ("closes", "Daily closes of each hub held: month-ahead, else day-ahead"),
+            ("index", "Index-priced contracts by their flat-price exposure: on their index, "
+                      "not long or short the hub's flat price"),
+            ("closes", "One series per hub: its month-ahead closes from one source, or its "
+                       "day-ahead closes where no month-ahead history is held; a missing day "
+                       "is a gap, never filled with another product"),
+            ("rolls", "Moves within one contract only: the day a rolling series changes "
+                      "contract, and a gap of more than four days, are not scenarios"),
         ),
         excludes=(
             ("basis", "Basis between delivery months: one price series per hub"),
@@ -55,12 +62,21 @@ _NOTES: tuple[MethodNote, ...] = (
     MethodNote(
         "mark_to_market",
         "Each leg valued as (mark minus contract price) times its remaining MWh, month by "
-        "month, at the forward-curve mark for its hub and month, in the reporting currency "
-        "at the ECB rate.",
+        "month, at the forward-curve mark for its hub and month, converted into the reporting "
+        "currency at the forward FX for the delivery month and discounted to the month's "
+        "payment date (the 20th of the month after) at that currency's overnight benchmark.",
         includes=(
             ("legs", "Physical contracts and filled screen trades in the books you can see"),
-            ("curve", "Forward curve from the latest entitled quotes; a month without a "
-                      "quote is marked flat at the hub's latest daily close"),
+            ("curve", "Forward curve from one snapshot of entitled quotes per hub: one "
+                      "as-of, settlements first, then the hub's main source, each quote no "
+                      "older than its tenor allows; a season or year is shaped by the quoted "
+                      "quarters; a month no quote prices is not available, never filled with "
+                      "another product's close"),
+            ("index", "Index-priced contracts valued on their premium over the index's mark, "
+                      "and on the basis when the index is another hub's"),
+            ("rates", "Forward FX derived from the ECB reference rates and SONIA, €STR and "
+                      "SOFR (a licensed forward first); where none can be derived, the spot "
+                      "rate, and where no benchmark is held, undiscounted, as the read says"),
         ),
         excludes=(
             ("unpriced", "Legs without a mark, a contract price or an FX rate: counted as "
@@ -75,6 +91,8 @@ _NOTES: tuple[MethodNote, ...] = (
         "each month's absolute net position, what a curve shock acts on.",
         includes=(
             ("legs", "Physical contracts and filled screen trades in the books you can see"),
+            ("index", "Flat-price exposure: an index-priced contract is on its index, so a "
+                      "contract priced at its own hub's index adds volume but no exposure"),
         ),
         excludes=(
             ("price", "Prices: a volume figure, not a value"),
@@ -102,6 +120,8 @@ _NOTES: tuple[MethodNote, ...] = (
             ("legs", "The counterparty's supply contracts and ETRM trades in the books you "
                      "can see, marked as the position ladder marks them"),
             ("evergreen", "Evergreen contracts only to the end of the current gas year"),
+            ("rates", "Replacement value at the forward FX for each delivery month, discounted "
+                      "to its payment date, as the ladder's mark-to-market"),
         ),
         excludes=(
             ("pfe", "Potential future exposure: today's exposure only"),
@@ -118,6 +138,8 @@ _NOTES: tuple[MethodNote, ...] = (
         includes=(
             ("legs", "Physical contracts and filled screen trades in the mandate's books"),
             ("evergreen", "Evergreen contracts only to the end of the current gas year"),
+            ("index", "Net size and hedge cover in flat-price exposure: an index-priced "
+                      "contract is on its index and needs no hedge"),
         ),
         excludes=(
             ("value", "Prices and P&L: a volume limit, not a loss limit"),
@@ -155,7 +177,9 @@ _NOTES: tuple[MethodNote, ...] = (
         "last two daily closes: the position ladder's flat-curve move, not a revaluation.",
         includes=(
             ("legs", "Physical contracts and filled screen trades in the books you can see"),
-            ("closes", "The hub's last two daily closes: month-ahead, else day-ahead"),
+            ("closes", "The hub's last two daily closes of one series (month-ahead, or "
+                       "day-ahead where no month-ahead history is held) and of one contract: "
+                       "no figure across a roll"),
         ),
         excludes=(
             ("basis", "Moves that differ between delivery months"),

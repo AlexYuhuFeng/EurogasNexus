@@ -214,6 +214,10 @@ def _persist_run_row(
 
     result_snapshot = {
         "run_type": "BACKTEST",
+        # Quant review 2026-11-26: the P&L is the margin at the decision's reference price,
+        # not realised against a later price, so the run is a signal study (said, not hidden).
+        "evaluation_kind": result.evaluation_kind,
+        "pnl_basis": result.pnl_basis,
         "strategy_name": (version.definition_json or {}).get("strategy_name")
         or version.strategy_id,
         "status": result.status,

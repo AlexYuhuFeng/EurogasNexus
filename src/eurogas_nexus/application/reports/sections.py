@@ -1280,8 +1280,8 @@ def _hub_ok(ctx: Ctx, hub: str) -> bool:
 
 def book_position(ctx: Ctx) -> SectionResult:
     from eurogas_nexus.application.desk_today import (
-        BOOK_HORIZON_MONTHS,
         _month_start,
+        book_horizon,
         front_month_label,
     )
     from eurogas_nexus.domain.portfolio.position_ladder import build_ladder
@@ -1292,14 +1292,14 @@ def book_position(ctx: Ctx) -> SectionResult:
     positions = {h: v for h, v in book.positions.items() if _hub_ok(ctx, h)}
     if not positions:
         return _empty(result, "No position is held in the books you may see", "Open Position")
-    end = _month_start(ctx.today, BOOK_HORIZON_MONTHS + 1) - timedelta(days=1)
+    _start, end = book_horizon(ctx.today)
     legs = [leg for leg in book.inputs.legs if _hub_ok(ctx, leg.hub.upper())]
     ladder = build_ladder(legs, horizon_start=ctx.today, horizon_end=end)
     months = sorted({row.month for row in ladder})[:12]
     hubs = sorted(positions)
     cells: dict[tuple[str, str], float] = defaultdict(float)
     for row in ladder:
-        cells[(row.month, row.hub)] += row.net_mwh
+        cells[(row.month, row.hub)] += row.price_exposure_mwh
     rows = []
     for month in months:
         first = date.fromisoformat(month + "-01")
@@ -1309,8 +1309,9 @@ def book_position(ctx: Ctx) -> SectionResult:
         rows.append({"product": f"{first:%b-%y}",
                      **{hub: round(cells.get((month, hub), 0.0) / days, 0) for hub in hubs}})
     result.tables.append(table(
-        T("Net position by delivery month, MWh/d (long positive)",
-          "按交割月份的净头寸，MWh/d（多头为正）"),
+        T("Net price exposure by delivery month, MWh/d (long positive; an index-priced "
+          "contract on its index)",
+          "按交割月份的净价格敞口，MWh/d（多头为正；指数定价合同计入其指数）"),
         [("product", T("Product", "合约"), "text")] + [(hub, hub, "signed") for hub in hubs],
         rows,
     ))

@@ -14,6 +14,7 @@ from typing import Any, Protocol
 
 from eurogas_nexus.domain.backtest.contracts import (
     BACKTEST_ENGINE_VERSION,
+    SIGNAL_STUDY_WARNING,
     TARGET_BACKTEST_ENGINE_VERSION,
     BacktestDecisionEvent,
     BacktestEconomicAssumptions,
@@ -237,7 +238,8 @@ def _run_backtest_impl(
         metrics=metrics,
         attribution=attribution,
         missing_inputs=_unique(run_missing),
-        warnings=_unique(run_warnings),
+        # Said with every run: its P&L is the margin known at the decision (a signal study).
+        warnings=_unique([*run_warnings, SIGNAL_STUDY_WARNING]),
         source_refs=_unique(
             [*pool.observation_refs(), *pool.fx_refs(), *pool.cost_refs()]
         ),

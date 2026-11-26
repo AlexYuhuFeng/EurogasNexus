@@ -9,7 +9,7 @@
 import { useTranslation } from "react-i18next";
 
 import type { BoardTenorDTO, SpreadBoardDTO, StrategySpecDTO } from "@/api/spreads";
-import { boardReasonText, cargoSearch, fullSpec, rangePosition, routeGap } from "@/app/model/spreadsBoard";
+import { boardReasonText, cargoSearch, fullSpec, pricedOn, rangePosition, routeGap } from "@/app/model/spreadsBoard";
 import { unitLabel } from "@/app/model/instrumentPicker";
 import { useSimulatedPills } from "@/components/ui/SimulatedScope";
 import { PercentileStrip, Sparkline } from "@/components/ui/charts";
@@ -51,7 +51,7 @@ function TenorCells({ tenor, unit }: { tenor: BoardTenorDTO; unit: string }) {
         </LiveValue>{" "}
         <Sim on={tenor.simulated} />
       </td>
-      <td className="num" data-figure="net" title={tenor.direction ? `${tenor.direction}${via}` : undefined}>
+      <td className="num" data-figure="net" title={tenor.direction ? `${tenor.direction}${via}${pricedOn(tenor, t)}` : undefined}>
         {tenor.net != null ? (
           <>
             <LiveValue watch={tenor.net} identity={`${identity}|net`}>{signed(tenor.net, 3)}</LiveValue>

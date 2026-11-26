@@ -14,7 +14,14 @@ This module answers that over daily closes:
   ``threshold`` (long below ``low``, short above ``high``, flat at the mean of the
   two). The position decided at the close of day *t* uses only data up to *t* and
   earns the change from *t* to *t + 1*, so there is no look-ahead. Costs are charged per
-  MWh on every position change.
+  MWh on every position change, and twice (out of the old contract, into the new) on each
+  roll the position is held across.
+
+A day-ahead (or weekend) leg is a new delivery every close: a position bought at one close
+delivers the next gas day and settles against that day's within-day or cash-out price, not
+against the next day-ahead close. Daily closes do not hold that price, so a spread with a
+day-ahead leg is a **signal study**: its statistics, signals, positions and entry/exit levels
+are given, its money P&L is not (``metrics["pnl_basis"]`` says so).
 
 Strategies are declared, not programmed: the rule is data that is validated, hashed
 and reproducible, never user code executed on the server. Quants who need arbitrary
@@ -33,6 +40,8 @@ import math
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
+
+from eurogas_nexus.domain.market.returns import ROLL_EXCLUDE_MIN_DAYS, contract_move
 
 MAX_LEGS = 4
 MAX_POINTS = 5_000
@@ -63,9 +72,9 @@ EXECUTIONS = ("next_close", "same_close")
 MIN_TRADES_TO_CONCLUDE = 10
 #: The later share of the days reported as the out-of-sample period.
 OUT_OF_SAMPLE_SHARE = 0.3
-#: A contract delivering more gas days than this rolls (its move across the roll is not
-#: strategy P&L); a day-ahead or weekend series is re-traded every close by nature.
-ROLL_EXCLUDE_MIN_DAYS = 2
+# The roll rule is shared with the ladder's VaR (``domain.market.returns``): a contract
+# delivering more than ROLL_EXCLUDE_MIN_DAYS gas days rolls, and its move across the roll is
+# not strategy P&L.
 
 
 @dataclass(frozen=True)
@@ -137,11 +146,11 @@ class SpreadPoint:
     spread: float
     zscore: float | None
     position: int
-    pnl: float
-    cumulative_pnl: float
+    pnl: float | None  # None for a signal study (a day-ahead leg)
+    cumulative_pnl: float | None
     signal: int = 0
     signal_level: float | None = None
-    drawdown: float = 0.0
+    drawdown: float | None = 0.0
     roll: bool = False
 
 
@@ -152,9 +161,20 @@ class SpreadTrade:
     direction: str
     entry_spread: float
     exit_spread: float | None
-    pnl: float
-    pnl_per_mwh: float = 0.0
+    pnl: float | None
+    pnl_per_mwh: float | None = 0.0
     holding_days: int | None = None
+
+
+#: ``metrics["pnl_basis"]``: P&L realised on the legs' own closes, or not computed.
+PNL_TRADED = "traded_closes"
+PNL_NOT_TRADABLE_DAY_AHEAD = "not_computed_day_ahead_leg"
+DAY_AHEAD_LIMITATION = (
+    "Signal study, not a backtest: {legs} is day-ahead. A day-ahead position delivers the next "
+    "gas day and settles against that day's within-day or cash-out price, which daily closes do "
+    "not hold, so the change between two day-ahead closes is not a P&L anyone could earn. "
+    "Signals, positions and entry and exit levels are shown; money P&L is not."
+)
 
 
 @dataclass(frozen=True)
@@ -357,33 +377,41 @@ def analyse_spread(
         if index:
             yesterday = common[index - 1]
             for leg_index, leg in enumerate(legs):
-                move = leg_values[index][leg_index] - leg_values[index - 1][leg_index]
                 before, now_held = contract(leg, yesterday), contract(leg, day)
                 days_held = before[1] if before else 1
-                if (before and now_held and before[0] != now_held[0]
-                        and days_held > ROLL_EXCLUDE_MIN_DAYS):
+                move = contract_move(
+                    leg_values[index - 1][leg_index], leg_values[index][leg_index],
+                    before, now_held,
+                )
+                if move is None:
                     # A new contract: the move across the roll is not what the position earned.
                     rolled = True
                     continue
                 per_mwh += leg.weight * move
                 energy_move += leg.weight * move * days_held
-        if rolled and held:
-            roll_days += 1
         change = abs(positions[index] - previous_position)
         days_traded = max(
             (contract(leg, day) or ("", 1))[1] for leg in legs
         )
-        cost = change * rule.cost_per_mwh * volume * days_traded
+        # A position held across a roll is closed in the old contract and opened in the new:
+        # two position changes' cost, every roll it is held through.
+        rolls_paid = 2 * abs(held) if rolled else 0
+        if rolled and held:
+            roll_days += 1
+        roll_cost = rolls_paid * rule.cost_per_mwh * volume * days_traded
+        cost = change * rule.cost_per_mwh * volume * days_traded + roll_cost
         pnl = held * energy_move * volume - cost
         cumulative += pnl
         peak = max(peak, cumulative)
         daily_pnls.append(pnl)
-        daily_per_mwh.append(held * per_mwh - change * rule.cost_per_mwh)
+        daily_per_mwh.append(held * per_mwh - (change + rolls_paid) * rule.cost_per_mwh)
         if open_trade is not None:
             open_trade["pnl"] = float(open_trade["pnl"]) + held * energy_move * (
                 volume
+            ) - roll_cost
+            open_trade["per_mwh"] = (
+                float(open_trade["per_mwh"]) + held * per_mwh - rolls_paid * rule.cost_per_mwh
             )
-            open_trade["per_mwh"] = float(open_trade["per_mwh"]) + held * per_mwh
         if positions[index] != previous_position:
             if open_trade is not None:
                 opened = open_trade["opened"]
@@ -513,6 +541,16 @@ def analyse_spread(
             f"{missing_offsets} day(s) without a published tariff for their gas year read the "
             "gross spread."
         )
+    metrics["pnl_basis"] = PNL_TRADED
+    prompt = [leg.label for leg in legs if _is_day_ahead(leg)]
+    if prompt:
+        # A day-ahead leg's close-to-close change is not a tradable P&L: a signal study.
+        points, trades, periods = _without_money(points, trades, periods)
+        for key in ("total_pnl", "pnl_per_mwh", "hit_rate", "max_drawdown", "worst_trade",
+                    "best_trade", "sharpe_annualised"):
+            metrics[key] = None
+        metrics["pnl_basis"] = PNL_NOT_TRADABLE_DAY_AHEAD
+        limitations.insert(0, DAY_AHEAD_LIMITATION.format(legs=" and ".join(prompt)))
     if simulated_sources:
         limitations.insert(0, "Includes simulated price sources: not market evidence.")
     return SpreadAnalysis(
@@ -534,6 +572,30 @@ def analyse_spread(
                   "spread)" if currency and currency_per_unit != 1.0 else "",
         ),
         periods=periods,
+    )
+
+
+def _is_day_ahead(leg: SpreadLeg) -> bool:
+    """Whether a leg's closes price a new delivery every close (day-ahead, weekend)."""
+
+    if not leg.deliveries:
+        return False
+    held = [days for _first, days in leg.deliveries.values()]
+    return bool(held) and max(held) <= ROLL_EXCLUDE_MIN_DAYS
+
+
+def _without_money(points, trades, periods):
+    """The same backtest with every money figure removed (a signal study)."""
+
+    from dataclasses import replace
+
+    return (
+        [replace(point, pnl=None, cumulative_pnl=None, drawdown=None) for point in points],
+        [replace(trade, pnl=None, pnl_per_mwh=None) for trade in trades],
+        {
+            name: {**values, "pnl": None, "hit_rate": None}
+            for name, values in periods.items()
+        },
     )
 
 
@@ -587,8 +649,9 @@ def assumptions_line(
         "the gas days the contract delivers",
     ]
     if rolls:
-        parts.append("a month or longer contract's move across its roll is not counted; "
-                     "day-ahead is re-traded every close")
+        parts.append("a month or longer contract's move across its roll is not counted and a "
+                     "position held through a roll pays the cost of rolling it (out and in); "
+                     "a day-ahead leg makes the result a signal study with no money P&L")
     if net:
         parts.append("the rule reads the spread net of the route tariff of each day's gas "
                      "year; P&L is the gross spread")

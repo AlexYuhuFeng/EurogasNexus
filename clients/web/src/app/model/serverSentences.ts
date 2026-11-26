@@ -14,6 +14,7 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 const TEMPLATES: readonly [string, RegExp, readonly string[]][] = [
   ["simulated_marks", /^(?:DEMO: marks are simulated demo prices, not market prices\.?|Marks are simulated prices, not market prices\.?)$/, []],
   ["contract_floating", /^contract (\S+): price floats with (.+); volume only on the ladder$/, ["contract", "index"]],
+  ["contract_indexed", /^contract (\S+): price floats with (.+); volume on the ladder, its price exposure on that index$/, ["contract", "index"]],
   ["contract_fob", /^contract (\S+): an FOB cargo is not on a European hub until it is sold or discharged$/, ["contract"]],
   ["contract_gas_year", /^contract (\S+): gas year '?(.+?)'? not understood$/, ["contract", "year"]],
   ["contract_no_hub", /^contract (\S+): delivery point '?(.+?)'? does not name a hub; .+$/, ["contract", "point"]],

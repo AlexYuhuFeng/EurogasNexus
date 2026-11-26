@@ -76,8 +76,10 @@ def test_books_roll_up_by_legal_entity_in_eur(tmp_path, monkeypatch):
     engine = create_engine(url, future=True)
     Base.metadata.create_all(engine)
     now = datetime.now(UTC)
+    # Gas-day aligned (05:00 UTC): a window from midnight UTC would start on the last gas day
+    # of the current month, which no curve quote marks (an unquoted month is not valued).
     month_start = (now.replace(day=1) + timedelta(days=32)).replace(
-        day=1, hour=0, minute=0, second=0, microsecond=0
+        day=1, hour=5, minute=0, second=0, microsecond=0
     )
     with Session(engine) as session:
         owner = create_identity_principal(
