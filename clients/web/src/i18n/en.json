@@ -5830,7 +5830,7 @@
   "opportunities.leg.sell_down.da_bid": "Day-ahead bid {{hub}} ({{source}})",
   "opportunities.leg.sell_down.da_ask": "Day-ahead offer {{hub}} ({{source}})",
   "opportunities.leg.hedge_gap.band_edge": "Band edge: {{pct}} % of {{mwh}} MWh",
-  "opportunities.leg.hedge_gap.cover_held": "Cover held: {{trades}} linked trade(s), {{pct}} %",
+  "opportunities.leg.hedge_gap.cover_held": "Cover held: linked trades {{trades}}, {{pct}} %",
   "opportunities.leg.event.volume": "{{mwh_d}} MWh/d x {{days}} d",
   "opportunities.leg.event.contract_price": "Contract price of {{contract}}",
   "opportunities.leg.prompt.lot": "Stated lot {{mwh}} MWh",
