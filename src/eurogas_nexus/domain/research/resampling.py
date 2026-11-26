@@ -163,11 +163,13 @@ def bounded_resample(
             result.append(None)
             continue
         latest = max(eligible, key=lambda item: _utc(item.timestamp))
-        if policy.missing_data_policy is MissingDataPolicy.FAIL:
-            result.append(None)
-            continue
         if latest.is_observed:
             result.append(latest)
+            continue
+        if policy.missing_data_policy is MissingDataPolicy.FAIL:
+            # FAIL means a missing value is never filled. It used to be checked before the
+            # observed case and so masked every value, observed or not.
+            result.append(None)
             continue
         if policy.carry_forward_policy is MissingDataPolicy.CARRY_FORWARD:
             age = (target_utc - _utc(latest.timestamp)).total_seconds()
