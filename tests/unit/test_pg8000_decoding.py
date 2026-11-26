@@ -71,20 +71,40 @@ def test_a_pg8000_engine_registers_the_converters_on_connect():
     from eurogas_nexus.db.session import get_engine
 
     engine = get_engine("postgresql+pg8000://user:secret@127.0.0.1:1/none")
+    # The engine also installs socket tuning and, once the API process has been marked, a
+    # statement-timeout listener, so the number of listeners is not the point: apply every
+    # connect listener this module installs and assert the pg8000 converters are among the
+    # effects.
     listeners = [
-        fn for fn in engine.pool.dispatch.connect
+        fn
+        for fn in engine.pool.dispatch.connect
         if getattr(fn, "__module__", "") == "eurogas_nexus.db.session"
-        and "_tune_socket" not in getattr(fn, "__qualname__", "")
     ]
-    assert len(listeners) == 1
+    assert listeners
+
+    class FakeCursor:
+        def execute(self, _statement):
+            pass
+
+        def close(self):
+            pass
 
     class FakeConnection:
-        adapters: dict = {}
+        def __init__(self):
+            self.adapters = {}
 
         def register_in_adapter(self, oid, func):
             self.adapters[oid] = func
+
+        def cursor(self):
+            return FakeCursor()
+
+        def commit(self):
+            pass
 
     connection = FakeConnection()
     for listener in listeners:
         listener(connection, None)
     assert connection.adapters.get(pg.TIMESTAMPTZ) is fast.timestamptz_in
+    assert connection.adapters.get(pg.TIMESTAMP) is fast.timestamp_in
+    assert connection.adapters.get(pg.DATE) is fast.date_in
