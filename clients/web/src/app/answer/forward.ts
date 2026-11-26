@@ -10,15 +10,13 @@ import type { AnswerText, AnswerView } from "./answerModel.ts";
 import type { LookupIntent } from "./intent.ts";
 import { clipboardNumber, formatAnswerNumber } from "./numbers.ts";
 import { deskUnitLabel } from "./units.ts";
-import { formatGasDay } from "../time/timeFormat.ts";
 
 export type ForwardIntent = Extract<LookupIntent, { kind: "convert" }>;
 
+/** The UTC day of a date or instant as an ISO date: answerText writes it in the reader's
+ * language, as the price and spread answers do. */
 function shortDay(iso: string | null | undefined): string {
-  if (!iso) return "";
-  // A fixing date is a calendar day, not an instant: the desk's form, never shifted by a zone.
-  const day = iso.slice(0, 10);
-  return /^\d{4}-\d{2}-\d{2}$/.test(day) ? formatGasDay(day, "en") : iso;
+  return iso ? iso.slice(0, 10) : "";
 }
 
 /** The request the bar sends for one typed conversion. */

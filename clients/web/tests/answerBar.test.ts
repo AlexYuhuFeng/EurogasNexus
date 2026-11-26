@@ -154,7 +154,11 @@ test("Norway and storage come from the Today read with their as-of and the week-
   const norway = await answerFor("Norway");
   assert.equal(norway.value, "4,388");
   assert.equal(norway.delta?.text, "−30");
-  assert.deepEqual(norway.lines[0], { key: "answer.vs_day", values: { day: "8 Nov" } });
+  // The day travels as an ISO date; answerText writes it in the reader's language.
+  assert.deepEqual(norway.lines[0], { key: "answer.vs_day", values: { day: "2026-11-08" } });
+  const harness = await loadApiStore();
+  const { answerText } = await harness.load<typeof import("../src/components/AnswerBar.tsx")>("/src/components/AnswerBar.tsx");
+  assert.equal(answerText(norway.lines[0], (key, values) => `${key}:${values?.day}`), "answer.vs_day:8 Nov");
   const storage = await answerFor("storage");
   assert.equal(storage.value, "72.6");
   const none = await answerFor("storage DE");
@@ -199,7 +203,7 @@ test("a spread asked for its number: screen mids of both hubs, in EUR/MWh at the
   assert.equal(answer.unit, "EUR/MWh");
   assert.equal(answer.live, true);
   assert.deepEqual(answer.lines.map((line) => line.key), ["answer.spread.legs", "answer.spread.fx", "answer.spread.basis_screen", "answer.as_of_source"]);
-  assert.deepEqual(answer.lines[1].values, { source: "ECB", pair: "EURGBP", rate: "0.8500", date: "13 Nov" });
+  assert.deepEqual(answer.lines[1].values, { source: "ECB", pair: "EURGBP", rate: "0.8500", date: "2026-11-13" });
   assert.equal(answer.lines[3].values?.source, "ICE_ENDEX");
   assert.deepEqual(answer.target, { kind: "task", mode: "research", task: "spreads", params: { describe: "NBP TTF spread" } });
 
@@ -209,7 +213,7 @@ test("a spread asked for its number: screen mids of both hubs, in EUR/MWh at the
     state: "current", simulated: false, source: "ICE", hub: "NBP", product: "Dec-26", tenor: "month-ahead", close_day: "2026-11-15", day_change: null, day_change_vs: null });
   const fromCloses = await lookup(route.intent, reads({ deskToday: async () => closes, fx: () => FX }), new AbortController().signal);
   assert.equal(fromCloses.value, `+${(85.5 / 0.85 - 42.472).toFixed(3)}`);
-  assert.equal(fromCloses.lines.find((line) => line.key === "answer.spread.basis_close")?.values?.day, "15 Nov");
+  assert.equal(fromCloses.lines.find((line) => line.key === "answer.spread.basis_close")?.values?.day, "2026-11-15");
   (closes.rows[0] as { market?: unknown }).market = { hubs: [], series_days: 30, spreads: [
     { key: "spread.NBP.TTF", label: "NBP–TTF Dec-26", pair: "NBP–TTF", product: "Dec-26", value: 58.1, unit: "EUR/MWh", as_of: "2026-11-15", state: "current",
       simulated: false, source: null, fx: { pair: "EURGBP", base: "EUR", quote: "GBP", rate: 0.8512, value_date: "2026-12-16" }, route_cost: { value: null, unit: "EUR/MWh", verdict: null } },

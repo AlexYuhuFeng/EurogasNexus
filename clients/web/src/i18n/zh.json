@@ -1827,7 +1827,7 @@
   "experience.mode.administration": "管理",
   "experience.inspector.title": "明细",
   "experience.inspector.empty": "选择一个对象以查看其明细、来源与限制。",
-  "experience.palette.keyboard_help": "Ctrl+K：命令 · ↑ ↓：选择 · Enter：打开 · Esc：关闭 · =：计算 · 问号：提问 · Tab：采用答案 · Ctrl+C：复制答案。Ctrl+Shift+1–6：市场、组合、策略、决策、系统、管理（文本编辑时不切换）。",
+  "experience.palette.keyboard_help": "Ctrl+K：命令 · ↑ ↓：选择 · Enter：打开 · Esc：关闭 · =：计算 · 问号：提问 · Tab：采用答案 · Ctrl+C：复制答案。Ctrl+Shift+1–6：交易台、交易项目、交易账簿、研究、帮助与设置、管理（文本编辑时不切换）。",
   "experience.palette.title": "命令",
   "experience.palette.placeholder": "搜索、计算、换算或提问",
   "experience.palette.empty": "没有匹配的命令。",
@@ -6999,5 +6999,6 @@
   "reports.fail.not_landed": "六分钟后报告仍未存入存档。可点击存档的“刷新”再次查看、重试，或改为不使用 AI 生成（只需数秒）。",
   "status.partial_sources": "{{total}} 个数据源中有 {{active}} 个在线；其余未连接或有延迟，来自它们的数据可能缺失或较旧。",
   "status.store_not_ready": "交易台数据存储尚未完全就绪：{{detail}}。",
-  "status.partial_unknown": "部分数据尚未到达。受影响的数字会在出现处标出。"
+  "status.partial_unknown": "部分数据尚未到达。受影响的数字会在出现处标出。",
+  "answer.price.close_simulated": "收盘 {{day}} · 模拟价格"
 }

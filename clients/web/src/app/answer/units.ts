@@ -292,13 +292,6 @@ export function convertQuery(
   };
 }
 
-function shortDate(iso: string | null): string {
-  if (!iso) return "";
-  const parsed = new Date(`${iso.slice(0, 10)}T00:00:00Z`);
-  if (Number.isNaN(parsed.getTime())) return iso;
-  return parsed.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
-}
-
 /** "1 GWh/d = 3,412.142 MMBtu/d": the factor the answer used, written as the desk writes it. */
 function factorLine(from: string, factor: number, to: string): ConversionLine {
   return { key: "answer.convert.factor", values: { from, factor: formatFactor(factor), to } };
@@ -343,7 +336,8 @@ function convertPrice(
       if (currency !== "EUR" && held) {
         notes.push({
           key: "answer.convert.fx",
-          values: { source: fx?.source ?? "ECB", date: shortDate(held.date), pair: `EUR${currency}`, rate: held.rate.toFixed(4) },
+          // An ISO day: the row writes it in the reader's language (answerText).
+          values: { source: fx?.source ?? "ECB", date: held.date ? held.date.slice(0, 10) : "", pair: `EUR${currency}`, rate: held.rate.toFixed(4) },
         });
       }
     }
