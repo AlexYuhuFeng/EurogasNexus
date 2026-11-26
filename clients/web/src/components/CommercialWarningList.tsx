@@ -95,7 +95,7 @@ export function CommercialWarningList({
                 {item.sourceSystem && (
                   <span>
                     {/* A simulated feed carries one quiet mark, not its internal system name. */}
-                    {t("commercial.warning.source")}: {item.simulated ? t("market.simulated_source") : sourceSystemLabel(item.sourceSystem)}
+                    {t("commercial.warning.source")}: {item.simulated ? t("market.simulated_source") : sourceSystemLabel(item.sourceSystem, t)}
                   </span>
                 )}
                 {item.freshness && <span>{t("commercial.warning.freshness")}: {enumLabel(item.freshness, t)}</span>}

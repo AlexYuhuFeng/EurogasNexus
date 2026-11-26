@@ -6,6 +6,7 @@
  */
 
 import { enumWordsIn, humanizeEnum } from "./model/enumLabels.ts";
+import { serverSentence } from "./model/serverSentences.ts";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -43,7 +44,8 @@ const LEADING_CODE = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?=:|$)/;
  * languages), a sentence as sent with any enum code inside it said in words. The one function a
  * list of server warnings renders through, so a new code never reaches the screen raw.
  */
-export function serverWarningText(warning: string, t: Translate): string {
+export function serverWarningText(warning: string, t: Translate, names?: ReadonlyMap<string, string>): string {
   const text = String(warning ?? "").trim();
-  return LEADING_CODE.test(text) ? warningLabel(text, t) : enumWordsIn(text);
+  if (LEADING_CODE.test(text)) return warningLabel(text, t);
+  return serverSentence(text, t, names) ?? enumWordsIn(text);
 }
