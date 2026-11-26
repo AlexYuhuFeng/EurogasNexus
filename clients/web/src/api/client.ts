@@ -4753,6 +4753,8 @@ export interface DeliveryPerformanceRowDTO {
   cv_pct: number | null;
   trend_7d_vs_dcq_pct: number | null;
   flags: string;
+  /** The same flags as declared notes (newer servers). */
+  flag_notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
   status: "ok" | "watch";
 }
 

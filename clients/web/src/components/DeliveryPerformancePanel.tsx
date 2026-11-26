@@ -71,7 +71,7 @@ export function DeliveryPerformancePanel({ t }: { t: Translate }) {
       render: (row) => (
         <>
           <span className="limit-badge" data-status={row.status}>{t(`delivery.status_${row.status}`)}</span>
-          {row.flags && <span className="limit-breaches" title={row.flags}> {row.flags.split(/;\s+/).map((flag) => serverWarningText(flag, t)).join("; ")}</span>}
+          {row.flags && <span className="limit-breaches" title={row.flags}> {(row.flag_notes?.length ? row.flag_notes : row.flags.split(/;\s+/)).map((flag) => serverWarningText(flag, t)).join("; ")}</span>}
           {row.missing_days > 0 && <small> {t("delivery.missing", { count: row.missing_days })}</small>}
         </>
       ),

@@ -24,6 +24,14 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import date
 
+from eurogas_nexus.domain.ontology.notes import declare, note
+
+DELIVERY_DEVIATES = declare(
+    "DELIVERY_DEVIATES", "deviates from nominations on more than 1 day in 5"
+)
+DELIVERY_TREND_BELOW_DCQ = declare("DELIVERY_TREND_BELOW_DCQ", "last 7 days {pct}% against DCQ")
+DELIVERY_VOLATILE = declare("DELIVERY_VOLATILE", "volatile delivery (CV above 15%)")
+
 
 @dataclass(frozen=True)
 class DeliveryDay:
@@ -79,13 +87,14 @@ def delivery_performance(terms: DeliveryTerms, days: Iterable[DeliveryDay]) -> d
     trend = None
     if recent_mean is not None and terms.dcq_mwh > 0:
         trend = recent_mean / terms.dcq_mwh - 1
-    flags = []
+    flag_notes = []
     if paired and (short + long) / len(paired) > 0.2:
-        flags.append("deviates from nominations on more than 1 day in 5")
+        flag_notes.append(note(DELIVERY_DEVIATES))
     if trend is not None and trend < -del_tol:
-        flags.append(f"last 7 days {100 * trend:+.1f}% against DCQ")
+        flag_notes.append(note(DELIVERY_TREND_BELOW_DCQ, pct=f"{100 * trend:+.1f}"))
     if stdev is not None and mean and stdev / mean > 0.15:
-        flags.append("volatile delivery (CV above 15%)")
+        flag_notes.append(note(DELIVERY_VOLATILE))
+    flags = [item.text for item in flag_notes]
     missing = sum(1 for d in ordered if d.nominated_mwh is None or d.allocated_mwh is None)
     return {
         "contract_id": terms.contract_id,
@@ -111,6 +120,7 @@ def delivery_performance(terms: DeliveryTerms, days: Iterable[DeliveryDay]) -> d
         "cv_pct": None if stdev is None or not mean else round(100 * stdev / mean, 1),
         "trend_7d_vs_dcq_pct": None if trend is None else round(100 * trend, 1),
         "flags": "; ".join(flags),
+        "flag_notes": [item.as_dict() for item in flag_notes],
         "status": "watch" if flags else "ok",
     }
 
