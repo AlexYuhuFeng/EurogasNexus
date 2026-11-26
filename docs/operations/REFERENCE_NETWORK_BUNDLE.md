@@ -2,23 +2,37 @@
 
 The map draws the gas network from `reference_nodes` and `reference_edges`. On a fresh
 installation those tables are empty until ENTSOG is first read, and an installation without
-outbound network never reads it. The product therefore ships a small north-west Europe
-network and loads it at install time.
+outbound network never reads it. The product therefore ships a European reference network
+(every active ENTSOG balancing zone; north-west Europe only until 2026-11-26) and loads it at
+install time.
 
 ## What ships
 
 `src/eurogas_nexus/reference_data/nwe_reference_network.json` (package data, version
-`2026-11-17`, about 420 KB, one record per line):
+`2026-11-26`, about 1.1 MB, one record per line; the file name predates the all-Europe scope):
 
 | Part | Count | Content |
 |---|---|---|
-| Points | 318 | ENTSOG interconnection, storage, LNG, production and trading points with an operator in BE, DE, DK, FR, GB, IE, LU, NL or NO, plus every balance landing point |
-| with a position | 267 | ENTSOG's map position transformed to approximate lon/lat (`display_approximation`, never `verified`) |
-| without a position | 51 | ENTSOG publishes no map position (Dornum ITP-00126/00188, Emden ITP-00080/00081/00160 and others): no coordinate, counted as not located |
-| Operator point directions | 683 | operators, adjacent operators, booking platform and product flags |
-| Zone links (`virtual`) | 288 | each point to the trading point of its operator's entry-exit zone (TTF, THE, NBP, ZTP, PEG, GTF, IBP); membership of a market area, never drawn as lines |
-| Market-area links (`market_area_link`) | 70 | an interconnection point to each market area it joins (37 points); what route pricing walks and the map draws |
-| Pipelines (`interconnector`) | 2 | the two ends of a two-point pipeline: IUK (Bacton - Zeebrugge IZT), BBL (Balgzand - Bacton) |
+| Points | 544 | ENTSOG interconnection, storage, LNG, production and trading points with an operator in a country of an ENTSOG market area (EU and neighbours: UA, MD, RS, TR, MK, CH, GB, NO), plus every balance landing point, plus 18 market-area nodes |
+| with a position | 454 | ENTSOG's map position transformed to approximate lon/lat (`display_approximation`, never `verified`) |
+| without a position | 90 | ENTSOG publishes no map position, or position 0/0 (Rough, Holford, Stublach, IP Greece - Italy ...): no coordinate, counted as not located |
+| Market areas | 33 | `network_adjacency.MARKET_AREAS`: each active ENTSOG balancing zone, drawn at its virtual trading point (TTF, THE, ZTP, ZTP-L, PEG, NBP, GTF, IBP, CEGH, OTE, PSV, PVB, MGP, HTP, PL VTP) or, where ENTSOG publishes none, at ENTSOG's position for the zone (`BZ-` nodes: CH, SK, SI, HR, RO, RO-DTS, BG, EE-LV, LT, FI, PT, TGPS, NI, UA, MD, RS, TR, MK) |
+| Operator point directions | 1834 | operators, adjacent operators, booking platform and product flags |
+| Zone links (`virtual`) | 517 | each point to the market area its TSO's entry-exit zone is there (ENTSOG `operatorpointdirections.tSOBalancingZone`; storage pools with no TSO row: the transmission side of ENTSOG `interconnections`); membership, never drawn as lines |
+| Market-area links (`market_area_link`) | 222 | an interconnection point to each market area it joins (114 points); what route pricing walks and the map draws; each with ENTSOG evidence ids, `side_basis` and `hub_directions` |
+| Pipelines (`interconnector`) | 4 | the two ends of a two-point pipeline: IUK, BBL, GNI (UK) Moffat - Twynholm, GASTRANS (Serbia: Kireevo - Kiskundorozsma) |
+
+`scripts/ops/audit_reference_topology.py` prints, per market area, its node, the neighbours
+drawn, ENTSOG neighbours not drawn (with the reason), one-way borders, LNG and storage
+attached (beside GIE's facility count), the drawn point's ENTSOG id and how many border points
+publish ENTSOG data.
+
+Not drawn, by source (2026-11-26): Italy - Greece (TAP, ITP-00531 "IP Greece - Italy": ENTSOG
+gives map position 0/0) and Moldova - Ukraine at Lymanske (ITP-00444, same). The Polish L-gas
+zone is not a market area: ENTSOG lists no interconnection point for it. Trading points of
+zones that no longer exist are retired (`RETIRED_TRADING_POINTS`: PEG SUD, PEG TIGF/Terega,
+both merged into PEG on 2018-11-01): neither read nor served, even from a store read earlier,
+where ENTSOG's 0/0 position had placed them in western Poland.
 
 Distribution and final-consumer points are left out. The source, download date and the
 citation ENTSOG's terms require are in the file's `source` block and in each seeded row; the
@@ -143,41 +157,22 @@ those rows are refused) and TTF - NBP through BBL also lacks the GTS exit at Bal
 ENTSOG does not publish; those routes report the legs as missing.
 `scripts/ops/tariff_coverage.py` prints, per crossing and direction, which legs are held.
 
-**Widening the graph beyond north-west Europe (assessed 2026-11-19, not started).** CEGH, CZ,
-PSV, PVB, Swiss transit and Ellund are not in the market-area graph, so a route to them cannot be
-priced even though the tariff read already stores their ENTSOG tariffs (corridor points of
-`reference_data/tariff_scope.py`; `scripts/ops/tariff_coverage.py` lists them). What widening
-needs, by part:
+**Widened to all of Europe (2026-11-26).** Every active ENTSOG balancing zone is a market area
+(`MARKET_AREAS`), so CEGH, CZ, PSV, PVB, Swiss transit, Poland, the Baltics, the Balkans and
+Ukraine are in the graph. Switzerland, which has no trading point, is a zone node like the
+others: Wallbach/Oltingue -> Griespass prices as two crossings (THE or PEG -> CH -> PSV), each
+with its exit and entry legs. Rule additions: replaced zones read as their successor
+(`REPLACED_ZONES`, from ENTSOG `balancingzones.replacedBy`); a border side ENTSOG files with no
+zone but run by a listed non-EU national TSO resolves to that country's one ENTSOG zone
+(`EXTERNAL_OPERATOR_ZONES`, edge `side_basis: entsog_operator_country`), and such a grid is
+never a two-point pipeline. Rebuild from saved ENTSOG responses:
 
-- *Reference bundle* (`scripts/ops/build_reference_network_bundle.py`): add AT, CZ, IT, ES, CH
-  (and PL for Mallnow/GCP, SK for Baumgarten if wanted) to `SCOPE_COUNTRIES` and rebuild from a
-  live ENTSOG reference read held in a store (the full build reads `connectionpoints` and
-  `operatorpointdirections` from the runtime tables, not only the API). ENTSOG lists 82 points
-  with a side in the AT, CZ, IT, ES or CH zones (46 interconnection points, 12 LNG, 10 storage, 5
-  trading points; interconnections read 19-11-2026), so the bundle grows from 318 to roughly 400
-  points and its access rows by a similar share. ENTSOG map positions are missing for some; those
-  are counted "not located" as today.
-- *Adjacency* (`reference_data/network_adjacency.py`): add the zones to `BZ_HUB` (AT → CEGH VTP,
-  CZ → CZ VTP, IT → PSV, ES → PVB) and their countries to `HUB_COUNTRY`; Switzerland has no
-  trading point, so Swiss transit (Wallbach/Oltingue → Griespass) needs the same treatment as a
-  two-point pipeline: a transit system joining two market areas, with its own exit/entry legs. That
-  is a new rule (the current two-point rule does not fit FluxSwiss/Swissgas, which ENTSOG lists at
-  more than two points), with its tests. Representative points are re-ranked by capacity.
-- *Hubs and prices*: the graph's hub codes come from the bundle's trading-point nodes
-  (`_market_hub_code`); CEGH ("CEGH VTP"), PSV, PVB and CZ VTP must resolve to the codes the
-  price board uses.
-- *Map*: the bundle drives the map's points and dashed links; the extra points need the
-  presentation geometry rebuilt (`with_presentation`, SciGRID_gas covers these countries), the map's
-  default view checked, and the browser sweep's map checks updated (point counts in
-  `tests/unit/test_reference_network_bundle.py`, the bundle size budget).
-- *Pricing and demo*: no change to `route_tariff_cost`; the cheapest-route search's `max_hops` (4)
-  reaches PSV from TTF through THE and CH or AT. The demo's simulated legs would need the new
-  crossings if the demo should price them.
+    python scripts/ops/build_reference_network_bundle.py --from-entsog-dir \
+        --entsog-dir entsog/ --scigrid-dir IGGIELGN/data --version 2026-11-26 \
+        --downloaded 2026-11-26
 
-Size: one bounded task for the bundle and adjacency (build, Swiss transit rule, tests), one for the
-map presentation and its sweep, about two to three days of work, plus a review of ENTSOG's data at
-the new points (the tariff cross-check already refuses Gas Connect Austria's and terranets bw's
-inconsistent rows).
+A store holding a live ENTSOG read has no zone nodes; the node reader serves the bundle's
+(`shipped_zone_nodes`) so their edges are drawn there too.
 
 Refresh the adjacency on the shipped bundle (no database; ENTSOG read live, retried on a
 reset, or from saved responses):
@@ -212,25 +207,24 @@ storage, LNG or production point's link to its own hub when that point is select
 the topology check. The market-area adjacency is drawn as quiet straight dashed segments
 hub - interconnection point - hub, one point per pair of market areas; selecting a hub
 emphasises them and rings every other point joining it to a neighbour (see `docs/ux/LIVE_MAP.md`, "Topology over
-geometry"). The situation strip reads "Network points 318 · 51
-without a published position"; the points without one are listed in its tooltip and in
+geometry"). The situation strip reads "Network points 544 · 90
+without a published position" (bundle 2026-11-26); the points without one are listed in its tooltip and in
 `unlocated_network_points` of `GET /api/portfolio/map-situation` (`unlocated.network_points`;
 flows at points with no position count in `unlocated.flows`), following the outage rule:
-counted, never placed at a guessed position. Twynholm and Carrickfergus (Northern Ireland)
-have no zone trading point in ENTSOG's list and stay unlinked, so the map's topology check
-reports them.
+counted, never placed at a guessed position. Northern Ireland is a zone node since 2026-11-26 (Twynholm joins it through the GNI (UK)
+pipeline from Moffat).
 
 ## Presentation geometry: the general direction pipes run
 
 The drawn connections follow the open SciGRID_gas IGGIELGN trunk lines (DLR, CC BY 4.0,
 doi:10.5281/zenodo.4767098; terms in `docs/legal/DATA_SOURCE_TERMS.md`, "Presentation
 geometry"). The build keeps the transmission pipes of at least 600 mm with an end in
-north-west Europe, generalised to about 2 km, and writes them to
-`clients/web/public/map/context-pipelines.geojson` (about 340 kB, 37 kB compressed; served by
+the bundle's scope (Europe, `reference_geometry.BBOX`), generalised to about 2 km, and writes them to
+`clients/web/public/map/context-pipelines.geojson` (about 840 kB, 100 kB compressed; served by
 the application, drawn faintly under the connections with Routes on). Each drawn connection
 leg (interconnection point - market area) gets a `presentation_path` along them when both ends
 are within 45 km of the trunk network and the path is at most 1.5 times the straight distance
-plus 40 km (58 of the 72 drawn legs on 2026-11-17); the others, and the subsea IUK and BBL
+plus 40 km (108 legs on 2026-11-26); the others, and the subsea IUK and BBL
 interconnectors, stay straight. The bundle's
 `presentation_geometry` block carries source, version, DOI, licence, the pipe file's SHA-256,
 the rule and the counts.
