@@ -22,6 +22,7 @@ import {
   type ReportSummaryDTO,
 } from "@/api/client";
 import { WorkProgress } from "@/components/ui/WorkProgress";
+import { useApiStore } from "@/stores/api";
 import { layOutForPrint } from "@/app/model/reportPrintLayout";
 import { ReportSchedules } from "@/components/ReportSchedules";
 import { Button, DataGrid, Dialog, EmptyState, ExampleFrame, Field, Panel, Segmented, Select, StatusBadge, useExampleView, type DataGridColumn } from "@/components/ui";
@@ -73,6 +74,7 @@ function initialForm(): ReportForm {
 
 export function ReportsWorkspace({ t, language }: { t: Translate; language: string }) {
   const zh = language.toLowerCase().startsWith("zh");
+  const me = useApiStore((state) => state.currentUser);
   const [mode, setMode] = useState<Mode>("standard");
   const [catalogue, setCatalogue] = useState<ReportCatalogueDTO | null>(null);
   const [form, setForm] = useState<ReportForm>(initialForm);
@@ -277,6 +279,14 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
     abort.current?.abort();
   }
 
+  /** What a section holds, in the reader's language (the catalogue's data_source is an
+   * internal note, in English, and named API paths). */
+  function sectionHint(key: string): string {
+    const hintKey = `reports.section_desc.${key}`;
+    const hint = t(hintKey);
+    return hint === hintKey ? "" : hint;
+  }
+
   /** Polls the archive until the timed-out request's report appears, the wait runs out or the
    * user stops waiting. */
   async function waitForLanding(before: ReadonlySet<string>, request: ReportRequestDTO, signal: AbortSignal): Promise<string | null> {
@@ -311,7 +321,9 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
     { id: "kind", header: t("reports.col.kind"), value: (row) => t(`reports.kind.${row.kind}`) },
     { id: "title", header: t("reports.col.title"), rowHeader: true, value: (row) => row.question || row.title, render: (row) => <span title={row.headline}>{row.question || row.title}</span> },
     { id: "period", header: t("reports.col.period"), value: (row) => row.period_end ?? row.period_start ?? "", format: (_value, row) => reportPeriodLabel(row.period_start, row.period_end) || "–" },
-    { id: "by", header: t("reports.col.by"), value: (row) => row.generated_by ?? "" },
+    // A principal id ("principal-4c67…") means nothing to a reader: one's own reports read
+    // as one's name; a schedule or another user keeps what the server sends.
+    { id: "by", header: t("reports.col.by"), value: (row) => (me && row.generated_by === me.principal_id ? me.display_name || me.name : row.generated_by ?? "") },
     { id: "edited", header: t("reports.col.edited"), value: (row) => editedByLabel(row), format: (value) => (value === "model" ? t("reports.by_model") : t("reports.by_rule")) },
     {
       id: "audience",
@@ -467,7 +479,7 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
                   const state = offer?.sections[section.key];
                   const notHeld = state && state.state !== "ok";
                   return (
-                    <label key={section.key} title={notHeld ? state.reason ?? section.data_source : section.data_source} data-section-state={state?.state ?? "unknown"}>
+                    <label key={section.key} title={notHeld ? state.reason ?? sectionHint(section.key) : sectionHint(section.key)} data-section-state={state?.state ?? "unknown"}>
                       <input type="checkbox" checked={chosen.includes(section.key)} onChange={() => toggleSection(section.key)} />
                       <span>
                         {t(`reports.section.${section.key}`)}
