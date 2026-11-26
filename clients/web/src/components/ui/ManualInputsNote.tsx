@@ -9,6 +9,8 @@
  */
 import { useTranslation } from "react-i18next";
 
+import { formattingLocale } from "../../app/time/timeFormat";
+
 export interface ManualInputDTO {
   readonly name: string;
   readonly value: unknown;
@@ -25,15 +27,17 @@ export function manualInputsOf(meta: unknown): readonly ManualInputDTO[] {
     : [];
 }
 
-function shown(value: unknown): string {
+function shown(value: unknown, language: string): string {
   if (value === null || value === undefined) return "–";
-  if (typeof value === "number") return value.toLocaleString(undefined, { maximumFractionDigits: 6 });
+  if (typeof value === "number") {
+    return new Intl.NumberFormat(formattingLocale(language), { maximumFractionDigits: 6 }).format(value);
+  }
   if (typeof value === "string" || typeof value === "boolean") return String(value);
   return JSON.stringify(value);
 }
 
 export function ManualInputsNote({ meta, inputs }: { meta?: unknown; inputs?: readonly ManualInputDTO[] }) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const items = inputs ?? manualInputsOf(meta);
   if (items.length === 0) return null;
   return (
@@ -44,7 +48,7 @@ export function ManualInputsNote({ meta, inputs }: { meta?: unknown; inputs?: re
           <li key={item.name}>
             <span className="manual-inputs-note__name">{item.name}</span>{" "}
             <span className="manual-inputs-note__value">
-              {shown(item.value)}
+              {shown(item.value, i18n.language)}
               {item.unit ? ` ${item.unit}` : ""}
             </span>
             {item.entered_by ? (
