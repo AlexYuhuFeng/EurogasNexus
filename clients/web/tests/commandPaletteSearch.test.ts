@@ -4,7 +4,10 @@ import test from "node:test";
 import {
   filterPaletteCommands,
   glossaryCommands,
+  hubCommands,
   navigationCommands,
+  orderPaletteResults,
+  paletteLabel,
   paletteShortcut,
   type PaletteCommand,
 } from "../src/app/experience/commandPalette.ts";
@@ -36,6 +39,21 @@ test("a glossary term is found by its name and by an alias, never for an empty q
   assert.deepEqual(filterPaletteCommands(all, "title transfer", labelFor).map((c) => c.id), ["glossary.TTF"]);
   assert.ok(!filterPaletteCommands(all, "", labelFor).some((c) => c.group === "glossary"));
   assert.equal(terms[0].target.term, "NBP");
+});
+
+test("typing a hub offers its glossary entry and its prices first, and never lists hubs for an empty query", () => {
+  const all = [
+    ...navigationCommands(),
+    ...glossaryCommands([{ term: "NBP", aliases: ["National Balancing Point"] }, { term: "NBP forward curve" }]),
+    ...hubCommands(["TTF", "NBP"]),
+  ];
+  const label = (command: PaletteCommand) => paletteLabel(command, (key) => labels[key] ?? key);
+  const order = ["navigate", "glossary", "inspect", "ai", "utility"];
+  const results = orderPaletteResults(filterPaletteCommands(all, "NBP", label, 100), "NBP", label, order);
+  assert.deepEqual(results.slice(0, 3).map((c) => c.id), ["hub.NBP", "glossary.NBP", "glossary.NBP forward curve"]);
+  assert.equal(label(results[0]), "NBP · Prices");
+  assert.deepEqual(results[0].target, { mode: "desk", modeTask: "prices", page: "market", view: "curves" });
+  assert.ok(!filterPaletteCommands(all, "", label, 100).some((c) => c.id.startsWith("hub.")));
 });
 
 test("a mode and its first task under the same name are one result each; old names are aliases (WF-05)", () => {

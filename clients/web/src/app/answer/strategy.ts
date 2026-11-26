@@ -40,3 +40,38 @@ export function spreadStudy(text: string): string | null {
   if (hubsNamed(clean).length < 2 || !SPREAD_WORD.test(clean)) return null;
   return clean;
 }
+
+/**
+ * A spread asked for its number ("NBP TTF spread", "current NBP–TTF spread", "NBP vs TTF front
+ * month", "英国和荷兰之间的价差", "NBP-TTF DA"): exactly two hubs, a spread word or a dash between
+ * them, and nothing else but filler and a prompt tenor. The bar shows the number live; anything
+ * more (a tariff, a route, a month on the curve) stays a study for Research → Spreads.
+ */
+export interface LiveSpread {
+  a: string;
+  b: string;
+  tenor: "front" | "DA";
+}
+
+const LIVE_SPREAD_WORD = /\b(?:spread|spreads|vs\.?|v\.?|versus|minus)\b|价差|差价|对/i;
+const LIVE_FILLER_EN = /\b(?:what'?s|whats|what|is|are|the|current|currently|now|live|latest|today'?s|today|show|me|of|spread|spreads|vs|v|versus|minus|between|and|price|prices|front|month|fm|ma|m\+1|da|day[\s-]?ahead)\b/gi;
+const LIVE_FILLER_ZH = /当前|现在|最新|目前|之间|价差|差价|是多少|多少|什么|近月|日前|和|与|跟|对|的|是/g;
+
+export function liveSpread(text: string): LiveSpread | null {
+  const clean = text.trim();
+  if (clean.length < 7 || clean.length > 80) return null;
+  const hubs = hubsNamed(clean);
+  if (hubs.length !== 2) return null;
+  const dashed = /\b[A-Za-z]{3,4}\s*[-–—/]\s*[A-Za-z]{3,4}\b/.test(clean);
+  if (!LIVE_SPREAD_WORD.test(clean) && !dashed) return null;
+  let rest = clean.replace(/[A-Za-z]+/g, (word) => {
+    const upper = word.toUpperCase();
+    if (upper === "THE" && word !== "THE") return word;
+    return (HUBS as readonly string[]).includes(upper) ? " " : word;
+  });
+  for (const word of Object.keys(ZH_HUBS)) rest = rest.split(word).join(" ");
+  rest = rest.replace(LIVE_FILLER_EN, " ").replace(LIVE_FILLER_ZH, " ").replace(/[-–—/?？,，.。:：'’()（）]/g, " ");
+  if (rest.trim()) return null;
+  const tenor = /\b(?:da|day[\s-]?ahead)\b|日前/i.test(clean) ? "DA" : "front";
+  return { a: hubs[0], b: hubs[1], tenor };
+}

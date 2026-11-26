@@ -195,6 +195,49 @@
     {
       "query": "2026-11-16",
       "kind": "none"
+    },
+    {
+      "query": "800 GWh/d in MMBtu",
+      "kind": "convert",
+      "note": "a rate into a bare unit: the same rate, MMBtu/d"
+    },
+    {
+      "query": "how many MMBtu is 800 GWh/d",
+      "kind": "convert"
+    },
+    {
+      "query": "NBP TTF spread",
+      "kind": "lookup",
+      "intent": "spread",
+      "note": "a spread asked for its number is read live"
+    },
+    {
+      "query": "current NBP–TTF spread",
+      "kind": "lookup",
+      "intent": "spread"
+    },
+    {
+      "query": "NBP vs TTF net of transport tariff",
+      "kind": "spreads",
+      "note": "a study opens Research → Spreads"
+    },
+    {
+      "query": "what's my portfolio like",
+      "kind": "lookup",
+      "intent": "portfolio",
+      "book": true
+    },
+    {
+      "query": "what's my portfolio like",
+      "kind": "ask",
+      "book": false,
+      "note": "no book summary without portfolio.read"
+    },
+    {
+      "query": "NBP",
+      "kind": "lookup",
+      "intent": "price",
+      "note": "the hub's price; the glossary entry and NBP · Prices lead the results"
     }
   ]
 }
