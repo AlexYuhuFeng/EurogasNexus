@@ -566,6 +566,7 @@ def derive_intraday_spreads(
 def market_observation_row(row: Any) -> dict[str, Any]:
     """Shape one market observation ORM row into its API payload."""
 
+    from eurogas_nexus.domain.ontology.provenance import is_simulated_row
     from eurogas_nexus.governance.entitlement import entitlement_scope_for_source
 
     return {
@@ -586,6 +587,8 @@ def market_observation_row(row: Any) -> dict[str, Any]:
         "entitlement_scope": entitlement_scope_for_source(row.source_system),
         "research_only": row.research_only,
         "metadata_json": row.metadata_json or {},
+        # Rule 17: stated on the row, never left to the client to infer from a name.
+        "simulated": is_simulated_row(row),
     }
 
 

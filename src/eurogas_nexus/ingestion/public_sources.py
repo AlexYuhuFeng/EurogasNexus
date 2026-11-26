@@ -928,7 +928,10 @@ def _gas_day_period(record: dict[str, Any]) -> tuple[datetime, datetime]:
     """
     from eurogas_nexus.domain.market.gas_day import gas_day_start_for_date
 
-    start_date = _parse_date(record.get("gasDayStart")) or date.today()
+    start_date = _parse_date(record.get("gasDayStart"))
+    if start_date is None:
+        # Never the server's date: a figure without its gas day is not today's figure.
+        raise ValueError("GIE record has no gasDayStart")
     end_date = _parse_date(record.get("gasDayEnd")) or (start_date + timedelta(days=1))
     return (
         gas_day_start_for_date(start_date, calendar=EU_CAM_UTC_CALENDAR),

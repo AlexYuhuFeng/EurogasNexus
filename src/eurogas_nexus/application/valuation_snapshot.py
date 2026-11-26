@@ -77,7 +77,9 @@ def _aware(value: datetime | None) -> datetime | None:
 
 
 def _is_simulated(source_system: str | None, metadata: dict | None) -> bool:
-    return bool((metadata or {}).get("simulated")) or str(source_system or "").endswith("_Sim")
+    from eurogas_nexus.domain.ontology.provenance import is_simulated
+
+    return is_simulated(source_system, metadata)
 
 
 # ----------------------------------------------------------------------------- FX adapter

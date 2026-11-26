@@ -77,13 +77,21 @@ class UmmMessage:
     market_participant: str
     remarks: str
     source_reference: str
+    #: The stored row's source (``DEMO`` for the demo desk's invented messages). It used to
+    #: be dropped between the store and the outage list, which then named every message
+    #: "REMIT" and gave no sign that a fictional one was fictional (backend audit O1).
+    source_system: str = "REMIT"
 
     @property
     def record_id(self) -> str:
         return f"{self.message_id}:{self.version}"[:96]
 
     def as_record(self) -> dict[str, object]:
+        """The stored row's fields; the source is the store's argument
+        (``store_umm_messages(source_system=...)``), not the parsed message's."""
+
         record = asdict(self)
+        record.pop("source_system")
         record["record_id"] = self.record_id
         return record
 
@@ -491,6 +499,7 @@ def outage_view(
     from datetime import timedelta
 
     from eurogas_nexus.domain.observations.remit_platforms import platform_attribution
+    from eurogas_nexus.domain.ontology.provenance import is_simulated
 
     horizon = now + timedelta(days=horizon_days)
     rows = []
@@ -551,6 +560,8 @@ def outage_view(
                 "market_participant": m.market_participant,
                 "source_system": "REMIT",
                 "source_reference": m.source_reference,
+                # Rule 17: a fictional demo message says it is one.
+                "simulated": is_simulated(m.source_system),
                 # The inside-information platform and the credit its terms ask for.
                 "platform": platform,
                 "attribution": attribution,

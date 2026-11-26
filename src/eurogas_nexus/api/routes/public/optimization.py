@@ -1593,11 +1593,9 @@ def _fx_fact(row) -> FxObservationFact:
 
 
 def _is_simulated_market_row(row) -> bool:
-    metadata = row.metadata_json or {}
-    if metadata.get("simulated") is True:
-        return True
-    source_system = getattr(row, "source_system", None)
-    return isinstance(source_system, str) and source_system.endswith("_Sim")
+    from eurogas_nexus.domain.ontology.provenance import is_simulated_row
+
+    return is_simulated_row(row)
 
 
 def _jsonable(value: object) -> object:
