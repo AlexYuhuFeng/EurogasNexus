@@ -26,7 +26,7 @@ from typing import Any
 
 from eurogas_nexus.application.instrument_catalogue import source_class
 from eurogas_nexus.application.market_normalisation import NormalisationError, conversion
-from eurogas_nexus.application.route_tariff_cost import cheapest_route, weakest
+from eurogas_nexus.application.route_tariff_cost import weakest
 from eurogas_nexus.application.spreads_workbench import Holdings, _curve_points, _native
 from eurogas_nexus.domain.market.fx_forward import Delivery
 
@@ -99,17 +99,24 @@ def _percentile(values: Sequence[float], value: float) -> float | None:
 # ----------------------------------------------------------------------------- routes
 
 
-def _route(holdings: Holdings, start: str, end: str, delivery: Delivery):
-    """The cheapest route on firm annual capacity (the register rows Spreads reads), legs in
-    another currency at the stated FX."""
+def _route(holdings: Holdings, start: str, end: str, delivery: Delivery,
+           gas_price: float | None = None):
+    """The marginal cost of the spread's route (quant review 2026-11-26): the short-term
+    capacity product its delivery buys (daily for day-ahead, monthly for a month) with the
+    commodity charges and fuel gas the register holds; the yearly firm route at 100 % load
+    factor beside it as sunk capacity. Legs in another currency at the stated FX."""
 
+    from eurogas_nexus.application.route_tariff_cost import marginal_route_cost
     from eurogas_nexus.application.spreads_workbench import _fx_factors
 
     currencies = {str(row.get("currency") or "").upper() for row in holdings.tariffs} - {""}
     fx = _fx_factors(holdings, currencies, "EUR", delivery)
-    return cheapest_route(start, end, delivery, holdings.tariffs, fx=fx,
-                          bookings=getattr(holdings, "bookings", ()),
-                          orders=getattr(holdings, "orders", None)), "ANNUAL"
+    marginal = marginal_route_cost(
+        start, end, delivery, holdings.tariff_rows_for, fx=fx,
+        bookings=getattr(holdings, "bookings", ()), orders=getattr(holdings, "orders", None),
+        gas_price=gas_price,
+    )
+    return marginal.choice, marginal
 
 
 def _route_cost_eur(holdings: Holdings, route: Any, delivery: Delivery) -> float | None:
@@ -193,9 +200,12 @@ def _pair(holdings: Holdings, hub: str, tenor: str, prices=None) -> dict[str, An
         return out
     gross = a - b
     start_hub, end_hub = spread_direction(gross, hub, REFERENCE_HUB)
-    choice, product = _route(holdings, start_hub, end_hub, delivery)
+    # Fuel gas is valued at the gas at the route's start (the cheaper hub).
+    choice, marginal = _route(holdings, start_hub, end_hub, delivery,
+                              gas_price=a if start_hub == hub else b)
     route = choice.chosen
-    cost = _route_cost_eur(holdings, route, delivery)
+    capacity = _route_cost_eur(holdings, route, delivery)
+    cost = None if capacity is None else capacity + marginal.holder
     values = [value for _day, value in series]
     native_a, unit_a = _native(hub, last)
     native_b, unit_b = _native(REFERENCE_HUB, last_ref)
@@ -224,9 +234,12 @@ def _pair(holdings: Holdings, hub: str, tenor: str, prices=None) -> dict[str, An
                 "through": list(route.hubs[1:-1]),
                 "complete": route.complete,
                 "missing": route.missing_legs(),
-                "product": product,
+                # Which capacity product priced it, the flow charges, what a holder of
+                # capacity pays and the yearly capacity it has sunk (quant review 3.7).
+                "product": marginal.product,
                 "gas_years": route.gas_years,
                 "issues": list(choice.issues),
+                "marginal": marginal.as_dict(),
             },
             "percentile": _percentile(values, gross),
             "range": {"low": min(values), "high": max(values), "days": len(values)}

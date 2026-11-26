@@ -906,3 +906,181 @@ def tariff_rows(
     from eurogas_nexus.application.tariff_book import annotate_register_rows
 
     return annotate_register_rows(session, rows)
+
+
+# ----------------------------------------------------------------- marginal cost of a spread
+
+#: The capacity product a trade over a delivery buys at the margin (CAM standard products,
+#: their NC TAR multiplier and any seasonal factor already in the published price): a
+#: day-ahead spread the daily product, a month spread the monthly product. Yearly firm capacity
+#: at 100 % load factor is what a holder has already paid for: sunk, not marginal.
+MARGINAL_PRODUCT = {"day_ahead": "DAILY", "month": "MONTHLY"}
+#: Register rows for flow-based charges: a commodity charge per MWh flowed, and fuel gas (gas
+#: in kind) as a share of the gas flowed. Entered as ``capacity_product`` COMMODITY or FUEL.
+COMMODITY_PRODUCT, FUEL_PRODUCT = "COMMODITY", "FUEL"
+
+
+def marginal_product(delivery: Delivery) -> str:
+    """The capacity product a spread over ``delivery`` is priced on at the margin."""
+
+    return MARGINAL_PRODUCT.get(delivery.kind, "ANNUAL")
+
+
+@dataclass(frozen=True)
+class MarginalRouteCost:
+    """What moving one more MWh over the route costs for a prompt spread, and what is sunk.
+
+    ``capacity`` is the route at the marginal capacity product (``product``); ``commodity``
+    and ``fuel_cost`` are the flow-based charges the register holds for the route's points
+    (``None`` when none is held, which ``flow_not_held`` says); ``total`` is their sum, what a
+    desk without capacity pays. ``holder`` is what a desk that already holds the capacity pays
+    (the flow charges only), and ``sunk`` the yearly firm route at 100 % load factor (the
+    firm's bookings first), for context: capacity already paid for.
+    """
+
+    product: str
+    choice: RouteChoice
+    commodity: float | None = None
+    fuel_pct: float | None = None
+    fuel_cost: float | None = None
+    flow_not_held: tuple[str, ...] = ()
+    sunk: RouteCost | None = None
+
+    @property
+    def capacity(self) -> float | None:
+        return self.choice.chosen.total
+
+    @property
+    def total(self) -> float | None:
+        if self.capacity is None:
+            return None
+        return self.capacity + (self.commodity or 0.0) + (self.fuel_cost or 0.0)
+
+    @property
+    def holder(self) -> float:
+        return (self.commodity or 0.0) + (self.fuel_cost or 0.0)
+
+    def as_dict(self) -> dict[str, Any]:
+        def rounded(value: float | None) -> float | None:
+            return None if value is None else round(value, 6)
+
+        return {
+            "product": self.product,
+            "capacity": rounded(self.capacity),
+            "commodity": rounded(self.commodity),
+            "fuel_pct": rounded(self.fuel_pct),
+            "fuel": rounded(self.fuel_cost),
+            "flow_not_held": list(self.flow_not_held),
+            "total": rounded(self.total),
+            "holder": rounded(self.holder),
+            "sunk_capacity": None
+            if self.sunk is None
+            else {"product": "ANNUAL", "load_factor": 1.0, "value": rounded(self.sunk.total),
+                  "complete": self.sunk.complete},
+        }
+
+
+def _flow_rows(rows: Iterable[Mapping[str, Any]], leg: RouteLeg, on: date, product: str):
+    moment = datetime(on.year, on.month, on.day, tzinfo=UTC)
+    for row in rows:
+        if str(row.get("capacity_product") or "").upper() != product:
+            continue
+        if row.get("point_id") != leg.point_key:
+            continue
+        if str(row.get("direction") or "").upper() != leg.direction.upper():
+            continue
+        if not _tso_matches(str(row.get("tso") or ""), leg.tso):
+            continue
+        start, end = _aware(row.get("effective_from")), _aware(row.get("effective_to"))
+        if (start is not None and start > moment) or (end is not None and end < moment):
+            continue
+        yield row
+
+
+def flow_charges(
+    route: RouteCost,
+    rows: Iterable[Mapping[str, Any]],
+    on: date,
+    *,
+    fx: Mapping[str, float] | None = None,
+    reporting_currency: str = "EUR",
+    gas_price: float | None = None,
+) -> tuple[float | None, float | None, float | None, tuple[str, ...]]:
+    """Commodity charges and fuel gas on the route's legs, from the register.
+
+    Returns ``(commodity per MWh, fuel %, fuel cost per MWh, what is not held)`` in
+    ``reporting_currency``. Fuel gas is valued at ``gas_price`` (the gas at the route's start,
+    per MWh). A charge in a currency without a factor in ``fx`` is not added and is named.
+    """
+
+    rows = rows if isinstance(rows, list) else list(rows)
+    commodity: float | None = None
+    fuel_pct: float | None = None
+    issues: list[str] = []
+    for leg in route.legs:
+        for row in _flow_rows(rows, leg, on, COMMODITY_PRODUCT):
+            unit = str(row.get("unit") or "").replace(" ", "")
+            currency, _, per = unit.partition("/")
+            scale = {"MWH": 1.0, "KWH": 1000.0}.get(per.upper())
+            factor = 1.0 if currency.upper() == reporting_currency else (fx or {}).get(
+                currency.upper()
+            )
+            if scale is None or factor is None:
+                issues.append(f"commodity charge at {leg.point_name or leg.point_key} "
+                              f"({row.get('tariff_value')} {unit}) not converted")
+                continue
+            commodity = (commodity or 0.0) + float(row["tariff_value"]) * scale * factor
+        for row in _flow_rows(rows, leg, on, FUEL_PRODUCT):
+            if str(row.get("unit") or "").strip() != "%":
+                issues.append(f"fuel gas at {leg.point_name or leg.point_key} not in %")
+                continue
+            fuel_pct = (fuel_pct or 0.0) + float(row["tariff_value"])
+    if commodity is None:
+        issues.append("no commodity charge held for the route's points")
+    if fuel_pct is None:
+        issues.append("no fuel gas (gas in kind) held for the route's points")
+    fuel_cost = None
+    if fuel_pct is not None:
+        if gas_price is None:
+            issues.append("fuel gas not valued: no gas price at the route's start")
+        else:
+            fuel_cost = fuel_pct / 100.0 * gas_price
+    return commodity, fuel_pct, fuel_cost, tuple(issues)
+
+
+def marginal_route_cost(
+    from_hub: str,
+    to_hub: str,
+    delivery: Delivery,
+    rows_for: Any,
+    *,
+    fx: Mapping[str, float] | None = None,
+    reporting_currency: str = "EUR",
+    bookings: Sequence[LegBooking] = (),
+    orders: Mapping[str, Any] | None = None,
+    gas_price: float | None = None,
+) -> MarginalRouteCost:
+    """The marginal transport cost of a prompt spread (quant review 2026-11-26, 3.7).
+
+    ``rows_for(product)`` gives the register rows of one capacity product. The route is priced
+    on the marginal product (:func:`marginal_product`: daily for day-ahead, monthly for a
+    month) at the public tariff, plus the commodity charges and fuel gas the register holds;
+    the yearly firm route at 100 % load factor, with the firm's bookings first, is returned
+    beside it as sunk capacity.
+    """
+
+    product = marginal_product(delivery)
+    choice = cheapest_route(
+        from_hub, to_hub, delivery, rows_for(product), fx=fx,
+        reporting_currency=reporting_currency, product=product,
+    )
+    sunk = cheapest_route(
+        from_hub, to_hub, delivery, rows_for("ANNUAL"), fx=fx,
+        reporting_currency=reporting_currency, bookings=bookings, orders=orders,
+    ).chosen
+    flow_rows = [*rows_for(COMMODITY_PRODUCT), *rows_for(FUEL_PRODUCT)]
+    commodity, fuel_pct, fuel_cost, not_held = flow_charges(
+        choice.chosen, flow_rows, delivery.first, fx=fx,
+        reporting_currency=reporting_currency, gas_price=gas_price,
+    )
+    return MarginalRouteCost(product, choice, commodity, fuel_pct, fuel_cost, not_held, sunk)

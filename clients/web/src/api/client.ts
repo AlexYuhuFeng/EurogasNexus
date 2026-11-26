@@ -2315,7 +2315,25 @@ export interface TodaySpreadDTO extends TodayFigureDTO {
     net?: number;
     via?: string[];
     reason?: string;
+    /** The capacity product the cost is priced on (MONTHLY for the front month): the
+     * marginal cost, with the flow charges and the yearly capacity sunk beside it. */
+    product?: string;
+    marginal?: MarginalRouteCostDTO;
   };
+}
+
+/** The marginal transport cost of a prompt spread (quant review 2026-11-26). */
+export interface MarginalRouteCostDTO {
+  product: string;
+  capacity: number | null;
+  commodity: number | null;
+  fuel_pct: number | null;
+  fuel: number | null;
+  flow_not_held: string[];
+  total: number | null;
+  /** What a desk that already holds capacity pays: the flow charges only. */
+  holder: number | null;
+  sunk_capacity: { product: string; load_factor: number; value: number | null; complete: boolean } | null;
 }
 
 /** Design basis 2, E.2 row 1: my market. */

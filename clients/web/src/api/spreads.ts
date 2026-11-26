@@ -4,6 +4,7 @@
  * result comes from the server's engine.
  */
 
+import type { MarginalRouteCostDTO } from "./client";
 import type { FxForwardDTO } from "./comparablePrices";
 
 export type SpecKind = "curve" | "history";
@@ -161,7 +162,7 @@ export interface BoardTenorDTO {
   direction?: string;
   cost?: number | null;
   net?: number | null;
-  route?: { hubs: string[]; through: string[]; complete: boolean; missing: string[]; product: string; gas_years: string[]; issues: string[] };
+  route?: { hubs: string[]; through: string[]; complete: boolean; missing: string[]; product: string; gas_years: string[]; issues: string[]; marginal?: MarginalRouteCostDTO };
   percentile?: number | null;
   range?: { low: number; high: number; days: number } | null;
   spark?: { days: string[]; values: number[] };

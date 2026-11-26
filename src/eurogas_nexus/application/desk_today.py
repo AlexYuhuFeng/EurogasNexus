@@ -1472,7 +1472,7 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
     from eurogas_nexus.application.route_tariff_cost import (
         load_route_capacity,
         load_tariff_rows,
-        route_cost,
+        marginal_route_cost,
     )
     from eurogas_nexus.application.spreads_board import spread_direction
     from eurogas_nexus.domain.market.fx_forward import Delivery
@@ -1480,7 +1480,7 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
     today = now.date()
     out: list[dict[str, Any]] = []
     holdings = None
-    tariffs: list | None = None
+    tariffs: dict | None = None
     bookings: list = []
     orders: dict = {}
     for hub, reference in SPREAD_PAIRS:
@@ -1536,28 +1536,45 @@ def _spreads(caller: Caller, now: datetime, fronts: dict, read: _Read) -> list[d
             values[hub].get("normalisation"), dict) else None
         if tariffs is None:
             try:
-                tariffs = load_tariff_rows()
+                tariffs = {"ANNUAL": load_tariff_rows()}
                 # TAR-2: the firm's booked capacity prices its part of a leg first.
                 bookings, orders = load_route_capacity()
             except Exception as exc:  # noqa: BLE001
                 read.warnings.append(f"tariffs: not available ({exc.__class__.__name__})")
-                tariffs, bookings, orders = [], [], {}
+                tariffs, bookings, orders = {}, [], {}
+
+        def rows_for(product: str, held=tariffs) -> list:
+            if product not in held:
+                try:
+                    held[product] = load_tariff_rows(product=product)
+                except Exception:  # noqa: BLE001 - not held: the route says which product
+                    held[product] = []
+            return held[product]
+
         # The route runs from the cheaper hub to the dearer one, the rule Research > Spreads
-        # uses, and the spread earns its absolute value less that cost (QA-R-06).
+        # uses, and the spread earns its absolute value less that cost (QA-R-06). The cost is
+        # the marginal one (quant review 3.7): the monthly capacity product for the front
+        # month, plus commodity charges and fuel gas; yearly capacity is sunk, shown beside.
         start, end = spread_direction(spread, hub, reference)
-        route = route_cost(start, end, delivery, tariffs, bookings=bookings, orders=orders)
-        cost = route.total if route.currency == "EUR" else None
+        marginal = marginal_route_cost(
+            start, end, delivery, rows_for, bookings=bookings, orders=orders,
+            gas_price=values[start]["value"],
+        )
+        route = marginal.choice.chosen
+        cost = marginal.total if route.currency == "EUR" else None
         if cost is not None:
             net = abs(spread) - cost
             verdict = "in_the_money" if net > 0 else "out_of_the_money"
             route_view = {"value": round(cost, 3), "unit": "EUR/MWh", "verdict": verdict,
                           "from": start, "to": end, "net": round(net, 3),
-                          "via": list(route.via), "input_class": route.input_class}
+                          "via": list(route.via), "input_class": route.input_class,
+                          "product": marginal.product, "marginal": marginal.as_dict()}
         else:
             reason = ("legs not held: " + ", ".join(route.missing_legs())) if route.legs and not \
                 route.complete else ("legs in more than one currency" if route.legs else
                                      "; ".join(route.issues) or "no route priced")
-            route_view = {"value": None, "unit": "EUR/MWh", "verdict": None, "reason": reason}
+            route_view = {"value": None, "unit": "EUR/MWh", "verdict": None, "reason": reason,
+                          "product": marginal.product, "marginal": marginal.as_dict()}
         simulated = bool(values[hub]["simulated"] or values[reference]["simulated"])
         out.append(read.add(figure(
             f"spread.{hub}.{reference}",
