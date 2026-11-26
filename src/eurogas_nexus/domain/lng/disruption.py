@@ -2632,9 +2632,11 @@ class Result:
         return [[item.basis, item.option.key] for item in self.recommended_set]
 
     def digest(self) -> str:
-        """What a notice is about: the recommended set and the frontier."""
+        """What a notice is about: what is disrupted, the recommended set and the frontier
+        (so a disruption with no workable option and its clearing are told apart)."""
 
         body = {
+            "disrupted": sorted(s.supply_id for s in self.disrupted),
             "recommended": self.recommended_keys(),
             "frontier": sorted(o.key for o in self.frontier),
         }

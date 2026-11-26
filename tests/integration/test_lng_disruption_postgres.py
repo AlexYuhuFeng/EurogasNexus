@@ -691,3 +691,139 @@ def test_a_remit_outage_reaches_the_pipeline_supply_through_the_outbox(engine):
                 NotificationOutboxRecord.dedupe_key.like(f"lng_disruption:{case.book}:%")
             ).delete(synchronize_session=False)
             clean(session, case)
+
+
+def test_a_disruption_with_no_workable_option_is_told_and_only_its_end_is_cleared(engine):
+    """A late cargo whose only option cannot physically happen is told as "No workable
+    option", never as cleared; "Disruption cleared" comes only once an open disruption ends;
+    a book that was never disrupted is told nothing."""
+
+    from eurogas_nexus.db.models import TradingBookRecord
+
+    tag = uuid4().hex[:8]
+    book, cargo, terminal = f"lng4-nw-{tag}", f"NW-{tag}", f"Gate NW {tag}"
+    eta = datetime(2027, 2, 1, 9, tzinfo=UTC)
+
+    def titles(session) -> list[str]:
+        return sorted(
+            row.title
+            for row in session.query(NotificationOutboxRecord).filter(
+                NotificationOutboxRecord.dedupe_key.like(f"lng_disruption:{book}:%")
+            )
+        )
+
+    with Session(engine) as session:
+        try:
+            session.add(
+                TradingBookRecord(
+                    book_id=book,
+                    name="LNG NW",
+                    legal_entity="Demo Energy BV",
+                    region="NWE",
+                    business="LNG",
+                    base_currency="EUR",
+                    active=True,
+                    updated_by="t",
+                    updated_at_utc=NOW,
+                )
+            )
+            session.add(
+                LngTerminalTermsRecord(
+                    terminal_id=f"gate-nw-{tag}",
+                    name=terminal,
+                    hub="TTF",
+                    regas_tariff_per_mwh=1.0,
+                    fuel_retention_pct=1.0,
+                    source_note="test terms",
+                    updated_by="t",
+                    updated_at_utc=NOW,
+                )
+            )
+            session.add(
+                LngCargoRecord(
+                    cargo_id=cargo,
+                    vessel_name="Borealis",
+                    status="laden",
+                    load_port="Sabine Pass",
+                    departed_at_utc=NOW - timedelta(days=10),
+                    destination_terminal=terminal,
+                    eta_utc=eta,
+                    energy_gwh=1_000.0,
+                    book_id=book,
+                    source_system="ETRM",
+                    source_reference="etrm:cargo",
+                    updated_at_utc=NOW,
+                )
+            )
+            # The slot opens on the ETA and holds exactly the cargo: on plan it fits.
+            session.add(
+                RegasSlotRecord(
+                    slot_id=f"slot-nw-{tag}",
+                    terminal_name=terminal,
+                    window_start_utc=eta,
+                    window_end_utc=eta + timedelta(days=10),
+                    send_out_gwh_d=100.0,
+                    cargo_id=cargo,
+                    book_id=book,
+                    source_system="ETRM",
+                    source_reference="etrm:slot",
+                    updated_at_utc=NOW,
+                )
+            )
+            session.commit()
+            assert lng_disruption.reoptimise(session, book, trigger="plan", now=NOW) == {
+                "book_id": book,
+                "status": "as_planned",
+            }
+
+            # Four days late: 400,000 MWh has no send-out right and the book holds no offer.
+            session.get(LngCargoRecord, cargo).eta_utc = eta + timedelta(days=4)
+            session.commit()
+            late = lng_disruption.reoptimise(session, book, trigger="late", now=NOW)
+            session.commit()
+            assert late["recommended_set"] == [] and late["notified"]
+            assert set(titles(session)) == {"No workable option: Borealis"}
+            body = (
+                session.query(NotificationOutboxRecord)
+                .filter(NotificationOutboxRecord.dedupe_key.like(f"lng_disruption:{book}:%"))
+                .first()
+                .body
+            )
+            assert "no option meets the hard constraints" in body
+            assert "over the storage right" in body  # why the one option cannot happen
+            # The same state again tells no one.
+            again = lng_disruption.reoptimise(
+                session, book, trigger="again", now=NOW + timedelta(minutes=1)
+            )
+            assert again["status"] == "unchanged"
+
+            # Back on plan: the open disruption is cleared, once.
+            session.get(LngCargoRecord, cargo).eta_utc = eta
+            session.commit()
+            cleared = lng_disruption.reoptimise(
+                session, book, trigger="back", now=NOW + timedelta(minutes=2)
+            )
+            session.commit()
+            assert cleared["decision"] == "notified" and cleared["notified"]
+            assert {t for t in titles(session) if "cleared" in t} == {
+                f"Disruption cleared: book {book}"
+            }
+            assert lng_disruption.reoptimise(
+                session, book, trigger="quiet", now=NOW + timedelta(minutes=3)
+            ) == {"book_id": book, "status": "as_planned"}
+        finally:
+            session.rollback()
+            session.query(NotificationOutboxRecord).filter(
+                NotificationOutboxRecord.dedupe_key.like(f"lng_disruption:{book}:%")
+            ).delete(synchronize_session=False)
+            session.query(LngDisruptionRunRecord).filter(
+                LngDisruptionRunRecord.book_id == book
+            ).delete(synchronize_session=False)
+            for model, column, value in (
+                (RegasSlotRecord, RegasSlotRecord.slot_id, f"slot-nw-{tag}"),
+                (LngCargoRecord, LngCargoRecord.cargo_id, cargo),
+                (LngTerminalTermsRecord, LngTerminalTermsRecord.terminal_id, f"gate-nw-{tag}"),
+                (TradingBookRecord, TradingBookRecord.book_id, book),
+            ):
+                session.query(model).filter(column == value).delete(synchronize_session=False)
+            session.commit()

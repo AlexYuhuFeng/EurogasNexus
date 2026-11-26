@@ -1321,16 +1321,38 @@ def _books(session) -> list[str]:
 
 
 def _message(book_id: str, result: Result, change: str, terms: DeskTerms) -> tuple[str, str]:
-    """The notice: the recommended set as it now stands, each with its reason and figures."""
+    """The notice: the recommended set as it now stands, each with its reason and figures.
 
-    if not result.recommended_set:
+    "Cleared" only when nothing is disrupted any more (the caller sends it only when an
+    earlier run had a disruption open). A disruption no option can physically answer gets
+    its own notice naming what is disrupted and why each option cannot happen."""
+
+    if not result.disrupted:
         title = f"Disruption cleared: book {book_id}"
         lines = [
             "No supply of the book is disrupted any longer; the earlier recommended options "
-            "are withdrawn."
+            "are withdrawn.",
+            ADVISORY,
         ]
         return title, "\n".join(lines)
     hit = ", ".join(s.label for s in result.disrupted)
+    if not result.recommended_set:
+        title = f"No workable option: {hit}"
+        lines = [
+            f"{hit} is disrupted and no option meets the hard constraints: none of the "
+            f"{len(result.options)} option(s) valued can physically happen."
+        ]
+        for option in result.options[:3]:
+            why = option.reasons[0] if option.reasons else "it cannot physically happen"
+            lines.append(f"{option.title}: {why}.")
+        lines += [
+            "The Options section lists each option with why it cannot happen; a capacity "
+            "offer, a spare slot or substitute supply added to the book is valued on the "
+            "next run.",
+            f"What changed: {change}.",
+            ADVISORY,
+        ]
+        return title, "\n".join(lines)
     title = f"Recommended options changed: {hit}"
     words = {
         "clean": "Breaks no contract, moves nothing",
@@ -1390,9 +1412,11 @@ def reoptimise(session, book_id: str, *, trigger: str, now: datetime) -> dict[st
     chosen = _recommended_set(result)
     now_set = [[item["basis"], item["key"]] for item in chosen]
     change = None
+    open_before = bool(last is not None and last.disrupted)
+    if not result.disrupted and not open_before:
+        # Nothing disrupted now and nothing open before: there is nothing to clear.
+        return {"book_id": book_id, "status": "as_planned"}
     if last is None:
-        if not result.disrupted:
-            return {"book_id": book_id, "status": "as_planned"}
         change = "recommendation"
     elif (
         last.recommended_set is not None
@@ -1400,6 +1424,10 @@ def reoptimise(session, book_id: str, *, trigger: str, now: datetime) -> dict[st
     ):
         change = "recommendation"
     elif last.recommended_key != key:
+        change = "recommendation"
+    elif sorted(last.disrupted or []) != sorted(s.supply_id for s in result.disrupted):
+        # What is disrupted changed with no workable option either side (or the disruption
+        # cleared after one with none): the roles hear it.
         change = "recommendation"
     elif sorted(item.get("key") for item in (last.frontier or [])) != frontier_keys:
         change = "frontier"
@@ -1425,7 +1453,7 @@ def reoptimise(session, book_id: str, *, trigger: str, now: datetime) -> dict[st
     queued = []
     if decision == "notified":
         title, body = _message(book_id, result, change, book.terms)
-        severity = "warning" if rec is not None else "info"
+        severity = "warning" if result.disrupted else "info"
         for role in ROLES:
             route = route_for(CARGO_ROLE_CATEGORIES[role])
             if queue_notification(
