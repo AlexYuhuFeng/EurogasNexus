@@ -50,7 +50,8 @@ def test_the_pool_counts_waits_and_timeouts_when_it_is_exhausted(tmp_path, monke
     snapshot = counters.snapshot()
     assert snapshot["timeouts"] == 1
     assert snapshot["checkouts"] == 2
-    assert snapshot["waits"] >= 2  # the timed-out checkout and the one that waited
+    # The first checkout opened a connection (not a wait); the other two found none free.
+    assert snapshot["waits"] == 2
     assert snapshot["wait_seconds"] >= 0.25
     engine.dispose()
 

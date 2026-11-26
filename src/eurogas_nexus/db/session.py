@@ -56,17 +56,18 @@ class PoolCounters:
         self.timeouts = 0
         self.wait_seconds = 0.0
 
-    def record(self, waited: float, *, timed_out: bool) -> None:
+    def record(self, waited: float, *, timed_out: bool, exhausted: bool) -> None:
+        """One checkout: ``exhausted`` when no connection was idle and none could be opened,
+        so it had to wait for one to come back (opening a new connection is not a wait)."""
+
         with self._lock:
             if timed_out:
                 self.timeouts += 1
             else:
                 self.checkouts += 1
-            # A checkout served from an idle connection takes microseconds; one that took
-            # longer waited for a connection to come back (the pool was exhausted).
-            if waited >= 0.005:
+            if exhausted:
                 self.waits += 1
-            self.wait_seconds += waited
+                self.wait_seconds += waited
 
     def snapshot(self) -> dict[str, float]:
         with self._lock:
@@ -91,13 +92,14 @@ class CountingQueuePool(QueuePool):
     def _do_get(self):  # noqa: ANN202 - SQLAlchemy's signature
         from sqlalchemy.exc import TimeoutError as PoolTimeout
 
+        exhausted = self._pool.qsize() == 0 and self._overflow >= self._max_overflow
         started = time.monotonic()
         try:
             connection = super()._do_get()
         except PoolTimeout:
-            _POOL_COUNTERS.record(time.monotonic() - started, timed_out=True)
+            _POOL_COUNTERS.record(time.monotonic() - started, timed_out=True, exhausted=True)
             raise
-        _POOL_COUNTERS.record(time.monotonic() - started, timed_out=False)
+        _POOL_COUNTERS.record(time.monotonic() - started, timed_out=False, exhausted=exhausted)
         return connection
 
 
