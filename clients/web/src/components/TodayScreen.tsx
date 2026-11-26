@@ -19,6 +19,7 @@
  * is absent.
  */
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import i18n from "@/i18n";
 import { api, type ForwardBalanceDTO } from "@/api/client";
 import { headlinePhrase } from "@/app/model/forwardBalanceModel";
 import { useCompactWidth } from "@/app/shell/useShellLayout";
@@ -52,6 +53,7 @@ import {
   stateWords,
 } from "@/app/model/todayModel";
 import { pnlClass } from "@/app/model/pnlColor";
+import { serverNoteText, shownServerNotes } from "@/app/model/serverNotes";
 import { MethodNote } from "@/components/MethodNote";
 import { StorageByCountryPanel } from "@/components/StorageByCountryPanel";
 import { WhyButton } from "@/components/WhyButton";
@@ -256,7 +258,7 @@ function MarketFigure({ figure, t, nowMs, onInspect }: { figure: TodayMarketFigu
       size="md"
       live
       delta={figure.day_change == null ? undefined : { text: formatChange(figure.day_change, figure.unit), value: figure.day_change }}
-      detail={t("today.close_of", { day: shortDay(figure.close_day) })}
+      detail={t("today.close_of", { day: shortDay(figure.close_day, i18n.language) })}
     />
   );
 }
@@ -412,7 +414,7 @@ function priceLabels(row: TodayKeyFiguresRowDTO | undefined): Record<string, str
 
 /** The mark's provenance on demand: its close, the key figure it is, and its per-MWh value. */
 function markTitle(mark: NonNullable<BookHub["mark"]>, labels: Record<string, string>, t: Translate): string {
-  const parts = [t("today.close_of", { day: shortDay(mark.as_of ?? "") })];
+  const parts = [t("today.close_of", { day: shortDay(mark.as_of ?? "", i18n.language) })];
   if (mark.same_as) parts.push(t("today.book.mark_same_as", { price: labels[mark.same_as] ?? mark.same_as.replace(/^price\./, "") }));
   if (mark.value_mwh != null && mark.unit_mwh && mark.unit_mwh !== mark.unit) {
     parts.push(t("today.book.mark_per_mwh", { value: formatValue(mark.value_mwh, mark.unit_mwh), unit: mark.unit_mwh }));
@@ -646,7 +648,7 @@ function FundamentalsRow({ row, t, nowMs, language, quiet, onOpenFundamentals }:
                       ? undefined
                       : { text: t("today.supply_call_vs_avg", { avg: formatValue(balance.call_7d_avg_gwh, "GWh/d") }), value: null }
                   }
-                  detail={t("today.supply_call_detail", { day: shortDay(balance.latest.as_of) })}
+                  detail={t("today.supply_call_detail", { day: shortDay(balance.latest.as_of, language) })}
                 />
                 <Sparkline
                   values={balance.series.map((point) => point.call_gwh)}
@@ -813,6 +815,7 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
     fundamentals: () => (fundamentals ? <FundamentalsRow key="fundamentals" row={fundamentals} t={t} nowMs={nowMs} language={language} quiet={quiet} onOpenFundamentals={onOpenFundamentals} /> : null),
   };
   const scope = today.all_simulated ? "all" : today.simulated ? "mixed" : "none";
+  const notes = shownServerNotes(today.warnings);
   return (
     <SimulatedScope scope={scope} notice={t("today.all_simulated")}>
     <div className="today" data-today="ready">
@@ -824,8 +827,12 @@ export function TodayScreen({ today, loading, error, t, language, nowMs, onRefre
           <TodayHeadActions t={t} loading={loading} onOpenBrief={onOpenBrief} onRefresh={onRefresh} />
         </div>
       )}
-      {today.warnings.length > 0 && (
-        <ul className="today-warnings">{today.warnings.map((warning) => <li key={warning}>{warning}</li>)}</ul>
+      {/* What could not be read, folded to one line; the raw line stays in the title. */}
+      {notes.length > 0 && (
+        <details className="today-warnings" data-today-warnings={notes.length}>
+          <summary>{t("today.warnings", { count: notes.length })}</summary>
+          <ul>{notes.map((warning) => <li key={warning} title={warning}>{serverNoteText(warning, t, language)}</li>)}</ul>
+        </details>
       )}
       {gasDayStrip && canSeeBook && rows.includes("gas_day") && <GasDayStrip gasDay={gasDay} checklist={checklist} t={t} nowMs={nowMs} />}
       {quiet && !rows.includes("fundamentals") && <p className="today-quiet" data-today-quiet="">{t("today.needs.quiet")}</p>}

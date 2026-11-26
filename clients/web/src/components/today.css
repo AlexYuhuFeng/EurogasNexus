@@ -29,10 +29,18 @@
   }
 
   .today-warnings {
-    margin: 0;
-    padding-left: var(--ds-space-4);
     color: var(--ds-text-2);
     font-size: var(--ds-text-sm);
+  }
+
+  .today-warnings > summary {
+    cursor: pointer;
+    width: fit-content;
+  }
+
+  .today-warnings ul {
+    margin: var(--ds-space-1) 0 0;
+    padding-left: var(--ds-space-4);
   }
 
   .today-row {

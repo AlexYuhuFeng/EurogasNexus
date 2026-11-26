@@ -38,6 +38,24 @@ function num(value: number | null | undefined, decimals = 1): string {
   return value == null ? "–" : value.toLocaleString("en-GB", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 }
 
+/**
+ * A storage entity in the reader's language: a country by its ISO code through the browser's
+ * own region names ("Germany", "德国"), the two aggregates by their labels; the server's name
+ * otherwise.
+ */
+function entityName(entity: { code: string; name: string }, language: string, t: Translate): string {
+  if (entity.code === "EU") return t("storage_panel.region_eu");
+  if (entity.code === "NWE") return t("storage_panel.region_nwe");
+  if (/^[A-Z]{2}$/.test(entity.code)) {
+    try {
+      return new Intl.DisplayNames([language], { type: "region" }).of(entity.code) ?? entity.name;
+    } catch {
+      return entity.name;
+    }
+  }
+  return entity.name;
+}
+
 function RegionFigures({ entity, t, language }: { entity: StorageEntityDTO; t: Translate; language: string }) {
   const pills = useSimulatedPills();
   const average = entity.vs_average;
@@ -57,11 +75,15 @@ function RegionFigures({ entity, t, language }: { entity: StorageEntityDTO; t: T
         <dd>{signed(entity.day_change_pts, 2)} <small>{t("storage_panel.pts")}</small></dd>
         <dd className="storage-figure-note">{signed(entity.day_change_twh, 2)} TWh</dd>
       </div>
+      {/* A comparison with nothing to compare against is left out, not shown as a dash. */}
+      {entity.vs_last_year.diff_pts != null && (
       <div>
         <dt>{t("storage_panel.vs_last_year")}</dt>
         <dd>{signed(entity.vs_last_year.diff_pts)} <small>{t("storage_panel.pts")}</small></dd>
         <dd className="storage-figure-note">{t("storage_panel.last_year_was", { pct: num(entity.vs_last_year.fill_pct) })}</dd>
       </div>
+      )}
+      {average.diff_pts != null && (
       <div>
         <dt>{average.years ? t("storage_panel.vs_avg", { count: average.years }) : t("storage_panel.vs_avg_none")}</dt>
         <dd>{signed(average.diff_pts)} <small>{t("storage_panel.pts")}</small></dd>
@@ -79,6 +101,7 @@ function RegionFigures({ entity, t, language }: { entity: StorageEntityDTO; t: T
           </dd>
         )}
       </div>
+      )}
       <div>
         <dt>{t("storage_panel.stock")}</dt>
         <dd>{num(entity.stock_twh, 1)} <small>TWh</small></dd>
@@ -167,10 +190,10 @@ export function StorageByCountryPanel({ t, language, summary = false, onOpenFull
       rowHeader: true,
       sortable: true,
       priority: "primary",
-      value: (row) => row.name,
+      value: (row) => entityName(row, language, t),
       render: (row) => (
         <>
-          {row.name} <small className="muted">{row.code}</small>
+          {entityName(row, language, t)} <small className="muted">{row.code}</small>
           {row.simulated && pills && <span className="ds-cell-mark" data-state="simulated" title={t("today.simulated_long")}> {t("today.simulated_short")}</span>}
         </>
       ),
@@ -197,11 +220,11 @@ export function StorageByCountryPanel({ t, language, summary = false, onOpenFull
       render: (row) => {
         const spark = sparkOf(row);
         return (
-          <Sparkline values={spark.values} days={spark.days} label={t("storage_panel.spark_label", { name: row.name })} unit="%" decimals={1} simulated={row.simulated} height={20} t={t} />
+          <Sparkline values={spark.values} days={spark.days} label={t("storage_panel.spark_label", { name: entityName(row, language, t) })} unit="%" decimals={1} simulated={row.simulated} height={20} t={t} />
         );
       },
     },
-  ], [t, pills]);
+  ], [t, pills, language]);
 
   if (!data) {
     return (
@@ -245,9 +268,9 @@ export function StorageByCountryPanel({ t, language, summary = false, onOpenFull
       {subject && chart && ((narrow || summary) && !showChart ? (
         <div className="storage-panel-phone">
           <span className="storage-panel-headline">
-            <strong>{subject.name}</strong> {headline(subject, avgWords, t("storage_panel.per_day"))}
+            <strong>{entityName(subject, language, t)}</strong> {headline(subject, avgWords, t("storage_panel.per_day"))}
           </span>
-          <Sparkline {...sparkOf(subject)} label={t("storage_panel.spark_label", { name: subject.name })} unit="%" decimals={1} simulated={subject.simulated} t={t} onOpen={() => (summary && onOpenFull ? onOpenFull() : setShowChart(true))} />
+          <Sparkline {...sparkOf(subject)} label={t("storage_panel.spark_label", { name: entityName(subject, language, t) })} unit="%" decimals={1} simulated={subject.simulated} t={t} onOpen={() => (summary && onOpenFull ? onOpenFull() : setShowChart(true))} />
           {/* Today is the summary: the season chart is Research → Fundamentals, one click away. */}
           {summary && onOpenFull ? (
             <Button variant="quiet" onClick={onOpenFull} data-open-fundamentals="storage">{t("storage_panel.open_fundamentals")}</Button>
@@ -258,7 +281,7 @@ export function StorageByCountryPanel({ t, language, summary = false, onOpenFull
       ) : (
         <Chart
           id="storage-season"
-          title={t("storage_panel.chart_title", { name: subject.name })}
+          title={t("storage_panel.chart_title", { name: entityName(subject, language, t) })}
           data={chart.data}
           subtitle={chart.subtitle}
           compare={chart.compare}
@@ -268,7 +291,7 @@ export function StorageByCountryPanel({ t, language, summary = false, onOpenFull
           asOf={subject.as_of}
           controls={selected ? (
             <button type="button" className="ds-inline-link" onClick={() => setSelected(null)} data-storage-back="region">
-              {t("storage_panel.back_to_region", { name: regionEntity?.name ?? regionCode })}
+              {t("storage_panel.back_to_region", { name: regionEntity ? entityName(regionEntity, language, t) : regionCode })}
             </button>
           ) : undefined}
           note={[

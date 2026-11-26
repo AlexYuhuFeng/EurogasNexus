@@ -313,10 +313,7 @@ export function DecisionCasePanel({
 
   return (
     <section className="decision-case-panel" aria-label={t("decision_case.title")}>
-      <PanelHeader
-        title={t("decision_case.title")}
-        meta={t("decision_case.subtitle")}
-      />
+      <PanelHeader title={t("decision_case.title")} />
 
       {canPrepare && <div className="decision-case-create">
         <label>

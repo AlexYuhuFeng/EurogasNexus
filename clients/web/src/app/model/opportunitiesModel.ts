@@ -278,12 +278,18 @@ export function withOpportunity(search: string, opportunityId: string | null): s
 
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-/** A period as the desk writes it: "2026-11" → "Nov-26"; anything else unchanged. */
-export function periodLabel(period: string | null | undefined): string {
+/**
+ * A period as the desk writes it: "2026-11" → "Nov-26" (the screen's product name in either
+ * language); a gas day or a run of days from one ("2026-11-19+3d") → "19 Nov", "19 Nov, 3 d",
+ * in Chinese "11月19日", "11月19日，3 天".
+ */
+export function periodLabel(period: string | null | undefined, language = "en"): string {
   const month = /^(\d{4})-(\d{2})$/.exec(period ?? "");
   if (month) return `${MONTHS[Number(month[2]) - 1]}-${month[1].slice(2)}`;
-  // A gas day, or a run of days from one ("2026-11-19+3d"): "19 Nov", "19 Nov, 3 d".
   const day = /^(\d{4})-(\d{2})-(\d{2})(?:\+(\d+)d)?$/.exec(period ?? "");
+  if (day && language.toLowerCase().startsWith("zh")) {
+    return `${Number(day[2])}月${Number(day[3])}日${day[4] ? `，${day[4]} 天` : ""}`;
+  }
   if (day) return `${Number(day[3])} ${MONTHS[Number(day[2]) - 1]}${day[4] ? `, ${day[4]} d` : ""}`;
   return period ?? "";
 }
@@ -304,7 +310,7 @@ export function memberCount(row: Pick<OpportunityRowDTO, "group">): number {
 }
 
 /** The title of a row: type, subject, and for several months their count and total. */
-export function rowTitle(row: OpportunityRowDTO): { key: string; values: Record<string, string | number> } {
+export function rowTitle(row: OpportunityRowDTO, language = "en"): { key: string; values: Record<string, string | number> } {
   const count = memberCount(row);
   const total = row.group?.total_volume
     ? formatEnergy(row.group.total_volume)
@@ -313,7 +319,7 @@ export function rowTitle(row: OpportunityRowDTO): { key: string; values: Record<
       : "";
   return {
     key: `opportunities.title.${row.type}${count > 1 ? ".many" : ""}`,
-    values: { subject: row.subject || row.claim, count, total, period: periodLabel(row.period) },
+    values: { subject: row.subject || row.claim, count, total, period: periodLabel(row.period, language) },
   };
 }
 
@@ -347,7 +353,7 @@ export function groupMembers(row: OpportunityRowDTO): OpportunityGroupMemberDTO[
  * When the item is due, said truthfully: the earliest deadline (or expiry) of its months; a
  * deadline that has passed while the delivery month is under way says so, never "past due".
  */
-export function dueOf(row: OpportunityRowDTO, now: Date): { key: string; values: Record<string, string | number> } | null {
+export function dueOf(row: OpportunityRowDTO, now: Date, language = "en"): { key: string; values: Record<string, string | number> } | null {
   const members = groupMembers(row);
   const times = members
     .map((member) => ({ member, at: Date.parse(member.deadline_utc ?? member.expires_at_utc) }))
@@ -356,7 +362,7 @@ export function dueOf(row: OpportunityRowDTO, now: Date): { key: string; values:
   const upcoming = times.find((item) => item.at > now.getTime());
   const passed = times.find((item) => item.at <= now.getTime());
   if (passed && passed.member.period_start && Date.parse(passed.member.period_start) <= now.getTime()) {
-    return { key: "opportunities.under_way", values: { period: periodLabel(passed.member.period) } };
+    return { key: "opportunities.under_way", values: { period: periodLabel(passed.member.period, language) } };
   }
   if (!upcoming) return passed ? { key: row.deadline_utc ? "opportunities.overdue" : "opportunities.lapsed", values: {} } : null;
   const left = timeLeft(new Date(upcoming.at).toISOString(), now);
@@ -449,4 +455,93 @@ export function recentWithdrawals(notices: OpportunityStreamNotice[]): Opportuni
     out.push(notice);
   }
   return out;
+}
+
+/* ------------------------------------------------------------------ server words (CP-14 i18n) */
+
+type Words = (key: string, options?: Record<string, unknown>) => string;
+
+/** The engine's blocker sentences (server `claims.CLAIM_TEMPLATES["blocked.*"]`), English. */
+const BLOCKED_TEMPLATES: Readonly<Record<string, string>> = {
+  tariff_not_held: "Cannot evaluate: tariff not held at {subject}.",
+  price_missing: "Cannot evaluate: no price or firm's mark held for {subject}.",
+  input_missing: "Cannot evaluate: {subject} not held.",
+  input_stale: "Cannot evaluate: {subject} is stale ({detail}).",
+  check_failed: "Cannot evaluate: {subject} check failed ({detail}).",
+  path_unproven: "Cannot evaluate: no proven path for {subject}.",
+  evaluator: "Cannot evaluate: {subject}.",
+};
+
+/** The fixes the engine names (server `controls.py`), English → key. */
+const BLOCKED_FIXES: Readonly<Record<string, string>> = {
+  "load the operator's tariff for the gas year (entsog-tariffs source)": "tariff",
+  "connect a licensed price feed or enter the firm's mark": "price",
+  "supply the input": "input",
+  "refresh it": "refresh",
+  "load the ECB reference rates and the overnight benchmark fixings": "fx",
+};
+
+function fillTemplate(template: string, values: Record<string, string>): string {
+  return template.replace(/\{(\w+)\}/g, (_match, name: string) => values[name] ?? "");
+}
+
+/** An assumption catalogue key ("balancing.long_discount") as the desk names it. */
+export function assumptionLabel(key: string, t: Words): string {
+  return t(`assumption.label.${key}`, { defaultValue: key.replace(/[._]/g, " ") });
+}
+
+/** A dotted catalogue key, never shown bare. */
+const CATALOGUE_KEY = /^[a-z]+(?:\.[a-z_]+)+$/;
+
+/**
+ * What a blocker or an item is about, in words: a catalogue key reads as its label, a benchmark
+ * fixing and a position side are translated; a name (a contract, a point, a hub) stays as given.
+ */
+export function subjectWords(subject: string, t: Words): string {
+  const text = subject.trim();
+  if (CATALOGUE_KEY.test(text)) return assumptionLabel(text, t);
+  const forPeriod = /^(.+) for ([A-Z][a-z]{2}-\d{2}|\d{1,2} [A-Z][a-z]{2}(?:, \d+ d)?)$/.exec(text);
+  if (forPeriod) return t("opportunities.subject.for_period", { subject: subjectWords(forPeriod[1], t), period: forPeriod[2] });
+  const fixing = /^([A-Z€][A-Za-z€]*) fixing of (\d{4}-\d{2}-\d{2})$/.exec(text);
+  if (fixing) return t("opportunities.subject.fixing", { name: fixing[1], date: fixing[2] });
+  return text
+    .split(" · ")
+    .map((part) => (part === "long" || part === "short" ? t(`opportunities.side.${part}`) : part))
+    .join(" · ");
+}
+
+/** A blocker's detail ("ESTR fixing of 2026-11-24: as of 2026-11-24") in words. */
+export function blockerDetailWords(detail: string, t: Words): string {
+  const at = /^(.*): (as of|priced on gas day|published) (\d{4}-\d{2}-\d{2})$/.exec(detail.trim());
+  if (!at) return detail;
+  const how = at[2] === "as of" ? "as_of" : at[2] === "published" ? "published" : "priced_on";
+  return t(`opportunities.blocked.detail.${how}`, { subject: subjectWords(at[1], t), date: at[3] });
+}
+
+/**
+ * Why an opportunity cannot be evaluated, in the reader's language: from the blocker's code,
+ * subject and detail (the server's English sentence is the fallback, and the `title`). A
+ * sentence the engine did not build from its template reads as a generic line in Chinese.
+ */
+export function blockerText(
+  blocked: { code: string; subject: string; text: string; fix?: string; detail?: string } | null | undefined,
+  t: Words,
+  language: string,
+): { text: string; fix: string } {
+  if (!blocked) return { text: "", fix: "" };
+  const template = BLOCKED_TEMPLATES[blocked.code];
+  // An older server sends no detail: it is the bracket of the stale or failed sentence.
+  const detail = blocked.detail ?? /\(([^()]*(?:\([^()]*\))?[^()]*)\)\.$/.exec(blocked.text)?.[1] ?? "";
+  const fixKey = blocked.fix ? BLOCKED_FIXES[blocked.fix] : undefined;
+  const fix = blocked.fix ? (fixKey ? t(`opportunities.blocked.fix.${fixKey}`) : language.startsWith("zh") ? "" : blocked.fix) : "";
+  if (template && fillTemplate(template, { subject: blocked.subject, detail }) === blocked.text) {
+    return {
+      text: t(`opportunities.blocked.${blocked.code}`, {
+        subject: subjectWords(blocked.subject, t),
+        detail: blockerDetailWords(detail, t),
+      }),
+      fix,
+    };
+  }
+  return { text: language.startsWith("zh") ? t("opportunities.blocked.other") : blocked.text, fix };
 }

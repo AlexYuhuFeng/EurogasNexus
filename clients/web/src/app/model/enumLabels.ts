@@ -57,8 +57,18 @@ const SOURCE_NAMES: Record<string, string> = {
   NATIONAL_GAS_DEMAND: "National Gas demand",
 };
 
-/** A source system as the desk names it; an identifier without a known name is humanized. */
-export function sourceSystemLabel(id: string): string {
+/**
+ * A source system as the desk names it; an identifier without a known name is humanized. A
+ * simulated feed (`EEX_Sim`, `DEMO_Sim`) reads "EEX (simulated)" / "Simulated feed", in the
+ * reader's language when `t` is given, never as its identifier.
+ */
+export function sourceSystemLabel(id: string, t?: Translate): string {
+  const simulated = /^(.*)_Sim$/i.exec(id);
+  if (simulated) {
+    const base = simulated[1].toUpperCase() === "DEMO" ? "" : sourceSystemLabel(simulated[1]);
+    if (!base) return t ? t("market.simulated_feed_name", { defaultValue: "Simulated feed" }) : "Simulated feed";
+    return t ? t("market.simulated_source_named", { name: base, defaultValue: `${base} (simulated)` }) : `${base} (simulated)`;
+  }
   return SOURCE_NAMES[id] ?? (isEnumToken(id) ? humanizeEnum(id) : id);
 }
 

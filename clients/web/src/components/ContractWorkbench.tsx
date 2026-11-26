@@ -434,6 +434,7 @@ export function ContractWorkbench({
   const exampleView = useExampleView();
   const example = exampleView.example;
   const listSource = example ? EXAMPLE_CONTRACTS : upstreamContracts;
+  const libraryError = useApiStore((state) => Boolean(state.endpointErrors.upstreamContracts)) && !example;
   const rows = useMemo(
     () => listedContracts(listSource, { query, kind: kindFilter, today, counterpartyOf }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -655,8 +656,9 @@ export function ContractWorkbench({
             rowClassName={(row) => (row.master_contract_id && rows.some((item) => item.contract_id === row.master_contract_id) ? "contract-row-confirmation" : undefined)}
             empty={(
               <span data-empty-state="contract-library">
-                {t(listSource.length ? "contracts.list.none_match" : "contracts.no_saved_contracts")}
-                {listSource.length === 0 && <> <SeeExample onShow={exampleView.show} /></>}
+                {/* A failed read is not an empty book: say it could not be read, not "none yet". */}
+                {t(listSource.length ? "contracts.list.none_match" : libraryError ? "contracts.list.read_failed" : "contracts.no_saved_contracts")}
+                {listSource.length === 0 && !libraryError && <> <SeeExample onShow={exampleView.show} /></>}
               </span>
             )}
             columns={[

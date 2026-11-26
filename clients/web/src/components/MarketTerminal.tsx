@@ -1,5 +1,5 @@
 import { PromptDeskPanel } from "@/components/market/PromptDeskPanel";
-import { sourceSystemLabel } from "@/app/model/enumLabels";
+import { enumLabel, sourceSystemLabel } from "@/app/model/enumLabels";
 import { useEffect, useMemo, useState } from "react";
 import "@/styles/prices.css";
 import { api } from "@/api/client";
@@ -51,7 +51,7 @@ import { StatusBadge } from "@/components/ui/StatusBadge";
 import { Button, DataGrid, DirectionMark, InstrumentPicker, Segmented, Toolbar, type DataGridColumn } from "@/components/ui";
 import { directionOf } from "@/components/ui/dataGridModel";
 import { sumRecordCounts } from "@/app/workspaceDerivedData";
-import { ReferenceIndexEvidence } from "@/components/ReferenceIndexEvidence";
+import { isReceiptBoundEexNgpObservation, ReferenceIndexEvidence } from "@/components/ReferenceIndexEvidence";
 import { formatMeasure } from "@/app/time/valueFormat";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -241,6 +241,21 @@ const formatCadence = (seconds: number | null): string => {
   if (seconds < 60) return `${Math.round(seconds)}s`;
   if (seconds < 3600) return `${Math.round(seconds / 60)}m`;
   return `${Math.round(seconds / 3600)}h`;
+};
+
+/**
+ * Where a quote came from, as the desk names it: a simulated feed is "Simulated feed" (its
+ * venue is the feed's own placeholder, not a market), a real one is venue, product and source
+ * by name. The raw identifiers stay in the cell's title.
+ */
+const quoteVenueText = (
+  quote: { venue: string; product: string; source_system: string },
+  tenor: string,
+  t: Translate,
+): string => {
+  const simulated = quote.source_system?.toLowerCase().endsWith("_sim") === true;
+  if (simulated) return `${tenorLabel(tenor, t)} · ${t("market.simulated_feed")}`;
+  return `${quote.venue} ${tenorLabel(tenor, t)} · ${sourceSystemLabel(quote.source_system)}`;
 };
 
 const sourceLabel = (row: NormalizedMarketObsDTO | null): string => {
@@ -762,11 +777,11 @@ export function MarketTerminal({
     description: t("market.stale_description", {
       age: formatAge(row.ageSeconds),
       at: formatTimestamp(row.observedAt),
-      source: row.sourceLabel,
+      source: sourceSystemLabel(row.sourceLabel, t),
     }),
   });
   const asOfTitle = (row: BoardRow) => (row.observedAt
-    ? t("market.as_of_title", { at: formatTimestamp(row.observedAt), source: row.sourceLabel })
+    ? t("market.as_of_title", { at: formatTimestamp(row.observedAt), source: sourceSystemLabel(row.sourceLabel, t) })
     : undefined);
   const closeTitle = (row: BoardRow): string | undefined => {
     if (!row.close) return undefined;
@@ -805,12 +820,12 @@ export function MarketTerminal({
         <span
           className="market-hub-focus-button"
           data-focused={focusedHub === row.hub ? "true" : "false"}
-          title={allSimulated && row.priced ? `${t("market.board_note")} · ${t("market.source")}: ${row.sourceLabel}` : t("market.board_note")}
+          title={allSimulated && row.priced ? `${t("market.board_note")} · ${t("market.source")}: ${sourceSystemLabel(row.sourceLabel, t)}` : t("market.board_note")}
         >
           <strong data-price-hub-label>{row.hub}</strong>
           {/* With the source column folded away (one source class for every row) the source
               stays on hover and for assistive technology. */}
-          {allSimulated && row.priced && <span className="ds-visually-hidden" data-price-source>{row.sourceLabel}</span>}
+          {allSimulated && row.priced && <span className="ds-visually-hidden" data-price-source={row.sourceLabel}>{sourceSystemLabel(row.sourceLabel, t)}</span>}
         </span>
       ),
     },
@@ -910,7 +925,9 @@ export function MarketTerminal({
       value: (row: BoardRow) => spreadToTtf(row),
       format: (value: unknown) => formatMeasure("spread", value as number | null),
       // A spread with a stale leg is marked in the cell, not shown as if both legs were live.
-      state: (row: BoardRow) => (spreadToTtf(row) !== null && (row.stale || ttfStale)
+      // The row's own staleness is already marked once in its age cell; the spread cell says
+      // so only when the row looks live and the stale leg is TTF's.
+      state: (row: BoardRow) => (spreadToTtf(row) !== null && ttfStale && !row.stale && row.hub !== "TTF"
         ? { kind: "stale" as const, label: t("prices.board.spread_stale_label"), description: t("prices.board.spread_stale") }
         : null),
     } satisfies DataGridColumn<BoardRow>] : []),
@@ -935,10 +952,10 @@ export function MarketTerminal({
       value: (row) => row.sourceLabel,
       render: (row) => {
         if (!row.priced) return <span data-price-source>–</span>;
-        const description = row.simulated ? `${row.sourceLabel} · ${t("market.simulated_source")}` : row.sourceLabel;
+        const description = row.simulated ? `${sourceSystemLabel(row.sourceLabel, t)} · ${t("market.simulated_source")}` : sourceSystemLabel(row.sourceLabel, t);
         return (
-          <em data-price-source className={`market-source-pill ${row.simulated ? "simulated" : ""}`} aria-label={description} title={description}>
-            {row.sourceLabel}
+          <em data-price-source={row.sourceLabel} className={`market-source-pill ${row.simulated ? "simulated" : ""}`} aria-label={description} title={description}>
+            {sourceSystemLabel(row.sourceLabel, t)}
           </em>
         );
       },
@@ -948,7 +965,8 @@ export function MarketTerminal({
       header: t(anyAge ? "market.unit_age" : "prices.board.unit"),
       // On a phone the price keeps its unit beside it (the rest folds into the row's Details).
       priority: "primary",
-      render: (row) => (row.priced ? (anyAge ? `${row.unit} · ${formatAge(row.ageSeconds)}` : row.unit) : t("market.awaiting_feed")),
+      // A stale row's mark says its age ("stale 8m"): the age is not written a second time.
+      render: (row) => (row.priced ? (anyAge && !row.stale ? `${row.unit} · ${formatAge(row.ageSeconds)}` : row.unit) : t("market.awaiting_feed")),
       state: (row) => (row.priced && row.stale ? staleMark(row) : null),
       cellTitle: asOfTitle,
       cellAttributes: (row) => ({ "data-price-meta": "", "data-stale": row.stale ? "true" : undefined }),
@@ -1108,14 +1126,14 @@ export function MarketTerminal({
           {sourceQuoteRows.map(({ key, latest, history }) => (
             <div key={`market-terminal-${key}`} className="market-terminal-row" role="row">
               <strong data-label={t("market.hub")} role="rowheader">{latest.hub}</strong>
-              <span data-label={t("market.venue_product")} role="cell">
-                {latest.venue} {latest.product} · {latest.source_system}
+              <span data-label={t("market.venue_product")} role="cell" title={`${latest.venue} ${latest.product} · ${latest.source_system}`}>
+                {quoteVenueText(latest, activeTenor, t)}
               </span>
               <span data-label={t("market.price")} role="cell">
                 {formatPriceValue(latest.bid_price)} / {formatPriceValue(latest.ask_price)} {latest.currency}/{latest.unit}
               </span>
               <span data-label={t("market.freshness")} role="cell">
-                {formatAge(quoteAgeSeconds(latest))} · {latest.freshness}
+                {formatAge(quoteAgeSeconds(latest))} · {enumLabel(latest.freshness, t)}
               </span>
               <span className="market-sparkline-cell" data-label={t("market.trend")} role="cell">
                 <MarketSparkline
@@ -1179,13 +1197,17 @@ export function MarketTerminal({
             </div>
           ))}
         </div>
-        <div className="market-reference-index-panel">
-          <ReferenceIndexEvidence
-            markets={markets}
-            focusedHub={focusedHub}
-            t={t}
-          />
-        </div>
+        {/* Reference-index evidence only when this read holds some: an empty evidence block is
+            a paragraph about what is not there (UX rules 3 and 4). */}
+        {markets.some(isReceiptBoundEexNgpObservation) && (
+          <div className="market-reference-index-panel">
+            <ReferenceIndexEvidence
+              markets={markets}
+              focusedHub={focusedHub}
+              t={t}
+            />
+          </div>
+        )}
       </details>
     </div>
   );

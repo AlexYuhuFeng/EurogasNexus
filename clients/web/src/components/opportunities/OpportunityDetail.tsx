@@ -24,7 +24,10 @@ import {
   legIsTotal,
   markerTone,
   qualityMarker,
+  assumptionLabel,
+  blockerText,
 } from "@/app/model/opportunitiesModel";
+import i18n from "@/i18n";
 import { Button, EmptyState, Select, StatusBadge } from "@/components/ui";
 import { useSimulatedPills } from "@/components/ui/SimulatedScope";
 import { Instant } from "@/components/ui/Instant";
@@ -137,7 +140,7 @@ export function OpportunityDetail({ t, opportunityId, onClose, onChanged, onOpen
         <strong>{formatMeasure(detail.headline, { signed: true })}</strong>
         {detail.value && <span>{formatValue(detail.value)}</span>}
         {detail.volume && formatMeasure(detail.volume) !== formatMeasure(detail.headline) && <span>{formatMeasure(detail.volume)}</span>}
-        <span>{periodLabel(detail.period)}</span>
+        <span>{periodLabel(detail.period, i18n.language)}</span>
         {marker && tone && <StatusBadge tone={tone}>{t(`opportunities.class.${marker}`)}</StatusBadge>}
         <StatusBadge tone={detail.state === "blocked" ? "breach" : detail.state === "actionable" ? "ok" : "neutral"}>
           {t(`opportunities.state.${detail.state}`)}
@@ -147,11 +150,14 @@ export function OpportunityDetail({ t, opportunityId, onClose, onChanged, onOpen
       {group && memberCount(group) > 1 && (
         <MonthsTable t={t} group={group} current={opportunityId} onSelect={onSelectMember} />
       )}
-      {detail.blocked && (
-        <p className="opportunity-blocked" role="note">
-          <strong>{detail.blocked.text}</strong> {detail.blocked.fix}
-        </p>
-      )}
+      {detail.blocked && (() => {
+        const words = blockerText(detail.blocked, t, i18n.language);
+        return (
+          <p className="opportunity-blocked" role="note" title={detail.blocked.text}>
+            <strong>{words.text}</strong> {words.fix}
+          </p>
+        );
+      })()}
 
       <div className="opportunity-actions">
         {canOpenCase(detail) && (
@@ -256,7 +262,7 @@ export function OpportunityDetail({ t, opportunityId, onClose, onChanged, onOpen
               <ul className="opportunity-list">
                 {object.assumptions.map((item) => (
                   <li key={item.key}>
-                    <strong>{item.key}</strong> {formatMeasure(item.value)}{" "}
+                    <strong title={item.key}>{assumptionLabel(item.key, t)}</strong> {formatMeasure(item.value)}{" "}
                     <span className="opportunities-muted">
                       {t("opportunities.assumption.set_by", { who: item.set_by, origin: item.origin })}
                     </span>
@@ -317,7 +323,7 @@ function MonthsTable({
     <tr key={member.opportunity_id} aria-selected={member.opportunity_id === current} data-state={member.state}>
       <th scope="row">
         <button type="button" className="ds-inline-link" onClick={() => onSelect?.(member.opportunity_id)}>
-          {periodLabel(member.period)}
+          {periodLabel(member.period, i18n.language)}
         </button>
       </th>
       <td className="opportunity-num">{gap ? formatEnergy(member.volume) : formatValue(member.value)}</td>

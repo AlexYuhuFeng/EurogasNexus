@@ -40,7 +40,10 @@ import {
   showReadiness,
   timeLeft,
   type OpportunityBucket,
+  blockerText,
+  subjectWords,
 } from "@/app/model/opportunitiesModel";
+import i18n from "@/i18n";
 import { Button, EmptyState, ExampleFrame, StatusBadge, useExampleView } from "@/components/ui";
 import { exampleOpportunityList } from "@/app/experience/examples";
 import { Instant } from "@/components/ui/Instant";
@@ -148,14 +151,13 @@ export function OpportunitiesPage({
               t("opportunities.not_evaluated")
             )}
           </span>
-          <span
-            className="opportunities-live"
-            data-stream={fresh.mode}
-            title={t(`opportunities.live.${fresh.mode}_hint`)}
-          >
-            {fresh.age ? t("opportunities.live.age", { age: fresh.age }) + " · " : ""}
-            {t(`opportunities.live.${fresh.mode}`)}
-          </span>
+          {/* The as-of time says how old the list is; polling is normal and earns no badge
+              (UX rule 6): only a live stream is named. */}
+          {fresh.mode === "live" && (
+            <span className="opportunities-live" data-stream="live" title={t("opportunities.live.live_hint")}>
+              {t("opportunities.live.live")}
+            </span>
+          )}
           <Button variant="secondary" onClick={evaluate} disabled={evaluating}>
             {evaluating ? t("opportunities.evaluating") : t("opportunities.evaluate_now")}
           </Button>
@@ -320,8 +322,8 @@ function Rows({
         const marker = qualityMarker(row);
         const tone = markerTone(marker);
         const shownMarker = marker === "simulated" && !pills ? null : marker;
-        const due = dueOf(row, now);
-        const title = rowTitle(row);
+        const due = dueOf(row, now, i18n.language);
+        const title = rowTitle(row, i18n.language);
         const active = selected === row.opportunity_id || groupMembers(row).some((m) => m.opportunity_id === selected);
         return (
           <li key={row.opportunity_id} data-state={row.state} data-type={row.type_code} data-months={memberCount(row)}>
@@ -335,11 +337,13 @@ function Rows({
               <span className="opportunities-lead" aria-hidden={bucket === "must_act" ? true : undefined}>
                 {rowLead(row, bucket)}
               </span>
-              <span className="opportunities-claim">{t(title.key, title.values)}</span>
+              <span className="opportunities-claim">{t(title.key, { ...title.values, subject: subjectWords(String(title.values.subject), t) })}</span>
               <span className="opportunities-figure opportunities-value">{rowFigure(row)}</span>
               <span className="opportunities-quality">
                 {shownMarker && tone && <StatusBadge tone={tone}>{t(`opportunities.class.${shownMarker}`)}</StatusBadge>}
-                {bucket === "blocked" && row.blocked && <span className="opportunities-blocker">{row.blocked.text}</span>}
+                {bucket === "blocked" && row.blocked && (
+                  <span className="opportunities-blocker" title={row.blocked.text}>{blockerText(row.blocked, t, i18n.language).text}</span>
+                )}
               </span>
               <span className="opportunities-due">
                 {due && t(due.key, { ...due.values, when: due.values.whenKey ? t(String(due.values.whenKey), { count: due.values.count }) : "" })}

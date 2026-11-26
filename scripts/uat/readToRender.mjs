@@ -1433,7 +1433,13 @@ export function collectQuotedBoard() {
       hub: text(element.querySelector("[data-price-hub-label]")).toUpperCase(),
       priceText: text(element.querySelector("[data-price-value]")),
       metaText: text(element.querySelector("[data-price-meta]")),
-      sourceText: text(element.querySelector("[data-price-source]")),
+      // The screen names the source in words ("ICE Endex", "Simulated feed"); the record's own
+      // identifier rides on the attribute, which is what a read is compared with.
+      sourceText: (() => {
+        const source = element.querySelector("[data-price-source]");
+        const id = typeof source?.getAttribute === "function" ? attribute(source, "data-price-source") : "";
+        return id || text(source);
+      })(),
     });
   }
   const asOfElement = displayed.querySelector("[data-projection-as-of]");

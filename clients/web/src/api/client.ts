@@ -2717,7 +2717,7 @@ export interface OpportunityRowDTO {
   first_seen_utc: string;
   last_evaluated_utc: string;
   reasons: string[];
-  blocked: { code: string; subject: string; text: string; fix: string } | null;
+  blocked: { code: string; subject: string; text: string; fix: string; detail?: string } | null;
   rank: { position: number; reason: string } | null;
   user_state: { state: string; reason: string | null; at_version: number; changed_since: boolean } | Record<string, never> | null;
   /** What it is about, in words ("Haldor supply (Easington)", "TTF → THE"). */

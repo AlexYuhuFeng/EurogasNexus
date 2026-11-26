@@ -1,3 +1,4 @@
+import { enumWordsIn } from "@/app/model/enumLabels";
 import { displayTime } from "@/app/time/displayTime";
 import {
   snapshotStateLabelKey,
@@ -195,9 +196,8 @@ export function DecisionPackPanel({ t, model }: DecisionPackPanelProps) {
             ) : (
               <ul className="decision-pack-list">
                 {model.warnings.map((warning) => (
-                  <li key={warning}>
-                    <code>{warning}</code>
-                  </li>
+                  // A warning is read as words, not as code (UX rule 3); the raw text stays in the title.
+                  <li key={warning} title={warning}>{enumWordsIn(warning)}</li>
                 ))}
               </ul>
             )}

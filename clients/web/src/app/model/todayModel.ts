@@ -80,10 +80,12 @@ export function figureAnchorId(key: string): string {
 }
 
 /** Short date of a close day ("14 Nov"). */
-export function shortDay(day: string | null | undefined): string {
+export function shortDay(day: string | null | undefined, language = "en"): string {
   if (!day) return "";
   const at = new Date(`${day.slice(0, 10)}T00:00:00Z`);
   if (Number.isNaN(at.getTime())) return day;
+  // Chinese reads the day in Chinese ("11月25日"), never an English month name.
+  if (language.toLowerCase().startsWith("zh")) return `${at.getUTCMonth() + 1}月${at.getUTCDate()}日`;
   return at.toLocaleDateString("en-GB", { day: "numeric", month: "short", timeZone: "UTC" });
 }
 
