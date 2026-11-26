@@ -224,6 +224,33 @@ export function explainFailure(status: number | null, code: string | null, abort
   return { key: "reports.fail.server", retry: true, withoutAi: true };
 }
 
+/** A failure that may still finish on the server: the connection gave out (a proxy's 504 or
+ * 502, or no answer at all) while the report was being written. The server keeps going and
+ * stores the report, so the page waits for it in the archive rather than saying it failed. */
+export function mayStillLand(status: number | null, aborted: boolean): boolean {
+  return !aborted && (status === 504 || status === 502 || status === null);
+}
+
+/** How long the page keeps looking for a report whose connection gave out (the server allows
+ * the AI editor four minutes), and how often it looks. */
+export const LANDING_WAIT_MS = 6 * 60_000;
+export const LANDING_POLL_MS = 8_000;
+
+/** The report a timed-out request produced: one that was not in the archive when the request
+ * started, of the same kind and, for an asked report, the same question. */
+export function landedReport(
+  before: ReadonlySet<string>,
+  reports: readonly Pick<ReportSummaryDTO, "report_id" | "kind" | "question">[],
+  request: Pick<ReportRequestDTO, "kind" | "question">,
+): string | null {
+  const question = (request.question ?? "").trim();
+  const match = reports.find((report) =>
+    !before.has(report.report_id)
+    && report.kind === request.kind
+    && (!question || (report.question ?? "").trim() === question));
+  return match ? match.report_id : null;
+}
+
 /** "0:42": the time a generation has run. */
 export function elapsedLabel(ms: number): string {
   const seconds = Math.max(0, Math.floor(ms / 1000));

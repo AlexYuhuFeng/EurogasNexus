@@ -5916,5 +5916,10 @@
   "panel_error.reload": "Reload",
   "panel_error.details": "Technical details for support",
   "map.start_failed.title": "The map can't start in this browser",
-  "map.start_failed.body": "It needs WebGL, which this browser or machine has switched off. The network lists and figures on this page still work; try another browser or turn on hardware acceleration to see the map."
+  "map.start_failed.body": "It needs WebGL, which this browser or machine has switched off. The network lists and figures on this page still work; try another browser or turn on hardware acceleration to see the map.",
+  "reports.waiting_for_landing": "Still writing ({{elapsed}}). The connection timed out before the report was finished, but the server carries on and files it in the archive; it opens here as soon as it lands.",
+  "reports.stop_waiting": "Stop waiting",
+  "reports.landed_after_timeout": "The report finished after the connection timed out and was filed in the archive. It is open below.",
+  "reports.fail.stopped_waiting": "Stopped waiting. The report may still finish: press Refresh on the archive in a minute or two.",
+  "reports.fail.not_landed": "The report has not reached the archive after six minutes. Press Refresh on the archive to check again, try again, or make it without AI, which takes seconds."
 }
