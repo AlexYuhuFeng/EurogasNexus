@@ -1,31 +1,73 @@
 name: eurogas-nexus-runtime
 
-x-runtime-environment: &runtime-environment
-  RUNTIME_STORE_DATABASE_URL: postgresql+pg8000://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}
+# Every service receives only the settings it needs (security review H3/M8): the database
+# and the environment for all; the credential-encryption key for the services that call a
+# provider; the deployment token and the SSO client secret for the API alone. The internal
+# API token is not set here at all: the release profile does not mount the internal routes.
+x-db-environment: &db-environment
+  RUNTIME_STORE_DATABASE_URL: postgresql+pg8000://${EUROGAS_NEXUS_APP_DB_USER:-${POSTGRES_USER}}:${EUROGAS_NEXUS_APP_DB_PASSWORD:-${POSTGRES_PASSWORD}}@postgres:5432/${POSTGRES_DB}
   EUROGAS_NEXUS_ENV: release
   EUROGAS_NEXUS_API_PROFILE: release
   EUROGAS_NEXUS_VERSION: ${EUROGAS_NEXUS_VERSION}
+  # Every service writes audit rows: each is sealed and forwarded to the SIEM (H5).
+  EUROGAS_NEXUS_AUDIT_SINK: ${EUROGAS_NEXUS_AUDIT_SINK:-}
+  EUROGAS_NEXUS_AUDIT_RETENTION_DAYS: ${EUROGAS_NEXUS_AUDIT_RETENTION_DAYS:-1827}
+
+# Migrations run as the schema owner; the services connect as the application role, which
+# has no UPDATE or DELETE on the audit trail (docs/security/DATABASE_ROLES.md). Until the
+# roles are created both fall back to POSTGRES_USER.
+x-migrate-environment: &migrate-environment
+  RUNTIME_STORE_DATABASE_URL: postgresql+pg8000://${EUROGAS_NEXUS_OWNER_DB_USER:-${POSTGRES_USER}}:${EUROGAS_NEXUS_OWNER_DB_PASSWORD:-${POSTGRES_PASSWORD}}@postgres:5432/${POSTGRES_DB}
+  EUROGAS_NEXUS_ENV: release
+  EUROGAS_NEXUS_API_PROFILE: release
+  EUROGAS_NEXUS_VERSION: ${EUROGAS_NEXUS_VERSION}
+
+x-provider-environment: &provider-environment
+  <<: *db-environment
   EUROGAS_NEXUS_SECRET_KEY: ${EUROGAS_NEXUS_SECRET_KEY}
-  EUROGAS_NEXUS_INTERNAL_API_TOKEN: ${EUROGAS_NEXUS_INTERNAL_API_TOKEN}
+  EUROGAS_NEXUS_SECRET_KEY_PREVIOUS: ${EUROGAS_NEXUS_SECRET_KEY_PREVIOUS:-}
+  EUROGAS_NEXUS_ALERT_EMAIL_DOMAINS: ${EUROGAS_NEXUS_ALERT_EMAIL_DOMAINS:-}
+
+x-runtime-environment: &runtime-environment
+  <<: *provider-environment
   EUROGAS_NEXUS_PUBLIC_API_TOKEN: ${EUROGAS_NEXUS_PUBLIC_API_TOKEN}
+  EUROGAS_NEXUS_PUBLIC_API_TOKEN_PREVIOUS: ${EUROGAS_NEXUS_PUBLIC_API_TOKEN_PREVIOUS:-}
+  EUROGAS_NEXUS_PUBLIC_API_TOKEN_MODE: ${EUROGAS_NEXUS_PUBLIC_API_TOKEN_MODE:-service}
+  EUROGAS_NEXUS_PUBLIC_API_TOKEN_ROLE: ${EUROGAS_NEXUS_PUBLIC_API_TOKEN_ROLE:-VIEWER}
+  EUROGAS_NEXUS_PUBLIC_API_TOKEN_SCOPES: ${EUROGAS_NEXUS_PUBLIC_API_TOKEN_SCOPES:-}
   EUROGAS_NEXUS_OIDC_ISSUER: ${EUROGAS_NEXUS_OIDC_ISSUER:-}
   EUROGAS_NEXUS_OIDC_CLIENT_ID: ${EUROGAS_NEXUS_OIDC_CLIENT_ID:-}
   EUROGAS_NEXUS_OIDC_CLIENT_SECRET: ${EUROGAS_NEXUS_OIDC_CLIENT_SECRET:-}
   EUROGAS_NEXUS_OIDC_REDIRECT_URI: ${EUROGAS_NEXUS_OIDC_REDIRECT_URI:-}
   EUROGAS_NEXUS_OIDC_AUDIENCE: ${EUROGAS_NEXUS_OIDC_AUDIENCE:-}
   EUROGAS_NEXUS_OIDC_ROLE_CLAIM: ${EUROGAS_NEXUS_OIDC_ROLE_CLAIM:-roles}
-  EUROGAS_NEXUS_OIDC_SCOPE_CLAIM: ${EUROGAS_NEXUS_OIDC_SCOPE_CLAIM:-entitlements}
+  EUROGAS_NEXUS_OIDC_SCOPE_CLAIM: ${EUROGAS_NEXUS_OIDC_SCOPE_CLAIM:-}
   EUROGAS_NEXUS_OIDC_PROVISIONING_MODE: ${EUROGAS_NEXUS_OIDC_PROVISIONING_MODE:-preprovisioned}
   EUROGAS_NEXUS_OIDC_APPROVED_DOMAINS: ${EUROGAS_NEXUS_OIDC_APPROVED_DOMAINS:-}
   EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP: ${EUROGAS_NEXUS_OIDC_GROUPS_ROLE_MAP:-}
   EUROGAS_NEXUS_OIDC_GROUPS_SCOPE_MAP: ${EUROGAS_NEXUS_OIDC_GROUPS_SCOPE_MAP:-}
   EUROGAS_NEXUS_OIDC_ALLOW_HTTP: ${EUROGAS_NEXUS_OIDC_ALLOW_HTTP:-0}
-  # The gateway terminates TLS and proxies to api:8000 over the container
-  # network, so uvicorn must trust that hop's X-Forwarded-Proto. Its default
-  # (127.0.0.1,::1) excludes the sidecar proxy, which would leave every request
-  # looking like plain http: the session cookie would then be issued without
-  # Secure, and the origin guard could not derive the browser's real origin.
-  FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-172.16.0.0/12}
+  EUROGAS_NEXUS_LOCAL_ACCOUNTS: ${EUROGAS_NEXUS_LOCAL_ACCOUNTS:-auto}
+  EUROGAS_NEXUS_MFA_REQUIRED: ${EUROGAS_NEXUS_MFA_REQUIRED:-privileged}
+  EUROGAS_NEXUS_SESSION_IDLE_MINUTES: ${EUROGAS_NEXUS_SESSION_IDLE_MINUTES:-30}
+  EUROGAS_NEXUS_SESSION_ABSOLUTE_HOURS: ${EUROGAS_NEXUS_SESSION_ABSOLUTE_HOURS:-10}
+  EUROGAS_NEXUS_DUAL_CONTROL_COOLING_DAYS: ${EUROGAS_NEXUS_DUAL_CONTROL_COOLING_DAYS:-7}
+  EUROGAS_NEXUS_BREAK_GLASS: ${EUROGAS_NEXUS_BREAK_GLASS:-on}
+  EUROGAS_NEXUS_CSP_EXTRA_HOSTS: ${EUROGAS_NEXUS_CSP_EXTRA_HOSTS:-}
+  EUROGAS_NEXUS_CORS_ORIGINS: ${EUROGAS_NEXUS_CORS_ORIGINS:-}
+  # The gateway terminates TLS and proxies to api:8000. uvicorn trusts X-Forwarded-* only
+  # from the gateway's fixed address on the runtime network (security review M8), not from
+  # any container on any Docker network.
+  FORWARDED_ALLOW_IPS: ${FORWARDED_ALLOW_IPS:-172.30.57.10}
+
+# Container hardening for every application container (security review M8): no privilege
+# escalation, no Linux capabilities, a read-only root filesystem with a private /tmp.
+x-hardening: &hardening
+  read_only: true
+  cap_drop: ["ALL"]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs:
+    - /tmp:size=256m,mode=1777
 
 services:
   postgres:
@@ -47,6 +89,7 @@ services:
       start_period: 10s
 
   config-check:
+    <<: *hardening
     # Refuses to let the stack come up on a misconfigured environment. This runs
     # in the application image because the check reads the same contract the
     # service does; a missing credential key or a half-configured OIDC block would
@@ -65,8 +108,9 @@ services:
     restart: "no"
 
   migrate:
+    <<: *hardening
     image: ${EUROGAS_NEXUS_API_IMAGE}
-    environment: *runtime-environment
+    environment: *migrate-environment
     command: ["alembic", "upgrade", "head"]
     depends_on:
       postgres:
@@ -80,8 +124,9 @@ services:
     # into an empty store, so the map shows the network before ENTSOG is first read or on an
     # installation without outbound network. A store holding a live ENTSOG read is left as it
     # is. No network access; real reference metadata, not simulated data.
+    <<: *hardening
     image: ${EUROGAS_NEXUS_API_IMAGE}
-    environment: *runtime-environment
+    environment: *db-environment
     command: ["python", "scripts/ops/seed_reference_network.py", "--json"]
     depends_on:
       migrate:
@@ -89,23 +134,31 @@ services:
     restart: "no"
 
   api:
+    <<: *hardening
     image: ${EUROGAS_NEXUS_API_IMAGE}
     restart: unless-stopped
-    environment: *runtime-environment
+    environment:
+      <<: *runtime-environment
+      # The root filesystem is read-only; research artefacts go to their own volume.
+      EUROGAS_NEXUS_RESEARCH_ARTIFACT_ROOT: /var/lib/eurogas-nexus/snapshots
+    volumes:
+      - runtime-artifacts:/var/lib/eurogas-nexus
+    networks:
+      default:
+      runtime:
     ports:
       - "127.0.0.1:${API_PORT}:8000"
     depends_on:
       migrate:
         condition: service_completed_successfully
     healthcheck:
-      # The token is read from the container's own environment rather than
-      # interpolated here: an interpolated value would appear in `docker inspect`
-      # output and in the process list.
+      # The readiness probe needs no credential (api/dependencies/exempt_paths.py), so no
+      # token appears in the health command or in `docker inspect`.
       test:
         - CMD
         - python
         - -c
-        - "import json,os,urllib.request; req=urllib.request.Request('http://127.0.0.1:8000/api/health/ready'); req.add_header('X-Eurogas-Api-Key', os.environ['EUROGAS_NEXUS_PUBLIC_API_TOKEN']); assert json.load(urllib.request.urlopen(req, timeout=3))['status'] == 'ready'"
+        - "import json,urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=3))['status'] == 'ready'"
       interval: 10s
       timeout: 5s
       retries: 12
@@ -115,6 +168,12 @@ services:
     image: caddy:2-alpine
     profiles: ["server"]
     restart: unless-stopped
+    cap_drop: ["ALL"]
+    cap_add: ["NET_BIND_SERVICE"]
+    security_opt: ["no-new-privileges:true"]
+    networks:
+      runtime:
+        ipv4_address: 172.30.57.10
     environment:
       SERVER_NAME: ${SERVER_NAME}
     ports:
@@ -135,9 +194,10 @@ services:
       start_period: 10s
 
   public-ingestion:
+    <<: *hardening
     image: ${EUROGAS_NEXUS_API_IMAGE}
     profiles: ["tools"]
-    environment: *runtime-environment
+    environment: *provider-environment
     command:
       - python
       - scripts/ops/ingest_public_sources.py
@@ -176,10 +236,11 @@ services:
     # retried by the scheduler's policy. ENTSOG and GIE read only after an administrator
     # approved them; EIA, ENTSO-E and GIE read only with the firm's key (Admin -> Data
     # sources); a keyed source switches on once its key is stored.
+    <<: *hardening
     image: ${EUROGAS_NEXUS_API_IMAGE}
     profiles: ["public-ingestion"]
     restart: unless-stopped
-    environment: *runtime-environment
+    environment: *provider-environment
     command:
       - python
       - scripts/ops/run_dataops_scheduler.py
@@ -198,10 +259,11 @@ services:
     # drains the outbox within about a second and runs the debounced full evaluation when one
     # is due. It also drains every 15 s, so a lost notice costs latency, never an event; the
     # scheduler's drain after each tick stays as the fallback sweep.
+    <<: *hardening
     image: ${EUROGAS_NEXUS_API_IMAGE}
     profiles: ["public-ingestion"]
     restart: unless-stopped
-    environment: *runtime-environment
+    environment: *db-environment
     command:
       - python
       - scripts/ops/market_events.py
@@ -213,10 +275,11 @@ services:
         condition: service_completed_successfully
 
   monitoring-worker:
+    <<: *hardening
     image: ${EUROGAS_NEXUS_API_IMAGE}
     profiles: ["monitoring"]
     restart: unless-stopped
-    environment: *runtime-environment
+    environment: *provider-environment
     command:
       - python
       - scripts/ops/run_monitoring_worker.py
@@ -228,6 +291,15 @@ services:
       migrate:
         condition: service_completed_successfully
 
+networks:
+  runtime:
+    name: eurogas-nexus-runtime
+    ipam:
+      config:
+        - subnet: 172.30.57.0/24
+
 volumes:
   runtime-postgres:
     name: eurogas-nexus-runtime-postgres
+  runtime-artifacts:
+    name: eurogas-nexus-runtime-artifacts

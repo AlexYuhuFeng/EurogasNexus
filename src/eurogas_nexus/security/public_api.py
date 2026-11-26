@@ -52,7 +52,12 @@ def verify_public_api_token(provided_token: str | None) -> None:
             status_code=401,
             message="Public API token is required.",
         )
-    if not hmac.compare_digest(token, expected):
+    # During a rotation the previous value is accepted too (deployment_token.py).
+    previous = os.environ.get("EUROGAS_NEXUS_PUBLIC_API_TOKEN_PREVIOUS", "").strip()
+    matches = hmac.compare_digest(token, expected)
+    if previous:
+        matches = hmac.compare_digest(token, previous) or matches
+    if not matches:
         raise PublicApiAuthError(
             code="public_api_token_invalid",
             status_code=403,

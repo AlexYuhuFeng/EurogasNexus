@@ -317,7 +317,7 @@ function openHeaderEventStream(
       const response = await fetch(apiUrl(path), requestInit({ signal: controller.signal, headers: { Accept: "text/event-stream" } }));
       if (!response.ok || !response.body) throw new Error(`stream ${response.status}`);
       onStatus?.("open");
-      // Loaded on first use: only desktop sessions read streams this way.
+      // Loaded on first use: only header-authenticated callers read streams this way.
       const { dispatchSseBlock } = await import("./sse");
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
@@ -357,12 +357,13 @@ export function openEventStream(
 ): EventStreamHandle {
   // A desktop session must travel in a header and never in a URL (URLs are logged), and
   // EventSource cannot set headers: read the stream with fetch instead.
-  if (desktopSessionToken) return openHeaderEventStream(path, handlers, onStatus);
-  // Native EventSource cannot set Authorization headers, so the public API
-  // token travels as the documented `api_key` query parameter on SSE only.
+  // The deployment API token is refused in a URL as well (security review H3: query strings
+  // reach access logs), so a configured token reads the stream through fetch and a header.
+  if (desktopSessionToken || configuredApiToken()) {
+    return openHeaderEventStream(path, handlers, onStatus);
+  }
+  // A browser session is a same-origin cookie, which EventSource sends by itself.
   const url = new URL(apiUrl(path), window.location.origin);
-  const token = configuredApiToken();
-  if (token) url.searchParams.set("api_key", token);
   const source = new EventSource(url.toString(), { withCredentials: true });
   source.onopen = () => onStatus?.("open");
   source.onerror = () => onStatus?.("error");
@@ -6868,6 +6869,20 @@ export const api = {
         ? { change_token: changeToken, new_password: newPassword, client: "desktop" }
         : { change_token: changeToken, new_password: newPassword },
     ),
+  /** The code step of a sign-in with a second factor (authenticator or recovery code). */
+  verifyMfa: (mfaToken: string, code: { code?: string; recovery_code?: string }) =>
+    post<LocalLoginDTO>(
+      "/auth/mfa/verify",
+      isDesktopShell
+        ? { mfa_token: mfaToken, ...code, client: "desktop" }
+        : { mfa_token: mfaToken, ...code },
+    ),
+  /** The caller's second factor: enrolled, required by policy. */
+  mfaStatus: () => get<MfaStatusDTO>("/me/mfa"),
+  /** A new authenticator secret, shown once; active after confirmation. */
+  enrolMfa: () => post<MfaEnrolmentDTO>("/me/mfa/enrol", {}),
+  /** Confirm the secret with a code; answers the recovery codes once. */
+  confirmMfa: (code: string) => post<MfaConfirmedDTO>("/me/mfa/confirm", { code }),
   /** A signed-in local-account user changes their own password (other sessions end). */
   changeOwnPassword: (currentPassword: string, newPassword: string) =>
     post<LocalLoginDTO>("/me/password", { current_password: currentPassword, new_password: newPassword }),
@@ -6969,8 +6984,32 @@ export interface LocalLoginDTO {
   password_change_required: boolean;
   /** Present only with `password_change_required`: single-use, short-lived. */
   change_token?: string;
+  /** The password was right; the session opens after the second factor (`mfa_token`). */
+  mfa_required?: boolean;
+  mfa_token?: string;
+  /** Signed in, but the policy requires a second factor this person has not set up yet. */
+  mfa_enrolment_required?: boolean;
   principal_id?: string; display_name: string; role?: string; permissions?: string[];
   session_token?: string;
+}
+
+export interface MfaStatusDTO {
+  enrolled: boolean;
+  required: boolean;
+  policy: string;
+  recovery_codes_left: number;
+}
+
+export interface MfaEnrolmentDTO {
+  secret: string;
+  otpauth_uri: string;
+  digits: number;
+  period_seconds: number;
+}
+
+export interface MfaConfirmedDTO {
+  enrolled: boolean;
+  recovery_codes: string[];
 }
 
 export interface DevCredentialLoginInputDTO {

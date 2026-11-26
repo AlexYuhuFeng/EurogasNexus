@@ -27,7 +27,9 @@ FROM python:3.11-alpine@sha256:03c8e956bf1eee7763faf3a9fbb24b3ff9c0496cc2dbc5bcb
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    PIP_DISABLE_PIP_VERSION_CHECK=1
+    PIP_DISABLE_PIP_VERSION_CHECK=1 \
+    EUROGAS_NEXUS_ENV=release \
+    EUROGAS_NEXUS_API_PROFILE=release
 
 RUN addgroup -S eurogas \
     && adduser -S -G eurogas -h /home/eurogas eurogas
@@ -81,7 +83,9 @@ COPY scripts/ops/approve_public_source.py \
      scripts/ops/run_public_ingestion_worker.py \
      scripts/ops/run_shadow_scheduler.py \
      scripts/ops/seed_reference_network.py \
-     scripts/ops/validate_runtime_db.py ./scripts/ops/
+     scripts/ops/validate_runtime_db.py \
+     scripts/ops/verify_audit_chain.py \
+     scripts/ops/rotate_secret_key.py ./scripts/ops/
 COPY scripts/ci/audit_dependencies.py ./scripts/ci/
 COPY scripts/release/collect_python_license_texts.py \
      scripts/release/compatibility_check.py \
@@ -115,7 +119,11 @@ RUN set -eu; \
 # Neither verifier connects to the database or a provider.
 RUN python scripts/release/verify_customer_artifact.py
 
-RUN chown -R eurogas:eurogas /app
+# The application tree stays root-owned and read-only to the runtime user (security review
+# M8): only the data directory is the runtime user's.
+RUN mkdir -p /var/lib/eurogas-nexus/snapshots \
+    && chown -R eurogas:eurogas /var/lib/eurogas-nexus
+ENV EUROGAS_NEXUS_RESEARCH_ARTIFACT_ROOT=/var/lib/eurogas-nexus/snapshots
 USER eurogas
 
 EXPOSE 8000

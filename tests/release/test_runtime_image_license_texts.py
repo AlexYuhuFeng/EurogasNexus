@@ -154,7 +154,9 @@ def test_collector_runs_once_in_runtime_stage_after_install_and_script_copy() ->
     project_install = text.index("--find-links ./wheels eurogas_nexus")
     scripts_copy = text.index("COPY scripts/release/collect_python_license_texts.py")
     collector_index = text.index(f"python {COLLECTOR}")
-    chown = text.index("RUN chown -R eurogas:eurogas /app")
+    chown = text.index("chown -R eurogas:eurogas /var/lib/eurogas-nexus")
+    # The runtime user owns only its data directory, never the application (M8).
+    assert "chown -R eurogas:eurogas /app" not in text
     user_directive = text.index("USER eurogas")
 
     # Runtime stage only, after the locked install and the project wheel, and

@@ -23,10 +23,9 @@ async def require_public_api_auth(request: Request) -> None:
 
     校验公开 API 令牌的依赖注入函数（release 模式全量启用）。
 
-    Accepts ``Authorization: Bearer <token>``, ``X-Eurogas-Api-Key: <token>``,
-    or ``?api_key=<token>``. The query-parameter channel exists only for SSE
-    (``EventSource`` cannot set headers); deployments should avoid logging
-    query strings on the streaming paths. A missing token returns 401, an
+    Accepts ``Authorization: Bearer <token>`` or ``X-Eurogas-Api-Key: <token>``. The token
+    is never read from the URL (security review H3): query strings reach access logs, and
+    the clients read streams with ``fetch`` and a header instead. A missing token returns 401, an
     invalid one 403, and an unconfigured deployment fails closed with 503
     rather than serving unauthenticated.
 
@@ -50,10 +49,8 @@ async def require_public_api_auth(request: Request) -> None:
 
     authorization = request.headers.get("authorization", "")
     scheme, _, value = authorization.partition(" ")
-    # 优先 Bearer，其次专用头；两者皆无再退回查询参数（仅 SSE 通道需要）。
+    # 优先 Bearer，其次专用头；令牌从不接受出现在 URL 中。
     token = value.strip() if scheme.lower() == "bearer" else request.headers.get(API_KEY_HEADER)
-    if not token:
-        token = request.query_params.get("api_key")
     if not token and _allow_anonymous(request):
         # Owner decision D1: a deployment that says it trusts its network is stating that a caller
         # presenting nothing is acceptable. The token gate has to honour that too - otherwise "no

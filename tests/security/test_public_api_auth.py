@@ -89,18 +89,19 @@ def test_release_profile_requires_public_api_token(monkeypatch) -> None:
     assert response.status_code == 200
 
 
-def test_release_profile_accepts_token_via_query_param_for_sse(monkeypatch) -> None:
-    """EventSource cannot set headers; the api_key query channel is the SSE path."""
+def test_release_profile_refuses_the_token_in_the_url(monkeypatch) -> None:
+    """Security review H3: a token in a query string reaches access logs, so it is never read
+    from the URL; streams are read with fetch and a header instead."""
 
     monkeypatch.setenv(PUBLIC_API_TOKEN_ENV, "test-public-api-token")
     client = TestClient(create_app(Settings(api_profile="release")))
 
     path = "/api/market/observations"
     response = client.get(path, params={"api_key": "test-public-api-token"})
-    assert response.status_code == 200
+    assert response.status_code == 401
 
-    wrong = client.get(path, params={"api_key": "nope"})
-    assert wrong.status_code == 403
+    header = client.get(path, headers={"X-Eurogas-Api-Key": "test-public-api-token"})
+    assert header.status_code == 200
 
 
 def test_the_health_probes_and_login_are_reachable_without_a_credential(monkeypatch) -> None:

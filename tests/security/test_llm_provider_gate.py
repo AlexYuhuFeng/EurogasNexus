@@ -140,6 +140,11 @@ def test_analysis_api_reports_provider_disabled_in_release(monkeypatch) -> None:
     monkeypatch.setenv("EUROGAS_NEXUS_ENV", "release")
     monkeypatch.delenv("EUROGAS_NEXUS_API_PROFILE", raising=False)
     monkeypatch.delenv("EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED", raising=False)
+    # In release the deployment token is a service principal (review H3); this integration
+    # is configured with the analyst role it needs to ask.
+    monkeypatch.setenv("EUROGAS_NEXUS_PUBLIC_API_TOKEN_ROLE", "ANALYST")
+    # A release server needs a deliberate way to sign in (security review H6).
+    monkeypatch.setenv("EUROGAS_NEXUS_LOCAL_ACCOUNTS", "on")
     get_settings.cache_clear()
     try:
         client = TestClient(create_app(Settings(environment="release")))
