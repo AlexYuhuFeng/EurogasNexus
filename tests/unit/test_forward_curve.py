@@ -62,10 +62,12 @@ def test_seasonal_shape_and_longer_products_fill_only_open_months():
 def test_no_extrapolation_front_month_from_prompt_and_warnings():
     quotes = [
         q(date(2026, 10, 31), date(2026, 11, 1), 33.0, "DA"),
+        q(date(2026, 10, 20), date(2026, 11, 1), 33.5, "BOM"),
         q(date(2026, 11, 1), date(2026, 12, 1), 34.0, "Nov-26"),
     ]
     curve = _by_month(build_forward_curve(quotes, first_month=date(2026, 10, 1)))
-    assert curve["2026-10"].method == "front"
+    # The balance of month prices the current month; a day-ahead price never does.
+    assert curve["2026-10"].method == "front" and curve["2026-10"].price == 33.5
     assert "2026-12" not in curve
     odd = build_forward_curve(
         [

@@ -1299,7 +1299,7 @@ def book_position(ctx: Ctx) -> SectionResult:
     hubs = sorted(positions)
     cells: dict[tuple[str, str], float] = defaultdict(float)
     for row in ladder:
-        cells[(row.month, row.hub)] += row.net_mwh
+        cells[(row.month, row.hub)] += row.price_exposure_mwh
     rows = []
     for month in months:
         first = date.fromisoformat(month + "-01")
@@ -1309,8 +1309,9 @@ def book_position(ctx: Ctx) -> SectionResult:
         rows.append({"product": f"{first:%b-%y}",
                      **{hub: round(cells.get((month, hub), 0.0) / days, 0) for hub in hubs}})
     result.tables.append(table(
-        T("Net position by delivery month, MWh/d (long positive)",
-          "按交割月份的净头寸，MWh/d（多头为正）"),
+        T("Net price exposure by delivery month, MWh/d (long positive; an index-priced "
+          "contract on its index)",
+          "按交割月份的净价格敞口，MWh/d（多头为正；指数定价合同计入其指数）"),
         [("product", T("Product", "合约"), "text")] + [(hub, hub, "signed") for hub in hubs],
         rows,
     ))

@@ -21,7 +21,7 @@ const LADDER_SENTENCES: readonly [RegExp, string, (match: RegExpExecArray) => Re
   [/^Indicative: price risk on the open position only/, "INDICATIVE_PRICE_RISK_ONLY", () => ({})],
   [/^(\d+) leg-months have no mark or no price/, "LEG_MONTHS_NOT_VALUED", (m) => ({ count: Number(m[1]) })],
   [/^VaR unavailable: offsetting delivery months at (.+?) require/, "VAR_OFFSETTING_MONTHS", (m) => ({ hubs: m[1] })],
-  [/^VaR needs at least 20 daily price changes on every hub held; (\d+) available/, "VAR_SHORT_HISTORY", (m) => ({ count: Number(m[1]) })],
+  [/^VaR needs at least (\d+) daily price changes on every hub held; (\d+) available/, "VAR_SHORT_HISTORY", (m) => ({ minimum: Number(m[1]), count: Number(m[2]) })],
 ];
 
 function noteFromSentence(sentence: string): { code: string; params?: Record<string, unknown> } {

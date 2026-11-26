@@ -4,7 +4,8 @@ For each contract with a band approved by risk, and each remaining month, the co
 linked trades give is compared with the band: ``gap = band_edge - cover`` (below the band)
 or ``gap = cover - band_edge`` (above it), in MWh, where ``band_edge = band % x |contract
 volume of the month|`` and ``cover = hedge % x |contract volume|``. It needs no market data:
-the inputs are the book (contract volume, linked trades, the approved band).
+the inputs are the book (contract volume, linked trades, the approved band). The volume is
+the contract's flat-price exposure: an index-priced contract has none and is not checked.
 
 Worked example (design B.4): contract "Norsk-2027", Q1-27 month, contract volume 300,000 MWh,
 cover 126,000 MWh (42 %), approved band 60-80 %: band edge 60 % x 300,000 = 180,000 MWh;
@@ -70,7 +71,9 @@ class HedgeGapEvaluator:
 
     def _month(self, row: SnapshotInput, context: EvaluationContext) -> Candidate | None:
         detail = row.detail
-        volume = _dec(detail.get("contract_mwh"))
+        # The band is on the flat-price exposure the contract leaves (an index-priced
+        # contract has none); a row from before that field reads the contract volume.
+        volume = _dec(detail.get("price_exposure_mwh", detail.get("contract_mwh")))
         hedged = _dec(detail.get("hedged_mwh"))
         low = _dec(detail.get("band_low_pct"))
         high = _dec(detail.get("band_high_pct"))

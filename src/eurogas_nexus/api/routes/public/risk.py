@@ -533,7 +533,8 @@ def get_hedge_approvals(request: Request) -> dict:
     legs_by_ref = {leg.reference: leg for leg in inputs.legs}
 
     def volume(leg) -> VolumeLeg:
-        return VolumeLeg(leg.reference, leg.first_gas_day, leg.last_gas_day, leg.mwh_per_day)
+        return VolumeLeg(leg.reference, leg.first_gas_day, leg.last_gas_day, leg.mwh_per_day,
+                         floating=getattr(leg, "index_hub", None) is not None)
 
     rows = []
     for record in records:
@@ -813,8 +814,9 @@ def post_lng_cargo_bid(body: CargoBidBody, request: Request) -> dict:
     fx = fx_lookup(inputs.eur_rates)
 
     def spot(hub: str) -> float | None:
-        series = inputs.closes.get(hub)
-        return series[max(series)] if series else None
+        # Spot is the latest day-ahead close, never the month-ahead close of the risk series.
+        held = inputs.day_ahead.get(hub)
+        return held[1] if held else None
 
     terminals = [
         TerminalTerms(

@@ -234,6 +234,7 @@ def get_position_ladder(
         reporting_currency=reporting_currency,
         tenor_shocks=tenor_shocks or None,
         today=today,
+        close_contracts_by_hub=inputs.close_contracts,
     )
     if flat_months:
         warnings.append(
@@ -264,6 +265,8 @@ def get_position_ladder(
         for point in curve.as_dict()["points"]
     ]
     payload["horizon"] = {"start": horizon_start.isoformat(), "end": horizon_end.isoformat()}
+    # Which product and source each hub's VaR and freshness read (one series per hub).
+    payload["close_series"] = inputs.close_series
     payload["methods"] = _ladder_methods(payload, closes, today)
     payload["legs"] = {
         "physical": sum(1 for leg in legs if leg.kind == "physical"),

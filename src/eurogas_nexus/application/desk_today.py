@@ -796,6 +796,7 @@ def _same_price(price: dict, mark_mwh: float, mark_unit: str) -> bool:
 def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, Any]:
     from eurogas_nexus.application.freshness_contract import close_state
     from eurogas_nexus.application.projections.daily_closes import in_native_unit
+    from eurogas_nexus.domain.market.returns import contract_move
     from eurogas_nexus.domain.ontology.markets import quote_currency
     from eurogas_nexus.domain.portfolio.position_ladder import MAX_VAR_GAP_DAYS, build_ladder
     from eurogas_nexus.domain.risk.method_notes import method_note
@@ -815,10 +816,12 @@ def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, 
     net_open: dict[str, float] = {}
     long_hubs, short_hubs = set(), set()
     for row in ladder:
-        net_open[row.hub] = net_open.get(row.hub, 0.0) + row.net_mwh
-        if row.net_mwh > 1e-9:
+        # The day P&L moves with the flat-price exposure (an index-priced contract has none).
+        exposure = row.price_exposure_mwh
+        net_open[row.hub] = net_open.get(row.hub, 0.0) + exposure
+        if exposure > 1e-9:
             long_hubs.add(row.hub)
-        elif row.net_mwh < -1e-9:
+        elif exposure < -1e-9:
             short_hubs.add(row.hub)
     offsetting = long_hubs & short_hubs
     as_of = datetime.combine(today, datetime.min.time(), tzinfo=UTC).isoformat()
@@ -929,8 +932,15 @@ def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, 
         elif len(days) < 2 or (days[-1] - days[-2]).days > MAX_VAR_GAP_DAYS:
             pnl = {"empty": empty("no_previous_close", f"No previous {hub} close",
                                   "Import settlements")}
+        elif (moved := contract_move(
+            closes[days[-2]], closes[days[-1]],
+            *(getattr(inputs, "close_contracts", {}).get(hub, {}).get(day) for day in days[-2:]),
+        )) is None:
+            # The series rolled to the next contract: the difference is a spread, not a move.
+            pnl = {"empty": empty("no_previous_close", f"No previous {hub} close of the same "
+                                  "contract (the series rolled)", "Import settlements")}
         else:
-            change = net_open.get(hub, 0.0) * (closes[days[-1]] - closes[days[-2]])
+            change = net_open.get(hub, 0.0) * moved
             pnl = read.add(
                 figure(
                     f"pnl.day_change.{hub}",

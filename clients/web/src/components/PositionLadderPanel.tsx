@@ -9,6 +9,7 @@ import { DataGrid, EmptyState, ExampleFrame, Field, Fold, KeyFigure, Segmented, 
 import { examplePositionLadder } from "@/app/experience/examples";
 import {
   barShare,
+  netPosition,
   cargoTitle,
   groupLadderByMonth,
   ladderMonthLabel,
@@ -97,7 +98,7 @@ function useLadder(months: number, groupBy = "hub", reportingCurrency = "") {
 function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }) {
   return (
     <div className="position-summary" data-position-summary="true">
-      <KeyFigure label={t("position.net")} value={mwh(ladder.totals.net_mwh)} unit="MWh" />
+      <KeyFigure label={t("position.net")} value={mwh(netPosition(ladder.totals))} unit="MWh" />
       {/* The label already names the unit ("Physical (MWh)"). */}
       <KeyFigure label={t("position.physical")} value={mwh(ladder.totals.physical_mwh)} />
       <KeyFigure label={t("position.financial")} value={mwh(ladder.totals.financial_mwh)} />
@@ -118,7 +119,7 @@ function SummaryStrip({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }
       />
       {/* Gross by month adds information only when months offset; equal to |net| it repeats it. */}
       {ladder.totals.gross_tenor_mwh !== undefined &&
-        Math.abs(ladder.totals.gross_tenor_mwh) !== Math.abs(ladder.totals.net_mwh) && (
+        Math.abs(ladder.totals.gross_tenor_mwh) !== Math.abs(netPosition(ladder.totals)) && (
         <KeyFigure
           label={t("position.gross_tenor")}
           value={mwh(ladder.totals.gross_tenor_mwh)}
@@ -275,7 +276,7 @@ function useRollupColumns(ladder: PositionLadderDTO | null, groupBy: string, t: 
       },
       { id: "physical", header: t("position.physical"), type: "number", sortable: true, value: (row) => row.physical_mwh, format: (value) => mwh(value as number) },
       { id: "financial", header: t("position.financial"), type: "number", sortable: true, value: (row) => row.financial_mwh, format: (value) => mwh(value as number) },
-      { id: "net", header: t("position.net"), unit: "MWh", type: "number", sortable: true, value: (row) => row.net_mwh, format: (value) => mwh(value as number), cellClassName: (row) => signClass(row.net_mwh) },
+      { id: "net", header: t("position.net"), unit: "MWh", type: "number", sortable: true, value: (row) => netPosition(row), format: (value) => mwh(value as number), cellClassName: (row) => signClass(netPosition(row)) },
       { id: "hedged", header: t("position.hedged"), type: "number", sortable: true, value: (row) => row.hedge_ratio, render: (row) => <HedgeValue ratio={row.hedge_ratio} t={t} /> },
       { id: "mtm", header: t("position.mtm"), unit: ladder?.reporting_currency || undefined, type: "number", sortable: true, value: (row) => row.mark_to_market, format: (value) => money(value as number), flash: true },
     ],
@@ -291,7 +292,7 @@ function useLadderColumns(ladder: PositionLadderDTO | null, t: Translate) {
       { id: "hub", header: t("position.hub"), sortable: true, value: (row) => row.hub },
       { id: "physical", header: t("position.physical"), type: "number", sortable: true, value: (row) => row.physical_mwh, format: (value) => mwh(value as number), cellTitle: (row) => cargoTitle(row, t, mwh), cellAttributes: (row) => ({ "data-cargoes": row.cargoes?.map((cargo) => cargo.cargo_id).join(" ") || undefined }) },
       { id: "financial", header: t("position.financial"), type: "number", sortable: true, value: (row) => row.financial_mwh, format: (value) => mwh(value as number), cellTitle: (row) => cargoTitle(row, t, mwh) },
-      { id: "net", header: t("position.net"), unit: "MWh", type: "number", sortable: true, value: (row) => row.net_mwh, format: (value) => mwh(value as number), cellClassName: (row) => signClass(row.net_mwh) },
+      { id: "net", header: t("position.net"), unit: "MWh", type: "number", sortable: true, value: (row) => netPosition(row), format: (value) => mwh(value as number), cellClassName: (row) => signClass(netPosition(row)) },
       {
         id: "bar",
         header: <span className="ds-visually-hidden">{t("position.net_bar")}</span>,
@@ -300,7 +301,7 @@ function useLadderColumns(ladder: PositionLadderDTO | null, t: Translate) {
         cellClassName: () => "ds-grid-bar-cell",
         render: (row) => (
           <span className="ds-grid-bar">
-            <span className={signClass(row.net_mwh)} style={{ width: `${barShare(row.net_mwh, all) * 50}%` }} />
+            <span className={signClass(netPosition(row))} style={{ width: `${barShare(netPosition(row), all) * 50}%` }} />
           </span>
         ),
       },
@@ -366,7 +367,7 @@ function TenorShockScenario({
   t: Translate;
 }) {
   const keys = useMemo(
-    () => ladder.rows.filter((row) => Math.abs(row.net_mwh) > 1e-9).map((row) => `${row.hub}:${row.month}`),
+    () => ladder.rows.filter((row) => Math.abs(netPosition(row)) > 1e-9).map((row) => `${row.hub}:${row.month}`),
     [ladder],
   );
   const hubs = useMemo(() => [...new Set(keys.map((key) => key.split(":")[0] ?? ""))].filter(Boolean), [keys]);

@@ -238,6 +238,7 @@ def mandate_legs(inputs, today: date) -> list:
             if leg.open_ended
             else leg.last_gas_day,
             mwh_per_day=leg.mwh_per_day,
+            index_hub=leg.index_hub,
             instrument="physical"
             if leg.kind == "physical"
             else instruments.get(leg.reference, "future"),

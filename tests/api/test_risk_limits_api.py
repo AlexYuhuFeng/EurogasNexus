@@ -161,8 +161,37 @@ def _approved(client, who, proposed, approver="checker"):
     return data
 
 
+def _quote_rest_of_gas_year(engine, price: float) -> None:
+    """A balance-of-month and a strip to the end of the gas year, so every remaining month of
+    the evergreen supply has a curve mark (an unquoted month is not available, not flat)."""
+
+    from eurogas_nexus.domain.risk.limits import gas_year_end
+
+    now = datetime.now(UTC)
+    today = now.replace(hour=5, minute=0, second=0, microsecond=0)
+    next_month = (today.replace(day=1) + timedelta(days=32)).replace(day=1)
+    after = (next_month + timedelta(days=32)).replace(day=1)
+    end = datetime.combine(gas_year_end(now.date()) + timedelta(days=1), today.timetz())
+    with Session(engine) as session:
+        for key, first, last in (("bom", today, next_month), ("strip", after, end)):
+            if last <= first:
+                continue
+            session.add(
+                MarketObservationRecord(
+                    observation_id=f"nbp-{key}", market_venue="ICE", product=f"NBP {key}",
+                    price=price, unit="GBP/MWh", currency="GBP", period_start_utc=first,
+                    period_end_utc=last, observed_at_utc=now - timedelta(hours=1),
+                    source_system="ICE_OCM", source_reference=f"nbp:{key}",
+                    freshness="end_of_day", quality_score=0.9, research_only=True,
+                    metadata_json={"hub": "NBP", "tenor": key},
+                )
+            )
+        session.commit()
+
+
 def test_credit_lines_and_mandates_are_maintained_by_risk_and_measured(tmp_path, monkeypatch):
     engine, who = _setup(tmp_path, monkeypatch)
+    _quote_rest_of_gas_year(engine, 35.0)
     client = TestClient(create_app())
     line = {
         "name": "Centrica plc",

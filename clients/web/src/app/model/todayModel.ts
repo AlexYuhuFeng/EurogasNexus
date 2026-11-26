@@ -133,6 +133,7 @@ export function spreadEmptyText(empty: TodayEmptyDTO, t: Translate, language: st
 /** How a contract is shown on the ladder: normal method, not a failure (server `is_method_note`). */
 const METHOD_NOTE_ENDINGS = [
   "; volume only on the ladder",
+  "; volume on the ladder, its price exposure on that index",
   ": an FOB cargo is not on a European hub until it is sold or discharged",
 ];
 
