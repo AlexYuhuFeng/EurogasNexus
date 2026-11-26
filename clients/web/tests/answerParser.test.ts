@@ -80,8 +80,39 @@ test("energy and rate conversions use the authority's factors", () => {
     const result = convertQuery(input, UNITS, FX);
     close(result?.value, expected, 3);
     assert.equal(result?.unit, unit, input);
-    assert.deepEqual(result?.notes, [], input);
+    // The one line is the factor used: "1 GWh = 3,412.142 th".
+    assert.deepEqual(result?.notes.map((note) => note.key), ["answer.convert.factor"], input);
+    assert.equal(result?.notes[0].values.to, unit, input);
   }
+});
+
+test("conversions typed as people type them, Spotlight-style, with the factor shown", () => {
+  const cases: Array<[string, number, string]> = [
+    // A rate into a bare unit is the same rate in that unit (MMBtu/d).
+    ["800 GWh/d in MMBtu", 800 * 1000 / UNITS.energy_in_mwh.MMBtu, "MMBtu/d"],
+    ["800 gigawatt hours a day in mmbtu", 800 * 1000 / UNITS.energy_in_mwh.MMBtu, "MMBtu/d"],
+    ["how many MMBtu is 800 GWh/d", 800 * 1000 / UNITS.energy_in_mwh.MMBtu, "MMBtu/d"],
+    ["800 GWh/d = ? MMBtu", 800 * 1000 / UNITS.energy_in_mwh.MMBtu, "MMBtu/d"],
+    ["800 GWh per day is how many MMBtu", 800 * 1000 / UNITS.energy_in_mwh.MMBtu, "MMBtu/d"],
+    ["800 GWh/d is equivalent to what MMBtu", 800 * 1000 / UNITS.energy_in_mwh.MMBtu, "MMBtu/d"],
+    ["800 GWh/d 等于多少 MMBtu", 800 * 1000 / UNITS.energy_in_mwh.MMBtu, "MMBtu/d"],
+    ["800 GWh/d to MWh/h", 800 * 1000 / 24, "MW"],
+    ["10 mcm to GWh with gcv 11.2", 112, "GWh"],
+    ["1 bcm in TWh", 11, "TWh"],
+    ["€40/MWh to p/th", 40 * 0.8356 * 100 * UNITS.energy_in_mwh.th, "p/th"],
+    ["convert 12 $/MMBtu to €/MWh", (12 / UNITS.energy_in_mwh.MMBtu) / 1.0832, "EUR/MWh"],
+  ];
+  for (const [input, expected, unit] of cases) {
+    const result = convertQuery(input, UNITS, FX);
+    close(result?.value, expected, 3);
+    assert.equal(result?.unit, unit, input);
+    assert.ok(result?.notes.some((note) => note.key === "answer.convert.factor"), input);
+  }
+  const factor = convertQuery("800 GWh/d in MMBtu", UNITS, FX)?.notes.find((note) => note.key === "answer.convert.factor");
+  assert.deepEqual(factor?.values, { from: "GWh/d", factor: "3,412.142", to: "MMBtu/d" });
+  // An amount is not a rate, and power is not read as per hour of an amount.
+  assert.equal(convertQuery("800 GWh in MMBtu/d", UNITS, FX), null);
+  assert.equal(convertQuery("500 MW in GWh", UNITS, FX), null);
 });
 
 test("volume to energy states its calorific value: the typed one, or the assumption", () => {
@@ -105,14 +136,16 @@ test("price conversions name the ECB rate and its date, and refuse without one",
   close(toPence?.value, 40 * 0.8356 * 100 * UNITS.energy_in_mwh.th, 6);
   assert.equal(toPence?.unit, "p/th");
   assert.deepEqual(toPence?.notes, [
-    { key: "answer.convert.fx", values: { source: "ECB", date: "13 Nov", pair: "EURGBP", rate: "0.8356" } },
+    // The day travels as an ISO date; the row writes it in the reader's language.
+    { key: "answer.convert.fx", values: { source: "ECB", date: "2026-11-13", pair: "EURGBP", rate: "0.8356" } },
+    { key: "answer.convert.factor", values: { from: "EUR/MWh", factor: "2.4489", to: "p/th" } },
   ]);
   const usd = convertQuery("12 $/MMBtu in €/MWh", UNITS, FX);
   close(usd?.value, (12 / UNITS.energy_in_mwh.MMBtu) / 1.0832, 6);
-  // Same currency: no FX line at all.
+  // Same currency: no FX line at all, only the factor.
   const sameCurrency = convertQuery("100 p/th to GBP/MWh", UNITS, FX);
   close(sameCurrency?.value, 1 / UNITS.energy_in_mwh.th, 6);
-  assert.deepEqual(sameCurrency?.notes, []);
+  assert.deepEqual(sameCurrency?.notes.map((note) => note.key), ["answer.convert.factor"]);
   const none = convertQuery("40 EUR/MWh to p/th", UNITS, { source: "ECB", rates: {} });
   assert.equal(none?.value, null);
   assert.equal(none?.notes[0].key, "answer.convert.no_fx");

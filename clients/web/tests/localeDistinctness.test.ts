@@ -27,8 +27,10 @@ function readLocale(name: "en" | "zh"): Record<string, string> {
 const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "access.view.sso": "an acronym",
   "answer.as_of_source": "a date and a source name joined by a separator, no words",
+  "answer.convert.factor": "an equation of a figure and unit codes, no words",
   "answer.gasday.window": "two times joined by an arrow, no words",
   "answer.outages.top": "a list of facility names and figures, no words",
+  "answer.spread.legs": "two hub codes with their prices and unit codes, no words",
   "answer.tag.lng": "an acronym",
   "app.title": "the product's own name",
   "capacity.view_lng": "an acronym",
