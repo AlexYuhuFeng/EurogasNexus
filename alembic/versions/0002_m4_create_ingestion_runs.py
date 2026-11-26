@@ -8,6 +8,8 @@ revision = "0002_m4_create_ingestion_runs"
 down_revision = "0001_m2_baseline"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

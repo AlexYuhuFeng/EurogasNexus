@@ -14,6 +14,8 @@ revision: str = "0025_strategy_registry_v1"
 down_revision: str | None = "0024_cost_observations"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

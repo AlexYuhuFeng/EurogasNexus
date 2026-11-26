@@ -12,6 +12,8 @@ revision = "0016_drop_business_ontology"
 down_revision = "0015_llm_monitoring_alerts"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

@@ -34,6 +34,8 @@ revision: str = "0034_analysis_snapshots"
 down_revision: str | None = "0033_market_obs_order_indexes"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

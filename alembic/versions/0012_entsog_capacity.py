@@ -8,6 +8,8 @@ revision = "0012_entsog_capacity"
 down_revision = "0011_reference_source_lineage"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

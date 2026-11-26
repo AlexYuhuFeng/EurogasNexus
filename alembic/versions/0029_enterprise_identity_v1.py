@@ -14,6 +14,8 @@ revision: str = "0029_enterprise_identity_v1"
 down_revision: str | None = "0028_data_operations_v1"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def _extend_identity_principals() -> None:

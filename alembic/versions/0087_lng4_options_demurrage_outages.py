@@ -31,6 +31,8 @@ revision = "0087_lng4_options_demurrage"
 down_revision = "0088_tar2_capacity_bookings"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 _TS = sa.DateTime(timezone=True)
 

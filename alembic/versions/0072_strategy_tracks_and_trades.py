@@ -19,6 +19,8 @@ revision = "0072_strategy_tracks_and_trades"
 down_revision = "0071_opportunity_pending_inputs"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 _QUOTE_FLOATS = (
     "last_quantity_mwh", "session_open", "session_high", "session_low", "vwap", "volume_mwh",

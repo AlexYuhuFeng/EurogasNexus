@@ -8,6 +8,8 @@ revision = "0011_reference_source_lineage"
 down_revision = "0010_source_observation_metadata"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 REFERENCE_TABLES = (

@@ -44,6 +44,12 @@ revision: str = "0039_identity_api_key_hash_width"
 down_revision: str | None = "0038_contract_payment_terms"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "conditional"
+reversibility_note = (
+    'The downgrade refuses while data recorded since this revision would be lost (its error '
+    'says which); export that data first or restore the pre-upgrade backup.'
+)
 
 #: ``hmac:`` (5) + SHA-256 hex (64) = 69. See the module docstring for why 80.
 KEY_HASH_LENGTH = 80

@@ -18,6 +18,8 @@ revision = "0065_local_accounts"
 down_revision = "0064_market_reports"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "reversible"
 
 
 def upgrade() -> None:

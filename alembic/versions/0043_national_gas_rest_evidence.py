@@ -14,6 +14,12 @@ revision = "0043_national_gas_rest_evidence"
 down_revision = "0042_national_gas_actual_demand"
 branch_labels = None
 depends_on = None
+# Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
+reversibility = "conditional"
+reversibility_note = (
+    'The downgrade refuses while data recorded since this revision would be lost (its error '
+    'says which); export that data first or restore the pre-upgrade backup.'
+)
 
 _VALUE_TEXT_CHECK = (
     "length(value_text) <= 64 AND "
