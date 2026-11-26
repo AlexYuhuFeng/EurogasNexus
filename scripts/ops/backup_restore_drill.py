@@ -1,9 +1,11 @@
-"""Automated PostgreSQL backup + restore drill.
+"""Automated PostgreSQL backup + restore drill (logical dump; the single-machine option).
 
-Produces a custom-format dump from the source DSN, restores it into an
-isolated target database, validates schema revision/required tables/
-representative business records, then runs a DB-backed API read smoke. The
-script exits non-zero when any verification fails.
+The supported topology recovers with pgBackRest to a point in time
+(``scripts/ops/ha_drill.py pitr``); both drills verify the restored database with
+:func:`verify_restored_database` below. This one produces a custom-format dump from
+the source DSN, restores it into an isolated target database, validates schema
+revision, required tables and representative business records, then runs a DB-backed
+API read smoke. The script exits non-zero when any verification fails.
 
 Example:
     RUNTIME_STORE_DATABASE_URL=postgresql+pg8000://user:pass@127.0.0.1:5432/source \\
@@ -144,21 +146,99 @@ def create_database_if_missing(database_url: str, *, docker_container: str | Non
 
 
 def restored_api_readiness(target_database_url: str) -> int:
-    """Probe the restored database, never the still-healthy source or liveness."""
+    """Probe the restored database, never the still-healthy source or liveness.
+
+    Every database URL variable is cleared for the probe and only ``DATABASE_URL`` names the
+    target, so no configured source can win the precedence (``db/session.py``); the caller's
+    configuration is put back exactly afterwards.
+    """
     from fastapi.testclient import TestClient
 
     from eurogas_nexus.api.app import create_app
+    from eurogas_nexus.db.session import DB_URL_ENV_VARS, dispose_cached_engines
 
-    previous = os.environ.get("RUNTIME_STORE_DATABASE_URL")
-    os.environ["RUNTIME_STORE_DATABASE_URL"] = target_database_url
+    previous = {name: os.environ.get(name) for name in DB_URL_ENV_VARS}
+    for name in DB_URL_ENV_VARS:
+        os.environ.pop(name, None)
+    os.environ["DATABASE_URL"] = target_database_url
     try:
         with TestClient(create_app()) as client:
             return client.get("/api/health/ready").status_code
     finally:
-        if previous is None:
-            os.environ.pop("RUNTIME_STORE_DATABASE_URL", None)
-        else:
-            os.environ["RUNTIME_STORE_DATABASE_URL"] = previous
+        dispose_cached_engines()
+        for name, value in previous.items():
+            if value is None:
+                os.environ.pop(name, None)
+            else:
+                os.environ[name] = value
+
+
+def verify_restored_database(target_database_url: str, *, source_url: str | None = None) -> dict:
+    """Checks every restore must pass, whatever produced it (a dump or a point-in-time
+    recovery): the schema revision is this release's, the required tables exist,
+    representative business tables answer, TimescaleDB hypertables came back where the source
+    had them, and the API reports ready against the restored copy.
+
+    Returns the report; ``report["ok"]`` is the verdict and ``report["error"]`` the reason.
+    """
+
+    from sqlalchemy import text
+
+    report: dict = {"ok": False}
+    engine = get_engine(target_database_url)
+    try:
+        with engine.connect() as connection:
+            revision = connection.execute(
+                text("SELECT version_num FROM alembic_version LIMIT 1")
+            ).scalar_one_or_none()
+            report["revision"] = revision
+            for table in (
+                "audit_events",
+                "ingestion_runs",
+                "identity_principals",
+                "source_runtime_states",
+            ):
+                try:
+                    count = connection.execute(text(f"SELECT COUNT(*) FROM {table}")).scalar_one()
+                    report[f"{table}_rows"] = int(count)
+                except Exception:
+                    connection.rollback()
+                    report[f"{table}_rows"] = None
+        missing = list(list_missing_required_tables(engine))
+        report["missing_tables"] = missing
+    finally:
+        engine.dispose()
+
+    if report.get("revision") != DB_SCHEMA_REVISION or missing:
+        report["error"] = "restored_schema_invalid"
+        return report
+
+    # Optional TimescaleDB (ADR Decision 39): a source whose tables are hypertables must
+    # restore as hypertables, else the target is not the same store (a plain server, or
+    # another extension version, restores the rows into the internal chunk tables only).
+    from eurogas_nexus.db.timescale import engine_state
+
+    if source_url:
+        source_engine = get_engine(source_url)
+        try:
+            report["timescaledb_source"] = engine_state(source_engine)
+        finally:
+            source_engine.dispose()
+    target_engine = get_engine(target_database_url)
+    try:
+        report["timescaledb_target"] = engine_state(target_engine)
+    finally:
+        target_engine.dispose()
+    if report.get("timescaledb_source") == "active" and report["timescaledb_target"] != "active":
+        report["error"] = "timescale_not_restored"
+        return report
+
+    report["api_smoke_status"] = restored_api_readiness(target_database_url)
+    report["api_smoke_path"] = "/api/health/ready"
+    report["ok"] = report["api_smoke_status"] == 200
+    if not report["ok"]:
+        report["error"] = "restored_api_not_ready"
+    return report
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -278,60 +358,7 @@ def main(argv: list[str] | None = None) -> int:
                 keep_path.write_bytes(dump_path.read_bytes())
                 report["kept_dump"] = keep_path.name
 
-        engine = get_engine(args.target_database_url)
-        try:
-            from sqlalchemy import text
-
-            with engine.connect() as connection:
-                revision = connection.execute(
-                    text("SELECT version_num FROM alembic_version LIMIT 1")
-                ).scalar_one_or_none()
-                report["revision"] = revision
-                for table, check in (
-                    ("audit_events", "SELECT COUNT(*) FROM audit_events"),
-                    ("ingestion_runs", "SELECT COUNT(*) FROM ingestion_runs"),
-                    ("identity_principals", "SELECT COUNT(*) FROM identity_principals"),
-                    (
-                        "source_runtime_states",
-                        "SELECT COUNT(*) FROM source_runtime_states",
-                    ),
-                ):
-                    try:
-                        count = connection.execute(text(check)).scalar_one()
-                        report[f"{table}_rows"] = int(count)
-                    except Exception:
-                        report[f"{table}_rows"] = None
-            missing = list(list_missing_required_tables(engine))
-            report["missing_tables"] = missing
-        finally:
-            engine.dispose()
-
-        if report.get("revision") != DB_SCHEMA_REVISION or missing:
-            report["error"] = "restored_schema_invalid"
-            return _emit(report)
-
-        # Optional TimescaleDB (ADR Decision 39): a source whose tables are hypertables must
-        # restore as hypertables, else the target is not the same store (a plain server, or
-        # another extension version, restores the rows into the internal chunk tables only).
-        from eurogas_nexus.db.timescale import engine_state
-
-        source_engine = get_engine(source_url)
-        try:
-            report["timescaledb_source"] = engine_state(source_engine)
-        finally:
-            source_engine.dispose()
-        target_engine = get_engine(args.target_database_url)
-        try:
-            report["timescaledb_target"] = engine_state(target_engine)
-        finally:
-            target_engine.dispose()
-        if report["timescaledb_source"] == "active" and report["timescaledb_target"] != "active":
-            report["error"] = "timescale_not_restored"
-            return _emit(report)
-
-        report["api_smoke_status"] = restored_api_readiness(args.target_database_url)
-        report["api_smoke_path"] = "/api/health/ready"
-        report["ok"] = report["api_smoke_status"] == 200
+        report.update(verify_restored_database(args.target_database_url, source_url=source_url))
         report["elapsed_seconds"] = round(time.perf_counter() - started, 3)
         return _emit(report)
     except Exception as exc:
