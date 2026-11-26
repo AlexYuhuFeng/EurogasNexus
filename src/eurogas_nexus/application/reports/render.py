@@ -352,6 +352,8 @@ TITLES_ZH = {
     "outages": "停运", "balance": "西北欧平衡与展望", "situation_event": "事件",
     "book_position": "我方头寸", "book_pnl": "损益", "book_limits": "限额",
     "book_contracts": "合同",
+    "pf_supply": "供应组合", "pf_trades": "交易与销售", "pf_pnl": "已实现与未实现",
+    "pf_outlook": "远期展望", "pf_lng": "LNG 船货与气化", "pf_strategies": "账簿运作方式",
     "Prices": "价格", "Supply": "供应", "Storage": "储气", "Demand": "需求",
     "Infrastructure and outages": "基础设施与停运", "Balance": "平衡",
     "Balance and outlook": "平衡与展望", "What happened": "要闻", "Our book": "我方账簿",

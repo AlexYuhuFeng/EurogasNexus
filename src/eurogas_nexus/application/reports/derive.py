@@ -1229,7 +1229,10 @@ def _book_or_event_facts(result) -> None:
     # Book facts rank below a material market change: the report is a market publication
     # first; a breach still reaches the findings when the market is quiet.
     weight = {"situation_event": 8.0, "book_limits": 0.9, "book_pnl": 0.5,
-              "book_position": 0.4, "book_contracts": 0.1, "alerts": 0.6}.get(result.key, 0.5)
+              "book_position": 0.4, "book_contracts": 0.1, "alerts": 0.6,
+              # The portfolio sections: the forward view and P&L lead a portfolio report.
+              "pf_outlook": 1.4, "pf_pnl": 1.3, "pf_supply": 1.2, "pf_trades": 1.1,
+              "pf_lng": 1.0, "pf_strategies": 0.7}.get(result.key, 0.5)
     sentences = [result.headline, *result.bullets]
     result.facts = [F.fact(f"{result.key}.{i}", result.key, result.title, None, "",
                            day="", state="current", simulated=result.simulated,
