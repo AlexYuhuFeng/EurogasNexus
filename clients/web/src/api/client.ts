@@ -5220,6 +5220,8 @@ export interface PositionLadderDTO {
   /** Method notes keyed by the figure's field: mark_to_market, var_95_1d, tenor_exposure, scenario. */
   methods?: Record<string, RiskMethodNoteDTO>;
   warnings: string[];
+  /** The same warnings as codes with parameters, for the reader's language (newer servers). */
+  notes?: { code: string; params?: Record<string, unknown> }[];
 }
 
 export interface SpreadSeriesDTO {

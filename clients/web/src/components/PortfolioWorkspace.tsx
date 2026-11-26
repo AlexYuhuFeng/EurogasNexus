@@ -41,6 +41,7 @@ function money(value: number | null | undefined, suffix = ""): string {
 
 function PortfolioOverview({ controller }: { controller: AppController }) {
   const { api, portfolio, selection, navigation, t } = controller;
+  const [allocationOpen, setAllocationOpen] = useState<boolean | null>(null);
   const resources = portfolio.portfolioResources;
   const totalVolume = portfolio.totalPoolVolume;
   // The pool metrics are statements about the current inputs, so they read the provenanced
@@ -61,7 +62,22 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
     portfolio.resultsContextMismatch &&
     (api.resourcePoolResult !== null || api.routeRecommendation !== null);
 
+  // Position is the ladder; the supply allocation behind it (register, allocation figures and
+  // their warnings) is folded under one line, opened by the reader or by a blocker.
+  const hasBlocker = diagnostics.some((item) => item.level === "blocker");
   return (
+    <details
+      className="commercial-overview-fold"
+      open={allocationOpen ?? hasBlocker}
+      onToggle={(event) => setAllocationOpen((event.currentTarget as HTMLDetailsElement).open)}
+      data-allocation-fold="true"
+    >
+    <summary>
+      <strong>{t("portfolio.allocation_fold")}</strong>
+      <span className="muted">
+        {t("portfolio.allocation_fold_meta", { resources: resources.length, warnings: diagnostics.length })}
+      </span>
+    </summary>
     <div className="commercial-overview">
       <section className="commercial-metric-strip" aria-label={t("portfolio.overview")}>
         <span><small>{t("portfolio.scope.quantity")}</small><strong>{totalVolume.toLocaleString()} MWh/d</strong></span>
@@ -131,6 +147,7 @@ function PortfolioOverview({ controller }: { controller: AppController }) {
         <button type="button" className="link-button" onClick={() => navigation.openWorkspace("market")}>{t("portfolio.show_market_context")}</button>
       </nav>
     </div>
+    </details>
   );
 }
 
