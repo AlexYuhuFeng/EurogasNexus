@@ -860,10 +860,20 @@ D1_TERMINALS = (
     ("demo-zee", "Demo Zeebrugge terminal", "BE", "ZTP", 0.5),
     ("demo-dunk", "Demo Dunkerque terminal", "FR", "PEG", 0.5),
     ("demo-huelva", "Demo Huelva terminal", "ES", "PVB", -2.5),
+    ("demo-montoir", "Demo Montoir terminal", "FR", "PEG", 0.5),
 )
 D1_CARGOES = ("demo-lng-a", "demo-lng-b", "demo-lng-c")
 D1_SLOTS = ("demo-d1-zee", "demo-d1-gate", "demo-d1-huelva", "demo-d1-dunk")
-D1_OFFERS = ("demo-d1-borrow", "demo-d1-send", "demo-d1-store", "demo-d1-int")
+D1_OFFERS = (
+    "demo-d1-borrow",
+    "demo-d1-send",
+    "demo-d1-store",
+    "demo-d1-int",
+    "demo-d1-hint",
+    "demo-d1-spot",
+)
+#: LNG-4: another user's carrier due at the Dunkerque berth (the line-up, illustrative).
+D1_CALLS = ("demo-d1-dk-call",)
 D1_LABEL = "demo: illustrative, not a published tariff"
 
 
@@ -871,6 +881,7 @@ def clear_lng_disruption_case(session) -> None:
     """Remove the D1 rows, so a re-seed on any other day leaves no disruption behind."""
 
     from eurogas_nexus.db.models import (
+        LngBerthCallRecord,
         LngCapacityOfferRecord,
         LngDeliveryObligationRecord,
         LngDisruptionDecisionRecord,
@@ -882,6 +893,7 @@ def clear_lng_disruption_case(session) -> None:
     )
 
     for model, column, values in (
+        (LngBerthCallRecord, LngBerthCallRecord.call_id, D1_CALLS),
         (LngCapacityOfferRecord, LngCapacityOfferRecord.offer_id, D1_OFFERS),
         (LngSlotTermsRecord, LngSlotTermsRecord.slot_id, D1_SLOTS),
         (RegasSlotRecord, RegasSlotRecord.slot_id, D1_SLOTS),
@@ -903,9 +915,17 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
     due at Rotterdam on ``T`` for a slot from ``T + 2``; Demo Solace discharges at Huelva from
     ``T - 2`` (20 days at 50 GWh/d) against a firm 45,000 MWh/d delivery; a Dunkerque slot
     from ``T + 4`` is spare; a pipeline supply delivers 30,000 MWh/d at ZTP.
+
+    LNG-4: Demo Meridian's demurrage is 76,000 USD/day under its voyage terms (converted at
+    the reader's FX choice); Huelva offers interruptible capacity, so swapping Demo Meridian
+    with Demo Solace can physically happen and is listed as breaking the Iberia delivery; the
+    spare Dunkerque slot is worth 0.05 EUR/MWh released, a Dunkerque call holds the berth two
+    gas days and another user's carrier is due there on ``T + 4``; Montoir offers a spot slot
+    from ``T + 3``.
     """
 
     from eurogas_nexus.db.models import (
+        LngBerthCallRecord,
         LngCapacityOfferRecord,
         LngDeliveryObligationRecord,
         LngSlotTermsRecord,
@@ -956,9 +976,14 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
             updated_at_utc=now, eta_basis="master_notice", eta_confidence=confidence,
             eta_source=D1_SOURCE, eta_recorded_at_utc=now,
         ))
+        usd = cargo_id == "demo-lng-a"
         session.add(LngVoyageTermsRecord(
             cargo_id=cargo_id, charter_reference=f"demo charter {vessel}", laytime_hours=36.0,
-            demurrage_eur_per_day=70_000.0, boil_off_pct_per_day=0.10, diversion_allowed=True,
+            demurrage_eur_per_day=None if usd else 70_000.0,
+            demurrage_rate_per_day=76_000.0 if usd else None,
+            demurrage_currency="USD" if usd else None,
+            demurrage_terms="pro rata per hour after laytime (demo)" if usd else None,
+            boil_off_pct_per_day=0.10, diversion_allowed=True,
             diversion_note=None, source_reference=D1_LABEL, updated_at_utc=now,
         ))
     slots = (
@@ -982,21 +1007,40 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
         storage_profile="linear_decline", release_value_eur_mwh=0.10,
         source_reference=D1_LABEL, updated_at_utc=now,
     ))
+    session.add(LngSlotTermsRecord(
+        slot_id="demo-d1-dunk", slot_days=10, storage_mwh=1_000_000.0,
+        storage_profile="linear_decline", release_value_eur_mwh=0.05, berth_days=2,
+        source_reference=D1_LABEL, updated_at_utc=now,
+    ))
     zee = "Demo Zeebrugge terminal"
-    for offer_id, kind, first, last, price, per_day, total, storage in (
-        ("demo-d1-borrow", "borrow", t, t + timedelta(days=1), 0.10, 100_000.0, None, None),
-        ("demo-d1-send", "send_out", t, t + timedelta(days=15), 0.15, 50_000.0, None, None),
-        ("demo-d1-store", "storage", t, t + timedelta(days=15), 0.02, None, 300_000.0, None),
-        ("demo-d1-int", "interruptible", t, t + timedelta(days=25), 0.05, 100_000.0, None,
-         0.01),
+    for offer_id, terminal, kind, first, last, price, per_day, total, storage, hub in (
+        ("demo-d1-borrow", zee, "borrow", t, t + timedelta(days=1), 0.10, 100_000.0, None, None,
+         None),
+        ("demo-d1-send", zee, "send_out", t, t + timedelta(days=15), 0.15, 50_000.0, None, None,
+         None),
+        ("demo-d1-store", zee, "storage", t, t + timedelta(days=15), 0.02, None, 300_000.0,
+         None, None),
+        ("demo-d1-int", zee, "interruptible", t, t + timedelta(days=25), 0.05, 100_000.0, None,
+         0.01, None),
+        ("demo-d1-hint", "Demo Huelva terminal", "interruptible", t - timedelta(days=2),
+         t + timedelta(days=25), 0.05, 50_000.0, None, 0.01, None),
+        ("demo-d1-spot", "Demo Montoir terminal", "slot", t + timedelta(days=3),
+         t + timedelta(days=12), 0.15, 100_000.0, 1_000_000.0, None, "PEG"),
     ):
         session.add(LngCapacityOfferRecord(
-            offer_id=offer_id, book_id=D1_BOOK, terminal_name=zee, kind=kind,
+            offer_id=offer_id, book_id=D1_BOOK, terminal_name=terminal, kind=kind,
             first_gas_day=first, last_gas_day=last, price_eur_mwh=price,
             max_mwh_per_day=per_day, max_mwh=total, storage_price_eur_mwh_day=storage,
             basis="indicative", counterparty="Demo terminal user", source_reference=D1_LABEL,
-            valid_until_utc=None, updated_at_utc=now,
+            valid_until_utc=None, updated_at_utc=now, hub=hub,
         ))
+    session.add(LngBerthCallRecord(
+        call_id="demo-d1-dk-call", terminal_name="Demo Dunkerque terminal",
+        label="another user's carrier (demo)", berth_gas_day=t + timedelta(days=4),
+        berth_days=2, laytime_left_hours=24.0, demurrage_rate_per_day=65_000.0,
+        demurrage_currency="EUR", boil_off_mwh_per_day=1_000.0,
+        source_reference=D1_LABEL, updated_at_utc=now,
+    ))
     session.add(LngDeliveryObligationRecord(
         obligation_id="demo-d1-iberia", book_id=D1_BOOK, counterparty="Demo Iberia offtaker",
         contract_id=None, point="Demo Huelva terminal", hub="PVB",
@@ -1009,9 +1053,12 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
         contract_id=None, hub="ZTP", point="ZTP", first_gas_day=today,
         last_gas_day=today + timedelta(days=60), mwh_per_day=30_000.0, cost_eur_mwh=None,
         curtailed=[], source_system=D1_SOURCE, source_reference=D1_LABEL, updated_at_utc=now,
+        # LNG-4: the asset its gas flows through, so a REMIT message naming it curtails it.
+        depends_on=[{"asset_name": "Demo North Sea entry point", "kind": "entry point"}],
+        outage_mode=None,
     ))
     session.flush()
-    return {"cargoes": len(cargoes), "slots": len(slots), "offers": 4}
+    return {"cargoes": len(cargoes), "slots": len(slots), "offers": len(D1_OFFERS)}
 
 
 #: The one decision case the demo opens for review (fixed id, so a re-seed replaces it).

@@ -179,8 +179,13 @@ PLANTED_CASES: tuple[PlantedCase, ...] = (
         "normally (Rotterdam, Huelva with a firm daily delivery), a spare Dunkerque slot, "
         "illustrative Zeebrugge borrow, send-out, storage and interruptible offers and a "
         "pipeline supply at ZTP. The re-optimisation finds Meridian disrupted, values wait, "
-        "borrow, buy, divert and both swaps, and marks the Huelva swap infeasible. On every "
-        "other day the book is not seeded and no supply is disrupted.",
+        "borrow, buy, divert and both swaps. LNG-4: the Huelva swap is listed as an option "
+        "flagged as breaking the Iberia firm delivery (penalty not held), not excluded; the "
+        "Dunkerque divert carries the demurrage it causes another user's carrier due at that "
+        "berth and the slot's release value forgone, beside a Montoir spot slot; PVB hub gas "
+        "covers the Iberia shortfall as a further option; Meridian's demurrage is in USD, "
+        "converted at the reader's FX choice. On every other day the book is not seeded and "
+        "no supply is disrupted.",
     ),
 )
 

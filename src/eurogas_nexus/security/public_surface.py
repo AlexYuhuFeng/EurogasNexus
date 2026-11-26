@@ -109,6 +109,8 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/lng/cargoes/{cargo_id}/disruption-options/{option_id}",
         "/api/lng/cargoes/{cargo_id}/disruption-options/{option_id}/choose",
         "/api/lng/disruption/frontier",
+        "/api/lng/pipeline-supplies/{supply_id}/outage-links",
+        "/api/lng/pipeline-supplies/{supply_id}/outage-override",
         "/api/market/fx",
         "/api/market/normalized",
         "/api/access/api-keys",

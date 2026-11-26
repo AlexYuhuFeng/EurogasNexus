@@ -2501,11 +2501,12 @@ def pareto(options: list[Option]) -> list[Option]:
 
 
 def _order_key(option: Option) -> tuple:
-    """Best first: score (the named ordering weights), the frontier, fewer supplies moved,
-    then the lexically first key, so the order is deterministic."""
+    """Best first: score (the named ordering weights), fewer contracts broken, the frontier,
+    fewer supplies moved, then the lexically first key, so the order is deterministic."""
 
     return (
         -round(option.score, 2),
+        len(option.breaches),
         not option.on_frontier,
         option.objectives.get("disrupted_supplies", 0),
         option.key,
