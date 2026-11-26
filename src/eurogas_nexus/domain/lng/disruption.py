@@ -13,6 +13,10 @@ flexibility, risk and knock-on effect on the rest of the portfolio:
 * **buy** extra firm send-out (and the storage the catch-up needs) for the days after berthing;
 * **divert** to another terminal where the book holds a spare slot that matches;
 * **swap** terminals with another cargo of the book;
+* where the cargo arrives after its arrival window, take the **next free berth gap** (staying),
+  or swap **berth turn** with an on-time holder: another cargo of the book (``berth_swap``, its
+  cost a knock-on) or another company's ship (``counterparty_swap``, its cost that company's
+  negotiated quote); every swap is flagged as needing the terminal's approval;
 * and in every case **re-align the hedges** (buy back or sell per hub and month, at short
   notice where the month has stopped trading) and pay **demurrage** where a ship waits past its
   laytime.
@@ -56,17 +60,24 @@ Every option is valued at its full cost (LNG-4, the owner's second instruction o
 gas it brings in) and its **opportunity cost**, which the P&L includes and the reader sees
 apart, line by line:
 
-* **knock-on** on the book's other cargoes: a cargo the option moves takes the berth on the day
-  it can, so a cargo of the book due there waits (its demurrage, boil-off and what its later
-  send-out does to hedges and deliveries); and it draws the terminals' shared per-day limits
-  (interruptible or bought send-out, storage, in-tank lending) first, so a later cargo finds
-  less left. Such a cargo is also flagged under ``disrupts``;
-* **displaced calls**: another user's ship due at a berth the option takes, where the line-up
-  is held (its demurrage past the laytime it has left, and its boil-off);
+* **knock-on** on the book's other cargoes: a cargo of the book that berths later because of
+  the option (in turn behind a cargo it diverts there, or in the turn of a cargo it swaps with)
+  waits (its demurrage, boil-off and what its later send-out does to hedges and deliveries);
+  and a cargo the option moves draws the terminals' shared per-day limits (interruptible or
+  bought send-out, storage, in-tank lending) first, so a later cargo finds less left. Such a
+  cargo is also flagged under ``disrupts``;
 * **capacity forgone**: a spare slot of the book the option uses could have been released or
   used elsewhere (the slot's indicative release value, else the desk's value of a spare slot;
   where neither is held the line says so and adds nothing);
 * **storage gas** drawn to cover a delivery is not there in the month it was to be used.
+
+Berths follow each terminal's access rule as a hard constraint (:class:`BerthRule`, the
+owner's decision of 2026-11-26): a ship arriving within its arrival window is berthed in turn; a
+ship arriving after it loses priority and takes the next free gap without displacing on-time
+slot holders, and its laytime starts at berthing. Another company's ship is never costed at its
+demurrage: where an option takes its berth turn, the option carries that company's quote (one
+total, entered or pending: a quote to obtain, outside the P&L and the recommended set until
+entered); where an option makes it berth later otherwise, that is stated and not valued.
 
 So a long-term contracted terminal is not assumed to beat a spot slot (a ``slot`` offer) at
 another: both come out of the same valuation. Substitute supply (``SubstituteSource``: gas the
@@ -370,10 +381,15 @@ class CapacityOffer:
 
 @dataclass(frozen=True)
 class BerthCall:
-    """A ship due at a terminal's berth that the book does not place (LNG-4): another user's
-    cargo in the terminal's line-up, where the data holds it. When an option puts a cargo on
-    the berth while this call is due, the call waits and the option carries its cost: the
-    demurrage past the laytime it has left and the boil-off of the wait."""
+    """A ship of another company due at a terminal's berth (LNG-4): a call in the terminal's
+    line-up, where the data holds it. It holds its berth turn as an on-time slot holder: a
+    late cargo of the book never displaces it (:class:`BerthRule`).
+
+    Its demurrage and boil-off are its owner's, never the book's (the owner, 2026-11-26): an
+    option that takes its turn is a swap the trader negotiates, and the other company's quote
+    bundles its demurrage with its margin as one total. So the call carries that quote
+    (``quote_eur``, converted to EUR before it reaches the engine, with ``quote_note`` saying
+    how) or none, in which case the quote is pending: a figure to obtain, not in the P&L."""
 
     call_id: str
     terminal: str
@@ -382,12 +398,119 @@ class BerthCall:
     berth: date
     hub: str = ""
     berth_days: int = 1
-    #: Laytime the call has left when it is due to berth (hours).
-    laytime_hours: float = 0.0
-    demurrage_eur_per_day: float = 0.0
-    boil_off_mwh_per_day: float = 0.0
+    #: The company whose ship it is (the party to negotiate a swap with).
+    counterparty: str = ""
+    #: Its quote to give up its berth turn, one total in EUR; ``None``: pending, to obtain.
+    quote_eur: float | None = None
+    quote_note: str = ""
+    quote_source: str = ""
     source: str = ""
-    demurrage_note: str = ""
+
+    @property
+    def party(self) -> str:
+        return self.counterparty or "another company"
+
+
+#: A late ship's laytime starts when it is berthed, or at its arrival (notice of readiness).
+LAYTIME_FROM_BERTHING = "berthing"
+LAYTIME_FROM_ARRIVAL = "arrival"
+#: Where a berth rule comes from: the default (no access code recorded), a terminal's access
+#: code (cited), an example (illustrative, not a terminal's published code) or a desk
+#: assumption.
+RULE_BASES = ("default", "terminal_code", "example", "assumption")
+#: How a ship is berthed: in turn (on time), at the next free gap (late: no priority), or in
+#: the turn of a holder it swapped with.
+IN_TURN = "in_turn"
+NEXT_FREE_GAP = "next_free_gap"
+SWAPPED = "swap"
+#: An option takes the berth turn of a line-up call ``call:<call_id>`` or of a cargo of the
+#: book (its supply id).
+CALL_PREFIX = "call:"
+
+
+@dataclass(frozen=True)
+class BerthRule:
+    """A terminal's berth access rule, a hard constraint (the owner, 2026-11-26).
+
+    A ship that arrives within its arrival window (``arrival_window_days`` gas days from its
+    slot's first gas day) is berthed in turn: on-time ships berth in the order they are ready
+    (the later of the arrival and the window's first day), then by arrival, then by the slot's
+    first day. A ship that arrives after its window loses priority: it takes the next free
+    berth gap without displacing any on-time slot holder, and its laytime starts at berthing
+    (``late_laytime_from``), not at its arrival. Changing the order (a swap with another cargo
+    of the book or with another company's call) needs the terminal's approval
+    (``swap_needs_terminal_approval``).
+
+    Where the terminal's access code gives a specific rule, it is recorded per terminal with its
+    ``citation``; otherwise this default applies and says so (``basis`` ``default``). A rule
+    added as an illustration is ``example`` and is never presented as a terminal's code.
+    """
+
+    terminal: str = ""
+    arrival_window_days: int = 1
+    late_laytime_from: str = LAYTIME_FROM_BERTHING
+    swap_needs_terminal_approval: bool = True
+    basis: str = "default"
+    #: The clause or document the rule is read from (empty for the default).
+    citation: str = ""
+    #: The rule as the code words it, where held.
+    text: str = ""
+
+    def __post_init__(self) -> None:
+        if self.arrival_window_days < 1:
+            raise DisruptionError(f"berth rule {self.terminal}: arrival window must be >= 1 day")
+        if self.late_laytime_from not in (LAYTIME_FROM_BERTHING, LAYTIME_FROM_ARRIVAL):
+            raise DisruptionError(
+                f"berth rule {self.terminal}: laytime start {self.late_laytime_from!r} is unknown"
+            )
+        if self.basis not in RULE_BASES:
+            raise DisruptionError(f"berth rule {self.terminal}: basis {self.basis!r} is unknown")
+        if self.basis in ("terminal_code", "example") and not self.citation:
+            raise DisruptionError(
+                f"berth rule {self.terminal}: a {self.basis} rule needs a citation"
+            )
+
+    def window_end(self, slot: SlotTerms) -> date:
+        """The last gas day of the slot's arrival window."""
+
+        return slot.start + timedelta(days=self.arrival_window_days - 1)
+
+    def describe(self) -> str:
+        """The rule in a sentence, with where it comes from."""
+
+        laytime = (
+            "starts at berthing"
+            if self.late_laytime_from == LAYTIME_FROM_BERTHING
+            else "starts at its arrival (notice of readiness)"
+        )
+        body = (
+            f"a ship arriving within its arrival window ({self.arrival_window_days} gas day(s) "
+            "from its slot's first gas day) is berthed in turn; a ship arriving after it loses "
+            "priority and takes the next free berth gap without displacing on-time slot "
+            f"holders, and its laytime {laytime}"
+        )
+        if self.basis == "default":
+            return f"default berth rule (no access code recorded for {self.terminal}): {body}"
+        where = {
+            "terminal_code": f"{self.terminal} access code",
+            "example": f"example rule for {self.terminal} (illustrative, not a published code)",
+            "assumption": f"desk assumption for {self.terminal}",
+        }[self.basis]
+        said = f"; as worded: {self.text}" if self.text else ""
+        cite = f" [{self.citation}]" if self.citation else ""
+        return f"{where}{cite}: {body}{said}"
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "terminal": self.terminal,
+            "arrival_window_days": self.arrival_window_days,
+            "late_laytime_from": self.late_laytime_from,
+            "swap_needs_terminal_approval": self.swap_needs_terminal_approval,
+            "basis": self.basis,
+            "citation": self.citation or None,
+            "text": self.text or None,
+            "rule": self.describe(),
+        }
 
 
 #: The kinds of substitute supply (LNG-4): gas the book holds upstream (an equity field or a
@@ -538,6 +661,17 @@ class Portfolio:
     berth_days: Mapping[str, int] = field(default_factory=dict)
     #: Gas from elsewhere in the portfolio that can cover a short delivery (LNG-4).
     substitutes: tuple[SubstituteSource, ...] = ()
+    #: Each terminal's berth access rule where one is recorded; the default otherwise.
+    berth_rules: Mapping[str, BerthRule] = field(default_factory=dict)
+
+    def berth_rule(self, terminal: str) -> BerthRule:
+        """The terminal's recorded rule, else the default rule named for it."""
+
+        rule = self.berth_rules.get(terminal)
+        return rule if rule is not None else BerthRule(terminal=terminal)
+
+    def call(self, call_id: str) -> BerthCall | None:
+        return next((c for c in self.berth_calls if c.call_id == call_id), None)
 
     def slot(self, slot_id: str | None) -> SlotTerms | None:
         for slot in self.slots:
@@ -614,6 +748,9 @@ class Placement:
     #: Pipeline cover: extra send-out from this cargo on fixed days, (gas day, MWh).
     cover: tuple[tuple[date, float], ...] = ()
     cover_offer: str | None = None
+    #: The berth turn this cargo takes in a swap: another cargo of the book (its supply id) or
+    #: a line-up call (``call:<call_id>``); the holder then takes the next free gap.
+    berth_swap: str | None = None
 
 
 @dataclass(frozen=True)
@@ -636,9 +773,17 @@ class Landing:
     usage: dict[str, float] = field(default_factory=dict)
     berth: date | None = None
     returned: tuple[date, float] | None = None
-    #: Gas days the berth was held for another call the option placed there (LNG-4).
+    #: Gas days the ship waited for the berth after it was ready (LNG-4), and who held it.
     hold_days: int = 0
     held_by: str | None = None
+    #: The berth rule as applied: whether the ship arrived after its arrival window, how it
+    #: was berthed (in turn, next free gap, a swap), and where its laytime started.
+    late: bool = False
+    priority: str = IN_TURN
+    laytime_from: str = LAYTIME_FROM_ARRIVAL
+    #: Gas days of waiting counted against laytime (a late ship's wait before berthing is not
+    #: counted where its laytime starts at berthing).
+    laytime_wait_days: int = 0
     #: Where each fee's price came from (the offer's reference and basis).
     fee_sources: dict[str, str] = field(default_factory=dict)
     #: The hub the ship's own gas is priced at (boil-off).
@@ -693,12 +838,17 @@ def _land(
     hold_days: int = 0,
     held_by: str | None = None,
     pool: Pool | None = None,
+    late: bool = False,
+    priority: str = IN_TURN,
+    laytime_from: str = LAYTIME_FROM_ARRIVAL,
 ) -> Landing:
     """Simulate a cargo landing at its placed slot, gas day by gas day.
 
-    ``hold_days``: the berth is taken by another call for that many gas days after the ship
-    could berth, so it waits at anchor longer. ``pool``: the shared per-day limits of the
-    terminal's offers, drawn down by the cargoes landed before this one.
+    ``hold_days``: the berth is held by other ships for that many gas days after the ship is
+    ready to berth (:func:`_berth_plan`), so it waits at anchor longer. ``pool``: the shared
+    per-day limits of the terminal's offers, drawn down by the cargoes landed before this one.
+    ``laytime_from``: where the berth rule starts the ship's laytime; from berthing, the wait
+    at anchor before it is not counted against laytime (the boil-off of the wait still is).
     """
 
     slot = portfolio.slot(placement.slot_id)
@@ -857,7 +1007,8 @@ def _land(
     ):
         if offer is not None and name in fees:
             fee_sources[name] = offer.where
-    wait_hours = wait_days * 24.0
+    counted = 0 if laytime_from == LAYTIME_FROM_BERTHING else wait_days
+    wait_hours = counted * 24.0
     demurrage = max(0.0, wait_hours - supply.laytime_hours) / 24.0 * supply.demurrage_eur_per_day
     boil = wait_days * supply.boil_off_mwh_per_day
     price = market.price(slot.hub, _month(berth)) or 0.0
@@ -880,6 +1031,10 @@ def _land(
         returned=returned,
         hold_days=hold_days,
         held_by=held_by,
+        late=late,
+        priority=priority,
+        laytime_from=laytime_from,
+        laytime_wait_days=counted,
         fee_sources=fee_sources,
         price_source=market.sources.get((slot.hub.upper(), _month(berth)), ""),
     )
@@ -927,11 +1082,12 @@ class Valuation:
     contract_exposure: float = 0.0
     #: Substitute gas bought or drawn to cover a short delivery: gas, fees, transport (LNG-4).
     substitute_cost: float = 0.0
+    #: The negotiated quote of another company whose berth turn the option takes, one total
+    #: (its demurrage and its margin), where entered; a pending quote adds nothing and says so.
+    counterparty_quote: float = 0.0
     #: Opportunity cost (LNG-4): what the option does to the rest of the book's cargoes (a
     #: berth taken, shared send-out or storage left short) ...
     knock_on: float = 0.0
-    #: ... to other users' ships due at a berth it takes (demurrage past laytime, boil-off) ...
-    displaced_calls: float = 0.0
     #: ... the value forgone of a spare slot it uses (release value or best other use) ...
     capacity_forgone: float = 0.0
     #: ... and the value of storage gas at the time it would otherwise have been used.
@@ -941,10 +1097,13 @@ class Valuation:
     landings: dict[str, Landing] = field(default_factory=dict)
     #: The consequences behind the opportunity cost, each naming the cargo it hits.
     opportunity: list[dict[str, Any]] = field(default_factory=list)
+    #: What the option does to other companies' ships (a later berth): stated, never in the
+    #: book's P&L; where the option takes a call's turn, its cost is the call's quote.
+    counterparty: list[dict[str, Any]] = field(default_factory=list)
 
     @property
     def opportunity_cost(self) -> float:
-        return self.knock_on + self.displaced_calls + self.capacity_forgone + self.storage_forgone
+        return self.knock_on + self.capacity_forgone + self.storage_forgone
 
     @property
     def direct_pnl(self) -> float:
@@ -967,8 +1126,8 @@ class Valuation:
             - self.obligation_penalty
             - self.contract_exposure
             - self.substitute_cost
+            - self.counterparty_quote
             - self.knock_on
-            - self.displaced_calls
             - self.capacity_forgone
             - self.storage_forgone
         )
@@ -984,6 +1143,7 @@ class Valuation:
             + self.obligation_penalty
             + self.contract_exposure
             + self.substitute_cost
+            + self.counterparty_quote
         )
 
     def components(self) -> dict[str, float]:
@@ -1000,8 +1160,8 @@ class Valuation:
             "obligation_penalty": round(-self.obligation_penalty, 2),
             "contract_exposure": round(-self.contract_exposure, 2),
             "substitute_cost": round(-self.substitute_cost, 2),
+            "counterparty_quote": round(-self.counterparty_quote, 2),
             "knock_on": round(-self.knock_on, 2),
-            "displaced_calls": round(-self.displaced_calls, 2),
             "capacity_forgone": round(-self.capacity_forgone, 2),
             "storage_forgone": round(-self.storage_forgone, 2),
         }
@@ -1027,6 +1187,12 @@ class Option:
     swaps: tuple[tuple[str, str], ...] = ()
     #: Substitute gas delivered to cover a short obligation (LNG-4).
     covers: tuple[Cover, ...] = ()
+    #: Negotiated quotes the option needs from other companies whose berth turn it takes:
+    #: each ``entered`` (in the P&L) or ``pending`` (a quote to obtain).
+    quotes: list[dict[str, Any]] = field(default_factory=list)
+    #: What the option needs the terminal operator to approve (a change of berth order or of
+    #: the ship in a slot), each in a sentence.
+    approvals: list[str] = field(default_factory=list)
     feasible: bool = True
     reasons: list[str] = field(default_factory=list)
     notes: list[str] = field(default_factory=list)
@@ -1051,6 +1217,12 @@ class Option:
     recommended_why: list[str] = field(default_factory=list)
 
     @property
+    def quote_pending(self) -> bool:
+        """Whether its cost waits on a quote not yet entered."""
+
+        return any(q["status"] == "pending" for q in self.quotes)
+
+    @property
     def flags(self) -> dict[str, bool]:
         """The consequences a trader weighs, as labelled flags."""
 
@@ -1058,6 +1230,8 @@ class Option:
             "physically_possible": self.feasible,
             "contract_breach": bool(self.breaches),
             "disrupts_normal_cargo": bool(self.disrupts),
+            "needs_terminal_approval": bool(self.approvals),
+            "counterparty_quote_pending": self.quote_pending,
         }
 
 
@@ -1159,7 +1333,7 @@ def generate(portfolio: Portfolio, market: Market, terms: DeskTerms) -> list[Opt
     """The option set for every disrupted supply, combined across supplies (bounded)."""
 
     hit = disrupted(portfolio)
-    per_supply: list[list[tuple[str, str, str, dict[str, Placement], tuple, tuple, list[str]]]] = []
+    per_supply: list[list[tuple]] = []
     for supply in hit:
         per_supply.append(_supply_options(portfolio, supply, market)[:MAX_OPTIONS_PER_SUPPLY])
     options: list[Option] = []
@@ -1171,9 +1345,11 @@ def generate(portfolio: Portfolio, market: Market, terms: DeskTerms) -> list[Opt
         releases: list[str] = []
         swaps: list[tuple[str, str]] = []
         notes: list[str] = []
+        quotes: list[dict[str, Any]] = []
+        approvals: list[str] = []
         keys, titles, kinds = [], [], []
         clash = False
-        for key, kind, title, placed, released, swapped, note in combo:
+        for key, kind, title, placed, released, swapped, note, extra in combo:
             for supply_id, placement in placed.items():
                 if supply_id in placements and placements[supply_id] != placement:
                     clash = True
@@ -1181,11 +1357,20 @@ def generate(portfolio: Portfolio, market: Market, terms: DeskTerms) -> list[Opt
             releases.extend(released)
             swaps.extend(swapped)
             notes.extend(note)
+            quotes.extend(extra.get("quotes", ()))
+            approvals.extend(extra.get("approvals", ()))
             keys.append(key)
             titles.append(title)
             kinds.append(kind)
         used = [p.slot_id for p in placements.values() if p.slot_id is not None]
-        if clash or len(used) != len(set(used)) or set(used) & set(releases):
+        taken = [p.berth_swap for p in placements.values() if p.berth_swap is not None]
+        if (
+            clash
+            or len(used) != len(set(used))
+            or set(used) & set(releases)
+            or len(taken) != len(set(taken))
+            or set(taken) & set(placements)
+        ):
             continue
         key = " | ".join(keys)
         options.append(
@@ -1198,6 +1383,8 @@ def generate(portfolio: Portfolio, market: Market, terms: DeskTerms) -> list[Opt
                 releases=tuple(sorted(set(releases))),
                 swaps=tuple(swaps),
                 notes=notes,
+                quotes=[dict(q) for q in quotes],
+                approvals=list(dict.fromkeys(approvals)),
             )
         )
     return options
@@ -1218,6 +1405,7 @@ def _supply_options(portfolio: Portfolio, supply: Supply, market: Market):
                 (),
                 (),
                 [],
+                {},
             )
         )
         for cargo in portfolio.supplies:
@@ -1252,14 +1440,29 @@ def _supply_options(portfolio: Portfolio, supply: Supply, market: Market):
                     (),
                     (),
                     [],
+                    {},
                 )
             )
         return out
 
     own = portfolio.slot(supply.slot_id)
-    positions: list[tuple[str, str, SlotTerms, tuple, tuple, list[str]]] = []
+    positions: list[dict[str, Any]] = []
+
+    def position(key, words, slot, released=(), swaps=(), note=(), approvals=()):
+        positions.append(
+            {
+                "key": key,
+                "words": words,
+                "slot": slot,
+                "released": tuple(released),
+                "swaps": tuple(swaps),
+                "note": list(note),
+                "approvals": list(approvals),
+            }
+        )
+
     if own is not None:
-        positions.append(("stay", f"stay at {own.terminal}", own, (), (), []))
+        position("stay", f"stay at {own.terminal}", own)
     for slot in portfolio.slots:
         if slot.holder is not None or own is None or slot.slot_id == own.slot_id:
             continue
@@ -1272,9 +1475,7 @@ def _supply_options(portfolio: Portfolio, supply: Supply, market: Market):
             if supply.can_divert
             else [supply.diversion_note or "the cargo's contract does not allow a diversion"]
         )
-        positions.append(
-            (f"divert:{slot.slot_id}", f"divert to {slot.terminal}", slot, released, (), note)
-        )
+        position(f"divert:{slot.slot_id}", f"divert to {slot.terminal}", slot, released, (), note)
     for offer in portfolio.spot_offers():
         if own is None or offer.terminal == own.terminal:
             continue
@@ -1288,15 +1489,13 @@ def _supply_options(portfolio: Portfolio, supply: Supply, market: Market):
             if supply.can_divert
             else [supply.diversion_note or "the cargo's contract does not allow a diversion"]
         )
-        positions.append(
-            (
-                f"spot:{offer.offer_id}",
-                f"buy a spot slot at {offer.terminal}",
-                slot,
-                released,
-                (),
-                note,
-            )
+        position(
+            f"spot:{offer.offer_id}",
+            f"buy a spot slot at {offer.terminal}",
+            slot,
+            released,
+            (),
+            note,
         )
     for other in portfolio.supplies:
         if other.kind != LNG or other.supply_id == supply.supply_id or own is None:
@@ -1310,20 +1509,101 @@ def _supply_options(portfolio: Portfolio, supply: Supply, market: Market):
             continue
         if (theirs_here - own.start).days >= own.days:
             continue
-        positions.append(
-            (
-                f"swap:{other.supply_id}",
-                f"swap terminals with {other.label}",
-                theirs,
-                (),
-                ((supply.supply_id, other.supply_id),),
-                [],
+        needs = [
+            f"{rule.terminal} to accept {name} in place of the ship nominated for the slot"
+            for rule, name in (
+                (portfolio.berth_rule(theirs.terminal), supply.label),
+                (portfolio.berth_rule(own.terminal), other.label),
             )
+            if rule.swap_needs_terminal_approval
+        ]
+        position(
+            f"swap:{other.supply_id}",
+            f"swap terminals with {other.label}",
+            theirs,
+            (),
+            ((supply.supply_id, other.supply_id),),
+            (),
+            needs,
         )
 
-    for position, words, slot, released, swaps, note in positions:
+    # The terminal's berth rule (the owner, 2026-11-26): where the cargo arrives after its
+    # arrival window it takes the next free gap; a swap of berth turn with an on-time holder,
+    # another cargo of the book or another company's call, is offered beside it.
+    for item in list(positions):
+        if item["swaps"]:
+            continue
+        slot = item["slot"]
+        rule = portfolio.berth_rule(slot.terminal)
+        arrival = _arrival_at(supply, slot.terminal, portfolio.sailing_days)
+        if arrival <= rule.window_end(slot):
+            continue
+        item["note"].append(
+            f"arrives {arrival:%d %b}, after its arrival window at {slot.terminal} (to "
+            f"{rule.window_end(slot):%d %b}): under the {rule.describe()}"
+        )
+        for holder, blocked in _turns_ahead(portfolio, supply, slot, arrival):
+            if holder.startswith(CALL_PREFIX):
+                call = portfolio.call(holder[len(CALL_PREFIX) :])
+                assert call is not None
+                quote = _quote(call)
+                needs = (
+                    [
+                        f"{slot.terminal} to accept the change of berth order with "
+                        f"{call.label} ({call.party})"
+                    ]
+                    if rule.swap_needs_terminal_approval
+                    else []
+                )
+                positions.append(
+                    {
+                        "key": f"{item['key']}/counterparty_swap:{call.call_id}",
+                        "kind": "counterparty_swap",
+                        "words": f"{item['words']}, take the berth turn of {call.label} "
+                        f"({blocked:%d %b}) in a swap negotiated with {call.party}"
+                        + (" (quote pending)" if quote["status"] == "pending" else ""),
+                        "slot": slot,
+                        "released": item["released"],
+                        "swaps": (),
+                        "note": [*item["note"][:-1], quote["text"]],
+                        "approvals": needs,
+                        "berth_swap": holder,
+                        "quotes": [quote],
+                    }
+                )
+            else:
+                other = portfolio.supply(holder)
+                needs = (
+                    [
+                        f"{slot.terminal} to accept the change of berth order between "
+                        f"{supply.label} and {other.label}"
+                    ]
+                    if rule.swap_needs_terminal_approval
+                    else []
+                )
+                positions.append(
+                    {
+                        "key": f"{item['key']}/berth_swap:{other.supply_id}",
+                        "kind": "berth_swap",
+                        "words": f"{item['words']}, take the berth turn of {other.label} "
+                        f"({blocked:%d %b}), which then takes the next free gap",
+                        "slot": slot,
+                        "released": item["released"],
+                        "swaps": (),
+                        "note": list(item["note"][:-1]),
+                        "approvals": needs,
+                        "berth_swap": holder,
+                        "quotes": [],
+                    }
+                )
+
+    for item in positions:
+        slot = item["slot"]
+        swaps = item["swaps"]
         arrival = _arrival_at(supply, slot.terminal, portfolio.sailing_days)
         for capacity, placement in _capacity_variants(portfolio, supply, slot, arrival):
+            if item.get("berth_swap"):
+                placement = replace(placement, berth_swap=item["berth_swap"])
             placed = {supply.supply_id: placement}
             if swaps:
                 other = portfolio.supply(swaps[0][1])
@@ -1332,21 +1612,87 @@ def _supply_options(portfolio: Portfolio, supply: Supply, market: Market):
                     own.slot_id if own else None,
                     _arrival_at(other, own.terminal, portfolio.sailing_days) if own else None,
                 )
-            kind = "wait" if position == "stay" else position.split(":", 1)[0]
-            if kind == "wait" and capacity != "absorb":
-                kind = capacity
+            kind = item.get("kind")
+            if kind is None:
+                kind = "wait" if item["key"] == "stay" else item["key"].split(":", 1)[0]
+                if kind == "wait" and capacity != "absorb":
+                    kind = capacity
             out.append(
                 (
-                    f"{supply.supply_id}:{position}+{capacity}",
+                    f"{supply.supply_id}:{item['key']}+{capacity}",
                     kind,
-                    f"{supply.label}: {words}, {_CAPACITY_WORDS[capacity]}",
+                    f"{supply.label}: {item['words']}, {_CAPACITY_WORDS[capacity]}",
                     placed,
-                    released,
+                    item["released"],
                     swaps,
-                    list(note),
+                    list(item["note"]),
+                    {"quotes": item.get("quotes", []), "approvals": item["approvals"]},
                 )
             )
     return out
+
+
+def _quote(call: BerthCall) -> dict[str, Any]:
+    """The negotiated quote an option taking ``call``'s berth turn needs: entered or pending.
+
+    One total from the other company (its demurrage and its margin together), never a
+    demurrage line of the book's."""
+
+    base = {
+        "call_id": call.call_id,
+        "label": call.label,
+        "counterparty": call.party,
+        "terminal": call.terminal,
+        "berth": call.berth.isoformat(),
+        "source": call.quote_source or None,
+        "note": call.quote_note or None,
+    }
+    if call.quote_eur is None:
+        return {
+            **base,
+            "status": "pending",
+            "amount_eur": None,
+            "text": f"quote to obtain from {call.party} for {call.label}'s berth turn at "
+            f"{call.terminal}: one negotiated total (its demurrage and margin), not in the P&L "
+            "until entered",
+        }
+    return {
+        **base,
+        "status": "entered",
+        "amount_eur": round(call.quote_eur, 2),
+        "text": f"quote from {call.party} for {call.label}'s berth turn at {call.terminal}: "
+        f"{_fmt(call.quote_eur)} EUR, one negotiated total (its demurrage and margin)",
+    }
+
+
+def _turns_ahead(
+    portfolio: Portfolio, supply: Supply, slot: SlotTerms, arrival: date
+) -> list[tuple[str, date]]:
+    """The on-time holders a late cargo waits behind at ``slot``'s terminal in the base
+    scenario, with the gas day each is berthed: those berthed from its arrival until it gets
+    its gap. Each is a berth turn it could take in a swap."""
+
+    wanted, claims, _swaps = _claims(
+        portfolio,
+        {supply.supply_id: Placement(supply.supply_id, slot.slot_id, arrival)},
+        planned=False,
+        shift=0,
+    )
+    plan = _berth_plan(claims, {})
+    mine = plan.get(supply.supply_id)
+    if mine is None:
+        return []
+    hit = {s.supply_id for s in disrupted(portfolio)}
+    out = []
+    for claim in claims:
+        if claim.terminal != slot.terminal or claim.key == supply.supply_id:
+            continue
+        if claim.key in hit or not claim.on_time:
+            continue
+        day = plan[claim.key].berth
+        if arrival <= day < mine.berth:
+            out.append((claim.key, day))
+    return sorted(out, key=lambda pair: (pair[1], pair[0]))
 
 
 # ---------------------------------------------------------------------------- valuation
@@ -1370,35 +1716,43 @@ def _scenarios(portfolio: Portfolio, terms: DeskTerms) -> list[Scenario]:
     return out
 
 
-def _landings(
+@dataclass(frozen=True)
+class _Claim:
+    """A ship's claim on a terminal's berth: a cargo of the book at its placed slot, or a
+    line-up call (``call:<id>``)."""
+
+    key: str
+    label: str
+    terminal: str
+    arrival: date
+    #: The gas day it can berth: the later of its arrival and its slot's first day.
+    ready: date
+    window_start: date
+    stay: int
+    on_time: bool
+
+
+@dataclass(frozen=True)
+class _Berthing:
+    berth: date
+    held_by: tuple[str, ...]
+    priority: str
+
+
+def _claims(
     portfolio: Portfolio,
-    market: Market,
     placements: Mapping[str, Placement],
     *,
     planned: bool,
     shift: int,
-    strand: bool,
-    plan: Mapping[str, Landing] | None = None,
-    knock_on: bool = True,
-    covers: tuple[Cover, ...] = (),
-) -> dict[str, Landing]:
-    """Every supply landed for an option (or the plan, ``planned``).
-
-    For an option (LNG-4), the cargoes it places somewhere or on a day other than the plan's
-    (``plan``) are "moved": they land first, take the berth on the day they can, and draw the
-    terminals' shared per-day limits first. Every other cargo then lands in berth order: one
-    whose berth a moved cargo holds waits until it is free, and each finds only what the moved
-    cargoes left of a shared limit. With ``knock_on`` false the other cargoes land as if the
-    moved ones took nothing from them: the difference is the option's knock-on on the rest of
-    the portfolio. ``covers`` add the substitute gas the option delivers.
-    """
+) -> tuple[dict[str, tuple[Placement, date | None]], list[_Claim], dict[str, str]]:
+    """Each LNG supply's placement and arrival for an option (or the plan), every claim on a
+    berth, and the swaps of berth turn the option makes."""
 
     hit = {s.supply_id for s in disrupted(portfolio)}
-    out: dict[str, Landing] = {}
     wanted: dict[str, tuple[Placement, date | None]] = {}
     for supply in portfolio.supplies:
         if supply.kind == PIPELINE:
-            out[supply.supply_id] = _pipeline_flows(supply, curtailed=not planned)
             continue
         placement = placements.get(supply.supply_id) if not planned else None
         if placement is None:
@@ -1415,42 +1769,204 @@ def _landings(
             if supply.supply_id in hit:
                 arrival = arrival + timedelta(days=shift)
         wanted[supply.supply_id] = (placement, arrival)
+    claims: list[_Claim] = []
+    for supply_id, (placement, arrival) in wanted.items():
+        slot = portfolio.slot(placement.slot_id)
+        if slot is None or arrival is None:
+            continue
+        rule = portfolio.berth_rule(slot.terminal)
+        claims.append(
+            _Claim(
+                supply_id,
+                portfolio.supply(supply_id).label,
+                slot.terminal,
+                arrival,
+                max(arrival, slot.start),
+                slot.start,
+                portfolio.berth_hold(slot.terminal),
+                arrival <= rule.window_end(slot),
+            )
+        )
+    for call in portfolio.berth_calls:
+        claims.append(
+            _Claim(
+                CALL_PREFIX + call.call_id,
+                call.label,
+                call.terminal,
+                call.berth,
+                call.berth,
+                call.berth,
+                max(1, int(call.berth_days)),
+                True,
+            )
+        )
+    swaps = {
+        supply_id: placement.berth_swap
+        for supply_id, (placement, _arrival) in wanted.items()
+        if placement.berth_swap and not planned
+    }
+    return wanted, claims, swaps
 
-    def berth_of(supply_id: str) -> tuple[str, date | None]:
+
+def _berth_plan(claims: Iterable[_Claim], swaps: Mapping[str, str]) -> dict[str, _Berthing]:
+    """The gas day each claim is berthed under its terminal's rule (the owner, 2026-11-26).
+
+    On-time ships are berthed in turn, in the order they are ready, then by arrival, then by
+    the slot's first day (then by key, so the plan is deterministic); each takes the first run
+    of free berth days from when it is ready. Late ships then take the next free gap, in the
+    order they arrive, without moving an on-time ship. In a swap (``swaps``: the cargo and the
+    holder whose turn it takes), the cargo is berthed in the holder's turn and the holder takes
+    the next free gap from when it was ready.
+    """
+
+    out: dict[str, _Berthing] = {}
+    by_terminal: dict[str, dict[str, _Claim]] = {}
+    for claim in claims:
+        by_terminal.setdefault(claim.terminal, {})[claim.key] = claim
+    for terminal in sorted(by_terminal):
+        group = by_terminal[terminal]
+        taker: dict[str, str] = {}
+        for supply_id, holder in sorted(swaps.items()):
+            if supply_id in group and holder in group and holder != supply_id:
+                taker.setdefault(holder, supply_id)
+        takers = set(taker.values())
+        in_turn: list[tuple[tuple, _Claim, date, str]] = []
+        gap: list[tuple[tuple, _Claim, date, str]] = []
+        for claim in group.values():
+            if claim.key in takers:
+                continue
+            order = (claim.ready, claim.arrival, claim.window_start, claim.key)
+            if claim.key in taker:
+                swapper = group[taker[claim.key]]
+                in_turn.append(((*order, 0), swapper, max(swapper.arrival, claim.ready), SWAPPED))
+                gap.append((order, claim, claim.ready, NEXT_FREE_GAP))
+            elif claim.on_time:
+                in_turn.append(((*order, 1), claim, claim.ready, IN_TURN))
+            else:
+                gap.append((order, claim, claim.ready, NEXT_FREE_GAP))
+        held: list[tuple[date, date, str]] = []
+        for _order, claim, ready, how in sorted(in_turn, key=lambda x: x[0]) + sorted(
+            gap, key=lambda x: x[0]
+        ):
+            start, blockers = ready, []
+            clear = False
+            while not clear:
+                clear = True
+                for first, last, who in sorted(held):
+                    if first <= start + timedelta(days=claim.stay - 1) and start <= last:
+                        start = last + timedelta(days=1)
+                        if who not in blockers:
+                            blockers.append(who)
+                        clear = False
+            held.append((start, start + timedelta(days=claim.stay - 1), claim.label))
+            out[claim.key] = _Berthing(start, tuple(blockers), how)
+    return out
+
+
+def _call_waits(
+    portfolio: Portfolio,
+    placements: Mapping[str, Placement],
+    *,
+    planned: bool,
+    shift: int,
+) -> dict[str, _Berthing]:
+    """How each line-up call is berthed for an option (or the plan)."""
+
+    _wanted, claims, swaps = _claims(portfolio, placements, planned=planned, shift=shift)
+    plan = _berth_plan(claims, swaps)
+    return {
+        call.call_id: plan[CALL_PREFIX + call.call_id]
+        for call in portfolio.berth_calls
+        if CALL_PREFIX + call.call_id in plan
+    }
+
+
+def _landings(
+    portfolio: Portfolio,
+    market: Market,
+    placements: Mapping[str, Placement],
+    *,
+    planned: bool,
+    shift: int,
+    strand: bool,
+    plan: Mapping[str, Landing] | None = None,
+    knock_on: bool = True,
+    covers: tuple[Cover, ...] = (),
+) -> dict[str, Landing]:
+    """Every supply landed for an option (or the plan, ``planned``).
+
+    Each terminal's berth is assigned by its rule (:func:`_berth_plan`): on-time ships in turn,
+    late ships at the next free gap without displacing an on-time slot holder, a swap in the
+    holder's turn. For an option (LNG-4), the cargoes it places somewhere, on another day or in
+    another berth turn than the plan's (``plan``) are "moved": they draw the terminals' shared
+    per-day limits first. With ``knock_on`` false the other cargoes land as if the moved ones
+    were not there (their berth and the shared limits): the difference is the option's knock-on
+    on the rest of the portfolio. ``covers`` add the substitute gas the option delivers.
+    """
+
+    wanted, claims, swaps = _claims(portfolio, placements, planned=planned, shift=shift)
+    out: dict[str, Landing] = {}
+    for supply in portfolio.supplies:
+        if supply.kind == PIPELINE:
+            out[supply.supply_id] = _pipeline_flows(supply, curtailed=not planned)
+
+    def ready_of(supply_id: str) -> tuple[str, date | None]:
         placement, arrival = wanted[supply_id]
         slot = portfolio.slot(placement.slot_id)
         if slot is None or arrival is None:
             return "", arrival
-        return slot.terminal, slot.start + timedelta(days=max(0, (arrival - slot.start).days))
+        return slot.terminal, max(arrival, slot.start)
 
     moved = set()
     if plan is not None:
         for supply_id in wanted:
             was = plan.get(supply_id)
-            terminal, day = berth_of(supply_id)
-            if was is None or was.terminal != terminal or was.berth != day:
+            terminal, day = ready_of(supply_id)
+            was_ready = (
+                None
+                if was is None or was.berth is None
+                else (was.berth - timedelta(days=was.hold_days))
+            )
+            if (
+                was is None
+                or was.terminal != terminal
+                or was_ready != day
+                or wanted[supply_id][0].berth_swap
+            ):
                 moved.add(supply_id)
+    full = _berth_plan(claims, swaps)
+    free = (
+        _berth_plan([c for c in claims if c.key not in moved], {})
+        if moved and not knock_on
+        else full
+    )
+    by_key = {claim.key: claim for claim in claims}
     order = sorted(
         wanted,
-        key=lambda sid: (sid not in moved, berth_of(sid)[1] or date.max, sid),
+        key=lambda sid: (
+            sid not in moved,
+            full[sid].berth if sid in full else date.max,
+            sid,
+        ),
     )
     pool, free_pool = Pool(), Pool()
-    busy: dict[str, list[tuple[date, date, str]]] = {}
     for supply_id in order:
         supply = portfolio.supply(supply_id)
         placement, arrival = wanted[supply_id]
-        terminal, day = berth_of(supply_id)
-        hold, held_by = 0, None
-        use = pool
+        use, berths = pool, full
         if supply_id not in moved and moved and not knock_on:
-            use = free_pool
-        elif supply_id not in moved and day is not None:
-            for first, last, who in sorted(busy.get(terminal, [])):
-                start = day + timedelta(days=hold)
-                if first <= start <= last:
-                    hold = (last - day).days + 1
-                    held_by = who
-        landing = _land(
+            use, berths = free_pool, free
+        terminal, ready = ready_of(supply_id)
+        hold, held_by, late, how, laytime = 0, None, False, IN_TURN, LAYTIME_FROM_ARRIVAL
+        claim, berthing = by_key.get(supply_id), berths.get(supply_id)
+        if claim is not None and berthing is not None and ready is not None:
+            hold = max(0, (berthing.berth - ready).days)
+            held_by = ", ".join(berthing.held_by) or None
+            late = not claim.on_time
+            how = berthing.priority
+            if late:
+                laytime = portfolio.berth_rule(terminal).late_laytime_from
+        out[supply_id] = _land(
             portfolio,
             supply,
             placement,
@@ -1460,13 +1976,10 @@ def _landings(
             hold_days=hold,
             held_by=held_by,
             pool=use,
+            late=late,
+            priority=how,
+            laytime_from=laytime,
         )
-        out[supply_id] = landing
-        if supply_id in moved and landing.berth is not None:
-            stay = portfolio.berth_hold(landing.terminal)
-            busy.setdefault(landing.terminal, []).append(
-                (landing.berth, landing.berth + timedelta(days=stay - 1), supply.label)
-            )
     by_id = {item.obligation_id: item for item in portfolio.obligations}
     sources = {item.source_id: item for item in portfolio.substitutes}
     for cover in covers:
@@ -1478,26 +1991,6 @@ def _landings(
             terminal=item.point,
             hub=item.hub,
             flows={d: m for d, m in cover.days},
-        )
-    return out
-
-
-def moved_berths(
-    portfolio: Portfolio, landings: Mapping[str, Landing], plan: Mapping[str, Landing]
-) -> dict[str, list[tuple[date, date, str]]]:
-    """The berth days the cargoes an option moved hold, per terminal."""
-
-    out: dict[str, list[tuple[date, date, str]]] = {}
-    for supply_id, landing in landings.items():
-        was = plan.get(supply_id)
-        if supply_id.startswith(COVER_PREFIX) or landing.berth is None:
-            continue
-        if was is not None and was.terminal == landing.terminal and was.berth == landing.berth:
-            continue
-        stay = portfolio.berth_hold(landing.terminal)
-        label = portfolio.supply(supply_id).label
-        out.setdefault(landing.terminal, []).append(
-            (landing.berth, landing.berth + timedelta(days=stay - 1), label)
         )
     return out
 
@@ -1537,8 +2030,9 @@ def _value(
     """The option's P&L change in one scenario: its direct effect (the cargoes it places, the
     capacity it buys, the substitute gas it brings in) and its opportunity cost (LNG-4): what
     it does to the rest of the portfolio (a cargo whose berth it takes, the shared send-out or
-    storage it leaves less of), to other users' ships due at a berth it takes, and the value
-    of what it uses that could have been used or released elsewhere."""
+    storage it leaves less of) and the value of what it uses that could have been used or
+    released elsewhere. Another company's ship is never costed at its demurrage: where the
+    option takes its berth turn, the cost is that company's negotiated quote (direct)."""
 
     strand = scenario.scenario_id != "base"
     common = {
@@ -1555,7 +2049,7 @@ def _value(
     v.landings = after
     v.hedge_legs = full.hedge_legs
     _knock_on(portfolio, market, v, full, free, after, before, scenario)
-    _displaced_calls(portfolio, market, v, after, before, scenario)
+    _counterparty(portfolio, option, v, scenario)
     _forgone(portfolio, market, terms, option, v, scenario)
     return v
 
@@ -1968,7 +2462,8 @@ def _knock_on(
         if supply_id.startswith(COVER_PREFIX) or supply_id not in free:
             continue
         a, f = after[supply_id], free[supply_id]
-        if a.flows == f.flows and a.demurrage_eur == f.demurrage_eur and not a.hold_days:
+        delay = a.hold_days - f.hold_days
+        if a.flows == f.flows and a.demurrage_eur == f.demurrage_eur and not delay:
             continue
         supply = portfolio.supply(supply_id)
         dem = a.demurrage_eur - f.demurrage_eur
@@ -1979,9 +2474,9 @@ def _knock_on(
             sum(abs(a.flows.get(d, 0.0) - f.flows.get(d, 0.0)) for d in set(a.flows) | set(f.flows))
             / 2
         )
-        if a.hold_days:
+        if delay > 0:
             text = (
-                f"{supply.label} waits {a.hold_days} more gas day(s) at {a.terminal}: "
+                f"{supply.label} waits {delay} more gas day(s) at {a.terminal}: "
                 f"{a.held_by} holds the berth; demurrage {_fmt(dem)} EUR, boil-off "
                 f"{_fmt(boil)} EUR"
             )
@@ -1999,8 +2494,8 @@ def _knock_on(
                 "supply_id": supply_id,
                 "label": supply.label,
                 "terminal": a.terminal,
-                "delay_days": a.hold_days,
-                "held_by": a.held_by,
+                "delay_days": max(0, delay),
+                "held_by": a.held_by if delay > 0 else None,
                 "demurrage_eur": round(-dem, 2),
                 "boil_off_eur": round(-boil, 2),
                 "mwh_moved": round(moved, 1),
@@ -2028,68 +2523,68 @@ def _knock_on(
     )
 
 
-def _displaced_calls(
-    portfolio: Portfolio,
-    market: Market,
-    v: Valuation,
-    after: Mapping[str, Landing],
-    before: Mapping[str, Landing],
-    scenario: Scenario,
-) -> None:
-    """Other users' ships due on a gas day a cargo the option moved holds the berth."""
+def _counterparty(portfolio: Portfolio, option: Option, v: Valuation, scenario: Scenario) -> None:
+    """Other companies' ships (the owner, 2026-11-26): their demurrage is never in the book's
+    P&L. Where the option takes a call's berth turn, the cost is the call's negotiated quote,
+    one total, entered or pending; any call that berths later than in the plan is stated,
+    unvalued."""
 
-    busy = moved_berths(portfolio, after, before)
-    for call in sorted(portfolio.berth_calls, key=lambda c: (c.terminal, c.berth, c.call_id)):
-        delay, held_by = 0, None
-        for first, last, who in sorted(busy.get(call.terminal, [])):
-            start = call.berth + timedelta(days=delay)
-            if first <= start <= last:
-                delay = (last - call.berth).days + 1
-                held_by = who
-        if not delay:
-            continue
-        dem = max(0.0, delay * 24.0 - call.laytime_hours) / 24.0 * call.demurrage_eur_per_day
-        price = market.price(call.hub, _month(call.berth)) or 0.0
-        boil = delay * call.boil_off_mwh_per_day * price * scenario.price_factor
-        cost = dem + boil
-        v.displaced_calls += cost
-        rate = f"{call.demurrage_eur_per_day:,.0f} EUR/day"
-        if call.demurrage_note:
-            rate += f" ({call.demurrage_note})"
-        text = (
-            f"{call.label}, due at {call.terminal} on {call.berth:%d %b}, waits {delay} gas "
-            f"day(s) while {held_by} holds the berth: {delay * 24:.0f} h against "
-            f"{call.laytime_hours:.0f} h laytime left at {rate} = {_fmt(dem)} EUR, boil-off "
-            f"{_fmt(call.boil_off_mwh_per_day * delay)} MWh x {price * scenario.price_factor:,.2f}"
-            f" = {_fmt(boil)} EUR"
-        )
-        sources = [
-            call.source or "terminal line-up",
-            _price_source(market, call.hub, _month(call.berth)),
-        ]
+    for quote in option.quotes:
+        amount = quote["amount_eur"]
+        if quote["status"] == "entered" and amount is not None:
+            v.counterparty_quote += amount
         v.lines.append(
             {
-                "label": f"displaced {call.call_id}",
-                "value": round(-cost, 2),
-                "basis": "opportunity",
-                "text": text,
-                "sources": sources,
+                "label": f"quote {quote['call_id']}",
+                "value": round(-(amount or 0.0), 2),
+                "basis": "direct",
+                "quote": quote["status"],
+                "text": quote["text"],
+                "sources": [quote["source"] or f"{quote['counterparty']} (quote to obtain)"],
             }
         )
-        v.opportunity.append(
+    after = _call_waits(portfolio, option.placements, planned=False, shift=scenario.eta_shift_days)
+    before = _call_waits(portfolio, {}, planned=True, shift=0)
+    taken = {
+        p.berth_swap[len(CALL_PREFIX) :]
+        for p in option.placements.values()
+        if p.berth_swap and p.berth_swap.startswith(CALL_PREFIX)
+    }
+    for call in sorted(portfolio.berth_calls, key=lambda c: (c.terminal, c.berth, c.call_id)):
+        now, was = after.get(call.call_id), before.get(call.call_id)
+        if now is None or was is None:
+            continue
+        delay = (now.berth - was.berth).days
+        if delay <= 0:
+            continue
+        held_by = ", ".join(now.held_by) or None
+        covered = call.call_id in taken
+        text = (
+            f"{call.label} ({call.party}), due at {call.terminal} on {call.berth:%d %b}, "
+            f"berths {delay} gas day(s) later"
+            + (f" while {held_by} holds the berth" if held_by else "")
+            + ": "
+            + (
+                "the swap negotiated with them; its cost is their quote, not their demurrage"
+                if covered
+                else "their cost, not the book's; it is not in the P&L"
+            )
+        )
+        v.counterparty.append(
             {
                 "kind": "berth_delay",
                 "owner": "third_party",
                 "call_id": call.call_id,
                 "label": call.label,
+                "counterparty": call.party,
                 "terminal": call.terminal,
                 "delay_days": delay,
                 "held_by": held_by,
-                "demurrage_eur": round(-dem, 2),
-                "boil_off_eur": round(-boil, 2),
-                "value_eur": round(-cost, 2),
+                "swapped": covered,
+                "in_pnl": False,
+                "value_eur": None,
                 "text": text,
-                "sources": sources,
+                "sources": [call.source or "terminal line-up"],
             }
         )
 
@@ -2480,7 +2975,15 @@ _OBJECTIVE_WORDS = {
 def pareto(options: list[Option]) -> list[Option]:
     """Mark the feasible options no other feasible option dominates; say why for the rest."""
 
-    feasible = [o for o in options if o.feasible]
+    # An option whose cost waits on a counterparty quote is compared with nothing until the
+    # quote is entered: it can neither dominate nor be on the frontier.
+    for option in options:
+        if option.feasible and option.quote_pending:
+            option.dominated_why = [
+                "its cost waits on a quote from "
+                + ", ".join(sorted({q["counterparty"] for q in option.quotes}))
+            ]
+    feasible = [o for o in options if o.feasible and not o.quote_pending]
     frontier = []
     for option in feasible:
         dominators = []
@@ -2501,10 +3004,12 @@ def pareto(options: list[Option]) -> list[Option]:
 
 
 def _order_key(option: Option) -> tuple:
-    """Best first: score (the named ordering weights), fewer contracts broken, the frontier,
-    fewer supplies moved, then the lexically first key, so the order is deterministic."""
+    """Best first: an option whose cost is known before one waiting on a counterparty quote,
+    then score (the named ordering weights), fewer contracts broken, the frontier, fewer
+    supplies moved, then the lexically first key, so the order is deterministic."""
 
     return (
+        option.quote_pending,
         -round(option.score, 2),
         len(option.breaches),
         not option.on_frontier,
@@ -2552,6 +3057,11 @@ def _consequence_words(option: Option) -> str:
     if option.disrupts:
         moved = ", ".join(f"{d['label']} {_fmt(d['mwh'])} MWh" for d in option.disrupts)
         parts.append(f"moves supplies running to plan ({moved})")
+    for quote in option.quotes:
+        if quote["status"] == "entered":
+            parts.append(f"pays {quote['counterparty']}'s quote of {_fmt(quote['amount_eur'])} EUR")
+    if option.approvals:
+        parts.append("needs the terminal's approval")
     return "; ".join(parts)
 
 
@@ -2564,9 +3074,10 @@ def recommend_set(options: list[Option]) -> list[Recommendation]:
       may move other cargoes, and says which);
     * ``overall``: the best ranked of all possible options, breaches included.
 
-    The trader decides; none is chosen for them."""
+    An option whose cost waits on a counterparty quote is not recommended until the quote is
+    entered. The trader decides; none is chosen for them."""
 
-    possible = sorted((o for o in options if o.feasible), key=_order_key)
+    possible = sorted((o for o in options if o.feasible and not o.quote_pending), key=_order_key)
     keeps = [o for o in possible if not o.breaches]
     by_value = sorted(keeps, key=lambda o: (-o.objectives["pnl_expected"], _order_key(o)))
     picks = (
@@ -2743,6 +3254,8 @@ def cover_options(portfolio: Portfolio, market: Market, options: list[Option]) -
                     swaps=option.swaps,
                     covers=chosen,
                     notes=list(option.notes),
+                    quotes=[dict(q) for q in option.quotes],
+                    approvals=list(option.approvals),
                 )
             )
     return out[:MAX_COMBINATIONS]
@@ -2803,6 +3316,16 @@ def placement_legs(portfolio: Portfolio, option: Option) -> list[dict[str, Any]]
                 if landing is None or landing.berth is None
                 else landing.berth.isoformat(),
                 "wait_hours": 0 if landing is None else landing.wait_days * 24,
+                # The terminal's berth rule as applied (the owner, 2026-11-26).
+                "on_time": None if landing is None or slot is None else not landing.late,
+                "berth_priority": None if landing is None or slot is None else landing.priority,
+                "held_by": None if landing is None else landing.held_by,
+                "laytime_from": None if landing is None or slot is None else landing.laytime_from,
+                "laytime_wait_hours": 0 if landing is None else landing.laytime_wait_days * 24,
+                "berth_swap": placement.berth_swap,
+                "berth_rule": None
+                if slot is None
+                else portfolio.berth_rule(slot.terminal).as_dict(),
                 "send_out_first": flows[0][0].isoformat() if flows else None,
                 "send_out_last": flows[-1][0].isoformat() if flows else None,
                 "send_out_mwh": round(sum(m for _, m in flows), 1),
@@ -2866,6 +3389,11 @@ def option_dict(portfolio: Portfolio, option: Option, *, detail: bool = False) -
         "direct_pnl_expected": None if base is None else round(base.direct_pnl, 2),
         "opportunity_cost_expected": None if base is None else round(base.opportunity_cost, 2),
         "opportunity": [] if base is None else [dict(item) for item in base.opportunity],
+        # Other companies (the owner, 2026-11-26): a negotiated quote where the option takes
+        # their berth turn, and their ships it berths later, stated and never in the P&L.
+        "quotes": [dict(q) for q in option.quotes],
+        "approvals": list(option.approvals),
+        "counterparty_effects": [] if base is None else [dict(item) for item in base.counterparty],
         "obligations": list(option.obligations),
         "scenarios": [
             {
@@ -2925,10 +3453,16 @@ def result_dict(portfolio: Portfolio, result: Result) -> dict[str, Any]:
         ],
         "objectives": [{"name": name, "sense": sense} for name, sense in OBJECTIVES],
         "valuation": "P&L = direct P&L - opportunity cost: the direct effect of the cargoes "
-        "the option places, the capacity it buys and the gas it brings in, less what it costs "
-        "the rest of the portfolio (a berth it takes from a cargo due there, own or another "
-        "user's, shared send-out or storage it leaves short, a spare slot's value forgone, "
-        "storage gas not there when planned)",
+        "the option places, the capacity it buys, the gas it brings in and any negotiated "
+        "quote it pays another company for its berth turn, less what it costs the rest of the "
+        "portfolio (a berth turn it takes from a cargo of the book, shared send-out or storage "
+        "it leaves short, a spare slot's value forgone, storage gas not there when planned). "
+        "Another company's demurrage is never counted: a swap with its berth turn is costed "
+        "at its quote, one total, and is pending until the quote is entered",
+        "berth_rules": [
+            portfolio.berth_rule(terminal).as_dict()
+            for terminal in sorted({slot.terminal for slot in portfolio.slots})
+        ],
         "options": [option_dict(portfolio, o) for o in result.options],
         "frontier": [o.option_id for o in result.frontier],
         "recommended": None if result.recommended is None else result.recommended.option_id,
@@ -2970,6 +3504,13 @@ def result_dict(portfolio: Portfolio, result: Result) -> dict[str, Any]:
 
 __all__ = [
     "BerthCall",
+    "BerthRule",
+    "CALL_PREFIX",
+    "IN_TURN",
+    "LAYTIME_FROM_ARRIVAL",
+    "LAYTIME_FROM_BERTHING",
+    "NEXT_FREE_GAP",
+    "RULE_BASES",
     "COVER_PREFIX",
     "Cover",
     "SPOT_PREFIX",
