@@ -8,7 +8,7 @@
  *   never clips it; placed against collisions; Escape, a click elsewhere or the button closes
  *   it and focus returns to the button.
  * - It says whether the text came from the rules or is a checked model summary, and when
- *   the figures use simulated demo prices.
+ *   the figures use simulated prices.
  */
 import { useEffect, useState } from "react";
 import { api, type ExplainSubject, type ExplanationDTO } from "@/api/client";

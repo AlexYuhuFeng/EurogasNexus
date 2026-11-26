@@ -165,8 +165,8 @@ def test_a_late_cargo_gets_valued_options_a_frontier_and_a_default(tmp_path, mon
         "disrupts_normal_cargo": True,
     }
     (breach,) = iberia["breaches"]
-    assert breach["counterparty"] == "Demo Iberia offtaker" and not breach["penalty_held"]
-    assert "breaks the firm delivery to Demo Iberia offtaker" in breach["text"]
+    assert breach["counterparty"] == "Iberia offtaker" and not breach["penalty_held"]
+    assert "breaks the firm delivery to Iberia offtaker" in breach["text"]
     # Hub gas at PVB covers the shortfall as a further option with no breach.
     covered = options["swap:demo-lng-c+absorb + cover:hub:PVB:demo-d1-iberia"]
     assert covered["kind"] == "substitute" and not covered["flags"]["contract_breach"]
@@ -195,7 +195,7 @@ def test_a_late_cargo_gets_valued_options_a_frontier_and_a_default(tmp_path, mon
     ]
     assert all(r["reason"] for r in data["recommended_set"])
     assert borrow["recommended_as"] == ["clean"]
-    # Demo Meridian's demurrage is 76,000 USD/day, converted at the ECB reference rate.
+    # Meridian's demurrage is 76,000 USD/day, converted at the ECB reference rate.
     demurrage = data["demurrage"]
     assert (demurrage["rate_per_day"], demurrage["currency"]) == (76_000.0, "USD")
     assert demurrage["eur_per_day"] == round(76_000 / EURUSD, 2)
@@ -258,7 +258,7 @@ def test_a_cargo_running_normally_is_as_planned(tmp_path, monkeypatch):
     data = client.get(
         "/api/lng/cargoes/demo-lng-c/disruption-options", headers=who["viewer"]
     ).json()["data"]
-    # Demo Solace is only moved by the Huelva swaps, each flagged as moving it.
+    # Solace is only moved by the Huelva swaps, each flagged as moving it.
     assert data["status"] == "affected"
     assert data["options"] and all(o["flags"]["disrupts_normal_cargo"] for o in data["options"])
     unknown = client.get("/api/lng/cargoes/nope/disruption-options", headers=who["viewer"])
@@ -344,7 +344,7 @@ def test_choosing_records_the_decision_audited_and_books_nothing(tmp_path, monke
     assert took.status_code == 200, took.text
     kept = took.json()["data"]
     assert kept["consequences"]["flags"]["contract_breach"] is True
-    assert kept["consequences"]["breaches"][0]["counterparty"] == "Demo Iberia offtaker"
+    assert kept["consequences"]["breaches"][0]["counterparty"] == "Iberia offtaker"
     assert kept["fx"]["choice"]["source"] == "ECB"
     assert kept["recommended_set"]
     with Session(engine) as session:
@@ -374,10 +374,10 @@ def test_choosing_records_the_decision_audited_and_books_nothing(tmp_path, monke
     with Session(engine) as session:
         audit = session.query(AuditEventRecord).filter_by(action="lng.disruption_choice").one()
         assert "(recommended: best_expected)" in audit.detail
-        assert "moves Demo Halcyon" in audit.detail
+        assert "moves Halcyon" in audit.detail
         # Nothing moved: the cargo still holds its slot and ETA.
         assert session.get(LngCargoRecord, "demo-lng-a").destination_terminal == (
-            "Demo Zeebrugge terminal"
+            "Zeebrugge terminal"
         )
     again = client.get(
         "/api/lng/cargoes/demo-lng-a/disruption-options", headers=who["viewer"]
@@ -410,7 +410,7 @@ def test_the_consumer_keeps_a_timeline_and_notifies_once_per_change(tmp_path, mo
         assert all(row.title.startswith("Recommended options changed") for row in told)
         assert [r["basis"] for r in runs[0].recommended_set] == ["clean", "best_expected"]
 
-        # A later ETA (two more days) ten minutes on: the swap with Demo Halcyon no longer
+        # A later ETA (two more days) ten minutes on: the swap with Halcyon no longer
         # fits, so the best expected option of the recommended set changes. A change to the
         # recommended set is told at once, cooldown or not.
         cargo = session.get(LngCargoRecord, "demo-lng-a")

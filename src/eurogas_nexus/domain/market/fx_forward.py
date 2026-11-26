@@ -310,7 +310,7 @@ class SpotReference:
                 for item in self.inputs
             ],
             "source": (
-                "simulated demo reference rate" if self.simulated else "ECB euro reference rate"
+                "simulated reference rate" if self.simulated else "ECB euro reference rate"
             ),
             "simulated": self.simulated,
         }

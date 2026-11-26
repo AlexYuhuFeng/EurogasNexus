@@ -159,14 +159,11 @@
   .answer-ask-spinner { animation: none; }
 }
 
+/* The answer's source mark when its facts are simulated: a quiet source line, not a callout. */
 .answer-ask-simulated {
   margin: 0;
-  padding: var(--ds-space-1) var(--ds-space-2);
-  border-radius: var(--ds-radius-sm);
-  background: var(--ds-status-simulated-soft);
-  color: var(--ds-status-simulated);
+  color: var(--ds-text-3);
   font-size: var(--ds-text-xs);
-  font-weight: var(--ds-weight-medium);
   line-height: var(--ds-line-xs);
 }
 

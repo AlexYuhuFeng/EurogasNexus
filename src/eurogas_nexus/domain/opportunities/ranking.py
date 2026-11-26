@@ -90,7 +90,7 @@ def _when(moment: datetime | None, now: datetime, word: str) -> str:
 
 def _quality_words(quality: InputClass, simulated: bool) -> str:
     if simulated:
-        return "simulated inputs (demo)"
+        return "simulated inputs"
     if quality in {InputClass.SOURCED, InputClass.DERIVED}:
         return "all inputs sourced"
     return f"weakest input: {CLASS_LABEL[quality]}"

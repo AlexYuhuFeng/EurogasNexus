@@ -175,10 +175,10 @@ PLANTED_CASES: tuple[PlantedCase, ...] = (
     PlantedCase(
         "D1-lng-cargo-late", "LNG-3 disruption re-optimisation (cargo options)",
         ("ZTP", "TTF", "PEG", "PVB"), ("cargo",),
-        f"On day {D1_DAY_OF_MONTH} of each month the demo LNG book (demo-lng-nwe) holds Demo "
-        "Meridian, due two days after its Zeebrugge slot starts, beside two cargoes running "
+        f"On day {D1_DAY_OF_MONTH} of each month the LNG book demo-lng-nwe holds Meridian, "
+        "due two days after its Zeebrugge slot starts, beside two cargoes running "
         "normally (Rotterdam, Huelva with a firm daily delivery), a spare Dunkerque slot, "
-        "illustrative Zeebrugge borrow, send-out, storage and interruptible offers and a "
+        "simulated Zeebrugge borrow, send-out, storage and interruptible offers and a "
         "pipeline supply at ZTP. The re-optimisation finds Meridian disrupted, values wait, "
         "borrow, buy, divert and both swaps. LNG-4: the Huelva swap is listed as an option "
         "flagged as breaking the Iberia firm delivery (penalty not held), not excluded; the "

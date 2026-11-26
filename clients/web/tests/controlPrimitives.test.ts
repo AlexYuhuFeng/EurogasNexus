@@ -326,7 +326,7 @@ const METHOD: RiskMethodNoteDTO = {
 };
 
 function figure(key: string, value: number | null, unit: string, extra: Record<string, unknown> = {}) {
-  return { key, label: key, value, unit, as_of: "2026-11-14", state: "current", simulated: true, source: "Demo price", ...extra };
+  return { key, label: key, value, unit, as_of: "2026-11-14", state: "current", simulated: true, source: "Simulated price", ...extra };
 }
 
 function todayFixture(): DeskTodayDTO {
@@ -335,7 +335,7 @@ function todayFixture(): DeskTodayDTO {
     gas_day: "2026-11-15",
     front_month: "Dec-26",
     simulated: true,
-    simulated_notice: "Demo data: simulated figures, not market data.",
+    simulated_notice: "Source: simulated figures.",
     stale_figures: [],
     warnings: [],
     rows: [
@@ -447,10 +447,10 @@ test("Today: four rows, simulated marked beside each value, empty sections give 
   assert.match(html, /aria-label="why\.label\(subject=Demo Haldor field\)"/);
   // Risk figures carry a Method affordance.
   assert.match(html, /data-method="net_position"/);
-  // The demo desk does not shout stale, and demo mode is said once by the shell (the badge by the
-  // mark, the account menu), not as a chip in every page's context line.
+  // A simulated desk does not shout stale, and no "demo" chip or label appears in the context
+  // line: each simulated figure carries its own source mark.
   const fresh = render(h(TodayFreshness, { today: todayFixture(), t, nowMs: props.nowMs }));
-  assert.match(fresh, /data-today-freshness="demo"/);
+  assert.match(fresh, /data-today-freshness="simulated"/);
   assert.doesNotMatch(fresh, /today\.demo_data/);
   assert.doesNotMatch(fresh, /stale/);
   const live = { ...todayFixture(), simulated: false, stale_figures: [{ key: "price.NBP", label: "NBP Dec-26", state: "stale" as const, as_of: "2026-11-12" }] };

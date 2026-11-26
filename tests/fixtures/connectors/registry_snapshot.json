@@ -736,7 +736,7 @@
     "session-statistics",
     "simulated"
    ],
-   "description": "Demo exchange feed (simulated): bursty two-sided WD/DA quotes with size, trade prints, VWAP and volume for TTF and NBP, with planted prompt cases on a schedule. Demo only; never a market price.",
+   "description": "Simulated exchange feed: bursty two-sided WD/DA quotes with size, trade prints, VWAP and volume for TTF and NBP, with planted prompt cases on a schedule. Simulated source; never a market price.",
    "diagnostics": [],
    "effective_last_success_at_utc": null,
    "effective_record_count": 0,
@@ -2827,7 +2827,7 @@
     "session-statistics",
     "simulated"
    ],
-   "description": "Demo exchange feed (simulated): bursty two-sided WD/DA quotes with size, trade prints, VWAP and volume for TTF and NBP, with planted prompt cases on a schedule. Demo only; never a market price.",
+   "description": "Simulated exchange feed: bursty two-sided WD/DA quotes with size, trade prints, VWAP and volume for TTF and NBP, with planted prompt cases on a schedule. Simulated source; never a market price.",
    "enabled_default": false,
    "entitlement_scope": "public",
    "freshness_policy": {

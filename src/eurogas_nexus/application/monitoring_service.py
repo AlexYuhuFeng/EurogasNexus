@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from eurogas_nexus.application.ai_style import DESK_NOTE_RULES, ENRICHMENT_CALL
 from eurogas_nexus.application.desk_text import breaches_text, credit_lines, mandate_lines, money
+from eurogas_nexus.application.position_inputs import is_simulated_marks_warning
 from eurogas_nexus.application.service_identity import (
     ServiceAuthority,
     bind_service_actor,
@@ -1158,7 +1159,7 @@ def _limit_candidates(
     stale_marks = _marks_stale_candidate(credit.rows, credit.books, now)
     if stale_marks is not None:
         candidates.append(stale_marks)
-    demo = [w for w in [*credit.warnings, *mandates.warnings] if w.startswith("DEMO")]
+    demo = [w for w in [*credit.warnings, *mandates.warnings] if is_simulated_marks_warning(w)]
     if demo:
         # Figures on demo marks say so wherever the alert is shown (AGENTS.md rule 17).
         candidates = [

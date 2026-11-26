@@ -115,7 +115,6 @@ export function CargoBoard({ t, language, canRecordHedges }: { t: Translate; lan
 
   const lines = useMemo(() => sortCargoBoard(board.lines ?? []), [board.lines]);
   const strip = useMemo(() => headerStrip(lines, endOfDayMs(nowMs, resolveTimeZone(preference))), [lines, nowMs, preference]);
-  const simulated = lines.some((line) => line.simulated);
 
   const energy = useCallback(
     (mwh: number | null | undefined) => (mwh === null || mwh === undefined ? "–" : formatAmount(convertEnergy(mwh, unit), language, energyDigits(unit))),
@@ -335,7 +334,6 @@ export function CargoBoard({ t, language, canRecordHedges }: { t: Translate; lan
         </div>
       </header>
       <PanelHelp label={t("lng.cargo.help_label")} text={t("lng.cargo.help")} />
-      {simulated && <p className="cargo-board-note" role="note"><StatusBadge tone="simulated">{t("lng.cargo.simulated")}</StatusBadge> {t("lng.cargo.simulated_note")}</p>}
 
       <HeaderStripView strip={strip} t={t} language={language} unit={unit} nowMs={nowMs} energy={energy} />
 

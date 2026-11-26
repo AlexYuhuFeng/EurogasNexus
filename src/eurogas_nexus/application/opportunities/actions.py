@@ -149,7 +149,7 @@ def open_case(session, row, *, principal) -> dict[str, Any]:
                 f"{payload.get('headline', {}).get('unit')}; class {row.quality_class}"
             ),
             "economics_ref": ref,
-            "warnings": ["simulated inputs (demo)"] if row.simulated else [],
+            "warnings": ["simulated inputs"] if row.simulated else [],
         }
     ]
     session.flush()

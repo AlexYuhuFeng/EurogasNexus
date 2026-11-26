@@ -102,7 +102,7 @@ def test_phrasing_per_role_language_and_input_class() -> None:
     zh = phrase(projected, "risk", "zh-CN")
     assert "信用" in zh and "基于参考价格" in zh
     demo = _finding("credit.breach", 3, "1", InputClass.SIMULATED)
-    assert phrase(demo, "risk", "en").endswith("(on demo prices).")
+    assert phrase(demo, "risk", "en").endswith("(on simulated prices).")
     spread = _finding("opportunity.locational", 2, "1")
     assert phrase(spread, "trader", "en") == "opportunity.locational claim"
     assert phrase(spread, "risk", "en").startswith("Location spread: ")

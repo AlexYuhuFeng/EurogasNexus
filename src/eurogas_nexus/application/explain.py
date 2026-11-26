@@ -27,6 +27,7 @@ from eurogas_nexus.application.desk_text import (
     mandate_lines,
     money,
 )
+from eurogas_nexus.application.position_inputs import is_simulated_marks_warning
 
 SUBJECTS = ("alert", "outage", "credit", "mandate", "pnl")
 CACHE_SECONDS = 600
@@ -142,7 +143,7 @@ def model_payload(facts: Facts) -> dict[str, Any]:
 def model_task(facts: Facts) -> str:
     return (
         "Explain to the desk why this matters now, in at most three sentences. "
-        + ("State that the figures use simulated demo prices. " if facts.simulated else "")
+        + ("Name the source once as simulated prices. " if facts.simulated else "")
     )
 
 
@@ -281,7 +282,7 @@ def _credit_facts(session, caller: Caller, counterparty_id: str, now: datetime) 
     row = next((r for r in result.rows if r["counterparty_id"] == counterparty_id), None)
     if row is None:
         raise NotFound(counterparty_id)
-    demo = [w for w in result.warnings if w.startswith("DEMO")]
+    demo = [w for w in result.warnings if is_simulated_marks_warning(w)]
     return Facts(
         title=(f"{row['counterparty']}信用额度：{STATUS_ZH.get(row['status'], row['status'])}"
                if language_is_zh() else f"{row['counterparty']} credit: {row['status']}"),
@@ -300,7 +301,7 @@ def _mandate_facts(session, caller: Caller, mandate_id: str, now: datetime) -> F
     row = next((r for r in result.rows if r["mandate_id"] == mandate_id), None)
     if row is None:
         raise NotFound(mandate_id)
-    demo = [w for w in result.warnings if w.startswith("DEMO")]
+    demo = [w for w in result.warnings if is_simulated_marks_warning(w)]
     return Facts(
         title=(f"{row['name']}授权：{STATUS_ZH.get(row['status'], row['status'])}"
                if language_is_zh() else f"{row['name']} mandate: {row['status']}"),

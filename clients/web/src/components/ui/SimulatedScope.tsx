@@ -1,9 +1,9 @@
 /**
  * Simulated scope (AGENTS.md rule 17): one rule for every page that can show simulated figures.
  *
- * - **All simulated** (the demo desk): the page says it once at the top ("Demo data: simulated,
- *   not market prices") and the per-figure "sim" pill is dropped, because a pill on every value
- *   says nothing a reader has not been told.
+ * - **All simulated**: one quiet source line ("Source: simulated prices") stands where the page's
+ *   provenance is read, and the per-figure "sim" pill is dropped, because a pill on every value
+ *   says nothing a reader has not been told. It is a source mark, never a banner or a callout.
  * - **Mixed**: the pill stays on each simulated figure, so a simulated value can never be read as
  *   a market price beside real ones.
  * - **None**: nothing is shown.
@@ -37,8 +37,8 @@ export function SimulatedScope({
 }: {
   scope: SimulatedScopeKind;
   /**
-   * The one line said when every figure is simulated; omitted for a part of the page whose
-   * notice is already shown elsewhere on it (the scope then only drops the pills).
+   * The one source line said when every figure is simulated; omitted for a part of the page
+   * whose source line is already shown elsewhere on it (the scope then only drops the pills).
    */
   notice?: string;
   children: ReactNode;
@@ -46,7 +46,7 @@ export function SimulatedScope({
   return (
     <ScopeContext.Provider value={scope}>
       {scope === "all" && notice && (
-        <p className="simulated-scope-notice" role="note" data-simulated-scope="all">
+        <p className="simulated-scope-notice" data-simulated-scope="all">
           {notice}
         </p>
       )}

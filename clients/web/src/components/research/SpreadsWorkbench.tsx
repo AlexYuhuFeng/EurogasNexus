@@ -572,12 +572,11 @@ function CurveResult({ result, spec, classes }: { result: CurveResultDTO; spec: 
   const title = chart.hasCost && spec.cost
     ? t("spreads.title.curve_net", { spread: spreadName(spec), from: spec.cost.from_hub, to: spec.cost.to_hub })
     : t("spreads.title.curve", { spread: spreadName(spec) });
-  // Said once when every price is simulated; a mixed curve keeps the banner and its pills.
+  // The class line is the curve's source mark; when every price is simulated the per-leg pills drop.
   const scope = simulatedScopeOf(result.rows.flatMap((row) => row.legs.map((leg) => leg.price_class === "simulated")));
   return (
     <section className="spreads-result" data-result="curve" aria-label={title}>
-      <SimulatedScope scope={scope} notice={t("spreads.simulated_banner")}>
-      {result.simulated && scope !== "all" && <p className="spreads-simulated" role="note">{t("spreads.simulated_banner")}</p>}
+      <SimulatedScope scope={scope}>
       <ClassLine classes={classes} result={result.input_class} />
       {result.coverage && (
         <p className="spreads-coverage" role="note" data-coverage={result.coverage.priced_to}>
@@ -732,7 +731,7 @@ function HistoryResult({ result, spec }: { result: HistoryResultDTO; spec: Strat
   const classes = weakestClass([result.simulated ? "simulated" : "indicative"]);
   return (
     <section className="spreads-result" data-result="history">
-      <SimulatedScope scope={result.simulated ? "all" : "none"} notice={t("spreads.simulated_banner")}>
+      <SimulatedScope scope={result.simulated ? "all" : "none"}>
       <ClassLine classes={[classes]} result={classes} />
       <Chart
         id="spreads-history"

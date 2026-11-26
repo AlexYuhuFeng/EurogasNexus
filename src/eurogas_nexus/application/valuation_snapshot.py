@@ -359,10 +359,10 @@ class LiveSnapshotReader(RecordingReader):
         if found.kind == FIRM_MARK:
             text, basis = f"{label} firm's mark", "firm_mark"
         elif found.kind == LIVE_TICK:
-            text = f"{label} {side} ({venue}{', demo' if simulated else ''})"
+            text = f"{label} {side} ({venue}{', simulated' if simulated else ''})"
             basis = "quote"
         else:
-            text = f"{label} {'demo price' if simulated else 'settlement'}"
+            text = f"{label} {'simulated price' if simulated else 'settlement'}"
             basis = "demo" if simulated else "settlement"
         detail = {
             "basis": basis,

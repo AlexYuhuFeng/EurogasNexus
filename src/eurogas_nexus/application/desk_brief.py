@@ -17,6 +17,7 @@ from typing import Any
 
 from eurogas_nexus.application.caller import Caller
 from eurogas_nexus.application.desk_text import breaches_text, money
+from eurogas_nexus.application.position_inputs import is_simulated_marks_warning
 
 KINDS = ("morning", "eod")
 MAX_LINES = 6
@@ -90,7 +91,7 @@ def build_brief(
         if section is not None and section.lines:
             sections.append(section)
     if simulated:
-        warnings.insert(0, "DEMO: figures use simulated demo prices, not market prices.")
+        warnings.insert(0, "Simulated prices: not market prices.")
     zh = str(language).lower().startswith("zh")
     if zh:
         title = (f"天然气交易台晨报，{now.year}年{now.month}月{now.day}日" if kind == "morning"
@@ -119,8 +120,7 @@ def _as_text(title: str, lead: str | None, sections: list[Section], simulated: b
              zh: bool = False) -> str:
     out = [title, ""]
     if simulated:
-        out += ["演示数据：模拟价格，非市场价格。" if zh else
-                "Demo figures: simulated prices, not market prices.", ""]
+        out += ["来源：模拟价格。" if zh else "Source: simulated prices.", ""]
     if lead:
         out += [lead, ""]
     for section in sections:
@@ -153,7 +153,7 @@ def lead_task(kind: str, simulated: bool) -> str:
         + ("morning brief: what matters for today's trading" if kind == "morning" else
            "end-of-day report: what changed today and what carries into tomorrow")
         + ", picking the two or three most important facts."
-        + (" Say that the figures use simulated demo prices." if simulated else "")
+        + (" Name the source once as simulated prices." if simulated else "")
     )
 
 
@@ -315,7 +315,7 @@ def _positions(session, caller, now, kind):
         ]
         if parts:
             lines.append(T(f"{hub}: {', '.join(parts)}.", f"{hub}：{'，'.join(parts)}。"))
-    demo = any(w.startswith("DEMO") for w in inputs.warnings)
+    demo = any(is_simulated_marks_warning(w) for w in inputs.warnings)
     return Section("positions", T("Positions", "头寸"), lines[:MAX_LINES],
                    ["position-ladder"]), demo
 
@@ -346,7 +346,7 @@ def _limits(session, caller, now, kind):
                            f"{row['name']}授权{_STATUS_ZH.get(row['status'], row['status'])}："
                            f"{detail}。"))
             sources.append(f"mandate:{row['mandate_id']}")
-    demo = any(w.startswith("DEMO") for w in [*credit.warnings, *mandates.warnings])
+    demo = any(is_simulated_marks_warning(w) for w in [*credit.warnings, *mandates.warnings])
     return Section("limits", T("Credit and mandates", "信用额度与授权"), lines[:MAX_LINES],
                    sources[:MAX_LINES]), demo
 

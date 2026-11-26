@@ -531,12 +531,11 @@
     vertical-align: middle;
   }
 
-  /* Simulated scope (components/SimulatedScope.tsx): said once when every figure is simulated. */
+  /* Simulated scope (components/SimulatedScope.tsx): one quiet source line when every figure is
+     simulated, read like any other provenance line, never a callout. */
   .simulated-scope-notice {
     margin: 0;
-    padding: var(--ds-space-1) var(--ds-space-2);
-    border-left: 2px solid var(--ds-status-simulated);
-    color: var(--ds-text-2);
-    font-size: var(--ds-text-sm);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
   }
 }

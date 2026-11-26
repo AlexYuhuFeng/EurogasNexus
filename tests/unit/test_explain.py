@@ -93,7 +93,7 @@ def test_the_prompt_asks_for_a_short_desk_note(desk):
     system = seen[0][0]["content"]
     assert "at most three short sentences" in system
     assert "never add a number" in system
-    assert "simulated demo prices" in system  # demo marks are named, not hidden
+    assert "simulated prices" in system  # simulated marks are named once, not hidden
 
 
 def test_an_outage_names_the_desk_position_at_its_hub(desk):

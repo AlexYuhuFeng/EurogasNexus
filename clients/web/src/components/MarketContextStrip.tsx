@@ -29,7 +29,7 @@ interface MarketContextStripProps {
   t: Translate;
   /** The page\'s gas day, product and hub controls, shown in the context line. */
   controls?: React.ReactNode;
-  /** The page's own freshness line (Today's named stale figures, or "Demo data"). */
+  /** The page's own freshness line (Today's named stale figures). */
   freshness?: React.ReactNode;
   /** Page actions at the end of the same line (Today: Desk brief, Refresh). */
   children?: React.ReactNode;

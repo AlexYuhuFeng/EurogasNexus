@@ -24,6 +24,16 @@ HUB_CURRENCY = {code: quote_currency(code) for code in HUB_CODES}
 CURVE_QUOTE_LOOKBACK_DAYS = 10
 
 
+
+#: The warning a ladder read carries when simulated prices value it (said once, as its source).
+SIMULATED_MARKS_WARNING = "Marks are simulated prices, not market prices."
+
+
+def is_simulated_marks_warning(text: str) -> bool:
+    """Whether a warning is the simulated-marks one (an older "DEMO: ..." wording counts too)."""
+
+    return text == SIMULATED_MARKS_WARNING or text.startswith("DEMO")
+
 def curve_quotes(who: Any, date_from, date_to) -> list:
     """Latest entitled, non-simulated quote per hub and delivery window, for the curve.
 
@@ -666,8 +676,8 @@ def ladder_inputs(
     if demo_marks_used:
         warnings.append(
             # Shown to traders: plain words, not the switch's name (UX_REFERENCE rule 3). The
-            # "DEMO" prefix is the marker the desk, explain, alerts and reports look for.
-            "DEMO: marks are simulated demo prices, not market prices."
+            # desk, explain, alerts and reports find it with ``is_simulated_marks_warning``.
+            SIMULATED_MARKS_WARNING
         )
     return LadderInputs(
         legs=legs,

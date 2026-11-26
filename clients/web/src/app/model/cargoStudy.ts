@@ -305,7 +305,7 @@ export function henryHub(cargo: CargoResultDTO | null) {
     source: leg.source,
     proxy: /spot proxy/i.test(leg.source),
     day: /spot (\d{4}-\d{2}-\d{2})/.exec(leg.source)?.[1] ?? null,
-    demo: /\(demo, simulated\)/.test(leg.source),
+    simulated: /\((?:demo, )?simulated\)/.test(leg.source),
   };
 }
 

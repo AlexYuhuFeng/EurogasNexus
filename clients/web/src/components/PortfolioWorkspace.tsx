@@ -242,8 +242,8 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         }}
       />
       <div id="portfolio-task-panel">
-        {/* The demo desk's book is simulated end to end: said once at the top, not per figure
-            (UX_REFERENCE rule 17; components/ui/SimulatedScope.tsx). */}
+        {/* A book valued on simulated prices end to end: one quiet source line, not a mark per
+            figure (UX_REFERENCE rule 17; components/ui/SimulatedScope.tsx). */}
         <SimulatedScope scope={deskToday.today?.simulated ? "all" : "none"} notice={t("today.all_simulated")}>
         <PortfolioContextStrip
           projection={api.portfolioSnapshot}
@@ -252,7 +252,7 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
           // as one quiet summary; Limits & P&L and Delivery read nothing from it (owner: no filters
           // that change nothing).
           controls={task === "overview" ? tradingContextControlsFor(controller.traderContext, t, { summary: true }) : undefined}
-          // The demo desk says "Demo data" once instead of counting a static store's feeds as stale.
+          // A simulated desk's static store is not counted stale.
           freshness={deskToday.today?.simulated ? <TodayFreshness today={deskToday.today} t={t} nowMs={Date.parse(deskToday.today.as_of)} /> : undefined}
         />
         {/* One number, one place: Position owns the ladder, its totals and the exposure by tenor;

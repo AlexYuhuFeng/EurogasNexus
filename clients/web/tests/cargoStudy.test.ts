@@ -105,7 +105,7 @@ test("Henry Hub states its basis; the simulated scope reads the hub legs", () =>
     legs: [{ key: "hh", label: "Henry Hub", amount: 3.1, unit: "USD/MMBtu", input_class: "indicative", source: "Henry Hub spot 2026-11-16 (EIA), spot proxy for 2026-12" }],
     terminals: [ROW, { ...ROW, terminal_id: "zee", legs: [{ ...ROW.legs[0], input_class: "firm_mark" }] }, { ...ROW, terminal_id: "x", reason: "no_fx" }],
   } as unknown as CargoResultDTO;
-  assert.deepEqual(henryHub(cargo), { value: 3.1, inputClass: "indicative", source: cargo.legs[0].source, proxy: true, day: "2026-11-16", demo: false });
+  assert.deepEqual(henryHub(cargo), { value: 3.1, inputClass: "indicative", source: cargo.legs[0].source, proxy: true, day: "2026-11-16", simulated: false });
   assert.deepEqual(hubSimulatedFlags(cargo), [true, false], "left-out rows do not count");
   assert.equal(henryHub({ legs: [] } as unknown as CargoResultDTO), null);
 });
@@ -149,10 +149,10 @@ test("NBP's hub price in p/th with the per-MWh figure beside it; Henry Hub's pro
   assert.ok(Math.abs((nbp.value ?? 0) - 104.626) < 0.01, "35.70 GBP/MWh = 104.63 p/th");
   assert.equal(nbp.perMwh, 35.7);
   assert.deepEqual(hubQuote("TTF", 40.4, "EUR"), { value: 40.4, unit: "EUR/MWh", perMwh: 40.4, native: false });
-  const cargo = { legs: [{ key: "hh", label: "", amount: 4.07, unit: "USD/MMBtu", input_class: "simulated", source: "Henry Hub spot 2026-11-18 (demo, simulated), spot proxy for 2026-12" }] } as unknown as CargoResultDTO;
+  const cargo = { legs: [{ key: "hh", label: "", amount: 4.07, unit: "USD/MMBtu", input_class: "simulated", source: "Henry Hub spot 2026-11-18 (simulated), spot proxy for 2026-12" }] } as unknown as CargoResultDTO;
   const held = hh(cargo)!;
   assert.equal(held.day, "2026-11-18");
-  assert.equal(held.demo, true);
+  assert.equal(held.simulated, true);
   const chart = historyChart({
     terminal_id: "gate", hub: "TTF", currency: "EUR", fx: "FX", hh_source: "EIA", hh_days: 2,
     points: [

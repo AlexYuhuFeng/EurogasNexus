@@ -444,7 +444,7 @@ def list_opportunities(
         "hidden_by_you": hidden,
         "per_lane_shown": settings.max_per_lane,
         "simulated": simulated,
-        "banner": "Demo desk: every figure here is computed from simulated data."
+        "banner": "Source: simulated prices and tariffs."
         if simulated
         else None,
         "readiness": readiness(session, principal),

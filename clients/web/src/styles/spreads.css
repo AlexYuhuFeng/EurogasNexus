@@ -163,15 +163,6 @@
   gap: var(--ds-space-1);
 }
 
-.spreads-simulated {
-  margin: 0;
-  padding: var(--ds-space-2) var(--ds-space-3);
-  border-radius: var(--ds-radius-sm);
-  background: var(--ds-status-simulated-soft);
-  color: var(--ds-status-simulated);
-  font-weight: var(--ds-weight-medium);
-}
-
 .spreads-failed {
   margin: 0;
   color: var(--ds-status-breach);

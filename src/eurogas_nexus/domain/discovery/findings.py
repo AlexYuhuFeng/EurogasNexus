@@ -124,13 +124,13 @@ def rank(findings: Iterable[Finding], audience: str) -> list[Finding]:
 
 _QUALIFIER = {
     "en": {
-        InputClass.SIMULATED: " (on demo prices)",
+        InputClass.SIMULATED: " (on simulated prices)",
         InputClass.INDICATIVE: " (on indicative marks)",
         InputClass.FIRM_MARK: " (on the firm's marks)",
         InputClass.ASSUMPTION: " (on the firm's assumptions)",
     },
     "zh": {
-        InputClass.SIMULATED: "（基于演示价格）",
+        InputClass.SIMULATED: "（基于模拟价格）",
         InputClass.INDICATIVE: "（基于参考价格）",
         InputClass.FIRM_MARK: "（基于公司自定价格）",
         InputClass.ASSUMPTION: "（基于公司假设）",
