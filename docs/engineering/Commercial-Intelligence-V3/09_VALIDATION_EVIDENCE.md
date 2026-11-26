@@ -412,6 +412,50 @@ unchanged.
 | Web | `npx tsc --noEmit -p .`; `npm test` | clean; 1,416 tests, 1,413 passed, 0 failed (`capacityCostModel.test.ts` new; CSS token lint, locale and date-input gates pass) |
 | Lint | `ruff check src tests scripts alembic` | clean |
 
+## LNG-4 options with consequences, full cost, substitute supply, demurrage, REMIT (2026-11-26)
+
+The owner's scenario at full cost (06, "LNG-4"), through the store on SQLite and PostgreSQL,
+every figure illustrative. Two days late, EUR against the plan:
+
+| Option | Expected | Direct | Opportunity | Flags | Rank |
+| --- | --- | --- | --- | --- | --- |
+| Borrow in tank | -20,000 | -20,000 | 0 | none | 1, recommended `clean` |
+| Buy send-out | -36,000 | -36,000 | 0 | none | 2 |
+| Stay, absorb | -279,000 | -279,000 | 0 | none | 3 |
+| Divert to Dunkerque | -362,400 | -187,000 | 175,400 | none | 4 |
+| Swap with GATE-1 | +35,000 | +35,000 | 0 | moves GATE-1 | 5, recommended `best_expected` |
+| Swap with HUE-1, Cepsa covered with PVB gas | -215,000 | -215,000 | 0 | moves HUE-1 | 6 |
+| Swap with HUE-1 | -215,000 | -215,000 | 0 | breaks Cepsa (50,000 MWh short on 24 Jan, penalty not held); moves HUE-1 | 7 |
+
+The diversion's opportunity cost: the third-party carrier waits 48 h against 24 h of laytime
+(65,000 EUR) and boils off 2,000 MWh at PEG 30.20 (60,400 EUR); the spare slot's release value
+forgone (50,000 EUR). GATE-1's 77,000 USD/day at the ECB fix of 2027-01-19 is 70,000 EUR/day.
+Demo D1 (24 December): the Huelva swap is listed with `contract_breach` (45,000 MWh short on
+28 Dec, penalty not held), PVB hub gas covering it ranks just above it, the spot slot at
+Montoir ranks first (+371,317 EUR), and Meridian's 76,000 USD/day converts at the simulated
+demo rate (1.087, 2026-12-23) to 69,917 EUR/day only with demo marks on.
+
+| Run | Command | Result |
+| --- | --- | --- |
+| Full serial suite (before `2bdd6e8`) | `pytest tests/unit tests/domain tests/security tests/evals tests/db tests/sdk tests/release tests/integration tests/api` | 6,283 passed, 254 skipped, 0 failed (45 min 16 s) |
+| After `2bdd6e8` (the notice fix) | the same suites with `-k "lng or disruption or cargo or notification or outage or demo or market_event"` | 786 passed, 16 skipped, 0 failed |
+| LNG-4 tests | `pytest tests/domain/test_lng_disruption.py tests/unit/test_lng_demurrage.py tests/unit/test_lng_substitutes.py tests/unit/test_pipeline_outages.py tests/unit/test_lng_disruption_migration.py tests/api/test_lng_disruption_api.py tests/api/test_data1_import_contracts.py tests/integration/test_lng_disruption_postgres.py tests/integration/test_demo_planted_cases.py` | 88 passed, 4 skipped (the PostgreSQL cases, run below) |
+| Contract, docs and security (census 305 / 340, surface reachability, policy EN and CN) | `pytest tests/contract tests/docs tests/security` | 1,136 passed, 12 skipped |
+| PostgreSQL 16 (`egn_fixlng`: `alembic upgrade head`, `downgrade -1`, `upgrade head`, all clean; dropped afterwards) | every test file gated on `RUNTIME_STORE_DATABASE_URL` (25 files) plus the LNG store and schema tests, with `RUNTIME_STORE_DATABASE_URL` and `EUROGAS_NEXUS_TEST_POSTGRES_URL` set (pg8000) | 148 passed, 0 skipped (106 of them skip without `RUNTIME_STORE_DATABASE_URL`) |
+| PostgreSQL CI list | the pytest list of `scripts/ci/run_postgres_ci.sh` | 132 passed, 3 skipped (NumPy absent) |
+| Lint | `ruff check src tests scripts alembic` | All checks passed |
+| Markdown links | `python scripts/ci/check_markdown_links.py` | All local links resolve |
+| Web | `npx tsc --noEmit -p .`; `npm test` (in `clients/web`) | clean; 1,418 tests, 1,415 passed, 3 skipped, 0 failed |
+
+Found and fixed on the way (`2bdd6e8`): with `RUNTIME_STORE_DATABASE_URL` set, the LNG-2
+listen-worker test showed a cargo four days late announced as "Disruption cleared" beside
+LNG-2's message, because a run with no recommended option was titled cleared. Now that run is
+"No workable option" and "cleared" follows only the end of an open disruption (LNG4-10).
+
+Latency ([15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) section 8): the options read median
+0.063 s on SQLite and 0.103 s on PostgreSQL; an outage event to its link and run median 0.071 s
+and 0.114 s.
+
 ## Not yet evidenced
 
 - TAR-2: the capacity cost panel and the tariff years view have not been walked in a browser;

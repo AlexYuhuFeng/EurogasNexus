@@ -1,4 +1,4 @@
-# 17 LNG portfolio disruption optimisation (LNG-3)
+# 17 LNG portfolio disruption optimisation (LNG-3, LNG-4)
 
 LNG-1 builds one cargo's plan ([12](12_LNG_CARGO_IN_TRANSIT.md)), and LNG-2 tells each role
 when that plan changes. LNG-3 answers the desk's next question: **what should we do about
@@ -14,13 +14,20 @@ traded, nominated or sent. **No AI is used.** The engine is plain Python: determ
 no solver, no randomness and no model call. GOV-1's AI controls therefore do not apply, and
 there is no entry in the AI-use register.
 
-Architecture: ADR Decision 36. Code:
+LNG-4 (section 9) turns the single default into options with their consequences, values each
+one at its full cost, adds substitute supply from across the portfolio, reads demurrage from the
+contract in its own currency, and links REMIT outages to the pipeline supply they curtail.
+
+Architecture: ADR Decisions 36 and 37. Code:
 
 - `domain/lng/disruption.py`: the engine (pure; no I/O and no clock).
 - `application/lng_disruption.py`: loads the book, serves the reads, records the choice and
   runs the outbox consumer.
 - `api/routes/public/lng.py`: the routes.
 - `clients/web/src/components/CargoOptionsPanel.tsx`: the panel.
+- LNG-4: `application/lng_demurrage.py` (demurrage by contract and the one FX function
+  `_fx_rate`), `application/lng_substitutes.py` (substitute supply and the one transport-cost
+  function `_transport_cost`), `application/pipeline_outages.py` (REMIT links and the override).
 
 ## 1 Sources read, and what each changed
 
@@ -276,11 +283,10 @@ in `@layer ds-components`, and translated in EN and ZH. The section shows:
 
 These limits are deliberate, and the owner may decide to lift any of them:
 
-- **USD demurrage.** Demurrage held only in USD, from the master agreement, is not converted.
-  Waiting is then costed at boil-off only, and a warning says so. Converting it needs an
-  FX-fixing rule.
-- **Pipeline outages.** A pipeline curtailment is entered on `pipeline_supplies`, or asked as
-  a what-if. A REMIT outage message is not yet linked to the supply it curtails.
+- **USD demurrage** (lifted by LNG-4, section 9.4). Demurrage is read from the contract in
+  its own currency and converted at an FX fix the reader picks.
+- **Pipeline outages** (lifted by LNG-4, section 9.5). A REMIT message is linked to the
+  pipeline supply it curtails; a curtailment entered by hand still wins.
 - **Profit sharing.** Diversion profit sharing and seller consent are not modelled. The right
   is yes or no, with a note.
 - **Hedge timing.** Hedges are re-aligned at once, at the month price plus the trade cost or
@@ -291,4 +297,180 @@ These limits are deliberate, and the owner may decide to lift any of them:
   spare slots, a smarter search (beam or local search, as in the patent above) would be
   needed.
 - **The default is a recommendation.** It is the desk's stated preference, not a prediction.
-  A person always chooses.
+  A person always chooses. LNG-4 replaces the single default with a recommended set
+  (section 9.1).
+
+## 9 LNG-4: options with consequences, full cost, substitute supply, demurrage, REMIT
+
+The owner's instruction of 2026-11-25: optimisation is not a single answer. A contract may forbid
+a move, a location may have no storage and no swap, an option may break a contract or move
+cargoes running normally, and the trader decides. Two further instructions of the same day add
+the full cost of each option (its opportunity cost) and one portfolio view (substitute supply).
+
+### 9.1 Options, not one answer
+
+Every option is a complete course of action and is listed, ranked by the desk's ordering
+weights (`rank`; the weights only order the list). Each carries its expected P&L, worst P&L and
+cost, and three flags:
+
+- `contract_breach`: it short-delivers a firm obligation or diverts a cargo with no diversion
+  right. Each breach names the contract, the counterparty, the point and the shortfall by gas
+  day, and is valued at the contract's liquidated damages (`penalty_eur_mwh`, `penalty_terms`)
+  where the data holds them; otherwise it says "penalty not held" and the P&L leaves it out.
+  A breach option stays listed and can be chosen.
+- `disrupts_normal_cargo`: it moves a cargo or supply that was running to plan; each is named
+  with the MWh and why.
+- `physically_possible`: false when it cannot happen (no storage right, energy with no send-out
+  right, a slot the book does not hold). These are listed separately, last, with the reason,
+  and cannot be chosen.
+
+The **recommended set** names, where they differ, the best option that breaks no contract and
+moves nothing (`clean`), the highest expected P&L that breaks no contract (`best_expected`), and
+the best overall (`overall`), each once with a one-line reason. Ties in the ranking go to the
+option with fewer breaches, then to one on the Pareto frontier. The Pareto frontier and the
+dominance reasons stay as supporting detail. "Choose" records the option, its consequences and
+the FX choice, and whether it was in the recommended set; nothing is booked. When the set
+changes the roles are told once ("Recommended options changed"). When something is disrupted
+and no option can physically happen, the notice is "No workable option: <supply>", naming what
+is disrupted and why each option cannot happen; "Disruption cleared" is sent only when nothing
+is disrupted any more and an earlier run had a disruption open.
+
+### 9.2 Full cost: direct P&L and opportunity cost
+
+Each option's P&L is its direct P&L less its opportunity cost, shown apart:
+
+- **Direct**: the moved gas at the month marks, hedge re-alignment, capacity fees (a spot slot
+  at its offer's fee), demurrage and boil-off of the cargo itself, releases, swaps, breach
+  exposure where held, and substitute gas.
+- **Opportunity**: the knock-on on the book's other cargoes (a cargo the option moves takes the
+  berth on the day it can, so a cargo due there waits, and it draws the terminals' shared
+  per-day send-out first, so a later cargo finds less left), the demurrage and boil-off of
+  another user's ship due at a berth the option takes (`lng_berth_calls`, where the line-up is
+  held: the hours waited beyond the laytime it has left at its own rate), the release value or
+  best other use of a spare slot it uses (the slot's indicative release value, else the
+  approved `lng.disruption.spare_slot_value`, else "not known" and left out), and the value of
+  storage gas in the month it was to be used.
+
+Each consequence lists which cargoes it hits and whose they are (`owner` own or third_party).
+A spot slot at another terminal (a `slot` capacity offer) is valued like a held slot, so a
+long-term contracted terminal is never assumed to be the better choice: which wins comes out
+of the full valuation. Every arithmetic line carries `sources[]` (the price, rate and tariff it
+applied) and `basis` direct|opportunity; the panel's "Breakdown" lists them.
+
+Worked example (the store test, `tests/integration/test_lng_disruption_postgres.py`,
+illustrative figures, no boil-off on the book's own cargoes):
+
+| Option | Expected | Worst | Cost | Direct | Opportunity |
+|---|---|---|---|---|---|
+| ZEE-1 stays, borrows | -20,000 | -158,000 | 20,000 | -20,000 | 0 |
+| ZEE-1 stays, absorbs | -279,000 | -417,000 | 79,000 | -279,000 | 0 |
+| ZEE-1 diverts to Dunkerque | -362,400 | -432,400 | 247,000 | -187,000 | 175,400 |
+
+The diversion's direct P&L is -40,000 physical, -212,000 re-hedge, -35,000 demurrage and
++100,000 release. Its opportunity cost: ZEE-1 holds the Dunkerque berth on 30 and 31 Jan, so the
+carrier due on 30 Jan waits 48 h against 24 h of laytime (65,000 EUR) and boils off 2,000 MWh at
+PEG 30.20 (60,400 EUR); and the spare Dunkerque slot's 1,000,000 MWh could have been released
+at 0.05 (50,000 EUR). So the contracted Dunkerque slot ranks below staying and absorbing, which
+a direct-cost view would not show. The swap with C (-215,000 expected, -289,500 worst) is
+possible at Huelva's interruptible capacity but breaks the firm delivery to Cepsa at Huelva,
+50,000 MWh short on 24 Jan, penalty not held; it is listed, flagged and can be chosen. The
+recommended set is borrowing (`clean`) and the swap with B (`best_expected`).
+
+### 9.3 Substitute supply: one portfolio view
+
+When an option leaves a delivery obligation short, substitute supply covers it as further
+options of kind `substitute`, with the same fields as every other option:
+
+- gas the book holds upstream (a supply contract's swing: its delivery tolerance on the daily
+  quantity, at the contract price converted by `_fx_rate`);
+- hub gas bought at the month price plus the short-notice premium plus the transport to the
+  delivery point;
+- storage gas (the fee now plus the gas's value in the month it was to be used);
+- each alone, and a merit-order combination, cheapest first.
+
+Transport goes through one function, `application/lng_substitutes._transport_cost`, which
+answers capacity the firm holds on the leg first (sunk, 0), then the public tariff on the
+cheapest proven route (`contract_costs.transport_leg_cost`), else missing; a source whose
+transport or price is not held is left out and named in the warnings, never priced at zero.
+No firm storage contract type is held yet, so the application reads no storage source; the
+engine takes one when it is. The owner's scenario gains a Cepsa cover option, ranked in the
+same list as the breach it avoids. In the engine test's extended book, hub gas from PEG at
+30.20 + 0.25 short notice + 1.20 transport = 31.65 EUR/MWh on 50,000 MWh covers it at -235,000
+expected, against -215,000 for the breach with its penalty not held. Through the store, hub gas
+at PVB covers it at the same P&L as the breach (the same mark and premium as the breach's hedge
+buy-back) and ranks above it because it breaks nothing.
+
+**Netback.** A route-by-route netback comparison is not added. `domain/research/netback.py`
+is a single-route subtraction and `cargo_economics` computes netback per terminal hub with no
+customer point, so a comparison would restate what the options already value: each option
+prices its own route (the hub mark where the gas lands, the transport to the obligation, the
+send-out and storage it uses) and the ranked list is that comparison.
+
+**Carbon and electricity** are not modelled here; they are a later step in
+[05](05_IMPLEMENTATION_ROADMAP.md).
+
+### 9.4 Demurrage from the contract, in its currency
+
+Demurrage is read from the cargo's Confirmation Notice, then its voyage terms, then the master
+agreement, with the laytime and the terms, in the contract's currency. The ETRM cargo schedule
+import takes the optional columns `laytime_hours`, `demurrage_rate_per_day`,
+`demurrage_currency` and `demurrage_terms`. Every conversion goes through one function,
+`application/lng_demurrage._fx_rate(session, from_ccy, to_ccy, as_of, context)`, which answers
+the rate with its source, label and rate date, and what it tried. The reader picks the source
+(ECB reference rate by default; WM/Reuters or BFIX only where the principal holds entitled
+fixes, else 403; or a rate entered by hand, said so) and the rate date (empty: the latest fix on
+or before the cargo's day). Rates are read from the `fx_observations` the platform holds: none is
+hard-coded and none is fetched. Without a rate the demurrage shows in its own currency with a
+warning, and waiting is costed at boil-off only. The demo's simulated rate is used only with demo
+marks on and is labelled simulated.
+
+Example: GATE-1's 77,000 USD/day at the ECB fix of 2027-01-19 (1.10 USD per EUR) is 70,000
+EUR/day; the panel shows the 77,000 USD/day, the EUR figure, and the rate with its source and
+date. In demo D1, Meridian's 76,000 USD/day converts at the simulated demo rate of 2026-12-23
+(1.087) to 69,917 EUR/day, labelled simulated, and only with demo marks on.
+
+### 9.5 REMIT outages curtail pipeline supply
+
+A pipeline supply names the assets it depends on (`depends_on`: an EIC, an asset name, or a GIE
+facility, with its share and direction). When the `lng_disruption` outbox consumer receives
+`outage.published`, it links each held REMIT message to the supplies it matches, before it
+re-optimises their books, so the run sees the new curtailment.
+
+- **Matching is exact.** It uses the EIC, the normalised name, or the reviewed GIE alias table,
+  and the direction must agree. There is no fuzzy match.
+- **The volume.** The fraction unavailable is unavailable over technical capacity, else the
+  message's GWh/d over the supply's own capacity through the asset. A gas day's curtailment is
+  the daily volume x the share through the asset x the fraction x the part of the gas day the
+  event covers. An open-ended message is capped at 400 days or the supply's end.
+- **Versions.** There is one link per supply and message. A newer version revises it; a
+  repeated or older one changes nothing. A dismissed message withdraws it, an inactive one ends
+  it, and a message with no derivable volume is shown as unsized and curtails nothing. Each
+  link records what matched and why.
+- **Override.** A day entered by hand wins over every link. Across links on the same day the
+  largest counts. `outage_mode = manual` keeps only the days entered by hand. The override is
+  `PUT /api/lng/pipeline-supplies/{id}/outage-override` (audited
+  `lng.pipeline_outage_override`); `GET .../outage-links` shows the links.
+- **Advisory.** It stays advisory: the curtailment is the platform's reading of a published
+  message, shown with its source, and nothing is nominated.
+
+### 9.6 Web
+
+The Options section lists every option by rank with its flags, the recommended reasons, the
+expected P&L split into direct and opportunity cost, worst P&L, cost and the consequences with
+their sources; "Breakdown" fetches the option and lists each cost line with its sources, direct
+first. An FX picker (source, rate date, rate and its currency when entered by hand, reporting
+currency) feeds every read and the choice. The cargo's demurrage shows in the contract's currency
+with the rate, its source and date. The REMIT links on the book's pipeline supplies are listed
+with their status and why. EN and ZH.
+
+### 9.7 Open owner decisions
+
+- **Berth priority.** A cargo an option moves takes the berth first on the day it can; the cargo
+  already due there waits. The owner may prefer first-come order.
+- **Third-party demurrage.** Another user's ship is costed at its own rate and laytime from the
+  line-up where held. That is a cost to the terminal's relationship, not to the book's cash, and
+  the owner may decide to show it without counting it.
+- **Spare-slot value.** With no slot release value, the approved `lng.disruption.spare_slot_value`
+  is used; none is set by default, so the value forgone is "not known" and left out.
+- **REMIT across links.** On a day two messages curtail one supply, the largest counts, not the
+  sum.

@@ -1,6 +1,6 @@
 """LNG-4 options with consequences, demurrage by contract, REMIT outages on pipeline supply.
 
-ADR Decision 37. Expand-only (``db/models/lng_disruption.py``):
+ADR Decision 37. Follows TAR-2's ``0088_tar2_capacity_bookings``, merged first. Expand-only (``db/models/lng_disruption.py``):
 
 * ``lng_voyage_terms``: ``demurrage_rate_per_day`` and ``demurrage_currency`` (the rate in
   the currency the contract names) and ``demurrage_terms`` (the laytime and demurrage terms

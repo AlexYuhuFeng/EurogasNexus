@@ -68,6 +68,7 @@ is outside our control; it is stated so the total is honest.
 | Storage and LNG send-out | Daily (GIE AGSI and ALSI publish gas day D on D+1, with revisions) | 1 hour after publication | GIE on its daily schedule | None that matters | Gas day of the figure and receipt state |
 | AIS positions and ETAs | Positions every few minutes at sea; ETAs change on the scale of hours | ETA or slot change to an LNG prompt within 15 minutes | Kpler declared with a 60-minute policy; cargo positions by file import; the cargo plan reads the latest ETA; since LNG-2 each role is told within about a second of the import's commit (median 0.66 s on the worker's first change, 0.11 s after, section 8) | No AIS feed connected; the budget is met from the commit of an import, not from the vessel's report | The ETA's source, basis and confidence, and the source of each other plan input, on the plan and in each role's message |
 | LNG disruption options (LNG-3) | Whenever a cargo ETA, a slot, a capacity offer, a tariff, a contract, an assumption or an outage changes | Re-optimised options and a notice to the trader, scheduler and desk head within 15 minutes of the input's commit (the cargo budget); the options read in under 2 s | The outbox consumer `lng_disruption` re-runs the book on the listen worker; measured in process on the owner's scenario: commit to run row and notices median 0.05 s on PostgreSQL (0.03 s SQLite), max 0.26 s; the options read 0.05 s; the engine alone 12 ms (section 8) | A price tick does not start a run (prices are valued at each read); the cargo import's own schedule dominates | The timeline of runs (time, what changed, whether the roles were told) and each input's source on the Options panel |
+| REMIT outage on a pipeline supply (LNG-4) | When an `outage.published` event names an asset a pipeline supply depends on | The link (what matched, why, the gas days curtailed) and the book re-optimised in the same consumer pass, within the cargo budget (15 minutes); the options read in under 2 s | The `lng_disruption` consumer links the message before it re-runs the book; measured in process: outage event to link and run median 0.07 s on SQLite, 0.11 s on PostgreSQL; the options read 0.06 s and 0.10 s (section 8) | A repeated or older version changes nothing and starts no notice | Each link's status and why on the Options section; `GET /api/lng/pipeline-supplies/{id}/outage-links` |
 | Weather runs and forecasts | ECMWF open data at 00, 06, 12 and 18 UTC, released some hours after the run | 30 minutes after release | `ingest_ecmwf_forecasts.py` on a 12-hour freshness policy | None that matters | Model run time ("ECMWF 00z") on the forecast |
 | News (NEWS-1) | Continuous; official feeds publish a few items a day; REMIT within an hour of the event | REMIT items on the next poll after the message is held; a feed headline within its poll interval (60 minutes for GOV.UK DESNZ; REMIT items every 5 minutes) plus one outbox pass to the role's alert | `scripts/ops/poll_news_sources.py` on the operator's schedule (REMIT items from held messages, feeds with ETag and robots.txt); `news.published` events through the outbox to `news_roles` | Feed addresses for the Commission, EUR-Lex and ACER not yet recorded; the poll is not yet on the scheduler (SCHED-1); not measured end to end | Each item shows its publisher, published and retrieved times and source link |
 | Firm's own deals, positions and cargo imports | Per file drop from the ETRM or LNG desk (often end of day, sometimes hourly) | Position screens 1 minute after the import; opportunities 2 minutes | Import scripts; `contract.changed`, `cargo.changed` and `book` pending inputs; positions recompute on read | No drop-folder watcher; an import runs when someone runs it | "Positions as of" the last import |
@@ -159,9 +160,9 @@ receiving opportunities, nominations and source alerts as before.
 | News on a contract's hub (NEWS-1) | `alert` | Trader | Management | "Department for Energy Security and Net Zero: Update on Langeled flows to Easington", why it touches the book and the source |
 | News on a cargo's vessel or terminal (NEWS-1) | `cargo` | Trader (LNG desk) | Management | The item, the cargo it names and the source |
 | News on a hub the firm nominates at (NEWS-1) | `nomination` | Operations (scheduler) | Trader | The item and the hub's nominations it touches |
-| LNG disruption: new default or frontier (LNG-3) | `cargo` | Trader | Management | "Disruption options changed: ZEE-1", then "Recommended: ZEE-1: … borrow in tank and buy extra send-out. Expected P&L -182,000 EUR (worst -395,000)", the frontier and what changed; nothing is booked |
+| LNG disruption: new default or frontier (LNG-3); new recommended set (LNG-4) | `cargo` | Trader | Management | LNG-4: "Recommended options changed: ZEE-1", each option of the recommended set with its basis, expected and worst P&L, opportunity cost and reason, and how many possible options breach a contract; "No workable option: ZEE-1" when nothing the book holds can physically answer the disruption (warning); "Disruption cleared: book …" only when an open disruption ends. LNG-3: "Disruption options changed: ZEE-1", then "Recommended: ZEE-1: … borrow in tank and buy extra send-out. Expected P&L -182,000 EUR (worst -395,000)", the frontier and what changed; nothing is booked |
 | LNG disruption: schedule consequences (LNG-3) | `nomination` | Operations (scheduler) | Trader | The same notice: the default's berth and send-out change the nominations |
-| LNG disruption: material (LNG-3) | `desk_head` | Management | Management | The same notice; told on a new default, a new frontier or a P&L move of 50,000 EUR or more |
+| LNG disruption: material (LNG-3) | `desk_head` | Management | Management | The same notice; told on a new default (LNG-4: a new recommended set), a new frontier or a P&L move of 50,000 EUR or more |
 
 The four LNG rows are one consumer's messages, one per role, about the same `cargo.changed`
 revision (12, "Who hears about a change"). They do not go through the one-per-alert mirror
@@ -307,6 +308,22 @@ The engine is about 2 ms per option: 112 options (three cargoes late, eight spar
 take 0.22 s, and the cap of 256 combinations about 0.5 s. The budget is the cargo budget,
 15 minutes from the input's commit; as for LNG-2, the import's own schedule is the delay,
 not the re-optimisation.
+
+### Options with consequences and a REMIT outage (LNG-4)
+
+The owner's scenario through the store (with the third-party carrier due at Dunkerque), and a
+REMIT message on the pipeline's interconnector published in six versions, each captured,
+committed and drained through the `lng_disruption` consumer to its link and run. One host, the
+development container, measured while the serial test suite ran on the same host:
+
+| Store | Options read (`disruption_options`), median | Max | Outage event to link and run, median | Max |
+| --- | --- | --- | --- | --- |
+| PostgreSQL 16 | 0.103 s | 0.480 s (first read: imports) | 0.114 s | 0.133 s |
+| SQLite | 0.063 s | 0.312 s (first read: imports) | 0.071 s | 0.216 s |
+
+The full-cost valuation adds a valuation of each option on the "free" landing; substitute
+options add at most one option per source and short obligation plus the merit combination.
+Both stay inside the cargo budget by orders of magnitude.
 
 ## 9. Retiring the legacy intraday engine (M7 d): blocked
 

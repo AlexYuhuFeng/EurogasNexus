@@ -80,6 +80,11 @@ The owner then asked how large the data will grow over 5 years of history and 10
 operation, how fast it arrives and what infrastructure that needs:
 [19](19_DATA_CAPACITY_AND_INFRASTRUCTURE.md) (CAP-1) sizes it, compares it with published
 benchmarks and recommends a staged path. It is a recommendation only; nothing is adopted.
+LNG-4 follows the owner's word that optimisation is not a single answer: every option is listed
+with its consequences (a contract it breaks, cargoes it moves, or that it cannot happen) and a
+recommended set with reasons, valued at its full cost with substitute supply from across the
+portfolio; demurrage is read in the contract's currency and REMIT outages curtail pipeline
+supply ([17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md) section 9).
 
 1. Review every surface against the standard in a real browser, per role (Q1).
 2. Fix the control and data blockers the review found (F1).

@@ -4,6 +4,50 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-26 (options with consequences, demurrage by contract, REMIT outages on
+pipeline supply, Commercial Intelligence V3 LNG-4, ADR Decision 37): two paths, two operations;
+every other change is additive. `GET /api/lng/cargoes/{cargo_id}/disruption-options`, `GET
+.../disruption-options/{option_id}` and `GET /api/lng/disruption/frontier` take the optional
+query `reporting_currency` EUR|GBP|USD, `fx_source` ECB|WMR|BFIX|manual (ECB by default),
+`fx_fixing`, `fx_rate_date`, `fx_rate` (units of `fx_currency` per 1 EUR, with `manual`) and
+`fx_currency` USD|GBP; an FX choice the read cannot work from is 422 `fx_choice_invalid`, a
+licensed source (WMR, BFIX) the principal holds no entitled fix of is 403
+`fx_source_entitlement_denied`. Each option adds `possible` (it can physically happen; `feasible`
+keeps the same meaning), `rank` (1 is first by the desk's ordering weights), `flags`
+(`physically_possible`, `contract_breach`, `disrupts_normal_cargo`), `breaches[]` (the obligation, the
+contract, the counterparty, the point, the shortfall by gas day, `penalty_eur_mwh` with
+`penalty_held` and `penalty_terms`, or "penalty not held", and `exposure_eur`), `disrupts[]` (a
+cargo or supply running to plan the option moves, with what moved and why), `recommended_as[]`
+and `recommended_why[]`, `covers[]` (substitute supply bought for a short obligation),
+`direct_pnl_expected`, `opportunity_cost_expected` (the expected P&L is direct P&L less
+opportunity cost), `opportunity[]` (a call delayed, capacity or storage forgone, each with
+`value_eur`, `sources[]` and whose cargo it hits) and `reporting` (the figures in the reporting
+currency), and each leg adds `demurrage` (the terms and the amount in the contract's currency beside
+the EUR figure); option kinds add `substitute` and `spot`; each scenario adds `direct_pnl` and
+`opportunity_cost`. The read adds `recommended_set[]` (`option_id`, `key`, `title`, `basis`
+clean|best_expected|overall, `reason`), `valuation`, `demurrage` (the rate as the charter party
+or Confirmation Notice states it, its currency, source and terms, laytime, `eur_per_day` and the
+`fx` conversion with its source, label and rate date), `fx` (the choice, the rate date used and
+the sources) and `pipeline_outages[]`. The option detail's `arithmetic` lines add `sources[]`
+(the price, rate and tariff applied) and `basis` direct|opportunity. `POST
+.../choose` accepts the same FX fields in its body, answers a breach option (it can be chosen;
+only an option that cannot physically happen is 409 `option_infeasible`) and adds
+`recommended_set`, `consequences` (flags, breaches, cargoes moved, opportunity costs, covers,
+rank) and `fx` to the decision. New `GET /api/lng/pipeline-supplies/{supply_id}/outage-links`
+(READ, PORTFOLIO_READ, book scope) answers the REMIT messages linked to the supply (message id,
+version, status applied|unsized|withdrawn|ended, what matched and why, the fraction unavailable
+and the gas days each curtails), `outage_mode` auto|manual, the days entered by hand and the
+curtailment the valuation reads with the source of each day; an unknown or out-of-scope supply is
+404 `pipeline_supply_not_found`. New `PUT /api/lng/pipeline-supplies/{supply_id}/outage-override`
+(GOVERNED, PORTFOLIO_WRITE, audited `lng.pipeline_outage_override`) takes `outage_mode`,
+`curtailed` ([gas day, MWh] pairs, at most 400) and `reason`; a day outside the supply's window or
+above its daily volume is 422 `curtailment_invalid`, an unknown mode 422 `outage_mode_invalid`.
+The notification of a changed recommended set is titled "Recommended options changed". The ETRM
+cargo schedule import takes the optional columns `laytime_hours`, `demurrage_rate_per_day`,
+`demurrage_currency` and `demurrage_terms`. Nothing is booked, traded, nominated or sent. Census:
+305 paths / 340 operations (+2 / +2 on 303 / 338). Design:
+`docs/engineering/Commercial-Intelligence-V3/17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md`.
+
 Additive 2026-11-25 (public tariffs and capacity windows, Commercial Intelligence V3 TAR-1, ADR
 Decision 34): three paths, three operations, all READ and read-only. New `GET /api/tariffs`
 (filters `publisher`, `facility`, `operator`, `direction` ENTRY|EXIT, `product`, `status`

@@ -1,5 +1,38 @@
 # API 契约演化策略
 
+2026-11-26 新增带影响的方案、按合同计算的滞期费与管道供应的 REMIT 停运（Commercial Intelligence V3
+LNG-4，ADR 决策 37）：两条路径、两个操作，其余变更均为新增字段。
+`GET /api/lng/cargoes/{cargo_id}/disruption-options`、`GET .../disruption-options/{option_id}` 与
+`GET /api/lng/disruption/frontier` 接受可选查询参数 `reporting_currency`（EUR|GBP|USD）、`fx_source`
+（ECB|WMR|BFIX|manual，默认 ECB）、`fx_fixing`、`fx_rate_date`、`fx_rate`（与 `manual` 同用，为每 1 欧元
+折合的 `fx_currency` 数量）与 `fx_currency`（USD|GBP）；无法使用的汇率选择为 422 `fx_choice_invalid`，
+主体未持有有权使用的定盘价的授权来源（WMR、BFIX）为 403 `fx_source_entitlement_denied`。每个方案新增
+`possible`（实物上可行；`feasible` 含义不变）、`rank`（按交易台排序权重，1 为首位）、`flags`
+（`physically_possible`、`contract_breach`、`disrupts_normal_cargo`）、`breaches[]`（义务、合同、对手方、交付点、
+逐燃气日短缺量、`penalty_eur_mwh` 及 `penalty_held` 与 `penalty_terms`，或“未持有罚则”，以及
+`exposure_eur`）、`disrupts[]`（方案调整的按计划运行的船货或供应及原因）、`recommended_as[]` 与
+`recommended_why[]`、`covers[]`（为短缺义务购买的替代供应）、`direct_pnl_expected`、
+`opportunity_cost_expected`（预期损益 = 直接损益 − 机会成本）、`opportunity[]`（延误的靠泊、放弃的容量或
+储气，各含 `value_eur`、`sources[]` 及受影响的船货）与 `reporting`（按报告币种的数值），每条供应腿新增 `demurrage`（条款及按合同币种与欧元并列的金额）；方案类型新增
+`substitute` 与 `spot`；每个情景新增 `direct_pnl` 与 `opportunity_cost`。读取结果新增
+`recommended_set[]`（`option_id`、`key`、`title`、`basis` clean|best_expected|overall、`reason`）、
+`valuation`、`demurrage`（租船合同或确认通知所载费率、币种、来源与条款、装卸时间、`eur_per_day` 及含来源、
+名称与汇率日期的 `fx` 换算）、`fx`（所用选择、汇率日期与来源）与 `pipeline_outages[]`。单个方案的
+`arithmetic` 算式行新增 `sources[]`（所用价格、汇率与费率）与 `basis`（direct|opportunity）。
+`POST .../choose` 的请求体接受同样的汇率字段；违约方案可以选择（仅实物上不可行的方案为 409
+`option_infeasible`），返回的决定新增 `recommended_set`、`consequences`（标记、违约、被调整的船货、机会成本、
+替代供应、排名）与 `fx`。新增 `GET /api/lng/pipeline-supplies/{supply_id}/outage-links`（READ，
+PORTFOLIO_READ，按账簿范围）返回关联到该供应的 REMIT 消息（消息编号、版本、状态
+applied|unsized|withdrawn|ended、匹配依据与原因、不可用比例及逐燃气日削减量）、`outage_mode`（auto|manual）、
+手动输入的日期，以及估值所用削减量及每日来源；未知或超出范围的供应为 404 `pipeline_supply_not_found`。
+新增 `PUT /api/lng/pipeline-supplies/{supply_id}/outage-override`（GOVERNED，PORTFOLIO_WRITE，审计
+`lng.pipeline_outage_override`）接受 `outage_mode`、`curtailed`（[燃气日, MWh] 对，最多 400 个）与
+`reason`；超出供应期间或高于日量的日期为 422 `curtailment_invalid`，未知模式为 422 `outage_mode_invalid`。
+推荐方案集变化的通知标题为“Recommended options changed”。ETRM 船期导入新增可选列 `laytime_hours`、
+`demurrage_rate_per_day`、`demurrage_currency` 与 `demurrage_terms`。不预订、不交易、不提名、不发送任何内容。
+接口统计：305 条路径 / 340 个操作（在 303 / 338 基础上 +2 / +2）。设计见
+`docs/engineering/Commercial-Intelligence-V3/17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md`。
+
 2026-11-25 新增公开费率与容量窗口（Commercial Intelligence V3 TAR-1，ADR 决策 34）：三条路径、三个操作，均为 READ
 且只读。新增 `GET /api/tariffs`（筛选 `publisher`、`facility`、`operator`、`direction` ENTRY|EXIT、`product`、
 `status` INDICATIVE|FINAL、`on` 某燃气日、`key`；`as_of` 为 ISO 8601 UTC；`history` 为 true 且带 `key` 或

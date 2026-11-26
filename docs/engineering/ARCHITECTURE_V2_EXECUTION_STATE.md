@@ -6,6 +6,41 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — Commercial Intelligence V3, LNG-4: options with consequences, full cost, substitute supply, demurrage, REMIT
+
+- `domain/lng/disruption.py`: every option listed and ranked with its flags
+  (`contract_breach` with the contract and its liquidated damages or "penalty not held";
+  `disrupts_normal_cargo`; `physically_possible`), a recommended set (clean, best expected,
+  overall) with a reason for each; a breach option can be chosen. Full cost: P&L = direct P&L
+  - opportunity cost (displaced third-party calls, knock-on on own cargoes, capacity and
+  storage forgone), each arithmetic line with its `sources` and `basis`. Spot slots and
+  substitute supply (upstream swing, hub gas plus transport, storage, merit order) are options.
+- `application/lng_demurrage.py`: demurrage from the Confirmation Notice, voyage terms or master
+  agreement in its currency; one FX function `_fx_rate` (ECB default, WMR or BFIX when
+  entitled, or a rate entered by hand; no fetch, no hard-coded rate).
+  `application/lng_substitutes.py`: substitute sources and one transport function
+  `_transport_cost`. `application/pipeline_outages.py`: REMIT messages linked to pipeline
+  supply in the `lng_disruption` consumer on `outage.published`, a manual override.
+- Migration `0087_lng4_options_demurrage_outages.py` (revision `0087_lng4_options_demurrage`,
+  32-character version column; `down_revision` `0086_lng_disruption`), ADR Decision 37: tables
+  `pipeline_outage_links` and `lng_berth_calls`, nullable columns on seven tables.
+  `DB_SCHEMA_REVISION` and the 13 pinned head literals moved.
+- Routes: additive fields and FX query on the three reads and the choose body; new `GET
+  /api/lng/pipeline-supplies/{id}/outage-links` and `PUT .../outage-override` (governed,
+  audited `lng.pipeline_outage_override`). Census 305 paths / 340 operations. The ETRM cargo
+  schedule import takes `laytime_hours`, `demurrage_rate_per_day`, `demurrage_currency`,
+  `demurrage_terms`.
+- Web: the Options section shows flags, recommended reasons, direct and opportunity cost,
+  consequences, a breakdown with each line's sources, an FX picker, demurrage in its
+  currency and the REMIT links; EN and ZH. Demo D1: the Huelva swap is a flagged breach option
+  and PVB hub gas covering it is a further option.
+- Design: [17](Commercial-Intelligence-V3/17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md)
+  section 9. Fixed on the way: a disruption with no workable option was announced as
+  "Disruption cleared"; it is now "No workable option", and "cleared" follows only the end of an
+  open disruption. Not yet: a firm storage contract type (no storage source read), carbon and
+  electricity (CE-1). Open for the owner: berth priority, counting third-party demurrage, the
+  spare-slot value, the largest-link REMIT rule.
+
 ## 2026-11-25 — Commercial Intelligence V3, CODEX-1: the Codex assessments reviewed
 
 - Reviewed `research/agentic-decision-architecture` (five Codex commits on `main@6d21b89`) against

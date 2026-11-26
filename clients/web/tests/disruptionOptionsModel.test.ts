@@ -133,7 +133,7 @@ const huelva = option({
   possible: true,
   feasible: true,
   breaches: [breach],
-  flags: { contract_breach: true, disrupts_normal_cargo: true, not_possible: false },
+  flags: { physically_possible: true, contract_breach: true, disrupts_normal_cargo: true },
   disrupts: [{ supply_id: "C", label: "IBE-3", mwh: 850_000, from: "Huelva", to: "Zeebrugge", cause: "swapped" }],
   score: -215_000,
 });

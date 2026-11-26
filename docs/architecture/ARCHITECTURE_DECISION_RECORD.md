@@ -890,7 +890,7 @@ Tests: `tests/domain/test_lng_disruption.py`, `tests/unit/test_lng_disruption_mi
 
 ## Decision 37: Disruption options carry their consequences; REMIT outages curtail pipeline supply through one link table
 
-Accepted 2026-11-25 (branch `wip/fix-lng`, programme
+Accepted 2026-11-25 (programme
 [Commercial Intelligence V3](../engineering/Commercial-Intelligence-V3/05_IMPLEMENTATION_ROADMAP.md),
 slice LNG-4). The owner's instruction of 2026-11-25: optimisation is not a single answer. A
 contract may forbid a move, a location may have no storage and no swap, an option may break a
@@ -954,11 +954,12 @@ cost (the slot it uses and the berth it takes have a value elsewhere). Tests:
 `tests/domain/test_lng_disruption.py`, `tests/unit/test_lng_substitutes.py`,
 `tests/unit/test_lng_disruption_migration.py`, `tests/unit/test_lng_demurrage.py`,
 `tests/unit/test_pipeline_outages.py`, `tests/api/test_lng_disruption_api.py`,
-`tests/integration/test_lng_disruption_postgres.py`.
+`tests/api/test_data1_import_contracts.py`, `tests/integration/test_lng_disruption_postgres.py`,
+`tests/integration/test_demo_planted_cases.py`, `clients/web/tests/disruptionOptionsModel.test.ts`.
 
 ## Decision 38: Capacity the firm holds is one table, priced before public tariffs through one source-precedence resolver
 
-Accepted 2026-11-25 (branch `wip/fix-tar`, programme
+Accepted 2026-11-25 (programme
 [Commercial Intelligence V3](../engineering/Commercial-Intelligence-V3/05_IMPLEMENTATION_ROADMAP.md),
 slice TAR-2; Decision 37 is reserved for another slice). Migration
 `0088_tar2_capacity_bookings` (on `0086_lng_disruption`, expand only) adds one table,
