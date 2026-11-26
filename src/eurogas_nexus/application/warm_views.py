@@ -28,8 +28,13 @@ the last result of each read in this process, per caller, and answers from it at
 - **Licensed use** (GOV-1): the families a computation noted are kept with its result and
   noted again on every request it answers, so metering counts each served read as before.
 
-In this process only (one worker per deployment, ``scripts/demo/start_public_demo.py``); a
-second worker keeps its own. ``EUROGAS_NEXUS_WARM_VIEWS=off`` switches it off.
+Several API processes: each keeps its own results, but the write signal is shared. With the
+shared cache configured (``EUROGAS_NEXUS_SHARED_CACHE_URL``, ``core/shared_cache.py``), a write
+through any process makes every process's entries due and the writer's own unservable, so a
+caller's own write is never answered from before it whichever process answers next. When the
+shared cache cannot be read, nothing is answered from memory (each read computes) until it can.
+Without a shared cache (one process: the demo, development) the signal is this process's own.
+``EUROGAS_NEXUS_WARM_VIEWS=off`` switches it off.
 
 预热视图：重型读取按调用者缓存最近一次结果，立即返回并在后台按变更信号刷新。
 """
@@ -102,8 +107,8 @@ class _Entry:
     computed_at: datetime
     computed_mono: float
     watermark: int | None
-    generation: int
-    owner_generation: int
+    generation: tuple[int, int]
+    owner_generation: tuple[int, int]
     families: frozenset[str]
     compute: Callable[[], Any]
     context: contextvars.Context
@@ -126,6 +131,79 @@ def enabled(environ=os.environ) -> bool:
     return (environ.get("EUROGAS_NEXUS_WARM_VIEWS") or "on").strip().lower() not in {
         "0", "off", "false", "no",
     }
+
+
+#: A generation: the shared count and this process's own (its own writes count even when the
+#: shared count could not be raised).
+Generation = tuple[int, int]
+Signals = tuple[Generation, dict[str, Generation]]
+#: The outbox watermark, the generation, the owner's generation, and when (wall, monotonic).
+Stamp = tuple[int | None, Generation, Generation, datetime, float]
+#: An owner's shared write count is forgotten after this long without a write (it then
+#: restarts at zero, which only makes that owner's kept entries unservable once).
+OWNER_GENERATION_TTL_SECONDS = 7 * 24 * 3600.0
+
+
+class Generations:
+    """The write signal: a global generation and one per owner (see the module text)."""
+
+    def __init__(self, cache_getter: Callable[[], Any] | None = None) -> None:
+        self._cache_getter = cache_getter
+        self._lock = threading.Lock()
+        self._local = 0
+        self._local_owner: dict[str, int] = {}
+
+    def _cache(self):
+        if self._cache_getter is not None:
+            return self._cache_getter()
+        from eurogas_nexus.core.shared_cache import shared_cache
+
+        return shared_cache()
+
+    @staticmethod
+    def _owner_key(owner: str) -> str:
+        import hashlib
+
+        return "wv:o:" + hashlib.sha256(owner.encode("utf-8")).hexdigest()[:32]
+
+    def bump(self, owner: str | None) -> None:
+        with self._lock:
+            self._local += 1
+            if owner:
+                self._local_owner[owner] = self._local_owner.get(owner, 0) + 1
+        cache = self._cache()
+        if not cache.shared:
+            return
+        from eurogas_nexus.core.shared_cache import SharedCacheUnavailable
+
+        try:
+            cache.incr("wv:g")
+            if owner:
+                cache.incr(self._owner_key(owner), ttl_seconds=OWNER_GENERATION_TTL_SECONDS)
+        except SharedCacheUnavailable:
+            # Other processes do not hear of this write; theirs go due at max_age or when the
+            # outbox moves. This process's own count above still holds here.
+            return
+
+    def read(self, owners: list[str]) -> Signals | None:
+        """The generations as they stand, or None when the shared count cannot be read."""
+
+        with self._lock:
+            local = self._local
+            local_owner = {owner: self._local_owner.get(owner, 0) for owner in owners}
+        cache = self._cache()
+        if not cache.shared:
+            return (0, local), {owner: (0, local_owner[owner]) for owner in owners}
+        from eurogas_nexus.core.shared_cache import SharedCacheUnavailable
+
+        try:
+            values = cache.get_many(["wv:g", *[self._owner_key(owner) for owner in owners]])
+        except SharedCacheUnavailable:
+            return None
+        shared = [int(value) if value is not None else 0 for value in values]
+        return (shared[0], local), {
+            owner: (shared[index + 1], local_owner[owner]) for index, owner in enumerate(owners)
+        }
 
 
 def _outbox_watermark() -> int | None:
@@ -158,6 +236,7 @@ class WarmViews:
         executor: Any | None = None,
         max_entries: int = MAX_ENTRIES,
         watermark_poll_seconds: float = WATERMARK_POLL_SECONDS,
+        generations: Generations | None = None,
     ) -> None:
         self._watermark_reader = watermark
         self._clock = clock
@@ -168,8 +247,7 @@ class WarmViews:
         self._lock = threading.RLock()
         self._key_locks: dict[Hashable, threading.Lock] = {}
         self._entries: OrderedDict[Hashable, _Entry] = OrderedDict()
-        self._generation = 0
-        self._owner_generation: dict[str, int] = {}
+        self._generations = generations or Generations()
         self._watermark: int | None = None
         self._watermark_at: float | None = None
         self._keeper: threading.Thread | None = None
@@ -190,16 +268,24 @@ class WarmViews:
     def note_write(self, owner: str | None) -> None:
         """A write went through this API: everything is due, the writer's own at once."""
 
+        self._generations.bump(owner)
         with self._lock:
-            self._generation += 1
-            if owner:
-                self._owner_generation[owner] = self._owner_generation.get(owner, 0) + 1
             # The next read of the outbox is not deferred by the poll interval.
             self._watermark_at = None
 
     def clear(self) -> None:
         with self._lock:
             self._entries.clear()
+
+    def _signals(self, owners: list[str]) -> Signals | None:
+        """The write signal for ``owners``; when it cannot be read, everything kept is dropped:
+        writes made through other processes meanwhile are unknown, so after the outage every
+        read computes again."""
+
+        signals = self._generations.read(owners)
+        if signals is None:
+            self.clear()
+        return signals
 
     # ------------------------------------------------------------------ reads
 
@@ -215,15 +301,23 @@ class WarmViews:
         from eurogas_nexus.governance.usage import note_licensed_read
 
         full_key = (spec.name, key)
+        signals = self._signals([owner])
+        if signals is None:
+            # The write signal cannot be read: a kept answer might predate a write made
+            # through another process. Compute, and keep nothing, until it can be read.
+            result, families = _metered(compute)
+            for family in families:
+                note_licensed_read(family)
+            return result
         watermark = self.watermark()
         now = self._clock()
         value = None
         with self._lock:
             entry = self._entries.get(full_key)
-            if entry is not None and self._servable(entry, now):
+            if entry is not None and self._servable(entry, now, signals):
                 self._entries.move_to_end(full_key)
                 entry.last_access = now
-                if self._fresh(entry, watermark, now):
+                if self._fresh(entry, watermark, now, signals):
                     state = FRESH
                     self.stats.hits += 1
                 else:
@@ -237,17 +331,17 @@ class WarmViews:
             return value
         return self._compute_now(spec, owner, full_key, compute)
 
-    def _servable(self, entry: _Entry, now: float) -> bool:
+    def _servable(self, entry: _Entry, now: float, signals: Signals) -> bool:
         """Whether the entry may be served at all (fresh, or stale and refreshing)."""
 
         if now - entry.computed_mono > entry.spec.max_stale_seconds:
             return False
         # The caller's own write: never answer from before it.
-        return self._owner_generation.get(entry.owner, 0) == entry.owner_generation
+        return signals[1].get(entry.owner) == entry.owner_generation
 
-    def _fresh(self, entry: _Entry, watermark: int | None, now: float) -> bool:
+    def _fresh(self, entry: _Entry, watermark: int | None, now: float, signals: Signals) -> bool:
         return (
-            entry.generation == self._generation
+            entry.generation == signals[0]
             and entry.watermark == watermark
             and now - entry.computed_mono < entry.spec.max_age_seconds
         )
@@ -273,14 +367,16 @@ class WarmViews:
 
         with self._key_lock(full_key):
             # Another request computed it while this one waited: serve that.
+            signals = self._signals([owner])
             watermark = self.watermark()
             now = self._clock()
             with self._lock:
                 entry = self._entries.get(full_key)
                 if (
                     entry is not None
-                    and self._servable(entry, now)
-                    and self._fresh(entry, watermark, now)
+                    and signals is not None
+                    and self._servable(entry, now, signals)
+                    and self._fresh(entry, watermark, now, signals)
                 ):
                     entry.last_access = now
                     self.stats.hits += 1
@@ -301,18 +397,20 @@ class WarmViews:
             result, families = _metered(compute)
             for family in families:
                 note_licensed_read(family)
-            if not _cacheable(result):
+            if stamp is None or not _cacheable(result):
                 return result
             entry = self._store(spec, owner, full_key, result, families, stamp, compute, context)
             return self._decorate(entry, FRESH)
 
-    def _stamp(self, owner: str) -> tuple[int | None, int, int, datetime, float]:
-        """The signals as they stand before a computation starts (a change during it wins)."""
+    def _stamp(self, owner: str) -> Stamp | None:
+        """The signals as they stand before a computation starts (a change during it wins);
+        None when the write signal cannot be read (the result is then not kept)."""
 
+        signals = self._signals([owner])
+        if signals is None:
+            return None
         watermark = self.watermark()
-        with self._lock:
-            return (watermark, self._generation, self._owner_generation.get(owner, 0),
-                    self._wall_clock(), self._clock())
+        return (watermark, signals[0], signals[1][owner], self._wall_clock(), self._clock())
 
     def _store(self, spec, owner, full_key, result, families, stamp, compute, context) -> _Entry:
         watermark, generation, owner_generation, computed_at, computed_mono = stamp
@@ -342,6 +440,8 @@ class WarmViews:
 
     def _refresh(self, full_key: Hashable, entry: _Entry) -> None:
         stamp = self._stamp(entry.owner)
+        if stamp is None:
+            return  # the write signal cannot be read: the next read computes
         try:
             result, families = entry.context.copy().run(_metered, entry.compute)
         except Exception as exc:  # noqa: BLE001 - the last good result stays
@@ -361,6 +461,11 @@ class WarmViews:
     def refresh_due(self) -> int:
         """Start a refresh of every entry read lately whose signals moved; how many started."""
 
+        with self._lock:
+            owners = sorted({entry.owner for entry in self._entries.values()})
+        signals = self._signals(owners)
+        if signals is None:
+            return 0
         watermark = self.watermark()
         now = self._clock()
         started = 0
@@ -368,7 +473,9 @@ class WarmViews:
             for full_key, entry in list(self._entries.items()):
                 if now - entry.last_access > entry.spec.keep_warm_seconds:
                     continue
-                if self._fresh(entry, watermark, now):
+                if entry.owner not in signals[1]:
+                    continue  # stored after the signals were read: the next round sees it
+                if self._fresh(entry, watermark, now, signals):
                     continue
                 if entry.refreshing is not None and not entry.refreshing.done():
                     continue
@@ -513,6 +620,7 @@ def warm_view(spec: ViewSpec, *, skip: Callable[[dict[str, Any]], bool] | None =
 
 __all__ = [
     "COMPUTE_ONLY_PATHS",
+    "Generations",
     "FRESH",
     "REFRESHING",
     "ViewSpec",

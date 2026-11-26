@@ -254,6 +254,9 @@ def _authenticate_session_cookie(request: Request, token: str) -> AuthenticatedP
                     detail={"error": "session_principal_inactive"},
                 )
             touch_session(session, session_row)
+            # An open live-update stream checks this session's revocation for as long as it
+            # lives (``security/session_revocation.py``); it keeps the digest, never the token.
+            request.state.session_token_hash = session_row.session_token_hash
             resolved = AuthenticatedPrincipal(
                 principal_id=principal.principal_id,
                 name=principal.name,

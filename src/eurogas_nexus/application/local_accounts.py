@@ -670,7 +670,25 @@ _ADDRESS_FAILURES: dict[str, tuple[float, int]] = {}
 _ADDRESS_LOCK = threading.Lock()
 
 
+def _address_key(address: str) -> str:
+    import hashlib
+
+    return "la:" + hashlib.sha256(address.encode("utf-8")).hexdigest()[:32]
+
+
 def _address_blocked(address: str) -> bool:
+    """Whether the address has failed too often (counted across every API process when the
+    shared cache is configured; this process's own count when it is not or is unreachable)."""
+
+    from eurogas_nexus.core.shared_cache import SharedCacheUnavailable, shared_cache
+
+    cache = shared_cache()
+    if cache.shared:
+        try:
+            held = cache.get(_address_key(address))
+            return held is not None and int(held) >= MAX_ADDRESS_FAILURES
+        except SharedCacheUnavailable:
+            pass
     now = time.monotonic()
     with _ADDRESS_LOCK:
         started, count = _ADDRESS_FAILURES.get(address, (now, 0))
@@ -681,6 +699,15 @@ def _address_blocked(address: str) -> bool:
 
 
 def _record_address_failure(address: str) -> None:
+    from eurogas_nexus.core.shared_cache import SharedCacheUnavailable, shared_cache
+
+    cache = shared_cache()
+    if cache.shared:
+        try:
+            cache.incr(_address_key(address), ttl_seconds=ADDRESS_WINDOW_SECONDS)
+        except SharedCacheUnavailable:
+            pass
+    # This process counts too: it is what applies while the shared cache is unreachable.
     now = time.monotonic()
     with _ADDRESS_LOCK:
         started, count = _ADDRESS_FAILURES.get(address, (now, 0))

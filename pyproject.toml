@@ -24,6 +24,9 @@ dependencies = [
     # PDF text extraction for contract intake (BSD-3-Clause, pure Python).
     "pypdf>=6.21,<7",
     "tzdata>=2025.2",
+    # Shared cache client for several API processes (MIT; Valkey itself is BSD-3-Clause).
+    # Imported only when EUROGAS_NEXUS_SHARED_CACHE_URL is set (decision 2026-11-26).
+    "valkey>=6.1,<7",
 ]
 
 [project.optional-dependencies]

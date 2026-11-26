@@ -214,6 +214,7 @@ class Reads:
         self._memo: dict[Hashable, tuple[bool, Any]] = {}
         self._outbox_kinds: set[str] = set()
         self._job_owners: set[str] = set()
+        self._revocations: set[tuple] = set()
         #: Reads that went to the store (for the hub's metrics and the tests).
         self.queries = 0
 
@@ -241,6 +242,31 @@ class Reads:
             return
         self._outbox_kinds.update(kinds)
         self.want("outbox", position)
+
+    def want_revocation(self, session_hash, principal_id, opened: datetime) -> None:
+        """A stream will ask whether a revocation note ends it (one read for all streams)."""
+
+        self._revocations.add((session_hash, principal_id, opened))
+
+    def revoked(self, session_hash, principal_id, opened: datetime) -> bool | None:
+        """Whether a revocation note ends the stream (None: the cache cannot say)."""
+
+        def read():
+            from eurogas_nexus.security.session_revocation import revoked_streams
+
+            asked = sorted(
+                self._revocations | {(session_hash, principal_id, opened)},
+                key=lambda item: (item[0] or "", item[1] or "", item[2]),
+            )
+            return dict(zip(asked, revoked_streams(asked), strict=True))
+
+        found = self.memo("revocations", read)
+        held = found.get((session_hash, principal_id, opened))
+        if held is None and (session_hash, principal_id, opened) not in found:
+            from eurogas_nexus.security.session_revocation import revoked_streams
+
+            return revoked_streams([(session_hash, principal_id, opened)])[0]
+        return held
 
     def want_jobs(self, owner: str | None, since: datetime) -> None:
         if owner:

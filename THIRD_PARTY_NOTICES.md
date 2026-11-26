@@ -493,13 +493,14 @@ Package counts and the SHA-256 of every lock input are recorded in
 
 ## python-runtime
 
-31 packages recorded: 0 with a lock-declared license expression, 31 unknown (`NOASSERTION`), 0 exact reviewed choice(s).
+33 packages recorded: 0 with a lock-declared license expression, 33 unknown (`NOASSERTION`), 0 exact reviewed choice(s).
 
 - alembic 1.20.0 (NOASSERTION)
 - annotated-doc 0.0.5 (NOASSERTION)
 - annotated-types 0.8.0 (NOASSERTION)
 - anyio 4.15.1 (NOASSERTION)
 - asn1crypto 1.5.1 (NOASSERTION)
+- async-timeout 5.0.1 (NOASSERTION)
 - certifi 2026.10.19 (NOASSERTION)
 - cffi 2.1.1 (NOASSERTION)
 - click 8.5.0 (NOASSERTION)
@@ -526,6 +527,7 @@ Package counts and the SHA-256 of every lock input are recorded in
 - typing-inspection 0.4.4 (NOASSERTION)
 - tzdata 2026.4 (NOASSERTION)
 - uvicorn 0.52.4 (NOASSERTION)
+- valkey 6.2.0 (NOASSERTION)
 
 ## web-node
 

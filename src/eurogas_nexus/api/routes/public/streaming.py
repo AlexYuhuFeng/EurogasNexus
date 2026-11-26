@@ -147,6 +147,8 @@ class _RowStream:
         return _row_cursor(row, self.ts_field, self.pk_field)
 
     def want(self, reads) -> None:
+        if isinstance(self.guard, StreamGuard):
+            self.guard.want(reads)
         reads.want(("rows", self.fetch), self.cursor)
         for name, fetch_notices in self.notices:
             cursor = self.notice_cursors[name]
@@ -692,24 +694,56 @@ def _guard_for(topic: str, request: Request) -> RowGuard:
 
     from eurogas_nexus.api.dependencies.row_entitlement import current_principal
 
-    return StreamGuard(topic, current_principal(request))
+    return StreamGuard(
+        topic,
+        current_principal(request),
+        session_hash=getattr(request.state, "session_token_hash", None),
+    )
 
 
 class StreamGuard:
-    """Filters each poll's rows for one caller and keeps that caller's access current."""
+    """Filters each poll's rows for one caller and keeps that caller's access current.
 
-    def __init__(self, topic: str, principal) -> None:
+    Access is re-read from the database every ``REAUTH_SECONDS`` (the identity's status and
+    scopes and, for a stream opened with a session, that session); between those reads every
+    poll consults the revocation notes (``security/session_revocation.py``), so a sign-out or a
+    disabled identity ends the stream at the next poll on whichever process holds it.
+    """
+
+    def __init__(self, topic: str, principal, session_hash: str | None = None) -> None:
         self.topic = topic
         self.principal = principal
+        self.session_hash = session_hash
+        self.opened_at = datetime.now(UTC)
         self._checked_at = datetime.now(UTC)
+
+    def want(self, reads) -> None:
+        if self._noted():
+            reads.want_revocation(
+                self.session_hash, self.principal.principal_id, self.opened_at
+            )
+
+    def _noted(self) -> bool:
+        return self.principal is not None and self.principal.auth_method != "legacy_public_token"
+
+    def still_allowed(self, session) -> bool:
+        """Revocation notes (every poll, when given the poll's reads), then the database."""
+
+        from eurogas_nexus.application.live_topics import Reads
+
+        if isinstance(session, Reads):
+            if self._noted() and session.revoked(
+                self.session_hash, self.principal.principal_id, self.opened_at
+            ):
+                return False
+            session = session.session
+        return self._still_authorised(session)
 
     def __call__(self, session, rows: list[dict]) -> list[dict] | None:
         """``session`` is a session or the poll's shared reads (books read once per caller)."""
 
-        from eurogas_nexus.application.live_topics import Reads
 
-        db = session.session if isinstance(session, Reads) else session
-        if not self._still_authorised(db):
+        if not self.still_allowed(session):
             return None
         if not rows:
             return rows
@@ -743,8 +777,24 @@ class StreamGuard:
         record = session.get(IdentityPrincipalRecord, self.principal.principal_id)
         if record is None or str(record.status).upper() != "ACTIVE":
             return False
+        if self.session_hash and not _session_active(session, self.session_hash, now):
+            return False
         self.principal = replace(self.principal, data_scopes=tuple(record.data_scopes or ()))
         return True
+
+
+def _session_active(session, session_hash: str, now: datetime) -> bool:
+    """Whether the session the stream was opened with is still signed in (not revoked or
+    expired)."""
+
+    from eurogas_nexus.db.models import UserSessionRecord
+
+    row = (
+        session.query(UserSessionRecord.revoked_at_utc, UserSessionRecord.expires_at_utc)
+        .filter(UserSessionRecord.session_token_hash == session_hash)
+        .one_or_none()
+    )
+    return row is not None and row[0] is None and _as_utc(row[1]) > now
 
 
 def _initial_cursor(request: Request) -> Cursor:
@@ -886,6 +936,8 @@ class _LiveStream:
     def want(self, reads) -> None:
         from eurogas_nexus.application.live_topics import OUTBOX_TOPICS, want_topics
 
+        if isinstance(self.guard, StreamGuard):
+            self.guard.want(reads)
         want_topics(reads, self.notice_topics, self.cursors)
         kinds = [kind for kind, topic in OUTBOX_TOPICS.items() if topic in self.notice_topics]
         if kinds:
@@ -929,7 +981,11 @@ class _LiveStream:
         announced: dict[str, dict] = {}
         jobs: list[dict] = []
         try:
-            if self.guard is not None and not self.guard._still_authorised(reads.session):
+            if self.guard is not None and not (
+                self.guard.still_allowed(reads)
+                if isinstance(self.guard, StreamGuard)
+                else self.guard._still_authorised(reads.session)
+            ):
                 out.append(_sse({"type": "revoked", "message": "ACCESS_REVOKED"}, event="revoked"))
                 return out, True
             principal = self._principal()

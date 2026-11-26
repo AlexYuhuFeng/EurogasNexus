@@ -116,6 +116,10 @@ def revoke_session_by_token(
         return False
     row.revoked_at_utc = as_utc(now_utc or datetime.now(UTC))
     session.flush()
+    from eurogas_nexus.security.session_revocation import note_session_revoked
+
+    # Open live-update streams on every API process end at their next poll.
+    note_session_revoked(row.session_token_hash)
     return True
 
 
@@ -126,7 +130,7 @@ def revoke_principal_sessions(
     now_utc: datetime | None = None,
 ) -> int:
     now = as_utc(now_utc or datetime.now(UTC))
-    return (
+    revoked = (
         session.query(UserSessionRecord)
         .filter(
             UserSessionRecord.principal_id == principal_id,
@@ -134,6 +138,11 @@ def revoke_principal_sessions(
         )
         .update({"revoked_at_utc": now}, synchronize_session=False)
     )
+    from eurogas_nexus.security.session_revocation import note_principal_revoked
+
+    # Open live-update streams of this identity, on every API process, end at their next poll.
+    note_principal_revoked(principal_id, now)
+    return revoked
 
 
 def create_external_identity(

@@ -82,9 +82,10 @@ class StreamLimitReached(Exception):
 
 
 def streams_per_principal(environ: dict[str, str] | None = None) -> int:
-    raw = (environ if environ is not None else os.environ).get(
-        "EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL", ""
-    )
+    if environ is None:
+        raw = os.environ.get("EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL", "")
+    else:
+        raw = environ.get("EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL", "")
     try:
         value = int(str(raw).strip())
     except ValueError:
