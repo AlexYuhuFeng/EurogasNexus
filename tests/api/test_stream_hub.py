@@ -209,3 +209,66 @@ def test_a_caller_past_the_stream_cap_is_refused(engine, monkeypatch):
         return hub.streams_of("p-many"), hub.stats.refused_over_cap
 
     assert asyncio.run(drive()) == (2, 1)
+
+
+def _counter_value(name: str) -> float:
+    from eurogas_nexus.application import process_metrics
+
+    for line in process_metrics.render().splitlines():
+        if line.startswith(name + " "):
+            return float(line.split()[1])
+    return 0.0
+
+
+def test_a_failed_poll_is_logged_as_json_and_counted(engine):
+    """The store unreachable: the poller's error reaches the JSON log (once, not every 1.5 s)
+    and the poll and failure counters the scrape sums over processes."""
+
+    import json
+    import logging
+
+    from eurogas_nexus.core.structured_logging import JsonFormatter
+
+    def unreachable():
+        raise ConnectionError("could not connect to the store")
+
+    records: list[str] = []
+
+    class _Capture(logging.Handler):
+        def emit(self, record: logging.LogRecord) -> None:
+            records.append(self.format(record))
+
+    handler = _Capture()
+    handler.setFormatter(JsonFormatter("eurogas-nexus-api"))
+    hub_logger = logging.getLogger("eurogas_nexus.api.stream_hub")
+    hub_logger.addHandler(handler)
+    polls_before = _counter_value("eurogas_stream_polls_total")
+    failures_before = _counter_value("eurogas_stream_poll_failures_total")
+    try:
+
+        async def drive():
+            hub = StreamHub(
+                interval=lambda: 3600.0,
+                session_factory=lambda: unreachable,
+                warning=streaming.warning_event,
+                autostart=False,
+            )
+            sub = hub.subscribe(_LiveStream(("prices",), NOW, False, None, None), "p-log")
+            hub.poll([sub])
+            hub.poll([sub])
+            await asyncio.sleep(0)
+            return hub.stats.failed_polls, _drain(sub)
+
+        failed, delivered = asyncio.run(drive())
+    finally:
+        hub_logger.removeHandler(handler)
+    assert failed == 2
+    assert delivered  # the stream got the warning event instead of silence
+    errors = [json.loads(line) for line in records]
+    assert len(errors) == 1
+    assert errors[0]["level"] == "error"
+    assert errors[0]["logger"] == "eurogas_nexus.api.stream_hub"
+    assert errors[0]["error_type"] == "ConnectionError"
+    assert "could not reach the store" in errors[0]["message"]
+    assert _counter_value("eurogas_stream_polls_total") == polls_before + 2
+    assert _counter_value("eurogas_stream_poll_failures_total") == failures_before + 2

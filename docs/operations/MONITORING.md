@@ -114,6 +114,10 @@ Every process writes one JSON object per line to standard error (`EUROGAS_NEXUS_
 `INFO`). The runtime compose file keeps at most five 20 MB files per container
 (`docker compose logs`); ship them to the firm's log platform with its usual collector.
 
+The API's live-update poller (`logger` `eurogas_nexus.api.stream_hub`) logs a poll that cannot
+reach the store as an `error` record with `error_type` and `stack`, then at most once a minute
+while the store stays unreachable, and one `info` record when it recovers.
+
 Fields: `timestamp`, `level`, `logger`, `service`, `message`; while a request is served
 `request_id` (the `X-Request-Id` response header) and, once the caller is known,
 `principal_id`; each API request ends with one `eurogas_nexus.access` record with

@@ -43,6 +43,8 @@ MAX_PENDING_BATCHES = 200
 #: The least time between two polls woken early by new streams (a burst of reconnects after a
 #: restart is served by one poll, not one per connection).
 EARLY_WAKE_GAP_SECONDS = 0.05
+#: While the store stays unreachable, a failed poll is logged at most this often.
+FAILURE_LOG_INTERVAL_SECONDS = 60.0
 #: Open streams per caller and process at most (``EUROGAS_NEXUS_STREAMS_PER_PRINCIPAL``).
 DEFAULT_STREAMS_PER_PRINCIPAL = 8
 
@@ -118,6 +120,9 @@ class StreamHub:
         self._thread: threading.Thread | None = None
         self._pid = os.getpid()
         self.stats = HubStats()
+        self._failing_since: float | None = None
+        self._failures_at_start = 0
+        self._failure_logged_at = 0.0
 
     # Subscribers (event-loop side) ----------------------------------------------------------
 
@@ -249,6 +254,7 @@ class StreamHub:
         except Exception:
             failed = True
             self.stats.failed_polls += 1
+            self._log_failed_poll()
             for sub in subs:
                 if id(sub) not in delivered:
                     sub.state.started = True
@@ -259,10 +265,33 @@ class StreamHub:
         self.stats.poll_seconds_total += elapsed
         self.stats.max_poll_seconds = max(self.stats.max_poll_seconds, elapsed)
         self.stats.last_poll_queries = queries
+        if not failed and self._failing_since is not None:
+            logger.info(
+                "live-update poller reached the store again after %d failed polls",
+                self.stats.failed_polls - self._failures_at_start,
+            )
+            self._failing_since = None
         # Every worker's own counter file: the scrape sums the processes' pollers.
         process_metrics.stream_poll(elapsed, failed=failed)
         # The poller checks out connections between requests: publish the pool counts too.
         process_metrics.observe_pools()
+
+    def _log_failed_poll(self) -> None:
+        """Log the first failed poll with its error, then at most once a minute while the
+        store stays unreachable (a poll runs every 1.5 s)."""
+
+        now = time.monotonic()
+        if self._failing_since is None:
+            self._failing_since = now
+            self._failures_at_start = self.stats.failed_polls - 1
+            self._failure_logged_at = now
+            logger.exception("live-update poll could not reach the store")
+        elif now - self._failure_logged_at >= FAILURE_LOG_INTERVAL_SECONDS:
+            self._failure_logged_at = now
+            logger.exception(
+                "live-update poll still cannot reach the store (%d failed polls)",
+                self.stats.failed_polls - self._failures_at_start,
+            )
 
     def _deliver(self, sub: Subscription, chunks: list[str], done: bool) -> None:
         if sub.closed or (not chunks and not done):
