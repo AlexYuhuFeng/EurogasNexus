@@ -32,6 +32,7 @@ import {
   editedByLabel,
   elapsedLabel,
   explainFailure,
+  boundedSignal,
   landedReport,
   LANDING_POLL_MS,
   LANDING_WAIT_MS,
@@ -295,13 +296,18 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
       await new Promise((resolve) => window.setTimeout(resolve, LANDING_POLL_MS));
       setNow(Date.now());
       if (signal.aborted) return null;
+      // Each read is bounded by the time left and stops with "Stop waiting", so a stalled read
+      // cannot hold the page busy past the deadline.
+      const bounded = boundedSignal(signal, Math.min(LANDING_POLL_MS * 2, deadline - Date.now()));
       try {
-        const response = await api.marketReports();
+        const response = await api.marketReports({ signal: bounded.signal });
         setReports(response.data);
-        const landed = landedReport(before, response.data, request);
+        const landed = landedReport(before, response.data, request, me?.principal_id ?? null);
         if (landed) return landed;
       } catch {
         // The archive did not answer this time; look again on the next round.
+      } finally {
+        bounded.done();
       }
     }
     return null;

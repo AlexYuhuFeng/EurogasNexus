@@ -8,6 +8,7 @@ import {
   elapsedLabel,
   explainFailure,
   formIssues,
+  boundedSignal,
   landedReport,
   mayStillLand,
   parseHubs,
@@ -143,12 +144,35 @@ test("a dropped connection waits for the report in the archive; a refusal does n
 test("the landed report is a new one of the same kind and question", () => {
   const before = new Set(["r-old"]);
   const reports = [
-    { report_id: "r-new-daily", kind: "daily" as const, question: null },
-    { report_id: "r-old", kind: "ask" as const, question: "Why did NBP–TTF widen?" },
-    { report_id: "r-other-q", kind: "ask" as const, question: "What about storage?" },
-    { report_id: "r-new-ask", kind: "ask" as const, question: " Why did NBP–TTF widen? " },
+    { report_id: "r-new-daily", kind: "daily" as const, question: null, generated_by: "p-me" },
+    { report_id: "r-old", kind: "ask" as const, question: "Why did NBP–TTF widen?", generated_by: "p-me" },
+    { report_id: "r-other-q", kind: "ask" as const, question: "What about storage?", generated_by: "p-me" },
+    { report_id: "r-new-ask", kind: "ask" as const, question: " Why did NBP–TTF widen? ", generated_by: "p-me" },
   ];
-  assert.equal(landedReport(before, reports, { kind: "ask", question: "Why did NBP–TTF widen?" }), "r-new-ask");
-  assert.equal(landedReport(before, reports, { kind: "daily" }), "r-new-daily");
-  assert.equal(landedReport(before, reports, { kind: "weekly" }), null);
+  assert.equal(landedReport(before, reports, { kind: "ask", question: "Why did NBP–TTF widen?" }, "p-me"), "r-new-ask");
+  assert.equal(landedReport(before, reports, { kind: "daily" }, "p-me"), "r-new-daily");
+  assert.equal(landedReport(before, reports, { kind: "weekly" }, "p-me"), null);
+});
+
+test("a report someone else or a schedule wrote meanwhile does not end the wait", () => {
+  const before = new Set<string>();
+  const reports = [
+    { report_id: "r-theirs", kind: "daily" as const, question: null, generated_by: "p-colleague" },
+    { report_id: "r-other-period", kind: "daily" as const, question: null, generated_by: "p-me", period_start: "2026-11-01", period_end: "2026-11-07" },
+    { report_id: "r-mine", kind: "daily" as const, question: null, generated_by: "p-me", period_start: "2026-11-18", period_end: "2026-11-25" },
+  ];
+  assert.equal(landedReport(before, reports, { kind: "daily", period_start: "2026-11-18", period_end: "2026-11-25" }, "p-me"), "r-mine");
+  assert.equal(landedReport(before, reports.slice(0, 1), { kind: "daily" }, "p-me"), null);
+});
+
+test("an archive read during the wait stops with the wait or at the deadline", async () => {
+  const parent = new AbortController();
+  const first = boundedSignal(parent.signal, 60_000);
+  parent.abort();
+  assert.equal(first.signal.aborted, true);
+  first.done();
+  const second = boundedSignal(new AbortController().signal, 5);
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(second.signal.aborted, true);
+  second.done();
 });
