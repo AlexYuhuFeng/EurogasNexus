@@ -102,7 +102,7 @@ def test_fx_rate_falls_back_to_the_demo_rate_only_when_demo_is_allowed():
     assert _fx_rate(None, "USD", "EUR", ON, book(rows=rows)).rate is None
     used = _fx_rate(None, "USD", "EUR", ON, book(rows=rows, demo=True))
     assert used.simulated and used.source == "DEMO_Sim"
-    assert "(simulated demo rate)" in used.text()
+    assert "(simulated rate)" in used.text()
 
 
 def test_an_fx_choice_is_checked():

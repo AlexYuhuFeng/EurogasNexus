@@ -64,7 +64,8 @@ export function isSimulatedSourceId(id: string): boolean {
 
 /**
  * A source system as the desk names it; an identifier without a known name is humanized. A
- * simulated feed reads as the one quiet "simulated" mark when the caller passes `t`.
+ * simulated feed reads as the one quiet "simulated" mark when the caller passes `t`, never as
+ * its identifier.
  */
 export function sourceSystemLabel(id: string, t?: Translate): string {
   if (isSimulatedSourceId(id)) return t ? t("market.simulated_source") : "Simulated source";

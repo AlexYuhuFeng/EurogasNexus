@@ -63,6 +63,14 @@ export function serverNoteText(note: ServerNote, t: Translate, names?: ReadonlyM
   const params: Record<string, unknown> = { ...(note.params ?? {}) };
   // A record is said by its name: the one the server sent, else one this page holds, else its id.
   if (params.ref !== undefined) params.ref = params.ref_name ?? names?.get(String(params.ref)) ?? params.ref;
+  // A parameter that is a word the desk says in its language ("book" in "book: not
+  // available") is translated through warning.param.<name>.<value>; names and figures stay.
+  for (const [name, value] of Object.entries(params)) {
+    if (typeof value !== "string" || !value) continue;
+    const paramKey = `warning.param.${name}.${value.trim().toLowerCase().replace(/[\s-]+/g, "_")}`;
+    const word = t(paramKey);
+    if (word !== paramKey) params[name] = word;
+  }
   const key = `warning.${note.code.toLowerCase()}`;
   const said = t(key, params);
   if (said !== key) return said;
@@ -74,4 +82,20 @@ export function serverWarningText(warning: string | ServerNote, t: Translate, na
   const text = String(warning ?? "").trim();
   if (LEADING_CODE.test(text)) return warningLabel(text, t);
   return serverSentence(text, t, names) ?? enumWordsIn(text);
+}
+
+/**
+ * What a response warns about: its declared notes when the server sent them
+ * (`notes`, from `domain/ontology/notes.py`), else its English lines (an older server).
+ */
+export function serverNotes(
+  source: { notes?: readonly ServerNote[] | null; warnings?: readonly string[] | null } | null | undefined,
+): Array<string | ServerNote> {
+  if (source?.notes && source.notes.length > 0) return [...source.notes];
+  return [...(source?.warnings ?? [])];
+}
+
+/** A stable React key and title for a warning line or a note. */
+export function warningKey(warning: string | ServerNote): string {
+  return isServerNote(warning) ? warning.text || warning.code : warning;
 }

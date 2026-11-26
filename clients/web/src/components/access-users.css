@@ -28,10 +28,23 @@
   min-width: 0;
 }
 
-.access-person small,
-.access-when {
+.access-person small {
   color: var(--ds-text-3);
   font-size: var(--ds-text-xs);
+}
+
+.access-when {
+  color: var(--ds-text-2);
+  white-space: nowrap;
+}
+
+/* A person with every function (the all-roles tester) wraps inside a bounded column, so the
+   row's actions stay on screen beside it instead of past the grid's right edge. */
+.access-function,
+.access-roles {
+  display: block;
+  max-width: 28ch;
+  white-space: normal;
 }
 
 .access-kind {
@@ -43,7 +56,7 @@
 .access-user-actions {
   display: inline-flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   gap: var(--ds-space-1);
 }
 

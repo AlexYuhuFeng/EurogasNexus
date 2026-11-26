@@ -47,6 +47,7 @@ import { gridRowIndex } from "./keyboard";
 import { Skeleton } from "./Skeleton";
 import { LiveValue } from "./LiveValue";
 import {
+  columnsWithValues,
   nextSort,
   phoneColumnSplit,
   sortRows,
@@ -114,6 +115,8 @@ export interface DataGridColumn<R> {
    * Details. Unset on every column: the first `phoneColumns` columns stay.
    */
   priority?: "primary" | "secondary";
+  /** Keep the column when no row has a value (by default a column of dashes is left out). */
+  keepWhenEmpty?: boolean;
 }
 
 export interface DataGridProps<R> {
@@ -285,7 +288,7 @@ function RowView<R>({ row, rowId, columns, spans, index, tabbable, interactive, 
 const Row = memo(RowView) as typeof RowView;
 
 export function DataGrid<R>({
-  columns: allColumns,
+  columns: declaredColumns,
   rows,
   rowKey,
   label,
@@ -311,6 +314,7 @@ export function DataGrid<R>({
 }: DataGridProps<R>) {
   const { t } = useTranslation();
   const compactWidth = useCompactWidth();
+  const allColumns = useMemo(() => columnsWithValues(declaredColumns, rows), [declaredColumns, rows]);
   const phoneFold =
     (phoneLayout === "fold" || (compactWidth && phoneLayout === "columns")) && allColumns.length > phoneColumns;
   const split = useMemo(

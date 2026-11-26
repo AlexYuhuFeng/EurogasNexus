@@ -161,6 +161,7 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/optimization/contracts",
         "/api/optimization/nomination-window",
         "/api/optimization/nomination-windows",
+        "/api/optimization/planning-inputs",
         "/api/optimization/portfolio-network",
         "/api/optimization/resource-pool",
         "/api/optimization/storage-dispatch",

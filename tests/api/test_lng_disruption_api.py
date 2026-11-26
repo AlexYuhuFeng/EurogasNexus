@@ -468,7 +468,7 @@ def test_remit_links_on_a_pipeline_supply_are_read_and_overridden(tmp_path, monk
                 unavailability_type="planned",
                 event_start_utc=gas_day_start_for_date(start),
                 event_stop_utc=gas_day_start_for_date(start + timedelta(days=2)),
-                asset_name="DEMO North-Sea entry point",
+                asset_name="North-Sea entry point",
                 asset_eic="21Z-DEMO-TEST",
                 asset_type="entry",
                 balancing_zone="ZTP",

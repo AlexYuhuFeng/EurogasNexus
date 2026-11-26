@@ -61,3 +61,22 @@ def test_a_note_carries_code_params_and_text_and_refuses_what_is_not_declared() 
     with pytest.raises(ValueError):
         notes.declare("lower_case", "x")
     del notes.CATALOGUE["TEST_NOTE_EXAMPLE"]
+
+
+def test_an_envelope_says_every_warning_as_a_note() -> None:
+    importlib.import_module("eurogas_nexus.api.routes.public.risk")
+    importlib.import_module("eurogas_nexus.application.lng_disruption")
+    produced = notes.note("NO_TERMINAL_TERMS")
+    lines, items = notes.split_notes([
+        produced,
+        produced.text,  # the same warning appended twice (a note and its text): said once
+        "ROUTE_COST_MISSING:R-2",  # an older coded line: its code, detail as parameter
+        "slot S-1: no hub or send-out rate; left out",  # a declared template read back
+        "Something new happened.",  # anything else: said as sent
+    ])
+    assert lines == [produced.text, "ROUTE_COST_MISSING:R-2",
+                     "slot S-1: no hub or send-out rate; left out", "Something new happened."]
+    assert [item["code"] for item in items] == [
+        "NO_TERMINAL_TERMS", "ROUTE_COST_MISSING", "SLOT_LEFT_OUT", "TEXT"]
+    assert items[1]["params"] == {"detail": "R-2"}
+    assert items[2]["params"] == {"slot": "S-1"}

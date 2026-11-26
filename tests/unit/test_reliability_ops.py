@@ -129,7 +129,9 @@ def test_db_pool_settings_are_applied(monkeypatch) -> None:
     def fake_create_engine(url: str, **kwargs: object):
         captured["url"] = url
         captured.update(kwargs)
-        return object()
+        # A real engine (never connected): a pg8000 URL also gets the date decoders registered
+        # on connect, and an event needs an engine to listen on.
+        return create_engine("sqlite+pysqlite:///:memory:")
 
     monkeypatch.setattr(db_session, "create_engine", fake_create_engine)
     get_engine("postgresql+pg8000://user:pass@db/eurogas")

@@ -21,6 +21,7 @@
  *   response `meta` kept visible.
  */
 
+import { serverWarningText } from "@/app/warningLabel";
 import { useTranslation } from "react-i18next";
 
 import { api, type AnalysisRequestDTO, type AnalysisResultDTO, type ApiResponse } from "@/api/client";
@@ -336,7 +337,7 @@ export function CopilotPanel({
               <h4>{t("experience.copilot.warnings")}</h4>
               <ul>
                 {output.warnings.map((warning) => (
-                  <li key={warning}>{warning}</li>
+                  <li key={warning} title={warning}>{serverWarningText(warning, t)}</li>
                 ))}
               </ul>
             </div>

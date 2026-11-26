@@ -133,8 +133,9 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
               : task === "cargoes"
                 ? // The cargo board is the book's cargoes: no hub or tenor filter applies to it.
                   undefined
-                : // On Prices the board's tenor selector is the product choice: no second one here.
-                  tradingContextControlsFor(traderContext, t, { product: task !== "curves" })
+                : // On Prices the board's tenor selector is the product choice and its hub picker
+                  // (with a click on a hub row for the focus) the hub choice: no second ones here.
+                  tradingContextControlsFor(traderContext, t, { product: task !== "curves", hub: task !== "curves" })
           }
           variant={task === "overview" ? "line" : "strip"}
           freshness={

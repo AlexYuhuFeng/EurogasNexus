@@ -435,6 +435,11 @@ export function ContractWorkbench({
   const exampleView = useExampleView();
   const example = exampleView.example;
   const listSource = example ? EXAMPLE_CONTRACTS : upstreamContracts;
+  const libraryError = useApiStore((state) => Boolean(state.endpointErrors.upstreamContracts)) && !example;
+  // Not read yet (no answer and no failure): the library is loading, not empty. Without this a
+  // slow read (a phone on a slow link) said "0 contracts" and "no contracts yet".
+  const workspaceReading = useApiStore((state) => state.workspaceLoading || state.workspaceLoadsCommitted === 0);
+  const libraryLoading = !example && !libraryError && workspaceReading && upstreamContracts.length === 0;
   const rows = useMemo(
     () => listedContracts(listSource, { query, kind: kindFilter, today, counterpartyOf }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -607,7 +612,7 @@ export function ContractWorkbench({
     <div className="contract-task-workspace contract-list-page">
       <section className="contract-list-command" aria-label={t("contracts.command_strip")}>
         <strong className="contract-list-count" data-contract-count={upstreamContracts.length}>
-          {t("contracts.list.count", { count: listSource.length })}
+          {libraryLoading ? t("contracts.list.loading") : t("contracts.list.count", { count: listSource.length })}
         </strong>
         <input
           type="search"
@@ -649,6 +654,8 @@ export function ContractWorkbench({
             rowKey={(row) => row.contract_id}
             density="compact"
             selectedKey={shown?.contract_id ?? null}
+            loading={libraryLoading}
+            loadingLabel={t("contracts.list.loading")}
             onRowAction={openContract}
             // The row carries the stored contract's own id, so the acceptance sweep compares it
             // with the upstream-terms read by exact id (`scripts/uat/readToRender.mjs`).
@@ -656,8 +663,9 @@ export function ContractWorkbench({
             rowClassName={(row) => (row.master_contract_id && rows.some((item) => item.contract_id === row.master_contract_id) ? "contract-row-confirmation" : undefined)}
             empty={(
               <span data-empty-state="contract-library">
-                {t(listSource.length ? "contracts.list.none_match" : "contracts.no_saved_contracts")}
-                {listSource.length === 0 && <> <SeeExample onShow={exampleView.show} /></>}
+                {/* A failed read is not an empty book: say it could not be read, not "none yet". */}
+                {t(listSource.length ? "contracts.list.none_match" : libraryError ? "contracts.list.read_failed" : "contracts.no_saved_contracts")}
+                {listSource.length === 0 && !libraryError && <> <SeeExample onShow={exampleView.show} /></>}
               </span>
             )}
             columns={[

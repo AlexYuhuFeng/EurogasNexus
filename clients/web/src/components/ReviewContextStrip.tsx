@@ -46,7 +46,8 @@ export function ReviewContextStrip({ projection, t, controls }: ReviewContextStr
       t={t}
       controls={controls}
     >
-      {coverage && (
+      {/* "0 of 0" says nothing: the count shows once a case asks for evidence. */}
+      {coverage && coverage.requested > 0 && (
         <span className="projection-slice-count">
           {t("review_context.evidence_coverage", {
             resolved: coverage.resolved,

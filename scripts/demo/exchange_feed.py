@@ -344,7 +344,7 @@ class TradeBooker:
         with self.factory() as session:
             session.merge(ScreenOrderObservationRecord(
                 order_observation_id=f"etrm-sim-{trade_id}", provider_id="ETRM",
-                venue="Demo", account_label="Demo counterparty", external_order_id=trade_id,
+                venue="Exchange", account_label="Prompt counterparty", external_order_id=trade_id,
                 side="BUY" if buy else "SELL", order_type="TRADE", hub=hub, product="ETRM",
                 contract_code=trade_id, delivery_start_utc=period.delivery_start_utc,
                 delivery_end_utc=period.delivery_end_utc, price=round(price, 6),
@@ -364,8 +364,8 @@ class TradeBooker:
                     event_id=f"sim-nom-{trade_id}-{status}"[:64], gas_day=day,
                     line_ref=f"trade:etrm-sim-{trade_id}", hub=hub, book_id=self.BOOKS[hub],
                     step="nomination", status=status, quantity_mwh=round(mwh, 3), agent=None,
-                    origin="import", recorded_by="Demo scheduling import", recorded_at_utc=at,
-                    note=None, source_system="ETRM_Sim", counterparty="Demo counterparty",
+                    origin="import", recorded_by="Scheduling import", recorded_at_utc=at,
+                    note=None, source_system="ETRM_Sim", counterparty="Prompt counterparty",
                     direction="in" if buy else "out"))
             session.commit()
 

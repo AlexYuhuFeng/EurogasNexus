@@ -59,11 +59,15 @@ function RegionFigures({ entity, t, language }: { entity: StorageEntityDTO; t: T
         <dd>{signed(entity.day_change_pts, 2)} <small>{t("storage_panel.pts")}</small></dd>
         <dd className="storage-figure-note">{signed(entity.day_change_twh, 2)} TWh</dd>
       </div>
+      {/* A comparison with nothing to compare against is left out, not shown as a dash. */}
+      {entity.vs_last_year.diff_pts != null && (
       <div>
         <dt>{t("storage_panel.vs_last_year")}</dt>
         <dd>{signed(entity.vs_last_year.diff_pts)} <small>{t("storage_panel.pts")}</small></dd>
         <dd className="storage-figure-note">{t("storage_panel.last_year_was", { pct: num(entity.vs_last_year.fill_pct) })}</dd>
       </div>
+      )}
+      {average.diff_pts != null && (
       <div>
         <dt>{average.years ? t("storage_panel.vs_avg", { count: average.years }) : t("storage_panel.vs_avg_none")}</dt>
         <dd>{signed(average.diff_pts)} <small>{t("storage_panel.pts")}</small></dd>
@@ -81,6 +85,7 @@ function RegionFigures({ entity, t, language }: { entity: StorageEntityDTO; t: T
           </dd>
         )}
       </div>
+      )}
       <div>
         <dt>{t("storage_panel.stock")}</dt>
         <dd>{num(entity.stock_twh, 1)} <small>TWh</small></dd>

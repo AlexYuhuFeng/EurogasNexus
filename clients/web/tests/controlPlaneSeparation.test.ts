@@ -126,7 +126,8 @@ test("the shell hides the administrative primary and refuses its deep links", ()
   assert.equal(restricted.includes("useApiStore"), false);
   assert.equal((restricted.match(/<h1>/g) ?? []).length, 1);
   assert.match(restricted, /data-restricted-surface="true"/);
-  assert.match(restricted, /role="alert"/);
+  // A refusal is stated calmly: a status, not an alarm (no red text for a page one may not open).
+  assert.match(restricted, /role="status"/);
 });
 
 test("the administration pages keep their routes and stay declared once", () => {

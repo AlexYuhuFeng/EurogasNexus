@@ -6,7 +6,7 @@ import { dailyBalanceRateText } from "@/app/model/gasDayModel";
 import { GAS_HUBS } from "@/app/contractChoices";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 import { DataGrid, type DataGridColumn } from "@/components/ui";
-import { serverWarningText } from "@/app/warningLabel";
+import { serverNotes, serverWarningText, warningKey, type ServerNote } from "@/app/warningLabel";
 import { useLineageLookup } from "./CommercialWarningList";
 
 type BalanceDay = DailyBalanceDTO["days"][number];
@@ -33,7 +33,7 @@ export function DailyBalancePanel({ t }: { t: Translate }) {
   const [hub, setHub] = useState<string>(DAILY_BALANCE_FIRST.hub);
   const [days, setDays] = useState<number>(DAILY_BALANCE_FIRST.days);
   const [balance, setBalance] = useState<DailyBalanceDTO | null>(null);
-  const [warnings, setWarnings] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<Array<string | ServerNote>>([]);
   const names = useLineageLookup();
   const [error, setError] = useState<string | null>(null);
 
@@ -44,7 +44,7 @@ export function DailyBalancePanel({ t }: { t: Translate }) {
       .dailyBalance({ hub, days }, { signal: controller.signal })
       .then((response) => {
         setBalance(response.data);
-        setWarnings(response.meta?.warnings ?? []);
+        setWarnings(serverNotes(response.meta));
       })
       .catch((caught: unknown) => {
         if (!controller.signal.aborted) setError(caught instanceof Error ? caught.message : String(caught));
@@ -120,7 +120,7 @@ export function DailyBalancePanel({ t }: { t: Translate }) {
             density="compact"
             rowAttributes={(day) => ({ "data-status": day.state === "balanced" ? undefined : "watch" })}
           />
-          {warnings.length > 0 && <ul className="muted">{warnings.map((warning) => <li key={warning}><small>{serverWarningText(warning, t, names.resources)}</small></li>)}</ul>}
+          {warnings.length > 0 && <ul className="muted">{warnings.map((warning) => <li key={warningKey(warning)} title={warningKey(warning)}><small>{serverWarningText(warning, t, names.resources)}</small></li>)}</ul>}
         </>
       )}
     </section>

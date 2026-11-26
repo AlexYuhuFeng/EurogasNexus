@@ -8,6 +8,7 @@ import { personFunctionOfJob } from "@/app/experience/roleComposition";
  * the state it is given and explains a refusal in words; it never decides access itself.
  */
 import { useId, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { displayTime } from "@/app/time/displayTime";
 
 import {
   api,
@@ -61,8 +62,7 @@ const STATE_TONE: Record<string, StatusTone> = {
 
 function formatWhen(value: string | null | undefined, t: T): string {
   if (!value) return t("access.users.never");
-  const parsed = new Date(value);
-  return Number.isNaN(parsed.getTime()) ? value : parsed.toLocaleString();
+  return displayTime(value, value);
 }
 
 interface AccessUsersProps {

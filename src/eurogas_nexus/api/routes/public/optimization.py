@@ -15,7 +15,7 @@ from datetime import UTC, date, datetime, time, timedelta
 from typing import Literal
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
 from eurogas_nexus.api.manual_inputs import states_manual_inputs
@@ -883,6 +883,127 @@ def get_nomination_windows(gas_day: date | None = None) -> dict:
             "warnings": warnings,
             "gas_day": target_day.isoformat(),
             "calendar": calendar,
+        },
+    }
+
+
+@router.get("/planning-inputs")
+def get_planning_inputs(
+    request: Request, gas_day: date | None = None, hub: str | None = None
+) -> dict:
+    """What Book -> Planning starts from: contracts in execution, the TSO calendar, storage.
+
+    规划页面的预填数据：执行中的合同（日合同量、年合同量与交付期）、TSO 提名窗口日历、储气设施
+    与最新库存。仅用于规划评估，从不提交提名（AGENTS rule 8）。
+
+    Contracts are the caller's book (portfolio scope applies) delivering on the gas day; the
+    windows are the declared masters for the hub's country, else the network-code default
+    (``basis: assumption``); each storage facility comes with its latest inventory. The page
+    prefills from these and says which inputs were then entered by hand (AGENTS rule 19).
+
+    Raises:
+        HTTPException: 403 without book access, 503 when the runtime store is unavailable.
+    """
+
+    from eurogas_nexus.application.planning_inputs import (
+        contract_choices,
+        storage_choices,
+        window_choices,
+    )
+    from eurogas_nexus.application.position_inputs import gas_year_window
+    from eurogas_nexus.domain.contracts import kinds
+    from eurogas_nexus.security.authorization import Permission, authorize
+
+    principal = getattr(request.state, "identity", None)
+    if principal is None or not authorize(principal, Permission.PORTFOLIO_READ).allowed:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "permission_denied", "permission": Permission.PORTFOLIO_READ.value},
+        )
+    target_day = gas_day or date.fromisoformat(gas_day_label(datetime.now(UTC)))
+    if not _db_is_configured():
+        raise HTTPException(status_code=503, detail={"code": "runtime_db_not_configured"})
+    at_utc = datetime.combine(target_day, time(12, 0), tzinfo=UTC)
+    try:
+        from eurogas_nexus.api.positions import hub_from_text
+        from eurogas_nexus.db.models import (
+            ContractDeliveryRecord,
+            StorageFacilityMasterRecord,
+            UpstreamResourceContractRecord,
+        )
+        from eurogas_nexus.db.repositories.storage_nomination import (
+            active_nomination_windows,
+            latest_storage_inventory,
+        )
+        from eurogas_nexus.db.session import get_session_factory
+        from eurogas_nexus.security.portfolio_scope import restrict
+
+        with get_session_factory()() as session:
+            records = (
+                restrict(
+                    session.query(UpstreamResourceContractRecord),
+                    UpstreamResourceContractRecord,
+                    session,
+                )
+                .filter(UpstreamResourceContractRecord.retired_at_utc.is_(None))
+                .all()
+            )
+            hubs = {
+                record.contract_id: hub_from_text(record.delivery_point_name, session=session)
+                for record in records
+            }
+
+            def window_of(record):
+                terms = kinds.terms_of(record.contract_kind, record.kind_terms)
+                if not kinds.feeds_book(record.contract_kind, terms):
+                    return None
+                return kinds.position_window(record.contract_kind, terms) or gas_year_window(
+                    record.gas_year, target_day
+                )
+
+            nominated = {
+                row.contract_id: row.nominated_mwh
+                for row in session.query(ContractDeliveryRecord)
+                .filter(ContractDeliveryRecord.gas_day == target_day)
+                .all()
+                if row.nominated_mwh is not None
+            }
+            contracts = contract_choices(
+                [r for r in records if not hub or hubs.get(r.contract_id) == hub.upper()],
+                target_day,
+                window_of=window_of,
+                hub_of=lambda record: hubs.get(record.contract_id),
+                nominated=nominated,
+            )
+            first_hub = hub.upper() if hub else (contracts[0]["hub"] if contracts else None)
+            windows = window_choices(
+                active_nomination_windows(session, at_utc=at_utc), first_hub, target_day
+            )
+            facilities = (
+                session.query(StorageFacilityMasterRecord)
+                .filter(StorageFacilityMasterRecord.active.is_(True))
+                .all()
+            )
+            storage = storage_choices(
+                facilities,
+                lambda facility_id: latest_storage_inventory(
+                    session, facility_id, asof_utc=at_utc
+                ),
+            )
+    except _sqlalchemy_error_type() as exc:
+        raise _db_unavailable(exc) from exc
+    return {
+        "data": {
+            "gas_day": target_day.isoformat(),
+            "contracts": contracts,
+            "windows": windows,
+            "storage": storage,
+        },
+        "meta": {
+            "research_only": True,
+            "human_review_required": True,
+            "source_references": ["runtime-postgresql"],
+            "warnings": [],
         },
     }
 

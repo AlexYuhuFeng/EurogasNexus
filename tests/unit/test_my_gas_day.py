@@ -279,7 +279,7 @@ def test_an_outage_at_the_source_caps_the_supply_line_and_names_the_message(desk
     assert haldor["quantity"]["mwh"] == pytest.approx(24_000 * (1 - 52 / 70), abs=0.1)
     (outage,) = haldor["adjustments"]
     assert outage["kind"] == "outage" and outage["source"] == "REMIT"
-    assert outage["id"] == "demo-umm-1" and outage["asset"].startswith("Demo Haldor field")
+    assert outage["id"] == "demo-umm-1" and outage["asset"].startswith("Haldor field")
     assert outage["share_out_pct"] == pytest.approx(74.29) and outage["day_share_pct"] == 100
     assert outage["quantity"]["mwh"] == pytest.approx(21_120 - 24_000 * (1 - 52 / 70), abs=0.1)
     # A contract whose source has no outage is untouched.
@@ -415,4 +415,4 @@ def test_the_opportunity_residuals_are_each_books_gas_day_balance(desk):
         )
     # Each book's cash-out rate is its own set's (the NL book's TTF residual, in EUR).
     nl = books["TTF"]["demo-nl-ttf"]["cash_out"]
-    assert nl["assumption_set"] == "Demo demo-nl-ttf balancing"
+    assert nl["assumption_set"] == "NL TTF balancing"

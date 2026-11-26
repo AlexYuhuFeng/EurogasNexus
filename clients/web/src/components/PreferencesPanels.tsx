@@ -137,10 +137,11 @@ function choiceLabel(t: Translate, key: ChoiceKey, value: string | undefined): s
 function TimeZonePreview({ t }: { t: Translate }) {
   const { i18n } = useTranslation();
   const now = Date.now();
+  // A device on UTC or CET reads the same time twice: each distinct time is shown once.
   const shown = TIME_ZONE_PREFERENCES.map((preference) => ({
     preference,
     text: formatInstant(now, { language: i18n.language, preference, nowMs: now })?.text ?? "",
-  }));
+  })).filter((item, index, all) => item.text !== "" && all.findIndex((other) => other.text === item.text) === index);
   return (
     <p className="settings-preference-hint" data-time-zone-preview="">
       {t("preferences.time_zone.preview")}{" "}

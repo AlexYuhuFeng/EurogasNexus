@@ -7,6 +7,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from eurogas_nexus.api.manual_inputs import states_manual_inputs
 from eurogas_nexus.api.routes.public import observation_window
+from eurogas_nexus.domain.ontology.notes import split_notes
 
 router = APIRouter(tags=["lng"])
 
@@ -21,6 +22,15 @@ def _env(data: object, _request: Request) -> dict:
             "warnings": ["Runtime DB is not configured; GIE ALSI data is unavailable."],
         },
     }
+
+
+def _with_notes(result: dict) -> dict:
+    """A result's own warnings as declared notes too (``domain/ontology/notes.py``), the
+    English kept."""
+
+    if isinstance(result, dict) and isinstance(result.get("warnings"), list):
+        result["warnings"], result["notes"] = split_notes(result["warnings"])
+    return result
 
 
 def _runtime_env(data: object) -> dict:
@@ -789,7 +799,7 @@ def cargo_disruption_options(
             result = disruption.disruption_options(session, cargo_id, fx=choice, fx_rows=rows)
         except CargoPlanError as exc:
             raise _plan_error(exc) from exc
-        return _runtime_env(result)
+        return _runtime_env(_with_notes(result))
 
 
 @router.get("/api/lng/cargoes/{cargo_id}/disruption-options/{option_id}")
@@ -830,7 +840,7 @@ def cargo_disruption_option(
             )
         except CargoPlanError as exc:
             raise _plan_error(exc) from exc
-        return _runtime_env(result)
+        return _runtime_env(_with_notes(result))
 
 
 @router.post("/api/lng/cargoes/{cargo_id}/disruption-options/{option_id}/choose")

@@ -255,6 +255,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # produces a schedule), while reading the declaration that the assessment is measured against
     # keeps the READ floor - a trader must be able to see the deadline being traded against.
     ("/api/optimization/nomination-windows", Permission.READ),
+    # What Planning starts from: the book's contracts (portfolio scope and portfolio.read apply
+    # in the route), the declared windows and the storage masters. A read; nothing is submitted.
+    ("/api/optimization/planning-inputs", Permission.GOVERNED),
     ("/api/route-cost/tso-tariffs", Permission.READ),
     # TAR-1: public tariff versions, their publishers and capacity windows (reference data).
     ("/api/tariffs", Permission.READ),

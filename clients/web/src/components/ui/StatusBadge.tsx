@@ -8,8 +8,14 @@ import { statusBadgeClass, type StatusBadgeVariant } from "./statusBadgeClass";
  * A badge never shows a bare enum (UX_REFERENCE rule 21): `SUCCEEDED_WITH_WARNINGS` reads
  * "Succeeded with warnings" (or `enum.<value>` in the locale), with the code kept in the title.
  */
-function badgeText(children: ReactNode, title: string | undefined): { text: ReactNode; title: string | undefined } {
-  if (!isStatusCode(children)) return { text: children, title };
+function badgeText(
+  children: ReactNode,
+  title: string | undefined,
+  status?: string,
+): { text: ReactNode; title: string | undefined } {
+  // A lifecycle code echoed as its own label ("succeeded" for status "succeeded") is a code too.
+  const echoed = typeof children === "string" && status !== undefined && children.trim() === status.trim() && children.trim() !== "";
+  if (!echoed && !isStatusCode(children)) return { text: children, title };
   const code = children.trim();
   return { text: enumLabel(code, (key, options) => i18n.t(key, options) as string), title: title ?? code };
 }
@@ -54,7 +60,7 @@ export type StatusBadgeProps = ToneProps | VariantProps;
 
 export function StatusBadge(props: StatusBadgeProps) {
   const { className } = props;
-  const { text: children, title } = badgeText(props.children, props.title);
+  const { text: children, title } = badgeText(props.children, props.title, props.status);
   if (props.tone) {
     const classes = ["status-badge", "ds-status", className].filter(Boolean).join(" ");
     return (

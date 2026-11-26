@@ -1,3 +1,4 @@
+import { serverNotes, serverWarningText, warningKey, type ServerNote } from "@/app/warningLabel";
 import { useEffect, useState } from "react";
 
 import { api, type SellDownPlanDTO, type TodayKeyFiguresRowDTO } from "@/api/client";
@@ -6,7 +7,6 @@ import { PanelHelp } from "@/components/ui/PanelHelp";
 import { latestBoardPrice } from "@/app/model/boardInputs";
 import { hubQuoteUnit } from "@/app/contractChoices";
 import { unitLabel } from "@/app/model/instrumentPicker";
-import { serverWarningText } from "@/app/warningLabel";
 import { sourceSystemLabel } from "@/app/model/enumLabels";
 import { formatGasDay } from "@/app/time/timeFormat";
 import { useApiStore } from "@/stores/api";
@@ -33,7 +33,7 @@ export function SellDownPanel({ t }: { t: Translate }) {
   const [longDiscount, setLongDiscount] = useState("0.3");
   const [lot, setLot] = useState("24");
   const [plan, setPlan] = useState<SellDownPlanDTO | null>(null);
-  const [warnings, setWarnings] = useState<string[]>([]);
+  const [warnings, setWarnings] = useState<Array<string | ServerNote>>([]);
   const [message, setMessage] = useState<string | null>(null);
   const currency = hub === "NBP" ? "GBP" : "EUR";
   // Prices are entered as the desk quotes the hub (NBP in p/th); the server converts them.
@@ -90,7 +90,7 @@ export function SellDownPanel({ t }: { t: Translate }) {
     })
       .then((response) => {
         setPlan(response.data);
-        setWarnings(response.meta?.warnings ?? []);
+        setWarnings(serverNotes(response.meta));
       })
       .catch((caught: unknown) => setMessage(caught instanceof Error ? caught.message : String(caught)));
   };
@@ -138,7 +138,7 @@ export function SellDownPanel({ t }: { t: Translate }) {
           <ul className="panel-copy">{plan.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul>
         </div>
       )}
-      {warnings.length > 0 && <ul className="contract-intake-warnings">{warnings.map((w) => <li key={w}>{serverWarningText(w, t)}</li>)}</ul>}
+      {warnings.length > 0 && <ul className="contract-intake-warnings">{warnings.map((w) => <li key={warningKey(w)} title={warningKey(w)}>{serverWarningText(w, t)}</li>)}</ul>}
       {message && <p role="status">{message}</p>}
     </section>
   );

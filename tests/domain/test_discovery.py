@@ -107,3 +107,12 @@ def test_phrasing_per_role_language_and_input_class() -> None:
     assert phrase(spread, "trader", "en") == "opportunity.locational claim"
     assert phrase(spread, "risk", "en").startswith("Location spread: ")
     assert phrase(spread, "trader", "zh").startswith("地点价差（2027-01）")
+
+
+def test_a_reader_that_marks_simulated_itself_gets_no_second_mark() -> None:
+    demo = _finding("credit.breach", 3, "1", InputClass.SIMULATED)
+    assert "simulated" not in phrase(demo, "risk", "en", simulated_marked=True)
+    assert "模拟" not in phrase(demo, "risk", "zh", simulated_marked=True)
+    # Any other input class is still stated: only the duplicate simulated mark is dropped.
+    projected = _finding("credit.projected", 2, "1", InputClass.INDICATIVE)
+    assert phrase(projected, "risk", "en", simulated_marked=True).endswith("(on indicative marks).")

@@ -1,6 +1,7 @@
 import { tabLabels } from "@/components/ui/tabLabels";
 import { displayTime } from "@/app/time/displayTime";
 import type {
+  RuntimeDependencyStateDTO,
   ApiMeta,
   PipelineHealthDTO,
   RuntimeDbStatusDTO,
@@ -8,6 +9,7 @@ import type {
   SourceSystemDTO,
 } from "@/api/client";
 import { useState } from "react";
+import { dependencyDetailText } from "@/app/model/runtimeDependencyDetail";
 import {
   ENDPOINT_FAILURE_LABEL_KEYS,
   UNKNOWN_ENDPOINT_FAILURE_LABEL_KEY,
@@ -89,6 +91,14 @@ function needsLiveCertification(source: SourceSystemDTO): boolean {
   );
 }
 
+/** A lifecycle code in words (`sources.certification.live_validated` -> "Live validated"). */
+function codeLabel(t: (key: string, options?: Record<string, unknown>) => string, prefix: string, value: string | null | undefined): string {
+  if (!value) return "–";
+  const key = `${prefix}.${value}`;
+  const text = t(key);
+  return text === key ? value.replace(/_/g, " ") : text;
+}
+
 export function RuntimeWorkspace({
   meta,
   runtimeDb,
@@ -162,14 +172,14 @@ export function RuntimeWorkspace({
     commercialSourceRows.length === 0
       ? t("runtime.commercial_source_blocked_detail")
       : `${credentialBlockers.length} ${t("runtime.credential_blockers")} / ${certificationBlockers.length} ${t("runtime.certification_blockers")}`;
-  const dependencyRows: Array<[string, { state: string; detail?: string } | undefined]> =
+  const dependencyRows: Array<[string, RuntimeDependencyStateDTO | undefined]> =
     runtimeDependencies
       ? [
-          ["PostgreSQL", runtimeDependencies.database],
-          ["Dataops scheduler", runtimeDependencies.schedulers?.dataops],
-          ["Shadow scheduler", runtimeDependencies.schedulers?.shadow],
-          ["OIDC", runtimeDependencies.oidc],
-          ["Streaming", runtimeDependencies.streaming],
+          [t("runtime.dep.database"), runtimeDependencies.database],
+          [t("runtime.dep.dataops"), runtimeDependencies.schedulers?.dataops],
+          [t("runtime.dep.shadow"), runtimeDependencies.schedulers?.shadow],
+          [t("runtime.dep.oidc"), runtimeDependencies.oidc],
+          [t("runtime.dep.streaming"), runtimeDependencies.streaming],
         ]
       : [];
   const releaseReadinessRows: ReleaseReadinessRow[] = [
@@ -323,7 +333,7 @@ export function RuntimeWorkspace({
       <div className="workspace-panel span-3 runtime-commercial-sources">
         <PanelHeader
           title={t("runtime.commercial_sources")}
-          meta={`${commercialSourceRows.length} ${t("panel.records")}`}
+          meta={t(commercialSourceRows.length === 1 ? "runtime.source_count_one" : "runtime.source_count_other").replace("{{count}}", String(commercialSourceRows.length))}
         />
         <div className="data-table">
           <div className="data-table-row header four">
@@ -335,16 +345,16 @@ export function RuntimeWorkspace({
           {commercialSourceRows.map((source) => (
             <div key={`runtime-commercial-source-${source.source_id}`} className="data-table-row four">
               <strong>{source.source_system}</strong>
-              <span>{source.credential_state}</span>
+              <span>{codeLabel(t, "sources.credential", source.credential_state)}</span>
               <span className={`source-cert source-cert-${source.certification_stage}`}>
-                {source.certification_stage}
+                {codeLabel(t, "sources.certification", source.certification_stage)}
               </span>
               <span>{source.effective_source_system}</span>
             </div>
           ))}
           {commercialSourceRows.length === 0 && (
             <div className="data-table-row four">
-              <strong>{t("runtime.no_sources")}</strong><span>n/a</span><span>n/a</span><span>n/a</span>
+              <strong>{t("runtime.no_sources")}</strong><span>–</span><span>–</span><span>–</span>
             </div>
           )}
         </div>
@@ -357,8 +367,8 @@ export function RuntimeWorkspace({
         <h2>{t("panel.governance")}</h2>
         {meta ? (
           <div className="metric-grid">
-            <div><span>{t("status.research_only")}</span><strong>{String(meta.research_only)}</strong></div>
-            <div><span>{t("status.human_review_required")}</span><strong>{String(meta.human_review_required)}</strong></div>
+            <div><span>{t("status.research_only")}</span><strong>{t(meta.research_only ? "common.yes" : "common.no")}</strong></div>
+            <div><span>{t("status.human_review_required")}</span><strong>{t(meta.human_review_required ? "common.yes" : "common.no")}</strong></div>
             <div><span>{t("status.source")}</span><strong>{(meta.source_references ?? []).join(", ") || t("data.unavailable")}</strong></div>
           </div>
         ) : <p className="panel-copy">{t("data.unavailable")}</p>}
@@ -367,8 +377,8 @@ export function RuntimeWorkspace({
         <h2>{t("status.db")}</h2>
         {runtimeDb ? (
           <div className="metric-grid three-column">
-            <div><span>{t("status.db")}</span><strong>{runtimeDb.connectivity.ok ? "ok" : "failed"}</strong></div>
-            <div><span>{t("status.alembic")}</span><strong>{runtimeDb.alembic_revision ?? "unavailable"}</strong></div>
+            <div><span>{t("status.db")}</span><strong>{t(runtimeDb.connectivity.ok ? "runtime.db_connected" : "runtime.db_failed")}</strong></div>
+            <div><span>{t("status.alembic")}</span><strong>{runtimeDb.alembic_revision ?? "–"}</strong></div>
             <div><span>{t("status.missing_tables")}</span><strong>{runtimeDb.missing_tables.length}</strong></div>
           </div>
         ) : <p className="panel-copy">{t("data.unavailable")}</p>}
@@ -387,10 +397,7 @@ export function RuntimeWorkspace({
       {activeView === "delivery" && (
       <>
       <div className="workspace-panel span-3">
-        <div className="section-heading">
-          <span className="eyebrow">{t("nav.runtime")}</span>
-          <strong>{t("runtime.dependency_health")}</strong>
-        </div>
+        <h2>{t("runtime.dependency_health")}</h2>
         <div className="data-table" tabIndex={0} role="region" aria-label={t("runtime.dependency_health")}>
           <div className="data-table-row header three">
             <span>{t("runtime.dependency")}</span>
@@ -403,16 +410,13 @@ export function RuntimeWorkspace({
               <StatusBadge variant="pipeline" status={(row?.state ?? "unknown").toLowerCase()}>
                 {row?.state ?? "UNKNOWN"}
               </StatusBadge>
-              <span>{row?.detail ?? "n/a"}</span>
+              <span title={row?.detail}>{dependencyDetailText(row, t)}</span>
             </div>
           ))}
         </div>
       </div>
       <div className="workspace-panel span-3">
-        <div className="section-heading">
-          <span className="eyebrow">{t("nav.runtime")}</span>
-          <strong>{t("runtime.pipeline_health")}</strong>
-        </div>
+        <h2>{t("runtime.pipeline_health")}</h2>
         <div className="metric-grid three-column">
           <div><span>{t("runtime.open_alerts")}</span><strong>{health?.open_alerts ?? "n/a"}</strong></div>
           <div><span>{t("runtime.latest_opportunity")}</span><strong>{formatHealthTime(health?.latest_opportunity_detected_at_utc)}</strong></div>

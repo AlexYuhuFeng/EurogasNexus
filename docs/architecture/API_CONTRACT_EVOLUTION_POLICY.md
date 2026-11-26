@@ -4,6 +4,9 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-26 (planning inputs): one path, one operation, READ: `GET /api/optimization/planning-inputs`.
+Census on the innovation branch: 316 paths / 352 operations (+1 / +1 on 315 / 351).
+
 Additive 2026-11-26 (topology): one path, one operation, READ: `GET /api/reference-network/supply-corridors`
 (the reference network's supply corridors; reference data, no book data). Census on the innovation branch:
 315 paths / 351 operations (+1 / +1 on 314 / 350).

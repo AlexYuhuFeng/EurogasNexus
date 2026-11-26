@@ -82,6 +82,7 @@ from eurogas_nexus.domain.lng.disruption import (
     option_dict,
     result_dict,
 )
+from eurogas_nexus.domain.ontology.notes import declare, note
 
 CONSUMER_NAME = "lng_disruption"
 #: The roles told about a new recommendation, and the alert category each is routed by.
@@ -126,6 +127,9 @@ OPTIONAL_KEYS: dict[str, str] = {
     "spare_slot_value_eur_mwh": "lng.disruption.spare_slot_value",
 }
 _UNITLESS = {"risk_weight", "cash_out_pct"}
+
+#: A slot the book cannot use (no hub or send-out rate): said, never silently dropped.
+SLOT_LEFT_OUT = declare("SLOT_LEFT_OUT", "slot {slot}: no hub or send-out rate; left out")
 
 
 def _aware(value: datetime | None) -> datetime | None:
@@ -505,7 +509,7 @@ def load_book(
             continue  # held by a cargo that is done or not this book's
         resolved = _terminal(session, slot.terminal_name)
         if resolved is None or not slot.send_out_gwh_d:
-            warnings.append(f"slot {slot.slot_id}: no hub or send-out rate; left out")
+            warnings.append(note(SLOT_LEFT_OUT, slot=slot.slot_id).text)
             continue
         terms, source = _slot_terms(session, slot, resolved.hub, slot.cargo_id)
         if terms.start + timedelta(days=terms.days) <= today:

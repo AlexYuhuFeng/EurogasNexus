@@ -91,7 +91,7 @@ def test_des_cargo_is_a_position_at_its_terminal_hub_and_fob_is_not() -> None:
     energy = 3_600_000 * 0.29307107
     assert base["delivery_point_name"] == "Gate terminal"
     assert base["delivery_quantity_mwh_per_day"] == pytest.approx(energy / 5, rel=1e-6)
-    assert base["notes_fields"]["counterparty"] == "Atlantic LNG Marketing (fictional)"
+    assert base["notes_fields"]["counterparty"] == "Atlantic LNG Marketing"
     assert base["notes_fields"]["price_basis"] == "formula"
     assert base["upstream_payment_lag_days"] == 20
     assert kinds.feeds_book("LNG_CARGO", terms)
@@ -178,7 +178,7 @@ def test_revision_v5_records_the_kind_and_round_trips() -> None:
     ).economic_snapshot
     assert typed.schema_version == CONTRACT_REVISION_SCHEMA_VERSION_V5
     document = typed.canonical_document()
-    assert document["kind_terms"]["seller_name"] == "Nordvik Energy (fictional)"
+    assert document["kind_terms"]["seller_name"] == "Nordvik Energy"
     rebuilt = UpstreamContractEconomicSnapshot.from_canonical_document(document)
     assert rebuilt.content_hash() == typed.content_hash()
     changed = map_legacy_contract_payload(

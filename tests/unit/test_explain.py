@@ -99,7 +99,7 @@ def test_the_prompt_asks_for_a_short_desk_note(desk):
 def test_an_outage_names_the_desk_position_at_its_hub(desk):
     with Session(desk) as session:
         result = explain(session, firm_caller(), "outage", "demo-umm-1", now=NOW)
-    assert "Demo Haldor field" in result.lines[0] and "unavailable" in result.lines[0]
+    assert "Haldor field" in result.lines[0] and "unavailable" in result.lines[0]
     assert any("at NBP today" in line for line in result.lines)
     assert result.sources == ["remit:demo-umm-1:v1"]
     assert result.simulated

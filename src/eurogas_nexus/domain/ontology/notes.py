@@ -14,8 +14,9 @@ A parameter that names a record carries the name a person knows (``ref_name``) b
 
 from __future__ import annotations
 
+import re
 import string
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 
 #: Every declared note: code -> English template (``str.format`` fields).
@@ -64,3 +65,62 @@ def note(code: str, **params: object) -> Note:
     if missing:
         raise KeyError(f"note {code} needs {', '.join(missing)}")
     return Note(code, params)
+
+
+# --------------------------------------------------------------------------- envelopes
+
+
+#: A stable ``CODE`` or ``CODE:detail`` line (the older coded warnings).
+_CODED_LINE = re.compile(r"^([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+)(?::(.*))?$")
+
+
+def _pattern(template: str) -> re.Pattern[str]:
+    """A declared template as a pattern that reads its parameters back from the text."""
+
+    out = []
+    for literal, name, _spec, _conv in _FORMATTER.parse(template):
+        out.append(re.escape(literal))
+        if name:
+            out.append(f"(?P<{name}>.+?)")
+    return re.compile("^" + "".join(out) + "$")
+
+
+def as_note(item: Note | Mapping[str, object] | str) -> dict[str, object]:
+    """Any warning as ``{code, params, text}``.
+
+    A note as it is; a ``CODE:detail`` line by its code (``detail`` as its parameter); an English
+    line a producer still appends as text is recognised from the declared templates (a module
+    that declares a note can keep appending ``note(...).text``); any other line keeps code
+    ``TEXT`` and is said as sent.
+    """
+
+    if isinstance(item, Note):
+        return item.as_dict()
+    if isinstance(item, Mapping):
+        return {
+            "code": str(item.get("code") or "TEXT"),
+            "params": dict(item.get("params") or {}),  # type: ignore[arg-type]
+            "text": str(item.get("text") or ""),
+        }
+    text = str(item).strip()
+    coded = _CODED_LINE.match(text)
+    if coded:
+        detail = (coded.group(2) or "").strip()
+        params = {"detail": detail} if detail else {}
+        return {"code": coded.group(1), "params": params, "text": text}
+    for code, template in CATALOGUE.items():
+        match = _pattern(template).match(text)
+        if match:
+            return {"code": code, "params": match.groupdict(), "text": text}
+    return {"code": "TEXT", "params": {}, "text": text}
+
+
+def split_notes(items: Iterable[Note | str]) -> tuple[list[str], list[dict[str, object]]]:
+    """``(warnings, notes)`` for an envelope's meta: the English lines once each (older
+    clients) and the same warnings as notes."""
+
+    seen: dict[str, dict[str, object]] = {}
+    for item in items:
+        found = as_note(item)
+        seen.setdefault(str(found["text"]), found)
+    return list(seen), list(seen.values())

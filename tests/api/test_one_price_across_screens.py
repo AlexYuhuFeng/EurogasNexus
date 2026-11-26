@@ -160,7 +160,6 @@ def test_todays_day_ahead_follows_a_live_tick_and_keeps_its_change_against_the_c
     da = next(h for h in before["rows"][0]["market"]["hubs"] if h["hub"] == "TTF")["day_ahead"]
     assert da is not None
     first = da["value"]
-    previous = da["series"][-2]["value"] if len(da["series"]) > 1 else None
     bid, ask = round(first + 0.25, 3), round(first + 0.30, 3)
     with Session(engine) as session:
         ingest_ticks(session, source_system="DEMO_Sim", simulated_allowed=True, quotes=[{
@@ -173,6 +172,10 @@ def test_todays_day_ahead_follows_a_live_tick_and_keeps_its_change_against_the_c
     one = da["resolved_price"]
     assert one is not None and one["kind"] == "live_tick" and one["simulated"] is True
     assert da["value"] == pytest.approx((bid + ask) / 2, abs=1e-4)
-    assert da["simulated"] is True and da["source"] == "Demo price"
-    if previous is not None:
-        assert da["day_change"] == pytest.approx(da["value"] - previous, abs=1e-3)
+    assert da["simulated"] is True and da["source"] == "Simulated price"
+    # Against the previous close: the day before's when the newest close is already for the
+    # contract trading now (overnight), the newest close itself during the trading day.
+    closes = [point["value"] for point in da["series"]]
+    assert any(
+        da["day_change"] == pytest.approx(da["value"] - close, abs=1e-3) for close in closes[-2:]
+    )

@@ -1,3 +1,4 @@
+import { serverWarningText } from "@/app/warningLabel";
 import { type ChangeEvent, type FormEvent, useEffect, useRef, useState } from "react";
 import { fetchWeatherForecasts, type ForecastPointReadingDTO, type ForecastReadEnvelopeDTO } from "@/api/client";
 import { Button, PanelHeader, Skeleton } from "@/components/ui";
@@ -172,7 +173,7 @@ export function WeatherForecastEvidence({ t }: WeatherForecastEvidenceProps) {
             <p style={hashStyle}>{envelope.meta.attribution}</p>
             <span>{t("sources.weather.warnings")}</span>
             {envelope.meta.warnings.length > 0 ? (
-              <ul>{envelope.meta.warnings.map((warning) => <li key={warning} style={hashStyle}>{warning}</li>)}</ul>
+              <ul>{envelope.meta.warnings.map((warning) => <li key={warning} style={hashStyle} title={warning}>{serverWarningText(warning, t)}</li>)}</ul>
             ) : (
               <small>{t("sources.weather.no_warnings")}</small>
             )}
