@@ -387,15 +387,16 @@ def smile_metrics(quotes: Sequence[SmileQuote], forward: float, tenor: float) ->
         if call25 is not None and put25 is not None and atm is not None
         else None
     )
-    call_oi = [
-        q.open_interest for q in quotes if q.option_type == CALL and q.open_interest is not None
-    ]
-    put_oi = [
-        q.open_interest for q in quotes if q.option_type == PUT and q.open_interest is not None
-    ]
+    call_all = [q.open_interest for q in quotes if q.option_type == CALL]
+    put_all = [q.open_interest for q in quotes if q.option_type == PUT]
+    call_oi = [value for value in call_all if value is not None]
+    put_oi = [value for value in put_all if value is not None]
     ratio = None
     if not call_oi or not put_oi:
         reasons["put_call_oi_ratio"] = "open_interest_not_published"
+    elif len(call_oi) < len(call_all) or len(put_oi) < len(put_all):
+        # A total with an unpublished strike in it is unknown, not smaller.
+        reasons["put_call_oi_ratio"] = "open_interest_incomplete"
     elif sum(call_oi) <= 0:
         reasons["put_call_oi_ratio"] = "no_call_open_interest"
     else:

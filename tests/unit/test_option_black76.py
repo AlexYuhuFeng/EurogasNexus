@@ -189,3 +189,15 @@ def test_source_precedence_exchange_then_vendor_then_simulated() -> None:
     assert choose_option_source({"ICE_ENDEX": 30, "EEX": 40}) == "EEX"
     assert choose_option_source({"ICE_ENDEX": 40, "EEX": 40}) == "EEX"
     assert choose_option_source({}) is None
+
+
+def test_the_open_interest_ratio_is_withheld_when_a_strike_has_none() -> None:
+    quotes = [
+        SmileQuote(30.0, CALL, 0.5, 100.0),
+        SmileQuote(31.0, CALL, 0.5, None),
+        SmileQuote(30.0, PUT, 0.5, 50.0),
+        SmileQuote(29.0, PUT, 0.5, 50.0),
+    ]
+    metrics = smile_metrics(quotes, 30.0, 0.25)
+    assert metrics.put_call_oi_ratio is None
+    assert metrics.reasons["put_call_oi_ratio"] == "open_interest_incomplete"

@@ -42,6 +42,12 @@ OPTION_SERIES_METRICS = {
     "pc_oi_ratio": ("put_call_oi_ratio", "ratio"),
 }
 MAX_ROWS = 200_000
+
+
+class OptionHistoryTooLarge(ValueError):
+    """More settlement rows than one read may hold; a partial read would bias the metrics."""
+
+    code = "option_history_too_large"
 _TIER_NAMES = {0: "exchange", 1: "licensed_vendor", 2: "simulated"}
 
 
@@ -65,12 +71,19 @@ def option_rows(
     )
     if source_systems is not None:
         query = query.filter(OptionSettlementRecord.source_system.in_(sorted(set(source_systems))))
+    # Read one row past the cap: a truncated read would drop whole days or part of a smile
+    # and still yield plausible-looking volatilities, so it is refused instead.
+    records = query.limit(MAX_ROWS + 1).all()
+    if len(records) > MAX_ROWS:
+        raise OptionHistoryTooLarge(
+            f"more than {MAX_ROWS} option settlements in the range; shorten the period"
+        )
     return [
         {
             column: getattr(record, column)
             for column in OptionSettlementRecord.__table__.columns.keys()
         }
-        for record in query.limit(MAX_ROWS).all()
+        for record in records
     ]
 
 
