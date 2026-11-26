@@ -37,7 +37,8 @@ from eurogas_nexus.application.reports.sections import BUILDERS, Ctx, zone_hubs
 #: The order sections feed the Key points box (market first, book last).
 KEY_POINT_ORDER = ("situation_event", "prices", "balance", "storage", "pipeline_supply",
                    "outages", "lng", "power_burn", "alerts", "book_position", "book_pnl",
-                   "book_limits", "book_contracts")
+                   "book_limits", "book_contracts", "pf_outlook", "pf_pnl", "pf_supply",
+                   "pf_trades", "pf_lng", "pf_strategies")
 KIND_LABELS = {"daily": "Daily", "weekly": "Weekly", "monthly": "Monthly",
                "situation": "Situation report", "ask": "Asked report"}
 
@@ -122,6 +123,8 @@ def _title(plan: ReportPlan, now: datetime) -> str:
             return f"西北欧天然气月报，{plan.period_start.year}年{plan.period_start.month}月"
         if plan.kind == "situation":
             return f"事件报告，{d} {now:%H:%M} UTC"
+        if is_portfolio_plan(plan):
+            return f"组合与展望，{d}"
         return f"专题报告，{d}"
     if plan.kind == "daily":
         word = "morning report" if plan.variant == "morning" else "end-of-day report"
@@ -133,7 +136,15 @@ def _title(plan: ReportPlan, now: datetime) -> str:
         return f"NW Europe gas monthly, {plan.period_start:%B %Y}"
     if plan.kind == "situation":
         return f"Situation report, {now:%d %b %Y %H:%M} UTC"
+    if is_portfolio_plan(plan):
+        return f"Portfolio and outlook, {now:%d %b %Y}"
     return f"Asked report, {now:%d %b %Y}"
+
+
+def is_portfolio_plan(plan: ReportPlan) -> bool:
+    """An asked report that is mostly the portfolio sections (titled as such)."""
+
+    return plan.kind == "ask" and sum(1 for key in plan.sections if key.startswith("pf_")) >= 3
 
 
 def _generate_report(
@@ -160,7 +171,11 @@ def _generate_report(
     omitted: list[dict[str, Any]] = []
     results: list[dict[str, Any]] = []
     raws: dict[str, Any] = {}
-    with book_scope_of(caller):
+    from eurogas_nexus.application.projections.daily_closes import shared_daily_rows
+
+    # The book sections (position, P&L, limits, the portfolio) each read the caller's closes:
+    # one read of them for the report, as the availability probe does.
+    with book_scope_of(caller), shared_daily_rows():
         from eurogas_nexus.security.portfolio_scope import visible_book_ids
 
         books_visible = visible_book_ids(session)

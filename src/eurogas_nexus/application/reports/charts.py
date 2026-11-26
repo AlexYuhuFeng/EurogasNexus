@@ -672,7 +672,7 @@ def _stacked(spec: dict, chart_id: str, bars: bool) -> str:
         out.append(f'<text x="{right + 4}" y="{y + 3:.1f}" fill="{colour}" class="r-dl" '
                    'font-size="8.5">'
                    f"{_e(text)}</text>")
-    out.append(_x_axis(xs, tick_x, bottom, PAD_LEFT, right))
+    out.append(_x_axis(xs, tick_x, bottom, PAD_LEFT, right, months=bool(spec.get("months"))))
     out.append(_hover(spec, xs, sx, PAD_TOP, bottom))
     out.append("</svg>")
     return "".join(out)
