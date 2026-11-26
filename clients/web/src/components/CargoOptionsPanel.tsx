@@ -7,6 +7,9 @@
  * a reason for each. "Breakdown" lists each cost line with the price, rate and tariff sources it
  * applied. The FX picker chooses how a figure in another currency is converted (ECB by
  * default); the cargo's demurrage is shown in the contract's currency with the rate used.
+ * "Berth rules" (2026-11-26) states each terminal's access rule as applied, recorded with its
+ * citation or the default; quotes, approvals and another company's delay are worded from their
+ * data in the reader's language, the server's sentence kept as the fallback.
  * "Choose" records the option a person picks (`POST .../choose`, audited): nothing is booked,
  * traded, nominated or sent. Styles: `cargo-options.css`, imported into `ds-components` by
  * `styles/design-system.css`.
@@ -18,6 +21,7 @@ import { readKey, useCachedRead } from "@/app/data/readCache";
 import { apiErrorDetailCode, describeFailure, presentError } from "@/app/experience/errorPresentation";
 import {
   DEFAULT_FX,
+  berthRuleLines,
   canChoose,
   consequences,
   costSplit,
@@ -29,6 +33,7 @@ import {
   statusKey,
   timelineLine,
   type FxPicker,
+  type OptionFlag,
   type OptionRow,
   type OptionStanding,
 } from "@/app/model/disruptionOptionsModel";
@@ -42,6 +47,15 @@ const TONE: Record<OptionStanding, StatusTone> = {
   frontier: "info",
   dominated: "neutral",
   infeasible: "breach",
+};
+
+/** A breach or an impossible option is red; what the option asks of others is to watch. */
+const FLAG_TONE: Record<OptionFlag, StatusTone> = {
+  contract_breach: "breach",
+  not_possible: "breach",
+  disrupts_normal_cargo: "watch",
+  needs_terminal_approval: "watch",
+  counterparty_quote_pending: "watch",
 };
 
 export function optionsKey(cargoId: string, fx?: DisruptionFxQuery): string {
@@ -165,6 +179,7 @@ function OptionsBody({ data, fx, t, language, canChooseOptions, onChosen }: { da
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const demurrage = demurrageLine(data.demurrage);
+  const berthRules = useMemo(() => berthRuleLines(data.berth_rules), [data.berth_rules]);
   const choose = (row: OptionRow) => {
     setBusy(row.option.option_id);
     setError(null);
@@ -263,7 +278,7 @@ function OptionsBody({ data, fx, t, language, canChooseOptions, onChosen }: { da
                     {typeof row.option.rank === "number" && <span className="cargo-option-rank">#{row.option.rank}</span>}
                     <StatusBadge tone={TONE[row.standing]}>{t(`lng.cargo.options.standing.${row.standing}`)}</StatusBadge>
                     {row.flags.map((flag) => (
-                      <StatusBadge key={flag} tone={flag === "disrupts_normal_cargo" ? "watch" : "breach"}>
+                      <StatusBadge key={flag} tone={FLAG_TONE[flag]}>
                         {t(`lng.cargo.options.flag.${flag}`)}
                       </StatusBadge>
                     ))}
@@ -291,7 +306,8 @@ function OptionsBody({ data, fx, t, language, canChooseOptions, onChosen }: { da
                     <ul className="cargo-option-consequences" aria-label={t("lng.cargo.options.consequences")}>
                       {lines.map((line, index) => (
                         <li key={`${line.kind}-${index}`} data-kind={line.kind}>
-                          <strong>{t(`lng.cargo.options.consequence.${line.kind}`)}</strong>: {line.text}
+                          <strong>{t(`lng.cargo.options.consequence.${line.kind}`)}</strong>:{" "}
+                          {line.i18n ? t(`lng.cargo.options.${line.i18n.key}`, { ...line.i18n.params, defaultValue: line.text }) : line.text}
                           {line.value !== null && line.value !== 0 && <> · {eur(line.value, language)} EUR</>}
                           {line.sources.length > 0 && <> · {t("lng.cargo.options.sources", { sources: line.sources.join("; ") })}</>}
                         </li>
@@ -340,6 +356,30 @@ function OptionsBody({ data, fx, t, language, canChooseOptions, onChosen }: { da
           {message && <p role="status">{message}</p>}
           {error && <p className="ds-field-error" role="alert">{error}</p>}
           <p className="cargo-board-sub">{t("lng.cargo.options.audit")}</p>
+        </section>
+      )}
+
+      {berthRules.length > 0 && (
+        <section className="cargo-plan-section" aria-labelledby="cargo-options-berth-rules" data-berth-rules="">
+          <details className="cargo-options-fold">
+            <summary>
+              <h3 id="cargo-options-berth-rules">{t("lng.cargo.options.berth_rules")}</h3>
+            </summary>
+            <ul className="cargo-option-notes">
+              {berthRules.map((rule) => (
+                <li key={rule.terminals.join("|")} data-basis={rule.basisKey}>
+                  <strong>{rule.terminals.join(", ")}</strong> · {t(`lng.cargo.options.berth_rule.${rule.basisKey}`)}
+                  {rule.citation ? ` [${rule.citation}]` : ""}
+                  <ul>
+                    <li>{t("lng.cargo.options.berth_rule.window", { count: rule.windowDays })}</li>
+                    <li>{t(`lng.cargo.options.berth_rule.${rule.laytimeKey}`)}</li>
+                    <li>{t(rule.approval ? "lng.cargo.options.berth_rule.approval_yes" : "lng.cargo.options.berth_rule.approval_no")}</li>
+                    {rule.wording && <li>{t("lng.cargo.options.berth_rule.wording", { text: rule.wording })}</li>}
+                  </ul>
+                </li>
+              ))}
+            </ul>
+          </details>
         </section>
       )}
 

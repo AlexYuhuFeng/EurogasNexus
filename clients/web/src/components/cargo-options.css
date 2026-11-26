@@ -163,4 +163,18 @@
     grid-column: 1 / -1;
     color: var(--ds-text-3);
   }
+
+  /* A folded section (the berth rules): the heading is the summary, opened on demand. */
+  .cargo-options-fold > summary {
+    cursor: pointer;
+    list-style-position: inside;
+  }
+
+  .cargo-options-fold > summary > h3 {
+    display: inline;
+  }
+
+  .cargo-options-fold[open] > summary {
+    margin-bottom: var(--ds-space-2);
+  }
 }

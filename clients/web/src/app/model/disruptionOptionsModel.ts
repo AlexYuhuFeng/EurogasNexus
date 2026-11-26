@@ -8,6 +8,7 @@
  * booked, traded, nominated or sent.
  */
 import type {
+  DisruptionBerthRuleDTO,
   DisruptionDemurrageDTO,
   DisruptionFxQuery,
   DisruptionLineDTO,
@@ -20,11 +21,14 @@ import type {
 export type OptionStanding = "recommended" | "frontier" | "dominated" | "infeasible";
 
 /** The option kinds the engine names, each with an i18n key under `lng.cargo.options.kind.`. */
-export const OPTION_KINDS = ["wait", "borrow", "buy", "borrow_buy", "swap", "divert", "absorb", "cover", "combined", "substitute", "spot"] as const;
+export const OPTION_KINDS = ["wait", "borrow", "buy", "borrow_buy", "swap", "divert", "absorb", "cover", "combined", "substitute", "spot", "berth_swap", "counterparty_swap"] as const;
 export type OptionKind = (typeof OPTION_KINDS)[number];
 
-/** LNG-4 flags, each with an i18n key under `lng.cargo.options.flag.`. */
-export type OptionFlag = "contract_breach" | "disrupts_normal_cargo" | "not_possible";
+/**
+ * LNG-4 flags, each with an i18n key under `lng.cargo.options.flag.`. 2026-11-26: a berth-turn
+ * swap needs the terminal's approval; a swap with another company's slot waits on its quote.
+ */
+export type OptionFlag = "contract_breach" | "disrupts_normal_cargo" | "not_possible" | "needs_terminal_approval" | "counterparty_quote_pending";
 
 export interface OptionRow {
   option: DisruptionOptionDTO;
@@ -59,11 +63,13 @@ export function kindOf(option: Pick<DisruptionOptionDTO, "kind">): OptionKind | 
   return (OPTION_KINDS as readonly string[]).includes(option.kind) ? (option.kind as OptionKind) : "other";
 }
 
-export function flagsOf(option: Pick<DisruptionOptionDTO, "feasible" | "possible" | "flags" | "breaches" | "disrupts">): OptionFlag[] {
+export function flagsOf(option: Pick<DisruptionOptionDTO, "feasible" | "possible" | "flags" | "breaches" | "disrupts" | "approvals" | "quotes">): OptionFlag[] {
   const out: OptionFlag[] = [];
   if (!isPossible(option)) out.push("not_possible");
   if (option.flags?.contract_breach || (option.breaches?.length ?? 0) > 0) out.push("contract_breach");
   if (option.flags?.disrupts_normal_cargo || (option.disrupts?.length ?? 0) > 0) out.push("disrupts_normal_cargo");
+  if (option.flags?.needs_terminal_approval || (option.approvals?.length ?? 0) > 0) out.push("needs_terminal_approval");
+  if (option.flags?.counterparty_quote_pending || (option.quotes ?? []).some((quote) => quote.status === "pending")) out.push("counterparty_quote_pending");
   return out;
 }
 
@@ -129,8 +135,15 @@ export function costSplit(option: Pick<DisruptionOptionDTO, "objectives" | "dire
 }
 
 export interface Consequence {
-  kind: "breach" | "moves" | "opportunity" | "cover";
+  /** 2026-11-26: `quote` (another company's quote), `approval` (the terminal's), `counterparty` (their delay, not valued). */
+  kind: "breach" | "moves" | "opportunity" | "cover" | "quote" | "approval" | "counterparty";
+  /** The server's English sentence: the fallback when the line has no `i18n` wording. */
   text: string;
+  /**
+   * The line worded from its data (2026-11-26 berth lines): an i18n key under
+   * `lng.cargo.options.` and its parameters, so a reader sees it in their own language.
+   */
+  i18n?: { key: string; params: Record<string, string | number> };
   /** EUR when the consequence is valued, null when the data does not hold its value. */
   value: number | null;
   sources: string[];
@@ -153,7 +166,99 @@ export function consequences(option: DisruptionOptionDTO): Consequence[] {
   for (const cover of option.covers ?? []) {
     out.push({ kind: "cover", text: `${cover.source_id}: ${Math.round(cover.mwh).toLocaleString("en-GB")} MWh for ${cover.obligation_id}`, value: null, sources: [] });
   }
+  // A quote is a cost the book pays (negative); pending, it has no value yet.
+  for (const quote of option.quotes ?? []) {
+    out.push({
+      kind: "quote",
+      text: quote.text,
+      i18n: {
+        key: quote.status === "pending" ? "quote_pending" : "quote_entered",
+        params: { counterparty: quote.counterparty, label: quote.label, terminal: quote.terminal, berth: quote.berth },
+      },
+      value: quote.amount_eur === null ? null : -quote.amount_eur,
+      sources: quote.source ? [quote.source] : [],
+    });
+  }
+  // The approvals as data where the server sends them (one per sentence), else the sentence.
+  const requests = option.approval_requests ?? [];
+  if (requests.length > 0) {
+    for (const request of requests) {
+      const known = request.kind === "berth_order" || request.kind === "ship_substitution";
+      out.push({
+        kind: "approval",
+        text: request.text,
+        i18n: known
+          ? { key: `approval.${request.kind}${request.party ? "_party" : ""}`, params: { terminal: request.terminal, with: request.with, party: request.party ?? "" } }
+          : undefined,
+        value: null,
+        sources: [],
+      });
+    }
+  } else {
+    for (const approval of option.approvals ?? []) {
+      out.push({ kind: "approval", text: approval, value: null, sources: [] });
+    }
+  }
+  // Another company's delay is stated, never valued: its cost is theirs, not the book's.
+  for (const effect of option.counterparty_effects ?? []) {
+    out.push({
+      kind: "counterparty",
+      text: effect.text,
+      i18n:
+        effect.kind === "berth_delay"
+          ? { key: "counterparty_delay", params: { label: effect.label, counterparty: effect.counterparty, terminal: effect.terminal, count: effect.delay_days } }
+          : undefined,
+      value: null,
+      sources: [...(effect.sources ?? [])],
+    });
+  }
   return out;
+}
+
+/**
+ * A berth rule as a reader weighs it (2026-11-26), with the terminals it applies to: terminals
+ * whose rule reads the same share one line, so four terminals on the default rule are one line,
+ * not four. Keys are under `lng.cargo.options.berth_rule.`.
+ */
+export interface BerthRuleLine {
+  terminals: string[];
+  /** Gas days from the slot's first gas day within which a ship berths in turn. */
+  windowDays: number;
+  /** `laytime_berthing` or `laytime_arrival`: when a late ship's laytime starts. */
+  laytimeKey: string;
+  /** Whether a change of berth order needs the terminal's approval. */
+  approval: boolean;
+  /** `basis.default`, `basis.terminal_code`, `basis.example`, `basis.assumption`; `basis.other` when unknown. */
+  basisKey: string;
+  citation: string | null;
+  /** The rule as the terminal's code words it, where held (shown as quoted, untranslated). */
+  wording: string | null;
+}
+
+const RULE_BASES = ["default", "terminal_code", "example", "assumption"];
+
+/** The berth rules as applied, recorded ones first, terminals with the same rule on one line. */
+export function berthRuleLines(rules: readonly DisruptionBerthRuleDTO[] | undefined): BerthRuleLine[] {
+  const groups = new Map<string, BerthRuleLine>();
+  const sorted = [...(rules ?? [])].sort(
+    (a, b) => Number(a.basis === "default") - Number(b.basis === "default") || a.terminal.localeCompare(b.terminal),
+  );
+  for (const rule of sorted) {
+    const line: BerthRuleLine = {
+      terminals: [rule.terminal],
+      windowDays: rule.arrival_window_days,
+      laytimeKey: rule.late_laytime_from === "arrival" ? "laytime_arrival" : "laytime_berthing",
+      approval: rule.swap_needs_terminal_approval,
+      basisKey: `basis.${RULE_BASES.includes(rule.basis) ? rule.basis : "other"}`,
+      citation: rule.citation?.trim() || null,
+      wording: rule.text?.trim() || null,
+    };
+    const key = JSON.stringify([line.windowDays, line.laytimeKey, line.approval, line.basisKey, line.citation, line.wording]);
+    const same = groups.get(key);
+    if (same) same.terminals.push(rule.terminal);
+    else groups.set(key, line);
+  }
+  return [...groups.values()];
 }
 
 /** LNG-4: a cost line's sources as one reading (null when the line names none). */

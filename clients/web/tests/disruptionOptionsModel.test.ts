@@ -10,8 +10,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import type { DisruptionOptionDTO } from "../src/api/client.ts";
+import en from "../src/i18n/en.json" with { type: "json" };
+import zh from "../src/i18n/zh.json" with { type: "json" };
 import {
   DEFAULT_FX,
+  berthRuleLines,
   canChoose,
   consequences,
   costSplit,
@@ -213,6 +216,120 @@ test("LNG-4: the consequences name the contract, the cargo moved and the opportu
   assert.deepEqual(divertLines[0].sources, ["demurrage: charter party GATE-1", "ECB 2027-01-19"]);
   const cover = consequences(option({ covers: [{ source_id: "hub:PEG:cepsa", obligation_id: "cepsa", mwh: 50_000, days: [] }] }));
   assert.equal(cover[0].text, "hub:PEG:cepsa: 50,000 MWh for cepsa");
+});
+
+test("berth priority (2026-11-26): a swap of berth turns needs the terminal's approval; another company's turn costs its quote, never its demurrage", () => {
+  const approval = "Zeebrugge to accept the change of berth order between ZEE-1 and ZEE-2";
+  const own = option({ kind: "berth_swap", approvals: [approval], flags: { physically_possible: true, contract_breach: false, disrupts_normal_cargo: true, needs_terminal_approval: true, counterparty_quote_pending: false } });
+  assert.equal(kindOf(own), "berth_swap");
+  assert.deepEqual(flagsOf(own), ["disrupts_normal_cargo", "needs_terminal_approval"]);
+  assert.deepEqual(consequences(own).map((line) => [line.kind, line.text, line.value]), [["approval", approval, null]]);
+
+  const quote = {
+    call_id: "zb-1",
+    label: "Other Shipper's carrier",
+    counterparty: "Other Shipper (illustrative)",
+    terminal: "Zeebrugge",
+    berth: "2027-01-28",
+    status: "pending" as const,
+    amount_eur: null,
+    text: "quote to obtain from Other Shipper (illustrative)",
+    source: null,
+    note: null,
+  };
+  const effect = {
+    kind: "berth_delay",
+    owner: "third_party" as const,
+    call_id: "zb-1",
+    label: "Other Shipper's carrier",
+    counterparty: "Other Shipper (illustrative)",
+    terminal: "Zeebrugge",
+    delay_days: 1,
+    held_by: "ZEE-1",
+    swapped: true,
+    in_pnl: false as const,
+    value_eur: null,
+    text: "Other Shipper's carrier berths 1 gas day later: its cost is their quote, not their demurrage",
+    sources: ["line-up"],
+  };
+  // Pending: flagged, and with no value until the quote is entered (the flags block absent too).
+  const pending = option({ kind: "counterparty_swap", quotes: [quote], counterparty_effects: [effect] });
+  assert.equal(kindOf(pending), "counterparty_swap");
+  assert.deepEqual(flagsOf(pending), ["counterparty_quote_pending"]);
+  assert.deepEqual(consequences(pending).map((line) => [line.kind, line.value]), [
+    ["quote", null],
+    ["counterparty", null],
+  ]);
+  // Entered: the quote is the one cost line; the other company's delay stays unvalued.
+  const entered = option({ kind: "counterparty_swap", quotes: [{ ...quote, status: "entered", amount_eur: 40_000, source: "quote ref-7" }], counterparty_effects: [effect] });
+  assert.deepEqual(flagsOf(entered), []);
+  const lines = consequences(entered);
+  assert.deepEqual(lines.map((line) => [line.kind, line.value]), [
+    ["quote", -40_000],
+    ["counterparty", null],
+  ]);
+  assert.deepEqual(lines[0].sources, ["quote ref-7"]);
+  assert.ok(!lines.some((line) => line.kind === "opportunity"));
+});
+
+test("berth priority: quotes, approvals and another company's delay are worded from their data in each language", () => {
+  const swap = option({
+    kind: "counterparty_swap",
+    approvals: ["Zeebrugge to accept the change of berth order with Other Shipper's carrier (Other Shipper)"],
+    approval_requests: [
+      { kind: "berth_order", terminal: "Zeebrugge", with: "Other Shipper's carrier", party: "Other Shipper", text: "Zeebrugge to accept the change of berth order with Other Shipper's carrier (Other Shipper)" },
+    ],
+    quotes: [{ call_id: "zb-1", label: "Other Shipper's carrier", counterparty: "Other Shipper", terminal: "Zeebrugge", berth: "2027-01-28", status: "pending", amount_eur: null, text: "quote to obtain from Other Shipper", source: null, note: null }],
+    counterparty_effects: [
+      { kind: "berth_delay", owner: "third_party", call_id: "zb-1", label: "Other Shipper's carrier", counterparty: "Other Shipper", terminal: "Zeebrugge", delay_days: 2, held_by: "ZEE-1", swapped: true, in_pnl: false, value_eur: null, text: "berths 2 gas days later", sources: [] },
+    ],
+  });
+  const lines = consequences(swap);
+  assert.deepEqual(lines.map((line) => [line.kind, line.i18n?.key]), [
+    ["quote", "quote_pending"],
+    ["approval", "approval.berth_order_party"],
+    ["counterparty", "counterparty_delay"],
+  ]);
+  assert.deepEqual(lines[1].i18n?.params, { terminal: "Zeebrugge", with: "Other Shipper's carrier", party: "Other Shipper" });
+  assert.equal(lines[2].i18n?.params.count, 2);
+  // The server's sentence stays as the fallback, and an older server's bare sentences still show.
+  assert.equal(lines[1].text, swap.approvals?.[0]);
+  const older = consequences(option({ approvals: ["Huelva to accept ZEE-1 in place of the ship nominated for the slot"] }));
+  assert.deepEqual(older.map((line) => [line.kind, line.text, line.i18n]), [["approval", "Huelva to accept ZEE-1 in place of the ship nominated for the slot", undefined]]);
+  const own = consequences(option({ approval_requests: [{ kind: "ship_substitution", terminal: "Huelva", with: "ZEE-1", party: null, text: "x" }] }));
+  assert.equal(own[0].i18n?.key, "approval.ship_substitution");
+
+  // Every key the model words a line with exists in English and Chinese, the plural forms too.
+  const keys = ["quote_pending", "quote_entered", "approval.berth_order", "approval.berth_order_party", "approval.ship_substitution", "approval.ship_substitution_party", "counterparty_delay_one", "counterparty_delay_other"];
+  for (const dictionary of [en, zh] as Record<string, string>[]) {
+    for (const key of keys) assert.ok(dictionary[`lng.cargo.options.${key}`], key);
+  }
+});
+
+test("berth priority: each terminal's rule as applied, recorded ones first, the default saying so", () => {
+  const lines = berthRuleLines([
+    { terminal: "Zeebrugge", arrival_window_days: 1, late_laytime_from: "berthing", swap_needs_terminal_approval: true, basis: "default", citation: null, text: null, rule: "default berth rule" },
+    { terminal: "Dunkerque", arrival_window_days: 2, late_laytime_from: "arrival", swap_needs_terminal_approval: false, basis: "terminal_code", citation: "Access Code s.4.2", text: " Ships berth in order of readiness. ", rule: "access code" },
+    { terminal: "Montoir", arrival_window_days: 1, late_laytime_from: "berthing", swap_needs_terminal_approval: true, basis: "new_kind", citation: "", text: "", rule: "?" },
+  ]);
+  assert.deepEqual(lines.map((line) => [line.terminals, line.basisKey, line.laytimeKey, line.approval, line.windowDays]), [
+    [["Dunkerque"], "basis.terminal_code", "laytime_arrival", false, 2],
+    [["Montoir"], "basis.other", "laytime_berthing", true, 1],
+    [["Zeebrugge"], "basis.default", "laytime_berthing", true, 1],
+  ]);
+  assert.equal(lines[0].citation, "Access Code s.4.2");
+  assert.equal(lines[0].wording, "Ships berth in order of readiness.");
+  assert.equal(lines[1].citation, null);
+  assert.equal(lines[1].wording, null);
+  // Terminals on the same rule share one line: four defaults are one line, not four.
+  const defaults = berthRuleLines(["Zeebrugge", "Huelva", "Rotterdam", "Dunkerque"].map((terminal) => ({ terminal, arrival_window_days: 1, late_laytime_from: "berthing", swap_needs_terminal_approval: true, basis: "default", citation: null, text: null, rule: "default" })));
+  assert.deepEqual(defaults.map((line) => line.terminals), [["Dunkerque", "Huelva", "Rotterdam", "Zeebrugge"]]);
+  assert.deepEqual(berthRuleLines(undefined), []);
+  const keys = ["berth_rules", "berth_rule.window_one", "berth_rule.window_other", "berth_rule.laytime_berthing", "berth_rule.laytime_arrival", "berth_rule.approval_yes", "berth_rule.approval_no", "berth_rule.wording",
+    ...["default", "terminal_code", "example", "assumption", "other"].map((basis) => `berth_rule.basis.${basis}`)];
+  for (const dictionary of [en, zh] as Record<string, string>[]) {
+    for (const key of keys) assert.ok(dictionary[`lng.cargo.options.${key}`], key);
+  }
 });
 
 test("LNG-4: each cost line lists its sources, and lines group by basis", () => {
