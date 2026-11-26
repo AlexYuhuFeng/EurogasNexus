@@ -104,7 +104,7 @@ def create_strategy_track(body: TrackInput, request: Request) -> dict:
                 "code": "track_invalid", "field": exc.code, "message": str(exc)}) from exc
         session.commit()
         # First evaluation at once, so the track opens with a state, not an empty card.
-        run_due(session)
+        run_due(session, track_ids=[data["track_id"]])
         session.commit()
         from eurogas_nexus.application.strategy_tracking import get_track
 
