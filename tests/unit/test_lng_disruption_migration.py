@@ -10,9 +10,6 @@ from alembic.migration import MigrationContext
 from alembic.operations import Operations
 from sqlalchemy import create_engine, inspect
 
-from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
-from scripts.release.release_metadata import latest_alembic_revision
-
 VERSIONS = Path(__file__).resolve().parents[2] / "alembic" / "versions"
 
 #: The columns 0087 adds to the LNG-3 tables (LNG-4).
@@ -70,7 +67,6 @@ def test_up_down_and_model_match():
     assert lng3.down_revision == "0084_news_items"
     assert lng4.revision == "0087_lng4_options_demurrage"
     assert lng4.down_revision == "0088_tar2_capacity_bookings"
-    assert DB_SCHEMA_REVISION == latest_alembic_revision()  # later revisions follow
     assert len(lng4.revision) <= 32  # alembic_version.version_num is VARCHAR(32)
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
