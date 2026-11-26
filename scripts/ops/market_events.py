@@ -77,31 +77,52 @@ def _listen(
     if bind.dialect.name != "postgresql":
         print(json.dumps({"status": "blocked", "reason": "listen_requires_postgresql"}))
         return 2
-    raw = bind.raw_connection()
-    try:
-        raw.driver_connection.autocommit = True
-        cursor = raw.cursor()
-        cursor.execute(f"LISTEN {market_events.NOTIFY_CHANNEL}")
-        notices = getattr(raw.driver_connection, "notifications", None)
-        done = 0
-        last = 0.0
-        while iterations is None or done < iterations:
-            time.sleep(poll_seconds)
-            cursor.execute("SELECT 1")  # pg8000 collects notices on any round trip
-            woken = bool(notices)
-            if notices:
-                notices.clear()
-            if not woken and time.monotonic() - last < interval:
-                continue
-            last = time.monotonic()
-            batches = market_events.drain(session_factory, max_batches=max_batches)
-            report = {"status": "ok", "woken": woken, "batches": batches}
-            if evaluate:
-                report["evaluation"] = _evaluate_due(session_factory)
-            print(json.dumps(report, default=str), flush=True)
-            done += 1
-    finally:
-        raw.close()
+    from eurogas_nexus.db.resilience import backoff_delays, is_connection_error
+
+    done = 0
+    delays = None
+    while iterations is None or done < iterations:
+        raw = None
+        try:
+            raw = bind.raw_connection()
+            raw.driver_connection.autocommit = True
+            cursor = raw.cursor()
+            cursor.execute(f"LISTEN {market_events.NOTIFY_CHANNEL}")
+            notices = getattr(raw.driver_connection, "notifications", None)
+            # Drain at once after (re)connecting: a notice sent while the connection was down
+            # (a failover) is lost, the outbox row is not.
+            last = 0.0
+            delays = None
+            while iterations is None or done < iterations:
+                time.sleep(poll_seconds)
+                cursor.execute("SELECT 1")  # pg8000 collects notices on any round trip
+                woken = bool(notices)
+                if notices:
+                    notices.clear()
+                if not woken and time.monotonic() - last < interval:
+                    continue
+                last = time.monotonic()
+                batches = market_events.drain(session_factory, max_batches=max_batches)
+                report = {"status": "ok", "woken": woken, "batches": batches}
+                if evaluate:
+                    report["evaluation"] = _evaluate_due(session_factory)
+                print(json.dumps(report, default=str), flush=True)
+                done += 1
+        except Exception as exc:  # noqa: BLE001 - classified: only a lost database is retried
+            if not is_connection_error(exc):
+                raise
+            delays = delays or backoff_delays(initial=1.0, maximum=30.0)
+            delay = next(delays)
+            print(json.dumps({"status": "database_unavailable",
+                              "error_type": type(exc).__name__,
+                              "retry_in_seconds": round(delay, 1)}), flush=True)
+            time.sleep(delay)
+        finally:
+            if raw is not None:
+                try:
+                    raw.close()
+                except Exception:  # noqa: BLE001 - the connection is already gone
+                    pass
     return 0
 
 
@@ -145,6 +166,9 @@ def main(argv: list[str] | None = None) -> int:
 
     session_factory = get_session_factory()
     if args.command == "listen":
+        from eurogas_nexus.db.resilience import wait_for_database_at_startup
+
+        wait_for_database_at_startup(component="market-events-worker")
         return _listen(
             session_factory,
             max(1.0, args.interval),

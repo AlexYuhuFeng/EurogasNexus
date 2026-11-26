@@ -24,6 +24,7 @@ from eurogas_nexus.application.dataops_runtime import (
     execute_claimed_runs,
     scan_scheduler,
 )
+from eurogas_nexus.application.retention import run_retention_if_due
 from eurogas_nexus.application.scheduled_source_keys import (
     activate_keyed_sources,
     key_configured,
@@ -738,6 +739,9 @@ def run_loop(
         emit(json.dumps({"status": "blocked", "reason": "database_url_missing"}))
         return 2
 
+    from eurogas_nexus.db.resilience import wait_for_database_at_startup
+
+    wait_for_database_at_startup(component="scheduler", emit=emit)
     session_factory = get_session_factory()
     configuration_blocks = {}
     try:
@@ -877,6 +881,11 @@ def _iteration(
         execution["strategy_tracking"] = track_strategies_if_due(
             session_factory, now_utc=now_utc
         )
+        # Retention by data class, once a day after its hour (application/retention.py). Runs
+        # here, so only the process holding the scheduler lock prunes, in the system book
+        # scope run_loop's caller set (it deletes across every book by data class, never by a
+        # user's scope). Never raises: a failure is reported in the summary and audited.
+        execution["retention"] = run_retention_if_due(session_factory, now_utc=now_utc)
         failures = [
             outcome
             for outcome in execution.get("outcomes", [])

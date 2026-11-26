@@ -130,3 +130,23 @@ def test_the_metrics_exporter_reads_the_store_in_the_system_scope(factory, deny_
     monkeypatch.setattr(dataops_observability, "prometheus_metrics", prometheus_metrics)
     body = metrics_endpoint.render_exposition()
     assert "books 2\n" in body and "eurogas_metrics_database_up 1" in body
+
+
+def test_the_retention_pass_runs_in_the_system_scope(factory, deny_all, monkeypatch):
+    """Retention prunes a data class across every book by age; started by the scheduler or by
+    an operator's command (scripts/ops/retention.py), it runs in the system scope, so a
+    deny-all or a person's scope left in the context cannot make it skip rows."""
+
+    from eurogas_nexus.application import retention
+
+    seen = {}
+
+    def run(*_args, **_kwargs):
+        seen["scope"] = portfolio_scope.current_scope()
+        seen["books"] = _books(factory)
+        return {"status": "ok"}
+
+    monkeypatch.setattr(retention, "_run_retention", run)
+    assert retention.run_retention(factory, mode="dry_run") == {"status": "ok"}
+    assert seen == {"scope": None, "books": 2}
+    assert portfolio_scope.current_scope() is portfolio_scope.DENY_ALL

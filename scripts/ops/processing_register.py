@@ -53,7 +53,8 @@ def facts() -> dict[str, str]:
         "identity": "; ".join(identity),
         "llm": llm,
         "audit_retention": (
-            f"{DEFAULT_AUDIT_RETENTION_DAYS} days by default (five years); configurable 30-3650"
+            f"{DEFAULT_AUDIT_RETENTION_DAYS} days by default and at least (seven years); "
+            "configurable up to 3650"
         ),
     }
 

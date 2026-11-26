@@ -76,7 +76,12 @@ def health_ready(request: Request) -> dict:
 
     engine = None
     try:
-        engine = get_engine(database_url)
+        # A one-off engine (no pool): a probe every few seconds must not count in the request
+        # pool's metrics, and it holds no connection between probes.
+        engine = get_engine(database_url, one_off=True)
+        # Reachability first: the revision read below swallows a connection failure, which
+        # used to report an unreachable database (a failover) as "migrations not current".
+        _require_writable_primary(engine)
         revision = get_alembic_revision(database_url)
         if revision != DB_SCHEMA_REVISION:
             raise HTTPException(
@@ -129,6 +134,30 @@ def health_ready(request: Request) -> dict:
         # installation says at its first probe what stands between it and live data.
         "attention": _public_source_attention(),
     }
+
+
+def _require_writable_primary(engine) -> None:
+    """Raise unless the database answers and accepts writes.
+
+    A hot standby answers reads and holds the current schema, so it would pass every other
+    check while refusing every write; during a failover the application must report not ready
+    until it reaches the promoted primary (db/resilience.py).
+    """
+
+    from sqlalchemy import text
+
+    from eurogas_nexus.db.resilience import in_recovery
+
+    with engine.connect() as connection:
+        connection.execute(text("SELECT 1")).scalar_one()
+        if in_recovery(connection):
+            raise HTTPException(
+                status_code=503,
+                detail={
+                    "code": "runtime_db_read_only",
+                    "message": "Runtime PostgreSQL is a standby in recovery and refuses writes.",
+                },
+            )
 
 
 def _public_source_attention() -> dict:

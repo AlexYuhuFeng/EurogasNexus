@@ -6,6 +6,36 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — P1-D recovery and retention merged (branch `int2`, not pushed)
+
+- `p1-D` merged onto int2 (P1-C + P1-A + secfix). Its migration is now
+  `0096_retention_by_class` after `0095_security_hardening` (one head; `DB_SCHEMA_REVISION`
+  0096), declared `conditional`: the downgrade refuses while a raw-page receipt has no inline
+  page (`tests/integration/test_retention_migration_postgres.py`). Its ADR is Decision 41.
+- Audit retention: seven years is the default and the floor (`EUROGAS_NEXUS_AUDIT_RETENTION_DAYS`
+  cannot lower it); one prune path, secfix's dual-controlled, audited prune with its chain
+  anchor; the retention job keeps the audit trail and trading records (`keep`).
+- The retention pass runs inside the scheduler's locked iteration (a standby never prunes)
+  and in the explicit system book scope, also when started by `scripts/ops/retention.py`.
+- One database-error mapping (`core/db_errors.py`) for the middleware and the handlers:
+  `runtime_db_timeout`, `runtime_db_unavailable` (lost store, no writable primary, a standby's
+  25006) and `runtime_db_commit_unconfirmed` (no retry hint). A connection lost while the
+  audit chain is sealed at commit is no longer swallowed (it became a PendingRollbackError).
+- Failover connects per host under the 5 s connect bound, the timeout fix's socket tuning
+  after; the start-up probe is one-off with a 10 s socket bound; readiness uses a one-off
+  engine (probes no longer count in the pool metrics). Readiness and the new
+  `eurogas_db_primary_writable` gauge share one standby check (alert `EurogasDatabaseReadOnly`).
+  One table of timeouts in `docs/operations/DB_RUNTIME_HARDENING.md`.
+- Compose: failover and start-up wait in every database user's settings; the object-store key
+  only in the scheduler and ingestion services (not the API). `deploy/ha`: read-only roots,
+  capabilities dropped (a node keeps the five its root start needs), no-new-privileges, the
+  replication passfile on a node-only tmpfs, and the app and owner roles documented.
+- The drill scripts' one-hour "connect timeout" workaround for the socket defect removed.
+- Not verified here: the HA image (pgBackRest from apt) could not be built on this machine
+  (no route to the Debian mirrors), so the hardened HA stack was tested only with the real node
+  entrypoint on `postgres:16` without pgBackRest; rerun `scripts/ops/ha_drill.py failover`
+  where the image builds.
+
 ## 2026-11-26 — Security remediation merged onto phase 1 (branch `int2`, not pushed)
 
 - `secfix` merged onto P1-C + P1-A. Streams keep the per-process poller (`api/stream_hub.py`)
@@ -202,6 +232,26 @@ No migration added; `DB_SCHEMA_REVISION` unchanged (0094). Verified on PostgreSQ
 (scratch container): lock and takeover, upgrade gate, lock-timeout rollback, concurrent
 index; end-to-end: 2 uvicorn workers summed in one scrape, a real Prometheus scraping with
 the token, EurogasSchedulerHeartbeatMissing firing and clearing when a heartbeat started.
+
+## 2026-11-26 — P1-D recovery and retention (branch `p1-D`, not pushed)
+
+- Decision record accepted: `docs/architecture/decisions/2026-11-26-standby-backup-object-storage-retention.md`
+  (was `DRAFT-...`), appended as ADR Decision 40 (Decision 41 after the int2 merge).
+- Database tier `deploy/ha`: primary and hot standby, pgBackRest (MIT) to any S3-compatible store,
+  one-command failover with fencing, rejoin by delta restore. Test object store SeaweedFS
+  (Apache-2.0), test-only; MinIO not used (AGPL). No new Python dependency (S3 signing over httpx).
+- Application during failover: `db/resilience.py` (start-up backoff, readiness fails on an
+  unreachable or read-only database, 503 instead of 500, `runtime_db_commit_unconfirmed` for a
+  commit whose outcome is unknown, failover hosts).
+- Retention by class (`application/retention.py`, migration `0095_retention_by_class`,
+  `DB_SCHEMA_REVISION` updated); raw pages stored once per digest; the 30/90-day deletion and
+  `prune_runtime_data.py` removed; audit prune floor 7 years.
+- Drills: `scripts/ops/ha_drill.py pitr|failover`; measured results in
+  `docs/operations/BACKUP_RESTORE.md` and `DISASTER_RECOVERY.md`. The 50 GB exit-criterion drill
+  needs the pilot servers.
+- Merge notes: migration 0095 may collide with other phase-1 packages' migrations (renumber the
+  later one); `scripts/ops/run_dataops_scheduler.py` and `deploy/runtime/compose.yaml` are also
+  edited by P1-C (small, separate hunks).
 
 ## 2026-11-26 — Architecture plan version 3 proposed (branch `archplan`, docs only, not pushed)
 

@@ -64,10 +64,16 @@ async def _application_lifespan(_app: FastAPI) -> AsyncIterator[None]:
     # before any request opens the first connection, not when the app is created: importing
     # the API must not load the database layer.
     use_api_statement_timeout()
-    # Background jobs run in this process: one that was running when the server last
-    # stopped can never finish, so it is failed with a reason now (best effort, never fatal).
+    # During a failover or a stack start the database may answer only after a while: wait with
+    # backoff up to EUROGAS_NEXUS_DB_STARTUP_WAIT_SECONDS (0 by default: no wait), off the
+    # event loop. Readiness stays 503 until the database answers either way.
     from starlette.concurrency import run_in_threadpool
 
+    from eurogas_nexus.db.resilience import wait_for_database_at_startup
+
+    await run_in_threadpool(wait_for_database_at_startup, component="api")
+    # Background jobs run in this process: one that was running when the server last
+    # stopped can never finish, so it is failed with a reason now (best effort, never fatal).
     from eurogas_nexus.application.background_jobs import fail_orphaned_jobs_quietly
 
     # Database work never runs on the event loop, at startup and shutdown included.

@@ -256,6 +256,28 @@ def register_error_handlers(app: FastAPI) -> None:
 
         correlation_id = getattr(request.state, "request_id", None) or uuid4().hex
         operator = _is_operator_request(request)
+        # Normally answered by DatabaseFailureMiddleware already; an application without it
+        # (or an exception raised outside it) gets the same coded 503 from the same mapping.
+        coded = database_failure_exception(exc)
+        if coded is not None:
+            detail = dict(coded.detail)
+            detail.pop("error_class", None)
+            payload = error_payload(
+                detail["code"],
+                correlation_id=correlation_id,
+                operator=operator,
+                operator_detail=_unhandled_detail(exc, operator=operator),
+            )
+            return JSONResponse(
+                status_code=503,
+                content={
+                    "detail": detail,
+                    **payload,
+                    "params": {},
+                    "fallback_message": detail["message"],
+                },
+                headers={"X-Request-Id": correlation_id, **(coded.headers or {})},
+            )
         payload = error_payload(
             UNHANDLED_ERROR_CODE,
             correlation_id=correlation_id,
@@ -269,14 +291,29 @@ def register_error_handlers(app: FastAPI) -> None:
         )
 
 
+#: What the caller is told when the database fails over under a request (db/resilience.py).
+_COMMIT_UNCONFIRMED_MESSAGE = (
+    "The database connection was lost while saving; the change may or may not have been "
+    "saved. Check before trying again."
+)
+_DB_UNAVAILABLE_MESSAGE = (
+    "Runtime PostgreSQL is unreachable or read-only; nothing was saved. Retry shortly."
+)
+
+
 def database_failure_exception(exc: BaseException) -> HTTPException | None:
     """The coded 503 for a database failure a route did not catch, or None.
 
-    A statement the server cancelled (``statement_timeout``) answers ``runtime_db_timeout``; a
-    lost or unreachable store ``runtime_db_unavailable``; both say when to retry.
+    One classification (``core/db_errors.py``) for the middleware and the handlers. A statement
+    the server cancelled (``statement_timeout``) answers ``runtime_db_timeout``; a lost or
+    unreachable store, a failover with no writable primary or a standby refusing a write
+    ``runtime_db_unavailable`` (nothing was saved); both say when to retry. A connection lost
+    during COMMIT (db/resilience.py) answers ``runtime_db_commit_unconfirmed``: the change may
+    have been saved, so there is no retry hint; the user checks first.
     """
 
     from eurogas_nexus.core.db_errors import (
+        DB_COMMIT_UNCONFIRMED_CODE,
         DB_RETRY_AFTER_SECONDS,
         DB_TIMEOUT_CODE,
         database_failure,
@@ -285,6 +322,15 @@ def database_failure_exception(exc: BaseException) -> HTTPException | None:
     kind = database_failure(exc)
     if kind is None:
         return None
+    if kind == "commit_unconfirmed":
+        return HTTPException(
+            status_code=503,
+            detail={
+                "code": DB_COMMIT_UNCONFIRMED_CODE,
+                "message": _COMMIT_UNCONFIRMED_MESSAGE,
+                "error_class": type(exc).__name__,
+            },
+        )
     retry = {"Retry-After": str(DB_RETRY_AFTER_SECONDS)}
     if kind == "timeout":
         return HTTPException(
@@ -300,7 +346,7 @@ def database_failure_exception(exc: BaseException) -> HTTPException | None:
         status_code=503,
         detail={
             "code": "runtime_db_unavailable",
-            "message": "The runtime database could not be reached.",
+            "message": _DB_UNAVAILABLE_MESSAGE,
             "error_class": type(exc).__name__,
         },
         headers=retry,
@@ -308,18 +354,21 @@ def database_failure_exception(exc: BaseException) -> HTTPException | None:
 
 
 def _as_database_timeout(exc: StarletteHTTPException) -> StarletteHTTPException:
-    """A route's own 503 for a database error whose cause was a statement timeout.
+    """A route's own 503 for a database error whose cause was a statement timeout or a commit
+    whose outcome is unknown.
 
     Routes answer a database error as ``runtime_db_unavailable`` (``raise ... from exc``);
     when the cause was the server cancelling a slow statement, the store is up and the read
-    was slow, so the answer names that and tells the client when to retry.
+    was slow, so the answer names that and tells the client when to retry. When the cause was
+    a connection lost during COMMIT, "nothing was saved" would be wrong, so the answer says
+    the outcome is unknown.
     """
 
     if exc.status_code != 503 or exc.__cause__ is None:
         return exc
-    from eurogas_nexus.core.db_errors import is_statement_timeout
+    from eurogas_nexus.core.db_errors import is_commit_unconfirmed, is_statement_timeout
 
-    if not is_statement_timeout(exc.__cause__):
+    if not (is_statement_timeout(exc.__cause__) or is_commit_unconfirmed(exc.__cause__)):
         return exc
     coded = database_failure_exception(exc.__cause__)
     if coded is None:

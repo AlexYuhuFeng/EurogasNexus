@@ -55,9 +55,14 @@ def test_api_container_probe_accepts_actual_readiness_response(monkeypatch) -> N
     from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 
     monkeypatch.setattr(session, "resolve_database_url", lambda: "postgresql://synthetic")
-    monkeypatch.setattr(session, "get_engine", lambda _: Mock())
+    monkeypatch.setattr(session, "get_engine", lambda _url, **_options: Mock())
     monkeypatch.setattr(health, "get_alembic_revision", lambda _: DB_SCHEMA_REVISION)
     monkeypatch.setattr(registry, "list_missing_required_tables", lambda _: ())
+    # The synthetic engine answers as a writable primary (the check itself is tested in
+    # tests/unit/test_db_resilience.py).
+    from eurogas_nexus.api.routes.public import health as health_route
+
+    monkeypatch.setattr(health_route, "_require_writable_primary", lambda _engine: None)
     payload = health_ready(Request({"type": "http"}))
     monkeypatch.setenv("EUROGAS_NEXUS_PUBLIC_API_TOKEN", "synthetic-probe-token")
 

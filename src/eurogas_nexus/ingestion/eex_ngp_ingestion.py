@@ -47,7 +47,10 @@ from eurogas_nexus.db.repositories.eex_ngp_persistence import (
     EexNgpRevisionRequiresHistoryError,
     upsert_eex_ngp_observation_rows,
 )
-from eurogas_nexus.db.repositories.raw_archive import archive_raw_payload
+from eurogas_nexus.db.repositories.raw_archive import (
+    archive_raw_payload,
+    load_raw_payload_text,
+)
 from eurogas_nexus.ingestion.eex_ngp import (
     SOURCE_DATASET,
     SOURCE_REFERENCE,
@@ -373,7 +376,11 @@ def _archive_exact_bytes(
                 received_at_utc=receipt,
             )
             stored_receipt = getattr(record, "received_at_utc", None)
-            stored_text = getattr(record, "payload_text", None)
+            # The page is kept once under its digest (raw_archive.py): read it back from
+            # where it is stored, not from the receipt row.
+            stored_text = (
+                None if record is None else load_raw_payload_text(session, record)
+            )
             if (
                 record is None
                 or getattr(record, "archive_id", None) != archive_id

@@ -63,7 +63,8 @@ and 10 hours in all (`EUROGAS_NEXUS_SESSION_IDLE_MINUTES`, `_ABSOLUTE_HOURS`).
 
 Audit rows are hash-chained; `GET /api/audit/verify` and
 `scripts/ops/verify_audit_chain.py` check the chain. Pruning keeps at least
-`EUROGAS_NEXUS_AUDIT_RETENTION_DAYS` (default five years) and needs a second administrator; the
+`EUROGAS_NEXUS_AUDIT_RETENTION_DAYS` (default and floor seven years since the retention merge;
+five years when this note was written) and needs a second administrator; the
 internal token can no longer delete audit rows. Run `deploy/runtime/database_roles.sql` to give
 the application an INSERT-only audit role ([DATABASE_ROLES.md](../../security/DATABASE_ROLES.md)).
 `EUROGAS_NEXUS_AUDIT_SINK` forwards audit rows to your SIEM.

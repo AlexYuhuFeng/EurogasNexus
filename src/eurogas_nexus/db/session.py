@@ -434,6 +434,15 @@ def get_engine(
         return engine
     from sqlalchemy import event
 
+    from eurogas_nexus.db.resilience import failover_hosts, install_primary_only_connect
+
+    # A primary and its standby (db/resilience.py): each new connection lands on the writable
+    # one. Each host is tried with the same connect bound (``connect_args``); the socket
+    # tuning below runs once the chosen connection is established.
+    extra_hosts = failover_hosts()
+    if extra_hosts:
+        install_primary_only_connect(engine, extra_hosts)
+
     timeout_ms = statement_timeout_ms() if statement_timeout is _FROM_ROLE else statement_timeout
     socket_timeout = (
         socket_timeout_for(timeout_ms)  # type: ignore[arg-type]
@@ -467,10 +476,37 @@ def get_engine(
     return engine
 
 
+class ResilientSession(Session):
+    """A session that says whether an interrupted commit may have been applied.
+
+    The pending changes are flushed first: a failure there means the transaction never
+    reached ``COMMIT`` and PostgreSQL discards it (nothing was saved; the error propagates
+    unchanged). A connection lost during ``COMMIT`` itself leaves the outcome unknown, and is
+    raised as :class:`eurogas_nexus.db.resilience.CommitOutcomeUnknown` so no caller mistakes
+    it for "not saved" and retries a write that may already be in the database.
+    """
+
+    def commit(self) -> None:
+        from eurogas_nexus.db.resilience import CommitOutcomeUnknown, is_connection_error
+
+        self.flush()
+        try:
+            super().commit()
+        except Exception as exc:
+            if is_connection_error(exc):
+                raise CommitOutcomeUnknown(
+                    "the database connection was lost while committing; the write may or may "
+                    "not have been applied"
+                ) from exc
+            raise
+
+
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:
     """Return a configured session factory."""
 
-    return sessionmaker(bind=engine, autocommit=False, autoflush=False, class_=Session)
+    return sessionmaker(
+        bind=engine, autocommit=False, autoflush=False, class_=ResilientSession
+    )
 
 
 _CACHED_ENGINES: list[Engine] = []

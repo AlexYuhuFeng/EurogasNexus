@@ -64,7 +64,7 @@ data is required; ETRM imports carry an optional counterparty label only.
 |---|---|
 | Lawful basis and purpose | Employment / legitimate interest of the firm; data limited to access control and accountability |
 | Minimisation | Only the fields above; preferences hold no personal content |
-| Retention | Audit events kept 5 years by default (`DEFAULT_AUDIT_RETENTION_DAYS = 1827`), configurable 30-3650 days; job records and raw payloads pruned by `prune_runtime_data.py` |
+| Retention | By data class ([RETENTION_SCHEDULE.md](RETENTION_SCHEDULE.md)): trading records, decisions and audit kept at least 7 years (`DEFAULT_AUDIT_RETENTION_DAYS = MIN = 2557`, operator prune refuses less); settlements and fundamentals kept; ticks archived then thinned, raw pages stored once then offloaded, intraday snapshots archived then removed, each verified in object storage first; scheduled daily and audited (`scripts/ops/retention.py`) |
 | Access requests | `scripts/ops/personal_data_export.py` exports every record naming the person, secrets withheld, and audits the export |
 | Erasure and rectification | Administrators disable the identity and minimise its profile; records the firm must keep by law (audit trail, decision records) are retained, which GDPR Art. 17(3)(b) permits for legal obligations |
 | Cross-border transfers | One UK-hosted primary for UK, Canada and Singapore; a separate China installation; transfers only by approved, signed, one-way exports (`docs/architecture/GLOBAL_DEPLOYMENT.md`) |

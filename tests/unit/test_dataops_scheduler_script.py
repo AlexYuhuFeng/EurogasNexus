@@ -497,3 +497,60 @@ def test_a_failed_script_with_no_report_is_still_internal() -> None:
 
     result = run_ingestor_attempt(fake_runner)({"source_id": "src-eia", "run_id": "r"}, 1)
     assert result.classification == FailureCategory.INTERNAL
+
+
+class _Lease:
+    """A scheduler lock another process holds (``held=False``) or this one holds."""
+
+    def __init__(self, *, held: bool) -> None:
+        import threading
+
+        self.held = held
+        self.lost = threading.Event()
+        self.postgresql = False
+
+    def acquire(self) -> bool:
+        return self.held
+
+    def release(self) -> None:
+        self.held = False
+
+
+@pytest.mark.parametrize(("held", "runs"), [(True, 1), (False, 0)])
+def test_the_retention_pass_runs_only_under_the_scheduler_lock(monkeypatch, held, runs):
+    """Retention by data class (application/retention.py) is part of the locked iteration: a
+    standby scheduler never prunes, so two schedulers never prune at once."""
+
+    from contextlib import nullcontext
+
+    from scripts.ops import run_dataops_scheduler as scheduler
+
+    monkeypatch.setattr(scheduler, "resolve_database_url", lambda: "configured")
+    monkeypatch.setattr(
+        scheduler,
+        "get_session_factory",
+        lambda: lambda: nullcontext(SimpleNamespace(commit=lambda: None)),
+    )
+    monkeypatch.setattr(scheduler, "scan_scheduler", lambda *args, **kwargs: {})
+    monkeypatch.setattr(scheduler, "execute_claimed_runs", lambda *a, **k: {"outcomes": []})
+    for name in ("evaluate_opportunities_if_due", "deliver_market_events"):
+        monkeypatch.setattr(scheduler, name, lambda *a, **k: {"status": "ok"})
+    monkeypatch.setattr(scheduler, "track_strategies_if_due", lambda *a, **k: {"status": "ok"})
+    calls = []
+    monkeypatch.setattr(
+        scheduler,
+        "run_retention_if_due",
+        lambda *a, **k: calls.append(1) or {"status": "not_due"},
+    )
+    reports = []
+    scheduler.run_loop(
+        interval_seconds=60,
+        max_iterations=1,
+        emit=reports.append,
+        entsog_lookback_gas_days=7,
+        lease_factory=lambda _factory: _Lease(held=held),
+        sleeper=lambda _seconds: None,
+    )
+    assert len(calls) == runs
+    if held:
+        assert json.loads(reports[-1])["execution"]["retention"] == {"status": "not_due"}

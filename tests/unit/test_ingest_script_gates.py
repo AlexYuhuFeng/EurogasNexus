@@ -375,7 +375,10 @@ def test_archive_raw_payload_writes_row(tmp_path, monkeypatch) -> None:
     assert len(rows) == 1
     row = rows[0]
     assert row.source_system == "ECB"
-    assert row.payload_text == "<xml/>"
+    from eurogas_nexus.db.repositories.raw_archive import load_raw_payload_text
+
+    with Session(engine) as session:
+        assert load_raw_payload_text(session, row.archive_id) == "<xml/>"
     assert len(row.payload_sha256) == 64
     # SQLite round-trips timestamps as naive; compare on the UTC instant.
     stored = row.received_at_utc

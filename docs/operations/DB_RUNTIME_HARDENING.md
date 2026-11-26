@@ -76,14 +76,20 @@ python scripts/ops/validate_runtime_db.py --json
 
 ## Timeouts
 
-Each timeout has one meaning (`db/session.py`; `tests/unit/test_db_timeouts.py`,
-`tests/integration/test_db_timeouts_postgres.py`).
+Each timeout has one meaning (`db/session.py`, `db/resilience.py`;
+`tests/unit/test_db_timeouts.py`, `tests/unit/test_db_resilience.py`,
+`tests/integration/test_db_timeouts_postgres.py`,
+`tests/integration/test_db_failover_resilience_postgres.py`). This is the one table: other
+runbooks link here.
 
 | Bound | Where | Value |
 | --- | --- | --- |
 | Connect (TCP, TLS, sign-in) | every engine `get_engine` builds | 5 s |
+| | with `EUROGAS_NEXUS_DB_FAILOVER_HOSTS` (primary and standby) | 5 s per host, tried in order, plus one `pg_is_in_recovery()` under the same bound: at most 5 s x hosts |
+| Start-up wait (`SELECT 1` with backoff, 0.5 s doubling to 10 s, jitter 20 %) | API and workers at start (`wait_for_database_at_startup`) | `EUROGAS_NEXUS_DB_STARTUP_WAIT_SECONDS`: 0 by default, 60 s in the shipped stacks; each try has the connect bound and a 10 s socket bound |
+| Readiness probe (`/api/health/ready`) | one connection per probe, no pool | the connect bound; the container's probe gives up after 3 s |
 | Statement (PostgreSQL `statement_timeout`) | API processes, incl. background jobs run inside the API | 30 s per statement (`EUROGAS_NEXUS_DB_STATEMENT_TIMEOUT_MS`) |
-| | workers, the scheduler, the demo seed, operator commands | none |
+| | workers, the scheduler (the daily retention pass included), the demo seed, operator commands | none |
 | | migrations (`alembic/env.py`, the gated upgrade) | 1 h, with `lock_timeout` 10 s (`EUROGAS_NEXUS_MIGRATION_*`) |
 | Socket read (safety net only) | API connections | statement timeout + 30 s (60 s) |
 | | every other connection | none; TCP keepalives instead |
@@ -96,7 +102,9 @@ locks: the demo's re-seed and heavy pages under load failed that way, and the AP
 statement timeout could never act. Now a statement the server cancels answers 503
 `runtime_db_timeout` with `Retry-After: 5`, its connection goes back to the pool rolled back,
 and `eurogas_db_statement_timeouts_total` counts it; a lost connection is dropped, answered 503
-`runtime_db_unavailable` and counted in `eurogas_db_connections_lost_total`.
+`runtime_db_unavailable` and counted in `eurogas_db_connections_lost_total`. A connection lost
+during COMMIT answers 503 `runtime_db_commit_unconfirmed` without a retry hint (the change may be
+saved; `db/resilience.py`). One classification serves all of these (`core/db_errors.py`).
 
 ## Import Safety Guarantee
 

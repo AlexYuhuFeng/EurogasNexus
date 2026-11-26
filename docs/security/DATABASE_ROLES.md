@@ -75,13 +75,16 @@ row is an insert too.
 
 ## Retention and pruning
 
-- Retention is `EUROGAS_NEXUS_AUDIT_RETENTION_DAYS` (default 1827 days, five years; at least
-  365). Nothing younger is ever pruned.
+- Retention is `EUROGAS_NEXUS_AUDIT_RETENTION_DAYS` (default 2557 days, seven years, which is
+  also the floor: a lower setting is raised to it; data class `audit_and_decisions` in
+  `docs/compliance/RETENTION_SCHEDULE.md`). Nothing younger is ever pruned.
+- This is the only path that deletes audit rows: the scheduled retention job
+  (`application/retention.py`) keeps the audit trail and never prunes it.
 - A dry run (`POST /api/audit/prune` with `dry_run: true`) counts what would go.
 - A deletion is dual-controlled: the request answers 409 `dual_control_required`; a second
   administrator approves it under Admin, Access (pending approvals); the requester repeats the
   call with `X-Eurogas-Dual-Control: <change_id>`. With the roles split, the deletion is run by
-  the owner role: `python scripts/ops/prune_audit_events.py --retention-days 1827 --commit
+  the owner role: `python scripts/ops/prune_audit_events.py --retention-days 2557 --commit
   --approved-change <change_id>` with the owner's database URL.
 - Only the oldest contiguous part of the chain is removed; the last removed link is kept as a
   prune anchor, so the rest still verifies. The prune itself is audited.

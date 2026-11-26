@@ -6,8 +6,8 @@ H5/H7); with the database roles split it runs with the schema owner's URL, becau
 application role may not delete audit rows (docs/security/DATABASE_ROLES.md).
 
 Usage:
-    python scripts/ops/prune_audit_events.py --retention-days 1827
-    python scripts/ops/prune_audit_events.py --retention-days 1827 --commit --approved-change pc-...
+    python scripts/ops/prune_audit_events.py --retention-days 2557
+    python scripts/ops/prune_audit_events.py --retention-days 2557 --commit --approved-change pc-...
 """
 
 from __future__ import annotations

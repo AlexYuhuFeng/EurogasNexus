@@ -154,7 +154,14 @@ def _rows(session, model):
 
 
 def _archives(session):
-    return _rows(session, RawPayloadArchiveRecord)
+    """Receipts with the exact page each one archived (kept once under its digest)."""
+
+    from eurogas_nexus.db.repositories.raw_archive import load_raw_payload_text
+
+    return [
+        {**row, "payload_text": load_raw_payload_text(session, row["archive_id"])}
+        for row in _rows(session, RawPayloadArchiveRecord)
+    ]
 
 
 def _map_rows(capture: EexPublicCapture) -> list[dict]:

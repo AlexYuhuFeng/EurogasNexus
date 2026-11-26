@@ -14,13 +14,37 @@ x-db-environment: &db-environment
   EUROGAS_NEXUS_VERSION: ${EUROGAS_NEXUS_VERSION}
   # Every service writes audit rows: each is sealed and forwarded to the SIEM (H5).
   EUROGAS_NEXUS_AUDIT_SINK: ${EUROGAS_NEXUS_AUDIT_SINK:-}
-  EUROGAS_NEXUS_AUDIT_RETENTION_DAYS: ${EUROGAS_NEXUS_AUDIT_RETENTION_DAYS:-1827}
+  # Seven years, and never less (application/audit_retention.py).
+  EUROGAS_NEXUS_AUDIT_RETENTION_DAYS: ${EUROGAS_NEXUS_AUDIT_RETENTION_DAYS:-2557}
+  # Database failover (deploy/ha, db/resilience.py): with a primary and a standby, the URL
+  # names one node and this lists the other; each new connection keeps the node that accepts
+  # writes. Empty on the single-machine stack.
+  EUROGAS_NEXUS_DB_FAILOVER_HOSTS: ${EUROGAS_NEXUS_DB_FAILOVER_HOSTS:-}
+  # Wait for the database with backoff at start-up instead of failing (seconds).
+  EUROGAS_NEXUS_DB_STARTUP_WAIT_SECONDS: ${EUROGAS_NEXUS_DB_STARTUP_WAIT_SECONDS:-60}
+
+# Object storage for retention archives and offloaded raw pages (docs/compliance/
+# RETENTION_SCHEDULE.md): only the services that write or read them, the scheduler (the daily
+# retention pass, and the ingestion it runs) and the one-off ingestion. The API never reads an
+# offloaded page, so it holds no object-store key. Unset: the retention pass archives and
+# removes nothing.
+x-object-store-environment: &object-store-environment
+  EUROGAS_NEXUS_OBJECT_STORE_URL: ${EUROGAS_NEXUS_OBJECT_STORE_URL:-}
+  EUROGAS_NEXUS_OBJECT_STORE_ENDPOINT: ${EUROGAS_NEXUS_OBJECT_STORE_ENDPOINT:-}
+  EUROGAS_NEXUS_OBJECT_STORE_REGION: ${EUROGAS_NEXUS_OBJECT_STORE_REGION:-us-east-1}
+  EUROGAS_NEXUS_OBJECT_STORE_ACCESS_KEY_ID: ${EUROGAS_NEXUS_OBJECT_STORE_ACCESS_KEY_ID:-}
+  EUROGAS_NEXUS_OBJECT_STORE_SECRET_ACCESS_KEY: ${EUROGAS_NEXUS_OBJECT_STORE_SECRET_ACCESS_KEY:-}
+  EUROGAS_NEXUS_OBJECT_STORE_CA_FILE: ${EUROGAS_NEXUS_OBJECT_STORE_CA_FILE:-}
+  EUROGAS_NEXUS_OBJECT_STORE_URI_STYLE: ${EUROGAS_NEXUS_OBJECT_STORE_URI_STYLE:-}
+  EUROGAS_NEXUS_RETENTION_MODE: ${EUROGAS_NEXUS_RETENTION_MODE:-enforce}
+  EUROGAS_NEXUS_RETENTION_HOUR_UTC: ${EUROGAS_NEXUS_RETENTION_HOUR_UTC:-2}
 
 # Migrations run as the schema owner; the services connect as the application role, which
 # has no UPDATE or DELETE on the audit trail (docs/security/DATABASE_ROLES.md). Until the
 # roles are created both fall back to POSTGRES_USER.
 x-migrate-environment: &migrate-environment
   RUNTIME_STORE_DATABASE_URL: postgresql+pg8000://${EUROGAS_NEXUS_OWNER_DB_USER:-${POSTGRES_USER}}:${EUROGAS_NEXUS_OWNER_DB_PASSWORD:-${POSTGRES_PASSWORD}}@postgres:5432/${POSTGRES_DB}
+  EUROGAS_NEXUS_DB_FAILOVER_HOSTS: ${EUROGAS_NEXUS_DB_FAILOVER_HOSTS:-}
   EUROGAS_NEXUS_ENV: release
   EUROGAS_NEXUS_API_PROFILE: release
   EUROGAS_NEXUS_VERSION: ${EUROGAS_NEXUS_VERSION}
@@ -234,7 +258,8 @@ services:
     <<: *hardening
     image: ${EUROGAS_NEXUS_API_IMAGE}
     profiles: ["tools"]
-    environment: *provider-environment
+    environment:
+      <<: [*provider-environment, *object-store-environment]
     command:
       - python
       - scripts/ops/ingest_public_sources.py
@@ -278,7 +303,8 @@ services:
     profiles: ["public-ingestion"]
     restart: unless-stopped
     logging: *default-logging
-    environment: *provider-environment
+    environment:
+      <<: [*provider-environment, *object-store-environment]
     command:
       - python
       - scripts/ops/run_dataops_scheduler.py

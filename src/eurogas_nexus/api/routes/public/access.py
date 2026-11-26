@@ -1289,7 +1289,8 @@ def checkpoint_audit(request: Request) -> dict:
 
 class AuditPruneBody(BaseModel):
     model_config = ConfigDict(extra="forbid")
-    retention_days: int = Field(ge=365, le=3650)
+    # Seven years is the floor (application/audit_retention.py).
+    retention_days: int = Field(ge=2557, le=3650)
     dry_run: bool = True
 
 

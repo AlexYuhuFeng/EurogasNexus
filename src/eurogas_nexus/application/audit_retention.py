@@ -1,7 +1,12 @@
-"""Audit-event retention (R32; security review H5).
+"""Audit-event retention (R32; security review H5; retention schedule class
+``audit_and_decisions``).
 
-* Retention is configured (``EUROGAS_NEXUS_AUDIT_RETENTION_DAYS``, default five years, at least
-  one year): nothing younger is ever pruned, whatever a caller asks for.
+This is the ONE path that deletes audit rows. The scheduled retention job
+(``application/retention.py``, ``scripts/ops/retention.py``) never touches the audit trail.
+
+* Retention is configured (``EUROGAS_NEXUS_AUDIT_RETENTION_DAYS``): seven years by default and
+  never less (REMIT, MiFID II and EMIR record keeping); nothing younger is ever pruned, whatever
+  a caller asks for. Export the range first (``docs/compliance/RETENTION_SCHEDULE.md``).
 * Pruning is dual-controlled: a dry run counts, and a deletion runs only for a privileged
   change (kind ``audit_prune``) another administrator approved (``api/dual_control.py``), or
   from the command line with that change's id.
@@ -18,11 +23,12 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
-#: Five years: the usual record-keeping horizon for trading decisions and their evidence
-#: (MiFID II Art. 16(6)-(7), MAR, REMIT record-keeping).
-DEFAULT_AUDIT_RETENTION_DAYS = 1827
-#: The shortest retention a deployment may configure (on legal advice only).
-MIN_AUDIT_RETENTION_DAYS = 365
+#: Seven years: the longest record-keeping horizon among MiFID II Art. 16(6)-(7) (5, up to 7
+#: on a regulator's request), MAR, REMIT and EMIR. It is also the floor: a shorter window is
+#: refused, because nothing a regulation requires may be deleted by a setting (decision record
+#: 2026-11-26). It was five years by default with a one-year floor (security review H5).
+DEFAULT_AUDIT_RETENTION_DAYS = 2557
+MIN_AUDIT_RETENTION_DAYS = 2557
 MAX_AUDIT_RETENTION_DAYS = 3650
 RETENTION_ENV = "EUROGAS_NEXUS_AUDIT_RETENTION_DAYS"
 

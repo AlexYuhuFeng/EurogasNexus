@@ -46,8 +46,9 @@ batch and every refusal is audited.
 
 **H5 Audit trail not tamper-evident; prunable.** Fixed: hash chain in an insert-only link table,
 verification endpoint and command, signed checkpoints, SIEM forwarding, guard triggers, role SQL
-(application INSERT-only), retention floor (`EUROGAS_NEXUS_AUDIT_RETENTION_DAYS`, default five
-years, at least one) and dual-controlled, audited pruning that keeps the chain verifiable. Not
+(application INSERT-only), retention floor (`EUROGAS_NEXUS_AUDIT_RETENTION_DAYS`; default five
+years, at least one, when fixed; raised to seven years as both default and floor when the
+retention-by-class work merged) and dual-controlled, audited pruning that keeps the chain verifiable. Not
 done: daily write-once export to object storage (the checkpoint and SIEM stream are the hooks);
 trusted time source.
 

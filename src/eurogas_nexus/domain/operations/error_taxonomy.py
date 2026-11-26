@@ -356,6 +356,13 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
             severity=ErrorSeverity.WARNING,
             recoverability=Recoverability.RETRY,
         ),
+        # The connection was lost during COMMIT (db/resilience.py): the write may have been
+        # applied, so a blind retry could apply it twice; the user checks first.
+        _definition(
+            "runtime_db_commit_unconfirmed",
+            ErrorFamily.DEPENDENCY,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
         _definition(
             "audit_unavailable",
             ErrorFamily.DEPENDENCY,

@@ -115,7 +115,7 @@ def test_the_gated_upgrade_runs_as_the_owner_and_refuses_as_the_application_role
     code, lines = _upgrade(urls["admin"], operator="Ops Tester")
     assert code == 0, lines
     _apply_roles(name, names, urls["admin"])
-    # A new version brings a revision: here 0095 again, after the owner took it back.
+    # A new version brings revisions: here 0095 and 0096 again, after the owner took them back.
     command.downgrade(alembic_config(urls["owner"]), PREVIOUS)
     assert _revision(urls["owner"]) == PREVIOUS
 

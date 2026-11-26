@@ -63,6 +63,7 @@ EUROGAS_NEXUS_ACK_INTEGRATION_TEST=1 \
 EUROGAS_NEXUS_CONTRACT_REVISION_INTEGRATION_TEST=1 \
 EUROGAS_NEXUS_PAYMENT_TERMS_INTEGRATION_TEST=1 \
 EUROGAS_NEXUS_TEST_POSTGRES_URL="$RUNTIME_STORE_DATABASE_URL" \
+EUROGAS_NEXUS_SCRATCH_PG_URL="$RUNTIME_STORE_DATABASE_URL" \
 python -m pytest -q \
   tests/integration/test_postgres_backed_smoke.py \
   tests/integration/test_background_jobs_postgres.py \
@@ -87,4 +88,6 @@ python -m pytest -q \
   tests/integration/test_database_upgrade_postgres.py \
   tests/integration/test_upgrade_with_roles_postgres.py \
   tests/integration/test_scheduler_lease_postgres.py \
-  tests/integration/test_db_timeouts_postgres.py
+  tests/integration/test_db_timeouts_postgres.py \
+  tests/integration/test_retention_migration_postgres.py \
+  tests/unit/test_retention_policy.py

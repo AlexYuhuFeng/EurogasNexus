@@ -14,6 +14,7 @@ The full ``alembic upgrade head`` / ``downgrade`` round trip on such a server is
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import os
 import uuid
@@ -25,7 +26,7 @@ import pytest
 import sqlalchemy as sa
 from alembic.migration import MigrationContext
 from alembic.operations import Operations
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, sessionmaker
 
 import eurogas_nexus.db.models  # noqa: F401 - registers every model
 from eurogas_nexus.db import timescale
@@ -128,9 +129,9 @@ def test_auto_converts_the_three_tables_and_a_second_run_changes_nothing(engine,
         assert not set(timescale.SKIPPED_TABLES) & set(_hypertables(connection))
 
 
-def test_writers_work_on_compressed_chunks(engine):
+def test_writers_work_on_compressed_chunks(engine, tmp_path):
     from eurogas_nexus.application.market_ticks import ingest_ticks
-    from eurogas_nexus.application.retention import prune_expired_rows
+    from eurogas_nexus.application.retention import run_retention
     from eurogas_nexus.db.models import (
         MarketQuoteRecord,
         MarketTradeRecord,
@@ -138,6 +139,7 @@ def test_writers_work_on_compressed_chunks(engine):
     )
     from eurogas_nexus.db.repositories.market_intelligence import upsert_market_quotes
     from eurogas_nexus.db.repositories.raw_archive import archive_raw_payload
+    from eurogas_nexus.runtime_store.object_store import FilesystemObjectStore
 
     with engine.begin() as connection:
         report = timescale.apply(connection, mode="require")
@@ -147,7 +149,8 @@ def test_writers_work_on_compressed_chunks(engine):
     with Session(engine) as session:
         archive_raw_payload(
             session, archive_id="raw-ts-1", source_system="ENTSOG", dataset="flows",
-            source_reference="page:1", payload_text="{}", payload_sha256="0" * 64,
+            source_reference="page:1", payload_text="{}",
+            payload_sha256=hashlib.sha256(b"{}").hexdigest(),
             record_count=0, received_at_utc=now - timedelta(days=40),
         )
         tick = {"hub": "TTF", "product": "DA", "bid": 30.0, "ask": 30.2,
@@ -160,8 +163,12 @@ def test_writers_work_on_compressed_chunks(engine):
         quote_id = quote.quote_id
         row = {column.name: getattr(quote, column.name)
                for column in MarketQuoteRecord.__table__.columns}
-        old = dict(row, quote_id="old-quote", observed_at_utc=now - timedelta(days=60))
-        upsert_market_quotes(session, [old])
+        # Two ticks of one minute past the 90-day hot period: retention keeps the last.
+        old_minute = (now - timedelta(days=100)).replace(second=0)
+        upsert_market_quotes(session, [
+            dict(row, quote_id="old-quote-1", observed_at_utc=old_minute + timedelta(seconds=10)),
+            dict(row, quote_id="old-quote-2", observed_at_utc=old_minute + timedelta(seconds=20)),
+        ])
         session.commit()
 
     # Compress every chunk now, as the policy would once the rows are old enough.
@@ -186,9 +193,15 @@ def test_writers_work_on_compressed_chunks(engine):
         session.commit()
         assert session.get(RawPayloadArchiveRecord, "raw-ts-1") is not None
         assert session.query(MarketTradeRecord).count() == 1
-        assert session.query(MarketQuoteRecord).count() == 2
+        assert session.query(MarketQuoteRecord).count() == 3
         assert session.get(MarketQuoteRecord, quote_id).bid_price == 29.9
-        summary = prune_expired_rows(session, now_utc=now)
-        session.commit()
-        assert summary["market_quotes_deleted"] == 1
-        assert session.query(MarketQuoteRecord).count() == 1
+
+    # The retention delete (archive, then thin to one-minute bars) on compressed chunks.
+    report = run_retention(
+        sessionmaker(bind=engine), mode="enforce", now_utc=now,
+        object_store=FilesystemObjectStore(tmp_path / "objects"),
+    )
+    assert report["classes"]["live_ticks"]["rows_removed"] == 1, report["classes"]["live_ticks"]
+    with Session(engine) as session:
+        assert session.query(MarketQuoteRecord).count() == 2
+        assert session.get(MarketQuoteRecord, "old-quote-2") is not None

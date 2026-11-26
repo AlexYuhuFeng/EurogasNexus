@@ -416,7 +416,7 @@ with hourly flows).
 
 **Path.** Standby and backup first (no application change); then the archive deduplication and
 offload; then retention by class; partitions at their trigger. Draft decision:
-[DRAFT-standby-backup-object-storage-retention.md](decisions/DRAFT-standby-backup-object-storage-retention.md).
+[2026-11-26-standby-backup-object-storage-retention.md](decisions/2026-11-26-standby-backup-object-storage-retention.md).
 
 ### 3.3 Market-data ingestion
 

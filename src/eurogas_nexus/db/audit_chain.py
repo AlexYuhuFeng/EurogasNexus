@@ -324,7 +324,14 @@ def _before_commit(session: Session) -> None:
                 rows = seal_pending(session)
         else:
             rows = seal_pending(session)
-    except Exception:  # noqa: BLE001 - never lose the audited change over its seal
+    except Exception as exc:  # noqa: BLE001 - never lose the audited change over its seal
+        from eurogas_nexus.core.db_errors import is_connection_failure
+
+        if is_connection_failure(exc):
+            # The connection is gone, and the transaction with it: swallowing this would only
+            # turn it into a PendingRollbackError at COMMIT. Raised as it is, the session
+            # reports the commit as unconfirmed (db/session.py ResilientSession).
+            raise
         _LOG.exception("audit chain seal failed; rows stay unsealed until the next seal")
         return
     if _sink():

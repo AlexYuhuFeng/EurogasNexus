@@ -88,7 +88,7 @@ def test_pruning_refuses_below_retention_and_without_approval(tmp_path):
 def test_an_approved_prune_keeps_the_rest_verifiable_and_is_audited(tmp_path):
     engine = _engine(tmp_path)
     with Session(engine) as session:
-        _write(session, 3, days_ago=2000)
+        _write(session, 3, days_ago=2700)
         session.commit()
         _write(session, 2)
         session.commit()

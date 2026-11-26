@@ -18,9 +18,22 @@ STATEMENT_TIMEOUT_SQLSTATE = "57014"
 #: ``lock_not_available``: a statement waited longer than ``lock_timeout`` for a lock.
 LOCK_TIMEOUT_SQLSTATE = "55P03"
 TIMEOUT_SQLSTATES = frozenset({STATEMENT_TIMEOUT_SQLSTATE, LOCK_TIMEOUT_SQLSTATE})
+#: The server or the connection went away (class 08, and an administrator or a failover
+#: shutting the server down: 57P01 to 57P03).
+CONNECTION_SQLSTATES = frozenset(
+    {"08000", "08001", "08003", "08004", "08006", "08007", "57P01", "57P02", "57P03"}
+)
+#: ``read_only_sql_transaction``: a write reached a standby (or a primary being demoted);
+#: nothing was applied (db/resilience.py).
+READ_ONLY_SQLSTATE = "25006"
 
 #: The product's error code for a statement the database cancelled after its time limit.
 DB_TIMEOUT_CODE = "runtime_db_timeout"
+#: A connection lost during COMMIT: the write may or may not have been applied
+#: (``db/resilience.py`` ``CommitOutcomeUnknown``).
+DB_COMMIT_UNCONFIRMED_CODE = "runtime_db_commit_unconfirmed"
+#: The text of the failover connect's refusal when no host is a writable primary.
+NO_WRITABLE_PRIMARY = "no writable primary"
 #: Seconds a client is told to wait before it tries again (``Retry-After``).
 DB_RETRY_AFTER_SECONDS = 5
 
@@ -85,6 +98,8 @@ def is_connection_failure(exc: BaseException | None) -> bool:
     chain = list(_chain(exc))
     if not any(_from_database(item) for item in chain):
         return False
+    if sqlstate(exc) in CONNECTION_SQLSTATES | {READ_ONLY_SQLSTATE}:
+        return True
     for item in chain:
         if getattr(item, "connection_invalidated", False):
             return True
@@ -100,11 +115,25 @@ def is_connection_failure(exc: BaseException | None) -> bool:
     return False
 
 
+def is_commit_unconfirmed(exc: BaseException | None) -> bool:
+    """A connection lost during COMMIT (``db/resilience.py`` ``CommitOutcomeUnknown``)."""
+
+    return any(getattr(item, "code", None) == DB_COMMIT_UNCONFIRMED_CODE for item in _chain(exc))
+
+
 def database_failure(exc: BaseException | None) -> str | None:
-    """``"timeout"``, ``"unavailable"`` or None (not a database failure the API answers)."""
+    """``"commit_unconfirmed"``, ``"timeout"``, ``"unavailable"`` or None (not a database
+    failure the API answers).
+
+    ``unavailable`` covers an unreachable or lost store, a failover with no writable primary
+    and a write refused by a standby (``25006``): in each case nothing was saved and a retry is
+    safe. ``commit_unconfirmed`` is the one case where it may have been saved.
+    """
 
     if exc is None:
         return None
+    if is_commit_unconfirmed(exc):
+        return "commit_unconfirmed"
     if is_statement_timeout(exc):
         return "timeout"
     if is_connection_failure(exc):
@@ -113,11 +142,16 @@ def database_failure(exc: BaseException | None) -> str | None:
 
 
 __all__ = [
+    "CONNECTION_SQLSTATES",
+    "DB_COMMIT_UNCONFIRMED_CODE",
     "DB_RETRY_AFTER_SECONDS",
     "DB_TIMEOUT_CODE",
     "LOCK_TIMEOUT_SQLSTATE",
     "STATEMENT_TIMEOUT_SQLSTATE",
+    "NO_WRITABLE_PRIMARY",
+    "READ_ONLY_SQLSTATE",
     "database_failure",
+    "is_commit_unconfirmed",
     "is_connection_failure",
     "is_statement_timeout",
     "sqlstate",

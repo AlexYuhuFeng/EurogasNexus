@@ -1,0 +1,165 @@
+# Database tier of the pilot set: PostgreSQL 16 primary and hot standby with continuous
+# backup to S3-compatible object storage by pgBackRest (MIT). Decision record
+# docs/architecture/decisions/2026-11-26-standby-backup-object-storage-retention.md;
+# runbooks docs/operations/BACKUP_RESTORE.md and DISASTER_RECOVERY.md.
+#
+#   cp env.ha.example .env      # fill in every value; keep it out of version control
+#   docker build -t eurogas-nexus-postgres-ha:16 postgres
+#   docker compose up -d
+#
+# On the pilot hardware each node runs on its own database server (plan section 7.1): run
+# pg-node1 + pg-node1-backup on one server and pg-node2 + pg-node2-backup on the other, with
+# NEXUS_PEER_HOST naming the other server. This file runs both on one host for drills.
+#
+# Object storage is the firm's: any S3-compatible store (its own, a cloud bucket, a provider).
+# The `objectstore` service exists ONLY for drills and tests on a machine without one
+# (profile `test-objectstore`). It is SeaweedFS (Apache-2.0), not MinIO, whose AGPL licence
+# the product does not accept even as a container it ships (AGENTS.md rule 18).
+
+name: eurogas-nexus-db
+
+x-pgbackrest: &pgbackrest
+  PGBACKREST_STANZA: ${PGBACKREST_STANZA:-nexus}
+  PGBACKREST_PG1_PATH: /var/lib/postgresql/data
+  PGBACKREST_PG1_USER: ${POSTGRES_USER}
+  PGBACKREST_REPO1_TYPE: s3
+  PGBACKREST_REPO1_PATH: ${PGBACKREST_REPO1_PATH:-/pgbackrest}
+  PGBACKREST_REPO1_S3_BUCKET: ${BACKUP_S3_BUCKET}
+  PGBACKREST_REPO1_S3_ENDPOINT: ${BACKUP_S3_ENDPOINT}
+  PGBACKREST_REPO1_STORAGE_PORT: ${BACKUP_S3_PORT:-443}
+  PGBACKREST_REPO1_S3_REGION: ${BACKUP_S3_REGION:-us-east-1}
+  PGBACKREST_REPO1_S3_URI_STYLE: ${BACKUP_S3_URI_STYLE:-path}
+  PGBACKREST_REPO1_S3_KEY: ${BACKUP_S3_ACCESS_KEY_ID}
+  PGBACKREST_REPO1_S3_KEY_SECRET: ${BACKUP_S3_SECRET_ACCESS_KEY}
+  PGBACKREST_REPO1_STORAGE_CA_FILE: /etc/nexus/objectstore-ca.crt
+  # Backups and archived WAL are encrypted before they leave the database server.
+  PGBACKREST_REPO1_CIPHER_TYPE: aes-256-cbc
+  PGBACKREST_REPO1_CIPHER_PASS: ${BACKUP_CIPHER_PASSPHRASE}
+  # Two weekly full backups and their differentials; the write-ahead log they need is kept.
+  PGBACKREST_REPO1_RETENTION_FULL: ${BACKUP_RETENTION_FULL:-2}
+  PGBACKREST_COMPRESS_TYPE: zst
+  PGBACKREST_PROCESS_MAX: ${BACKUP_PROCESS_MAX:-2}
+  PGBACKREST_START_FAST: "y"
+  PGBACKREST_DELTA: "y"
+  PGBACKREST_LOG_LEVEL_CONSOLE: info
+  PGBACKREST_LOG_LEVEL_FILE: "off"
+
+x-node: &node
+  image: ${NEXUS_POSTGRES_IMAGE:-eurogas-nexus-postgres-ha:16}
+  restart: unless-stopped
+  shm_size: 256mb
+  healthcheck:
+    test: ["CMD-SHELL", "pg_isready -h /var/run/postgresql -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+    interval: 5s
+    timeout: 5s
+    retries: 60
+    start_period: 60s
+
+x-backup: &backup
+  image: ${NEXUS_POSTGRES_IMAGE:-eurogas-nexus-postgres-ha:16}
+  restart: unless-stopped
+  user: postgres
+  entrypoint: ["/usr/local/bin/backup-scheduler.sh"]
+
+services:
+  pg-node1:
+    <<: *node
+    hostname: pg-node1
+    environment:
+      <<: *pgbackrest
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      NEXUS_NODE_ROLE: primary
+      NEXUS_PEER_HOST: pg-node2
+      NEXUS_REPLICATION_PASSWORD: ${NEXUS_REPLICATION_PASSWORD}
+      NEXUS_ARCHIVE_TIMEOUT_SECONDS: ${NEXUS_ARCHIVE_TIMEOUT_SECONDS:-60}
+    ports:
+      - "${PG_NODE1_BIND:-127.0.0.1}:${PG_NODE1_PORT:-5441}:5432"
+    volumes:
+      - pg-node1-data:/var/lib/postgresql/data
+      - pg-node1-run:/var/run/postgresql
+      - ${BACKUP_S3_CA_FILE:-/etc/ssl/certs/ca-certificates.crt}:/etc/nexus/objectstore-ca.crt:ro
+
+  pg-node1-backup:
+    <<: *backup
+    environment:
+      <<: *pgbackrest
+      POSTGRES_USER: ${POSTGRES_USER}
+      NEXUS_NODE_NAME: pg-node1
+      NEXUS_BACKUP_HOUR_UTC: ${NEXUS_BACKUP_HOUR_UTC:-1}
+      NEXUS_FULL_BACKUP_WEEKDAY: ${NEXUS_FULL_BACKUP_WEEKDAY:-7}
+    volumes:
+      - pg-node1-data:/var/lib/postgresql/data
+      - pg-node1-run:/var/run/postgresql
+      - ${BACKUP_S3_CA_FILE:-/etc/ssl/certs/ca-certificates.crt}:/etc/nexus/objectstore-ca.crt:ro
+    depends_on:
+      pg-node1:
+        condition: service_healthy
+
+  pg-node2:
+    <<: *node
+    hostname: pg-node2
+    environment:
+      <<: *pgbackrest
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      NEXUS_NODE_ROLE: standby
+      NEXUS_PEER_HOST: pg-node1
+      NEXUS_REPLICATION_PASSWORD: ${NEXUS_REPLICATION_PASSWORD}
+      NEXUS_ARCHIVE_TIMEOUT_SECONDS: ${NEXUS_ARCHIVE_TIMEOUT_SECONDS:-60}
+    ports:
+      - "${PG_NODE2_BIND:-127.0.0.1}:${PG_NODE2_PORT:-5442}:5432"
+    volumes:
+      - pg-node2-data:/var/lib/postgresql/data
+      - pg-node2-run:/var/run/postgresql
+      - ${BACKUP_S3_CA_FILE:-/etc/ssl/certs/ca-certificates.crt}:/etc/nexus/objectstore-ca.crt:ro
+    depends_on:
+      pg-node1:
+        condition: service_healthy
+
+  pg-node2-backup:
+    <<: *backup
+    environment:
+      <<: *pgbackrest
+      POSTGRES_USER: ${POSTGRES_USER}
+      NEXUS_NODE_NAME: pg-node2
+      NEXUS_BACKUP_HOUR_UTC: ${NEXUS_BACKUP_HOUR_UTC:-1}
+      NEXUS_FULL_BACKUP_WEEKDAY: ${NEXUS_FULL_BACKUP_WEEKDAY:-7}
+    volumes:
+      - pg-node2-data:/var/lib/postgresql/data
+      - pg-node2-run:/var/run/postgresql
+      - ${BACKUP_S3_CA_FILE:-/etc/ssl/certs/ca-certificates.crt}:/etc/nexus/objectstore-ca.crt:ro
+    depends_on:
+      pg-node2:
+        condition: service_healthy
+
+  # TEST DOUBLE ONLY: never part of a deployment. SeaweedFS (Apache-2.0) speaking S3 over TLS
+  # with a throwaway certificate and key (scripts/ops/ha_drill.py writes both).
+  objectstore:
+    image: ${NEXUS_TEST_OBJECTSTORE_IMAGE:-chrislusf/seaweedfs:latest}
+    profiles: ["test-objectstore"]
+    hostname: objectstore
+    command:
+      - server
+      - -dir=/data
+      - -master.volumeSizeLimitMB=512
+      - -volume.max=64
+      - -s3
+      - -s3.port=8333
+      - -s3.config=/etc/objectstore/s3.json
+      - -s3.cert.file=/etc/objectstore/certs/tls.crt
+      - -s3.key.file=/etc/objectstore/certs/tls.key
+    ports:
+      - "127.0.0.1:${NEXUS_TEST_OBJECTSTORE_PORT:-18334}:8333"
+    volumes:
+      - ${NEXUS_TEST_OBJECTSTORE_CONFIG:-./objectstore}:/etc/objectstore:ro
+    tmpfs:
+      - /data:size=${NEXUS_TEST_OBJECTSTORE_TMPFS:-4g}
+
+volumes:
+  pg-node1-data:
+  pg-node1-run:
+  pg-node2-data:
+  pg-node2-run:
