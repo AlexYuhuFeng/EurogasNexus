@@ -13,7 +13,7 @@ licences.
 
 | Ecosystem | Packages | Copyleft / non-commercial | Notes |
 |---|---|---|---|
-| Python (runtime and dev locks) | 45 | 0 | `certifi` CA bundle is MPL-2.0; `pypdf` (contract intake, added 2026-10-31) is BSD-3-Clause |
+| Python (runtime and dev locks) | 46 | 0 | `certifi` CA bundle is MPL-2.0; `pypdf` (contract intake, added 2026-10-31) is BSD-3-Clause; `prometheus-client` (metrics endpoint, added 2026-11-26) is Apache-2.0 AND BSD-2-Clause |
 | npm (web and desktop locks) | 103 | 0 | `lightningcss` (build-time CSS tool) is MPL-2.0; `uplot` (charts, added 2026-11-16) is MIT; `lucide-react` (icons, added 2026-11-24) is ISC |
 | Rust (desktop crate graph) | 434 | 0 | `cssparser`, `cssparser-macros`, `selectors`, `dtoa-short`, `option-ext` are MPL-2.0; `r-efi` uses its reviewed MIT branch (RCLC-0001/0002) |
 
