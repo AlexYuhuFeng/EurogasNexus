@@ -137,3 +137,29 @@ def test_invalid_network_flow_inputs_fail_explicitly(
 ) -> None:
     with pytest.raises(ValueError, match=message):
         optimize_network_flow(edges, supplies, demands)
+
+
+def test_a_loss_making_but_deliverable_requirement_is_uneconomic_not_infeasible() -> None:
+    """Quant review 3.11: supply at 30, tariff 2, required demand worth 31."""
+
+    result = optimize_network_flow(
+        edges=[NetworkEdge("route", "S", "D", 2.0, 10.0)],
+        supplies=[FlowSupply("S", 10.0, 30.0)],
+        demands=[FlowDemand("D", 10.0, 31.0)],
+    )
+    assert result.status == "uneconomic"  # before: "infeasible"
+    assert result.served_demand_mwh == 0.0
+    assert (result.uneconomic_demand_mwh, result.infeasible_demand_mwh) == (10.0, 0.0)
+    assert "REQUIRED_DEMAND_UNECONOMIC" in result.warnings
+
+
+def test_a_requirement_beyond_capacity_is_infeasible_and_the_rest_uneconomic() -> None:
+    result = optimize_network_flow(
+        edges=[NetworkEdge("route", "S", "D", 2.0, 4.0)],
+        supplies=[FlowSupply("S", 10.0, 30.0)],
+        demands=[FlowDemand("D", 10.0, 31.0)],
+    )
+    assert result.status == "infeasible"
+    assert result.infeasible_demand_mwh == 6.0
+    assert result.uneconomic_demand_mwh == 4.0
+    assert set(result.warnings) >= {"REQUIRED_DEMAND_NOT_DELIVERABLE", "REQUIRED_DEMAND_UNECONOMIC"}

@@ -122,6 +122,10 @@ class NetworkFlowResult:
     demand_service: tuple[DemandService, ...] = ()
     warnings: tuple[str, ...] = ()
     human_review_required: bool = True
+    #: Of the unserved required demand: what the network cannot deliver at any price, and
+    #: what it could deliver but only at a loss (left unserved by the value-maximising plan).
+    infeasible_demand_mwh: float = 0.0
+    uneconomic_demand_mwh: float = 0.0
 
 
 @dataclass(slots=True)
@@ -146,7 +150,57 @@ def optimize_network_flow(
     *,
     accessible_tsos: set[str] | None = None,
 ) -> NetworkFlowResult:
+    """Maximize portfolio net value; unserved required demand is infeasible or uneconomic.
+
+    The flow is the value-maximising one (:func:`_optimize`). When required demand is left
+    unserved, a second solve that routes required demand at any cost tells the two causes
+    apart: what even that cannot deliver is ``infeasible_demand_mwh`` (no capacity or
+    supply); the rest is ``uneconomic_demand_mwh`` (deliverable, only at a loss). With none
+    infeasible the status is ``uneconomic``, not ``infeasible`` (quant review 2026-11-26).
+    """
+
+    from dataclasses import replace
+
+    result = _optimize(edges, supplies, demands, accessible_tsos=accessible_tsos)
+    required = sum(0.0 if demand.optional else demand.required_mwh for demand in demands)
+    tolerance = _scale_tolerance(required)
+    if result.unserved_demand_mwh <= tolerance:
+        return result
+    forced = _optimize(
+        edges, supplies, demands, accessible_tsos=accessible_tsos, force_required=True
+    )
+    infeasible = min(forced.unserved_demand_mwh, result.unserved_demand_mwh)
+    uneconomic = max(result.unserved_demand_mwh - infeasible, 0.0)
+    warnings = list(result.warnings)
+    status: OptimizationStatus = result.status
+    if infeasible > tolerance:
+        warnings.append("REQUIRED_DEMAND_NOT_DELIVERABLE")
+    else:
+        status = "uneconomic"
+    if uneconomic > tolerance:
+        warnings.append("REQUIRED_DEMAND_UNECONOMIC")
+    return replace(
+        result,
+        status=status,
+        warnings=tuple(warnings),
+        infeasible_demand_mwh=_clean_number(infeasible if infeasible > tolerance else 0.0),
+        uneconomic_demand_mwh=_clean_number(uneconomic if uneconomic > tolerance else 0.0),
+    )
+
+
+def _optimize(
+    edges: list[NetworkEdge],
+    supplies: list[FlowSupply],
+    demands: list[FlowDemand],
+    *,
+    accessible_tsos: set[str] | None = None,
+    force_required: bool = False,
+) -> NetworkFlowResult:
     """Maximize portfolio net value on a shared directed gas network.
+
+    With ``force_required`` every required (not optional) demand arc carries a premium
+    larger than any path's cost, so required demand is routed wherever the network can
+    deliver it, whatever the margin (used only to tell infeasible from uneconomic).
 
     The model is a linear, single-natural-gas-commodity minimum-cost flow. A
     super-source arc carries each supply acquisition cost, each physical edge
@@ -239,15 +293,20 @@ def optimize_network_flow(
             )
         )
 
+    # A premium above any path's cost: the sum of every unit cost, tariff and value, plus one.
+    premium = 1.0 + sum(abs(edge.tariff_gbp_mwh) for edge in active_edges) + sum(
+        abs(item.unit_cost_gbp_mwh) for item in ordered_supplies
+    ) + sum(abs(item.value_gbp_mwh) for item in ordered_demands)
     demand_references: list[tuple[FlowDemand, str, _ArcReference]] = []
     for index, demand in enumerate(ordered_demands):
         source = node_index[demand.node]
+        forced = force_required and not demand.optional
         arc_index = _add_residual_arc(
             graph,
             source,
             super_sink,
             demand.required_mwh,
-            -demand.value_gbp_mwh,
+            -demand.value_gbp_mwh - (premium if forced else 0.0),
         )
         demand_references.append(
             (
@@ -292,7 +351,11 @@ def optimize_network_flow(
     required = sum(
         0.0 if demand.optional else demand.required_mwh for demand in ordered_demands
     )
-    unserved = max(required - served, 0.0)
+    # Optional demand served does not count against required demand left unserved.
+    served_required = sum(
+        quantity for demand, quantity in demand_service if not demand.optional
+    )
+    unserved = max(required - served_required, 0.0)
     supply_cost = sum(
         quantity * supply.unit_cost_gbp_mwh for supply, quantity in supply_usage
     )

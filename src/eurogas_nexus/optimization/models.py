@@ -5,7 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Literal
 
-OptimizationStatus = Literal["optimal", "feasible", "infeasible"]
+#: ``infeasible``: the network cannot deliver the required volume at any price;
+#: ``uneconomic``: it can, but only at a loss, so the value-maximising plan leaves it unserved.
+OptimizationStatus = Literal["optimal", "feasible", "infeasible", "uneconomic"]
 
 
 @dataclass(frozen=True, slots=True)
