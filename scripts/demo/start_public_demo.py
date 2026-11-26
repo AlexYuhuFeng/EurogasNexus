@@ -39,7 +39,11 @@ See ``docs/deployment/SELF_HOSTED_DEMO.md`` for the operator guide.
    and retires the simulated series real data covers. ``EUROGAS_NEXUS_DEMO_SCHEDULER=off``
    keeps the earlier behaviour (a catch-up round every refresh interval, no scheduler, so
    the Runtime page says no scheduler runs). It never blocks the health check;
-9. exec ``uvicorn`` with one worker on ``$PORT`` (default 8080).
+9. start the demo housekeeping loop (``scripts/demo/demo_housekeeping.py``): once after the
+   seed and the first catch-up round, then every six hours, so the demo's small disk cannot
+   fill. It refuses outside the demo profile, writes one audit event per run, and a failure
+   is logged without stopping the demo (``docs/deployment/SELF_HOSTED_DEMO.md``);
+10. exec ``uvicorn`` with one worker on ``$PORT`` (default 8080).
 
 ``run -- <command>`` runs an operator tool (``docker compose exec demo python
 scripts/demo/start_public_demo.py run -- python scripts/ops/...``) with the same database-URL
@@ -658,6 +662,93 @@ def demo_events_loop() -> int:
         scan_alerts()
 
 
+def start_housekeeping() -> None:
+    """Spawn the demo's disk housekeeping loop (it never stops the demo if it fails)."""
+
+    subprocess.Popen(  # noqa: S603 - fixed command, this interpreter and this script
+        [sys.executable, str(Path(__file__).resolve()), "housekeeping-loop"],
+        cwd=ROOT,
+        start_new_session=True,
+    )
+    log("housekeeping: after the seed and first catch-up, then every 6 hours")
+
+
+#: The demo's own clean-up cadence (``scripts/demo/demo_housekeeping.py``).
+DEMO_HOUSEKEEPING_INTERVAL_SECONDS = 6 * 3600
+#: How long the first run waits for the first public-source catch-up round to finish.
+DEMO_HOUSEKEEPING_CATCH_UP_WAIT_SECONDS = 3600
+
+
+def _catch_up_round_seen(within_seconds: float = 7200.0) -> bool:
+    """Whether a catch-up round finished recently (its audit event is written at the end)."""
+
+    from eurogas_nexus.db.models.observation import AuditEventRecord
+    from eurogas_nexus.db.session import get_session_factory
+
+    since = datetime.now(UTC) - timedelta(seconds=within_seconds)
+    with get_session_factory()() as session:
+        return (
+            session.query(AuditEventRecord)
+            .filter(
+                AuditEventRecord.action == CATCH_UP_ACTION,
+                AuditEventRecord.event_ts_utc >= since,
+            )
+            .first()
+            is not None
+        )
+
+
+def housekeeping_loop() -> int:
+    """Background: run the demo clean-up after start-up, then every six hours."""
+
+    try:
+        os.nice(10)  # the API keeps the CPU first on a small instance
+    except OSError:
+        pass
+    port = (os.environ.get("PORT") or "8080").strip()
+    deadline = time.monotonic() + 900
+    while time.monotonic() < deadline:
+        try:
+            with urllib.request.urlopen(  # noqa: S310 - loopback health probe
+                f"http://127.0.0.1:{port}/api/health/live", timeout=3
+            ):
+                break
+        except OSError:
+            time.sleep(5)
+    if live_sources_enabled():
+        # The seed has run; wait for the first catch-up so the job does not compete with it.
+        wait_until = time.monotonic() + DEMO_HOUSEKEEPING_CATCH_UP_WAIT_SECONDS
+        seen = False
+        while time.monotonic() < wait_until:
+            try:
+                seen = _catch_up_round_seen()
+            except Exception as exc:  # noqa: BLE001 - a failed check never stops the loop
+                log(f"housekeeping: catch-up check failed ({exc.__class__.__name__})")
+            if seen:
+                break
+            time.sleep(30)
+        if not seen:
+            log(
+                "housekeeping: no catch-up round finished within "
+                f"{DEMO_HOUSEKEEPING_CATCH_UP_WAIT_SECONDS // 60} minutes; running now"
+            )
+    while True:
+        try:
+            result = subprocess.run(  # noqa: S603 - fixed command
+                [sys.executable, "scripts/demo/demo_housekeeping.py"], cwd=ROOT, check=False
+            )
+            if result.returncode == 0:
+                outcome = "done"
+            elif result.returncode == 3:
+                outcome = "skipped (another run holds the lock)"
+            else:
+                outcome = f"failed (exit {result.returncode})"
+        except Exception as exc:  # noqa: BLE001 - housekeeping never stops the demo
+            outcome = f"failed ({exc.__class__.__name__})"
+        log(f"housekeeping {outcome}; next run in {DEMO_HOUSEKEEPING_INTERVAL_SECONDS // 3600}h")
+        time.sleep(DEMO_HOUSEKEEPING_INTERVAL_SECONDS)
+
+
 def serve() -> int:
     started = time.monotonic()
     filled = configure_environment(os.environ)
@@ -665,6 +756,9 @@ def serve() -> int:
         log("defaults applied: " + ", ".join(filled))
     wait_for_database(float(os.environ.get("DEMO_DB_WAIT_SECONDS") or 90))
     prepare_database()
+    # After the seed (prepare_database) and, when live sources are on, after the first catch-up
+    # round; the loop waits for that itself. A failure is logged and never stops the demo.
+    start_housekeeping()
     scan_alerts()
     start_demo_events()
     start_exchange_feed()
@@ -1286,12 +1380,14 @@ def main(argv: list[str]) -> int:
             return maintain()
         if mode == "demo-events":
             return demo_events_loop()
+        if mode == "housekeeping-loop":
+            return housekeeping_loop()
     except StartupError as exc:
         log(f"FATAL: {exc}")
         return 1
     log(
         f"unknown mode {mode!r}; "
-        "expected serve, catch-up, maintain, demo-events or run -- <command>"
+        "expected serve, catch-up, maintain, demo-events, housekeeping-loop or run -- <command>"
     )
     return 2
 
