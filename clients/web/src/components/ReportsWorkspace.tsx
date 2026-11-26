@@ -32,6 +32,10 @@ import {
   editedByLabel,
   elapsedLabel,
   explainFailure,
+  landedReport,
+  LANDING_POLL_MS,
+  LANDING_WAIT_MS,
+  mayStillLand,
   formIssues,
   REPORT_STAGES,
   reportCsv,
@@ -87,6 +91,14 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
   const [stage, setStage] = useState<ReportStage | null>(null);
   const [manageOpen, setManageOpen] = useState(false);
   const [failure, setFailure] = useState<ReturnType<typeof explainFailure> | null>(null);
+  // The connection gave out while the server was still writing: wait for the report to land.
+  const [waitingForLanding, setWaitingForLanding] = useState(false);
+  const [landedNotice, setLandedNotice] = useState(false);
+  useEffect(() => {
+    if (!waitingForLanding) return;
+    const tick = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(tick);
+  }, [waitingForLanding]);
   const [startedAt, setStartedAt] = useState<number | null>(null);
   const [now, setNow] = useState(() => Date.now());
   const abort = useRef<AbortController | null>(null);
@@ -197,6 +209,8 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
     setBusy("generate");
     setError(null);
     setFailure(null);
+    setLandedNotice(false);
+    const before = new Set((reports ?? []).map((report) => report.report_id));
     const language = form.language ?? (zh ? "zh-CN" : "en");
     let request: ReportRequestDTO = { ...reportRequestFromForm(form, mode, sendable, language), use_model: useModel };
     try {
@@ -234,6 +248,25 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
       const status = caught instanceof ApiError ? caught.status : null;
       const detail = caught instanceof ApiError && caught.detail && typeof caught.detail === "object"
         ? (caught.detail as { code?: string; error?: string }) : null;
+      if (mayStillLand(status, controller.signal.aborted)) {
+        // A proxy gave up before the server did; the server goes on and stores the report.
+        // Look for it in the archive instead of telling the user it failed.
+        setStage(null);
+        setWaitingForLanding(true);
+        const landed = await waitForLanding(before, request, controller.signal);
+        setWaitingForLanding(false);
+        if (landed) {
+          setSelected(landed);
+          setLandedNotice(true);
+          loadReports();
+          return;
+        }
+        // Not in the archive yet: say so, and that it may still appear there.
+        setFailure(controller.signal.aborted
+          ? { key: "reports.fail.stopped_waiting", retry: false, withoutAi: false }
+          : { key: "reports.fail.not_landed", retry: true, withoutAi: true });
+        return;
+      }
       setFailure(explainFailure(status, detail?.code ?? detail?.error ?? null, controller.signal.aborted));
     } finally {
       if (abort.current === controller) abort.current = null;
@@ -252,6 +285,26 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
     const hintKey = `reports.section_desc.${key}`;
     const hint = t(hintKey);
     return hint === hintKey ? "" : hint;
+  }
+
+  /** Polls the archive until the timed-out request's report appears, the wait runs out or the
+   * user stops waiting. */
+  async function waitForLanding(before: ReadonlySet<string>, request: ReportRequestDTO, signal: AbortSignal): Promise<string | null> {
+    const deadline = Date.now() + LANDING_WAIT_MS;
+    while (!signal.aborted && Date.now() < deadline) {
+      await new Promise((resolve) => window.setTimeout(resolve, LANDING_POLL_MS));
+      setNow(Date.now());
+      if (signal.aborted) return null;
+      try {
+        const response = await api.marketReports();
+        setReports(response.data);
+        const landed = landedReport(before, response.data, request);
+        if (landed) return landed;
+      } catch {
+        // The archive did not answer this time; look again on the next round.
+      }
+    }
+    return null;
   }
 
   const kindOptions = KINDS.filter((kind) => kind !== "situation" || form.subject).map((kind) => ({
@@ -462,6 +515,17 @@ export function ReportsWorkspace({ t, language }: { t: Translate; language: stri
                     {failure.withoutAi && offer?.ai.available !== false && <Button size="sm" variant="quiet" onClick={() => void generate(false)}>{t("reports.generate_without_ai")}</Button>}
                   </div>
                 </div>
+              )}
+              {waitingForLanding && (
+                <div className="reports-waiting" role="status" data-report-waiting="">
+                  <p>{t("reports.waiting_for_landing", { elapsed: elapsedLabel(startedAt ? now - startedAt : 0) })}</p>
+                  <div className="reports-actions">
+                    <Button size="sm" variant="quiet" onClick={cancel}>{t("reports.stop_waiting")}</Button>
+                  </div>
+                </div>
+              )}
+              {landedNotice && !failure && (
+                <p className="reports-note" role="status" data-report-landed="">{t("reports.landed_after_timeout")}</p>
               )}
               {stage && <ReportProgress stage={stage} elapsed={startedAt ? now - startedAt : 0} onCancel={cancel} t={t} />}
               <div className="reports-actions">

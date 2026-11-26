@@ -8,6 +8,8 @@ import {
   elapsedLabel,
   explainFailure,
   formIssues,
+  landedReport,
+  mayStillLand,
   parseHubs,
   REPORT_STAGES,
   reportPeriodLabel,
@@ -127,4 +129,26 @@ test("a reporting currency and energy unit go to the server only when chosen", (
   const body = reportRequestFromForm({ ...form, currency: "EUR", energyUnit: "MWh" }, "standard", ["prices"], "en");
   assert.equal(body.currency, "EUR");
   assert.equal(body.energy_unit, "MWh");
+});
+
+test("a dropped connection waits for the report in the archive; a refusal does not", () => {
+  assert.equal(mayStillLand(504, false), true);
+  assert.equal(mayStillLand(502, false), true);
+  assert.equal(mayStillLand(null, false), true);
+  assert.equal(mayStillLand(null, true), false, "the user cancelled");
+  assert.equal(mayStillLand(403, false), false);
+  assert.equal(mayStillLand(500, false), false);
+});
+
+test("the landed report is a new one of the same kind and question", () => {
+  const before = new Set(["r-old"]);
+  const reports = [
+    { report_id: "r-new-daily", kind: "daily" as const, question: null },
+    { report_id: "r-old", kind: "ask" as const, question: "Why did NBP–TTF widen?" },
+    { report_id: "r-other-q", kind: "ask" as const, question: "What about storage?" },
+    { report_id: "r-new-ask", kind: "ask" as const, question: " Why did NBP–TTF widen? " },
+  ];
+  assert.equal(landedReport(before, reports, { kind: "ask", question: "Why did NBP–TTF widen?" }), "r-new-ask");
+  assert.equal(landedReport(before, reports, { kind: "daily" }), "r-new-daily");
+  assert.equal(landedReport(before, reports, { kind: "weekly" }), null);
 });

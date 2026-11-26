@@ -6991,5 +6991,10 @@
   "panel_error.body": "Something on this page failed to draw. Your data is safe, and the rest of the app still works: try again, pick another page above, or reload.",
   "panel_error.retry": "Try again",
   "panel_error.reload": "Reload",
-  "panel_error.details": "Technical details for support"
+  "panel_error.details": "Technical details for support",
+  "reports.waiting_for_landing": "Still writing ({{elapsed}}). The connection timed out before the report was finished, but the server carries on and files it in the archive; it opens here as soon as it lands.",
+  "reports.stop_waiting": "Stop waiting",
+  "reports.landed_after_timeout": "The report finished after the connection timed out and was filed in the archive. It is open below.",
+  "reports.fail.stopped_waiting": "Stopped waiting. The report may still finish: press Refresh on the archive in a minute or two.",
+  "reports.fail.not_landed": "The report has not reached the archive after six minutes. Press Refresh on the archive to check again, try again, or make it without AI, which takes seconds."
 }
