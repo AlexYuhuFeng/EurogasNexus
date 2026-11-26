@@ -177,9 +177,22 @@ def reconcile_source_runtime_states(
 ) -> int:
     """Reconcile all registered definitions into runtime state rows."""
 
+    # One read for every state row: ``ensure_source_runtime_state`` looks each up with
+    # ``session.get``, which then answers from the identity map instead of a query per
+    # source (44 queries on every read of the source-operations page; backend audit P2).
+    # The list is held so the loaded rows stay in the (weak-referencing) identity map.
+    ids = [definition.source_id for definition in definitions]
+    held = (
+        session.query(SourceRuntimeStateRecord)
+        .filter(SourceRuntimeStateRecord.source_id.in_(ids))
+        .all()
+        if ids
+        else []
+    )
     for definition in definitions:
         ensure_source_runtime_state(session, definition, now_utc=now_utc)
     session.flush()
+    del held
     return len(definitions)
 
 
