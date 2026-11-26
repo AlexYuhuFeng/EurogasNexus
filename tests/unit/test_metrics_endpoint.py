@@ -110,6 +110,8 @@ def test_database_metrics_are_in_the_scrape(no_metrics_config, monkeypatch, tmp_
     assert response.status_code == 200
     text = response.text
     assert "eurogas_metrics_database_up 1" in text
+    # The same check as readiness: not a standby, so writes are accepted.
+    assert "eurogas_db_primary_writable 1" in text
     # Never beat: +Inf, so "heartbeat missing" fires on a store no scheduler ever ran on.
     assert 'eurogas_scheduler_heartbeat_age_seconds{scheduler="dataops"} +Inf' in text
     assert "eurogas_db_pool_size" in text
@@ -119,3 +121,20 @@ def test_metrics_path_is_not_in_the_public_api_surface() -> None:
     app = create_app(Settings(api_profile="release"))
     paths = {getattr(route, "path", None) for route in app.routes}
     assert "/metrics" not in paths
+
+
+def test_a_standby_is_reported_as_not_writable(no_metrics_config, monkeypatch, tmp_path) -> None:
+    """Readiness answers runtime_db_read_only on a standby; the scrape says the same."""
+
+    from eurogas_nexus.db import resilience
+
+    db_path = tmp_path / "metrics.sqlite"
+    engine = create_engine(f"sqlite+pysqlite:///{db_path.as_posix()}", future=True)
+    Base.metadata.create_all(engine)
+    engine.dispose()
+    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", f"sqlite+pysqlite:///{db_path.as_posix()}")
+    monkeypatch.setenv("EUROGAS_NEXUS_METRICS_SCRAPE_TOKEN", "scrape-secret-123")
+    monkeypatch.setattr(resilience, "in_recovery", lambda _connection: True)
+    response = _client().get("/metrics", headers={"Authorization": "Bearer scrape-secret-123"})
+    assert "eurogas_metrics_database_up 1" in response.text
+    assert "eurogas_db_primary_writable 0" in response.text

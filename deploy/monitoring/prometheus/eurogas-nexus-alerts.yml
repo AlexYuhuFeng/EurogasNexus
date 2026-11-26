@@ -128,6 +128,20 @@ groups:
             unreachable, or the API's connection pool cannot get a connection.
           runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasmetricsdatabaseunavailable"
 
+      - alert: EurogasDatabaseReadOnly
+        expr: max by (instance) (eurogas_db_primary_writable) == 0
+        for: 2m
+        labels:
+          severity: critical
+          team: platform
+        annotations:
+          summary: "The API on {{ $labels.instance }} is connected to a standby"
+          description: >-
+            The database answers but is in recovery and refuses every write; readiness reports
+            runtime_db_read_only. A failover is under way, or the URL and the failover hosts
+            name no writable primary.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasdatabasereadonly"
+
       - alert: EurogasDbPoolNearlyExhausted
         expr: >-
           sum by (instance) (eurogas_db_pool_checked_out)

@@ -121,6 +121,7 @@ def render_exposition() -> str:
         return process_metrics.render() + _database_up(0)
     try:
         from eurogas_nexus.application.dataops_observability import prometheus_metrics
+        from eurogas_nexus.db.resilience import in_recovery
         from eurogas_nexus.db.session import get_session_factory
         from eurogas_nexus.security.portfolio_scope import system_scope
 
@@ -129,7 +130,9 @@ def render_exposition() -> str:
         # scope. Explicit system scope, so book isolation neither denies nor narrows it.
         with system_scope(), get_session_factory()() as session:
             body = prometheus_metrics(session)
-        return body + _database_up(1)
+            # The same check readiness makes: a standby answers every read above.
+            writable = not in_recovery(session.connection())
+        return body + _database_up(1) + _primary_writable(1 if writable else 0)
     except Exception:  # noqa: BLE001 - the process metrics are still worth a scrape
         return process_metrics.render() + _database_up(0)
 
@@ -139,6 +142,15 @@ def _database_up(value: int) -> str:
         "# HELP eurogas_metrics_database_up 1 when the database metrics could be read.\n"
         "# TYPE eurogas_metrics_database_up gauge\n"
         f"eurogas_metrics_database_up {value}\n"
+    )
+
+
+def _primary_writable(value: int) -> str:
+    return (
+        "# HELP eurogas_db_primary_writable 1 when the API's database accepts writes, 0 when it "
+        "is a standby in recovery (readiness answers runtime_db_read_only then).\n"
+        "# TYPE eurogas_db_primary_writable gauge\n"
+        f"eurogas_db_primary_writable {value}\n"
     )
 
 

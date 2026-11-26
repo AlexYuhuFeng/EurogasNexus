@@ -36,7 +36,8 @@ You do not need to restart the application after a failover, if it lists both da
   2.3 seconds from the crash to readiness 200 on the drill machine, the failover script itself
   1.4 seconds).
 - Readiness also fails (`runtime_db_read_only`) if the application is ever pointed at a standby
-  alone.
+  alone, and the scrape reports `eurogas_db_primary_writable 0` (alert
+  `EurogasDatabaseReadOnly`): one check for both.
 - Every bound involved (connect per host, start-up wait, statement and socket limits) is in the
   one table of timeouts: [DB_RUNTIME_HARDENING.md, "Timeouts"](DB_RUNTIME_HARDENING.md#timeouts).
 - The market-events listener reconnects with backoff and catches up from the outbox; nothing is

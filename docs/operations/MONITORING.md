@@ -27,6 +27,7 @@ reachable through the public HTTPS gateway (the shipped gateways answer `/metric
 | `eurogas_feed_last_quote_age_seconds{source_system}`, `eurogas_feed_receive_lag_seconds{source_system}` | Live price feeds: newest quote's age, and how far receipt lags the venue time |
 | `eurogas_market_events_backlog{consumer}`, `eurogas_market_events_oldest_due_age_seconds{consumer}`, `eurogas_market_events_dead{consumer}` | The market-event outbox: waiting deliveries and how late the oldest is |
 | `eurogas_metrics_database_up`, `eurogas_metrics_collector_up{collector}` | Whether the database metrics could be read at this scrape |
+| `eurogas_db_primary_writable` | 1 when the database accepts writes, 0 on a standby in recovery: the same check as readiness's `runtime_db_read_only` (`db/resilience.py` `in_recovery`) |
 
 The database-derived families are computed at each scrape with aggregate queries; every API
 server reports the same values (the alert rules take the maximum, so two servers do not alert

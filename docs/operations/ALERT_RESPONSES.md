@@ -136,6 +136,21 @@ themselves stay correct when read.
    whether the database accepts connections (`max_connections`).
 4. For a lost or damaged database follow [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md).
 
+## EurogasDatabaseReadOnly
+
+**Means.** The API's database answers reads but is a standby in recovery: every write is
+refused, and readiness answers 503 `runtime_db_read_only`.
+
+**Do.**
+
+1. A failover in progress? On the primary-and-standby tier (`deploy/ha`), check which node is
+   primary: `SELECT pg_is_in_recovery()` on each node.
+2. If the primary is lost, fail over: [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md) ("Primary
+   database server lost (failover)"). New connections find the promoted node through
+   `EUROGAS_NEXUS_DB_FAILOVER_HOSTS`; no restart is needed.
+3. If no failover is under way, the URL or the failover hosts name only standbys: correct the
+   deployment's environment.
+
 ## EurogasDbPoolExhausted
 
 **Means.** An API server's database pool ran out in the last 5 minutes (summed over its worker
