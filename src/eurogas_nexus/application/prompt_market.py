@@ -28,6 +28,7 @@ from typing import Any
 from sqlalchemy import func
 
 from eurogas_nexus.domain.market.gas_day import gas_day_label, gas_day_start_for_date
+from eurogas_nexus.domain.market.products import resolve_product
 
 PRODUCTS = (("within_day", "within-day"), ("day_ahead", "day-ahead"))
 QUOTE_MAX_AGE = timedelta(hours=6)
@@ -80,6 +81,16 @@ def _quotes(session, principal, hub: str, product: str, delivery_start: datetime
     return real or allowed
 
 
+def prompt_days(today: date) -> dict[str, date]:
+    """The gas days the within-day and day-ahead products deliver on ``today``.
+
+    Day-ahead is the next working day (Friday's DA delivers Monday), resolved exactly as the
+    tick intake resolves it, so a Friday read finds the DA quote the intake stored.
+    """
+
+    return {"within_day": today, "day_ahead": resolve_product("DA", today).first_gas_day}
+
+
 def _at(rows, moment: datetime):
     """The newest quote at or before ``moment`` (rows newest first)."""
 
@@ -98,7 +109,7 @@ def prompt_market(session, who: Any, hub: str, *, now: datetime | None = None,
     now = now or datetime.now(UTC)
     hub = hub.upper()
     today = date.fromisoformat(gas_day_label(now))
-    days = {"within_day": today, "day_ahead": today + timedelta(days=1)}
+    days = prompt_days(today)
     starts = {key: gas_day_start_for_date(day) for key, day in days.items()}
     warnings: list[str] = []
 

@@ -179,7 +179,10 @@ def _pair(holdings: Holdings, hub: str, tenor: str, prices=None) -> dict[str, An
         final = (end.date() if hasattr(end, "date") else end) - timedelta(days=1)
         delivery = Delivery(first, final, "month", f"{first:%b}-{first:%y}")
     else:
-        tomorrow = holdings.today + timedelta(days=1)
+        from eurogas_nexus.domain.market.products import resolve_product
+
+        # The day-ahead product's delivery: the next working day (Friday's DA is Monday).
+        tomorrow = resolve_product("DA", holdings.today).first_gas_day
         delivery = Delivery(tomorrow, tomorrow, "day_ahead", tomorrow.isoformat())
     a, fx_a = _eur(holdings, last, delivery=delivery if code == "MA" else None)
     b, _ = _eur(holdings, last_ref, delivery=delivery if code == "MA" else None)

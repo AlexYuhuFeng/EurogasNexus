@@ -193,3 +193,15 @@ def test_a_pair_without_closes_gives_its_reason_as_a_code(holdings):
     assert month["reasons"] == [
         {"code": "no_close_both", "params": {"tenor": "MA", "hub": "PEG", "reference": "TTF"}}
     ]
+
+
+def test_the_prompt_day_ahead_is_the_next_working_day_as_the_tick_intake_stores_it():
+    from datetime import date
+
+    from eurogas_nexus.application.prompt_market import prompt_days
+    from eurogas_nexus.domain.market.products import resolve_product
+
+    friday, monday = date(2026, 11, 20), date(2026, 11, 23)
+    assert prompt_days(friday) == {"within_day": friday, "day_ahead": monday}
+    assert prompt_days(monday)["day_ahead"] == date(2026, 11, 24)
+    assert prompt_days(friday)["day_ahead"] == resolve_product("DA", friday).first_gas_day
