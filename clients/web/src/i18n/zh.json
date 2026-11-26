@@ -6888,5 +6888,7 @@
   "answer.portfolio.headroom": "最紧的信用余额",
   "answer.portfolio.headroom_detail": "{{name}} · 已用 {{used}}%",
   "answer.portfolio.flagged_one": "{{count}} 条信用额度处于关注或超限",
-  "answer.portfolio.flagged_other": "{{count}} 条信用额度处于关注或超限"
+  "answer.portfolio.flagged_other": "{{count}} 条信用额度处于关注或超限",
+  "view.refreshing": "数据截至 {{time}}，正在更新",
+  "view.refreshing.detail": "本页部分数据为 {{time}} 计算的最近结果。已有新数据到达，正在重新计算，完成后页面会更新。"
 }

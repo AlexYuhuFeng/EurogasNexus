@@ -13,6 +13,10 @@
  *
  * The key carries the caller's principal, so a change of identity never shows another caller's
  * figures; `clearDeskTodayCache` drops everything on sign-out.
+ *
+ * When the server answers from its kept result while recomputing it (`meta.view.state` is
+ * "refreshing", application/warm_views.py), the kept figures show at once with their time in the
+ * top bar, and one quiet re-read a few seconds later swaps in the recomputed ones.
  */
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
@@ -43,10 +47,16 @@ interface Entry {
 /** A read younger than this is the same navigation's read: reuse it. */
 export const DESK_TODAY_REUSE_MS = 5_000;
 
+/** After an answer the server is recomputing, re-read this much later, at most this many times. */
+export const DESK_TODAY_FOLLOW_UP_MS = 4_000;
+export const DESK_TODAY_FOLLOW_UPS = 3;
+
+type DeskTodayAnswer = { data: DeskTodayDTO; meta?: { view?: { state?: string } } };
+
 const EMPTY: Snapshot = { today: null, loading: false, error: null };
 const entries = new Map<string, Entry>();
 const listeners = new Set<() => void>();
-let fetcher: () => Promise<{ data: DeskTodayDTO }> = () => api.deskToday();
+let fetcher: () => Promise<DeskTodayAnswer> = () => api.deskToday();
 
 function emit() {
   for (const listener of listeners) listener();
@@ -64,20 +74,30 @@ export function deskTodayKey(principalId: string | null | undefined, now = Date.
   return `${principalId ?? "anonymous"}|${new Date(now).toISOString().slice(0, 10)}`;
 }
 
-/** Start a read for `key` unless one is in flight or a recent one can be reused. */
-export function loadDeskToday(key: string, force = false, now = Date.now()): Promise<void> {
+/**
+ * Start a read for `key` unless one is in flight or a recent one can be reused. A follow-up
+ * (`followUps` > 0) is quiet: the figures on screen stay without a loading state until it lands.
+ */
+export function loadDeskToday(key: string, force = false, now = Date.now(), followUps = 0): Promise<void> {
   const entry = entries.get(key) ?? { snapshot: EMPTY, fetchedAt: 0, inFlight: null, generation: 0 };
   entries.set(key, entry);
   if (entry.inFlight && !force) return entry.inFlight;
   if (!force && entry.snapshot.today && now - entry.fetchedAt < DESK_TODAY_REUSE_MS) return Promise.resolve();
   const mine = ++entry.generation;
-  entry.snapshot = { ...entry.snapshot, loading: true };
-  emit();
+  if (followUps === 0) {
+    entry.snapshot = { ...entry.snapshot, loading: true };
+    emit();
+  }
   const request = fetcher()
     .then((response) => {
       if (mine !== entry.generation) return;
       entry.snapshot = { today: response.data, loading: false, error: null };
       entry.fetchedAt = Date.now();
+      if (response.meta?.view?.state === "refreshing" && followUps < DESK_TODAY_FOLLOW_UPS) {
+        setTimeout(() => {
+          if (mine === entry.generation && entries.get(key) === entry) void loadDeskToday(key, true, Date.now(), followUps + 1);
+        }, DESK_TODAY_FOLLOW_UP_MS);
+      }
     })
     .catch((caught: unknown) => {
       if (mine !== entry.generation) return;
@@ -114,7 +134,7 @@ export function clearDeskTodayCache() {
 }
 
 /** Tests replace the request. */
-export function setDeskTodayFetcher(next: () => Promise<{ data: DeskTodayDTO }>) {
+export function setDeskTodayFetcher(next: () => Promise<DeskTodayAnswer>) {
   fetcher = next;
 }
 

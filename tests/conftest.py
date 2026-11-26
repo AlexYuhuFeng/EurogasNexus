@@ -23,6 +23,10 @@ from pathlib import Path
 # hashes. The golden values are Haswell's; an explicit environment value still wins.
 os.environ.setdefault("OPENBLAS_CORETYPE", "Haswell")
 os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
+# Warm views keep a read's result in the process between requests (application/warm_views.py):
+# a suite that changes rows directly between two reads would be answered from before. Off for
+# the suite; its own tests switch it on.
+os.environ.setdefault("EUROGAS_NEXUS_WARM_VIEWS", "off")
 
 import pytest  # noqa: E402
 

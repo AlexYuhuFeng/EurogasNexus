@@ -23,6 +23,9 @@ import { CountryMultiples } from "./CountryMultiples";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
+/** Every country the panel reads (the idle warm-up asks for the same read). */
+export const LNG_COUNTRY_CODES = ["EU", "BE", "DE", "ES", "FI", "FR", "GR", "HR", "IT", "LT", "NL", "PL", "PT"];
+
 const num = (value: number | null | undefined, decimals = 0) =>
   value == null ? "–" : value.toLocaleString("en-GB", { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
 const signed = (value: number | null | undefined, decimals = 0) => (value == null ? "–" : formatSigned(value, decimals));
@@ -41,7 +44,7 @@ export function LngByCountryPanel({ t, language }: { t: Translate; language: str
   useEffect(() => {
     const controller = new AbortController();
     api
-      .fundamentalsLng(["EU", "BE", "DE", "ES", "FI", "FR", "GR", "HR", "IT", "LT", "NL", "PL", "PT"], { signal: controller.signal })
+      .fundamentalsLng(LNG_COUNTRY_CODES, { signal: controller.signal })
       .then((response) => {
         setData(response.data);
         setAttribution((response.meta as { attribution?: string | null } | undefined)?.attribution ?? null);

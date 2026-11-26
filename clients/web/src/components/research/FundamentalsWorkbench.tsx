@@ -30,6 +30,9 @@ type Translate = (key: string, options?: Record<string, unknown>) => string;
 type Tab = "storage" | "lng" | "flows" | "balance" | "power";
 const TABS: Tab[] = ["storage", "lng", "flows", "balance", "power"];
 
+/** The countries the storage small multiples read (the idle warm-up asks for the same read). */
+export const STORAGE_MULTIPLE_CODES = ["AT", "BE", "BG", "CZ", "DE", "DK", "ES", "FR", "HR", "HU", "IT", "LV", "NL", "PL", "PT", "RO", "SE", "SK"];
+
 function tabFromLocation(): Tab {
   if (typeof window === "undefined") return "storage";
   const value = new URLSearchParams(window.location.search).get("view");
@@ -67,7 +70,7 @@ function StorageMultiples({ t }: { t: Translate }) {
   useEffect(() => {
     const controller = new AbortController();
     api
-      .fundamentalsStorage({ region: "eu", season: ["AT", "BE", "BG", "CZ", "DE", "DK", "ES", "FR", "HR", "HU", "IT", "LV", "NL", "PL", "PT", "RO", "SE", "SK"] }, { signal: controller.signal })
+      .fundamentalsStorage({ region: "eu", season: STORAGE_MULTIPLE_CODES }, { signal: controller.signal })
       .then((response) => setCountries(response.data.countries))
       .catch(() => undefined);
     return () => controller.abort();

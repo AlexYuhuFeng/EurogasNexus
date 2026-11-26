@@ -16,6 +16,7 @@ from eurogas_nexus.api.dependencies.row_entitlement import current_principal
 from eurogas_nexus.api.schemas.nwe_balance import NweBalanceRequest
 from eurogas_nexus.application.nwe_balance_scenario import run_nwe_balance_scenario
 from eurogas_nexus.application.projections.market_reads import filter_entitled_rows
+from eurogas_nexus.application.warm_views import ViewSpec, not_json, warm_view
 from eurogas_nexus.domain.ontology.markets import Commodity, find_market, markets
 from eurogas_nexus.domain.power.gas_for_power import (
     API2_MWH_TH_PER_TONNE,
@@ -164,6 +165,7 @@ def _gas_closes(request: Request, hub: str, first: date, last: date) -> dict[dat
 
 
 @router.get("/api/market/gas-for-power")
+@warm_view(ViewSpec("market.gas_for_power", max_age_seconds=300), skip=not_json)
 def get_gas_for_power(
     request: Request,
     zone: str = Query("DE_LU", max_length=16),
@@ -501,6 +503,7 @@ def calculate_nwe_balance_scenario(payload: NweBalanceRequest, request: Request)
 
 
 @router.get("/api/market/nwe-balance")
+@warm_view(ViewSpec("market.nwe_balance", max_age_seconds=300), skip=not_json)
 def get_nwe_balance(
     request: Request,
     days: int = Query(14, ge=1, le=31),

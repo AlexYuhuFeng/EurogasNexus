@@ -5,6 +5,7 @@ from datetime import date
 from fastapi import APIRouter, HTTPException, Query, Request
 
 from eurogas_nexus.api.routes.public import observation_window
+from eurogas_nexus.application.warm_views import ViewSpec, warm_view
 from eurogas_nexus.domain.market.storage_targets import (
     DEFAULT_TARGET_PCT,
     StorageDay,
@@ -272,6 +273,7 @@ GIE_ATTRIBUTION = "Source: GIE (Gas Infrastructure Europe), AGSI+ transparency p
 
 
 @router.get("/api/fundamentals/storage")
+@warm_view(ViewSpec("fundamentals.storage", max_age_seconds=300))
 def get_fundamentals_storage(
     request: Request,
     region: str = Query("eu", pattern="^(eu|nwe)$", description="eu (GIE EU aggregate) or nwe"),
@@ -337,6 +339,7 @@ def get_fundamentals_storage(
 
 
 @router.get("/api/fundamentals/lng")
+@warm_view(ViewSpec("fundamentals.lng", max_age_seconds=300))
 def get_fundamentals_lng(
     request: Request,
     season: str | None = Query(
@@ -390,6 +393,7 @@ def get_fundamentals_lng(
 
 
 @router.get("/api/fundamentals/forward-balance")
+@warm_view(ViewSpec("fundamentals.forward_balance", max_age_seconds=300))
 def get_fundamentals_forward_balance(
     request: Request,
     hub: str = Query("nwe", max_length=16, description="Balance region; nwe is held."),
@@ -435,6 +439,7 @@ def get_fundamentals_forward_balance(
 
 
 @router.get("/api/fundamentals/flows")
+@warm_view(ViewSpec("fundamentals.flows", max_age_seconds=300))
 def get_fundamentals_flows(
     request: Request,
     season: str | None = Query(

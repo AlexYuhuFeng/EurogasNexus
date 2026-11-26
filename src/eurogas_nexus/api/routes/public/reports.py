@@ -25,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from eurogas_nexus.api.dependencies.ai_authority import ai_caller
 from eurogas_nexus.api.routes.public.portfolio_common import env as _env
+from eurogas_nexus.application.warm_views import ViewSpec, warm_view
 
 router = APIRouter(tags=["reports"])
 
@@ -122,6 +123,7 @@ def _unavailable(exc: Exception) -> HTTPException:
 
 
 @router.get("/api/reports/catalogue")
+@warm_view(ViewSpec("reports.catalogue", max_age_seconds=120))
 def get_report_catalogue(request: Request, language: str = "en") -> dict:
     """The report kinds and the sections a report is assembled from.
 

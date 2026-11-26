@@ -18,6 +18,7 @@ from eurogas_nexus.api.middleware.licensed_use import LicensedUseMiddleware
 from eurogas_nexus.api.middleware.observability import HttpObservabilityMiddleware
 from eurogas_nexus.api.middleware.origin_csrf import OriginCsrfGuardMiddleware
 from eurogas_nexus.api.middleware.request_id import RequestIdMiddleware
+from eurogas_nexus.api.middleware.warm_views import WarmViewWriteMiddleware
 from eurogas_nexus.api.route_profiles import assert_profile_allowed, get_route_profile
 from eurogas_nexus.api.route_registration import register_routes
 from eurogas_nexus.api.web_client import (
@@ -93,6 +94,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     # Innermost: one licensed-data usage meter per API request (GOV-1, P6).
     app.add_middleware(LicensedUseMiddleware)
+    # A successful write makes the kept heavy reads due (application/warm_views.py).
+    app.add_middleware(WarmViewWriteMiddleware)
     # Inside the compression: the ETag is a hash of the uncompressed answer.
     app.add_middleware(ConditionalReadMiddleware)
     app.add_middleware(ApiReadCompressionMiddleware)

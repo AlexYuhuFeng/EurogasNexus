@@ -24,9 +24,12 @@ function signed(value: number): string {
  * server definition (`application/gas_day`, the lines of Today's "My gas day"); the cash-out
  * rate is the approved assumption the response names, never typed in here (QA-T-07).
  */
+/** The panel's first read (the idle warm-up asks for the same one). */
+export const DAILY_BALANCE_FIRST = { hub: "NBP", days: 7 } as const;
+
 export function DailyBalancePanel({ t }: { t: Translate }) {
-  const [hub, setHub] = useState("NBP");
-  const [days, setDays] = useState(7);
+  const [hub, setHub] = useState<string>(DAILY_BALANCE_FIRST.hub);
+  const [days, setDays] = useState<number>(DAILY_BALANCE_FIRST.days);
   const [balance, setBalance] = useState<DailyBalanceDTO | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);

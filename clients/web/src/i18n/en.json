@@ -6888,5 +6888,7 @@
   "answer.portfolio.headroom": "Tightest credit headroom",
   "answer.portfolio.headroom_detail": "{{name}} · {{used}}% used",
   "answer.portfolio.flagged_one": "{{count}} credit line on watch or in breach",
-  "answer.portfolio.flagged_other": "{{count}} credit lines on watch or in breach"
+  "answer.portfolio.flagged_other": "{{count}} credit lines on watch or in breach",
+  "view.refreshing": "Figures from {{time}}, updating",
+  "view.refreshing.detail": "Some figures on this page are the last ones computed, at {{time}}. Newer data has arrived and they are being recomputed; the page updates when they are ready."
 }

@@ -16,11 +16,13 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from eurogas_nexus.api.routes.public.portfolio_common import env as _env
 from eurogas_nexus.application.refreshable_reads import FORMAT_DESCRIPTION, REFRESH_FORMAT_PATTERN
+from eurogas_nexus.application.warm_views import ViewSpec, warm_view
 
 router = APIRouter(tags=["desk"])
 
 
 @router.get("/api/desk/today")
+@warm_view(ViewSpec("desk.today", max_age_seconds=60))
 def get_today(request: Request) -> dict:
     """Today: prices and day change, positions, the tightest limit, alerts and outages,
     the book against the market, storage and the NW Europe balance.

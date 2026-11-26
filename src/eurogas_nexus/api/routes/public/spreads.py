@@ -21,6 +21,8 @@ from typing import Any, Literal
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, ConfigDict, Field
 
+from eurogas_nexus.application.warm_views import ViewSpec, as_of_read, warm_view
+
 router = APIRouter(tags=["research"])
 
 
@@ -65,6 +67,7 @@ class InterpretInput(BaseModel):
 
 
 @router.get("/api/research/spreads/board")
+@warm_view(ViewSpec("research.spreads_board", max_age_seconds=120), skip=as_of_read)
 def spreads_board(
     request: Request, hubs: str | None = None, as_of: date | None = None
 ) -> dict:

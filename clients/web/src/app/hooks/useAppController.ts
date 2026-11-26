@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 import {
   useMarketViewPreference,
@@ -5,6 +6,8 @@ import {
   useTraderContext,
 } from "@/app/context";
 import { useApiStore } from "@/stores/api";
+import { startWarmUp, stopWarmUp } from "@/app/data/warmUp";
+import { warmUpSteps } from "@/app/data/warmUpSteps";
 import { useThemeStore } from "@/stores/theme";
 import { usePortfolioDecisionModel } from "@/app/model/usePortfolioDecisionModel";
 import { useCockpitControls } from "./useCockpitControls";
@@ -48,6 +51,22 @@ export function useAppController() {
 
   // Identity resolution is published for the desktop shell (window signal).
   useIdentitySignal(api.authState, api.currentUser?.principal_id ?? null);
+
+  // Once the workspace batch has answered, the heavy reads of the user's other tabs are asked for
+  // one at a time while the browser is idle, so the server holds them when a tab is first opened
+  // (app/data/warmUp.ts). Sign-out or another principal stops it.
+  const warmPrincipal = api.authState === "authenticated" ? api.currentUser?.principal_id ?? null : null;
+  const warmReady = warmPrincipal !== null && api.workspaceLoadsCommitted > 0;
+  useEffect(() => {
+    if (warmPrincipal === null) {
+      stopWarmUp();
+      return;
+    }
+    if (!warmReady) return;
+    void startWarmUp(warmPrincipal, useApiStore.getState().currentUser?.permissions, warmUpSteps(i18n.language));
+    // The language at the start is enough: a later change reads its own catalogue on the page.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [warmPrincipal, warmReady]);
 
   useWorkspaceRuntime({
     authState: api.authState,
