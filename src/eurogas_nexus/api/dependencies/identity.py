@@ -29,6 +29,7 @@ row-entitlement enforcement.
 from __future__ import annotations
 
 from fastapi import HTTPException, Request
+from starlette.concurrency import run_in_threadpool
 
 from eurogas_nexus.api.dependencies.exempt_paths import (
     CREDENTIAL_EXEMPT_PREFIXES,
@@ -112,33 +113,42 @@ async def _resolve_identity(request: Request) -> None:
         # Resolved earlier in the chain, and that decision is authoritative.
         return
 
+    # Every credential check reads or writes the identity store (or, for OIDC, may fetch the
+    # issuer's keys): it runs in the thread pool, never on the event loop, which serves every
+    # other request and every live-update stream of this process. The request-scoped context
+    # (book scope, reader) is set by ``require_identity`` on the loop, after this returns.
+
     bearer = request.headers.get(IDENTITY_HEADER)
     oidc_token = request.headers.get(OIDC_ACCESS_TOKEN_HEADER)
     session_cookie = request.cookies.get(SESSION_COOKIE, "")
     session_header = (request.headers.get(SESSION_HEADER) or "").strip()
 
     if (bearer or "").strip():
-        request.state.identity = _authenticate_identity_key(bearer)
+        request.state.identity = await run_in_threadpool(_authenticate_identity_key, bearer)
         request.state.identity_authenticated = True
         return
 
     if (oidc_token or "").strip():
-        request.state.identity = _authenticate_oidc(oidc_token)
+        request.state.identity = await run_in_threadpool(_authenticate_oidc, oidc_token)
         request.state.identity_authenticated = True
         return
 
     if session_header:
         # Same session store, expiry and revocation as the cookie.
-        request.state.identity = _authenticate_session_cookie(request, session_header)
+        request.state.identity = await run_in_threadpool(
+            _authenticate_session_cookie, request, session_header
+        )
         request.state.identity_authenticated = True
         return
 
     if session_cookie:
-        request.state.identity = _authenticate_session_cookie(request, session_cookie)
+        request.state.identity = await run_in_threadpool(
+            _authenticate_session_cookie, request, session_cookie
+        )
         request.state.identity_authenticated = True
         return
 
-    gateway = _authenticate_gateway(request)
+    gateway = await run_in_threadpool(_authenticate_gateway, request)
     if gateway is not None:
         request.state.identity = gateway
         request.state.identity_authenticated = True

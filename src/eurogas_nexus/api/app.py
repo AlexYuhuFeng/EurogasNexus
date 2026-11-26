@@ -45,14 +45,17 @@ async def _application_lifespan(_app: FastAPI) -> AsyncIterator[None]:
     runtime_dependencies.initialize_runtime_dependencies()
     # Background jobs run in this process: one that was running when the server last
     # stopped can never finish, so it is failed with a reason now (best effort, never fatal).
+    from starlette.concurrency import run_in_threadpool
+
     from eurogas_nexus.application.background_jobs import fail_orphaned_jobs_quietly
 
-    fail_orphaned_jobs_quietly()
+    # Database work never runs on the event loop, at startup and shutdown included.
+    await run_in_threadpool(fail_orphaned_jobs_quietly)
     yield
     # Close pooled database connections cleanly on shutdown (no-op when none were opened).
     from eurogas_nexus.db.session import dispose_cached_engines
 
-    dispose_cached_engines()
+    await run_in_threadpool(dispose_cached_engines)
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
