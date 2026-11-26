@@ -429,7 +429,7 @@ export function DecisionCasePanel({
           {canPrepare && <div className="decision-case-attach">
             <label>
               <span>{t("decision_case.evidence_kind")}</span>
-              <select
+              <select className="ds-select"
                 value={evidenceKind}
                 onChange={(event) => {
                   const next = event.target.value as DecisionCaseEvidenceInputDTO["kind"];

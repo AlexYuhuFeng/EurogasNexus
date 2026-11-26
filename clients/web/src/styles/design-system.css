@@ -827,7 +827,7 @@
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
     gap: var(--ds-space-3) var(--ds-space-4);
-    align-items: end;
+    align-items: start;
     margin-top: var(--ds-space-3);
   }
 
@@ -2966,7 +2966,7 @@
   .contract-retire-form {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
+    align-items: start;
     gap: var(--ds-space-2);
     padding: var(--ds-space-2);
     border: 1px solid color-mix(in srgb, var(--ds-negative) 30%, transparent);
@@ -3998,7 +3998,7 @@
   .access-audit-filters {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
+    align-items: start;
     gap: var(--ds-space-3);
     margin-bottom: var(--ds-space-3);
   }

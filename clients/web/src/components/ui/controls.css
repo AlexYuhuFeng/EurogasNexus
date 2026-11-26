@@ -73,28 +73,49 @@
      padding and border, so its buttons sit on the line of the boxes beside it. The screens
      listed predate Field and keep their own markup; their rows follow the same rule. On a
      phone the fields stack and a long label wraps again. */
-  :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body) {
+  :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body,
+    .decision-case-create, .decision-case-attach, .decision-case-record, .licence-form,
+    .capacity-cost-form, .contract-retire-form, .access-audit-filters, .settings-backend-form) {
     --ds-field-label-space: calc(var(--ds-line-xs) + var(--ds-space-1));
     align-items: start;
   }
 
-  :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body)
+  :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body,
+    .decision-case-create, .decision-case-attach, .decision-case-record, .licence-form,
+    .capacity-cost-form, .contract-retire-form, .access-audit-filters, .settings-backend-form)
     > :is(button, .ds-form-grid-action) {
     margin-top: var(--ds-field-label-space);
   }
 
-  :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body)
+  :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body,
+    .decision-case-create, .decision-case-attach, .decision-case-record, .licence-form,
+    .capacity-cost-form, .contract-retire-form, .access-audit-filters, .settings-backend-form)
     > .ds-segmented {
     margin-top: calc(var(--ds-field-label-space) - var(--ds-space-05) - 1px);
   }
 
-  :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body)
+  :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body,
+    .decision-case-create, .decision-case-attach, .decision-case-record, .licence-form,
+    .capacity-cost-form, .contract-retire-form, .access-audit-filters, .settings-backend-form)
     :is(.ds-field-label, .cargo-field-label, .field-label) {
     line-height: var(--ds-line-xs);
   }
 
+  /* Rows that predate Field label their boxes with a plain span: it reads as a field label
+     (one size, one colour, one line height), so the labels of a row share one baseline. */
+  :is(.decision-case-create, .decision-case-attach, .decision-case-record, .licence-form,
+    .capacity-cost-form, .contract-retire-form, .access-audit-filters, .settings-backend-form)
+    > label > span:first-child {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-xs);
+  }
+
   @media (min-width: 641px) {
-    :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body)
+    :is(.ds-form-grid, .reports-row, .contract-field-grid, .cargo-group, .cargo-group-body,
+    .decision-case-create, .decision-case-attach, .decision-case-record, .licence-form,
+    .capacity-cost-form, .contract-retire-form, .access-audit-filters, .settings-backend-form)
       :is(.ds-field-label, .cargo-field-label, .field-label) {
       display: block;
       min-width: 0;
@@ -107,6 +128,17 @@
   /* ----------------------------------------------------------------- Select */
   .ds-select {
     box-sizing: border-box;
+    /* One look in every engine: Safari and iPad draw their own framed select otherwise, beside
+       our flat boxes. The caret is two token-coloured strokes. */
+    appearance: none;
+    background-image:
+      linear-gradient(45deg, transparent 50%, var(--ds-text-2) 50%),
+      linear-gradient(135deg, var(--ds-text-2) 50%, transparent 50%);
+    background-position:
+      calc(100% - var(--ds-space-3) - var(--ds-space-1)) 50%,
+      calc(100% - var(--ds-space-3)) 50%;
+    background-size: var(--ds-space-1) var(--ds-space-1);
+    background-repeat: no-repeat;
     height: var(--ds-control-sm);
     min-height: var(--ds-control-sm);
     padding: 0 var(--ds-space-6) 0 var(--ds-control-pad-sm);
@@ -117,6 +149,10 @@
     font-family: var(--ds-font-ui);
     font-size: var(--ds-text-base);
     line-height: var(--ds-line-base);
+  }
+
+  .ds-select:disabled {
+    background-image: none;
   }
 
   .ds-select.ds-size-md {

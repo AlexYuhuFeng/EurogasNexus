@@ -109,7 +109,7 @@
   .capacity-cost-form {
     display: flex;
     flex-wrap: wrap;
-    align-items: flex-end;
+    align-items: start;
     gap: var(--ds-space-2);
     margin: var(--ds-space-3) 0 var(--ds-space-2);
     min-width: 0;

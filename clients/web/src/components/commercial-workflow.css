@@ -181,7 +181,7 @@
 .decision-case-record {
   display: flex;
   flex-wrap: wrap;
-  align-items: flex-end;
+  align-items: start;
   gap: var(--ds-space-2);
 }
 
@@ -571,7 +571,7 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px 12px;
-  align-items: flex-end;
+  align-items: start;
   margin-top: 12px;
 }
 
@@ -579,5 +579,12 @@
   display: grid;
   gap: 2px;
   font-size: var(--ds-text-sm);
+}
+}
+
+@layer legacy {
+/* The case's blockers sit under the evidence row with a gap, not against its boxes. */
+.decision-case-attach + .decision-case-blockers {
+  margin-top: var(--ds-space-2);
 }
 }

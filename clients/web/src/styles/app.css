@@ -752,7 +752,7 @@ input {
 .settings-backend-form {
   display: grid;
   grid-template-columns: minmax(320px, 1fr) auto auto;
-  align-items: end;
+  align-items: start;
   gap: 8px;
 }
 
@@ -1857,7 +1857,8 @@ body {
   border-radius: var(--ds-radius-sm);
   background: var(--ds-surface);
   color: var(--ds-text-1);
-  box-shadow: inset 0 0 0 1px var(--ds-border);
+  /* One border, the same as the buttons and pickers beside them: an extra inset line here drew
+     every input and select with a double frame (owner review 2026-11-26). */
 }
 
 .route-row,
