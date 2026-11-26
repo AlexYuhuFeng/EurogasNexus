@@ -5909,5 +5909,12 @@
   "fb.method": "Daily: the same days' measured demand in earlier years plus the last 14 days' deviation; no temperature forecast is held, so this assumes normal weather from here. Norway: 7-day average less announced outages; LNG: 14-day average; storage takes the difference. Monthly: a fitted weather rule (demand against Eurostat heating degree days, region weighted by sector gas use) at the 30-year normal; it is a transparent rule, not a promoted weather-demand model, and its ± is its own backtest. Outage uncertainty is not in the range.",
   "fb.today_open": "Forward balance",
   "fb.error_basis.backtest_mae": "± {{gwh}} GWh/d: mean absolute error of this method over the past year (backtest)",
-  "fb.error_basis.weather_spread_no_backtest": "± {{gwh}} GWh/d: weather spread and fit residual; too few months held for a backtest"
+  "fb.error_basis.weather_spread_no_backtest": "± {{gwh}} GWh/d: weather spread and fit residual; too few months held for a backtest",
+  "panel_error.title": "This page couldn't be shown",
+  "panel_error.body": "Something on this page failed to draw. Your data is safe, and the rest of the app still works: try again, pick another page above, or reload.",
+  "panel_error.retry": "Try again",
+  "panel_error.reload": "Reload",
+  "panel_error.details": "Technical details for support",
+  "map.start_failed.title": "The map can't start in this browser",
+  "map.start_failed.body": "It needs WebGL, which this browser or machine has switched off. The network lists and figures on this page still work; try another browser or turn on hardware acceleration to see the map."
 }

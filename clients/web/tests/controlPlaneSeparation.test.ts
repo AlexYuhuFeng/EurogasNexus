@@ -115,7 +115,9 @@ test("the shell hides the administrative primary and refuses its deep links", ()
   // composes through the workspace renderer (conflicting register C9).
   assert.match(
     shell,
-    /controlPlaneRestricted \|\| commercialRestricted \? <RestrictedSurface t=\{t\} \/> : <WorkspaceRenderer controller=\{controller\} \/>/,
+    // The pages sit inside PanelErrorBoundary, which only shows a failure notice; the
+    // restriction is still decided before any page mounts.
+    /controlPlaneRestricted \|\| commercialRestricted \? \(\s*<RestrictedSurface t=\{t\} \/>\s*\) : \([\s\S]*?<PanelErrorBoundary[^>]*>\s*<WorkspaceRenderer controller=\{controller\} \/>\s*<\/PanelErrorBoundary>/,
   );
   assert.equal(shell.includes("activeWorkspace === "), false);
 

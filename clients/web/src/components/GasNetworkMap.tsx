@@ -406,6 +406,10 @@ export function GasNetworkMap({
   const mapRef = useRef<MapLibreMap | null>(null);
   const labelMarkersRef = useRef<Marker[]>([]);
   const [mapReady, setMapReady] = useState(false);
+  // MapLibre needs WebGL. On a machine without it (remote desktop, locked-down browser, old
+  // GPU driver) the constructor throws; without this the throw took the whole page down to a
+  // white screen. The page now says why the map is missing and keeps the network lists.
+  const [mapStartError, setMapStartError] = useState<string | null>(null);
   const [tier, setTier] = useState<ZoomTier>("overview");
   // The "control tower" selection: one object at a time, its card docked on the right, the
   // object and what it relates to highlighted and the rest dimmed.
@@ -713,28 +717,36 @@ export function GasNetworkMap({
     // Each MapLibre instance is numbered, so a measurement can tell a kept map from a rebuilt one.
     MAP_INSTANCES += 1;
     containerRef.current.dataset.mapInstance = String(MAP_INSTANCES);
-    const map = new MapLibreMap({
-      container: containerRef.current,
-      // North-west Europe with the Norwegian shelf below the toolbar.
-      center: view?.center ?? toMapCoordinates(6.5, 55.2),
-      zoom: view?.zoom ?? 3.65,
-      ...mapZoomRange(mapTileProvider.id),
-      attributionControl: false,
-      style: buildMapStyle(
-        mapTileProvider.id,
-        mapTileToken,
-        {
-          background: mapColors.background,
-          rasterOpacity: effectiveTheme === "dark" ? 0.56 : 0.72,
-          rasterSaturation: -1,
-          rasterContrast: effectiveTheme === "dark" ? 0.2 : 0.28,
-          rasterBrightnessMin: effectiveTheme === "dark" ? 0.12 : 0.2,
-          rasterBrightnessMax: effectiveTheme === "dark" ? 0.76 : 0.96,
-          language: i18n.language,
-        },
-        effectiveTheme === "dark" ? "dark" : "light",
-      ),
-    });
+    let map: MapLibreMap;
+    try {
+      map = new MapLibreMap({
+        container: containerRef.current,
+        // North-west Europe with the Norwegian shelf below the toolbar.
+        center: view?.center ?? toMapCoordinates(6.5, 55.2),
+        zoom: view?.zoom ?? 3.65,
+        ...mapZoomRange(mapTileProvider.id),
+        attributionControl: false,
+        style: buildMapStyle(
+          mapTileProvider.id,
+          mapTileToken,
+          {
+            background: mapColors.background,
+            rasterOpacity: effectiveTheme === "dark" ? 0.56 : 0.72,
+            rasterSaturation: -1,
+            rasterContrast: effectiveTheme === "dark" ? 0.2 : 0.28,
+            rasterBrightnessMin: effectiveTheme === "dark" ? 0.12 : 0.2,
+            rasterBrightnessMax: effectiveTheme === "dark" ? 0.76 : 0.96,
+            language: i18n.language,
+          },
+          effectiveTheme === "dark" ? "dark" : "light",
+        ),
+      });
+    } catch (error) {
+      console.error("The network map could not start", error);
+      setMapStartError(error instanceof Error ? error.message : String(error));
+      return;
+    }
+    setMapStartError(null);
 
     // Zoom sits bottom-right: the top of the map belongs to the finder, the bar above to the
     // toolbar, so no two control groups can meet at any width.
@@ -2710,7 +2722,13 @@ export function GasNetworkMap({
         choice, "cannot be drawn" a configuration fault, and "fallback" a basemap the network
         could not reach, replaced by the outline. A blank map would look like a data failure.
       */}
-      {basemapState !== "configured" && (
+      {mapStartError && (
+        <p className="map-basemap-state is-unavailable" role="alert">
+          <strong>{t("map.start_failed.title")}</strong>
+          <small>{t("map.start_failed.body")}</small>
+        </p>
+      )}
+      {!mapStartError && basemapState !== "configured" && (
         <p className={`map-basemap-state is-${basemapState}`} role="status">
           <strong>
             {t(
