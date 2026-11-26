@@ -90,7 +90,7 @@
   --ds-duration-map: 400ms;  /* map camera */
   --ds-duration-flash: 400ms; /* a live cell's tick, neutral; direction is the ▲/▼ glyph */
   --ds-duration-pulse: 1200ms; /* one beat of a busy pulse or a found-pin ping */
-  --ds-duration-loop: 1400ms;  /* one sweep of a loading shimmer */
+  --ds-duration-loop: 1400ms;  /* one sweep of a loading shimmer or one turn of the busy ring */
   --ds-ease-out: cubic-bezier(0.2, 0, 0, 1);      /* entry */
   --ds-ease-in: cubic-bezier(0.4, 0, 1, 1);       /* exit */
   --ds-ease-in-out: cubic-bezier(0.4, 0, 0.2, 1); /* moving between two places */

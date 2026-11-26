@@ -48,7 +48,7 @@ import {
 import { formatDeliveryMonth, formatInstant } from "@/app/time/timeFormat";
 import { formatAmount, plainDecimal } from "@/app/time/valueFormat";
 import { useInstantFormatter } from "@/app/time/useInstant";
-import { Button, DataGrid, Field, Instant, Segmented, Select, Sheet, StatusBadge, type DataGridColumn } from "@/components/ui";
+import { Button, DataGrid, Field, Instant, Segmented, Select, Sheet, Skeleton, StatusBadge, type DataGridColumn } from "@/components/ui";
 import { Chart, Waterfall } from "@/components/ui/charts";
 import { CargoOptionsPanel } from "@/components/CargoOptionsPanel";
 import { PeriodPicker } from "@/components/ui/PeriodPicker";
@@ -111,7 +111,7 @@ export function CargoPlanSheet({
       }
       className="cargo-plan-sheet"
     >
-      {read.loading && !plan && <p className="muted" role="status">{t("lng.cargo.plan_loading")}</p>}
+      {read.loading && !plan && <Skeleton label={t("lng.cargo.plan_loading")} rows={6} />}
       {failure && (
         <div className="cargo-board-error" role="alert">
           <strong>{failure.title}</strong>

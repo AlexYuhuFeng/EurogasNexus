@@ -32,7 +32,7 @@ import {
   tariffFigure,
   versionTrail,
 } from "@/app/model/tariffBookModel";
-import { DataGrid, EmptyState, Instant, Panel, Select, StatusBadge, type DataGridColumn } from "@/components/ui";
+import { DataGrid, EmptyState, Instant, Panel, Select, Skeleton, StatusBadge, type DataGridColumn } from "@/components/ui";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -251,7 +251,7 @@ export function TariffBookPanel({ t }: { t: Translate }) {
             {t("tariffBook.history")}: {selected.facility_name} {selected.direction ?? ""} {selected.product}
           </h3>
           {history === null ? (
-            <p className="tariff-book-muted">{t("tariffBook.loading")}</p>
+            <Skeleton label={t("tariffBook.loading")} rows={3} variant="text" />
           ) : (
             <ol>
               {trail.map((step) => (

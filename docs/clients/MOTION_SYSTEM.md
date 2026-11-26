@@ -32,7 +32,7 @@ differ. The duration scale is exactly:
 | `--ds-duration-flash` | 400ms | a live cell's tick (see data update rules) |
 | `--ds-duration-map` | 400ms | map camera |
 | `--ds-duration-pulse` | 1200ms | one beat of a busy pulse or a found-pin ping |
-| `--ds-duration-loop` | 1400ms | one sweep of a loading shimmer |
+| `--ds-duration-loop` | 1400ms | one sweep of a loading shimmer or one turn of the busy ring (`Spinner`) |
 
 The older names `--motion-fast`, `--motion-standard` and `--motion-emphasis`
 are aliases of fast, base and slow. No ordinary UI transition SHOULD exceed

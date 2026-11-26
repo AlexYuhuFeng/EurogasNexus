@@ -20,7 +20,7 @@ import {
   safeHref,
   touchesBook,
 } from "@/app/model/newsModel";
-import { Button, Field, Instant, Panel, Segmented, Select, StatusBadge, UpdatingMark } from "@/components/ui";
+import { Button, Field, Instant, Panel, Segmented, Select, Skeleton, StatusBadge, UpdatingMark } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 type Scope = "all" | "mine";
@@ -82,7 +82,7 @@ function ItemDetail({ itemId, t, language }: { itemId: string; t: Translate; lan
   const [error, setError] = useState<string | null>(null);
   const item = read.data?.data;
   if (read.error && !item) return <p className="news-error" role="alert">{t("news.load_failed")}</p>;
-  if (!item) return <p className="news-muted">{t("news.loading")}</p>;
+  if (!item) return <Skeleton label={t("news.loading")} rows={5} variant="text" />;
   const href = safeHref(item.url);
   const ask = () => {
     setAsking(true);
@@ -226,6 +226,7 @@ export function NewsPanel({ t, language }: { t: Translate; language: string }) {
         </Field>
       </div>
       {Boolean(read.error) && !read.data && <p className="news-error" role="alert">{t("news.load_failed")}</p>}
+      {read.loading && !read.data && <Skeleton label={t("news.list_loading")} rows={5} />}
       {read.data && items.length === 0 && <p className="news-muted" data-empty-state="news">{t("news.empty")}</p>}
       <div className="news-body">
         <ul className="news-list" aria-label={t("news.title")}>

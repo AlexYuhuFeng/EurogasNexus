@@ -6662,6 +6662,7 @@
   "news.empty": "没有符合筛选条件的条目。",
   "news.load_failed": "无法加载新闻。",
   "news.loading": "正在加载条目",
+  "news.list_loading": "正在读取新闻与事件",
   "news.time_unknown": "未注明时间",
   "news.open_source": "打开来源",
   "news.source_terms": "来源：{{source}}。条款：{{licence}}",

@@ -42,6 +42,7 @@ test("Button: loading is busy and cannot be pressed twice; disabled stays disabl
   assert.match(busy, /aria-busy="true"/);
   assert.match(busy, /data-loading=""/);
   assert.match(busy, />Analyse</, "the label stays, so the width does not jump");
+  assert.match(busy, /<span class="ds-spinner ds-button-spinner" data-size="sm" data-progress="unknown" aria-hidden="true"><svg/, "the busy ring shows in place of the label");
   const off = render(h(Button, { disabled: true }, "Save"));
   assert.match(off, /disabled=""/);
   assert.doesNotMatch(off, /aria-busy/);
@@ -137,6 +138,40 @@ test("Skeleton: one announced loading status; the bars are hidden from assistive
   assert.match(html, /^<div class="ds-skeleton-group" role="status" aria-busy="true" aria-live="polite"><span class="ds-visually-hidden">Loading the position ladder<\/span>/);
   assert.equal((html.match(/class="ds-skeleton ds-skeleton-row" aria-hidden="true"/g) ?? []).length, 3);
   assert.equal((render(h(Skeleton, { label: "x", rows: 0, variant: "text" })).match(/ds-skeleton-text/g) ?? []).length, 1);
+});
+
+test("Spinner: a ring, not a word; announced once when it has a label; filled to known progress", async () => {
+  const { Spinner } = await ui();
+  const quiet = render(h(Spinner));
+  assert.match(quiet, /^<span class="ds-spinner" data-size="sm" data-progress="unknown" aria-hidden="true"><svg class="ds-spinner-ring"/);
+  assert.match(quiet, /stroke-dasharray="25 100"/);
+  assert.doesNotMatch(quiet, /role=/);
+  const named = render(h(Spinner, { label: "Loading instruments", size: "xs" }));
+  assert.match(named, /role="status" aria-live="polite"/);
+  assert.match(named, /data-size="xs"/);
+  assert.match(named, /<span class="ds-visually-hidden">Loading instruments<\/span>/);
+  const known = render(h(Spinner, { label: "Uploading", value: 0.4 }));
+  assert.match(known, /role="progressbar" aria-label="Uploading" aria-valuemin="0" aria-valuemax="100" aria-valuenow="40"/);
+  assert.match(known, /data-progress="known"/);
+  assert.match(known, /stroke-dasharray="40 100"/);
+  assert.match(render(h(Spinner, { label: "x", value: 1.7 })), /aria-valuenow="100"/, "never more than done");
+  assert.match(render(h(Spinner, { label: "x", value: Number.NaN })), /role="status"/, "an unknown value is unknown progress");
+});
+
+test("UpdatingMark: the ring beside the title, the word for assistive technology and the tooltip", async () => {
+  const { UpdatingMark } = await ui();
+  assert.equal(render(h(UpdatingMark, { active: false, label: "Updating" })), "");
+  const html = render(h(UpdatingMark, { active: true, label: "Updating" }));
+  assert.match(html, /^<span class="ds-updating" role="status" aria-live="polite" title="Updating"><span class="ds-spinner" data-size="xs"/);
+  assert.match(html, /<span class="ds-visually-hidden">Updating<\/span><\/span>$/);
+});
+
+test("the busy ring turns only when motion is allowed, from the duration tokens", () => {
+  const css = readFileSync(new URL("../src/components/ui/controls.css", import.meta.url), "utf8");
+  const motion = css.slice(css.lastIndexOf("@media (prefers-reduced-motion: no-preference)"));
+  assert.match(motion, /\.ds-spinner\[data-progress="unknown"\] \.ds-spinner-ring \{\s*animation: ds-spin var\(--ds-duration-loop\)/);
+  const still = css.slice(css.indexOf("/* ----------------------------------------------------------------- Spinner */"), css.lastIndexOf("@media (prefers-reduced-motion: no-preference)"));
+  assert.doesNotMatch(still, /animation:/, "no animation outside the motion-allowed block");
 });
 
 test("primitives are adopted at real call sites", () => {
