@@ -21,12 +21,19 @@ operator and infrastructure type.
    that VIP, where capacity is booked. One connection is never two.
 2. **Each side resolves to a pipeline or a market area.**
    - A *two-point transmission system* is a side ``(systemLabel, operatorKey)`` run by a TSO
-     (``-TSO-`` in the key) that ENTSOG lists, across all of Europe, at exactly two points: a
+     (``-TSO-`` in the key, not a national grid of ``EXTERNAL_OPERATOR_ZONES``) that ENTSOG
+     lists, across all of Europe, at exactly two points: a
      pipeline with two ends (IUK: Bacton - Zeebrugge; BBL: Balgzand - Bacton). Its side resolves
      to the pipeline, whatever balancing zone ENTSOG files it under.
-   - Otherwise a transmission side resolves to its balancing zone's trading point (``BZ_HUB``),
-     or, for a zone with no trading point in the bundle (Austria, Czechia, Switzerland, Spain,
-     Poland, Northern Ireland, the Belgian L-gas zone), to "outside".
+   - Otherwise a transmission side resolves to the market area of its balancing zone
+     (``MARKET_AREAS``, every active ENTSOG balancing zone): the zone's virtual trading point,
+     or, for a zone ENTSOG publishes no trading point for (Switzerland, Slovakia, Romania ...),
+     a zone node at ENTSOG's own map position for the zone (``BZ-<code>``). A zone ENTSOG
+     publishes as replaced (``REPLACED_ZONES``: GASPOOL, NCG, LU ...) is read as its
+     successor. A side ENTSOG files with no balancing zone but run by a non-EU national TSO
+     (``EXTERNAL_OPERATOR_ZONES``: Ukraine, Moldova, Serbia, Turkey, North Macedonia) resolves
+     to that operator country's one ENTSOG zone, and the edge says so (``side_basis``). Any
+     other zone resolves to "outside".
    - A side that is not transmission (storage, LNG, production, distribution, final consumers)
      or has no balancing zone (the Norwegian upstream system) is supply or demand inside a market
      area, not a neighbouring one: the row proves no adjacency.
@@ -57,18 +64,190 @@ from __future__ import annotations
 
 from collections import defaultdict
 from collections.abc import Iterable, Mapping
+from dataclasses import dataclass
 from typing import Any
 
-#: Balancing zone (ENTSOG ``BzKey``) to the ENTSOG point key of its virtual trading point.
-BZ_HUB: dict[str, str] = {
-    "NL---------": "VTP-00002",  # Netherlands: TTF
-    "DE-THE-----": "VTP-00045",  # THE
-    "BE-LUX------": "VTP-00016",  # BeLux H: ZTP
-    "FR----------": "VTP-00039",  # TRF: PEG
-    "UK---------": "VTP-00006",  # GB: NBP
-    "DK-SE-------": "VTP-00001",  # Joint balancing zone DK/SE: GTF (ETF)
-    "IE---------": "VTP-00005",  # Ireland: IBP
+
+@dataclass(frozen=True)
+class MarketArea:
+    """One active ENTSOG balancing zone and the node that stands for it on the network.
+
+    ``hub_point_key`` is the ENTSOG virtual trading point (``VTP-``) when ENTSOG publishes one
+    for the zone (the VTP's own ``interconnections`` rows name the zone); otherwise the zone is
+    drawn at the position ENTSOG's ``balancingzones`` dataset gives it (``zone_point_key``,
+    ``BZ-<code>``) and is a market area without a published trading point.
+    """
+
+    bz_key: str
+    code: str
+    country: str  # ISO 3166 alpha-2 of the zone (GB for ENTSOG's UK)
+    #: ENTSOG operator country keys whose TSOs trade in the zone (rule 6, blank sides).
+    operator_countries: tuple[str, ...]
+    hub_point_key: str | None = None
+
+    @property
+    def zone_point_key(self) -> str:
+        return f"BZ-{self.code}"
+
+    @property
+    def point_key(self) -> str:
+        return self.hub_point_key or self.zone_point_key
+
+
+#: Every active ENTSOG balancing zone (``balancingzones``, read 26-11-2026; none deactivated or
+#: replaced), except the Interconnector's own zone (``UK-IUK``: IUK is a two-point pipeline,
+#: rule 2) and the Polish L-gas zone (no interconnection point). Desk codes are the hub
+#: names traders use (TTF, THE, CEGH ...); a zone with no
+#: trading point carries a short zone code. The VTP chosen where ENTSOG lists several for one
+#: zone: GTF (VTP-00001) over NPTF for DK/SE, PEG (VTP-00039) over the merged PEG SUD / TRS
+#: points for France, ZTP H-zone (VTP-00016) over Zeebrugge Beach for BeLux, PVB (VTP-00007)
+#: over the LNG tank TVB for Spain, HTP (VTP-00042) over the TAP VTP for Greece, and the
+#: exchange H-gas VTP (VTP-00018, the one with an EIC) for Poland. Bulgaria's only VTP is the
+#: IGB pipeline's (VTP-00046), not Bulgartransgaz's zone, so BG is drawn as a zone.
+MARKET_AREAS: tuple[MarketArea, ...] = (
+    MarketArea("NL---------", "TTF", "NL", ("NL",), "VTP-00002"),
+    MarketArea("DE-THE-----", "THE", "DE", ("DE",), "VTP-00045"),
+    # ZTP's side is left as published (BE and LU operators both trade there).
+    MarketArea("BE-LUX------", "ZTP", "BE", (), "VTP-00016"),
+    MarketArea("BE-L-ZONE--", "ZTP-L", "BE", (), "VTP-00025"),
+    MarketArea("FR----------", "PEG", "FR", ("FR",), "VTP-00039"),
+    MarketArea("UK---------", "NBP", "GB", ("UK",), "VTP-00006"),
+    MarketArea("DK-SE-------", "GTF", "DK", ("DK",), "VTP-00001"),
+    MarketArea("IE---------", "IBP", "IE", ("IE",), "VTP-00005"),
+    MarketArea("AT---------", "CEGH", "AT", ("AT",), "VTP-00014"),
+    MarketArea("CZ---------", "OTE", "CZ", ("CZ",), "VTP-00003"),
+    MarketArea("IT---------", "PSV", "IT", ("IT",), "VTP-00013"),
+    MarketArea("ES---------", "PVB", "ES", ("ES",), "VTP-00007"),
+    MarketArea("HU---------", "MGP", "HU", ("HU",), "VTP-00015"),
+    MarketArea("GR---------", "HTP", "GR", ("GR",), "VTP-00042"),
+    # Poland's zones share one TSO (GAZ-SYSTEM): left as published. The Polish L-gas zone
+    # (PL-L-gas) is left out: ENTSOG publishes no interconnection point for it, only domestic
+    # L-gas fields, nitrogen removal plants and consumers, so it joins no other market area.
+    MarketArea("PL---------", "PL-VTP", "PL", (), "VTP-00018"),
+    MarketArea("PL-YAMAL---", "TGPS", "PL", ()),
+    MarketArea("PT---------", "PT", "PT", ("PT",)),
+    MarketArea("CH---------", "CH", "CH", ("CH",)),
+    MarketArea("SK---------", "SK", "SK", ("SK",)),
+    MarketArea("SI---------", "SI", "SI", ("SI",)),
+    MarketArea("HR---------", "HR", "HR", ("HR",)),
+    MarketArea("RO---------", "RO", "RO", ()),
+    MarketArea("RO-TBP-----", "RO-DTS", "RO", ()),
+    MarketArea("BG-NGTS----", "BG", "BG", ("BG",)),
+    MarketArea("EE-LV------", "EE-LV", "LV", ("EE", "LV")),
+    MarketArea("LT---------", "LT", "LT", ("LT",)),
+    MarketArea("FI---------", "FI", "FI", ("FI",)),
+    MarketArea("UK-NI------", "NI", "GB", ()),
+    MarketArea("UA---------", "UA", "UA", ("UA",)),
+    MarketArea("MD---------", "MD", "MD", ("MD",)),
+    MarketArea("RS---------", "RS", "RS", ("RS",)),
+    MarketArea("TR---------", "TR", "TR", ("TR",)),
+    MarketArea("MK---------", "MK", "MK", ("MK",)),
+)
+#: Balancing zones ENTSOG publishes as replaced (``balancingzones.replacedBy``): a row still
+#: filed under one is read as its successor (GASPOOL and NCG -> THE; LU -> BeLux; ...).
+REPLACED_ZONES: dict[str, str] = {
+    "BE-H-ZONE--": "BE-LUX------",
+    "LU---------": "BE-LUX------",
+    "BG-GTNTT---": "BG-NGTS----",
+    "DE-GASPOOL-": "DE-THE-----",
+    "DE-NCG-----": "DE-THE-----",
+    "DK---------": "DK-SE-------",
+    "SE---------": "DK-SE-------",
+    "EE---------": "EE-LV------",
+    "LV---------": "EE-LV------",
+    "FR-NORTH---": "FR----------",
+    "FR-SOUTH---": "FR-TRS------",
+    "FR-TIGF----": "FR-TRS------",
+    "FR-TRS------": "FR----------",
 }
+
+#: National transmission systems outside the EU that ENTSOG publishes without a balancing zone
+#: on their side of a border (``fromBzKey``/``toBzKey`` blank), with the one ENTSOG balancing
+#: zone of the operator's country (``operators.operatorCountryKey``, ``balancingzones``). A
+#: side run by one of them resolves to that zone (``side_basis`` ``entsog_operator_country``);
+#: such a system is a national grid, never a two-point pipeline (Botas at Strandzha and Kipi
+#: does not join Bulgaria to Greece).
+EXTERNAL_OPERATOR_ZONES: dict[str, str] = {
+    "UA-TSO-0001": "UA---------",  # Gas TSO of Ukraine
+    "MD-TSO-0001": "MD---------",  # Moldovatransgaz
+    "RO-TSO-0004": "MD---------",  # Vestmoldtransgaz (operator country MD)
+    "RS-TSO-0001": "RS---------",  # Transportgas Srbija
+    "TR-TSO-0001": "TR---------",  # Botas
+    "MK-TSO-0002": "MK---------",  # NOMAGAS
+}
+
+MARKET_AREA_BY_ZONE: dict[str, MarketArea] = {area.bz_key: area for area in MARKET_AREAS}
+
+#: Balancing zone (ENTSOG ``BzKey``) to the point key of the node standing for its market
+#: area: the zone's virtual trading point, or its ``BZ-`` zone node.
+BZ_HUB: dict[str, str] = {area.bz_key: area.point_key for area in MARKET_AREAS}
+
+
+#: The balancing zone of every trading point ENTSOG publishes besides the market areas' own
+#: (the zone both sides of the VTP's own ``interconnections`` rows name, read 26-11-2026).
+#: A live read places these as hubs; the zone gives each its country (ENTSOG's connection
+#: point carries none: GTF, TTF, OTE ... read as "EU").
+OTHER_TRADING_POINT_ZONES: dict[str, str] = {
+    "VTP-00004": "DK-SE-------",  # NPTF
+    "VTP-00009": "FR----------",  # PEG SUD (retired, below)
+    "VTP-00010": "FR----------",  # Point Exchange Gas - TEREGA (retired, below)
+    "VTP-00020": "PL---------",  # VTP - OTC - H-gas (PL)
+    "VTP-00028": "PL---------",  # VTP - GAZ-SYSTEM
+    "VTP-00029": "BE-LUX------",  # Zeebrugge Beach
+    "VTP-00032": "PL-L-gas---",  # VTP - OTC - L-gas (PL)
+    "VTP-00034": "PL-YAMAL---",  # VTP - Gas Exchange TGPS (PL)
+    "VTP-00035": "PL-YAMAL---",  # VTP - OTC - TGPS (PL)
+    "VTP-00036": "PL---------",  # Aggregated PPG - H gas (PL)
+    "VTP-00037": "PL-L-gas---",  # Aggregated PPG - L-gas (PL)
+    "VTP-00038": "PL-YAMAL---",  # Aggregated PPG - TGPS (PL)
+    "VTP-00040": "PL-L-gas---",  # VTP - Gas Exchange - L-gas
+    "VTP-00043": "ES---------",  # TVB (Spain's LNG tank)
+    "VTP-00044": "GR---------",  # TAP Virtual Trading Point
+    "VTP-00046": "BG-NGTS----",  # IGB Virtual Trading Point
+}
+
+#: Trading points ENTSOG still lists for a zone that no longer exists: never a hub on the map.
+#: ENTSOG gives both map position 0/0 (the transform put them in western Poland). Point key ->
+#: (successor trading point, date the zone ended, note).
+RETIRED_TRADING_POINTS: dict[str, tuple[str, str, str]] = {
+    "VTP-00009": (
+        "VTP-00039",
+        "2018-11-01",
+        "PEG SUD: the South zone (TRS) merged with PEG Nord into one French zone, TRF (PEG)",
+    ),
+    "VTP-00010": (
+        "VTP-00039",
+        "2018-11-01",
+        "PEG TIGF / Terega: the TIGF zone merged into TRS on 2015-04-01, TRS into TRF (PEG)",
+    ),
+}
+
+
+def trading_point_country(point_key: str) -> str | None:
+    """ISO country of an ENTSOG trading point, from the balancing zone it belongs to."""
+
+    area = next((a for a in MARKET_AREAS if a.hub_point_key == point_key), None)
+    if area is not None:
+        return area.country
+    zone = OTHER_TRADING_POINT_ZONES.get(point_key)
+    if zone is None:
+        return None
+    if zone in MARKET_AREA_BY_ZONE:
+        return MARKET_AREA_BY_ZONE[zone].country
+    prefix = zone[:2]
+    return {"UK": "GB", "EL": "GR"}.get(prefix, prefix)
+
+
+def canonical_zone(bz_key: str | None) -> str | None:
+    """A balancing zone key with ENTSOG's replacements followed (GASPOOL -> THE)."""
+
+    key = str(bz_key or "") or None
+    seen: set[str] = set()
+    while key in REPLACED_ZONES and key not in seen:
+        seen.add(key)
+        key = REPLACED_ZONES[key]
+    return key
+
 
 ADJACENCY_RULE = (
     "ENTSOG interconnections and connection points: aliases of one physical point and physical "
@@ -100,6 +279,8 @@ def two_point_systems(rows: Iterable[Mapping[str, Any]]) -> dict[tuple[str, str]
             label, operator = row.get(f"{side}SystemLabel"), row.get(f"{side}OperatorKey")
             if not label or not operator or "-TSO-" not in str(operator):
                 continue
+            if str(operator) in EXTERNAL_OPERATOR_ZONES:
+                continue  # a national grid with its own zone, not a pipeline
             if row.get(f"{side}InfrastructureTypeLabel") != TRANSMISSION:
                 continue
             points[(str(label), str(operator))].add(str(row["pointKey"]))
@@ -177,7 +358,10 @@ def derive_adjacency(
             return ("pipeline", pipe_of[(str(label), str(operator))])
         if row.get(f"{side}InfrastructureTypeLabel") != TRANSMISSION:
             return None
-        bz = row.get(f"{side}BzKey")
+        bz = canonical_zone(row.get(f"{side}BzKey"))
+        if not bz and operator and str(operator) in EXTERNAL_OPERATOR_ZONES:
+            bz = EXTERNAL_OPERATOR_ZONES[str(operator)]
+            external_sides.add((canonical(str(row["pointKey"])), BZ_HUB.get(bz, bz)))
         if not bz:
             return None
         hub = BZ_HUB.get(str(bz))
@@ -185,6 +369,7 @@ def derive_adjacency(
             return ("hub", hub)
         return ("outside", str(row.get(f"{side}BzLabel") or bz))
 
+    external_sides: set[tuple[str, str]] = set()
     joins: dict[str, set[tuple[str, str]]] = defaultdict(set)
     side_operators: dict[tuple[str, str], set[str]] = defaultdict(set)
     evidence: dict[str, set[str]] = defaultdict(set)
@@ -268,6 +453,11 @@ def derive_adjacency(
                     "folded_points": sorted(folded_into.get(point, set())),
                     "evidence": sorted(evidence[point]),
                     "virtual_point": point in virtual_type or bool(folded_into.get(point)),
+                    "side_basis": (
+                        "entsog_operator_country"
+                        if (point, hub) in external_sides
+                        else "entsog_balancing_zone"
+                    ),
                     "firm_technical_kwh_d": (capacities or {}).get(point),
                     "capacity_gas_day": capacity_gas_day if (capacities or {}).get(point) else None,
                     "representative": False,
@@ -401,22 +591,50 @@ def apply_to_bundle(
             "downloaded": downloaded,
             "attribution": f"ENTSOG TP [{_dmy(downloaded)}] https://transparency.entsog.eu/",
             "market_area_hubs": dict(BZ_HUB),
+            "replaced_zones": dict(REPLACED_ZONES),
+            "external_operator_zones": dict(EXTERNAL_OPERATOR_ZONES),
             "pipelines": result["pipelines"],
             "folded": result["folded"],
             "unconnected": result["unconnected"],
         },
-        "edges": kept + fill_blank_sides(bundle, result["edges"]),
+        "edges": kept + with_directions(bundle, fill_blank_sides(bundle, result["edges"])),
     }
 
 
-#: The country whose operators trade in each market area of the bundle (``BZ_HUB``).
-HUB_COUNTRY: dict[str, str] = {
-    "VTP-00002": "NL",
-    "VTP-00045": "DE",
-    "VTP-00039": "FR",
-    "VTP-00006": "UK",
-    "VTP-00001": "DK",
-    "VTP-00005": "IE",
+def with_directions(
+    bundle: Mapping[str, Any], edges: Iterable[Mapping[str, Any]]
+) -> list[dict[str, Any]]:
+    """Each market-area link with the directions its market area's TSOs offer at the point.
+
+    ``hub_directions`` lists ``entry`` (into the market area) and ``exit`` (out of it) as the
+    bundle's access rows (ENTSOG ``operatorpointdirections``) give them for the operators on
+    that market area's side. A border both of whose links list both directions can flow either
+    way; one listing only ``exit`` on one side and ``entry`` on the other is one-way. Empty when
+    ENTSOG lists no direction for that side (the side is then not bookable through ENTSOG).
+    """
+
+    by_point: dict[str, dict[str, set[str]]] = defaultdict(lambda: defaultdict(set))
+    for row in bundle.get("access") or []:
+        by_point[str(row.get("point_key") or "")][str(row.get("operator_key") or "")].add(
+            str(row.get("direction") or "")
+        )
+    out: list[dict[str, Any]] = []
+    for edge in edges:
+        edge = dict(edge)
+        if edge.get("type") == MARKET_AREA_LINK:
+            points = [str(edge["point_key"]), *[str(p) for p in edge.get("folded_points") or []]]
+            directions: set[str] = set()
+            for point in points:
+                for operator in edge.get("operators") or []:
+                    directions |= by_point.get(point, {}).get(str(operator), set())
+            edge["hub_directions"] = sorted(directions & {"entry", "exit"})
+        out.append(edge)
+    return out
+
+
+#: The ENTSOG operator countries whose TSOs trade in each market area (``MARKET_AREAS``).
+HUB_COUNTRIES: dict[str, tuple[str, ...]] = {
+    area.point_key: area.operator_countries for area in MARKET_AREAS if area.operator_countries
 }
 
 
@@ -438,12 +656,12 @@ def fill_blank_sides(
     out: list[dict[str, Any]] = []
     for edge in edges:
         edge = dict(edge)
-        country = HUB_COUNTRY.get(str(edge.get("hub_point_key") or ""))
-        if edge.get("type") == MARKET_AREA_LINK and not edge.get("operators") and country:
+        countries = HUB_COUNTRIES.get(str(edge.get("hub_point_key") or ""))
+        if edge.get("type") == MARKET_AREA_LINK and not edge.get("operators") and countries:
             named = {
                 operator: ids
                 for operator, ids in access.get(str(edge["point_key"]), {}).items()
-                if str((operators.get(operator) or {}).get("country") or "") == country
+                if str((operators.get(operator) or {}).get("country") or "") in countries
                 and "-TSO-" in operator
             }
             if named:
