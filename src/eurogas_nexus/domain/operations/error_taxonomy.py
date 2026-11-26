@@ -350,6 +350,14 @@ ERROR_CATALOGUE: dict[str, ErrorDefinition] = {
             severity=ErrorSeverity.INFO,
             recoverability=Recoverability.AFTER_USER_ACTION,
         ),
+        # A background job whose server process stopped mid-run (application/background_jobs.py).
+        _definition("JOB_INTERRUPTED", ErrorFamily.JOB, recoverability=Recoverability.RETRY),
+        _definition(
+            "JOB_QUEUE_LIMIT",
+            ErrorFamily.JOB,
+            severity=ErrorSeverity.WARNING,
+            recoverability=Recoverability.AFTER_USER_ACTION,
+        ),
         _definition(
             "AGENT_BUDGET_EXCEEDED",
             ErrorFamily.AGENT,

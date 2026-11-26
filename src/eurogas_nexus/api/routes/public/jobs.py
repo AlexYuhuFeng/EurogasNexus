@@ -3,7 +3,10 @@
 Jobs are the shared lifecycle for ingestion, dataset builds, optimisation,
 backtests, reporting and governed agent work. These endpoints are read-only apart
 from cancellation, which is refused for a terminal or non-cancellable job rather
-than silently ignored.
+than silently ignored, and the list's housekeeping: a background job whose server process
+stopped is failed with ``JOB_INTERRUPTED`` before it is listed
+(``application/background_jobs.py``). Cancelling a background job stops its work at the next
+step and publishes nothing it computed.
 """
 
 from __future__ import annotations
@@ -29,11 +32,16 @@ def get_jobs(
         warnings.append("RUNTIME_DB_NOT_CONFIGURED")
     else:
         try:
+            from eurogas_nexus.application.background_jobs import fail_orphaned_jobs
             from eurogas_nexus.db.repositories.jobs import list_jobs
             from eurogas_nexus.db.session import get_session_factory
 
             with get_session_factory()() as session:
                 owner = _job_owner(session, request)
+                # A background job whose server process stopped is failed with a reason
+                # before it is listed, so nobody watches a job that will never finish.
+                if fail_orphaned_jobs(session):
+                    session.commit()
                 data = list_jobs(
                     session,
                     status=status,
