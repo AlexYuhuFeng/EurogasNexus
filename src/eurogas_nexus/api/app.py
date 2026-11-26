@@ -43,6 +43,13 @@ async def _application_lifespan(_app: FastAPI) -> AsyncIterator[None]:
     """
 
     runtime_dependencies.initialize_runtime_dependencies()
+    # Request threads sized from the database pool, so a request waits for a thread (no
+    # timeout) rather than for a connection (an error after the pool timeout).
+    import anyio.to_thread
+
+    from eurogas_nexus.db.session import api_thread_limit
+
+    anyio.to_thread.current_default_thread_limiter().total_tokens = api_thread_limit()
     # Background jobs run in this process: one that was running when the server last
     # stopped can never finish, so it is failed with a reason now (best effort, never fatal).
     from starlette.concurrency import run_in_threadpool
@@ -62,6 +69,10 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     """Create an import-safe FastAPI application instance."""
 
     resolved_settings = settings or get_settings()
+    # The API's database connections cancel a runaway statement (db/session.py).
+    from eurogas_nexus.db.session import use_api_statement_timeout
+
+    use_api_statement_timeout()
 
     route_profile = get_route_profile(resolved_settings.api_profile)
     assert_profile_allowed(route_profile.name, resolved_settings.environment)

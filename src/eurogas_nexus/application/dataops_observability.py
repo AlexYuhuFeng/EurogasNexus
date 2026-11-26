@@ -134,6 +134,54 @@ def _pool_gauge(pool, name: str, default: int = 0) -> int:
         return default
 
 
+def _serving_metric_lines() -> list[str]:
+    """This process's pool counters and live-update poller (per process: the scraper sums)."""
+
+    from eurogas_nexus.db.session import pool_counters
+
+    pool = pool_counters().snapshot()
+    lines = [
+        "# HELP eurogas_db_pool_checkouts_total Connections handed out by this process's pool.",
+        "# TYPE eurogas_db_pool_checkouts_total counter",
+        f"eurogas_db_pool_checkouts_total {pool['checkouts']}",
+        "# HELP eurogas_db_pool_waits_total Checkouts that waited for a connection "
+        "(the pool was exhausted).",
+        "# TYPE eurogas_db_pool_waits_total counter",
+        f"eurogas_db_pool_waits_total {pool['waits']}",
+        "# HELP eurogas_db_pool_timeouts_total Checkouts that gave up after the pool timeout.",
+        "# TYPE eurogas_db_pool_timeouts_total counter",
+        f"eurogas_db_pool_timeouts_total {pool['timeouts']}",
+        "# HELP eurogas_db_pool_wait_seconds_total Time spent waiting for a connection.",
+        "# TYPE eurogas_db_pool_wait_seconds_total counter",
+        f"eurogas_db_pool_wait_seconds_total {pool['wait_seconds']:.6f}",
+    ]
+    from eurogas_nexus.api import stream_hub
+
+    hub = stream_hub._HUB
+    if hub is not None:
+        stats = hub.stats
+        lines.extend(
+            [
+                "# HELP eurogas_stream_open Live-update streams open on this process.",
+                "# TYPE eurogas_stream_open gauge",
+                f"eurogas_stream_open {hub.open_streams()}",
+                "# HELP eurogas_stream_polls_total Polls of this process's live-update poller.",
+                "# TYPE eurogas_stream_polls_total counter",
+                f"eurogas_stream_polls_total {stats.polls}",
+                "# HELP eurogas_stream_poll_seconds_total Time spent in those polls.",
+                "# TYPE eurogas_stream_poll_seconds_total counter",
+                f"eurogas_stream_poll_seconds_total {stats.poll_seconds_total:.6f}",
+                "# HELP eurogas_stream_poll_failures_total Polls that could not reach the store.",
+                "# TYPE eurogas_stream_poll_failures_total counter",
+                f"eurogas_stream_poll_failures_total {stats.failed_polls}",
+                "# HELP eurogas_stream_refused_total Streams refused over the per-caller cap.",
+                "# TYPE eurogas_stream_refused_total counter",
+                f"eurogas_stream_refused_total {stats.refused_over_cap}",
+            ]
+        )
+    return lines
+
+
 def prometheus_metrics(session, *, now_utc: datetime | None = None) -> str:
     """Render the low-cardinality data-operations metric family."""
 
@@ -162,6 +210,7 @@ def prometheus_metrics(session, *, now_utc: datetime | None = None) -> str:
                 f"eurogas_db_pool_overflow {_pool_gauge(pool, '_max_overflow')}",
             ]
         )
+    lines.extend(_serving_metric_lines())
     states = session.query(SourceRuntimeStateRecord).all()
     # Full persisted-run read: the run totals below are exact all-history counts
     # (not a sampled list), at the cost of loading the whole table per scrape.
