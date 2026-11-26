@@ -120,3 +120,21 @@ def test_rule_validation_and_assumptions():
         rule_from_dict({"order_type": "market"})
     line = assumptions(RULE)
     assert "Paper only" in line and "buy at the offer, sell at the bid" in line
+
+
+def test_a_close_that_did_not_fill_is_retried_until_it_fills():
+    state, at = _warm()
+    spike = evaluate(LEGS, RULE, _book(at, 41.30), state, at)
+    assert spike.state["position"] == -1
+    # Back to the mean, but the WD offer shows less size than the open position: no fill.
+    at2 = at + timedelta(seconds=30)
+    thin = evaluate(LEGS, RULE, _book(at2, 41.10, wd_size=100.0), spike.state, at2)
+    assert any(e["kind"] == "no_fill" for e in thin.events)
+    assert thin.state["position"] == -1 and thin.state["signal"] == "flat"
+    # Size is back on the next tick: the close is retried and fills, with no new signal.
+    at3 = at2 + timedelta(seconds=30)
+    back = evaluate(LEGS, RULE, _book(at3, 41.10), thin.state, at3)
+    close = next(e for e in back.events if e["kind"] == "fill")
+    assert close["action"] == "close"
+    assert back.state["position"] == 0
+    assert not back.signal_changed
