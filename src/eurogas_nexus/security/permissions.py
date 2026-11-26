@@ -476,6 +476,9 @@ COMMERCIAL_DATA_PREFIXES: tuple[str, ...] = (
     "/api/assumption-sets/",
     "/api/opportunities/",
     "/api/discoveries/",
+    # A decision case carries the book, hub, gas day and objective of a commercial decision:
+    # platform administration alone must not read it (found reading the demo as admin).
+    "/api/decision-cases/",
 )
 
 
