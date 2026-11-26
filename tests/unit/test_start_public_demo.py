@@ -164,6 +164,9 @@ def test_catch_up_runs_keyless_sources_and_keyed_ones_only_with_their_key():
     keyless = start.catch_up_steps(5, now, environ={})
     keys = [step.key for step in keyless]
     assert keys[:2] == ["ecb", "entsog"]
+    # Prices close on the previous day: the ECB step loads the 90-day file, so a conversion
+    # finds a rate on or before every close and not only today's.
+    assert "--ecb-history" in keyless[0].command
     assert {"national-gas-supply", "national-gas-demand", "elexon", "rates-sonia",
             "rates-estr", "rates-sofr", "entsog-umm", "replace-simulated"} <= set(keys)
     assert not {"gie", "eia", "entsoe", "remit-iip", "entsog-history"} & set(keys)
