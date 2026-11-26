@@ -72,6 +72,9 @@ class Holdings:
     tariffs: list[dict[str, Any]]
     today: date
     catalogue: dict[str, Any] = field(default_factory=dict)
+    #: TAR-2: the firm's pipeline bookings and its configured source order.
+    bookings: list[Any] = field(default_factory=list)
+    orders: dict[str, Any] = field(default_factory=dict)
 
     def hubs(self) -> list[str]:
         return [hub["hub"] for hub in self.catalogue.get("hubs", [])]
@@ -488,6 +491,8 @@ def _route_choice(spec: StrategySpec, start: str, end: str, delivery: Delivery,
         through=spec.cost.through if honour_through and picked and spec.cost else None,
         fx=_fx_factors(holdings, currencies, into, fx_delivery),
         reporting_currency=into,
+        bookings=holdings.bookings,
+        orders=holdings.orders,
     )
 
 
@@ -563,9 +568,10 @@ def load_holdings(who: Any, *, today: date | None = None) -> Holdings:
     from eurogas_nexus.application.instrument_catalogue import build_catalogue
     from eurogas_nexus.application.market_normalisation import load_holdings as load_fx
     from eurogas_nexus.application.projections.daily_closes import daily_rows
-    from eurogas_nexus.application.route_tariff_cost import load_tariff_rows
+    from eurogas_nexus.application.route_tariff_cost import load_route_capacity, load_tariff_rows
 
     today = today or datetime.now(UTC).date()
     rows = daily_rows(who)
+    bookings, orders = load_route_capacity()
     return Holdings(rows, load_fx(who), load_tariff_rows(), today,
-                    build_catalogue(rows, today=today))
+                    build_catalogue(rows, today=today), bookings, orders)

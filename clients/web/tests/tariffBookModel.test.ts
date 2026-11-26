@@ -24,7 +24,7 @@ function version(changes: Partial<TariffVersionDTO>): TariffVersionDTO {
     version_id: "tv-1",
     change_kind: "first",
     status: "INDICATIVE",
-    status_basis: "period_not_started",
+    status_basis: "nc_tar_before_yearly_auction",
     status_change: null,
     data_class: "indicative",
     publisher_id: "entsog-tp",

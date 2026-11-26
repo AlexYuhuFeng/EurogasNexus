@@ -68,6 +68,8 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/me/password", Permission.READ),
     # A person's own presentation choices; they grant nothing (domain/settings).
     ("/api/me/preferences", Permission.READ),
+    # A person's own read and dismissed marks on alerts; the shared alert status is untouched.
+    ("/api/me/alert-state", Permission.READ),
     ("/api/settings/organisation", Permission.READ),
     ("/api/access/groups", Permission.ADMIN),
     ("/api/access/groups/{group_id}", Permission.ADMIN),
@@ -170,6 +172,10 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/lng/cargoes/{cargo_id}/disruption-options/{option_id}", Permission.READ),
     ("/api/lng/cargoes/{cargo_id}/disruption-options/{option_id}/choose", Permission.GOVERNED),
     ("/api/lng/disruption/frontier", Permission.READ),
+    # LNG-4: the REMIT outages linked to a pipeline supply (a read), and whether they curtail
+    # it (PORTFOLIO_WRITE in the handler, audited): a record for valuing options, nothing sent.
+    ("/api/lng/pipeline-supplies/{supply_id}/outage-links", Permission.READ),
+    ("/api/lng/pipeline-supplies/{supply_id}/outage-override", Permission.GOVERNED),
     ("/api/market/", Permission.READ),
     # DATA-1 import contracts: the catalogue is a declaration everyone may read; checking a
     # file looks up books and ERP counterparties and stores nothing (ANALYST floor).
@@ -254,6 +260,13 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/tariffs", Permission.READ),
     ("/api/tariffs/publishers", Permission.READ),
     ("/api/capacity/notices", Permission.READ),
+    # TAR-2: tariff years side by side, the firm's bookings (book-scoped), capacity cost
+    # contracted before public, and the source-precedence reads (FX rate, order in force).
+    ("/api/tariffs/years", Permission.READ),
+    ("/api/capacity/bookings", Permission.READ),
+    ("/api/capacity/cost", Permission.READ),
+    ("/api/pricing/fx-rate", Permission.READ),
+    ("/api/pricing/source-precedence", Permission.READ),
     # Reviewed public transmission tariffs: an operator records, a second one reviews.
     ("/api/route-cost/tariff-entries", Permission.OPERATOR),
     ("/api/route-cost/tariff-entries/{entry_id}/review", Permission.OPERATOR),

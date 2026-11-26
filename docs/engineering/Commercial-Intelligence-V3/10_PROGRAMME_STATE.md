@@ -3,11 +3,11 @@
 Read this first when picking the programme up. Updated in the same commit as the work it
 describes.
 
-**Last updated:** 2026-11-25
+**Last updated:** 2026-11-26
 **Branch:** `innovation/continuous-commercial-intelligence` (pushed; no pull request opened,
 nothing merged, no tag, no release package)
 **Baseline:** `main@6d21b898661d6466418b3aaeab505a7bc4fb4013`
-**Schema head on the branch:** `0086_lng_disruption` (LNG-3: seven expand-only tables, ADR Decision 36), on `0084_news_items` (NEWS-1: tables `news_items`, `news_source_polls`), on `0085_sched1_nomination_matching` (SCHED-1: matching columns on `gas_day_nomination_events`), on `0083_tar1_tariff_book` (TAR-1: tables `tariff_versions`, `capacity_notices`), on `0082_data1_integration` (DATA-1: `market_events.writer_txid`, table `erp_references`), on `0081_change_requests` (P-17), on `0080_lng_eta_basis` (LNG-2), on `0079_licensed_data_use` (GOV-1, P6)
+**Schema head on the branch:** `0089_alert_reader_state` (demo-test alert centre: table `monitoring_alert_reader_state`, each reader's own read and dismissed marks, expand-only), on `0087_lng4_options_demurrage` (LNG-4, file `0087_lng4_options_demurrage_outages.py`: two tables `pipeline_outage_links` and `lng_berth_calls` and nullable columns, expand-only, ADR Decision 37), on `0088_tar2_capacity_bookings` (TAR-2: table `capacity_bookings`, column `tariff_versions.tariff_year`, ADR Decision 38), on `0086_lng_disruption` (LNG-3: seven expand-only tables, ADR Decision 36), on `0084_news_items` (NEWS-1: tables `news_items`, `news_source_polls`), on `0085_sched1_nomination_matching` (SCHED-1: matching columns on `gas_day_nomination_events`), on `0083_tar1_tariff_book` (TAR-1: tables `tariff_versions`, `capacity_notices`), on `0082_data1_integration` (DATA-1: `market_events.writer_txid`, table `erp_references`), on `0081_change_requests` (P-17), on `0080_lng_eta_basis` (LNG-2), on `0079_licensed_data_use` (GOV-1, P6)
 
 ## Where the programme stands
 
@@ -38,6 +38,10 @@ nothing merged, no tag, no release package)
 | SCHED-1 Nominations: why trades, confirmations and nominations disagree | Built and tested; SCHED1-1 to SCHED1-8 met ([06](06_ACCEPTANCE_CRITERIA.md)): per gas day, hub and counterparty traded, confirmed, nominated and TSO-matched quantities; eleven break kinds explained with their arithmetic and next step, ordered by cut-off and MWh at risk with an indicative cash-out; alerts in `nomination`, withdrawn when fixed; Today's Reconciliation row and What needs me; demo case R1. Read only, nothing sent. Not yet: shipper-code reference data (codes come from the scheduling file), a TSO confirmation feed (imported, not received) |
 | NEWS-1 News and events in the analysis | Built and tested; NEWS1-1 to NEWS1-11 met ([06](06_ACCEPTANCE_CRITERIA.md)): a source registry with quoted terms (REMIT messages held, GOV.UK DESNZ feed polled; the Commission, EUR-Lex and ACER terms read, feed addresses not yet recorded; licensed and forbidden sources excluded), deterministic tags, a link from an item to a held outage that re-evaluates opportunities, role routing with dedupe and cooldown, the AI use `news_note` with a sentence-by-sentence grounding check and its evaluation set, three additive reads and the Desk → Today panel |
 | LNG-3 A disruption re-optimises the portfolio | Built and tested; LNG3-1 to LNG3-8 met ([06](06_ACCEPTANCE_CRITERIA.md)); design, sources and limits in [17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md); migration `0086_lng_disruption`, ADR Decision 36; latency in [15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) sections 2 and 8 |
+| CODEX-1 The Codex assessments on agents and big data | Reviewed and the valid, contained proposals built; CODEX1-1 to CODEX1-6 met ([06](06_ACCEPTANCE_CRITERIA.md)); verdicts and the list for the owner in [18](18_CODEX_ASSESSMENT_REVIEW.md); no route, migration or ADR; data sizing in [doc 19](19_DATA_CAPACITY_AND_INFRASTRUCTURE.md) |
+| CAP-1 Data capacity and infrastructure | Report done ([19](19_DATA_CAPACITY_AND_INFRASTRUCTURE.md)): sizes, rates and a staged recommendation for 15 years; recommendation only, nothing adopted; proposed ADRs ADR-P1 to ADR-P7 await the owner. Read-only measurement script `scripts/capacity/measure_db.py` (not shipped) |
+| TAR-2 Contracted before public, tariff years, one source order | Built and tested; TAR2-1 to TAR2-9 met ([06](06_ACCEPTANCE_CRITERIA.md)): status as of the instant valued (NC TAR Art. 29 for rows that state none), tariff years with both versions and their dates, a new final flagged and alerted, the firm's bookings priced before public tariffs in route pricing, contract costs, the optimiser and LNG-3, one configurable audited source-precedence resolver (`resolve_fx_rate` for LNG-4), a financial-institution connector type with no live bank; five reads and the Sources view; migration `0088_tar2_capacity_bookings`, ADR Decision 38 |
+| LNG-4 Options with consequences, full cost, substitute supply, demurrage, REMIT | Built and tested; LNG4-1 to LNG4-10 met ([06](06_ACCEPTANCE_CRITERIA.md)); every option ranked with its flags (contract breach with the contract and its damages or "penalty not held", cargoes moved, not possible), a recommended set with reasons; direct P&L and opportunity cost apart; substitute supply (upstream swing, hub gas plus transport, storage); demurrage in the contract's currency at a chosen FX fix; REMIT outages on pipeline supply through the outbox with a manual override. Design in [17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md) section 9; migration 0087, ADR Decision 37. Open for the owner: berth priority, counting third-party demurrage, the spare-slot value, the largest-link REMIT rule |
 | UX-1, UX-2, LOOP-1, M8 to M11, M13 | Planned, in the order of [05](05_IMPLEMENTATION_ROADMAP.md) |
 | M12 Hosted pilot | Dropped by the user on 2026-11-24 (deployment later, outside this programme) |
 
@@ -76,6 +80,27 @@ nothing merged, no tag, no release package)
 | `c88ab8f` | LNG-3 owner scenario through the store on SQLite and PostgreSQL; demo D1 planted test |
 | `b1ecc82` | LNG-3 web Options section with a Choose that only records |
 | (this commit) | LNG-3 documents and evidence |
+| `93acaab` | CODEX-1 capability runtime controls from the Codex agentisation review |
+| `892ca1d` | CODEX-1 versioned market change wire contract for a later transport |
+| `1a3095e` | CODEX-1 documents (18) and evidence |
+| `93fb109` | CAP-1 read-only measurement of table sizes and row counts |
+| `acbfbe1` | CAP-1 data capacity and infrastructure report (19), decision log and state |
+| `0ce74e7` | TAR-2 one source-precedence resolver and a financial-institution connector type |
+| `60cb3cb` | TAR-2 migration 0088 (capacity bookings, tariff year), ADR Decision 38 |
+| `a498589` | TAR-2 point-in-time tariff status, tariff years and new-final alerts |
+| `126eba1` | TAR-2 capacity cost contracted before public, in routes, costs, the optimiser and LNG-3 |
+| `1489c42` | TAR-2 five reads and the web view of layers, tariff years and sources |
+| `84b4988` | TAR-2 source counts include the financial-institution connector |
+| `70e6ccb` | TAR-2 documents and evidence |
+| `1ebcb1c` | LNG-4 migration 0087 and ADR Decision 37 |
+| `022cab5` | LNG-4 engine: options with consequences, full cost, substitute supply |
+| `fe61700` | LNG-4 the 0087 revision id fits alembic's 32-character version column |
+| `53f2b3d` | LNG-4 migration docstring and model exports |
+| `0a4ee15` | LNG-4 the ETRM cargo schedule carries laytime and demurrage in the contract's currency |
+| `b8e0fbf` | LNG-4 options with consequences, demurrage by contract, substitute supply and REMIT links |
+| `5edae63` | LNG-4 web Options section |
+| `2bdd6e8` | LNG-4 a disruption with no workable option is told as such, never as cleared |
+| (this commit) | LNG-4 documents and evidence |
 
 ## What M5 built
 
@@ -100,12 +125,18 @@ deduplicated plan in [05](05_IMPLEMENTATION_ROADMAP.md) ("Consolidated requireme
    the desk head (criteria LNG2-1 to LNG2-5 in [06](06_ACCEPTANCE_CRITERIA.md)). Left: timed
    escalation when a role does not act (R20, as for M7), routing to a named person on duty.
    **LNG-3 (built)** values what the desk could do about it across the book
-   and proposes a default ([17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md)). Left for the
-   owner: an FX rule for USD demurrage, linking REMIT outages to the pipeline supply they
-   curtail, and the default preference weights.
+   and proposes a default ([17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md)).
+   **LNG-4 (built)** lists every option with its consequences and a recommended set, values
+   each at its full cost, adds substitute supply, converts demurrage at a chosen FX fix and
+   links REMIT outages to pipeline supply (17 section 9). Left for the owner: the preference
+   weights, berth priority, counting third-party demurrage, the spare-slot value, and the
+   largest-link REMIT rule. Carbon and electricity are CE-1, later.
 3. **GOV-1.** Audit with the change, entitlement reporting, maker-checker, AI controls.
 4. **UX-1.** The twelve design-study fixes, installer and sign-in.
-5. **DATA-1, TAR-1, MAP-1, SCHED-1, NEWS-1 and LNG-3 (built).** Then **UX-2, LOOP-1**, M8 to M11 and M13.
+5. **DATA-1, TAR-1, MAP-1, SCHED-1, NEWS-1, LNG-3, TAR-2 and LNG-4 (built)**, with CODEX-1 and CAP-1. TAR-2 left for the
+   owner: which banks the firm holds and their export format, the firm's source order per
+   calculation, confirming the unconfirmed publisher cadences, booking content history, and
+   maker-checker on the source-order setting. Then **UX-2, LOOP-1**, M8 to M11 and M13.
 
 
 A persona review round follows each user-facing slice.

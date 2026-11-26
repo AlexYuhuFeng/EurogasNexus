@@ -1,5 +1,6 @@
 import { needsCommercialWorkspaceReads, workspaceReadNeeded, workspaceReadOrder } from "./workspaceReadScope";
 import { create } from "zustand";
+import { setLiveEnabled } from "@/app/data/liveStream";
 import {
   CLIENT_RELEASE_METADATA,
   ReleaseCompatibility,
@@ -232,6 +233,7 @@ function closeDecisionStreams() {
   decisionStreamClosers = [];
   setChangeStreamOpen(false);
   setTopicStreamOpen("opportunities", false);
+  setLiveEnabled(false);
 }
 
 /**
@@ -1995,6 +1997,8 @@ export const useApiStore = create<ApiState>((set, get) => ({
         },
       ).close,
     );
+    // The live stream (app/data/liveStream.ts) opens once a page subscribes to a topic.
+    setLiveEnabled(true);
   },
 
   fetchMe: async () => {

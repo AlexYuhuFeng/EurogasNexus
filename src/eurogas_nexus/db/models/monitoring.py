@@ -59,3 +59,30 @@ class MonitoringAlertRecord(Base):
     )
     simulated: Mapped[bool] = mapped_column(Boolean, nullable=False)
     human_review_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
+
+
+class MonitoringAlertReaderStateRecord(Base):
+    """What one person has done with one alert in their own alert centre.
+
+    Alerts are desk-wide and their status (open, acknowledged, resolved) is shared and audited.
+    Reading or dismissing an alert is personal: it changes only that person's list. Each mark
+    keeps the alert's severity at the moment it was made, so an alert that escalates comes
+    back unread and undismissed; resolving an alert drops the marks, so a return is new too.
+    """
+
+    __tablename__ = "monitoring_alert_reader_state"
+
+    principal_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    alert_id: Mapped[str] = mapped_column(String(128), primary_key=True)
+    read_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    read_event_time_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    read_severity: Mapped[str | None] = mapped_column(String(16), nullable=True)
+    dismissed_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    dismissed_event_time_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    dismissed_severity: Mapped[str | None] = mapped_column(String(16), nullable=True)

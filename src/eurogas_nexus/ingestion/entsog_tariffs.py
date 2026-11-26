@@ -47,11 +47,14 @@ What is stored, per row
   (ENTSOG's end is exclusive). The gas-year column carries the tariff period's label
   (``2026`` calendar year, ``2026/27`` gas year).
 - **Status**: the operator's own status where ENTSOG carries it (``operator_status``: a remark
-  stating the price final or indicative); otherwise INDICATIVE when the period starts after
-  the download date. Always INDICATIVE when ENTSOG's common unit disagrees with the operator's
-  figure (also manual review); FINAL otherwise. Measured 19-11-2026: none of the 12,670
-  ``tariffsfulls`` rows read for the 108 points carries a status, in any remark field, so a
-  later period is INDICATIVE until it starts (THE's final 2027 prices included).
+  stating the price final or indicative). Measured 19-11-2026: none of the 12,670
+  ``tariffsfulls`` rows read for the 108 points carries one, in any remark field. Such a row
+  takes NC TAR Art. 29's rule as of the download (``domain/tariffs/tariff_year.nc_tar_status``,
+  TAR-2): a tariff period beginning on or before the end of the gas year sold at the latest
+  yearly auction already held is FINAL (that auction ran at the published reserve prices, so
+  THE's 2027 prices are final after the July 2026 auction); a later one is INDICATIVE. The
+  tariff book re-evaluates the rule at the instant a valuation asks for. Always INDICATIVE
+  when ENTSOG's common unit disagrees with the operator's figure (also manual review).
 - **Provenance**: ``document_id`` ``entsog-tariffsfulls-<download date>``, the ENTSOG TP citation
   its terms require (``docs/legal/DATA_SOURCE_TERMS.md``), the row id and the as-of instant
   (``created_at_utc``, the receipt).
@@ -71,6 +74,7 @@ from datetime import UTC, date, datetime, timedelta
 from typing import Any
 
 from eurogas_nexus.domain.route_cost.tariff_units import KWH_PER_MWH
+from eurogas_nexus.domain.tariffs.tariff_year import nc_tar_status
 
 TARIFF_DATASET = "tariffsfulls"
 COMMON_UNIT = "Euro/(kWh/h)/d"
@@ -389,11 +393,10 @@ def entsog_tariff_rows(
                 skipped["value_or_period_missing"] += 1
                 continue
         stated = operator_status(record)
-        indicative = (
-            not common_agrees
-            or stated == "INDICATIVE"
-            or (stated is None and tariff_from > downloaded)
-        )
+        # No marker on the row: NC TAR Art. 29's rule as of the download (TAR-2), never the
+        # period's start alone.
+        ruled = nc_tar_status(tariff_from, downloaded)[0] if stated is None else stated
+        indicative = not common_agrees or ruled == "INDICATIVE"
         tariff_id = "-".join(
             ("entsog", operator, point, direction, firmness, product, start.isoformat())
         ).lower()

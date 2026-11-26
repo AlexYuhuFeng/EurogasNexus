@@ -21,6 +21,13 @@ from typing import Any
 
 from eurogas_nexus.domain.ai.register import AI_FEATURES_SETTING
 from eurogas_nexus.domain.ontology.markets import european_gas_hubs
+from eurogas_nexus.domain.pricing.financial_institutions import SETTING as INSTITUTIONS_SETTING
+from eurogas_nexus.domain.pricing.financial_institutions import (
+    InstitutionError,
+    validate_institutions,
+)
+from eurogas_nexus.domain.pricing.source_precedence import SETTING as SOURCE_PRECEDENCE_SETTING
+from eurogas_nexus.domain.pricing.source_precedence import PrecedenceError, validate_orders
 from eurogas_nexus.governance.four_eyes import (
     FOUR_EYES_SETTING,
     FourEyesSettingError,
@@ -199,10 +206,19 @@ def validate_organisation_defaults(values: Mapping[str, Any]) -> dict[str, Any]:
     enabled = values.get("enabled_languages")
     switches = values.get(AI_FEATURES_SETTING)
     four_eyes = values.get(FOUR_EYES_SETTING)
+    precedence = values.get(SOURCE_PRECEDENCE_SETTING)
+    banks = values.get(INSTITUTIONS_SETTING)
     rest = {
         key: value
         for key, value in values.items()
-        if key not in {"enabled_languages", AI_FEATURES_SETTING, FOUR_EYES_SETTING}
+        if key
+        not in {
+            "enabled_languages",
+            AI_FEATURES_SETTING,
+            FOUR_EYES_SETTING,
+            SOURCE_PRECEDENCE_SETTING,
+            INSTITUTIONS_SETTING,
+        }
     }
     accepted: dict[str, Any] = validate_preferences(rest)
     if switches is not None:
@@ -212,6 +228,18 @@ def validate_organisation_defaults(values: Mapping[str, Any]) -> dict[str, Any]:
         try:
             accepted[FOUR_EYES_SETTING] = validate_four_eyes(four_eyes)
         except FourEyesSettingError as exc:
+            raise SettingsError(str(exc)) from exc
+    if precedence is not None:
+        # TAR-2: the order of sources per quantity kind (domain/pricing/source_precedence.py).
+        try:
+            accepted[SOURCE_PRECEDENCE_SETTING] = validate_orders(precedence)
+        except PrecedenceError as exc:
+            raise SettingsError(str(exc)) from exc
+    if banks is not None:
+        # TAR-2: the firm's banks as FX and interest-rate sources; no credential is stored.
+        try:
+            accepted[INSTITUTIONS_SETTING] = validate_institutions(banks)
+        except InstitutionError as exc:
             raise SettingsError(str(exc)) from exc
     if enabled is not None:
         if (

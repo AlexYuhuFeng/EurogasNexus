@@ -103,6 +103,11 @@ class CapacityBookingResult:
     excess_capacity_mwh: float
     warnings: tuple[str, ...] = ()
     human_review_required: bool = True
+    #: TAR-2: capacity the firm already holds covers first, at its contracted cost; the
+    #: products are chosen for the rest. ``layers`` lists both parts in that order.
+    held_capacity_mwh: float = 0.0
+    held_cost_gbp: float | None = None
+    layers: tuple[dict, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

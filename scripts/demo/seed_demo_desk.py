@@ -192,7 +192,11 @@ ORIGINAL_DEMO_HUBS = frozenset({"TTF", "NBP"})
 
 
 def _curve_price(hub: str, month: date) -> float:
-    """A smooth winter-premium curve; invented, never a market price."""
+    """A smooth winter-premium shape; invented, never a market price.
+
+    A shape, not a curve on a day: the curve on a day is this shape (with the month-on-month
+    drift) moved to that day's month-ahead close (:func:`_anchored_curve`).
+    """
 
     base, swing = _CURVE_SHAPE[hub]
     season = math.cos((month.month - 1) / 12 * 2 * math.pi)  # +1 in January, -1 in July
@@ -438,36 +442,11 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
             )
         )
 
-    # Prices: a full monthly curve for the risk horizon and 400 days of month-ahead history.
-    marks: dict[tuple[str, str], float] = {}
+    # Prices: 400 days of month-ahead history, then a full monthly curve for the risk horizon
+    # anchored to each hub's newest close (its front month is that close).
     ttf_drift: dict[int, float] = {}
+    last_closes: dict[str, tuple[float, date]] = {}
     for hub, currency in DEMO_PRICE_HUBS:
-        for offset in range(HORIZON_MONTHS):
-            first = _month_start(today, offset)
-            price = _forward_curve_price(hub, first, offset)
-            marks[(hub, f"{first.year:04d}-{first.month:02d}")] = price
-            session.add(
-                MarketObservationRecord(
-                    observation_id=f"demo-{hub}-{first:%Y-%m}",
-                    market_venue="Demo",
-                    product=f"{hub} {first:%b-%y}",
-                    price=price,
-                    unit=f"{currency}/MWh",
-                    currency=currency,
-                    period_start_utc=datetime(first.year, first.month, 1, tzinfo=UTC),
-                    period_end_utc=datetime.combine(
-                        _month_start(first, 1), datetime.min.time(), tzinfo=UTC
-                    ),
-                    observed_at_utc=now - timedelta(hours=1),
-                    source_system=SOURCE,
-                    source_reference="demo:curve",
-                    freshness="end_of_day",
-                    quality_score=0.0,
-                    research_only=True,
-                    metadata_json={"hub": hub, "tenor": f"{first:%Y-%m}", "simulated": True,
-                                   **_native(hub, price)},
-                )
-            )
         # A random walk around the seasonal curve; each day's month-ahead is the month after it.
         # The hubs added later walk on their own generator, so the original two (and every
         # series drawn after them) are exactly as before.
@@ -484,6 +463,7 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
                 basis = 0.9 * basis + walk.gauss(0, 0.05)
                 drift = ttf_drift.get(back, 0.0) + basis
             price = round(_curve_price(hub, front) + drift - back * 0.003, 3)
+            last_closes[hub] = (price, today - timedelta(days=back))
             session.add(
                 MarketObservationRecord(
                     observation_id=f"demo-{hub}-ma-{today - timedelta(days=back):%Y%m%d}",
@@ -506,6 +486,13 @@ def seed(session, now: datetime, history_days: int = HISTORY_DAYS) -> dict[str, 
                                    **_native(hub, price)},
                 )
             )
+
+    marks: dict[tuple[str, str], float] = {}
+    for hub, months in _anchored_curve(last_closes, today).items():
+        currency = dict(DEMO_PRICE_HUBS)[hub]
+        for first, price in months.items():
+            marks[(hub, f"{first.year:04d}-{first.month:02d}")] = price
+            session.add(_curve_row(hub, currency, first, price, now, f"demo-{hub}-{first:%Y-%m}"))
 
     # Demo FX (EUR base), used only with demo marks on; a real ECB fixing always wins.
     for quote, rate in (("GBP", 0.853), ("USD", 1.087)):
@@ -860,10 +847,20 @@ D1_TERMINALS = (
     ("demo-zee", "Demo Zeebrugge terminal", "BE", "ZTP", 0.5),
     ("demo-dunk", "Demo Dunkerque terminal", "FR", "PEG", 0.5),
     ("demo-huelva", "Demo Huelva terminal", "ES", "PVB", -2.5),
+    ("demo-montoir", "Demo Montoir terminal", "FR", "PEG", 0.5),
 )
 D1_CARGOES = ("demo-lng-a", "demo-lng-b", "demo-lng-c")
 D1_SLOTS = ("demo-d1-zee", "demo-d1-gate", "demo-d1-huelva", "demo-d1-dunk")
-D1_OFFERS = ("demo-d1-borrow", "demo-d1-send", "demo-d1-store", "demo-d1-int")
+D1_OFFERS = (
+    "demo-d1-borrow",
+    "demo-d1-send",
+    "demo-d1-store",
+    "demo-d1-int",
+    "demo-d1-hint",
+    "demo-d1-spot",
+)
+#: LNG-4: another user's carrier due at the Dunkerque berth (the line-up, illustrative).
+D1_CALLS = ("demo-d1-dk-call",)
 D1_LABEL = "demo: illustrative, not a published tariff"
 
 
@@ -871,6 +868,7 @@ def clear_lng_disruption_case(session) -> None:
     """Remove the D1 rows, so a re-seed on any other day leaves no disruption behind."""
 
     from eurogas_nexus.db.models import (
+        LngBerthCallRecord,
         LngCapacityOfferRecord,
         LngDeliveryObligationRecord,
         LngDisruptionDecisionRecord,
@@ -882,6 +880,7 @@ def clear_lng_disruption_case(session) -> None:
     )
 
     for model, column, values in (
+        (LngBerthCallRecord, LngBerthCallRecord.call_id, D1_CALLS),
         (LngCapacityOfferRecord, LngCapacityOfferRecord.offer_id, D1_OFFERS),
         (LngSlotTermsRecord, LngSlotTermsRecord.slot_id, D1_SLOTS),
         (RegasSlotRecord, RegasSlotRecord.slot_id, D1_SLOTS),
@@ -903,9 +902,17 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
     due at Rotterdam on ``T`` for a slot from ``T + 2``; Demo Solace discharges at Huelva from
     ``T - 2`` (20 days at 50 GWh/d) against a firm 45,000 MWh/d delivery; a Dunkerque slot
     from ``T + 4`` is spare; a pipeline supply delivers 30,000 MWh/d at ZTP.
+
+    LNG-4: Demo Meridian's demurrage is 76,000 USD/day under its voyage terms (converted at
+    the reader's FX choice); Huelva offers interruptible capacity, so swapping Demo Meridian
+    with Demo Solace can physically happen and is listed as breaking the Iberia delivery; the
+    spare Dunkerque slot is worth 0.05 EUR/MWh released, a Dunkerque call holds the berth two
+    gas days and another user's carrier is due there on ``T + 4``; Montoir offers a spot slot
+    from ``T + 3``.
     """
 
     from eurogas_nexus.db.models import (
+        LngBerthCallRecord,
         LngCapacityOfferRecord,
         LngDeliveryObligationRecord,
         LngSlotTermsRecord,
@@ -956,9 +963,14 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
             updated_at_utc=now, eta_basis="master_notice", eta_confidence=confidence,
             eta_source=D1_SOURCE, eta_recorded_at_utc=now,
         ))
+        usd = cargo_id == "demo-lng-a"
         session.add(LngVoyageTermsRecord(
             cargo_id=cargo_id, charter_reference=f"demo charter {vessel}", laytime_hours=36.0,
-            demurrage_eur_per_day=70_000.0, boil_off_pct_per_day=0.10, diversion_allowed=True,
+            demurrage_eur_per_day=None if usd else 70_000.0,
+            demurrage_rate_per_day=76_000.0 if usd else None,
+            demurrage_currency="USD" if usd else None,
+            demurrage_terms="pro rata per hour after laytime (demo)" if usd else None,
+            boil_off_pct_per_day=0.10, diversion_allowed=True,
             diversion_note=None, source_reference=D1_LABEL, updated_at_utc=now,
         ))
     slots = (
@@ -982,21 +994,40 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
         storage_profile="linear_decline", release_value_eur_mwh=0.10,
         source_reference=D1_LABEL, updated_at_utc=now,
     ))
+    session.add(LngSlotTermsRecord(
+        slot_id="demo-d1-dunk", slot_days=10, storage_mwh=1_000_000.0,
+        storage_profile="linear_decline", release_value_eur_mwh=0.05, berth_days=2,
+        source_reference=D1_LABEL, updated_at_utc=now,
+    ))
     zee = "Demo Zeebrugge terminal"
-    for offer_id, kind, first, last, price, per_day, total, storage in (
-        ("demo-d1-borrow", "borrow", t, t + timedelta(days=1), 0.10, 100_000.0, None, None),
-        ("demo-d1-send", "send_out", t, t + timedelta(days=15), 0.15, 50_000.0, None, None),
-        ("demo-d1-store", "storage", t, t + timedelta(days=15), 0.02, None, 300_000.0, None),
-        ("demo-d1-int", "interruptible", t, t + timedelta(days=25), 0.05, 100_000.0, None,
-         0.01),
+    for offer_id, terminal, kind, first, last, price, per_day, total, storage, hub in (
+        ("demo-d1-borrow", zee, "borrow", t, t + timedelta(days=1), 0.10, 100_000.0, None, None,
+         None),
+        ("demo-d1-send", zee, "send_out", t, t + timedelta(days=15), 0.15, 50_000.0, None, None,
+         None),
+        ("demo-d1-store", zee, "storage", t, t + timedelta(days=15), 0.02, None, 300_000.0,
+         None, None),
+        ("demo-d1-int", zee, "interruptible", t, t + timedelta(days=25), 0.05, 100_000.0, None,
+         0.01, None),
+        ("demo-d1-hint", "Demo Huelva terminal", "interruptible", t - timedelta(days=2),
+         t + timedelta(days=25), 0.05, 50_000.0, None, 0.01, None),
+        ("demo-d1-spot", "Demo Montoir terminal", "slot", t + timedelta(days=3),
+         t + timedelta(days=12), 0.15, 100_000.0, 1_000_000.0, None, "PEG"),
     ):
         session.add(LngCapacityOfferRecord(
-            offer_id=offer_id, book_id=D1_BOOK, terminal_name=zee, kind=kind,
+            offer_id=offer_id, book_id=D1_BOOK, terminal_name=terminal, kind=kind,
             first_gas_day=first, last_gas_day=last, price_eur_mwh=price,
             max_mwh_per_day=per_day, max_mwh=total, storage_price_eur_mwh_day=storage,
             basis="indicative", counterparty="Demo terminal user", source_reference=D1_LABEL,
-            valid_until_utc=None, updated_at_utc=now,
+            valid_until_utc=None, updated_at_utc=now, hub=hub,
         ))
+    session.add(LngBerthCallRecord(
+        call_id="demo-d1-dk-call", terminal_name="Demo Dunkerque terminal",
+        label="another user's carrier (demo)", berth_gas_day=t + timedelta(days=4),
+        berth_days=2, laytime_left_hours=24.0, demurrage_rate_per_day=65_000.0,
+        demurrage_currency="EUR", boil_off_mwh_per_day=1_000.0,
+        source_reference=D1_LABEL, updated_at_utc=now,
+    ))
     session.add(LngDeliveryObligationRecord(
         obligation_id="demo-d1-iberia", book_id=D1_BOOK, counterparty="Demo Iberia offtaker",
         contract_id=None, point="Demo Huelva terminal", hub="PVB",
@@ -1009,9 +1040,12 @@ def seed_lng_disruption_case(session, now: datetime) -> dict[str, int]:
         contract_id=None, hub="ZTP", point="ZTP", first_gas_day=today,
         last_gas_day=today + timedelta(days=60), mwh_per_day=30_000.0, cost_eur_mwh=None,
         curtailed=[], source_system=D1_SOURCE, source_reference=D1_LABEL, updated_at_utc=now,
+        # LNG-4: the asset its gas flows through, so a REMIT message naming it curtails it.
+        depends_on=[{"asset_name": "Demo North Sea entry point", "kind": "entry point"}],
+        outage_mode=None,
     ))
     session.flush()
-    return {"cargoes": len(cargoes), "slots": len(slots), "offers": 4}
+    return {"cargoes": len(cargoes), "slots": len(slots), "offers": len(D1_OFFERS)}
 
 
 #: The one decision case the demo opens for review (fixed id, so a re-seed replaces it).
@@ -2109,8 +2143,9 @@ def roll_forward(session, now: datetime) -> dict[str, int]:
     * physical series (flows, storage, LNG, power): the missing gas days and hours, keyed by
       date, so a stored day is never rewritten (``skip_existing``);
     * month-ahead history: the missing days, continuing the random walk from the last price;
-    * the forward curve: a new end-of-day snapshot of the same invented seasonal curve when
-      the newest is older than a day (the newest snapshot wins, as with a real settlement);
+    * the forward curve: a new end-of-day snapshot when the newest is older than a day (the
+      newest snapshot wins, as with a real settlement), anchored to each hub's newest
+      month-ahead close (``_anchored_curve``: its front month is that close);
     * demo FX: a new daily fixing row when the newest is older than a day;
     * deliveries of the demo contracts that still exist: the missing gas days, and the
       allocation of a day that was still pending;
@@ -2172,8 +2207,10 @@ def roll_forward(session, now: datetime) -> dict[str, int]:
         )
         counts["physical_rows"] = written.get("written", 0)
 
-    counts["curve_rows"] = _roll_curve(session, now)
     counts["month_ahead_rows"] = _roll_month_ahead(session, now, rng)
+    session.flush()
+    # After the month-ahead: the curve is anchored to each hub's newest close.
+    counts["curve_rows"] = _roll_curve(session, now)
     session.flush()
     counts.update(seed_demo_market(session, now, _demo_market_gap(session, now)))
     counts["fx_rows"] = _roll_fx(session, now)
@@ -2208,39 +2245,83 @@ def _roll_curve(session, now: datetime) -> int:
     if newest is not None and now - newest < timedelta(hours=20):
         return 0
     today = now.date()
-    rows = []
     real = _real_price_hubs(session)
-    for hub, currency in DEMO_PRICE_HUBS:
-        if hub in real:
-            continue
-        for offset in range(HORIZON_MONTHS):
-            first = _month_start(today, offset)
-            price = _forward_curve_price(hub, first, offset)
-            rows.append(
-                MarketObservationRecord(
-                    observation_id=f"demo-{hub}-{first:%Y-%m}-c{today:%Y%m%d}",
-                    market_venue="Demo",
-                    product=f"{hub} {first:%b-%y}",
-                    price=price,
-                    unit=f"{currency}/MWh",
-                    currency=currency,
-                    period_start_utc=datetime(first.year, first.month, 1, tzinfo=UTC),
-                    period_end_utc=datetime.combine(
-                        _month_start(first, 1), datetime.min.time(), tzinfo=UTC
-                    ),
-                    observed_at_utc=now - timedelta(hours=1),
-                    source_system=SOURCE,
-                    source_reference="demo:curve",
-                    freshness="end_of_day",
-                    quality_score=0.0,
-                    research_only=True,
-                    metadata_json={"hub": hub, "tenor": f"{first:%Y-%m}", "simulated": True,
-                                   **_native(hub, price)},
-                )
-            )
+    last_closes = {}
+    for hub, _currency in DEMO_PRICE_HUBS:
+        last = None if hub in real else _last_history(session, hub)
+        if last is not None:
+            last_closes[hub] = (float(last.price), _aware(last.observed_at_utc).date())
+    currencies = dict(DEMO_PRICE_HUBS)
+    rows = [
+        _curve_row(hub, currencies[hub], first, price, now,
+                   f"demo-{hub}-{first:%Y-%m}-c{today:%Y%m%d}")
+        for hub, months in _anchored_curve(last_closes, today).items()
+        for first, price in months.items()
+    ]
     rows = _new_rows_only(session, rows)
     session.add_all(rows)
     return len(rows)
+
+
+def _carried_month_ahead(hub: str, month_ahead: float, stored_day: date, day: date) -> float:
+    """The month-ahead close of ``stored_day`` carried to ``day``: the close itself, or across
+    a month turn the new front month moved by the same drift over the seasonal shape."""
+
+    if stored_day >= day or _month_start(stored_day, 1) == _month_start(day, 1):
+        return month_ahead
+    drift = month_ahead - _curve_price(hub, _month_start(stored_day, 1))
+    return _curve_price(hub, _month_start(day, 1)) + drift
+
+
+def _anchored_curve(last_closes: dict[str, tuple[float, date]],
+                    today: date) -> dict[str, dict[date, float]]:
+    """Each hub's monthly curve on ``today`` for the risk horizon, anchored to its newest
+    month-ahead close (``hub -> (close, day of the close)``).
+
+    The front month (the month-ahead) is the close; every other month is priced as the demo
+    market prices it (``DemoMarket.month_price``: the seasonal shape moved by the close's
+    drift, held in the arbitrage band across hubs) plus the curve's month-on-month drift
+    from the front month (``CURVE_DRIFT_PER_MONTH``, QA-T-02), so the curve and the marks
+    agree with the close. A hub without a close (a provider prices it) gets no curve. Invented,
+    simulated.
+    """
+
+    market = _demo_market(_load_demo_market())
+    front = _month_start(today, 1)
+    anchors = {hub: _carried_month_ahead(hub, close, day, today)
+               for hub, (close, day) in last_closes.items()}
+    market.set_anchors(today, anchors)
+    return {
+        hub: {
+            first: round(month_ahead if first == front
+                         else market.month_price(hub, today, month_ahead, first)
+                         + _CURVE_SHAPE[hub][0] * CURVE_DRIFT_PER_MONTH * (offset - 1), 3)
+            for offset, first in ((k, _month_start(today, k)) for k in range(HORIZON_MONTHS))
+        }
+        for hub, month_ahead in anchors.items()
+    }
+
+
+def _curve_row(hub: str, currency: str, first: date, price: float, now: datetime,
+               observation_id: str) -> MarketObservationRecord:
+    return MarketObservationRecord(
+        observation_id=observation_id,
+        market_venue="Demo",
+        product=f"{hub} {first:%b-%y}",
+        price=price,
+        unit=f"{currency}/MWh",
+        currency=currency,
+        period_start_utc=datetime(first.year, first.month, 1, tzinfo=UTC),
+        period_end_utc=datetime.combine(_month_start(first, 1), datetime.min.time(), tzinfo=UTC),
+        observed_at_utc=now - timedelta(hours=1),
+        source_system=SOURCE,
+        source_reference="demo:curve",
+        freshness="end_of_day",
+        quality_score=0.0,
+        research_only=True,
+        metadata_json={"hub": hub, "tenor": f"{first:%Y-%m}", "simulated": True,
+                       **_native(hub, price)},
+    )
 
 
 def _last_history(session, hub: str):
@@ -2989,7 +3070,8 @@ def demo_market_rows(session, now: datetime, days: int) -> tuple[list, list]:
     board_anchors = {
         (hub, currency): history[max(history)] for (hub, currency), history in histories.items()
     }
-    return closes, demo_board_rows(market_module, market, board_anchors, now, outages)
+    fed = demo_exchange_feed_running(session, now)
+    return closes, demo_board_rows(market_module, market, board_anchors, now, outages, fed=fed)
 
 
 def _board_day(now: datetime) -> date:
@@ -3000,7 +3082,9 @@ def _board_day(now: datetime) -> date:
     return date.fromisoformat(gas_day_label(now))
 
 
-def demo_board_rows(market_module, market, last_closes, now: datetime, outages) -> list:
+def demo_board_rows(
+    market_module, market, last_closes, now: datetime, outages, fed: set[str] | None = None
+) -> list:
     """The board of the gas day the desk trades on at ``now`` (gas day D).
 
     On D the desk reads D's prompt: WD is gas day D, DA the next product the market quotes
@@ -3017,23 +3101,19 @@ def demo_board_rows(market_module, market, last_closes, now: datetime, outages) 
     anchors: dict[str, float] = {}
     currencies: dict[str, str] = {}
     for (hub, currency), (month_ahead, observed) in last_closes.items():
-        stored_day = _aware(observed).date()
-        if stored_day >= board_day:
-            anchors[hub] = month_ahead
-        else:
-            drift = month_ahead - _curve_price(hub, _month_start(stored_day, 1))
-            anchors[hub] = _curve_price(hub, _month_start(board_day, 1)) + drift
+        anchors[hub] = _carried_month_ahead(hub, month_ahead, _aware(observed).date(),
+                                            board_day)
         currencies[hub] = currency
     market.set_anchors(board_day, anchors)
     outage = any(first <= board_day <= last for first, last in outages)
     prompts = market.prompts(board_day, anchors, outage=outage)
     quotes: list = []
-    feed = demo_exchange_feed_running()
+    fed = fed or set()  # the hubs the demo exchange feed quotes now
     for hub, month_ahead in anchors.items():
         currency = currencies[hub]
         for code, kind in _BOARD_PROMPT:
             delivery = _delivery(code, board_day)
-            if delivery is None or (feed and code in RUNNING_PROMPT):
+            if delivery is None or (hub in fed and code in RUNNING_PROMPT):
                 continue
             _period, start, end = delivery
             mid = prompts[hub][_PROMPT_TENOR[code]]
@@ -3061,19 +3141,42 @@ def demo_board_rows(market_module, market, last_closes, now: datetime, outages) 
 
 #: Prompt products written at every roll-forward (a running snapshot), not once a day.
 RUNNING_PROMPT = frozenset({"WD", "DA"})
-#: The demo start-up setting that says the continuous demo exchange feed writes today's WD
-#: and DA quotes (``scripts/demo/start_public_demo.py``); the roll-forward then writes none.
+#: The demo start-up setting for the continuous demo exchange feed (``scripts/demo/
+#: exchange_feed.py``): on unless it says off, the one meaning the start-up, the feed and the
+#: roll-forward use.
 EXCHANGE_FEED_SETTING = "EUROGAS_NEXUS_DEMO_EXCHANGE_FEED"
+#: The feed's own quotes (``exchange_feed.run_continuous`` writes them through the tick
+#: ingestion), and how recent its last one must be for it to count as quoting a hub now.
+EXCHANGE_FEED_REFERENCE = "feed:simulated-exchange"
+EXCHANGE_FEED_FRESH = timedelta(minutes=5)
 
 
-def demo_exchange_feed_running() -> bool:
-    """Whether the continuous demo exchange feed owns today's WD and DA quotes."""
+def demo_exchange_feed_running(session=None, now: datetime | None = None) -> set[str] | bool:
+    """Whether the continuous demo exchange feed owns today's WD and DA quotes, and for which hubs.
+
+    Without a session: whether the feed is on (it is unless the setting says off). With one:
+    the hubs the feed has quoted in the last :data:`EXCHANGE_FEED_FRESH` before ``now``. Outside
+    its trading hours (07:00-19:00 CET), or before its first tick, that is none, and the
+    roll-forward's snapshot keeps the board quoted (and gives the feed its next anchor).
+    """
 
     import os
 
-    return (os.environ.get(EXCHANGE_FEED_SETTING) or "").strip().lower() in {
-        "1", "true", "yes", "on"
-    }
+    value = (os.environ.get(EXCHANGE_FEED_SETTING) or "on").strip().lower()
+    on = value not in {"off", "false", "0", "no"}
+    if session is None or not on:
+        return on if session is None else set()
+    from eurogas_nexus.db.models import MarketQuoteRecord
+
+    moment = _aware(now or datetime.now(UTC))
+    rows = (
+        session.query(MarketQuoteRecord.hub)
+        .filter(MarketQuoteRecord.source_reference == EXCHANGE_FEED_REFERENCE)
+        .filter(MarketQuoteRecord.observed_at_utc >= moment - EXCHANGE_FEED_FRESH)
+        .distinct()
+        .all()
+    )
+    return {hub for (hub,) in rows}
 
 
 def _quote_row(market, hub, currency, code, label, kind, mid, start, end, now, day, *,

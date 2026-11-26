@@ -1656,10 +1656,10 @@ def _situation_outage(ctx: Ctx, result: SectionResult) -> SectionResult:
             T(f"The next REMIT version for {row['facility_name']}: end date and size can "
               "change.", f"{row['facility_name']}的下一版REMIT消息：结束日期与规模可能变化。"),
             T("Landings on the next complete gas day against the seven-day average above.",
-              "下一个完整气日的到岸量与上文七日均值的对比。")
+              "下一个完整燃气日的到岸量与上文七日均值的对比。")
             if is_norway(row.get("balancing_zone")) else
             T("Flows at the affected points on the next complete gas day.",
-              "下一个完整气日受影响点位的流量。"),
+              "下一个完整燃气日受影响点位的流量。"),
             T(f"Prices at {', '.join(hubs)} in the Prices section.",
               f"价格部分中{'、'.join(hubs)}的价格。") if hubs else
             T("Prices in the Prices section.", "价格部分中的价格。"),

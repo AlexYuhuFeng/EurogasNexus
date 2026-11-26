@@ -24,19 +24,33 @@ currency brought to one at the stated FX. The cheapest complete route is chosen;
 is returned with its extra cost; a route with a leg the register does not hold is unavailable
 and names the leg; with no complete route the result says exactly which legs are missing.
 
+**Contracted before public (TAR-2).** Where the firm holds capacity on a leg
+(``capacity_bookings``, passed as ``bookings``), :func:`price_leg` splits the requirement:
+the booked capacity at its contracted cost, the rest at the register's public tariff for the
+product the caller states (the day-ahead reserve price for a day-ahead requirement), else not
+held (``domain/tariffs/precedence.split``). The leg's value is then the blended cost per MWh
+and ``layers`` shows each part (MWh, cost, source, status, tariff year).
+
+**Point in time (TAR-2).** :func:`load_tariff_rows` with ``as_of`` reads the tariff book's
+versions held at that instant instead of the register, so a valuation re-run as of an earlier
+instant never uses a tariff published later; every leg names the version, its tariff year, its
+status (with NC TAR's rule evaluated at that instant for a row that carries no marker) and its
+publication date where the publisher states one.
+
 本模块按已证实的路径（出口、管道、入口）从费率登记表计算枢纽间运输成本；缺失的费率明确
 标为缺失，绝不按零计算；每段都带气体年、状态与数据类别。
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime
 from typing import Any
 
 from eurogas_nexus.domain.market.fx_forward import Delivery
 from eurogas_nexus.domain.route_cost.tariff_units import per_mwh
+from eurogas_nexus.domain.tariffs import precedence
 
 #: Data classes from weakest to strongest (design basis 2, B.2).
 CLASS_ORDER: tuple[str, ...] = (
@@ -55,6 +69,8 @@ _STATUS_CLASS = {
     "PROVISIONAL": "indicative",
     "DRAFT": "indicative",
     "SIMULATOR_ONLY": "simulated",
+    # TAR-2: a leg wholly covered by the firm's own booking is priced from its own records.
+    "CONTRACTED": "sourced",
 }
 #: Which of two rows covering the same day a leg takes: the firmer publication first.
 _STATUS_RANK = {"FINAL": 0, "INDICATIVE": 1, "PROVISIONAL": 2, "DRAFT": 3, "SIMULATOR_ONLY": 4}
@@ -91,12 +107,36 @@ class RouteLeg:
     basis: str | None = None
     #: Why a leg the register names is still missing (a unit not understood).
     note: str | None = None
+    #: TAR-2: the tariff-book version the public figure is (id, number), its tariff year, the
+    #: basis of its status, when the publisher published it (``None``: not stated) and when
+    #: this platform first held it.
+    version_id: str | None = None
+    version: int | None = None
+    tariff_year: str | None = None
+    status_basis: str | None = None
+    published_at: str | None = None
+    recorded_at: str | None = None
+    #: ``public`` (the register only), ``contracted`` (the firm's bookings cover it all) or
+    #: ``contracted+public`` (a booking covers part); the parts are in ``layers``.
+    cost_basis: str = "public"
+    layers: tuple[dict[str, Any], ...] = ()
+    breakdown: dict[str, Any] | None = None
 
     @property
     def input_class(self) -> str:
         if self.value is None:
             return "missing"
+        if self.cost_basis == "contracted":
+            return "sourced"
         return _STATUS_CLASS.get((self.status or "").upper(), "indicative")
+
+    @property
+    def indicative(self) -> bool:
+        """Whether the public figure the leg uses is not FINAL."""
+
+        if self.value is None or self.cost_basis == "contracted":
+            return False
+        return (self.status or "").upper() != "FINAL"
 
     @property
     def source_kind(self) -> str | None:
@@ -105,6 +145,8 @@ class RouteLeg:
         if self.value is None:
             return None
         tariff_id = self.tariff_id or ""
+        if self.cost_basis == "contracted":
+            return "contracted (the firm's booking)"
         if (self.status or "").upper() == "SIMULATOR_ONLY":
             return "simulated"
         if tariff_id.startswith("entsog-"):
@@ -134,6 +176,16 @@ class RouteLeg:
             "note": self.note,
             "source_kind": self.source_kind,
             "input_class": self.input_class,
+            "indicative": self.indicative,
+            "version_id": self.version_id,
+            "version": self.version,
+            "tariff_year": self.tariff_year,
+            "status_basis": self.status_basis,
+            "published_at": self.published_at,
+            "recorded_at": self.recorded_at,
+            "cost_basis": self.cost_basis,
+            "layers": [dict(item) for item in self.layers],
+            "breakdown": self.breakdown,
         }
 
 
@@ -245,6 +297,27 @@ def _tso_matches(row_tso: str, leg_tso: str) -> bool:
     )
 
 
+@dataclass(frozen=True)
+class LegBooking:
+    """Capacity the firm holds at one point and direction (TAR-2), its cost per MWh at the
+    route's load factor (``application/capacity_costs.leg_bookings``)."""
+
+    point_key: str
+    direction: str
+    operator: str | None
+    held: precedence.Held
+
+    def applies_to(self, spec: Any) -> bool:
+        if self.point_key != spec.point_key or self.direction.upper() != spec.direction.upper():
+            return False
+        return not self.operator or _tso_matches(self.operator, spec.tso)
+
+
+def _iso(value: Any) -> str | None:
+    moment = _aware(value)
+    return moment.isoformat() if moment is not None else (str(value) if value else None)
+
+
 def price_leg(
     spec: Any,
     rows: Iterable[Mapping[str, Any]],
@@ -253,13 +326,106 @@ def price_leg(
     product: str = "ANNUAL",
     firmness: str = "FIRM",
     load_factor: float = 1.0,
+    bookings: Sequence[LegBooking] = (),
+    orders: Mapping[str, Any] | None = None,
+    last: date | None = None,
+    mwh_per_day: float | None = None,
 ) -> RouteLeg:
     """The leg priced from the tariff row in force on ``on``, or missing.
 
     Only rows of the stated capacity ``product`` and ``firmness`` count (a row that names
     neither, as an older register row may not, counts for any). Of the rows in force, the
-    firmest publication wins (FINAL before INDICATIVE before simulated), then the latest.
+    firmest publication wins (FINAL before INDICATIVE before simulated), then the latest:
+    the best version held, final where a final is held for that period.
+
+    With ``bookings`` that hold capacity on this leg (TAR-2), the requirement of
+    ``mwh_per_day`` (default: the capacity the bookings hold on ``on``) from ``on`` to
+    ``last`` is split: the booked part at its contracted cost, the rest at the public rate of
+    each gas day (a period across two tariff years takes each year's tariff), else not held.
+    The leg's value is the blended cost per MWh, and ``layers`` holds the parts.
     """
+
+    rows = rows if isinstance(rows, list) else list(rows)
+    mine = [item for item in bookings if item.applies_to(spec)]
+    public = _price_public_leg(spec, rows, on, product=product, firmness=firmness,
+                               load_factor=load_factor)
+    if not mine:
+        return public
+    end = last or on
+    quantity = mwh_per_day
+    if quantity is None:
+        quantity = sum(item.held.quantity for item in mine if item.held.covers(on)) or sum(
+            item.held.quantity for item in mine
+        )
+    # The split prices capacity (MWh/d a gas day, load factor 1) so its costs are money; the
+    # leg's value per MWh flowed then divides by the load factor, as the public read does.
+    cache: dict[date, RouteLeg] = {}
+
+    def rate(day: date) -> precedence.PublicRate | None:
+        leg = cache.get(day)
+        if leg is None:
+            leg = cache[day] = _price_public_leg(
+                spec, rows, day, product=product, firmness=firmness, load_factor=1.0
+            )
+        if leg.value is None or leg.currency is None:
+            return None
+        return precedence.PublicRate(
+            unit_cost=leg.value,
+            currency=leg.currency,
+            status=leg.status or "INDICATIVE",
+            tariff_year=leg.tariff_year or leg.gas_year,
+            version_id=leg.version_id,
+            published_at=leg.published_at,
+            recorded_at=leg.recorded_at,
+            status_basis=leg.status_basis,
+            how_bought=precedence.HOW_BOUGHT.get(product.upper(), product),
+            price_text=leg.published or "",
+            source=leg.source_kind or "",
+            reference=leg.tariff_id or "",
+        )
+
+    breakdown = precedence.split(
+        precedence.Requirement(on, end, float(quantity)),
+        [item.held for item in mine],
+        rate,
+        not_held_reason=f"no booking covers it and no {product.lower()} tariff is held",
+        configured=orders,
+        context="route_cost",
+    )
+    view = breakdown.as_dict()
+    covered = view["covered"]
+    basis = (
+        "contracted"
+        if covered[precedence.PUBLIC] <= precedence.EPS
+        and covered[precedence.NOT_HELD] <= precedence.EPS
+        else "contracted+public"
+    )
+    unit_cost = None if breakdown.unit_cost is None else breakdown.unit_cost / load_factor
+    return RouteLeg(
+        **{
+            **{name: getattr(public, name) for name in public.__dataclass_fields__},
+            "value": None if unit_cost is None else unit_cost,
+            "currency": breakdown.currency if unit_cost is not None else public.currency,
+            "unit": (f"{breakdown.currency}/MWh" if unit_cost is not None else public.unit),
+            "status": public.status if basis != "contracted" else (public.status or "CONTRACTED"),
+            "cost_basis": basis,
+            "layers": tuple(view["layers"]),
+            "breakdown": view,
+            "note": "; ".join(view["issues"]) or public.note,
+        }
+    )
+
+
+def _price_public_leg(
+    spec: Any,
+    rows: Iterable[Mapping[str, Any]],
+    on: date,
+    *,
+    product: str = "ANNUAL",
+    firmness: str = "FIRM",
+    load_factor: float = 1.0,
+) -> RouteLeg:
+    """The leg at the public tariff in force on ``on`` (no bookings), or missing."""
 
     moment = datetime(on.year, on.month, on.day, tzinfo=UTC)
     best: Mapping[str, Any] | None = None
@@ -324,6 +490,12 @@ def price_leg(
         source=str(best.get("source_table") or "") or None,
         published=published,
         basis=read.basis,
+        version_id=best.get("version_id"),
+        version=best.get("version"),
+        tariff_year=best.get("tariff_year") or (str(best.get("gas_year") or "") or None),
+        status_basis=best.get("status_basis"),
+        published_at=_iso(best.get("published_at_utc")),
+        recorded_at=_iso(best.get("recorded_at_utc")),
     )
 
 
@@ -348,6 +520,10 @@ def public_tariff_for_leg(
     load_factor: float = 1.0,
     point_name: str | None = None,
     role: str = "leg",
+    bookings: Sequence[LegBooking] = (),
+    orders: Mapping[str, Any] | None = None,
+    last: date | None = None,
+    mwh_per_day: float | None = None,
 ) -> RouteLeg:
     """The public tariff for one transmission leg on gas day ``on``, per MWh, or missing.
 
@@ -361,7 +537,8 @@ def public_tariff_for_leg(
     if rows is None:
         rows = load_tariff_rows(product=product, firmness=firmness)
     spec = _LegSpec(point_key, point_name or point_key, tso, direction.upper(), role)
-    return price_leg(spec, rows, on, product=product, firmness=firmness, load_factor=load_factor)
+    return price_leg(spec, rows, on, product=product, firmness=firmness, load_factor=load_factor,
+                     bookings=bookings, last=last, mwh_per_day=mwh_per_day, orders=orders)
 
 
 @dataclass(frozen=True)
@@ -416,6 +593,9 @@ def cheapest_route(
     product: str = "ANNUAL",
     firmness: str = "FIRM",
     load_factor: float = 1.0,
+    bookings: Sequence[LegBooking] = (),
+    orders: Mapping[str, Any] | None = None,
+    mwh_per_day: float | None = None,
 ) -> RouteChoice:
     """Price every proven route from ``from_hub`` to ``to_hub`` and choose the cheapest.
 
@@ -435,6 +615,11 @@ def cheapest_route(
         product, firmness: The capacity booked on every leg (firm yearly by default); only
             register rows of that product count, never another product's price.
         load_factor: The share of the booked capacity used (100 % by default).
+        bookings: Capacity the firm holds (TAR-2, ``capacity_costs.leg_bookings``): a leg it
+            covers is priced at the contracted cost first, the rest at ``product``'s public
+            tariff over the delivery period.
+        mwh_per_day: The quantity moved per gas day, for splitting a leg a booking covers
+            only in part (default: what the bookings hold).
 
     Returns:
         A :class:`RouteChoice`. ``chosen`` is the cheapest complete route; when none is
@@ -477,6 +662,10 @@ def cheapest_route(
                         product=product,
                         firmness=firmness,
                         load_factor=load_factor,
+                        bookings=bookings,
+                        orders=orders,
+                        last=delivery.last,
+                        mwh_per_day=mwh_per_day,
                     )
                     for spec in graph.legs(crossing)
                 )
@@ -608,6 +797,9 @@ def route_cost(
     product: str = "ANNUAL",
     firmness: str = "FIRM",
     load_factor: float = 1.0,
+    bookings: Sequence[LegBooking] = (),
+    orders: Mapping[str, Any] | None = None,
+    mwh_per_day: float | None = None,
 ) -> RouteCost:
     """The chosen route of :func:`cheapest_route` (the cheapest complete one, else the
     shortest with its missing legs named)."""
@@ -624,42 +816,93 @@ def route_cost(
         product=product,
         firmness=firmness,
         load_factor=load_factor,
+        bookings=bookings,
+        mwh_per_day=mwh_per_day,
+        orders=orders,
     ).chosen
 
 
-def load_tariff_rows(*, product: str = "ANNUAL", firmness: str = "FIRM") -> list[dict[str, Any]]:
-    """Tariff register rows of one capacity product and firmness, as mappings.
+def load_tariff_rows(
+    *, product: str = "ANNUAL", firmness: str = "FIRM", as_of: datetime | None = None
+) -> list[dict[str, Any]]:
+    """Tariff rows of one capacity product and firmness, as mappings.
 
     Tariffs are public reference data. The default, firm yearly capacity, is the product a
     route cost is quoted on unless the reader names another.
+
+    Without ``as_of``: the register (``tso_tariffs``), each row annotated with its current
+    tariff-book version (id, number, tariff year, status basis, publication and record
+    times), and a status that NC TAR's rule decides re-evaluated as of now. With ``as_of``
+    (TAR-2): the versions the tariff book held at that instant, so nothing published later is
+    used (``tariff_versions_as_rows``); the demo's simulated rows are not versioned and are
+    left out.
     """
 
-    from eurogas_nexus.db.models import TsoTariffRecord
     from eurogas_nexus.db.session import get_session_factory, resolve_database_url
 
     if resolve_database_url() is None:
         return []
     with get_session_factory()() as session:
-        query = session.query(TsoTariffRecord).filter(
-            TsoTariffRecord.capacity_product == product.upper(),
-            TsoTariffRecord.firmness == firmness.upper(),
-        )
-        return [
-            {
-                "tariff_id": row.tariff_id,
-                "tso": row.tso,
-                "point_id": row.point_id,
-                "direction": row.direction,
-                "gas_year": row.gas_year,
-                "tariff_value": row.tariff_value,
-                "currency": row.currency,
-                "unit": row.unit,
-                "effective_from": row.effective_from,
-                "effective_to": row.effective_to,
-                "tariff_status": row.tariff_status,
-                "source_table": row.source_table,
-                "capacity_product": row.capacity_product,
-                "firmness": row.firmness,
-            }
-            for row in query.all()
-        ]
+        return tariff_rows(session, product=product, firmness=firmness, as_of=as_of)
+
+
+def load_route_capacity(
+    *, as_of: datetime | None = None, book_ids: Iterable[str] | None = None
+) -> tuple[list[LegBooking], dict[str, Any]]:
+    """The firm's pipeline bookings held at ``as_of`` and its configured source order, for
+    route pricing (TAR-2); none and the default order without a store."""
+
+    from eurogas_nexus.db.session import get_session_factory, resolve_database_url
+
+    if resolve_database_url() is None:
+        return [], {}
+    from eurogas_nexus.application.capacity_costs import load_leg_bookings
+    from eurogas_nexus.application.source_precedence import configured_orders
+
+    try:
+        with get_session_factory()() as session:
+            return (
+                load_leg_bookings(session, as_of=as_of, book_ids=book_ids),
+                dict(configured_orders(session)),
+            )
+    except Exception:  # noqa: BLE001 - a store without the bookings table: public tariffs only
+        return [], {}
+
+
+def tariff_rows(
+    session, *, product: str = "ANNUAL", firmness: str = "FIRM", as_of: datetime | None = None
+) -> list[dict[str, Any]]:
+    """:func:`load_tariff_rows` in an open session."""
+
+    from eurogas_nexus.db.models import TsoTariffRecord
+
+    if as_of is not None:
+        from eurogas_nexus.application.tariff_book import tariff_versions_as_rows
+
+        return tariff_versions_as_rows(session, product=product, firmness=firmness, as_of=as_of)
+    query = session.query(TsoTariffRecord).filter(
+        TsoTariffRecord.capacity_product == product.upper(),
+        TsoTariffRecord.firmness == firmness.upper(),
+    )
+    rows = [
+        {
+            "tariff_id": row.tariff_id,
+            "tso": row.tso,
+            "point_id": row.point_id,
+            "direction": row.direction,
+            "gas_year": row.gas_year,
+            "tariff_value": row.tariff_value,
+            "currency": row.currency,
+            "unit": row.unit,
+            "effective_from": row.effective_from,
+            "effective_to": row.effective_to,
+            "tariff_status": row.tariff_status,
+            "source_table": row.source_table,
+            "capacity_product": row.capacity_product,
+            "firmness": row.firmness,
+        }
+        for row in query.all()
+    ]
+    from eurogas_nexus.application.tariff_book import annotate_register_rows
+
+    return annotate_register_rows(session, rows)

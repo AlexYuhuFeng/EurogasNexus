@@ -6,6 +6,11 @@
  * Indicative and final are never merged: the status badge says which, and a row's title says
  * why (the operator stated it, the period has not started, the figures disagree, a second
  * person has or has not reviewed it). Rule-derived auction dates say so.
+ *
+ * TAR-2: each row names its tariff year, and a newly recorded figure is marked new. Opening a
+ * row also shows that facility's tariff book by tariff year: the indicative and the final
+ * version side by side, each with its publication date (or that none is stated), record time
+ * and source, and which one a valuation today uses (final once held).
  */
 import { useCallback, useEffect, useMemo, useState } from "react";
 
@@ -14,7 +19,9 @@ import {
   type CapacityNoticeDTO,
   type TariffPublisherDTO,
   type TariffVersionDTO,
+  type TariffYearDTO,
 } from "@/api/client";
+import { orderedYears, yearCells, type YearCell } from "@/app/model/capacityCostModel";
 import {
   facilities,
   noticeTone,
@@ -37,6 +44,25 @@ function labelOr(t: Translate, key: string, raw: string): string {
   return label === key ? raw : label;
 }
 
+function YearVersion({ cell, t }: { cell: YearCell; t: Translate }) {
+  if (!cell.held) return <span className="tariff-book-muted">{t("tariffBook.years.not_held")}</span>;
+  return (
+    <div className="tariff-year-cell" data-used={cell.used ? "true" : undefined}>
+      <strong>{cell.figure}</strong>
+      <span>v{cell.version}</span>
+      {cell.used && <StatusBadge tone={cell.status === "FINAL" ? "ok" : "watch"}>{t("tariffBook.years.used")}</StatusBadge>}
+      {cell.isNew && <StatusBadge tone="info">{t("tariffBook.new")}</StatusBadge>}
+      {cell.published ? (
+        <Instant value={cell.published} prefix={t("tariffBook.years.published")} />
+      ) : (
+        <span className="tariff-book-muted">{t("tariffBook.years.no_published_date")}</span>
+      )}
+      <Instant value={cell.recorded} prefix={t("tariffBook.recorded")} />
+      {cell.sourceUrl && <SourceLink url={cell.sourceUrl} t={t} />}
+    </div>
+  );
+}
+
 function SourceLink({ url, t }: { url: string; t: Translate }) {
   return (
     <a className="tariff-book-source" href={url} target="_blank" rel="noreferrer noopener">
@@ -53,6 +79,7 @@ export function TariffBookPanel({ t }: { t: Translate }) {
   const [facility, setFacility] = useState<string>(ALL);
   const [selected, setSelected] = useState<TariffVersionDTO | null>(null);
   const [history, setHistory] = useState<TariffVersionDTO[] | null>(null);
+  const [years, setYears] = useState<TariffYearDTO[] | null>(null);
 
   useEffect(() => {
     api
@@ -76,6 +103,11 @@ export function TariffBookPanel({ t }: { t: Translate }) {
       .tariffBook({ key: row.tariff_key, history: true })
       .then((response) => setHistory(response.data.rows))
       .catch(() => setHistory([]));
+    setYears(null);
+    api
+      .tariffYears({ facility: row.facility_id })
+      .then((response) => setYears(orderedYears(response.data.years)))
+      .catch(() => setYears([]));
   }, []);
 
   const choices = useMemo(() => facilities(rows ?? []), [rows]);
@@ -96,6 +128,7 @@ export function TariffBookPanel({ t }: { t: Translate }) {
       },
       { id: "figure", header: t("tariffBook.col.figure"), align: "end", value: (row) => row.value ?? 0, render: (row) => tariffFigure(row) },
       { id: "period", header: t("tariffBook.col.period"), value: (row) => row.period_from, render: (row) => periodText(row) },
+      { id: "year", header: t("tariffBook.col.tariff_year"), value: (row) => row.tariff_year ?? "" },
       {
         id: "status",
         header: t("tariffBook.col.status"),
@@ -103,9 +136,10 @@ export function TariffBookPanel({ t }: { t: Translate }) {
         render: (row) => (
           <StatusBadge
             tone={statusTone(row)}
-            title={labelOr(t, `tariffBook.basis.${row.status_basis}`, row.status_basis)}
+            title={row.status_rule ?? labelOr(t, `tariffBook.basis.${row.status_basis}`, row.status_basis)}
           >
             {t(row.status === "FINAL" ? "tariffBook.status.final" : "tariffBook.status.indicative")}
+            {row.new ? ` · ${t("tariffBook.new")}` : ""}
           </StatusBadge>
         ),
       },
@@ -232,6 +266,36 @@ export function TariffBookPanel({ t }: { t: Translate }) {
                 </li>
               ))}
             </ol>
+          )}
+          <h3>{t("tariffBook.years.title")}</h3>
+          {years === null ? (
+            <p className="tariff-book-muted">{t("tariffBook.loading")}</p>
+          ) : years.length === 0 ? (
+            <p className="tariff-book-muted">{t("tariffBook.years.empty")}</p>
+          ) : (
+            <table className="tariff-years">
+              <thead>
+                <tr>
+                  <th scope="col">{t("tariffBook.col.tariff_year")}</th>
+                  <th scope="col">{t("tariffBook.col.product")}</th>
+                  <th scope="col">{t("tariffBook.status.indicative")}</th>
+                  <th scope="col">{t("tariffBook.status.final")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {years.map((year) => {
+                  const [indicative, final] = yearCells(year);
+                  return (
+                    <tr key={`${year.tariff_year.label}:${year.direction ?? ""}:${year.product}:${year.operator}`}>
+                      <th scope="row">{year.tariff_year.label}</th>
+                      <td>{[year.direction, year.product].filter(Boolean).join(" ")}</td>
+                      <td><YearVersion cell={indicative} t={t} /></td>
+                      <td><YearVersion cell={final} t={t} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           )}
         </section>
       )}

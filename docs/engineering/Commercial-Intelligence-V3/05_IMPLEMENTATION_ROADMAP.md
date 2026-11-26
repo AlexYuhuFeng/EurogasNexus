@@ -23,13 +23,17 @@ Phase 0 work (baseline, audit, these documents). Status is kept in
 | M7 | Live pipeline ([15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md)): the listen worker is the default trigger (no drain cap, one-minute debounce, sweep lock); new-engine opportunities to alerts routed to an owner with escalation, notified once under a row lock; `/api/stream/opportunities` pushes open, withdrawn and evaluated, and the Opportunities page follows it with its age shown; latency measured before and after. Retiring the legacy intraday engine is blocked by its dependents (R19) | 7, 10 | No | **Built, tested** (M7-1 to M7-9; M7-10 blocked) |
 | LNG-2 | A cargo change reaches each role: rebuilt plan, hedge roll proposal, slot and nomination consequences, exposure, material escalation; ETA basis and confidence | 5, 7 | No | **Built, tested** (LNG2-1 to LNG2-5 met; migration `0080_lng_eta_basis`) |
 | LNG-3 | A disrupted cargo or pipeline supply re-optimised across the book: wait, borrow in tank, buy send-out or storage, divert, swap, cover; valued against the plan under ETA and price scenarios; hard constraints (firm obligations, storage, diversion rights); Pareto frontier and a configurable default; re-run on events with a timeline; a person chooses, nothing is booked ([17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md)) | 5, 6, 7 | No | **Built, tested** on `wip/lng3` (LNG3-1 to LNG3-8 met; migration `0086_lng_disruption`, ADR Decision 36) |
+| CAP-1 | Data capacity and infrastructure for 15 years: sizes and rates per source, three scenarios with and without compression, a staged recommendation and benchmarks ([19](19_DATA_CAPACITY_AND_INFRASTRUCTURE.md)); recommendation only, proposed ADRs ADR-P1 to ADR-P7 for the owner | 1, 10 | No | **Report done**; nothing adopted |
+| LNG-4 | Options, not one answer: every option ranked with its consequences (contract breach with the contract and its damages or "penalty not held", cargoes running to plan it moves, not physically possible), a recommended set with reasons; each option at its full cost (direct P&L and opportunity cost: displaced calls, capacity and storage forgone; contracted or spot terminal from the valuation); substitute supply across the portfolio (upstream swing, hub gas plus transport, storage); demurrage from the contract in its currency with a chosen FX fix; REMIT outages curtail pipeline supply through the outbox, with a manual override ([17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md) section 9) | 5, 6, 7 | No | **Built, tested** (LNG4-1 to LNG4-10 met; migration `0087_lng4_options_demurrage_outages.py`, ADR Decision 37) |
 | GOV-1 | Governance: audit written with the change, entitlement usage and export decisions, maker-checker on limits and reference data (P-17) with figure provenance; AI controls stage 2 (AI-use register, switch per feature, prompt and model versions on audit rows, tool allowlists per role, evaluation gate) | 8, 10 | No | **Built, tested** (GOV1-1 to GOV1-6; maker-checker P-17: P17-1 to P17-9 met, migration `0081_change_requests`) |
 | UX-1 | Client polish from the design study (R1 to R12): focus in high contrast, colour-blind palette, directional change, one number formatter, icons, dark surfaces, motion tokens, density, settings split, desktop plugins and menu; installer and sign-in; freshness shown on every figure | 9 | No | Next |
 | DATA-1 | Price revisions readable as known at a time; a change feed over market events; Power Query refreshable reads; ETRM and ERP import contracts | 1, 2 | No | **Built, tested** (DATA1-1 to DATA1-4 met; migration `0082_data1_integration`, ADR Decision 33) |
 | TAR-1 | Public tariffs from TSOs, LNG terminals and storage operators, versioned indicative and final, slot windows, auction notices | 1, 5 | No (public sources) | **Built, tested** (TAR1-1 to TAR1-6 met; migration `0083_tar1_tariff_book`, ADR Decision 34; only ENTSOG is machine-readable, the rest are recorded in the [publisher registry](../../data/TARIFF_PUBLISHER_REGISTRY.md) as manual or parsed) |
+| TAR-2 | Point-in-time tariff status (final if held at the instant valued, else indicative, by NC TAR Art. 29 where a publisher states none); tariffs per tariff year with both versions and their publication dates; capacity cost contracted before public (the firm's bookings, then the public price of how the rest would be bought, else not held, never zero) in route pricing, the optimiser, LNG-3 and the API; one configurable, audited source-precedence resolver (FX, interest, capacity, tariff, commodity price) with a financial-institution connector type (file or manual import; no live feed without the firm's agreement) | 1, 5, 7 | No (the firm's own bookings and bank exports; public tariffs) | **Built, tested** (TAR2-1 to TAR2-9 met; migration `0088_tar2_capacity_bookings`, ADR Decision 38) |
 | MAP-1 | The map: terminals and storage from published capacity, LNG carriers with tracks and ETAs, animated flows, page transitions; real or labelled data only | 5, 9 | No | **Built, tested** (MAP1-1 to MAP1-6 met; additive fields on the map read, no route or migration; frame rate in a browser and page-to-page transitions not yet done) |
 | NEWS-1 | News, policy and geopolitical events into analysis, cited and grounded under GOV-1's AI controls | 8 | No (public sources) | **Built, tested** (NEWS1-1 to NEWS1-11 met; migration `0084_news_items` after SCHED-1's `0085`; ADR Decision 35; feed addresses for the Commission, EUR-Lex and ACER await the owner) |
 | SCHED-1 | Nominations: explain mismatches between trades, confirmations and nominations (read only; nothing sent) | 5 | No | **Built, tested** (SCHED1-1 to SCHED1-8 met; one read `GET /api/desk/gas-day/{gas_day}/reconciliation`; migration `0085_sched1_nomination_matching`, columns only, no ADR) |
+| CODEX-1 | Review of the Codex assessments on agents and on data storage and processing ([18](18_CODEX_ASSESSMENT_REVIEW.md)): capability runtime controls (refusals traced, output hash and shape checked, timeout overrun reported, quality not assumed, confirmation by a signed-in person only and audited), the agents route fails closed, a versioned market change envelope for a later transport; broker, new datastores and live model routing listed for the owner | 8, 10 | No | **Built, tested** (CODEX1-1 to CODEX1-6 met; no route, no migration, no ADR) |
 | UX-2 | Personal workspaces from a governed component catalogue, "make me a view", command palette finds instruments, cargoes and vessels | 9, 12 | No | After UX-1 and GOV-1 |
 | LOOP-1 | Improvement loop tooling: feedback lifecycle and thread with the requester, change specification template, repository map, triage | 12 | No | After UX-2 |
 | M8 | Take-or-pay: ACQ, make-up, carry-forward and shortfall exposure on contracts, with events on change | 5 | No | Planned |
@@ -38,6 +42,7 @@ Phase 0 work (baseline, audit, these documents). Status is kept in
 | M11 | Forecast ranges: NumPy in the runtime lock (ADR, licence review), quantile output, CRPS | 4 | No | Planned |
 | M12 | Hosted pilot on Oracle Cloud with Aiven PostgreSQL; ENTSO-E with a token | 11, 1 | **Yes** (ENTSO-E token, Oracle Cloud, Aiven) | Dropped from this programme: the user will deploy later |
 | M13 | Engineering discipline and optimiser consolidation: enforced module boundaries, one kernel each for LNG economics, P&L and freshness, one flow kernel, bounded storage DP, hedge optimiser | 3, 6 | No | Ongoing, optimiser later |
+| CE-1 | Carbon and electricity in the same portfolio view (later step): a common commodity and position model across gas, power and carbon; spark and clean spark spreads; the EUA cost of gas-fired generation; the same source-precedence and option machinery as LNG-4 (one FX function, one transport-cost function, options with consequences and sources) | 5, 6, 7 | No | Planned (owner, 2026-11-25: not now) |
 
 ## Consolidated requirements (2026-11-24)
 
@@ -52,6 +57,8 @@ they overlap. Each one is mapped to a single slice above so nothing is built twi
 | Persona role-play and rigorous human-like testing to a commercial standard | Q1, then a review round after each user-facing slice |
 | LNG cargo lifecycle in transit; the delayed-cargo example | LNG-1, QA-1 (done), LNG-2 |
 | Re-optimise the portfolio when a cargo or pipeline supply is disrupted (2026-11-25) | LNG-3 |
+| Options with consequences, not one answer; full cost with opportunity cost; substitute supply; demurrage by contract and FX; REMIT outages on pipeline supply (2026-11-25) | LNG-4 |
+| Carbon and electricity in one portfolio view (2026-11-25, later) | CE-1 |
 | Where AI belongs per role; safe, controlled, predictable AI following industry practice | AIR-1 (design done), GOV-1, NEWS-1 |
 | Personal tabs, views made with AI help; feedback turned into reviewed changes | UX-2, LOOP-1 (design in 14) |
 | Learn from Kpler, Bloomberg, Platts, ETRMs, Kraken | 16 maps each lesson to DATA-1, GOV-1, SCHED-1, M7, M13 |
@@ -62,14 +69,16 @@ they overlap. Each one is mapped to a single slice above so nothing is built twi
 | Docs and SDK to commercial standard | DOC (done), kept current by each slice |
 | 3D terminals, ships, voyages, flow animation | MAP-1 |
 | Real public tariffs from every publisher, indicative and final | TAR-1 |
+| The firm's contracted capacity and bank rates before public figures, as of any instant | TAR-2 |
 | News, policy and geopolitics, cited, no hallucination | NEWS-1 |
 | Deployment | M12, dropped; the owner deploys later |
 | Branch hygiene | Main plus one development branch |
+| Review the Codex assessments on agents and big data; build what is valid (2026-11-25) | CODEX-1 ([18](18_CODEX_ASSESSMENT_REVIEW.md)); data sizing in doc 19 |
 
 ## Order and reasoning
 
 Built so far: M4 to M6, LNG-1, F1, DOC, the first persona round (QA-1, P-11), P-08, M7,
-LNG-2 and LNG-3. Next:
+LNG-2, LNG-3, TAR-2 and LNG-4. Next:
 
 1. **P-08 and M7 together.** Every later screen and alert depends on one price and on
    changes reaching people in seconds. M7 builds role routing, which LNG-2 needs.
@@ -77,11 +86,17 @@ LNG-2 and LNG-3. Next:
    **LNG-3 (built)** follows it: once each role knows the cargo is late, the
    book's options are valued and a default proposed, on the same outbox and routes. It sits
    here because it needs LNG-1's plan, LNG-2's routing and P-08's prices, and nothing later.
+   **LNG-4 (built)** widens it on the owner's word: options with their consequences rather
+   than one answer, each at its full cost, substitute supply from the rest of the portfolio,
+   demurrage in the contract's currency, and REMIT outages on pipeline supply. **CE-1**
+   (carbon and electricity) comes later, on LNG-4's option and source machinery.
 3. **GOV-1.** Audit with the change and AI controls come before any feature that leans
    harder on AI (NEWS-1, "make me a view").
 4. **UX-1.** Polish on a stable model; two items are bugs (high-contrast focus, desktop
    capabilities claimed without their plugins).
-5. **DATA-1, TAR-1, MAP-1, SCHED-1 and NEWS-1 (built)**, each on the foundations above.
+5. **DATA-1, TAR-1, MAP-1, SCHED-1 and NEWS-1 (built)**, each on the foundations above;
+   **TAR-2 (built)** puts the firm's own bookings and bank rates ahead of TAR-1's public
+   figures through one source-precedence resolver.
 6. **UX-2 and LOOP-1**, once the component catalogue and AI controls exist.
 7. **M8 to M11, M13** for commercial depth and consolidation.
 

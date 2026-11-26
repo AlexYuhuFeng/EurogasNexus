@@ -639,19 +639,116 @@ def record_cargo_hedges(cargo_id: str, body: CargoHedgesBody, request: Request) 
 
 
 class DisruptionChoiceBody(BaseModel):
-    """Why the desk chose this option (optional); the choice is recorded, nothing booked."""
+    """Why the desk chose this option (optional); the choice is recorded, nothing booked.
+    LNG-4: the FX choice the trader saw the figures at (optional, ECB by default), recorded
+    with the decision."""
 
     model_config = ConfigDict(extra="forbid")
 
     note: str | None = Field(default=None, max_length=2000)
+    reporting_currency: str | None = Field(default=None, pattern="^(EUR|GBP|USD)$")
+    fx_source: str | None = Field(default=None, max_length=16)
+    fx_fixing: str | None = Field(default=None, max_length=32)
+    fx_rate_date: date | None = None
+    fx_rate: float | None = Field(default=None, gt=0, le=1000)
+    fx_currency: str | None = Field(default=None, pattern="^(USD|GBP)$")
+
+
+def _reporting_default(session, principal) -> str:
+    try:
+        from eurogas_nexus.db.models import OrganisationSettingRecord, PrincipalPreferenceRecord
+        from eurogas_nexus.domain.settings.preferences import effective_preferences
+
+        organisation = {
+            row.setting_key: row.value_json for row in session.query(OrganisationSettingRecord)
+        }
+        row = session.get(PrincipalPreferenceRecord, str(principal.principal_id))
+        personal = dict(row.preferences_json) if row else {}
+        value = str(effective_preferences(organisation, personal).get("reporting_currency"))
+        return value if value in ("EUR", "GBP", "USD") else "EUR"
+    except Exception:  # noqa: BLE001 - no preference store: EUR
+        return "EUR"
+
+
+def _fx_choice(
+    request: Request,
+    session,
+    *,
+    reporting_currency: str | None,
+    fx_source: str | None,
+    fx_fixing: str | None,
+    fx_rate_date: date | None,
+    fx_rate: float | None,
+    fx_currency: str | None,
+):
+    """LNG-4: the reader's FX choice (ECB by default; WMR or BFIX only with the entitlement;
+    or a rate entered by hand) and the fixes the reader may use."""
+
+    from eurogas_nexus.application.lng_demurrage import FxChoice, FxChoiceError
+    from eurogas_nexus.application.projections.market_reads import (
+        filter_entitled_rows,
+        fx_observations,
+    )
+
+    principal = request.state.identity
+    try:
+        choice = FxChoice(
+            source=fx_source or "ECB",
+            fixing=fx_fixing,
+            rate_date=fx_rate_date,
+            rate=fx_rate,
+            rate_currency=fx_currency or "USD",
+            reporting_currency=reporting_currency or _reporting_default(session, principal),
+        )
+    except FxChoiceError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail={"error": "fx_choice_invalid", "code": "fx_choice_invalid", "message": str(exc)},
+        ) from exc
+    rows = filter_entitled_rows(principal, fx_observations(session))
+    if not choice.manual and choice.source.upper() in ("WMR", "BFIX") and not any(
+        row.get("source_system") == choice.source.upper() for row in rows
+    ):
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "error": "fx_source_entitlement_denied",
+                "code": "fx_source_entitlement_denied",
+                "message": f"{choice.source.upper()} fixes are licensed; none is held that "
+                "this principal is entitled to. Use ECB or enter a rate.",
+            },
+        )
+    return choice, rows
+
+
+_FX_QUERY = {
+    "reporting_currency": Query(default=None, pattern="^(EUR|GBP|USD)$"),
+    "fx_source": Query(default=None, max_length=16),
+    "fx_fixing": Query(default=None, max_length=32),
+    "fx_rate_date": Query(default=None),
+    "fx_rate": Query(default=None, gt=0, le=1000),
+    "fx_currency": Query(default=None, pattern="^(USD|GBP)$"),
+}
 
 
 @router.get("/api/lng/cargoes/{cargo_id}/disruption-options")
-def cargo_disruption_options(cargo_id: str, request: Request) -> dict:
+def cargo_disruption_options(
+    cargo_id: str,
+    request: Request,
+    reporting_currency: str | None = _FX_QUERY["reporting_currency"],
+    fx_source: str | None = _FX_QUERY["fx_source"],
+    fx_fixing: str | None = _FX_QUERY["fx_fixing"],
+    fx_rate_date: date | None = _FX_QUERY["fx_rate_date"],
+    fx_rate: float | None = _FX_QUERY["fx_rate"],
+    fx_currency: str | None = _FX_QUERY["fx_currency"],
+) -> dict:
     """LNG-3: the book re-optimised around a disrupted cargo or pipeline supply: the options
     that move this cargo, each valued against the plan before the disruption over the ETA and
     price scenarios, the Pareto frontier, the recommended default and why the rest are
-    dominated or infeasible, the run timeline and the last recorded choice (READ)."""
+    dominated or infeasible, the run timeline and the last recorded choice (READ). LNG-4: the
+    options ranked, each with its consequence flags, direct P&L and opportunity cost, the
+    recommended set with reasons, and demurrage in the contract's currency converted at the
+    FX choice (``fx_*``; ECB by default) with figures in ``reporting_currency``."""
 
     from eurogas_nexus.application import lng_disruption as disruption
     from eurogas_nexus.application.lng_in_transit import CargoPlanError
@@ -659,15 +756,35 @@ def cargo_disruption_options(cargo_id: str, request: Request) -> dict:
 
     _actor(request, Permission.PORTFOLIO_READ)
     with _register_session() as session:
+        choice, rows = _fx_choice(
+            request,
+            session,
+            reporting_currency=reporting_currency,
+            fx_source=fx_source,
+            fx_fixing=fx_fixing,
+            fx_rate_date=fx_rate_date,
+            fx_rate=fx_rate,
+            fx_currency=fx_currency,
+        )
         try:
-            result = disruption.disruption_options(session, cargo_id)
+            result = disruption.disruption_options(session, cargo_id, fx=choice, fx_rows=rows)
         except CargoPlanError as exc:
             raise _plan_error(exc) from exc
         return _runtime_env(result)
 
 
 @router.get("/api/lng/cargoes/{cargo_id}/disruption-options/{option_id}")
-def cargo_disruption_option(cargo_id: str, option_id: str, request: Request) -> dict:
+def cargo_disruption_option(
+    cargo_id: str,
+    option_id: str,
+    request: Request,
+    reporting_currency: str | None = _FX_QUERY["reporting_currency"],
+    fx_source: str | None = _FX_QUERY["fx_source"],
+    fx_fixing: str | None = _FX_QUERY["fx_fixing"],
+    fx_rate_date: date | None = _FX_QUERY["fx_rate_date"],
+    fx_rate: float | None = _FX_QUERY["fx_rate"],
+    fx_currency: str | None = _FX_QUERY["fx_currency"],
+) -> dict:
     """LNG-3: one option in full: each supply's leg day by day, the arithmetic per scenario,
     the hedge re-alignment, the obligations it meets or breaks and the mandates it moves
     (READ)."""
@@ -678,8 +795,20 @@ def cargo_disruption_option(cargo_id: str, option_id: str, request: Request) -> 
 
     _actor(request, Permission.PORTFOLIO_READ)
     with _register_session() as session:
+        choice, rows = _fx_choice(
+            request,
+            session,
+            reporting_currency=reporting_currency,
+            fx_source=fx_source,
+            fx_fixing=fx_fixing,
+            fx_rate_date=fx_rate_date,
+            fx_rate=fx_rate,
+            fx_currency=fx_currency,
+        )
         try:
-            result = disruption.option_detail(session, cargo_id, option_id)
+            result = disruption.option_detail(
+                session, cargo_id, option_id, fx=choice, fx_rows=rows
+            )
         except CargoPlanError as exc:
             raise _plan_error(exc) from exc
         return _runtime_env(result)
@@ -691,7 +820,9 @@ def choose_cargo_disruption_option(
 ) -> dict:
     """LNG-3: record the option the desk chose (PORTFOLIO_WRITE, audited
     ``lng.disruption_choice``). A record only: nothing is booked, borrowed, bought, traded or
-    nominated. An infeasible option is refused (409)."""
+    nominated. An option that cannot physically happen is refused (409); one that breaks a
+    contract or moves a cargo running to plan can be chosen, and the record keeps those
+    consequences (LNG-4)."""
 
     from eurogas_nexus.application import lng_disruption as disruption
     from eurogas_nexus.application.lng_in_transit import CargoPlanError
@@ -699,9 +830,19 @@ def choose_cargo_disruption_option(
 
     actor = _actor(request, Permission.PORTFOLIO_WRITE)
     with _register_session() as session:
+        choice, rows = _fx_choice(
+            request,
+            session,
+            reporting_currency=body.reporting_currency,
+            fx_source=body.fx_source,
+            fx_fixing=body.fx_fixing,
+            fx_rate_date=body.fx_rate_date,
+            fx_rate=body.fx_rate,
+            fx_currency=body.fx_currency,
+        )
         try:
             result = disruption.choose_option(
-                session, cargo_id, option_id, actor=actor, note=body.note
+                session, cargo_id, option_id, actor=actor, note=body.note, fx=choice, fx_rows=rows
             )
         except CargoPlanError as exc:
             session.rollback()
@@ -718,6 +859,12 @@ def disruption_frontier(
     curtail_from: date | None = Query(default=None),
     curtail_to: date | None = Query(default=None),
     curtail_mwh_per_day: float | None = Query(default=None, gt=0, le=10_000_000),
+    reporting_currency: str | None = _FX_QUERY["reporting_currency"],
+    fx_source: str | None = _FX_QUERY["fx_source"],
+    fx_fixing: str | None = _FX_QUERY["fx_fixing"],
+    fx_rate_date: date | None = _FX_QUERY["fx_rate_date"],
+    fx_rate: float | None = _FX_QUERY["fx_rate"],
+    fx_currency: str | None = _FX_QUERY["fx_currency"],
 ) -> dict:
     """LNG-3: the whole book's disruption options and Pareto frontier. With ``curtail_*`` a
     pipeline supply of the book is taken as curtailed on those gas days (a what-if; nothing is
@@ -757,8 +904,87 @@ def disruption_frontier(
             "mwh_per_day": curtail_mwh_per_day,
         }
     with _register_session() as session:
+        choice, rows = _fx_choice(
+            request,
+            session,
+            reporting_currency=reporting_currency,
+            fx_source=fx_source,
+            fx_fixing=fx_fixing,
+            fx_rate_date=fx_rate_date,
+            fx_rate=fx_rate,
+            fx_currency=fx_currency,
+        )
         try:
-            result = disruption.frontier(session, book_id, curtail=curtail)
+            result = disruption.frontier(
+                session, book_id, curtail=curtail, fx=choice, fx_rows=rows
+            )
         except CargoPlanError as exc:
             raise _plan_error(exc) from exc
+        return _runtime_env(result)
+
+
+class OutageOverrideBody(BaseModel):
+    """LNG-4: how REMIT outages count for one pipeline supply. ``auto``: linked outages
+    curtail it, days entered by hand win on their day; ``manual``: only the days entered by
+    hand count (the links are still recorded). ``curtailed`` (optional) replaces the days
+    entered by hand: ``[[gas day ISO, MWh not delivered], ...]``."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    outage_mode: str = Field(..., pattern="^(auto|manual)$")
+    curtailed: list[list[str | float]] | None = Field(default=None, max_length=400)
+    reason: str | None = Field(default=None, max_length=500)
+
+
+def _outage_error(exc) -> HTTPException:
+    return HTTPException(
+        status_code=exc.status_code,
+        detail={"error": exc.code, "code": exc.code, "message": exc.message},
+    )
+
+
+@router.get("/api/lng/pipeline-supplies/{supply_id}/outage-links")
+def pipeline_supply_outage_links(supply_id: str, request: Request) -> dict:
+    """LNG-4: the REMIT messages linked to a pipeline supply, what matched and why, the days
+    each curtails, the supply's outage mode and the curtailment the valuation reads (READ).
+    Advisory: the platform's reading of published messages; nothing is nominated."""
+
+    from eurogas_nexus.application import pipeline_outages
+    from eurogas_nexus.security.authorization import Permission
+
+    _actor(request, Permission.PORTFOLIO_READ)
+    with _register_session() as session:
+        try:
+            result = pipeline_outages.supply_links(session, supply_id)
+        except pipeline_outages.OverrideError as exc:
+            raise _outage_error(exc) from exc
+        return _runtime_env(result)
+
+
+@router.put("/api/lng/pipeline-supplies/{supply_id}/outage-override")
+def pipeline_supply_outage_override(
+    supply_id: str, body: OutageOverrideBody, request: Request
+) -> dict:
+    """LNG-4: set whether linked REMIT outages curtail a pipeline supply, and the days
+    entered by hand (PORTFOLIO_WRITE, audited ``lng.pipeline_outage_override``). The book is
+    re-optimised on its next read; nothing is nominated or sent to a TSO."""
+
+    from eurogas_nexus.application import pipeline_outages
+    from eurogas_nexus.security.authorization import Permission
+
+    actor = _actor(request, Permission.PORTFOLIO_WRITE)
+    with _register_session() as session:
+        try:
+            result = pipeline_outages.set_override(
+                session,
+                supply_id,
+                mode=body.outage_mode,
+                curtailed=body.curtailed,
+                actor=actor,
+                reason=body.reason,
+            )
+        except pipeline_outages.OverrideError as exc:
+            session.rollback()
+            raise _outage_error(exc) from exc
+        session.commit()
         return _runtime_env(result)

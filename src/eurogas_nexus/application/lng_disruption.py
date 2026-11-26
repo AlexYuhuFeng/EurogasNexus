@@ -16,6 +16,14 @@ optimising):
   (``lng_terminal_terms.extra_sailing_days``) and the costs and preference weights from the
   firm's approved assumptions (``lng.disruption.*``; desk standards otherwise, named so).
 
+LNG-4 adds: demurrage as the cargo's contract states it, converted with the reader's FX
+choice (``application/lng_demurrage.py``); other users' ships due at the terminals' berths
+(``lng_berth_calls``) and the berth days a call holds (``lng_slot_terms.berth_days``), so an
+option carries the knock-on it causes; spot slot offers; and substitute supply from the rest
+of the portfolio for a delivery left short (``application/lng_substitutes.py``). Every option
+is listed with its consequences (not possible, contract breach, cargo running to plan moved)
+and a recommended set; a breach option can be chosen, an impossible one cannot.
+
 Reads (``GET /api/lng/cargoes/{id}/disruption-options``, ``.../{option_id}`` and
 ``GET /api/lng/disruption/frontier``) value the book now and record nothing. The outbox
 consumer ``lng_disruption`` re-runs a book when one of its inputs changes, keeps a run row
@@ -30,15 +38,31 @@ bought, traded or nominated (AGENTS.md rule 8).
 from __future__ import annotations
 
 import math
+from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime, timedelta
 from typing import Any
 from uuid import uuid4
 
+from eurogas_nexus.application.lng_demurrage import (
+    FxBook,
+    FxChoice,
+    _fx_rate,
+    amounts,
+    convert,
+    demurrage_terms,
+    fx_book,
+    reporting,
+)
 from eurogas_nexus.application.lng_in_transit import CargoPlanError
+from eurogas_nexus.application.pipeline_outages import effective as effective_curtailment
+from eurogas_nexus.application.pipeline_outages import link_dict as outage_link_dict
+from eurogas_nexus.application.pipeline_outages import link_outages
+from eurogas_nexus.application.pipeline_outages import links as outage_links_of
 from eurogas_nexus.domain.lng.disruption import (
     LNG,
     PIPELINE,
+    BerthCall,
     CapacityOffer,
     DeskTerms,
     DisruptionError,
@@ -90,6 +114,11 @@ ASSUMPTION_KEYS: dict[str, tuple[str, float]] = {
     "cash_out_pct": ("lng.disruption.cash_out_pct", 3.0),
     "stranded_discount_eur_mwh": ("lng.disruption.stranded_discount", 3.0),
     "material_change_eur": ("lng.disruption.material_change", 50_000.0),
+    "breach_eur_per_contract": ("lng.disruption.breach_cost", 0.0),
+}
+#: DeskTerms fields with no desk standard: ``None`` until the firm approves a value.
+OPTIONAL_KEYS: dict[str, str] = {
+    "spare_slot_value_eur_mwh": "lng.disruption.spare_slot_value",
 }
 _UNITLESS = {"risk_weight", "cash_out_pct"}
 
@@ -121,6 +150,12 @@ class Book:
     inputs: list[dict[str, str]] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     cargo_rows: dict[str, Any] = field(default_factory=dict)
+    #: The FX choice and the fixes the read used (LNG-4).
+    fx: FxBook | None = None
+    #: Per cargo: its demurrage as the contract states it, and as converted.
+    demurrage: dict[str, dict[str, Any]] = field(default_factory=dict)
+    #: Per pipeline supply with a REMIT link: its mode, the links and the days they curtail.
+    pipeline_outages: list[dict[str, Any]] = field(default_factory=list)
 
 
 # ------------------------------------------------------------------------------ loading
@@ -147,7 +182,22 @@ def _terms(session, book_id: str, day: date) -> DeskTerms:
             continue
         values[name] = float(held.value)
         sources[name] = f"approved assumption {key} ({version_id})"
-    return DeskTerms(**values, sources=sources)
+    optional: dict[str, float | None] = {}
+    for name, key in OPTIONAL_KEYS.items():
+        optional[name] = None
+        sources[name] = f"not held (no approved {key})"
+        if resolved is None:
+            continue
+        version_id, version = resolved
+        held = version.value(key)
+        if held is None or held.value is None:
+            continue
+        if getattr(held, "currency", None) not in (None, "EUR"):
+            sources[name] = f"not held ({key} is in {held.currency}, not EUR)"
+            continue
+        optional[name] = float(held.value)
+        sources[name] = f"approved assumption {key} ({version_id})"
+    return DeskTerms(**values, **optional, sources=sources)
 
 
 def _prices(session, hubs: set[str], today: date, now: datetime):
@@ -236,8 +286,9 @@ def _slot_terms(session, slot, hub: str, holder: str | None) -> tuple[SlotTerms,
     )
 
 
-def _voyage(session, row, plan_inputs) -> dict[str, Any]:
-    """Laytime, demurrage (EUR/day), boil-off and diversion right, and their sources."""
+def _voyage(session, row, plan_inputs, fx: FxBook) -> dict[str, Any]:
+    """Laytime, demurrage (as the contract states it and in EUR), boil-off and diversion
+    right, and their sources."""
 
     from eurogas_nexus.application.lng_in_transit import _cargo_contract, _mspa_terms
     from eurogas_nexus.db.models import LngVoyageTermsRecord
@@ -246,23 +297,22 @@ def _voyage(session, row, plan_inputs) -> dict[str, Any]:
     contract = _cargo_contract(session, row.cargo_id)
     mspa = _mspa_terms(session, contract)
     out: dict[str, Any] = {"warnings": []}
-    if held is not None and held.laytime_hours is not None:
-        out["laytime_hours"], out["laytime_source"] = held.laytime_hours, "voyage terms"
-    elif mspa and mspa.get("laytime_hours") is not None:
-        out["laytime_hours"] = float(mspa["laytime_hours"])
-        out["laytime_source"] = f"master agreement {mspa['master_contract_id']}"
-    else:
-        out["laytime_hours"], out["laytime_source"] = 36.0, "desk standard 36 h (none recorded)"
-    if held is not None and held.demurrage_eur_per_day is not None:
-        out["demurrage"] = float(held.demurrage_eur_per_day)
-        out["demurrage_source"] = "voyage terms"
+    terms = demurrage_terms(held, contract, mspa)
+    block = convert(terms, fx, vessel=row.vessel_name)
+    out["laytime_hours"], out["laytime_source"] = terms["laytime_hours"], terms["laytime_source"]
+    out["demurrage_block"] = block
+    out["contract_id"] = None if contract is None else contract[0]
+    if block["eur_per_day"] is not None:
+        out["demurrage"] = float(block["eur_per_day"])
+        out["demurrage_source"] = block["source"] + (
+            f" ({block['terms']})" if block.get("terms") else ""
+        )
+        out["demurrage_note"] = block["note"]
     else:
         out["demurrage"] = 0.0
-        out["demurrage_source"] = "none in EUR recorded: waiting costs boil-off only"
-        out["warnings"].append(
-            f"{row.vessel_name}: no demurrage in EUR recorded (lng_voyage_terms); waiting is "
-            "costed at boil-off only" + (" (the master agreement names one in USD)" if mspa else "")
-        )
+        out["demurrage_source"] = "none applied: waiting costs boil-off only"
+        out["demurrage_note"] = ""
+        out["warnings"].append(block["warning"])
     if held is not None and held.boil_off_pct_per_day is not None:
         out["boil_off_pct"] = float(held.boil_off_pct_per_day)
     else:
@@ -286,8 +336,66 @@ def _voyage(session, row, plan_inputs) -> dict[str, Any]:
     return out
 
 
-def load_book(session, book_id: str, *, now: datetime) -> Book:
-    """The book's portfolio, prices and terms at ``now``."""
+def _berth_calls(session, terminals: Mapping[str, str], fx: FxBook, today: date):
+    """Other users' ships due at the book's terminals (``terminals`` maps each to its hub,
+    which prices the boil-off of a wait), their demurrage in EUR (LNG-4)."""
+
+    from eurogas_nexus.db.models import LngBerthCallRecord
+
+    calls, inputs, warnings = [], [], []
+    for row in (
+        session.query(LngBerthCallRecord)
+        .filter(LngBerthCallRecord.berth_gas_day >= today)
+        .order_by(LngBerthCallRecord.terminal_name, LngBerthCallRecord.berth_gas_day)
+        .all()
+    ):
+        if row.terminal_name not in terminals:
+            continue
+        eur, note = 0.0, ""
+        if row.demurrage_rate_per_day is not None:
+            currency = (row.demurrage_currency or "EUR").upper()
+            used = _fx_rate(session, currency, "EUR", fx.on, fx)
+            if used.rate is None:
+                warnings.append(
+                    f"{row.label} at {row.terminal_name}: demurrage in {currency} not converted "
+                    f"({used.missing}); its wait is costed at boil-off only"
+                )
+            else:
+                eur = float(row.demurrage_rate_per_day) * used.rate
+                if currency != "EUR":
+                    note = f"{row.demurrage_rate_per_day:,.0f} {currency}/day at {used.text()}"
+        calls.append(
+            BerthCall(
+                row.call_id,
+                row.terminal_name,
+                row.label,
+                row.berth_gas_day,
+                hub=terminals[row.terminal_name],
+                berth_days=int(row.berth_days or 1),
+                laytime_hours=float(row.laytime_left_hours or 0.0),
+                demurrage_eur_per_day=eur,
+                boil_off_mwh_per_day=float(row.boil_off_mwh_per_day or 0.0),
+                source=f"line-up {row.source_reference}",
+                demurrage_note=note,
+            )
+        )
+        inputs.append(
+            {"input": f"berth call {row.call_id}", "source": f"line-up {row.source_reference}"}
+        )
+    return calls, inputs, warnings
+
+
+def load_book(
+    session,
+    book_id: str,
+    *,
+    now: datetime,
+    fx: FxChoice | None = None,
+    fx_rows: list[dict[str, Any]] | None = None,
+) -> Book:
+    """The book's portfolio, prices and terms at ``now``. ``fx`` is the reader's FX choice
+    (ECB by default) and ``fx_rows`` the fixes the reader is entitled to (``None``: the
+    public ones)."""
 
     from eurogas_nexus.application.lng_in_transit import (
         _cargo_rows,
@@ -296,10 +404,12 @@ def load_book(session, book_id: str, *, now: datetime) -> Book:
         _state,
         _terminal,
     )
+    from eurogas_nexus.application.lng_substitutes import load_substitutes
     from eurogas_nexus.db.models import (
         LngCapacityOfferRecord,
         LngCargoRecord,
         LngDeliveryObligationRecord,
+        LngSlotTermsRecord,
         LngVoyageTermsRecord,
         PipelineSupplyRecord,
         RegasSlotRecord,
@@ -310,6 +420,9 @@ def load_book(session, book_id: str, *, now: datetime) -> Book:
     today = moment.date()
     inputs: list[dict[str, str]] = []
     warnings: list[str] = []
+    rates = fx_book(session, fx, on=today, rows=fx_rows)
+    demurrage: dict[str, dict[str, Any]] = {}
+    berth_days: dict[str, int] = {}
     cargo_rows = {
         row.cargo_id: row
         for row in session.query(LngCargoRecord)
@@ -341,6 +454,11 @@ def load_book(session, book_id: str, *, now: datetime) -> Book:
         if terms.start + timedelta(days=terms.days) <= today:
             continue
         hubs[slot.terminal_name] = resolved.hub
+        held_terms = session.get(LngSlotTermsRecord, slot.slot_id)
+        if held_terms is not None and held_terms.berth_days:
+            berth_days[terms.terminal] = max(
+                berth_days.get(terms.terminal, 1), int(held_terms.berth_days)
+            )
         slots.append(terms)
         inputs.append({"input": f"slot {slot.slot_id}", "source": source})
 
@@ -364,8 +482,9 @@ def load_book(session, book_id: str, *, now: datetime) -> Book:
         plan = build_plan(cargo, now=moment)
         gik = cargo.slot.gas_in_kind_pct if cargo.slot is not None else 0.0
         energy = plan.energy_at_eta_mwh * (1 - gik / 100)
-        voyage = _voyage(session, row, cargo)
+        voyage = _voyage(session, row, cargo, rates)
         warnings.extend(voyage.pop("warnings"))
+        demurrage[cargo_id] = voyage["demurrage_block"]
         supplies.append(
             Supply(
                 cargo_id,
@@ -381,6 +500,9 @@ def load_book(session, book_id: str, *, now: datetime) -> Book:
                 boil_off_mwh_per_day=cargo.loaded_mwh * voyage["boil_off_pct"] / 100,
                 can_divert=voyage["can_divert"],
                 diversion_note=voyage["diversion_note"],
+                contract_id=voyage["contract_id"],
+                demurrage_note=voyage["demurrage_note"],
+                demurrage_source=voyage["demurrage_source"],
             )
         )
         inputs.append(
@@ -391,17 +513,41 @@ def load_book(session, book_id: str, *, now: datetime) -> Book:
             }
         )
 
-    for item in (
-        session.query(PipelineSupplyRecord)
+    pipes = [
+        item
+        for item in session.query(PipelineSupplyRecord)
         .filter(PipelineSupplyRecord.book_id == book_id)
         .order_by(PipelineSupplyRecord.supply_id)
         .all()
-    ):
-        if item.last_gas_day < today:
-            continue
-        curtailed = tuple(
-            (date.fromisoformat(str(day)), float(mwh)) for day, mwh in (item.curtailed or [])
-        )
+        if item.last_gas_day >= today
+    ]
+    outage_links = outage_links_of(session, [item.supply_id for item in pipes])
+    pipeline_outages: list[dict[str, Any]] = []
+    for item in pipes:
+        # LNG-4: days entered by hand win; in auto mode a linked REMIT outage fills the rest.
+        held_links = outage_links.get(item.supply_id, [])
+        used = effective_curtailment(item, held_links)
+        curtailed = used.curtailed
+        if held_links or used.mode == "manual":
+            pipeline_outages.append(
+                {
+                    "supply_id": item.supply_id,
+                    "label": item.label,
+                    "outage_mode": used.mode,
+                    "links": [outage_link_dict(row) for row in held_links],
+                    "effective": [[d.isoformat(), m] for d, m in used.curtailed],
+                    "effective_source": dict(used.by_day),
+                }
+            )
+        for source in used.sources:
+            inputs.append({"input": f"pipeline {item.supply_id} outage", "source": source})
+        if used.mode == "manual":
+            inputs.append(
+                {
+                    "input": f"pipeline {item.supply_id} outage",
+                    "source": "manual override: only the days entered by hand count",
+                }
+            )
         supplies.append(
             Supply(
                 item.supply_id,
@@ -414,6 +560,7 @@ def load_book(session, book_id: str, *, now: datetime) -> Book:
                 end=item.last_gas_day,
                 curtailed=curtailed,
                 cost_eur_mwh=float(item.cost_eur_mwh or 0.0),
+                contract_id=item.contract_id,
             )
         )
         hubs[item.point] = item.hub.upper()
@@ -434,8 +581,9 @@ def load_book(session, book_id: str, *, now: datetime) -> Book:
             o.last_gas_day,
             float(o.mwh_per_day),
             firm=bool(o.firm),
-            penalty_eur_mwh=float(o.penalty_eur_mwh or 0.0),
+            penalty_eur_mwh=None if o.penalty_eur_mwh is None else float(o.penalty_eur_mwh),
             contract_id=o.contract_id,
+            penalty_terms=o.penalty_terms or "",
         )
         for o in session.query(LngDeliveryObligationRecord)
         .filter(LngDeliveryObligationRecord.book_id == book_id)
@@ -462,13 +610,17 @@ def load_book(session, book_id: str, *, now: datetime) -> Book:
                 storage_price_eur_mwh_day=float(o.storage_price_eur_mwh_day or 0.0),
                 basis=o.basis,
                 source=o.source_reference,
+                hub=(o.hub or "").upper() or None,
             )
         )
+        if o.kind == "slot" and o.hub:
+            hubs[o.terminal_name] = o.hub.upper()
         inputs.append({"input": f"offer {o.offer_id}", "source": f"{o.basis} {o.source_reference}"})
+    offers.extend(_contracted_offers(session, book_id, today, moment, inputs, warnings))
 
     known = _sailing(session)
     sailing = {}
-    for terminal in sorted({s.terminal for s in slots}):
+    for terminal in sorted({s.terminal for s in slots} | {o.terminal for o in offers}):
         value = known.get(_normal(terminal))
         sailing[terminal] = 0.0 if value is None else value
     missing = sorted(t for t in sailing if _normal(t) not in known)
@@ -487,9 +639,33 @@ def load_book(session, book_id: str, *, now: datetime) -> Book:
     terms = _terms(session, book_id, today)
     for name, source in terms.sources.items():
         inputs.append({"input": name, "source": source})
+    calls, call_inputs, call_warnings = _berth_calls(
+        session, {t: hubs[t] for t in sailing if t in hubs}, rates, today
+    )
+    inputs.extend(call_inputs)
+    warnings.extend(call_warnings)
+    substitutes = load_substitutes(
+        session,
+        book_id,
+        obligations,
+        prices,
+        premium_eur_mwh=terms.short_notice_premium_eur_mwh,
+        premium_source=terms.sources.get("short_notice_premium_eur_mwh", "desk standard"),
+        fx=rates,
+        today=today,
+    )
+    inputs.extend(substitutes.inputs)
+    warnings.extend(substitutes.warnings)
     try:
         portfolio = Portfolio(
-            tuple(supplies), tuple(slots), tuple(obligations), tuple(offers), sailing
+            tuple(supplies),
+            tuple(slots),
+            tuple(obligations),
+            tuple(offers),
+            sailing,
+            berth_calls=tuple(calls),
+            berth_days=berth_days,
+            substitutes=tuple(substitutes.sources),
         )
     except DisruptionError as exc:
         raise CargoPlanError("portfolio_invalid", str(exc)) from exc
@@ -501,7 +677,59 @@ def load_book(session, book_id: str, *, now: datetime) -> Book:
         inputs=inputs,
         warnings=warnings,
         cargo_rows=cargo_rows,
+        fx=rates,
+        demurrage=demurrage,
+        pipeline_outages=pipeline_outages,
     )
+
+
+#: The contracted price units a booking's send-out or storage cost is read in (EUR only).
+_CONTRACTED_UNITS = {"send_out": ("EUR/MWh",), "storage": ("EUR/MWh/d", "EUR/MWh/day")}
+
+
+def _contracted_offers(session, book_id: str, today: date, moment: datetime,
+                       inputs: list, warnings: list) -> list[CapacityOffer]:
+    """TAR-2: send-out and storage the firm has booked at a terminal, as offers ranked before
+    any public or quoted one, at their contracted cost. A booking without a contracted price
+    in a unit read here is named and not used (never priced at zero)."""
+
+    from eurogas_nexus.application.capacity_costs import bookings_as_of
+
+    try:
+        records = bookings_as_of(session, as_of=moment, kinds=("send_out", "storage"),
+                                 book_ids=[book_id])
+    except Exception:  # noqa: BLE001 - a store without the bookings table
+        return []
+    out = []
+    for record in records:
+        if record.last_gas_day < today:
+            continue
+        unit = (record.price_unit or "").replace(" ", "")
+        if record.price is None or unit not in _CONTRACTED_UNITS[record.kind]:
+            warnings.append(
+                f"booking {record.booking_id}: contracted {record.kind.replace('_', '-')} cost "
+                "not recorded in EUR/MWh (send-out) or EUR/MWh/d (storage); not used"
+            )
+            continue
+        per_day = record.quantity * (24 / 1000 if record.quantity_unit == "kWh/h" else (
+            1 / 1000 if record.quantity_unit == "kWh/d" else 1.0))
+        out.append(
+            CapacityOffer(
+                f"booking:{record.booking_id}",
+                record.facility_name or record.facility_id,
+                record.kind,
+                max(record.first_gas_day, today),
+                record.last_gas_day,
+                float(record.price),
+                max_mwh_per_day=per_day if record.kind == "send_out" else 0.0,
+                max_mwh=per_day if record.kind == "storage" else 0.0,
+                basis="contracted",
+                source=record.source_reference,
+            )
+        )
+        inputs.append({"input": f"booking {record.booking_id}",
+                       "source": f"contracted {record.source_reference}"})
+    return out
 
 
 def _with_curtailment(book: Book, curtail: dict[str, Any] | None) -> Book:
@@ -570,6 +798,7 @@ def _runs(session, book_id: str, limit: int = 12) -> list[dict[str, Any]]:
             "recommended_option_id": r.recommended_option_id,
             "recommended_title": r.recommended_title,
             "recommended_pnl_eur": r.recommended_pnl_eur,
+            "recommended_set": list(r.recommended_set or []),
             "frontier": list(r.frontier or []),
             "disrupted": list(r.disrupted or []),
         }
@@ -599,7 +828,11 @@ def _decision_dict(row) -> dict[str, Any]:
         "option_key": row.option_key,
         "title": row.title,
         "recommended_option_id": row.recommended_option_id,
-        "was_recommended": row.option_id == row.recommended_option_id,
+        "was_recommended": row.option_id == row.recommended_option_id
+        or any(item.get("option_id") == row.option_id for item in (row.recommended_set or [])),
+        "recommended_set": list(row.recommended_set or []),
+        "consequences": row.consequences,
+        "fx": row.fx,
         "objectives": dict(row.objectives or {}),
         "note": row.note,
         "decided_by": row.decided_by,
@@ -608,12 +841,75 @@ def _decision_dict(row) -> dict[str, Any]:
     }
 
 
-def _run(session, cargo_id: str, now: datetime | None):
+def _run(
+    session,
+    cargo_id: str,
+    now: datetime | None,
+    fx: FxChoice | None = None,
+    fx_rows: list[dict[str, Any]] | None = None,
+):
     moment = _aware(now) or datetime.now(UTC)
     row, _slot = _cargo(session, cargo_id)
-    book = load_book(session, row.book_id, now=moment)
+    book = load_book(session, row.book_id, now=moment, fx=fx, fx_rows=fx_rows)
     result = optimise(book.portfolio, book.market, book.terms)
     return row, book, result
+
+
+def _recommended_set(result: Result) -> list[dict[str, Any]]:
+    return [
+        {
+            "option_id": item.option.option_id,
+            "key": item.option.key,
+            "title": item.option.title,
+            "basis": item.basis,
+            "reason": item.reason,
+        }
+        for item in result.recommended_set
+    ]
+
+
+def _decorate(book: Book, row: dict[str, Any]) -> dict[str, Any]:
+    """An option as a reader sees it (LNG-4): each leg's demurrage in the contract's currency
+    beside the EUR figure, and the headline figures in the reporting currency."""
+
+    for leg in row.get("legs", []):
+        block = book.demurrage.get(leg.get("supply_id"))
+        if block is None:
+            continue
+        leg["demurrage"] = {
+            "terms": block,
+            "amount": amounts(block, float(leg.get("demurrage_eur") or 0.0)),
+        }
+    o = row.get("objectives") or {}
+    if book.fx is not None:
+        row["reporting"] = reporting(
+            book.fx,
+            {
+                name: float(o[name])
+                for name in (
+                    "pnl_expected",
+                    "pnl_worst",
+                    "cost",
+                    "direct_pnl_expected",
+                    "opportunity_cost",
+                )
+                if o.get(name) is not None
+            },
+        )
+    return row
+
+
+def _fx_block(book: Book) -> dict[str, Any] | None:
+    if book.fx is None:
+        return None
+    return {
+        "choice": book.fx.choice.as_dict(),
+        "rate_date_used": book.fx.on.isoformat()
+        if book.fx.choice.rate_date is None
+        else book.fx.choice.rate_date.isoformat(),
+        "sources": ["ECB", "WMR", "BFIX", "manual"],
+        "conversion": "application/lng_demurrage._fx_rate",
+    }
 
 
 def _cargo_block(row, book: Book) -> dict[str, Any]:
@@ -649,11 +945,19 @@ def _cargo_block(row, book: Book) -> dict[str, Any]:
     }
 
 
-def disruption_options(session, cargo_id: str, *, now: datetime | None = None) -> dict[str, Any]:
-    """The book's re-optimisation as it bears on one cargo: the options that move it, the
-    frontier, the recommended default, the timeline and the last recorded choice."""
+def disruption_options(
+    session,
+    cargo_id: str,
+    *,
+    now: datetime | None = None,
+    fx: FxChoice | None = None,
+    fx_rows: list[dict[str, Any]] | None = None,
+) -> dict[str, Any]:
+    """The book's re-optimisation as it bears on one cargo: the options that move it, ranked,
+    each with its consequences and full cost, the recommended set, the frontier, the timeline
+    and the last recorded choice."""
 
-    row, book, result = _run(session, cargo_id, now)
+    row, book, result = _run(session, cargo_id, now, fx, fx_rows)
     payload = result_dict(book.portfolio, result)
     hit = {s.supply_id for s in result.disrupted}
     mine = [o for o in result.options if _involves(o, cargo_id)]
@@ -663,10 +967,13 @@ def disruption_options(session, cargo_id: str, *, now: datetime | None = None) -
         status = "affected"  # another supply's options move this cargo
     else:
         status = "as_planned"
-    payload["options"] = [option_dict(book.portfolio, o) for o in mine]
+    payload["options"] = [_decorate(book, option_dict(book.portfolio, o)) for o in mine]
     payload.update(
         {
             "cargo": _cargo_block(row, book),
+            "demurrage": book.demurrage.get(cargo_id),
+            "fx": _fx_block(book),
+            "pipeline_outages": book.pipeline_outages,
             "status": status,
             "book_options": len(result.options),
             "inputs": book.inputs,
@@ -680,11 +987,18 @@ def disruption_options(session, cargo_id: str, *, now: datetime | None = None) -
 
 
 def option_detail(
-    session, cargo_id: str, option_id: str, *, now: datetime | None = None
+    session,
+    cargo_id: str,
+    option_id: str,
+    *,
+    now: datetime | None = None,
+    fx: FxChoice | None = None,
+    fx_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """One option in full: every leg, the arithmetic per scenario, and the mandates it moves."""
+    """One option in full: every leg, the arithmetic per scenario with the sources of each
+    line, its consequences, and the mandates it moves."""
 
-    row, book, result = _run(session, cargo_id, now)
+    row, book, result = _run(session, cargo_id, now, fx, fx_rows)
     option = result.option(option_id)
     if option is None or not _involves(option, cargo_id):
         raise CargoPlanError(
@@ -693,16 +1007,18 @@ def option_detail(
             "changed since it was listed.",
             404,
         )
-    payload = option_dict(book.portfolio, option, detail=True)
+    payload = _decorate(book, option_dict(book.portfolio, option, detail=True))
+    chosen = _recommended_set(result)
     payload.update(
         {
             "cargo_id": cargo_id,
             "book_id": row.book_id,
-            "recommended": result.recommended is not None
-            and result.recommended.option_id == option_id,
+            "recommended": any(item["option_id"] == option_id for item in chosen),
+            "recommended_set": chosen,
             "recommended_option_id": None
             if result.recommended is None
             else result.recommended.option_id,
+            "fx": _fx_block(book),
             "dominated_by_title": None
             if option.dominated_by is None
             else result.option(option.dominated_by).title,
@@ -720,19 +1036,26 @@ def frontier(
     *,
     now: datetime | None = None,
     curtail: dict[str, Any] | None = None,
+    fx: FxChoice | None = None,
+    fx_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """The whole book's options and Pareto frontier, optionally with a pipeline curtailed."""
+    """The whole book's options, ranked with their consequences, and the Pareto frontier,
+    optionally with a pipeline curtailed."""
 
     from eurogas_nexus.application.lng_in_transit import _check_book
 
     moment = _aware(now) or datetime.now(UTC)
     _check_book(session, book_id)
-    book = _with_curtailment(load_book(session, book_id, now=moment), curtail)
+    book = _with_curtailment(
+        load_book(session, book_id, now=moment, fx=fx, fx_rows=fx_rows), curtail
+    )
     result = optimise(book.portfolio, book.market, book.terms)
     payload = result_dict(book.portfolio, result)
+    payload["options"] = [_decorate(book, item) for item in payload["options"]]
     payload.update(
         {
             "book_id": book_id,
+            "fx": _fx_block(book),
             "supplies": [
                 {
                     "supply_id": s.supply_id,
@@ -753,9 +1076,35 @@ def frontier(
                     "last_gas_day": o.end.isoformat(),
                     "mwh_per_day": o.mwh_per_day,
                     "firm": o.firm,
+                    "penalty_eur_mwh": o.penalty_eur_mwh,
+                    "penalty_held": o.penalty_eur_mwh is not None,
+                    "penalty_terms": o.penalty_terms or None,
                 }
                 for o in book.portfolio.obligations
             ],
+            "substitutes": [
+                {
+                    "source_id": x.source_id,
+                    "kind": x.kind,
+                    "label": x.label,
+                    "point": x.point,
+                    "max_mwh_per_day": x.max_mwh_per_day,
+                    "sources": dict(x.sources),
+                }
+                for x in book.portfolio.substitutes
+            ],
+            "berth_calls": [
+                {
+                    "call_id": c.call_id,
+                    "terminal": c.terminal,
+                    "label": c.label,
+                    "berth": c.berth.isoformat(),
+                    "berth_days": c.berth_days,
+                    "source": c.source,
+                }
+                for c in book.portfolio.berth_calls
+            ],
+            "pipeline_outages": book.pipeline_outages,
             "inputs": book.inputs,
             "warnings": book.warnings,
             "what_if": curtail is not None,
@@ -866,14 +1215,20 @@ def choose_option(
     actor: str,
     note: str | None = None,
     now: datetime | None = None,
+    fx: FxChoice | None = None,
+    fx_rows: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
-    """Record the option a person chose (audited). The caller commits. Nothing is booked."""
+    """Record the option a person chose (audited). The caller commits. Nothing is booked.
+
+    Any possible option can be chosen, one that breaks a contract or moves cargoes running to
+    plan included (the record keeps those consequences); one that cannot physically happen
+    cannot."""
 
     from eurogas_nexus.application.audit_service import record_governed_audit
     from eurogas_nexus.db.models import LngDisruptionDecisionRecord, LngDisruptionRunRecord
 
     moment = _aware(now) or datetime.now(UTC)
-    row, _book, result = _run(session, cargo_id, moment)
+    row, book, result = _run(session, cargo_id, moment, fx, fx_rows)
     option = result.option(option_id)
     if option is None or not _involves(option, cargo_id):
         raise CargoPlanError(
@@ -884,9 +1239,23 @@ def choose_option(
     if not option.feasible:
         raise CargoPlanError(
             "option_infeasible",
-            "This option breaks a hard constraint: " + "; ".join(option.reasons),
+            "This option cannot physically happen: " + "; ".join(option.reasons),
             409,
         )
+    chosen = _recommended_set(result)
+    base = option.base
+    consequences = {
+        "flags": dict(option.flags),
+        "breaches": [dict(item) for item in option.breaches],
+        "disrupts": [dict(item) for item in option.disrupts],
+        "opportunity": [] if base is None else [dict(item) for item in base.opportunity],
+        "covers": [
+            {"source_id": c.source_id, "obligation_id": c.obligation_id, "mwh": round(c.mwh, 1)}
+            for c in option.covers
+        ],
+        "rank": option.rank,
+        "recommended_as": list(option.recommended_as),
+    }
     last_run = (
         session.query(LngDisruptionRunRecord)
         .filter(LngDisruptionRunRecord.book_id == row.book_id)
@@ -906,6 +1275,9 @@ def choose_option(
         note=(note or "").strip()[:2000] or None,
         decided_by=actor,
         decided_at_utc=moment,
+        recommended_set=chosen,
+        consequences=consequences,
+        fx=_fx_block(book),
     )
     session.add(record)
     session.flush()
@@ -916,7 +1288,17 @@ def choose_option(
         action="lng.disruption_choice",
         resource=f"lng_cargo:{cargo_id}",
         detail=f"chose {option.key}"
-        + ("" if record.recommended_option_id == option.option_id else " (not the default)"),
+        + (
+            f" (recommended: {', '.join(option.recommended_as)})"
+            if option.recommended_as
+            else " (not recommended)"
+        )
+        + (f"; breaks {len(option.breaches)} contract(s)" if option.breaches else "")
+        + (
+            "; moves " + ", ".join(item["label"] for item in option.disrupts)
+            if option.disrupts
+            else ""
+        ),
     )
     return _decision_dict(record)
 
@@ -939,24 +1321,60 @@ def _books(session) -> list[str]:
 
 
 def _message(book_id: str, result: Result, change: str, terms: DeskTerms) -> tuple[str, str]:
-    rec = result.recommended
-    if rec is None:
+    """The notice: the recommended set as it now stands, each with its reason and figures.
+
+    "Cleared" only when nothing is disrupted any more (the caller sends it only when an
+    earlier run had a disruption open). A disruption no option can physically answer gets
+    its own notice naming what is disrupted and why each option cannot happen."""
+
+    if not result.disrupted:
         title = f"Disruption cleared: book {book_id}"
         lines = [
-            "No supply of the book is disrupted any longer; the earlier recommendation "
-            "is withdrawn."
+            "No supply of the book is disrupted any longer; the earlier recommended options "
+            "are withdrawn.",
+            ADVISORY,
         ]
         return title, "\n".join(lines)
     hit = ", ".join(s.label for s in result.disrupted)
-    title = f"Disruption options changed: {hit}"
-    o = rec.objectives
-    lines = [
-        f"Recommended: {rec.title}.",
-        f"Expected P&L {o['pnl_expected']:+,.0f} EUR (worst {o['pnl_worst']:+,.0f}), "
-        f"cost {o['cost']:,.0f} EUR, other supplies moved {o['disrupted_mwh']:,.0f} MWh.",
-        "Frontier: " + "; ".join(item.title for item in result.frontier) + ".",
-        f"What changed: {change}. Weights: downside x{terms.risk_weight:g}, "
-        f"{terms.disruption_eur_per_mwh:g} EUR per MWh of other supply moved.",
+    if not result.recommended_set:
+        title = f"No workable option: {hit}"
+        lines = [
+            f"{hit} is disrupted and no option meets the hard constraints: none of the "
+            f"{len(result.options)} option(s) valued can physically happen."
+        ]
+        for option in result.options[:3]:
+            why = option.reasons[0] if option.reasons else "it cannot physically happen"
+            lines.append(f"{option.title}: {why}.")
+        lines += [
+            "The Options section lists each option with why it cannot happen; a capacity "
+            "offer, a spare slot or substitute supply added to the book is valued on the "
+            "next run.",
+            f"What changed: {change}.",
+            ADVISORY,
+        ]
+        return title, "\n".join(lines)
+    title = f"Recommended options changed: {hit}"
+    words = {
+        "clean": "Breaks no contract, moves nothing",
+        "best_expected": "Best expected P&L, no breach",
+        "overall": "Best overall",
+    }
+    lines = []
+    for item in result.recommended_set:
+        o = item.option.objectives
+        lines.append(
+            f"{words.get(item.basis, item.basis)}: {item.option.title}. Expected "
+            f"{o['pnl_expected']:+,.0f} EUR (worst {o['pnl_worst']:+,.0f}; opportunity cost "
+            f"{o.get('opportunity_cost', 0):,.0f}). {item.reason}"
+        )
+    breaches = sum(1 for opt in result.options if opt.feasible and opt.breaches)
+    lines += [
+        f"{sum(1 for opt in result.options if opt.feasible)} possible options listed"
+        + (f", {breaches} of them breaking a contract" if breaches else "")
+        + ".",
+        f"What changed: {change}. The weights only order the list: downside "
+        f"x{terms.risk_weight:g}, {terms.disruption_eur_per_mwh:g} EUR per MWh of other supply "
+        "moved.",
         ADVISORY,
     ]
     return title, "\n".join(lines)
@@ -991,12 +1409,25 @@ def reoptimise(session, book_id: str, *, trigger: str, now: datetime) -> dict[st
     key = None if rec is None else rec.key
     pnl = None if rec is None else rec.objectives["pnl_expected"]
     frontier_keys = sorted(o.key for o in result.frontier)
+    chosen = _recommended_set(result)
+    now_set = [[item["basis"], item["key"]] for item in chosen]
     change = None
+    open_before = bool(last is not None and last.disrupted)
+    if not result.disrupted and not open_before:
+        # Nothing disrupted now and nothing open before: there is nothing to clear.
+        return {"book_id": book_id, "status": "as_planned"}
     if last is None:
-        if not result.disrupted:
-            return {"book_id": book_id, "status": "as_planned"}
+        change = "recommendation"
+    elif (
+        last.recommended_set is not None
+        and [[item.get("basis"), item.get("key")] for item in last.recommended_set] != now_set
+    ):
         change = "recommendation"
     elif last.recommended_key != key:
+        change = "recommendation"
+    elif sorted(last.disrupted or []) != sorted(s.supply_id for s in result.disrupted):
+        # What is disrupted changed with no workable option either side (or the disruption
+        # cleared after one with none): the roles hear it.
         change = "recommendation"
     elif sorted(item.get("key") for item in (last.frontier or [])) != frontier_keys:
         change = "frontier"
@@ -1022,7 +1453,7 @@ def reoptimise(session, book_id: str, *, trigger: str, now: datetime) -> dict[st
     queued = []
     if decision == "notified":
         title, body = _message(book_id, result, change, book.terms)
-        severity = "warning" if rec is not None else "info"
+        severity = "warning" if result.disrupted else "info"
         for role in ROLES:
             route = route_for(CARGO_ROLE_CATEGORIES[role])
             if queue_notification(
@@ -1046,6 +1477,7 @@ def reoptimise(session, book_id: str, *, trigger: str, now: datetime) -> dict[st
         recommended_key=key,
         recommended_title=None if rec is None else rec.title,
         recommended_pnl_eur=pnl,
+        recommended_set=chosen,
         frontier=[
             {
                 "option_id": o.option_id,
@@ -1078,6 +1510,7 @@ def reoptimise(session, book_id: str, *, trigger: str, now: datetime) -> dict[st
         "notified": queued,
         "run_id": run.run_id,
         "recommended": key,
+        "recommended_set": now_set,
     }
 
 
@@ -1092,6 +1525,19 @@ class DisruptionConsumer:
     def handle(self, session, records, *, now_utc: datetime) -> dict[str, Any]:
         books: dict[str, str] = {}
         everything = None
+        # LNG-4: link each REMIT message to the pipeline supplies it touches before the
+        # re-optimisation reads them (a repeated or older version changes nothing).
+        outages = {
+            str((record.payload_json or {}).get("message_id")): record.event_id
+            for record in records
+            if record.event_type == "outage.published"
+            and (record.payload_json or {}).get("message_id")
+        }
+        linked = (
+            link_outages(session, message_ids=set(outages), event_ids=outages, now=now_utc)
+            if outages
+            else None
+        )
         for record in records:
             trigger = f"event:{record.event_id}"
             if record.event_type == "cargo.changed":
@@ -1107,7 +1553,11 @@ class DisruptionConsumer:
             reoptimise(session, book_id, trigger=trigger, now=now_utc)
             for book_id, trigger in sorted(books.items())
         ]
-        return {"books": results, "notified": any(r.get("notified") for r in results)}
+        return {
+            "books": results,
+            "notified": any(r.get("notified") for r in results),
+            "outage_links": None if linked is None else linked.as_dict(),
+        }
 
 
 def register() -> DisruptionConsumer:

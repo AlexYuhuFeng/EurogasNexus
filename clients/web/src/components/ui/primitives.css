@@ -282,6 +282,16 @@
     line-height: 1;
   }
 
+  /* A live value's glyph place before its first tick: kept, unseen, so figures do not move
+     (generated content, so the cell's text stays the figure). */
+  .ds-direction[data-direction="none"] {
+    visibility: hidden;
+  }
+
+  .ds-direction[data-direction="none"]::before {
+    content: "▲";
+  }
+
   .ds-visually-hidden {
     position: absolute;
     width: 1px;

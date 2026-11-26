@@ -111,6 +111,56 @@
 
   .cargo-option-actions {
     display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-2);
     justify-content: flex-end;
+  }
+
+  /* LNG-4: the FX picker, the rank, the consequences and the per-option breakdown. */
+  .cargo-options-fx {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
+    gap: var(--ds-space-2);
+    margin: 0;
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    padding: var(--ds-space-2) var(--ds-space-3);
+  }
+
+  .cargo-option-rank {
+    font-variant-numeric: tabular-nums;
+    font-weight: 600;
+  }
+
+  .cargo-option-consequences,
+  .cargo-option-lines {
+    margin: 0;
+    padding-inline-start: var(--ds-space-4);
+    display: grid;
+    gap: var(--ds-space-1);
+  }
+
+  .cargo-option-consequences li[data-kind="breach"] {
+    color: var(--ds-status-breach);
+  }
+
+  .cargo-option-breakdown h4 {
+    margin: var(--ds-space-2) 0 var(--ds-space-1);
+  }
+
+  .cargo-option-lines li {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    gap: 0 var(--ds-space-2);
+  }
+
+  .cargo-option-line-value {
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+  }
+
+  .cargo-option-line-sources {
+    grid-column: 1 / -1;
+    color: var(--ds-text-3);
   }
 }

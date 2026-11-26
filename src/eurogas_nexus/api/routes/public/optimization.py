@@ -224,6 +224,8 @@ class CapacityOptimizationRequest(BaseModel):
         required_capacity_mwh: Volume to cover, MWh.
         expected_throughput_mwh: Expected throughput, or None.
         allow_interruptible: Whether interruptible products may be chosen.
+        held_capacity_mwh: Capacity the firm already holds (TAR-2), covered first.
+        held_cost_gbp: Its contracted cost, or None when not recorded.
         decision_context: SANDBOX_SCENARIO or RUNTIME_DECISION.
     """
 
@@ -231,6 +233,8 @@ class CapacityOptimizationRequest(BaseModel):
     required_capacity_mwh: float = Field(ge=0)
     expected_throughput_mwh: float | None = Field(default=None, ge=0)
     allow_interruptible: bool = True
+    held_capacity_mwh: float = Field(default=0.0, ge=0)
+    held_cost_gbp: float | None = Field(default=None, ge=0)
     decision_context: DecisionContext = "SANDBOX_SCENARIO"
 
 
@@ -437,6 +441,8 @@ def optimize_capacity(body: CapacityOptimizationRequest) -> dict:
             required_capacity_mwh=body.required_capacity_mwh,
             expected_throughput_mwh=body.expected_throughput_mwh,
             allow_interruptible=body.allow_interruptible,
+            held_capacity_mwh=body.held_capacity_mwh,
+            held_cost_gbp=body.held_cost_gbp,
         )
     except ValueError as exc:
         raise _invalid_input(exc) from exc

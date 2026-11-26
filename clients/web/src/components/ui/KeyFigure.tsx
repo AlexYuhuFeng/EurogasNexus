@@ -3,6 +3,8 @@ import { useId, type ReactNode } from "react";
 import { pnlClass } from "@/app/model/pnlColor";
 import type { ConvertedText } from "@/app/time/valueFormat";
 import { ConvertedValue } from "./ConvertedValue";
+import type { SortValue } from "./dataGridModel";
+import { LiveValue } from "./LiveValue";
 
 /**
  * One headline number (UX-02): a label, the value in tabular numerals, its unit, and optionally
@@ -50,6 +52,12 @@ export interface KeyFigureProps {
    */
   converted?: ConvertedText | null;
   convertedMode?: "hover" | "line";
+  /**
+   * A figure that updates in place (UX R2): a neutral flash when `watch` changes and its
+   * direction as a glyph until the next change. `identity` names what the figure is (a hub and
+   * product, a book): a change of it is a different figure, not a tick.
+   */
+  live?: { watch: SortValue; identity: string };
   className?: string;
 }
 
@@ -70,6 +78,7 @@ export function KeyFigure({
   marker,
   converted,
   convertedMode = "hover",
+  live,
   className,
 }: KeyFigureProps) {
   const labelId = useId();
@@ -93,7 +102,13 @@ export function KeyFigure({
         aria-describedby={converted ? convertedId : undefined}
         data-converted-host={hoverConverted ? "" : undefined}
       >
-        {value}
+        {live ? (
+          <LiveValue watch={live.watch} identity={live.identity}>
+            {value}
+          </LiveValue>
+        ) : (
+          value
+        )}
         {unit ? <small className="metric-strip-unit key-figure-unit">{unit}</small> : null}
         {marker}
       </strong>

@@ -32,6 +32,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from datetime import date, datetime
 
+from eurogas_nexus.domain.tariffs.tariff_year import (
+    APRIL_YEAR,
+    CALENDAR_YEAR,
+    GAS_YEAR,
+    NO_TARIFF_YEAR,
+    PER_ROW,
+    UNKNOWN,
+)
+
 API = "api"
 RULE = "rule"
 PARSED = "parsed"
@@ -45,11 +54,16 @@ REUSE = (PERMITTED, NEEDS_FIRM_TERMS, NOT_REVIEWED)
 
 KINDS = ("platform", "regulation", "tso", "lng_terminal", "storage", "booking_platform", "desk")
 
-#: (month, day) ranges, inclusive, in which an automated publisher is polled hourly.
+#: (month, day) ranges, inclusive, in which an automated publisher is polled at its season
+#: cadence (TAR-2: the union of the windows the TSOs it carries publish in): before the April
+#: tariff years (NaTran, the storage years), the NC TAR window before the July yearly auction,
+#: before the gas year (1 October), and before the calendar year (GTS, the German TSOs,
+#: Fluxys Belgium), each to ten days after the year starts for late corrections.
 PUBLICATION_SEASONS: tuple[tuple[tuple[int, int], tuple[int, int]], ...] = (
+    ((3, 1), (4, 10)),
     ((5, 1), (7, 15)),
-    ((10, 1), (10, 10)),
-    ((12, 15), (12, 31)),
+    ((9, 15), (10, 10)),
+    ((11, 15), (12, 31)),
     ((1, 1), (1, 10)),
 )
 
@@ -93,6 +107,16 @@ class Publisher:
     notes: str = ""
     checked_on: str = "2026-11-24"
     facilities: tuple[str, ...] = field(default_factory=tuple)
+    #: TAR-2: the tariff year this publisher defines (``tariff_year.CONVENTIONS``):
+    #: ``gas_year`` (1 Oct), ``calendar_year``, ``april_year`` (1 Apr), ``per_row`` (each
+    #: publication states its own period), ``none`` (no tariff: auctions, exempt terminals) or
+    #: ``unknown`` (not confirmed: the period on the publication is used).
+    tariff_year: str = UNKNOWN
+    #: How it publishes indicative and final figures for a tariff year, in plain words.
+    cadence: str = "Not confirmed: the indicative and final publication dates are unknown."
+    #: Whether the convention and cadence were confirmed from the publisher's own notices or
+    #: the regulation (``False``: recorded as the build could find it, to be confirmed).
+    cadence_confirmed: bool = False
 
     @property
     def automated(self) -> bool:
@@ -118,6 +142,9 @@ class Publisher:
             "stale_after_minutes": None if self.poll is None else self.poll.stale_after_minutes,
             "notes": self.notes,
             "checked_on": self.checked_on,
+            "tariff_year": self.tariff_year,
+            "cadence": self.cadence,
+            "cadence_confirmed": self.cadence_confirmed,
         }
 
 
@@ -144,14 +171,25 @@ PUBLISHERS: tuple[Publisher, ...] = (
         ),
         source_family="ENTSOG",
         source_id="src-entsog",
-        poll=Poll(base_minutes=24 * 60, season_minutes=60, stale_after_minutes=3 * 24 * 60),
+        # TAR-2: hourly in the windows (the ENTSOG source job itself runs hourly, so a shorter
+        # interval would not be met) and every 6 hours otherwise (was daily).
+        poll=Poll(base_minutes=6 * 60, season_minutes=60, stale_after_minutes=2 * 24 * 60),
         notes=(
             "The cross-TSO base: each TSO's reserve price per point, direction, product and "
             "tariff period, in its own unit and currency. Read one point per query, 2 s apart. "
             "No tariff at 42 of the 108 points in scope (19-11-2026); National Gas figures "
             "refused (unit mismatch). ENTSOG states no publication time and, in practice, no "
-            "status: a period not yet started is indicative until it starts."
+            "status: a row without one takes NC TAR Art. 29's rule (final once the yearly "
+            "auction selling its period has been held)."
         ),
+        tariff_year=PER_ROW,
+        cadence=(
+            "Each TSO's own tariff period, carried on the row (gas year, calendar year or "
+            "April year). NC TAR Art. 29: reserve prices for at least the next gas year are "
+            "due 30 days before the July yearly auction; ENTSOG republishes what each TSO "
+            "files, with no flag and no publication date."
+        ),
+        cadence_confirmed=True,
     ),
     Publisher(
         publisher_id="cam-nc-calendar",
@@ -175,6 +213,11 @@ PUBLISHERS: tuple[Publisher, ...] = (
             "February, May) and monthly (third Monday) auctions computed from Art. 11 to 13; "
             "labelled rule-derived. Checked against FGSZ's published 2026/27 calendar."
         ),
+        tariff_year=NO_TARIFF_YEAR,
+        cadence=(
+            'Not a tariff: auction dates computed from the CAM network code.'
+        ),
+        cadence_confirmed=True,
     ),
     Publisher(
         publisher_id="entsog-auction-calendar",
@@ -195,6 +238,11 @@ PUBLISHERS: tuple[Publisher, ...] = (
             "Authoritative over the rule-derived dates; published by January each year. A "
             "date it moves is imported as a notice from the desk's own file."
         ),
+        tariff_year=NO_TARIFF_YEAR,
+        cadence=(
+            'Not a tariff: the auction calendar, published by January each year.'
+        ),
+        cadence_confirmed=True,
     ),
     Publisher(
         publisher_id="prisma",
@@ -211,6 +259,11 @@ PUBLISHERS: tuple[Publisher, ...] = (
         ),
         source_family="PRISMA",
         notes="Offers and results need a platform account; none is used.",
+        tariff_year=NO_TARIFF_YEAR,
+        cadence=(
+            'Not a tariff publisher: auction offers and results.'
+        ),
+        cadence_confirmed=True,
     ),
     Publisher(
         publisher_id="tso-entries",
@@ -233,6 +286,11 @@ PUBLISHERS: tuple[Publisher, ...] = (
             "Belgium, NaTran, Enagás, Gassco, Swiss transit. A candidate is indicative; a "
             "reviewed entry carries the operator's own status."
         ),
+        tariff_year=PER_ROW,
+        cadence=(
+            "Each entry states the operator's own period, status and publication date."
+        ),
+        cadence_confirmed=True,
     ),
     Publisher(
         publisher_id="register-documents",
@@ -249,6 +307,11 @@ PUBLISHERS: tuple[Publisher, ...] = (
             "Kept as loaded; a row without an https source is not versioned."
         ),
         source_family="operator-input",
+        tariff_year=PER_ROW,
+        cadence=(
+            'Each row states the period of the document it was transcribed from.'
+        ),
+        cadence_confirmed=True,
     ),
     Publisher(
         publisher_id="national-gas",
@@ -262,6 +325,14 @@ PUBLISHERS: tuple[Publisher, ...] = (
         terms=_NOT_REACHABLE,
         source_family="NATIONAL_GAS",
         notes="Published per day of capacity (p/kWh/d); entered through tso-entries.",
+        tariff_year=GAS_YEAR,
+        cadence=(
+            "Gas year 1 October to 30 September. An indicative notice of the IP reserve prices "
+            "comes first; the final yearly IP reserve prices are published before the July yearly "
+            "auction, the final quarterly IP prices and the final NTS exit capacity charges before"
+            " 1 October (notice titles on nationalgas.com, 2016 to 2026)."
+        ),
+        cadence_confirmed=True,
     ),
     Publisher(
         publisher_id="gts",
@@ -275,6 +346,12 @@ PUBLISHERS: tuple[Publisher, ...] = (
         terms=_NOT_REACHABLE,
         source_family="operator-input",
         notes="Balgzand exit to BBL, Gate and Eems LNG entry: entered through tso-entries.",
+        tariff_year=CALENDAR_YEAR,
+        cadence=(
+            "Calendar year (the ACM's yearly tariff decision); the indicative and final dates are "
+            "not confirmed."
+        ),
+        cadence_confirmed=False,
     ),
     Publisher(
         publisher_id="fluxys-belgium",
@@ -291,6 +368,12 @@ PUBLISHERS: tuple[Publisher, ...] = (
         ),
         source_family="operator-input",
         notes="Zeebrugge LNG and ZPT entry: entered with the firm's permission only.",
+        tariff_year=CALENDAR_YEAR,
+        cadence=(
+            "Calendar year inside the CREG regulatory period; the indicative and final dates are "
+            "not confirmed."
+        ),
+        cadence_confirmed=False,
     ),
     Publisher(
         publisher_id="natran",
@@ -303,6 +386,12 @@ PUBLISHERS: tuple[Publisher, ...] = (
         publishes=("tariffs",),
         terms=_NOT_REACHABLE,
         source_family="operator-input",
+        tariff_year=APRIL_YEAR,
+        cadence=(
+            "Tariff year from 1 April (CRE's yearly update, as ENTSOG files NaTran's April-March "
+            "period); the publication dates are not confirmed."
+        ),
+        cadence_confirmed=False,
     ),
     Publisher(
         publisher_id="enagas",
@@ -315,6 +404,12 @@ PUBLISHERS: tuple[Publisher, ...] = (
         publishes=("tariffs", "lng_slots"),
         terms=_NOT_REACHABLE,
         source_family="operator-input",
+        tariff_year=GAS_YEAR,
+        cadence=(
+            "Gas year 1 October (CNMC's yearly tolls); the indicative and final dates are not "
+            "confirmed."
+        ),
+        cadence_confirmed=False,
     ),
     Publisher(
         publisher_id="fluxys-lng",
@@ -335,6 +430,11 @@ PUBLISHERS: tuple[Publisher, ...] = (
         ),
         source_family="operator-input",
         facilities=("zeebrugge",),
+        tariff_year=CALENDAR_YEAR,
+        cadence=(
+            'Calendar year; the indicative and final dates are not confirmed.'
+        ),
+        cadence_confirmed=False,
     ),
     Publisher(
         publisher_id="elengy",
@@ -351,6 +451,12 @@ PUBLISHERS: tuple[Publisher, ...] = (
         ),
         source_family="operator-input",
         facilities=("montoir", "fos-cavaou", "fos-tonkin"),
+        tariff_year=APRIL_YEAR,
+        cadence=(
+            "Tariff year from 1 April (CRE's yearly update of the regulated terminal tariff); the "
+            "publication dates are not confirmed."
+        ),
+        cadence_confirmed=False,
     ),
     Publisher(
         publisher_id="det",
@@ -367,6 +473,11 @@ PUBLISHERS: tuple[Publisher, ...] = (
         ),
         source_family="operator-input",
         facilities=("brunsbuttel", "wilhelmshaven"),
+        tariff_year=NO_TARIFF_YEAR,
+        cadence=(
+            "Slots are sold by auction; the price is each auction's result, with no tariff year."
+        ),
+        cadence_confirmed=False,
     ),
     Publisher(
         publisher_id="gate-terminal",
@@ -380,6 +491,11 @@ PUBLISHERS: tuple[Publisher, ...] = (
         terms=_NOT_REACHABLE,
         source_family="operator-input",
         notes="Exempt terminal: no public price list for a new booking; slot offers imported.",
+        tariff_year=NO_TARIFF_YEAR,
+        cadence=(
+            'Exempt terminal: no public tariff year; slots are priced per offer.'
+        ),
+        cadence_confirmed=False,
     ),
     Publisher(
         publisher_id="dunkerque-lng",
@@ -392,6 +508,11 @@ PUBLISHERS: tuple[Publisher, ...] = (
         publishes=("lng_slots", "secondary_capacity"),
         terms=_NOT_REACHABLE,
         source_family="operator-input",
+        tariff_year=NO_TARIFF_YEAR,
+        cadence=(
+            'Exempt terminal: no public tariff year; slots are priced per offer.'
+        ),
+        cadence_confirmed=False,
     ),
     Publisher(
         publisher_id="uniper-storage",
@@ -405,6 +526,12 @@ PUBLISHERS: tuple[Publisher, ...] = (
         terms=_NOT_REACHABLE,
         source_family="operator-input",
         notes="Negotiated storage: published standard bundles as PDF; not fetched.",
+        tariff_year=UNKNOWN,
+        cadence=(
+            "Not confirmed (storage years commonly run from 1 April); the period on each bundle is"
+            " used."
+        ),
+        cadence_confirmed=False,
     ),
     Publisher(
         publisher_id="storengy",
@@ -418,6 +545,12 @@ PUBLISHERS: tuple[Publisher, ...] = (
         terms=_NOT_REACHABLE,
         source_family="operator-input",
         notes="French storage is sold by auction under CRE rules; dates imported as notices.",
+        tariff_year=APRIL_YEAR,
+        cadence=(
+            "Storage year from 1 April, sold by auction under CRE rules; the publication dates are"
+            " not confirmed."
+        ),
+        cadence_confirmed=False,
     ),
 )
 
@@ -430,6 +563,14 @@ def publisher(publisher_id: str) -> Publisher | None:
     """One publisher by id, or ``None``."""
 
     return _BY_ID.get(publisher_id)
+
+
+def publication_window_open(on: date | datetime) -> bool:
+    """Whether ``on`` falls in a publication season (:data:`PUBLICATION_SEASONS`)."""
+
+    day = on.date() if isinstance(on, datetime) else on
+    key = (day.month, day.day)
+    return any(start <= key <= end for start, end in PUBLICATION_SEASONS)
 
 
 def lng_publisher_for(terminal_id: str) -> str | None:
@@ -452,6 +593,7 @@ __all__ = [
     "PARSED",
     "PERMITTED",
     "PUBLICATION_SEASONS",
+    "publication_window_open",
     "PUBLISHERS",
     "REUSE",
     "RULE",

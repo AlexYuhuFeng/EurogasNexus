@@ -61,8 +61,27 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **303 paths / 338 operations**
+- OpenAPI public surface: **312 paths / 348 operations**
 
+  (2026-11-26: live data, `GET /api/stream/live` (server-sent change notices per topic from
+  the market event outbox and the screens' own tables, no row or value, the caller's own
+  entitlement; job progress for the caller's own jobs); 311 / 347 before.
+  Each reader's own alert marks, `GET`/`POST /api/me/alert-state` (READ; marks read, dismissed
+  or restored for the caller only, on alerts they may see; the shared, audited alert status is untouched); 310 / 345 before.)
+
+  (2026-11-26: LNG-4 REMIT outages on pipeline supply,
+  `GET /api/lng/pipeline-supplies/{supply_id}/outage-links` (READ, PORTFOLIO_READ and book
+  scope, stores nothing) and `PUT /api/lng/pipeline-supplies/{supply_id}/outage-override`
+  (GOVERNED, PORTFOLIO_WRITE, audited `lng.pipeline_outage_override`; sets whether linked
+  outages curtail the supply and the days entered by hand, nominates nothing). The LNG-4
+  option, demurrage and FX fields on the existing disruption routes are additive;
+  308 / 343 before, after TAR-2 below.)
+
+  (2026-11-25: TAR-2 capacity cost contracted before public, `GET /api/tariffs/years`,
+  `GET /api/capacity/bookings`, `GET /api/capacity/cost`, `GET /api/pricing/fx-rate` and
+  `GET /api/pricing/source-precedence` (READ, store nothing; bookings are scoped to the
+  caller's books; nothing is booked or nominated); previously 303 / 338 after
+  LNG-3 below.)
   (2026-11-25: LNG-3 disruption re-optimisation, `GET /api/lng/cargoes/{cargo_id}/disruption-options`,
   `GET /api/lng/cargoes/{cargo_id}/disruption-options/{option_id}` and
   `GET /api/lng/disruption/frontier` (READ, store nothing) and

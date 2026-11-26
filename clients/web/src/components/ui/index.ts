@@ -60,3 +60,5 @@ export { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "./Simulated
 export type { SimulatedScopeKind } from "./SimulatedScope";
 export { FirstUseHints } from "./FirstUseHints";
 export type { FirstUseHint } from "./firstUseHintsModel";
+export { LiveIndicator } from "./LiveIndicator";
+export { LiveValue } from "./LiveValue";

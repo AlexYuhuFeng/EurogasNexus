@@ -93,6 +93,10 @@ class TariffVersionRecord(Base):
     )
     #: The ``tariff.changed`` market event this version published.
     event_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    #: TAR-2 (migration 0088): the tariff year as its publisher defines it (``GY 2027/28``,
+    #: ``CY 2027``, ``TY 2027/28 Apr-Mar``); NULL on versions recorded before TAR-2, which
+    #: readers work out from the period.
+    tariff_year: Mapped[str | None] = mapped_column(String(40), nullable=True)
 
 
 class CapacityNoticeRecord(Base):

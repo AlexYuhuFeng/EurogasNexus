@@ -84,8 +84,12 @@ class PhaseTwoOptimizer:
         required_capacity_mwh: float,
         expected_throughput_mwh: float | None = None,
         allow_interruptible: bool = True,
+        held_capacity_mwh: float = 0.0,
+        held_cost_gbp: float | None = None,
     ) -> CapacityBookingResult:
         """Select the best capacity product combination.
+
+        TAR-2: capacity already held (``held_capacity_mwh`` at ``held_cost_gbp``) covers first.
 
         容量组合优化：在容量产品中选出覆盖需求量且成本最低的组合。
 
@@ -104,6 +108,8 @@ class PhaseTwoOptimizer:
             required_capacity_mwh=required_capacity_mwh,
             expected_throughput_mwh=expected_throughput_mwh,
             allow_interruptible=allow_interruptible,
+            held_capacity_mwh=held_capacity_mwh,
+            held_cost_gbp=held_cost_gbp,
         )
 
     def optimize_contracts(

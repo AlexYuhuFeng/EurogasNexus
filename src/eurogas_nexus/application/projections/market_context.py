@@ -539,16 +539,23 @@ def _monitoring_reads(
     status: str | None,
     limit: int,
 ) -> tuple[list[dict[str, Any]], dict[str, Any]]:
-    """Read the monitoring summary and its alert rows from the same session."""
+    """Read the monitoring summary and its alert rows from the same session.
 
+    Both are filtered by the reader's alert visibility, the rule ``/api/monitoring/alerts``
+    applies: the projection is the list the web client's alert centre shows, so without it a
+    book-scoped or licensed-price alert reached callers the alert route itself refuses.
+    """
+
+    from eurogas_nexus.application.alert_scope import alert_visibility
     from eurogas_nexus.db.repositories.monitoring import (
         list_monitoring_alerts,
         monitoring_summary,
     )
 
+    visible = alert_visibility(session)
     return (
-        list_monitoring_alerts(session, status=status, limit=limit),
-        monitoring_summary(session),
+        list_monitoring_alerts(session, status=status, limit=limit, visible=visible),
+        monitoring_summary(session, visible),
     )
 
 

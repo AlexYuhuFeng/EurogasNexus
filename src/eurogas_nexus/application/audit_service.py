@@ -142,6 +142,12 @@ GOVERNED_WRITES: tuple[GovernedWrite, ...] = (
         "(POST /api/lng/cargoes/{cargo_id}/disruption-options/{option_id}/choose)",
     ),
     GovernedWrite(
+        "REMIT outage override on a pipeline supply (a record; nothing is nominated)",
+        ("lng.pipeline_outage_override",),
+        "application/pipeline_outages.py "
+        "(PUT /api/lng/pipeline-supplies/{supply_id}/outage-override)",
+    ),
+    GovernedWrite(
         "maker-checker: proposals and their approval, rejection and withdrawal (P-17)",
         (
             "change_request.propose",

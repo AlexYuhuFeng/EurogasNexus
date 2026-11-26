@@ -163,8 +163,10 @@ def test_human_confirmation_gate_via_api(client) -> None:
             "confirmation_note": "reviewed",
         },
     )
-    # Confirmation passes policy, then DB lookup fails with a typed code.
+    # The client is a named person, so the confirmation counts (CODEX-1: only a person's
+    # does); it passes policy, then the DB lookup fails with a typed code.
     assert confirmed.json()["data"]["status"] == "BLOCKED"
+    assert confirmed.json()["data"]["failure"]["code"] == "ENTITY_NOT_FOUND"
 
 
 def test_agent_run_list_matches_web_dto_objective_vocabulary(client) -> None:

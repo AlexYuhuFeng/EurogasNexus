@@ -382,3 +382,40 @@ def test_outages_that_move_supply_become_alerts_and_resolve_when_they_end() -> N
         scan_monitoring_conditions(session, now_utc=now, enrich_with_llm=False)
         resolved = session.query(MonitoringAlertRecord).filter_by(entity_id="big").one()
         assert resolved.resolved_at_utc is not None
+
+
+def test_long_running_outages_are_information_and_a_missing_zone_has_no_brackets() -> None:
+    """A restriction running for months is known; it reads as dated information, not news."""
+
+    engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
+    Base.metadata.create_all(engine)
+    now = datetime(2026, 11, 7, 9, 0, tzinfo=UTC)
+    with Session(engine) as session:
+        old = _umm(
+            "old",
+            start=now - timedelta(days=400),
+            technical=70,
+            unavailable=52,
+            gwh=563,
+            now=now,
+            stop_days=800,
+        )
+        fresh = _umm(
+            "fresh", start=now - timedelta(hours=2), technical=70, unavailable=52, gwh=563, now=now
+        )
+        fresh.balancing_zone = ""
+        session.add_all([old, fresh])
+        session.commit()
+        scan_monitoring_conditions(session, now_utc=now, enrich_with_llm=False)
+        alerts = {row.entity_id: row for row in session.query(MonitoringAlertRecord).all()}
+
+    assert alerts["old"].severity == "info"
+    assert "out since 03 Oct 2025" in alerts["old"].title_en
+    assert "out now" not in alerts["old"].title_en
+    assert "自 2025-10-03 起停运" in alerts["old"].title_zh_cn
+    assert alerts["fresh"].severity == "critical"
+    assert "()" not in alerts["fresh"].title_en
+    assert "（）" not in alerts["fresh"].title_zh_cn
+    # The Chinese message carries no English share text.
+    assert "of capacity" not in alerts["fresh"].message_zh_cn
+    assert "占技术容量 74%" in alerts["fresh"].message_zh_cn

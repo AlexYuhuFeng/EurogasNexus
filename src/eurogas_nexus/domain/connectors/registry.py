@@ -56,6 +56,7 @@ BUILTIN_MODULES: tuple[str, ...] = (
     "deepseek",
     "wmr",
     "bfix",
+    "financial_institution",
 )
 
 

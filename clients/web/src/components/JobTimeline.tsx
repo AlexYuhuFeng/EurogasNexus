@@ -10,7 +10,7 @@
  * are rendered through the product error taxonomy rather than as raw strings.
  */
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { api } from "@/api/client";
 import type { JobDTO } from "@/api/client";
@@ -30,6 +30,7 @@ import {
   jobTimelineSummary,
 } from "@/app/model/jobTimelineModel";
 import { MetricStrip, PanelHeader, StatusBadge } from "@/components/ui";
+import { createThrottle, useLiveJobs } from "@/app/hooks/useLive";
 
 type Translate = (key: string) => string;
 
@@ -65,6 +66,24 @@ export function JobTimeline({ t }: JobTimelineProps) {
   useEffect(() => {
     void refresh();
   }, [refresh]);
+
+  // The caller's own jobs move in place as they run (`jobs` events: status, progress); a job
+  // the list does not hold yet (or one that finished: its outputs and duration) is re-read.
+  const refreshRef = useRef(refresh);
+  refreshRef.current = refresh;
+  const [reread] = useState(() => createThrottle(() => void refreshRef.current(), 2_000));
+  useEffect(() => () => reread.cancel(), [reread]);
+  const jobsRef = useRef(jobs);
+  jobsRef.current = jobs;
+  useLiveJobs((event) => {
+    const known = jobsRef.current.some((job) => job.job_id === event.job_id);
+    setJobs((current) =>
+      current.map((job) =>
+        job.job_id === event.job_id ? { ...job, status: event.status as JobDTO["status"], progress: event.progress } : job,
+      ),
+    );
+    if (!known || !["QUEUED", "RUNNING", "WAITING_FOR_INPUT"].includes(event.status)) reread.call();
+  });
 
   async function cancel(jobId: string) {
     setBusy(true);

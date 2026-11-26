@@ -31,6 +31,8 @@
 @import url("../components/ui/datagrid.css");
 @import url("../components/ui/charts/charts.css");
 @import url("../components/ui/instrumentPicker.css");
+/* The live connection's state on the top bar (LiveIndicator). */
+@import url("../components/ui/liveIndicator.css");
 /* Today (UX-05): the first screen, tokens only. */
 @import url("../components/today.css");
 @import url("../components/today/gasDay.css");

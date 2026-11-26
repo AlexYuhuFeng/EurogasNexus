@@ -33,7 +33,7 @@ def test_chain_up_down_and_model_match():
     module = _load("0077_market_event_outbox.py")
     feed = _load("0082_data1_integration.py")
     assert module.down_revision == "0076_gas_day_nominations"
-    assert DB_SCHEMA_REVISION == "0086_lng_disruption"
+    assert DB_SCHEMA_REVISION == "0089_alert_reader_state"
     engine = create_engine("sqlite+pysqlite:///:memory:", future=True)
     with engine.begin() as connection:
         module.op = Operations(MigrationContext.configure(connection=connection))

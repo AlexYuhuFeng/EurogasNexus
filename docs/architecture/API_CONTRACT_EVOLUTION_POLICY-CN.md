@@ -1,5 +1,48 @@
 # API 契约演化策略
 
+2026-11-26 新增 `GET /api/stream/live?topics=...`（服务器推送事件，按调用方自身权限过滤）：按订阅主题
+推送 `change` 变更通知（`topic`、`changed_at`，不含数据行与数值）。市场事件发件箱（`market_events`，经
+变更流读取）提供价格（含汇率、利率）、停运、费率、船货、账簿（合同、估值、限额、假设、运费）、容量、
+数据源与新闻；屏幕报价、成交、告警、提名、费率公告及地图的停运、流量、船货、窗口与机会读自各自的表。
+`jobs` 事件推送调用方自己的作业进度（`job_id`、`kind`、`status`、`progress`、`step`）；每 5 秒一次
+`heartbeat`。支持 `Last-Event-ID` 或 `last_event_id` 断点续传（`live|<时间>|<发件箱游标>`，时间最多回溯
+15 分钟）。创新分支接口统计：312 条路径 / 348 个操作（在 311 / 347 基础上 +1 / +1）。
+
+2026-11-26 新增每位用户自己的告警标记（演示测试告警中心）：一条路径、两个操作，均为 READ。`GET /api/me/alert-state` 返回调用方对其可见的未解决告警的已读与忽略标记；`POST /api/me/alert-state` 仅为调用方将告警标记为 `read`、`dismiss` 或 `restore`（1-500 个 id），未知或不可见的 id 列在 `not_found` 下。共享且有审计的告警状态不受影响；告警复发或升级时标记失效。存于 `monitoring_alert_reader_state`（迁移 `0089_alert_reader_state`）。接口统计：311 条路径 / 347 个操作（在 310 / 345 基础上 +1 / +2）。
+
+2026-11-26 新增带影响的方案、按合同计算的滞期费与管道供应的 REMIT 停运（Commercial Intelligence V3
+LNG-4，ADR 决策 37）：两条路径、两个操作，其余变更均为新增字段。
+`GET /api/lng/cargoes/{cargo_id}/disruption-options`、`GET .../disruption-options/{option_id}` 与
+`GET /api/lng/disruption/frontier` 接受可选查询参数 `reporting_currency`（EUR|GBP|USD）、`fx_source`
+（ECB|WMR|BFIX|manual，默认 ECB）、`fx_fixing`、`fx_rate_date`、`fx_rate`（与 `manual` 同用，为每 1 欧元
+折合的 `fx_currency` 数量）与 `fx_currency`（USD|GBP）；无法使用的汇率选择为 422 `fx_choice_invalid`，
+主体未持有有权使用的定盘价的授权来源（WMR、BFIX）为 403 `fx_source_entitlement_denied`。每个方案新增
+`possible`（实物上可行；`feasible` 含义不变）、`rank`（按交易台排序权重，1 为首位）、`flags`
+（`physically_possible`、`contract_breach`、`disrupts_normal_cargo`）、`breaches[]`（义务、合同、对手方、交付点、
+逐燃气日短缺量、`penalty_eur_mwh` 及 `penalty_held` 与 `penalty_terms`，或“未持有罚则”，以及
+`exposure_eur`）、`disrupts[]`（方案调整的按计划运行的船货或供应及原因）、`recommended_as[]` 与
+`recommended_why[]`、`covers[]`（为短缺义务购买的替代供应）、`direct_pnl_expected`、
+`opportunity_cost_expected`（预期损益 = 直接损益 − 机会成本）、`opportunity[]`（延误的靠泊、放弃的容量或
+储气，各含 `value_eur`、`sources[]` 及受影响的船货）与 `reporting`（按报告币种的数值），每条供应腿新增 `demurrage`（条款及按合同币种与欧元并列的金额）；方案类型新增
+`substitute` 与 `spot`；每个情景新增 `direct_pnl` 与 `opportunity_cost`。读取结果新增
+`recommended_set[]`（`option_id`、`key`、`title`、`basis` clean|best_expected|overall、`reason`）、
+`valuation`、`demurrage`（租船合同或确认通知所载费率、币种、来源与条款、装卸时间、`eur_per_day` 及含来源、
+名称与汇率日期的 `fx` 换算）、`fx`（所用选择、汇率日期与来源）与 `pipeline_outages[]`。单个方案的
+`arithmetic` 算式行新增 `sources[]`（所用价格、汇率与费率）与 `basis`（direct|opportunity）。
+`POST .../choose` 的请求体接受同样的汇率字段；违约方案可以选择（仅实物上不可行的方案为 409
+`option_infeasible`），返回的决定新增 `recommended_set`、`consequences`（标记、违约、被调整的船货、机会成本、
+替代供应、排名）与 `fx`。新增 `GET /api/lng/pipeline-supplies/{supply_id}/outage-links`（READ，
+PORTFOLIO_READ，按账簿范围）返回关联到该供应的 REMIT 消息（消息编号、版本、状态
+applied|unsized|withdrawn|ended、匹配依据与原因、不可用比例及逐燃气日削减量）、`outage_mode`（auto|manual）、
+手动输入的日期，以及估值所用削减量及每日来源；未知或超出范围的供应为 404 `pipeline_supply_not_found`。
+新增 `PUT /api/lng/pipeline-supplies/{supply_id}/outage-override`（GOVERNED，PORTFOLIO_WRITE，审计
+`lng.pipeline_outage_override`）接受 `outage_mode`、`curtailed`（[燃气日, MWh] 对，最多 400 个）与
+`reason`；超出供应期间或高于日量的日期为 422 `curtailment_invalid`，未知模式为 422 `outage_mode_invalid`。
+推荐方案集变化的通知标题为“Recommended options changed”。ETRM 船期导入新增可选列 `laytime_hours`、
+`demurrage_rate_per_day`、`demurrage_currency` 与 `demurrage_terms`。不预订、不交易、不提名、不发送任何内容。
+接口统计：305 条路径 / 340 个操作（在 303 / 338 基础上 +2 / +2）。设计见
+`docs/engineering/Commercial-Intelligence-V3/17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md`。
+
 2026-11-25 新增公开费率与容量窗口（Commercial Intelligence V3 TAR-1，ADR 决策 34）：三条路径、三个操作，均为 READ
 且只读。新增 `GET /api/tariffs`（筛选 `publisher`、`facility`、`operator`、`direction` ENTRY|EXIT、`product`、
 `status` INDICATIVE|FINAL、`on` 某燃气日、`key`；`as_of` 为 ISO 8601 UTC；`history` 为 true 且带 `key` 或
@@ -137,6 +180,46 @@ AI 用途 `news_note` 的 AI 说明（"对我的账簿意味着什么"），标�
 `lng_exposure`、`lng_material`。LNG 头寸导入新增两个可选列 `eta_basis` 与 `eta_confidence`（迁移
 `0080_lng_eta_basis`）。接口统计不变：282 条路径 / 315 个操作。设计见
 `docs/engineering/Commercial-Intelligence-V3/12_LNG_CARGO_IN_TRANSIT.md`。
+
+2026-11-25 新增“先签约、后公开”的容量成本、费率年度与数据来源优先级（Commercial Intelligence
+V3 TAR-2）：五条路径、五个操作，均为 READ，不写入任何数据。`GET /api/tariffs/years?facility=`
+（可选 `direction`、`product`、`operator`、`as_of`；缺 `facility` 为 422）按费率年度返回
+`years[]`：每项含 `tariff_year`（`label`、`convention`、首末燃气日）、方向、产品、`INDICATIVE`
+与 `FINAL` 两个版本并列（与 `GET /api/tariffs` 的版本行相同，或为 null）、`versions`、`used`
+（按 `as_of` 估值时采用的状态）与 `used_version_id`。`GET /api/capacity/bookings`（`kind`、
+`facility`、`as_of`）列出调用方账簿内、在 `as_of` 时点持有的已导入订舱（获取方式、期间、数量与
+单位、签约价格与单位、`price_recorded`、记录与释放时间等）。`GET /api/capacity/cost`（`kind`
+pipeline|terminal、`facility`；管道需 `direction`、`first`、`last`、`mwh_per_day`，可选
+`product`（默认 DAILY）、`premium`、`operator`；接收站需 `arrival`、`cargo_mwh`，可选 `product`
+（默认 spot）；`as_of`）先按签约成本、再按公开费率计价，返回 `layers[]`（`layer`
+contracted|public|not_held、数量、单位成本、成本、状态；签约层含 `booking_id`、`acquired_via`、
+`contracted_price`；公开层含 `status_basis`、`tariff_year`、`version_id`、`published_at`
+（发布方未注明时为 null）、`recorded_at`、`how_bought`、`premium`、`public_price`、`source`）、
+`covered`、`total_cost`（不完整时为 null，绝不为零）、`complete`、`indicative`、`order`、
+`order_source`、`sources[]`（按顺序列出各层级及是否采用、原因）与 `issues`；输入不符为 422
+`capacity_cost_input_missing`、`period_too_long`（超过 400 个燃气日）或 `period_reversed`。
+`GET /api/pricing/fx-rate?from=&to=`（`as_of`、`context`、`rate_type`）按企业的来源顺序解析一个
+汇率，返回 `value`（每单位 `from` 折合多少 `to`，或 null）、`used_tier`、`source`、`order`、
+`order_source`（`default`、`setting:<键>` 或 `calculation`）与 `sources[]`（各层级的 `used`、
+`reason`：not_held|stale|not_covering|not_configured|not_entitled|not_tried|used、`note`，
+采用的层级另含取值、来源、日期与方法）。`GET /api/pricing/source-precedence`（`context`）返回
+各类数值的现行顺序 `kinds[]`、企业已配置的银行 `institutions[]`（不含任何凭据）与
+`live_feed_terms`。其他新增字段：费率版本行增加 `tariff_year`、`status_rule`、`new`、
+`published_at_stated`，`status_basis` 可为 `nc_tar_tariff_in_force`、
+`nc_tar_yearly_auction_held`、`nc_tar_before_yearly_auction`（按所问时点重新判定；旧的
+`period_started`、`period_not_started` 按同一规则重读）；发布方行增加 `tariff_year`、`cadence`、
+`cadence_confirmed`；路径段增加 `indicative`、`version_id`、`version`、`tariff_year`、
+`status_basis`、`published_at`、`recorded_at`、`cost_basis`（public|contracted|contracted+public）、
+`layers` 与 `breakdown`；合同成本的 `basis` 可为 `contracted` 或 `contracted+public` 并附
+`breakdown`；`POST /api/optimization/capacity` 接受可选 `held_capacity_mwh`（默认 0）与
+`held_cost_gbp`，结果增加 `held_capacity_mwh`、`held_cost_gbp` 与 `layers`；
+`PUT /api/settings/organisation`（ADMIN，审计 `settings.organisation.update`）接受
+`source_precedence`（`kind` 或 `kind@context` 对应该类层级的有序列表）与
+`financial_institutions`（键对应名称、是否签约、提供内容、接入方式 file|manual|api 等；api 需已
+记录企业协议；任何凭据字段为 422 `setting_invalid`；值为 null 即删除）；告警可含类型
+`tariff_final_published`；`tariff.changed` 载荷增加 `tariff_year`、`published_at_utc`、
+`recorded_at_utc` 与 `new_final`。不进行任何订舱、竞拍、提名或发送。接口统计：308 条路径 / 343
+个操作（在 303 / 338 基础上 +5 / +5）。
 
 2026-11-25 新增组合扰动再优化（Commercial Intelligence V3 LNG-3）：四条路径、四个操作。
 `GET /api/lng/cargoes/{cargo_id}/disruption-options`（READ，PORTFOLIO_READ，按账簿范围）围绕
@@ -320,6 +403,7 @@ Windows/Linux 桌面外壳和双语运营文档。所有消费方都是同一契
 | `PUT /api/settings/organisation` | **受治理的写入，并校验 `ai_features`（2026-11-24，GOV-1）**：审计行与变更在同一事务中写入；审计行无法写入时变更不保存，返回 503 `audit_unavailable`（此前审计失败被吞掉）；审计行现带 `before_summary` 与 `after_summary`。`ai_features` 中非已登记 AI 用途的键或非布尔值返回 422 `setting_invalid` | AI 开关属于管控，变更不得缺少审计行（P5） |
 | 所有 AI 接口（`POST /api/analysis/explain`、`/brief`、`/ask`、`/query`，`POST /api/reports/market`、`/plan`、`/portfolio`，`POST /api/research/spreads/interpret`，`POST /api/monitoring/alerts/{alert_id}/analysis`，告警增强） | **组织关闭的用途不调用模型（2026-11-24，GOV-1）**：读者得到依据为 `rule` 的规则文本，与未配置模型时相同；设置库已配置但无法读取时，AI 视为关闭 | 按用途的停用开关（NIST AI RMF Manage 2.4） |
 | 代表模型发起的能力调用：`POST /api/agent/research` 运行与 MCP 能力工具 | **超出模型工具白名单即拒绝（2026-11-24，GOV-1）**：AI 用途未列出、调用者任一角色均不允许模型调用、或从不由模型调用（`dataset.export`、`review.record_analytical_decision`、`shadow.start`、`shadow.pause`、`shadow.resume`、`strategy.freeze_version`）的能力，以 `PERMISSION_DENIED` 拦截，详情 `ai_tool_not_allowed: ...`，并记审计（`ai.tool.refused`）；人员直接调用同一能力不受影响 | 有界的代理权限（OWASP LLM Top 10，过度代理） |
+| `POST /api/capabilities/{capability_id}/invoke` 与 MCP 能力工具（`CapabilityResult`） | **拒绝可追溯、结果经校验、仅由本人确认（2026-11-25，CODEX-1）**：`BLOCKED` 结果的 `execution_metadata` 现在同样写明能力、版本、主体、代理运行与参数哈希，成功结果另带 `output_hash`。成功结果的数据不符合能力声明的 `output_schema` 时，以 `BLOCKED` `INTERNAL_ERROR` 返回。超过声明 `timeout_policy` 的调用带 `TIMEOUT_OVERRUN` 警告。除非处理器核验过证据，`quality_state` 为 `NOT_ASSESSED`（此前默认 `VERIFIED`）。`human_confirmation` 仅在已登录本人发出时有效：部署令牌、服务账户或代表 AI 用途的模型发出时，以 `HUMAN_CONFIRMATION_REQUIRED` 返回并说明原因；确认与写入类调用均记审计（`governance.agent_capability`）。无身份的请求返回 401（与全局依赖一致），路由不再回退为拥有全部数据范围的分析员。未删除或重命名任何字段 | 人工监督须来自人；如实记录来源（NIST AI 600-1）；失败即关闭 |
 | 所有报告文件（`format=csv`、`xlsx`、`pdf`） | **无已登记导出条款的许可数据文件被拒绝（2026-11-24，GOV-1，P6）**：若各行读取自既不在治理登记表中、也无许可登记表中当前许可覆盖的供应商许可数据源族，文件返回 403 `export_denied` 并附 `licensed_families`；同一数据的 JSON 读取不变 | 失败即关闭的导出策略（`ExportDecision`）：文件会离开平台 |
 
 ## 被拒绝的请求字段

@@ -195,9 +195,16 @@ def test_d1_plants_a_late_cargo_whose_options_the_desk_can_read(tmp_path, monkey
             if planted:
                 assert [s["supply_id"] for s in frontier["disrupted"]] == ["demo-lng-a"]
                 assert frontier["recommended"] in frontier["frontier"]
-                assert any(not o["feasible"] for o in frontier["options"])
                 options = lng_disruption.disruption_options(session, "demo-lng-a", now=now)
                 assert options["status"] == "disrupted" and options["options"]
+                # LNG-4: the Huelva swap is listed and flagged as breaking the firm delivery
+                # to the Iberian offtaker; hub gas at PVB covering it is a further option.
+                listed = {o["key"].split(":", 1)[1]: o for o in options["options"]}
+                iberia = listed["swap:demo-lng-c+absorb"]
+                assert iberia["possible"] and iberia["flags"]["contract_breach"]
+                assert any(k.startswith("swap:demo-lng-c+absorb + cover:") for k in listed)
+                assert [r["basis"] for r in options["recommended_set"]][0] == "clean"
+                assert options["demurrage"]["currency"] == "USD"
             else:
                 quiet = lng_disruption.reoptimise(session, SEED.D1_BOOK, trigger="test", now=now)
                 assert quiet["status"] in {"as_planned", "skipped"}

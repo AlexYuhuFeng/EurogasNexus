@@ -210,16 +210,21 @@ year is the day-weighted average of its months (to the tick); DA mean-reverts to
 and BOM each follow DA with a small, bounded process of their own. The hubs of the market-area
 graph (TTF, THE, PEG, ZTP, NBP) are held inside the band no route can arbitrage at the simulated
 transport costs (TTF the reference), so a locational spread nets below its cost unless planted.
-Draws come from separate named streams (`scripts/demo/demo_market.py`), so the other demo
-series are unchanged. Everything is `DEMO_Sim`, marked simulated, and the roll-forward extends it
-day by day. It exists only in the demo image; the customer runtime does not ship `scripts/demo`.
+The monthly forward curve the ladder marks at and the Prices screen draws is the same market on
+the day of its snapshot: its front month is the hub's newest month-ahead close (what Today and
+the reports show) and every later month is priced as above, with a small month-on-month
+backwardation so no two years repeat. Draws come from separate named streams
+(`scripts/demo/demo_market.py`), so the other demo series are unchanged. Everything is
+`DEMO_Sim`, marked simulated, and the roll-forward extends it day by day. It exists only in the
+demo image; the customer runtime does not ship `scripts/demo`.
 
 **Today's prompt.** On gas day D the desk reads D's prompt market: the board quotes WD for gas
 day D and DA for the next day the market quotes (Monday's on a Friday; the weekend is WE). Every
 roll-forward (at start-up and hourly) writes one snapshot of WD and DA, two-sided with a size and
-a running "last", and the curve once a day. When the continuous demo exchange feed runs, set
-`EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=true`: the feed then owns today's WD and DA quotes and the
-roll-forward writes none.
+a running "last", and the curve once a day. While the demo exchange feed quotes (it is on unless
+`EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=off`; 07:00-19:00 CET/CEST) it owns today's TTF and NBP WD and
+DA quotes and the roll-forward writes the other hubs'; outside those hours, or with the feed off,
+the roll-forward writes them all, so the board is quoted overnight too.
 
 **Evaluation on the demo.** The demo image runs no data-operations scheduler, so the seed and
 every roll-forward note the input classes they changed and run the scheduled opportunity

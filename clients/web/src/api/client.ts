@@ -3054,6 +3054,14 @@ export interface MonitoringAlertDTO {
   human_review_required: boolean;
 }
 
+/** One person's own mark on one alert (GET/POST /api/me/alert-state). */
+export interface AlertReaderMarkDTO {
+  read: boolean;
+  dismissed: boolean;
+  read_at_utc: string | null;
+  dismissed_at_utc: string | null;
+}
+
 export interface MonitoringSummaryDTO {
   open_count: number; acknowledged_count: number; critical_count: number;
   warning_count: number; info_count: number; llm_pending_count: number;
@@ -4827,7 +4835,7 @@ export interface TariffVersionDTO {
   version_id: string;
   change_kind: "first" | "revised" | "status_change" | "withdrawn";
   status: "INDICATIVE" | "FINAL";
-  /** Why it has that status: operator_stated, period_started, period_not_started, figures_disagree, reviewed, awaiting_review. */
+  /** Why it has that status: operator_stated, nc_tar_tariff_in_force, nc_tar_yearly_auction_held, nc_tar_before_yearly_auction (NC TAR Art. 29, re-read as of the instant asked), figures_disagree, reviewed, awaiting_review. */
   status_basis: string;
   status_change: string | null;
   data_class: "sourced" | "indicative";
@@ -4858,6 +4866,164 @@ export interface TariffVersionDTO {
   content_hash: string;
   event_id: string | null;
   withdrawn: boolean;
+  /** TAR-2: the tariff year it belongs to, e.g. "GY 2026/27" or "CY 2027". */
+  tariff_year?: string;
+  /** TAR-2: the rule that set the status, in words, when a rule set it. */
+  status_rule?: string | null;
+  /** TAR-2: recorded in the last few days (a first, revised or newly final figure). */
+  new?: boolean;
+  /** TAR-2: false when the publisher states no publication date (the record time stands in; none is invented). */
+  published_at_stated?: boolean;
+}
+
+/** TAR-2: one tariff year of one facility and product, both versions side by side (GET /api/tariffs/years). */
+export interface TariffYearDTO {
+  tariff_year: { label: string; convention: string; first_gas_day: string; last_gas_day: string };
+  direction: string | null;
+  product: string;
+  firmness: string | null;
+  operator: string;
+  period_from: string;
+  period_to: string | null;
+  INDICATIVE: TariffVersionDTO | null;
+  FINAL: TariffVersionDTO | null;
+  versions: number;
+  /** The version a valuation as of the instant asked uses: final once held, else indicative. */
+  used: "INDICATIVE" | "FINAL" | null;
+  used_version_id: string | null;
+}
+
+/** TAR-2: one source tier in precedence order, and whether it was the one used. */
+export interface SourceTierDTO {
+  tier: string;
+  label: string;
+  used: boolean;
+  /** not_held, stale, not_covering, not_configured, not_entitled, not_tried, or used. */
+  reason: string;
+  note: string | null;
+  quantity?: number;
+  value?: number;
+  source?: string;
+  reference?: string;
+  as_of?: string;
+  unit?: string;
+}
+
+/** TAR-2: capacity the firm holds, imported from its ETRM (GET /api/capacity/bookings). */
+export interface CapacityBookingDTO {
+  booking_id: string;
+  source_system: string;
+  external_id: string;
+  book_id: string | null;
+  kind: "entry" | "exit" | "lng_slot" | "regas" | "send_out" | "storage";
+  facility_kind: string;
+  facility_id: string;
+  facility_name: string | null;
+  operator: string | null;
+  direction: string | null;
+  product: string | null;
+  firmness: string | null;
+  acquired_via: string;
+  first_gas_day: string;
+  last_gas_day: string;
+  quantity: number;
+  quantity_unit: string;
+  quantity_basis: string;
+  price: number | null;
+  price_unit: string | null;
+  currency: string | null;
+  price_recorded: boolean;
+  counterparty: string | null;
+  source_reference: string;
+  recorded_at_utc: string;
+  updated_at_utc: string;
+  released_at_utc: string | null;
+}
+
+/** TAR-2: one layer of a capacity cost: contracted, public or not held. */
+export interface CapacityCostLayerDTO {
+  layer: "contracted" | "public" | "not_held";
+  reference: string | null;
+  quantity: number;
+  unit: string;
+  unit_cost: number | null;
+  cost: number | null;
+  currency: string | null;
+  first_gas_day?: string;
+  last_gas_day?: string;
+  /** CONTRACTED, FINAL, INDICATIVE or NOT_HELD. */
+  status: string;
+  status_basis?: string;
+  tariff_year?: string;
+  version_id?: string;
+  published_at?: string | null;
+  recorded_at?: string | null;
+  booking_id?: string;
+  acquired_via?: string;
+  contracted_price?: string;
+  public_price?: string;
+  how_bought?: string;
+  premium?: number;
+  source?: string;
+  reason?: string;
+}
+
+/** TAR-2: a capacity requirement priced contracted before public (GET /api/capacity/cost). */
+export interface CapacityCostDTO {
+  kind: "pipeline" | "terminal";
+  precedence?: string;
+  order?: string[];
+  order_source?: string;
+  sources?: SourceTierDTO[];
+  layers: CapacityCostLayerDTO[];
+  covered?: Record<string, number>;
+  unit?: string;
+  total_quantity?: number;
+  total_cost: number | null;
+  unit_cost?: number | null;
+  currency?: string | null;
+  complete: boolean;
+  indicative?: boolean;
+  issues?: string[];
+}
+
+/** TAR-2: one resolved figure (an FX rate) with the sources in precedence order (GET /api/pricing/fx-rate). */
+export interface ResolvedRateDTO {
+  kind: string;
+  context: string;
+  as_of: string;
+  value: number | null;
+  used_tier: string | null;
+  source: string | null;
+  order: string[];
+  order_source: string;
+  sources: SourceTierDTO[];
+  from?: string;
+  to?: string;
+}
+
+/** TAR-2: the source order in force per kind, and the firm's configured banks (GET /api/pricing/source-precedence). */
+export interface SourcePrecedenceDTO {
+  kinds: {
+    kind: string;
+    context: string | null;
+    order: string[];
+    order_source: string;
+    tiers: { tier: string; label: string }[];
+  }[];
+  institutions: {
+    key: string;
+    name: string;
+    source_system: string;
+    contracted: boolean;
+    provides: string[];
+    access: string;
+    agreement_recorded?: boolean;
+    contexts?: string[];
+    max_age_days?: number | null;
+    live_feed: string | null;
+  }[];
+  live_feed_terms: string;
 }
 
 export interface TariffBookDTO {
@@ -5542,6 +5708,15 @@ interface AgentArtifactEnvelopeBaseDTO {
   hidden_chain_of_thought: null;
 }
 
+/** Query parameters with the unset ones left out, as strings. */
+function definedQuery(query: Record<string, string | number | boolean | undefined>): Record<string, string> {
+  return Object.fromEntries(
+    Object.entries(query)
+      .filter(([, value]) => value !== undefined && value !== "")
+      .map(([key, value]) => [key, String(value)]),
+  );
+}
+
 export const api = {
   health: async () =>
     parseResponse<HealthDTO>(await fetch(apiUrl("/health"), requestInit())),
@@ -5865,6 +6040,15 @@ export const api = {
   marketReport: (reportId: string) =>
     get<ReportMetadataDTO>(`/reports/market/${encodeURIComponent(reportId)}`),
 
+  /** The caller's own read and dismissed marks on the alerts they can see (personal). */
+  alertReaderState: (options?: ApiRequestOptions) =>
+    get<{ alerts: Record<string, AlertReaderMarkDTO> }>("/me/alert-state", undefined, options),
+  /** Mark alerts read, dismissed or restored for the caller only; the shared status is untouched. */
+  markAlerts: (action: "read" | "dismiss" | "restore", alertIds: string[]) =>
+    post<{ changed: number; not_found: string[]; alerts: Record<string, AlertReaderMarkDTO> }>(
+      "/me/alert-state",
+      { action, alert_ids: alertIds },
+    ),
   acknowledgeMonitoringAlert: (alertId: string) =>
     post<MonitoringAlertDTO>(`/monitoring/alerts/${encodeURIComponent(alertId)}/acknowledge`, {}),
 
@@ -6103,25 +6287,29 @@ export const api = {
   /** The plan against the plan under another ETA, slot or berth delay; nothing is stored. */
   cargoPlanWhatIf: (cargoId: string, body: { eta_utc?: string; slot_id?: string; berth_delay_hours?: number; laytime_hours?: number; demurrage_per_day?: number }, options?: ApiRequestOptions) =>
     post<{ change: CargoPlanChangeDTO }>(`/lng/cargoes/${encodeURIComponent(cargoId)}/plan/what-if`, body, options),
-  /** LNG-3: the book's re-optimisation as it bears on one cargo (options, frontier, default). */
-  disruptionOptions: (cargoId: string, options?: ApiRequestOptions) =>
-    get<DisruptionOptionsDTO>(`/lng/cargoes/${encodeURIComponent(cargoId)}/disruption-options`, undefined, options),
-  /** One option in full: legs, arithmetic per scenario and the mandates it moves. */
-  disruptionOption: (cargoId: string, optionId: string, options?: ApiRequestOptions) =>
+  /** LNG-3: the book's re-optimisation as it bears on one cargo (options, frontier, default).
+   * LNG-4: every option with its flags and consequences, the recommended set, and the
+   * cargo's demurrage at the FX choice (`fx`, ECB by default). */
+  disruptionOptions: (cargoId: string, options?: ApiRequestOptions, fx?: DisruptionFxQuery) =>
+    get<DisruptionOptionsDTO>(`/lng/cargoes/${encodeURIComponent(cargoId)}/disruption-options`, fxParams(fx), options),
+  /** One option in full: legs, arithmetic per scenario with each line's sources, the mandates it moves. */
+  disruptionOption: (cargoId: string, optionId: string, options?: ApiRequestOptions, fx?: DisruptionFxQuery) =>
     get<DisruptionOptionDetailDTO>(
       `/lng/cargoes/${encodeURIComponent(cargoId)}/disruption-options/${encodeURIComponent(optionId)}`,
-      undefined,
+      fxParams(fx),
       options,
     ),
-  /** Record the option a person chose (audited). A record only: nothing is booked or sent. */
-  chooseDisruptionOption: (cargoId: string, optionId: string, note?: string) =>
+  /** Record the option a person chose (audited). A record only: nothing is booked or sent.
+   * LNG-4: an option that breaks a contract may be chosen; the record keeps its consequences
+   * and the FX choice the figures were read at. */
+  chooseDisruptionOption: (cargoId: string, optionId: string, note?: string, fx?: DisruptionFxQuery) =>
     post<DisruptionDecisionDTO>(
       `/lng/cargoes/${encodeURIComponent(cargoId)}/disruption-options/${encodeURIComponent(optionId)}/choose`,
-      { note: note ?? null },
+      { note: note ?? null, ...(fx ?? {}) },
     ),
   /** The whole book's options and frontier, optionally with a pipeline supply curtailed. */
   disruptionFrontier: (
-    query: { book_id: string; curtail_supply?: string; curtail_from?: string; curtail_to?: string; curtail_mwh_per_day?: number },
+    query: { book_id: string; curtail_supply?: string; curtail_from?: string; curtail_to?: string; curtail_mwh_per_day?: number } & DisruptionFxQuery,
     options?: ApiRequestOptions,
   ) =>
     get<DisruptionFrontierDTO>(
@@ -6129,6 +6317,14 @@ export const api = {
       Object.fromEntries(Object.entries(query).filter(([, value]) => value !== undefined).map(([key, value]) => [key, String(value)])),
       options,
     ),
+  /** LNG-4: the REMIT messages linked to a pipeline supply, why, and the days each curtails. */
+  pipelineOutageLinks: (supplyId: string, options?: ApiRequestOptions) =>
+    get<PipelineOutageLinksDTO>(`/lng/pipeline-supplies/${encodeURIComponent(supplyId)}/outage-links`, undefined, options),
+  /** LNG-4: whether linked outages curtail the supply (auto) or only the days entered by hand (manual); audited. */
+  setPipelineOutageOverride: (
+    supplyId: string,
+    body: { outage_mode: "auto" | "manual"; curtailed?: [string, number][]; reason?: string },
+  ) => put<PipelineOutageLinksDTO>(`/lng/pipeline-supplies/${encodeURIComponent(supplyId)}/outage-override`, body),
   /** Replace the hedge legs that cover a cargo (a short hedge is negative MWh). */
   saveCargoHedges: (cargoId: string, legs: CargoHedgeLegDTO[]) =>
     put<{ cargo_id: string; legs: number; events?: unknown }>(`/lng/cargoes/${encodeURIComponent(cargoId)}/hedges`, { legs }),
@@ -6148,6 +6344,42 @@ export const api = {
         : undefined,
       options,
     ),
+  /** TAR-2: one facility's tariffs by tariff year, the indicative and final versions side by side. */
+  tariffYears: (
+    query: { facility: string; direction?: string; product?: string; as_of?: string },
+    options?: ApiRequestOptions,
+  ) =>
+    get<{ facility_id: string; as_of: string | null; years: TariffYearDTO[] }>(
+      "/tariffs/years",
+      definedQuery(query),
+      options,
+    ),
+  /** TAR-2: capacity the firm holds (imported bookings in the caller's books), as of an instant. */
+  capacityBookings: (query?: { kind?: string; facility?: string; as_of?: string }, options?: ApiRequestOptions) =>
+    get<{ rows: CapacityBookingDTO[]; as_of: string | null }>("/capacity/bookings", definedQuery(query ?? {}), options),
+  /** TAR-2: a capacity requirement priced contracted first, then the public tariff, else not held. */
+  capacityCost: (
+    query: {
+      kind: "pipeline" | "terminal";
+      facility: string;
+      direction?: string;
+      first?: string;
+      last?: string;
+      mwh_per_day?: number;
+      product?: string;
+      premium?: number;
+      arrival?: string;
+      cargo_mwh?: number;
+      as_of?: string;
+    },
+    options?: ApiRequestOptions,
+  ) => get<CapacityCostDTO>("/capacity/cost", definedQuery(query), options),
+  /** TAR-2: an FX rate resolved through the firm's source order, every tier listed. */
+  fxRate: (query: { from: string; to: string; as_of?: string; context?: string }, options?: ApiRequestOptions) =>
+    get<ResolvedRateDTO>("/pricing/fx-rate", definedQuery(query), options),
+  /** TAR-2: the source order in force per kind of figure, and the firm's configured banks. */
+  sourcePrecedence: (query?: { context?: string }, options?: ApiRequestOptions) =>
+    get<SourcePrecedenceDTO>("/pricing/source-precedence", definedQuery(query ?? {}), options),
   /** TAR-1: the tariff publisher registry with each publisher's read state. */
   tariffPublishers: (options?: ApiRequestOptions) =>
     get<{ rows: TariffPublisherDTO[] }>("/tariffs/publishers", undefined, options),
@@ -7051,12 +7283,181 @@ export interface DisruptionLegDTO {
   boil_off_mwh: number;
 }
 
+/** LNG-4: how a figure in another currency is converted (ECB by default; omitted keys keep the default). */
+export interface DisruptionFxQuery {
+  reporting_currency?: "EUR" | "GBP" | "USD";
+  fx_source?: "ECB" | "WMR" | "BFIX" | "manual";
+  fx_fixing?: string;
+  fx_rate_date?: string;
+  /** With `fx_source` manual: units of `fx_currency` per 1 EUR. */
+  fx_rate?: number;
+  fx_currency?: "USD" | "GBP";
+}
+
+function fxParams(fx?: DisruptionFxQuery): Record<string, string> | undefined {
+  if (!fx) return undefined;
+  const entries = Object.entries(fx).filter(([, value]) => value !== undefined && value !== "");
+  return entries.length ? Object.fromEntries(entries.map(([key, value]) => [key, String(value)])) : undefined;
+}
+
+/** LNG-4: one conversion as `_fx_rate` answered it. */
+export interface FxResolutionDTO {
+  from: string;
+  to: string;
+  rate: number | null;
+  source: string | null;
+  label: string | null;
+  rate_date: string | null;
+  tried: string[];
+  simulated: boolean;
+  entered_by_hand: boolean;
+  missing: string | null;
+}
+
+/** LNG-4: the FX choice a read used. */
+export interface DisruptionFxDTO {
+  choice: { source: string; fixing: string | null; rate_date: string | null; rate: number | null; rate_currency: string | null; reporting_currency: string; default: boolean };
+  rate_date_used: string;
+  sources: string[];
+  conversion: string;
+}
+
+/** LNG-4: demurrage as the contract states it, and as converted. */
+export interface DisruptionDemurrageDTO {
+  rate_per_day: number | null;
+  currency: string | null;
+  source: string | null;
+  terms: string | null;
+  laytime_hours: number | null;
+  laytime_source: string | null;
+  eur_per_day: number | null;
+  fx: FxResolutionDTO | null;
+  note: string;
+  warning: string | null;
+}
+
+/** LNG-4: a firm delivery an option breaks. */
+export interface DisruptionBreachDTO {
+  obligation_id: string;
+  contract_id: string | null;
+  counterparty: string;
+  point: string;
+  text: string;
+  shortfall_mwh: number;
+  days: { gas_day: string; mwh: number }[];
+  penalty_eur_mwh: number | null;
+  penalty_held: boolean;
+  penalty_terms: string | null;
+  exposure_eur: number | null;
+}
+
+/** LNG-4: a cargo or supply running to plan that an option moves. */
+export interface DisruptionDisruptsDTO {
+  supply_id: string;
+  label: string;
+  mwh: number;
+  from?: string | null;
+  to?: string | null;
+  cause?: string;
+  [key: string]: unknown;
+}
+
+/** LNG-4: one opportunity cost of an option: a call delayed, capacity or storage forgone. */
+export interface DisruptionOpportunityDTO {
+  kind: "berth_delay" | "capacity_forgone" | "storage_forgone" | string;
+  text: string;
+  value_eur: number;
+  sources: string[];
+  owner?: "own" | "third_party";
+  label?: string;
+  [key: string]: unknown;
+}
+
+/** LNG-4: substitute supply an option buys to cover a short obligation. */
+export interface DisruptionCoverDTO {
+  source_id: string;
+  obligation_id: string;
+  mwh: number;
+  days: { gas_day: string; mwh: number }[];
+  [key: string]: unknown;
+}
+
+/** LNG-4: one arithmetic line with the price, rate and tariff sources it applied. */
+export interface DisruptionLineDTO {
+  label: string;
+  value: number;
+  text: string;
+  sources: string[];
+  basis: "direct" | "opportunity";
+}
+
+/** LNG-4: an option of the recommended set and why. */
+export interface DisruptionRecommendedDTO {
+  option_id: string;
+  key: string;
+  title: string;
+  basis: "clean" | "best_expected" | "overall" | string;
+  reason: string;
+}
+
+/** LNG-4: a REMIT message linked to a pipeline supply. */
+export interface PipelineOutageLinkDTO {
+  link_id: string;
+  supply_id: string;
+  message_id: string;
+  version: number;
+  event_status: string;
+  asset_name: string;
+  asset_eic: string;
+  matched_on: "asset_eic" | "asset_name" | "gie_facility_eic";
+  dependency: Record<string, unknown>;
+  why: string;
+  fraction: number | null;
+  curtailed: [string, number][];
+  curtailed_mwh: number;
+  status: "applied" | "unsized" | "withdrawn" | "ended";
+  event_id: string | null;
+  first_linked_at_utc: string;
+  updated_at_utc: string;
+}
+
+/** LNG-4: a pipeline supply's REMIT links and the curtailment the valuation reads. */
+export interface PipelineOutageSupplyDTO {
+  supply_id: string;
+  label: string;
+  outage_mode: "auto" | "manual";
+  links: PipelineOutageLinkDTO[];
+  effective: [string, number][];
+  effective_source: Record<string, string>;
+}
+
+export interface PipelineOutageLinksDTO extends PipelineOutageSupplyDTO {
+  book_id: string;
+  depends_on: Record<string, unknown>[];
+  entered_by_hand: [string, number][];
+  advisory: string;
+}
+
 export interface DisruptionOptionDTO {
   option_id: string;
   key: string;
   kind: string;
   title: string;
   feasible: boolean;
+  /** LNG-4: whether the option can physically happen (the only refusal on choose). */
+  possible?: boolean;
+  /** LNG-4: position in the list (1 first), by the ordering weights. */
+  rank?: number | null;
+  flags?: { physically_possible: boolean; contract_breach: boolean; disrupts_normal_cargo: boolean };
+  breaches?: DisruptionBreachDTO[];
+  disrupts?: DisruptionDisruptsDTO[];
+  recommended_as?: string[];
+  recommended_why?: string[];
+  covers?: DisruptionCoverDTO[];
+  direct_pnl_expected?: number;
+  opportunity_cost_expected?: number;
+  opportunity?: DisruptionOpportunityDTO[];
+  reporting?: { currency: string; fx: FxResolutionDTO | null; figures: Record<string, number> | null; warning?: string };
   reasons: string[];
   notes: string[];
   on_frontier: boolean;
@@ -7069,7 +7470,7 @@ export interface DisruptionOptionDTO {
   releases: string[];
   swaps: string[][];
   obligations: unknown[];
-  scenarios: { scenario_id: string; label: string; pnl: number }[];
+  scenarios: { scenario_id: string; label: string; pnl: number; direct_pnl?: number; opportunity_cost?: number }[];
   hedge_legs: unknown[];
   legs: DisruptionLegDTO[];
 }
@@ -7081,8 +7482,10 @@ export interface DisruptionOptionDetailDTO extends DisruptionOptionDTO {
   recommended_option_id: string | null;
   dominated_by_title: string | null;
   components?: Record<string, number>;
-  arithmetic?: string[];
-  scenario_detail?: { scenario_id: string; label: string; pnl: number; components: Record<string, number>; arithmetic: string[] }[];
+  arithmetic?: DisruptionLineDTO[];
+  scenario_detail?: { scenario_id: string; label: string; pnl: number; components: Record<string, number>; arithmetic: DisruptionLineDTO[] }[];
+  recommended_set?: DisruptionRecommendedDTO[];
+  fx?: DisruptionFxDTO;
   mandates: { checked: number; moves: unknown[]; error?: string };
   advisory: string;
 }
@@ -7116,6 +7519,10 @@ export interface DisruptionDecisionDTO {
   decided_at_utc: string;
   /** Always false: a choice is a record; nothing is booked, traded, nominated or sent. */
   booked: false;
+  /** LNG-4: the recommended set when chosen, what the choice breaks and moves, and the FX choice. */
+  recommended_set?: DisruptionRecommendedDTO[];
+  consequences?: { flags: DisruptionOptionDTO["flags"]; breaches: DisruptionBreachDTO[]; disrupts: DisruptionDisruptsDTO[]; opportunity: DisruptionOpportunityDTO[]; covers: DisruptionCoverDTO[]; rank: number | null; recommended_as: string[] } | null;
+  fx?: DisruptionFxDTO | null;
 }
 
 interface DisruptionResultDTO {
@@ -7125,6 +7532,12 @@ interface DisruptionResultDTO {
   options: DisruptionOptionDTO[];
   frontier: string[];
   recommended: string | null;
+  /** LNG-4: the options recommended, each named once, with the basis and a reason. */
+  recommended_set?: DisruptionRecommendedDTO[];
+  /** LNG-4: how the P&L splits into direct and opportunity cost. */
+  valuation?: string;
+  fx?: DisruptionFxDTO;
+  pipeline_outages?: PipelineOutageSupplyDTO[];
   digest: string;
   preference: { risk_weight: number; disruption_eur_per_mwh: number; disruption_eur_per_supply: number; flexibility_eur_per_mwh: number; rule: string; sources: Record<string, string> };
   costs: Record<string, number>;
@@ -7139,6 +7552,8 @@ export interface DisruptionOptionsDTO extends DisruptionResultDTO {
   status: "disrupted" | "affected" | "as_planned";
   book_options: number;
   decision: DisruptionDecisionDTO | null;
+  /** LNG-4: the cargo's demurrage as its contract states it, and as converted. */
+  demurrage?: DisruptionDemurrageDTO | null;
 }
 
 export interface DisruptionFrontierDTO extends DisruptionResultDTO {

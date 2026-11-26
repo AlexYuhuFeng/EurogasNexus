@@ -887,3 +887,113 @@ requirement) and storing terminal tariff figures as product data (Fluxys, Elengy
 forbid reuse; offers are the desk's own quotes or entries and are labelled).
 Tests: `tests/domain/test_lng_disruption.py`, `tests/unit/test_lng_disruption_migration.py`,
 `tests/api/test_lng_disruption_api.py`, `tests/integration/test_lng_disruption_postgres.py`.
+
+## Decision 37: Disruption options carry their consequences; REMIT outages curtail pipeline supply through one link table
+
+Accepted 2026-11-25 (programme
+[Commercial Intelligence V3](../engineering/Commercial-Intelligence-V3/05_IMPLEMENTATION_ROADMAP.md),
+slice LNG-4). The owner's instruction of 2026-11-25: optimisation is not a single answer. A
+contract may forbid a move, a location may have no storage and no swap, an option may break a
+contract or move cargoes running normally, and the trader decides. So the engine of Decision 36
+keeps every option a complete course of action and labels its consequences: an option that
+cannot physically happen (no storage right, energy with no send-out right, a slot the book does
+not hold) is listed as not possible; an option that breaks a contract (short-delivers a firm
+obligation, diverts a cargo with no diversion right) stays listed and can be chosen, valued at
+the contract's liquidated damages where the data holds them and otherwise stated with its
+shortfall and "penalty not held"; an option that moves supplies running to plan names them and
+the MWh. A recommended set (the best option that breaks no contract and moves nothing, the
+highest expected P&L that breaks no contract, and the best overall, where they differ, each with
+a one-line reason) replaces the single fixed-weight default; the weights stay as named, editable
+assumptions that only order the list. Demurrage is read from the cargo's Confirmation Notice,
+then its voyage terms, then the master agreement, in the contract's currency, and converted to
+EUR with an FX fix the user picks from the `fx_observations` the platform holds (ECB reference
+rate by default; WMR and BFIX only for entitled principals; or a rate entered by hand, said so).
+A REMIT unavailability message held in `remit_umm_messages` that names an asset a pipeline
+supply depends on curtails that supply's available volume for the gas days it covers, pro rata
+to the share of the asset's capacity that is unavailable; a new version revises it, a dismissed
+or inactive one removes it. The link runs in the existing `lng_disruption` outbox consumer when
+it receives `outage.published` (Decision 28), before the books that hold a linked supply are
+re-optimised, so the re-run always sees the new curtailment. Two further owner instructions of
+the same day widen the valuation. Each option is valued at its full cost: its direct P&L and
+its opportunity cost, shown apart and both in the P&L. The opportunity cost is the knock-on on
+the book's other cargoes (a cargo the option moves takes the berth on the day it can, so a
+cargo due there waits, and it draws the terminals' shared per-day limits first, so a later
+cargo finds less left), the demurrage and boil-off of another user's ship due at a berth the
+option takes (where the line-up is held), the release value or best other use of a spare slot
+it uses, and the value of storage gas in the month it was to be used. A spot slot at another
+terminal (a `slot` capacity offer) is an option like a held slot, so a long-term contracted
+terminal is never assumed to be the better choice. When an option leaves a delivery obligation
+short, substitute supply from across the portfolio covers it as further options: gas the book
+holds upstream (a supply contract's swing), hub gas bought at the month price plus the
+transport to the delivery point (capacity the firm holds first, else the public tariff, through
+`application/contract_costs.transport_leg_cost`), or storage gas, each alone and cheapest first.
+Every arithmetic line names the price, rate and tariff sources it applied. Every currency
+conversion goes through one function, `application/lng_demurrage._fx_rate`, and every
+transport cost through one, `application/lng_substitutes._transport_cost`, so a later
+source-precedence resolver can replace their bodies without any caller changing. Migration
+`0087_lng4_options_demurrage_outages.py` (revision id `0087_lng4_options_demurrage`, which
+fits alembic's 32-character version column) is expand-only: nullable columns on `lng_voyage_terms`
+(`demurrage_rate_per_day`, `demurrage_currency`, `demurrage_terms`), `lng_delivery_obligations`
+(`penalty_terms`), `pipeline_supplies` (`depends_on`, `outage_mode`), `lng_disruption_runs`
+(`recommended_set`), `lng_disruption_decisions` (`recommended_set`, `consequences`, `fx`),
+`lng_capacity_offers` (`hub`, for a spot slot) and `lng_slot_terms` (`berth_days`), and two new
+tables: `pipeline_outage_links` (one row per supply and message, unique on the pair: what
+matched, why, the fraction, the curtailed gas days, and `applied`, `unsized`, `withdrawn` or
+`ended`) and `lng_berth_calls` (another user's ship due at a terminal's berth: the gas day, the
+berth days, the laytime it has left, its demurrage rate and currency, its boil-off, the
+source). A day entered by hand on the supply wins over a linked outage, and
+`outage_mode = manual` stops links from curtailing at all (the override, audited
+`lng.pipeline_outage_override`). It stays advisory: the curtailment is the platform's reading
+of the message, shown with its source, and nothing is nominated. Rejected: a separate outage
+consumer (it could run after `lng_disruption` and leave a run on the old curtailment), writing
+REMIT curtailment into `pipeline_supplies.curtailed` (it would overwrite the desk's own entries
+and lose why), a fuzzy name match (a link must be an EIC, an exact normalised name, or a
+reviewed GIE alias), and fetching FX rates at read time (no network read; licensing of WMR and
+BFIX stays with the customer's own import), and taking the long-term terminal's tariff as its
+cost (the slot it uses and the berth it takes have a value elsewhere). Tests:
+`tests/domain/test_lng_disruption.py`, `tests/unit/test_lng_substitutes.py`,
+`tests/unit/test_lng_disruption_migration.py`, `tests/unit/test_lng_demurrage.py`,
+`tests/unit/test_pipeline_outages.py`, `tests/api/test_lng_disruption_api.py`,
+`tests/api/test_data1_import_contracts.py`, `tests/integration/test_lng_disruption_postgres.py`,
+`tests/integration/test_demo_planted_cases.py`, `clients/web/tests/disruptionOptionsModel.test.ts`.
+
+## Decision 38: Capacity the firm holds is one table, priced before public tariffs through one source-precedence resolver
+
+Accepted 2026-11-25 (programme
+[Commercial Intelligence V3](../engineering/Commercial-Intelligence-V3/05_IMPLEMENTATION_ROADMAP.md),
+slice TAR-2; Decision 37 is reserved for another slice). Migration
+`0088_tar2_capacity_bookings` (on `0086_lng_disruption`, expand only) adds one table,
+`capacity_bookings`: pipeline entry and exit capacity, LNG slots, regasification, send-out
+and storage the firm holds, each with how it was acquired (auction, long term, allocation,
+secondary, FCFS, bilateral), its period, quantity, unit and basis (per day or a pool of slots), contracted
+price and unit, book and source, and the instants it was recorded and released, imported
+through the contract `etrm.capacity_bookings.v1` and read as of any instant. It also adds the
+nullable `tariff_versions.tariff_year` (the year as the publisher defines it; older versions
+keep NULL and readers derive it from the period, so no row is rewritten). The downgrade drops
+only these two.
+
+A capacity cost is priced in layers by `domain/tariffs/precedence.split`: what the bookings
+cover at the contracted cost, the rest at the public price of how it would be bought (the
+day-ahead or within-day reserve price plus premium, or a terminal's first-come-first-served
+rate), final where a final version was held at the instant valued, else indicative and
+flagged, and anything else not held, never zero. A tariff whose publisher states no status
+takes NC TAR Article 29 at that instant, re-derived on every read. The order of the layers,
+and of the sources of FX rates, interest rates, tariffs and commodity prices, comes from one
+resolver, `domain/pricing/source_precedence.py`, with a default per kind and an order the firm
+may set per kind and per calculation context in the existing organisation setting
+`source_precedence` (administrators only, validated, audited in the same transaction); every
+result lists every tier in order with the one used marked. The firm's banks are named in the
+organisation setting `financial_institutions` and their rates arrive by file or by hand
+(`bank.fx_rates.v1`, `bank.interest_rates.v1`) into the existing FX and interest-rate tables
+as `BANK:<key>` rows, so no further table is needed; a credential is refused, and a live feed
+is recorded only as needing the firm's agreement. Nothing is booked, bid or nominated
+(AGENTS.md rule 8).
+
+Rejected: columns on the ETRM's capacity contract tables (an import would overwrite them and
+they do not say how capacity was acquired or its price unit), a precedence table (the
+organisation setting already has governed, audited writes and one row per firm), a table per
+bank feed (the rates are FX and interest observations like any other, with a source), storing
+the status derived on the day of reading (wrong for an earlier or later instant), and a live
+bank connector (needs the firm's own agreement and credentials, which this product does not
+hold). Tests: `tests/domain/test_tar2_tariff_year_and_precedence.py`,
+`tests/unit/test_tar2_capacity_costs.py`, `tests/api/test_tar2_api.py`.

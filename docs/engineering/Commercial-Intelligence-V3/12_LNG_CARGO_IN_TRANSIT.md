@@ -60,6 +60,9 @@ valued against the plan under ETA and price scenarios, with the Pareto frontier,
 a firm obligation or a storage or diversion right rules out, and a default by the desk's
 stated preference. A person chooses; the choice is recorded and nothing is booked. Design,
 sources and the worked example: [17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md).
+LNG-4 lists every option with its consequences instead of ruling breaches out, values each at
+its full cost, and shows the cargo's demurrage in the contract's currency at a chosen FX fix
+([17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md) section 9).
 
 ## Who hears about a change (LNG-2, built)
 

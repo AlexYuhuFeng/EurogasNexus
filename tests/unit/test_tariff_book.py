@@ -91,7 +91,7 @@ def test_a_register_row_becomes_version_one_with_its_status_and_source(session):
     assert result["tariffs"]["written"] == {"first": 1}
     (first,) = versions(session)
     assert first.tariff_key == KEY and first.version == 1
-    assert (first.status, first.status_basis) == ("INDICATIVE", "period_not_started")
+    assert (first.status, first.status_basis) == ("INDICATIVE", "nc_tar_before_yearly_auction")
     assert first.source_url.endswith("tariffsfulls?pointKey=ITP-1")
     assert first.retrieved_at_utc.replace(tzinfo=UTC) == T0
     assert first.duration == "yearly" and first.superseded_at_utc is None
@@ -186,7 +186,7 @@ def test_status_bases_from_the_register(session):
     stated = entsog_row(refs=["remarks: tariffs are provisional"])
     assert book.spec_from_register_row(stated).status_basis == "operator_stated"
     final = entsog_row(status="FINAL")
-    assert book.spec_from_register_row(final).status_basis == "period_started"
+    assert book.spec_from_register_row(final).status_basis == "nc_tar_yearly_auction_held"
     demo = entsog_row(status="SIMULATOR_ONLY")
     assert book.spec_from_register_row(demo) == "simulated"
     entry = entsog_row(
@@ -412,5 +412,5 @@ def test_the_valuation_snapshot_names_the_version_it_priced(session):
     put(session, entsog_row(status="FINAL"))
     book.capture_tariffs(session, now_utc=T0)
     held = book.version_at(session, KEY)
-    assert held.version == 1 and held.status_basis == "period_started"
+    assert held.version == 1 and held.status_basis == "nc_tar_yearly_auction_held"
     assert book.version_at(session, KEY, T0 - timedelta(days=1)) is None

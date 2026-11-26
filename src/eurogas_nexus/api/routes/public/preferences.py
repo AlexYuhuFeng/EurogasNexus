@@ -13,6 +13,8 @@ from typing import Any
 from fastapi import APIRouter, HTTPException, Request
 
 from eurogas_nexus.domain.ai.register import AI_FEATURES_SETTING
+from eurogas_nexus.domain.pricing.financial_institutions import SETTING as INSTITUTIONS_SETTING
+from eurogas_nexus.domain.pricing.source_precedence import SETTING as SOURCE_PRECEDENCE_SETTING
 from eurogas_nexus.domain.settings.preferences import (
     SettingsError,
     effective_preferences,
@@ -21,6 +23,10 @@ from eurogas_nexus.domain.settings.preferences import (
 )
 from eurogas_nexus.governance.four_eyes import FOUR_EYES_SETTING
 from eurogas_nexus.security.authorization import Permission, authorize
+
+MERGED_SETTINGS = frozenset(
+    {AI_FEATURES_SETTING, FOUR_EYES_SETTING, SOURCE_PRECEDENCE_SETTING, INSTITUTIONS_SETTING}
+)
 
 router = APIRouter(tags=["preferences"])
 
@@ -155,13 +161,19 @@ def write_organisation_settings(body: dict[str, Any], request: Request) -> dict:
         for key, value in accepted.items():
             row = session.get(OrganisationSettingRecord, key)
             if (
-                key in {AI_FEATURES_SETTING, FOUR_EYES_SETTING}
+                key in MERGED_SETTINGS
                 and row is not None
                 and isinstance(row.value_json, dict)
             ):
                 # Switches merge: turning one AI use (or one write's four eyes) off leaves the
                 # others as they were.
-                value = {**row.value_json, **value}
+                # TAR-2: the source order and the banks merge per kind / institution too; a
+                # bank set to null is removed.
+                value = {
+                    k: v for k, v in {**row.value_json, **value}.items() if v is not None
+                }
+            if isinstance(value, dict) and key in MERGED_SETTINGS:
+                value = {k: v for k, v in value.items() if v is not None}
             if row is None:
                 session.add(
                     OrganisationSettingRecord(

@@ -72,6 +72,19 @@ On 2026-11-25 the user asked for the portfolio to be re-optimised when a cargo o
 pipeline supply is disrupted: [17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md) is the design
 (LNG-3), with its sources, the worked example and its limits. The engine proposes and values;
 a person chooses; nothing is booked.
+The same day the user asked for a review of Codex's assessments on agents and on data storage
+and processing: [18](18_CODEX_ASSESSMENT_REVIEW.md) gives each proposal a verdict, records what
+was built (CODEX-1: capability runtime controls, a versioned change envelope) and lists what
+waits for the owner (a broker, new datastores, live model routing).
+The owner then asked how large the data will grow over 5 years of history and 10 years of
+operation, how fast it arrives and what infrastructure that needs:
+[19](19_DATA_CAPACITY_AND_INFRASTRUCTURE.md) (CAP-1) sizes it, compares it with published
+benchmarks and recommends a staged path. It is a recommendation only; nothing is adopted.
+LNG-4 follows the owner's word that optimisation is not a single answer: every option is listed
+with its consequences (a contract it breaks, cargoes it moves, or that it cannot happen) and a
+recommended set with reasons, valued at its full cost with substitute supply from across the
+portfolio; demurrage is read in the contract's currency and REMIT outages curtail pipeline
+supply ([17](17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md) section 9).
 
 1. Review every surface against the standard in a real browser, per role (Q1).
 2. Fix the control and data blockers the review found (F1).

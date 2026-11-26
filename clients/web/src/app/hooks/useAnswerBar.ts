@@ -22,6 +22,7 @@ import { intentKey } from "@/app/answer/intent";
 import { lookup, type AnswerReads } from "@/app/answer/lookups";
 import { routeQuery, type Route } from "@/app/answer/route";
 import { fxHeldFrom, type FxHeld } from "@/app/answer/units";
+import { useLiveTopics } from "@/app/hooks/useLive";
 
 export const LOOKUP_DEBOUNCE_MS = 250;
 const READ_TTL_MS = 60_000;
@@ -138,6 +139,18 @@ export function useAnswerBar({ open, query, glossary, permissions, language }: A
   const instant = useMemo(() => instantAnswer(route), [route]);
   const key = route.tier === 2 ? intentKey(route.intent) : null;
 
+  // A quote on the open bar follows the market: a price notice drops the cached market reads
+  // and looks the answer up again (it stays on screen meanwhile).
+  const [marketVersion, setMarketVersion] = useState(0);
+  useLiveTopics(
+    ["prices"],
+    () => {
+      for (const cached of ["quotes", "normalized", "today"]) readCache.delete(cached);
+      setMarketVersion((version) => version + 1);
+    },
+    { enabled: open && marketAllowed },
+  );
+
   useEffect(() => {
     if (!open || route.tier !== 2 || !key) {
       setLookupState({ status: "idle" });
@@ -156,7 +169,7 @@ export function useAnswerBar({ open, query, glossary, permissions, language }: A
       controller.abort();
     };
     // `route` changes identity with every keystroke; the intent key is what matters.
-  }, [open, key]);
+  }, [open, key, marketVersion]);
 
   const cancelAsk = useCallback(() => {
     askAbort.current?.abort();

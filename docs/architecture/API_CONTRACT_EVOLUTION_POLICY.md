@@ -4,6 +4,70 @@ Chinese companion: [API_CONTRACT_EVOLUTION_POLICY-CN.md](API_CONTRACT_EVOLUTION_
 
 ## Purpose
 
+Additive 2026-11-26 (live data): one path, one operation. `GET /api/stream/live?topics=...`
+(server-sent events, the caller's own entitlement) sends `change` notices (`topic`, `changed_at`;
+no row, no value) for the subscribed topics: from the market event outbox (`market_events`, read
+through the change feed) `prices` (price, FX, rate), `outages`, `tariffs`, `cargoes`, `book`
+(contract, mark, limit, assumption, freight), `capacity`, `sources`, `news`; from their own
+tables `prices` (screen quotes), `trades`, `alerts`, `nominations`, `tariffs` (publications) and
+the map's `outages`, `flows`, `cargoes`, `slots`, `opportunities`. `jobs` events carry the
+caller's own jobs (`job_id`, `kind`, `status`, `progress`, `step`), a `heartbeat` comes every 5 s,
+and `ready`, `warning` and `revoked` as on the other streams. Resumes from `Last-Event-ID` or
+`last_event_id` (`live|<time>|<outbox cursor>`; the time at most 15 min back). Census on the
+innovation branch: 312 paths / 348 operations (+1 / +1 on 311 / 347).
+
+Additive 2026-11-26 (each reader's own alert marks, demo-test alert centre): one path, two
+operations, both READ. `GET /api/me/alert-state` returns the caller's own read and dismissed
+marks on the unresolved alerts they may see; `POST /api/me/alert-state` marks alerts `read`,
+`dismiss` or `restore` (1-500 ids) for the caller only and lists unknown or hidden ids under
+`not_found`. The shared, audited alert status is untouched, and a mark lapses when the alert
+recurs or escalates. Stored in `monitoring_alert_reader_state` (migration
+`0089_alert_reader_state`). Census: 311 paths / 347 operations (+1 / +2 on 310 / 345).
+
+Additive 2026-11-26 (options with consequences, demurrage by contract, REMIT outages on
+pipeline supply, Commercial Intelligence V3 LNG-4, ADR Decision 37): two paths, two operations;
+every other change is additive. `GET /api/lng/cargoes/{cargo_id}/disruption-options`, `GET
+.../disruption-options/{option_id}` and `GET /api/lng/disruption/frontier` take the optional
+query `reporting_currency` EUR|GBP|USD, `fx_source` ECB|WMR|BFIX|manual (ECB by default),
+`fx_fixing`, `fx_rate_date`, `fx_rate` (units of `fx_currency` per 1 EUR, with `manual`) and
+`fx_currency` USD|GBP; an FX choice the read cannot work from is 422 `fx_choice_invalid`, a
+licensed source (WMR, BFIX) the principal holds no entitled fix of is 403
+`fx_source_entitlement_denied`. Each option adds `possible` (it can physically happen; `feasible`
+keeps the same meaning), `rank` (1 is first by the desk's ordering weights), `flags`
+(`physically_possible`, `contract_breach`, `disrupts_normal_cargo`), `breaches[]` (the obligation, the
+contract, the counterparty, the point, the shortfall by gas day, `penalty_eur_mwh` with
+`penalty_held` and `penalty_terms`, or "penalty not held", and `exposure_eur`), `disrupts[]` (a
+cargo or supply running to plan the option moves, with what moved and why), `recommended_as[]`
+and `recommended_why[]`, `covers[]` (substitute supply bought for a short obligation),
+`direct_pnl_expected`, `opportunity_cost_expected` (the expected P&L is direct P&L less
+opportunity cost), `opportunity[]` (a call delayed, capacity or storage forgone, each with
+`value_eur`, `sources[]` and whose cargo it hits) and `reporting` (the figures in the reporting
+currency), and each leg adds `demurrage` (the terms and the amount in the contract's currency beside
+the EUR figure); option kinds add `substitute` and `spot`; each scenario adds `direct_pnl` and
+`opportunity_cost`. The read adds `recommended_set[]` (`option_id`, `key`, `title`, `basis`
+clean|best_expected|overall, `reason`), `valuation`, `demurrage` (the rate as the charter party
+or Confirmation Notice states it, its currency, source and terms, laytime, `eur_per_day` and the
+`fx` conversion with its source, label and rate date), `fx` (the choice, the rate date used and
+the sources) and `pipeline_outages[]`. The option detail's `arithmetic` lines add `sources[]`
+(the price, rate and tariff applied) and `basis` direct|opportunity. `POST
+.../choose` accepts the same FX fields in its body, answers a breach option (it can be chosen;
+only an option that cannot physically happen is 409 `option_infeasible`) and adds
+`recommended_set`, `consequences` (flags, breaches, cargoes moved, opportunity costs, covers,
+rank) and `fx` to the decision. New `GET /api/lng/pipeline-supplies/{supply_id}/outage-links`
+(READ, PORTFOLIO_READ, book scope) answers the REMIT messages linked to the supply (message id,
+version, status applied|unsized|withdrawn|ended, what matched and why, the fraction unavailable
+and the gas days each curtails), `outage_mode` auto|manual, the days entered by hand and the
+curtailment the valuation reads with the source of each day; an unknown or out-of-scope supply is
+404 `pipeline_supply_not_found`. New `PUT /api/lng/pipeline-supplies/{supply_id}/outage-override`
+(GOVERNED, PORTFOLIO_WRITE, audited `lng.pipeline_outage_override`) takes `outage_mode`,
+`curtailed` ([gas day, MWh] pairs, at most 400) and `reason`; a day outside the supply's window or
+above its daily volume is 422 `curtailment_invalid`, an unknown mode 422 `outage_mode_invalid`.
+The notification of a changed recommended set is titled "Recommended options changed". The ETRM
+cargo schedule import takes the optional columns `laytime_hours`, `demurrage_rate_per_day`,
+`demurrage_currency` and `demurrage_terms`. Nothing is booked, traded, nominated or sent. Census:
+305 paths / 340 operations (+2 / +2 on 303 / 338). Design:
+`docs/engineering/Commercial-Intelligence-V3/17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md`.
+
 Additive 2026-11-25 (public tariffs and capacity windows, Commercial Intelligence V3 TAR-1, ADR
 Decision 34): three paths, three operations, all READ and read-only. New `GET /api/tariffs`
 (filters `publisher`, `facility`, `operator`, `direction` ENTRY|EXIT, `product`, `status`
@@ -201,6 +265,60 @@ are still served by `GET /api/market/opportunities`. `PUT /api/settings/notifica
 accepts the categories `opportunity` and `nomination`; a channel subscribed to `alert` keeps
 receiving both. Census unchanged: 282 paths / 315 operations. Design and budgets:
 `docs/engineering/Commercial-Intelligence-V3/15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md`.
+
+Additive 2026-11-25 (contracted before public, tariff years and source precedence, Commercial
+Intelligence V3 TAR-2): five paths, five operations, all READ and storing nothing. `GET
+/api/tariffs/years?facility=` (`direction`, `product`, `operator`, `as_of`; 422 without
+`facility`) answers `facility_id`, `as_of` and `years[]`, each with `tariff_year` (`label`,
+`convention`, `first_gas_day`, `last_gas_day`), `direction`, `product`, `firmness`, `operator`,
+`period_from`, `period_to`, the `INDICATIVE` and the `FINAL` version side by side (a version row
+as `GET /api/tariffs` returns it, or null), `versions`, `used` (the status a valuation as of
+`as_of` uses) and `used_version_id`. `GET /api/capacity/bookings` (`kind`
+entry|exit|lng_slot|regas|send_out|storage, `facility`, `as_of`) lists the firm's imported
+bookings in the caller's books as held at `as_of` (`booking_id`, `source_system`,
+`external_id`, `book_id`, `kind`, `facility_kind`, `facility_id`, `facility_name`, `operator`,
+`direction`, `product`, `firmness`, `acquired_via`, `first_gas_day`, `last_gas_day`,
+`quantity`, `quantity_unit`, `quantity_basis`, `price`, `price_unit`, `currency`,
+`price_recorded`, `counterparty`, `source_reference`, `recorded_at_utc`, `updated_at_utc`,
+`released_at_utc`). `GET /api/capacity/cost` (`kind` pipeline|terminal, `facility`; a pipeline
+needs `direction`, `first`, `last`, `mwh_per_day`, with `product` (default DAILY), `premium`,
+`operator`; a terminal needs `arrival`, `cargo_mwh`, with `product` (default spot); `as_of`)
+prices the requirement contracted before public and answers `layers[]` (`layer`
+contracted|public|not_held, `reference`, `quantity`, `unit`, `unit_cost`, `cost`, `currency`,
+`first_gas_day`, `last_gas_day`, `status`, and for a contracted layer `booking_id`,
+`acquired_via`, `contracted_price`, for a public one `status_basis`, `tariff_year`,
+`version_id`, `published_at` (null when the publisher states none), `recorded_at`,
+`how_bought`, `premium`, `public_price`, `source`), `covered`, `total_quantity`, `total_cost`
+(null unless complete: never zero), `unit_cost`, `currency`, `complete`, `indicative`,
+`precedence`, `order`, `order_source`, `sources[]` (every tier in order: `tier`, `label`,
+`used`, `quantity`, `reason`, `note`) and `issues` (also the envelope's warnings); refused
+inputs are 422 `capacity_cost_input_missing`, `period_too_long` (over 400 gas days) or
+`period_reversed`. `GET /api/pricing/fx-rate?from=&to=` (`as_of`, `context`, `rate_type`)
+resolves one FX rate through the firm's source order and answers `kind`, `context`, `as_of`,
+`value` (units of `to` per unit of `from`, or null), `used_tier`, `source`, `order`,
+`order_source` (`default`, `setting:<key>` or `calculation`) and `sources[]` (each tier with
+`used`, `reason` not_held|stale|not_covering|not_configured|not_entitled|not_tried|used,
+`note`, and for the tier used `value`, `source`, `reference`, `as_of`, `unit`, `method`).
+`GET /api/pricing/source-precedence` (`context`) answers `kinds[]` (`kind`, `context`, `order`,
+`order_source`, `tiers[]`), `institutions[]` (the firm's configured banks, no credential) and
+`live_feed_terms`. Additive fields elsewhere: tariff version rows (`GET /api/tariffs`) gain
+`tariff_year`, `status_rule`, `new` and `published_at_stated`, and their `status_basis` may be
+`nc_tar_tariff_in_force`, `nc_tar_yearly_auction_held` or `nc_tar_before_yearly_auction`
+(re-read as of the instant asked; the older `period_started` and `period_not_started` are
+re-read by the same rule); `GET /api/tariffs/publishers` rows gain `tariff_year`, `cadence` and
+`cadence_confirmed`; a route leg gains `indicative`, `version_id`, `version`, `tariff_year`,
+`status_basis`, `published_at`, `recorded_at`, `cost_basis` (public|contracted|contracted+public),
+`layers` and `breakdown`; a contract cost answer may have `basis` `contracted` or
+`contracted+public` with a `breakdown`; `POST /api/optimization/capacity` accepts optional
+`held_capacity_mwh` (default 0) and `held_cost_gbp`, and its result gains `held_capacity_mwh`,
+`held_cost_gbp` and `layers`; `PUT /api/settings/organisation` (ADMIN, audited
+`settings.organisation.update`) accepts `source_precedence` (`kind` or `kind@context` -> an
+ordered list of that kind's tiers) and `financial_institutions` (KEY -> name, contracted,
+provides, access file|manual|api, contexts, max_age_days; api needs `agreement_recorded`; a
+credential field is 422 `setting_invalid`; a null value removes a key); alerts may carry type
+`tariff_final_published`; the `tariff.changed` payload gains `tariff_year`, `published_at_utc`,
+`recorded_at_utc` and `new_final`. Nothing is booked, bid, nominated or sent. Census: 308 paths
+/ 343 operations (+5 / +5 on 303 / 338).
 
 Additive 2026-11-25 (portfolio disruption re-optimisation, Commercial Intelligence V3 LNG-3):
 four paths, four operations. `GET /api/lng/cargoes/{cargo_id}/disruption-options` (READ,
@@ -808,6 +926,7 @@ caller rather than additive.
 | `PUT /api/settings/organisation` | **A governed write, and `ai_features` is checked (2026-11-24, GOV-1).** The audit row is written in the same transaction; when it cannot be written the change is not stored and the call answers 503 `audit_unavailable` (before, the audit failure was swallowed). The row now carries `before_summary` and `after_summary`. An `ai_features` key that is not a registered AI use, or a value that is not a boolean, answers 422 `setting_invalid` | AI switches are a control; a change to one without its audit row is not allowed (P5) |
 | Every AI surface (`POST /api/analysis/explain`, `/brief`, `/ask`, `/query`, `POST /api/reports/market`, `/plan`, `/portfolio`, `POST /api/research/spreads/interpret`, `POST /api/monitoring/alerts/{alert_id}/analysis`, alert enrichment) | **A use the organisation switched off makes no provider call (2026-11-24, GOV-1).** The reader gets the rule text with basis `rule`, as when no provider is configured. When the settings store is configured but cannot be read, AI is off | A per-use kill switch (NIST AI RMF Manage 2.4) |
 | Capability calls made for a model: `POST /api/agent/research` runs and the MCP capability tools | **Refused outside the model tool allowlist (2026-11-24, GOV-1).** A capability the AI use does not list, that none of the caller's roles allows a model to call, or that is never called by a model (`dataset.export`, `review.record_analytical_decision`, `shadow.start`, `shadow.pause`, `shadow.resume`, `strategy.freeze_version`) is blocked with `PERMISSION_DENIED` and detail `ai_tool_not_allowed: ...`. The refusal is audited (`ai.tool.refused`). The same capability called directly by a person is unchanged | Bounded agency (OWASP LLM Top 10, excessive agency) |
+| `POST /api/capabilities/{capability_id}/invoke` and the MCP capability tools (`CapabilityResult`) | **Refusals traced, results checked, confirmation by a person only (2026-11-25, CODEX-1).** `execution_metadata` now names the capability, version, principal, agent run and argument hash on a `BLOCKED` result too, and carries `output_hash` on a success. A success whose data breaks the capability's declared `output_schema` is answered `BLOCKED` `INTERNAL_ERROR`. A call that ran past its declared `timeout_policy` carries a `TIMEOUT_OVERRUN` warning. `quality_state` is `NOT_ASSESSED` unless the handler checked its evidence (it was `VERIFIED` by default). `human_confirmation` counts only from a signed-in person: from the deployment token, a service account or a model acting for an AI use it is answered `HUMAN_CONFIRMATION_REQUIRED` with the reason, and confirmations and writing calls are audited (`governance.agent_capability`). A request with no identity is 401, as the app-wide dependency already answered; the route no longer falls back to a wildcard analyst. No field is removed or renamed | Human oversight comes from a human; honest provenance (NIST AI 600-1); fail closed |
 | Every report file (`format=csv`, `xlsx`, `pdf`) | **A file of licensed data without registered export terms is refused (2026-11-24, GOV-1, P6).** When the rows were read from a vendor-licensed family that is neither in the governance register nor covered by a current licence in the licence register, the file answers 403 `export_denied` with `licensed_families`. The JSON read of the same rows is unchanged | Fail-closed export policy (`ExportDecision`): a file leaves the platform |
 
 ## Non-Goals

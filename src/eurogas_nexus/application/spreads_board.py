@@ -107,7 +107,9 @@ def _route(holdings: Holdings, start: str, end: str, delivery: Delivery):
 
     currencies = {str(row.get("currency") or "").upper() for row in holdings.tariffs} - {""}
     fx = _fx_factors(holdings, currencies, "EUR", delivery)
-    return cheapest_route(start, end, delivery, holdings.tariffs, fx=fx), "ANNUAL"
+    return cheapest_route(start, end, delivery, holdings.tariffs, fx=fx,
+                          bookings=getattr(holdings, "bookings", ()),
+                          orders=getattr(holdings, "orders", None)), "ANNUAL"
 
 
 def _route_cost_eur(holdings: Holdings, route: Any, delivery: Delivery) -> float | None:

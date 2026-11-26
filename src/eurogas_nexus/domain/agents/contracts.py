@@ -173,7 +173,7 @@ class CapabilityResult(BaseModel):
     warnings: list[str] = Field(default_factory=list)
     blockers: list[str] = Field(default_factory=list)
     entitlement_state: str = "NOT_APPLICABLE"
-    quality_state: str = "VERIFIED"
+    quality_state: str = "NOT_ASSESSED"
     failure: CapabilityFailure | None = None
     execution_metadata: CapabilityExecutionMetadata = Field(
         default_factory=CapabilityExecutionMetadata
@@ -188,9 +188,16 @@ class CapabilityResult(BaseModel):
         data: Any,
         evidence_refs: list[str] | None = None,
         warnings: list[str] | None = None,
-        quality_state: str = "VERIFIED",
+        quality_state: str = "NOT_ASSESSED",
         entitlement_state: str = "NOT_APPLICABLE",
     ) -> CapabilityResult:
+        """A successful result.
+
+        ``quality_state`` is ``NOT_ASSESSED`` unless the handler checked its evidence and says
+        so (``VERIFIED``): a capability that computes on the caller's own inputs has verified
+        nothing (CODEX-1; it was ``VERIFIED`` by default before).
+        """
+
         return cls(
             status="SUCCESS",
             capability=capability,
@@ -235,6 +242,11 @@ class AgentInvocationContext(BaseModel):
     correlation_request_id: str | None = None
     human_confirmation: bool = False
     confirmation_note: str = ""
+    #: ``USER`` for a signed-in person, ``SERVICE`` for a deployment token or a service account
+    #: (``AuthenticatedPrincipal.principal_type``). Only a person may confirm a
+    #: ``HUMAN_CONFIRMATION`` capability (CODEX-1). The default is ``SERVICE`` so a context
+    #: nobody said was a person's cannot confirm; the API route sets it from the identity.
+    principal_type: str = "SERVICE"
     #: The registered AI use on whose behalf a model makes this call (GOV-1); ``None`` for a
     #: person or a script calling directly. When set, the role allowlist applies.
     ai_use: str | None = None

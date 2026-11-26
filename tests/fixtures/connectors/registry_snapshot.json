@@ -122,6 +122,14 @@
    "implemented": false,
    "note": "",
    "provider_id": "Weather"
+  },
+  {
+   "display_name": "Financial institution (the firm's own bank)",
+   "env_vars": [],
+   "file_env": null,
+   "implemented": false,
+   "note": "A live feed needs the firm's own agreement with the bank and its own credentials; none is connected in this build. Use the file import.",
+   "provider_id": "BANK"
   }
  ],
  "registered_sources": [
@@ -1853,6 +1861,47 @@
    "preview_substitute_status": null,
    "source_id": "src-bfix",
    "source_system": "BFIX",
+   "status": "registered",
+   "workflow_ready": false
+  },
+  {
+   "category": "fx",
+   "category_label": "FX",
+   "certification_allows_live": false,
+   "certification_stage": "unverified",
+   "connectivity_status": "registered",
+   "credential_last_test_status": null,
+   "credential_last_tested_at_utc": null,
+   "credential_provider_id": null,
+   "credential_requirements": [],
+   "credential_state": "not_required",
+   "credential_status": null,
+   "datasets": [
+    "bank-fx-rates",
+    "bank-interest-rates"
+   ],
+   "description": "The firm's own clearing or account bank's FX and interest rates, one institution per configured entry, imported from the firm's export (import contracts bank.fx_rates.v1 and bank.interest_rates.v1) or entered by hand. Used before published reference rates and the ECB. A live bank feed needs the firm's own agreement and credentials.",
+   "diagnostics": [],
+   "effective_last_success_at_utc": null,
+   "effective_record_count": 0,
+   "effective_source_system": "BANK",
+   "entitlement_scope": "licensed",
+   "export_restrictions": [
+    "license-controlled"
+   ],
+   "freshness_expectation_minutes": 1440,
+   "integration": "file_import",
+   "last_failure_at_utc": null,
+   "last_ingestion_message": null,
+   "last_ingestion_status": null,
+   "last_success_at_utc": null,
+   "live_record_count": 0,
+   "operational_status": "registered",
+   "preview_substitute_record_count": 0,
+   "preview_substitute_source_system": null,
+   "preview_substitute_status": null,
+   "source_id": "src-bank-rates",
+   "source_system": "BANK",
    "status": "registered",
    "workflow_ready": false
   }
@@ -4396,6 +4445,65 @@
    },
    "source_class": "public",
    "source_id": "src-bfix"
+  },
+  {
+   "access_mode": "file_upload",
+   "adapter_version": "unversioned",
+   "calendar": "always_open",
+   "certification_required": false,
+   "circuit_policy": {
+    "degraded_after_failures": 3,
+    "open_after_failures": 6,
+    "recovery_probe_after_seconds": 900
+   },
+   "credential_fields": [],
+   "dataset": "bank-fx-rates",
+   "datasets": [
+    "bank-fx-rates",
+    "bank-interest-rates"
+   ],
+   "description": "The firm's own clearing or account bank's FX and interest rates, one institution per configured entry, imported from the firm's export (import contracts bank.fx_rates.v1 and bank.interest_rates.v1) or entered by hand. Used before published reference rates and the ECB. A live bank feed needs the firm's own agreement and credentials.",
+   "enabled_default": false,
+   "entitlement_scope": "public",
+   "freshness_policy": {
+    "basis": "observed_at_utc",
+    "late_after_minutes": 2880,
+    "normal_max_age_minutes": 1440,
+    "stale_after_minutes": 4320
+   },
+   "integration": "file_import",
+   "licensed_data": {
+    "api_exposure_allowed": false,
+    "export_allowed": false,
+    "llm_allowed": false,
+    "logging_allowed": false,
+    "raw_retention_allowed": false,
+    "retention_note": ""
+   },
+   "provider": "BANK",
+   "rate_limit_policy": {
+    "interval_seconds": 60.0,
+    "max_concurrency": 1,
+    "max_requests_per_interval": null,
+    "min_spacing_seconds": 0.0
+   },
+   "retry_policy": {
+    "backoff_seconds": 30.0,
+    "jitter": true,
+    "max_delay_seconds": 900.0,
+    "retry_max": 3
+   },
+   "schedulable": false,
+   "schedule": {
+    "daily_at": null,
+    "interval_seconds": null,
+    "market_relative_offset_seconds": null,
+    "missed_policy": "CATCH_UP_LIMITED",
+    "schedule_type": "EXTERNAL",
+    "timezone": "UTC"
+   },
+   "source_class": "public",
+   "source_id": "src-bank-rates"
   }
  ]
 }

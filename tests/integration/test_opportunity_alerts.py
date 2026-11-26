@@ -278,9 +278,16 @@ def test_two_workers_queue_and_send_a_notification_once_on_postgres() -> None:
         a.close()
         b.close()
     finally:
+        from eurogas_nexus.db.models import NotificationChannelRecord
+
         with Session(engine) as session:
             session.query(NotificationOutboxRecord).filter(
                 NotificationOutboxRecord.dedupe_key == key
+            ).delete()
+            # The channel takes every category: left behind, a later PostgreSQL test that
+            # dispatches would also send to it.
+            session.query(NotificationChannelRecord).filter(
+                NotificationChannelRecord.channel_id == "c"
             ).delete()
             session.commit()
         engine.dispose()

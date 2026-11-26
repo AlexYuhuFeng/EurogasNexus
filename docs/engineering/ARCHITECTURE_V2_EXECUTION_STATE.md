@@ -6,6 +6,104 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-26 — Commercial Intelligence V3, LNG-4: options with consequences, full cost, substitute supply, demurrage, REMIT
+
+- `domain/lng/disruption.py`: every option listed and ranked with its flags
+  (`contract_breach` with the contract and its liquidated damages or "penalty not held";
+  `disrupts_normal_cargo`; `physically_possible`), a recommended set (clean, best expected,
+  overall) with a reason for each; a breach option can be chosen. Full cost: P&L = direct P&L
+  - opportunity cost (displaced third-party calls, knock-on on own cargoes, capacity and
+  storage forgone), each arithmetic line with its `sources` and `basis`. Spot slots and
+  substitute supply (upstream swing, hub gas plus transport, storage, merit order) are options.
+- `application/lng_demurrage.py`: demurrage from the Confirmation Notice, voyage terms or master
+  agreement in its currency; one FX function `_fx_rate` (ECB default, WMR or BFIX when
+  entitled, or a rate entered by hand; no fetch, no hard-coded rate).
+  `application/lng_substitutes.py`: substitute sources and one transport function
+  `_transport_cost`. `application/pipeline_outages.py`: REMIT messages linked to pipeline
+  supply in the `lng_disruption` consumer on `outage.published`, a manual override.
+- Migration `0087_lng4_options_demurrage_outages.py` (revision `0087_lng4_options_demurrage`,
+  32-character version column; `down_revision` `0086_lng_disruption`), ADR Decision 37: tables
+  `pipeline_outage_links` and `lng_berth_calls`, nullable columns on seven tables.
+  `DB_SCHEMA_REVISION` and the 13 pinned head literals moved.
+- Routes: additive fields and FX query on the three reads and the choose body; new `GET
+  /api/lng/pipeline-supplies/{id}/outage-links` and `PUT .../outage-override` (governed,
+  audited `lng.pipeline_outage_override`). Census 305 paths / 340 operations. The ETRM cargo
+  schedule import takes `laytime_hours`, `demurrage_rate_per_day`, `demurrage_currency`,
+  `demurrage_terms`.
+- Web: the Options section shows flags, recommended reasons, direct and opportunity cost,
+  consequences, a breakdown with each line's sources, an FX picker, demurrage in its
+  currency and the REMIT links; EN and ZH. Demo D1: the Huelva swap is a flagged breach option
+  and PVB hub gas covering it is a further option.
+- Design: [17](Commercial-Intelligence-V3/17_LNG_PORTFOLIO_DISRUPTION_OPTIMISATION.md)
+  section 9. Fixed on the way: a disruption with no workable option was announced as
+  "Disruption cleared"; it is now "No workable option", and "cleared" follows only the end of an
+  open disruption. Not yet: a firm storage contract type (no storage source read), carbon and
+  electricity (CE-1). Open for the owner: berth priority, counting third-party demurrage, the
+  spare-slot value, the largest-link REMIT rule.
+
+## 2026-11-25 — Commercial Intelligence V3, CODEX-1: the Codex assessments reviewed
+
+- Reviewed `research/agentic-decision-architecture` (five Codex commits on `main@6d21b89`) against
+  the innovation branch; verdicts and the list for the owner in
+  [18](Commercial-Intelligence-V3/18_CODEX_ASSESSMENT_REVIEW.md). The research branch is unchanged.
+- `application/agents/runtime.py`: every result, refusals included, carries capability, version,
+  principal, agent run and argument hash; a success carries `output_hash` and is refused when it
+  breaks its declared `output_schema`; `TIMEOUT_OVERRUN` when a handler runs past its
+  `timeout_policy`; a `HUMAN_CONFIRMATION` capability runs only on a signed-in person's own
+  confirmation (not a model, the deployment token or a service account); confirmations and
+  writing calls audited (`governance.agent_capability`). `CapabilityResult` quality defaults to
+  `NOT_ASSESSED`. `AgentInvocationContext.principal_type` (default `SERVICE`).
+- `api/routes/public/agents.py`: no identity is 401, not a wildcard analyst.
+- `streaming/contracts.py`: `MarketChangeV1`, the versioned wire form of a DATA-1 change digest
+  (key `event_key`; unknown versions and extra fields refused). No broker or dependency. The
+  research branch's `IngestionInvalidationV1` is not built (the outbox already records
+  `source.ingested`).
+- AI gate: AGENT-EVAL-031 to 033; `agent_research` and `mcp_tools` re-recorded (set hash, cases).
+- No route, migration, ADR or census change (303 paths / 338 operations).
+  Not built, for the owner: a broker, TimescaleDB, pgvector, Iceberg, Temporal, live model
+  routing, MCP delegated identity (C8).
+
+## 2026-11-25 — Commercial Intelligence V3, TAR-2: contracted before public, tariff years, one source order
+
+- Point in time: a figure valued as of T uses the tariff version held at T, final if a final
+  was held, else indicative and flagged. A row with no stated status (ENTSOG) takes NC TAR
+  Art. 29 at T (`domain/tariffs/tariff_year.py`: in force, or the yearly auction that ran at
+  it held; else indicative), re-derived on every read; new bases `nc_tar_tariff_in_force`,
+  `nc_tar_yearly_auction_held`, `nc_tar_before_yearly_auction`.
+- Tariff years: each publisher's convention and cadence in `domain/tariffs/publishers.py`
+  (unconfirmed ones say so) and the registry document; `tariff_versions.tariff_year`; both
+  versions per year side by side (`application/tariff_book.tariff_years`); a period across two
+  years splits per gas day; a newly final version is flagged in `tariff.changed`
+  (`new_final`, priority 1) and raises `tariff_final_published`. ENTSOG polled hourly in wider
+  windows, 6-hourly otherwise (the hourly ENTSOG job is the floor).
+- Capacity the firm holds: migration `0088_tar2_capacity_bookings` (on `0086_lng_disruption`;
+  0087 left free), ADR Decision 38 (37 reserved): table `capacity_bookings`, import contract
+  `etrm.capacity_bookings.v1`. `domain/tariffs/precedence.split` prices contracted, then
+  public (how the rest would be bought: DA/WD reserve plus premium, FCFS at terminals), else
+  not held (never zero); `application/capacity_costs.py` for pipeline and terminal; applied in
+  route pricing (`RouteLeg.cost_basis`, `layers`), contract costs, the capacity optimiser
+  (`held_capacity_mwh`) and LNG-3 (booked send-out and storage as `contracted` offers ranked
+  first).
+- One resolver, `domain/pricing/source_precedence.py` (FX, interest, capacity cost, tariff,
+  commodity price): default orders, the firm's order per kind and `kind@context` in the
+  organisation setting `source_precedence` (admin, validated, audited); every result lists all
+  tiers in order with the one used marked. `application/source_precedence.resolve_fx_rate(
+  session, from_ccy, to_ccy, as_of, context)` and `resolve_interest_rate`.
+- Financial-institution connector type: registry entry `src-bank-rates` (no credential), the
+  setting `financial_institutions` (credential fields refused; `api` access only with the
+  firm's agreement recorded, still unconnected), contracts `bank.fx_rates.v1` and
+  `bank.interest_rates.v1` (rows `BANK:<key>`).
+- Routes (READ): `GET /api/tariffs/years`, `/api/capacity/bookings`, `/api/capacity/cost`,
+  `/api/pricing/fx-rate`, `/api/pricing/source-precedence`. Census 308 paths / 343 operations.
+- Web: Sources → Infrastructure: the tariff book shows each row's tariff year and a new mark,
+  and a facility's years with both versions; a capacity cost panel (bookings, a cost by layer
+  with status, tariff year and publication date, the sources in order, the order in force and
+  an FX check), EN and ZH, design tokens.
+- Open: booking content history (an update overwrites), a re-sent interest rate overwrites, LNG-3
+  takes the first-ranked offer per kind (no spill beyond a booking), no maker-checker on the
+  settings, bank rows are not served by the general FX reads for database identities (entitlement
+  family unknown).
+
 ## 2026-11-25 — Commercial Intelligence V3, LNG-3: a disruption re-optimises the portfolio (branch `wip/lng3`)
 
 - `domain/lng/disruption.py` (pure, deterministic, no solver): a late cargo or a curtailed

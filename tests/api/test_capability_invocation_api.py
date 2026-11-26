@@ -33,6 +33,7 @@ from eurogas_nexus.domain.agents.contracts import (
     CapabilityResult,
     DeterminismClass,
 )
+from eurogas_nexus.security.identity import AuthenticatedPrincipal
 
 #: A dormant capability (design basis 2, I.3): its routes are served for these tests only.
 pytestmark = pytest.mark.deferred_capabilities
@@ -90,10 +91,26 @@ def test_a_confirmation_capability_refuses_without_the_flag(monkeypatch) -> None
     assert data["failure"]["code"] == "HUMAN_CONFIRMATION_REQUIRED"
 
 
+def _person() -> AuthenticatedPrincipal:
+    return AuthenticatedPrincipal(
+        principal_id="user:analyst-1",
+        name="Analyst One",
+        principal_type="USER",
+        role="ANALYST",
+        status="ACTIVE",
+        data_scopes=("*",),
+        roles=("ANALYST",),
+    )
+
+
 def test_the_callers_confirmation_reaches_the_runtime(monkeypatch) -> None:
     # The flag is what the runtime reads; before the fix it never arrived, so the capability
     # could not be invoked at all while the caller was told to confirm what it had confirmed.
+    # The caller here is a signed-in person (CODEX-1: only a person's confirmation counts).
     client, capability_id = _client(monkeypatch, ActionPolicy.HUMAN_CONFIRMATION)
+    monkeypatch.setattr(
+        "eurogas_nexus.api.dependencies.identity.legacy_public_token_principal", _person
+    )
 
     refused = client.post(f"/api/capabilities/{capability_id}/invoke", json={"arguments": {}})
     confirmed = client.post(
@@ -110,6 +127,29 @@ def test_the_callers_confirmation_reaches_the_runtime(monkeypatch) -> None:
     # runs and the answer is the capability's own.
     assert confirmed.json()["data"]["status"] == "SUCCESS"
     assert confirmed.json()["data"]["failure"] is None
+    metadata = confirmed.json()["data"]["execution_metadata"]
+    assert metadata["principal_id"] == "user:analyst-1"
+    assert metadata["capability_version"] == "v1" and metadata["output_hash"]
+
+
+def test_the_deployment_token_cannot_confirm(monkeypatch) -> None:
+    # CODEX-1: the static deployment token is a service principal, not a person. Its
+    # confirmation is refused with the same stable code and a detail that says why.
+    client, capability_id = _client(monkeypatch, ActionPolicy.HUMAN_CONFIRMATION)
+
+    response = client.post(
+        f"/api/capabilities/{capability_id}/invoke",
+        json={"arguments": {}, "human_confirmation": True, "confirmation_note": "ok"},
+    )
+
+    data = response.json()["data"]
+    assert data["status"] == "BLOCKED"
+    assert data["failure"]["code"] == "HUMAN_CONFIRMATION_REQUIRED"
+    assert "signed-in person" in data["failure"]["detail"]
+    # The refusal is traced like a run: who, which capability and version, which arguments.
+    assert data["execution_metadata"]["capability_id"] == capability_id
+    assert data["execution_metadata"]["capability_version"] == "v1"
+    assert data["execution_metadata"]["input_hash"]
 
 
 def test_a_human_only_capability_is_never_invoked_even_with_confirmation(monkeypatch) -> None:
@@ -132,7 +172,7 @@ def test_the_context_carries_the_confirmation_and_the_note() -> None:
     from eurogas_nexus.api.routes.public import agents as agents_route
 
     class _State:
-        pass
+        identity = _person()
 
     class _Request:
         state = _State()
@@ -143,8 +183,27 @@ def test_the_context_carries_the_confirmation_and_the_note() -> None:
     silent = agents_route._principal(_Request())
 
     assert (confirmed.human_confirmation, confirmed.confirmation_note) == (True, "note")
+    assert confirmed.principal_type == "USER"
     # A caller that says nothing is not treated as having confirmed.
     assert (silent.human_confirmation, silent.confirmation_note) == (False, "")
+
+
+def test_a_request_without_an_identity_is_refused_not_given_an_analyst() -> None:
+    # CODEX-1: the route used to invent an analyst with every data scope when no identity was
+    # attached. It fails closed now.
+    from fastapi import HTTPException
+
+    from eurogas_nexus.api.routes.public import agents as agents_route
+
+    class _State:
+        pass
+
+    class _Request:
+        state = _State()
+
+    with pytest.raises(HTTPException) as refused:
+        agents_route._principal(_Request(), human_confirmation=True)
+    assert refused.value.status_code == 401
 
 
 def test_an_unknown_capability_is_a_blocked_result_not_a_crash(monkeypatch) -> None:

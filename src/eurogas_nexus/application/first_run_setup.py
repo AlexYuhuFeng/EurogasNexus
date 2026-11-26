@@ -79,6 +79,7 @@ SOURCE_STEPS: dict[str, str | None] = {
     "src-nyfed": "fx_rates",
     "src-wmr": "fx_rates",
     "src-bfix": "fx_rates",
+    "src-bank-rates": "fx_rates",  # TAR-2: the firm's own bank (file import)
     # AI.
     "src-deepseek": "ai",
     # Simulated demo price sources: never part of a customer's set-up.

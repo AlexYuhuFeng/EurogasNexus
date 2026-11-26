@@ -25,8 +25,9 @@ already stores (``demo:history``), without drawing from the seed's shared random
 * **Today's board.** On gas day D the board quotes D's prompt (WD = gas day D, DA the next
   quoted day: Monday's on a Friday), from each hub's newest stored month-ahead carried
   forward; WD and DA are written at every roll-forward with a small intraday move and a
-  running "last" from their own stream (``demo-market-live-v1``), unless the demo exchange
-  feed writes them (``EUROGAS_NEXUS_DEMO_EXCHANGE_FEED``).
+  running "last" from their own stream (``demo-market-live-v1``), except TTF and NBP while
+  the demo exchange feed writes them (on unless ``EUROGAS_NEXUS_DEMO_EXCHANGE_FEED=off``,
+  in its trading hours).
 * **Quotes.** Two-sided, around the mid, with a hub- and tenor-dependent width, on the hub's
   tick in its native quotation (NBP in pence per therm, the others in EUR/MWh).
 * **Noise.** Each draw comes from ``random.Random`` seeded by a name, hub and day
@@ -179,8 +180,13 @@ PLANTED_CASES: tuple[PlantedCase, ...] = (
         "normally (Rotterdam, Huelva with a firm daily delivery), a spare Dunkerque slot, "
         "illustrative Zeebrugge borrow, send-out, storage and interruptible offers and a "
         "pipeline supply at ZTP. The re-optimisation finds Meridian disrupted, values wait, "
-        "borrow, buy, divert and both swaps, and marks the Huelva swap infeasible. On every "
-        "other day the book is not seeded and no supply is disrupted.",
+        "borrow, buy, divert and both swaps. LNG-4: the Huelva swap is listed as an option "
+        "flagged as breaking the Iberia firm delivery (penalty not held), not excluded; the "
+        "Dunkerque divert carries the demurrage it causes another user's carrier due at that "
+        "berth and the slot's release value forgone, beside a Montoir spot slot; PVB hub gas "
+        "covers the Iberia shortfall as a further option; Meridian's demurrage is in USD, "
+        "converted at the reader's FX choice. On every other day the book is not seeded and "
+        "no supply is disrupted.",
     ),
 )
 

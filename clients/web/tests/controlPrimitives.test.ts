@@ -116,7 +116,7 @@ test("Field wires label, hint and error to the control; Select is the native lis
   const html = render(
     h(Field, { label: "Summary", hint: "One line", error: "Too short", children: h("input", { id: "summary", defaultValue: "" }) }),
   );
-  assert.match(html, /<label class="ds-field-label" for="summary">Summary<\/label>/);
+  assert.match(html, /<label class="ds-field-label" for="summary" title="Summary">Summary<\/label>/);
   assert.match(html, /<input id="summary" aria-describedby="summary-hint summary-error" aria-invalid="true"/);
   assert.match(html, /<small id="summary-error" class="ds-field-error" role="alert">Too short<\/small>/);
   const select = render(
@@ -427,11 +427,12 @@ test("Today: four rows, simulated marked beside each value, empty sections give 
   assert.match(html, /data-spread="NBP–TTF" data-empty-code="not_convertible"/);
   assert.doesNotMatch(html, /Withheld/i);
   // The NBP price carries its unit and the simulated marker inside the value.
-  assert.match(html, /<strong[^>]*>33\.662<small class="metric-strip-unit key-figure-unit">GBP\/MWh<\/small><span class="ds-cell-mark" data-state="simulated"/);
+  // A price is live: its figure sits in the flash span, the glyph's place kept before a tick.
+  assert.match(html, /<strong[^>]*><span class="ds-cell-flash">33\.662<span class="ds-direction" data-direction="none" aria-hidden="true"><\/span><\/span><small class="metric-strip-unit key-figure-unit">GBP\/MWh<\/small><span class="ds-cell-mark" data-state="simulated"/);
   assert.match(html, /−0\.082/);
   // A real (not simulated) figure carries no marker. A position reads by its sign in neutral
   // ink: no long/short (gain-like) colour class on the value.
-  assert.match(html, /<strong[^>]*>\+46,000<small class="metric-strip-unit key-figure-unit">MWh\/d<\/small><\/strong>/);
+  assert.match(html, /<strong[^>]*><span class="ds-cell-flash">\+46,000<span class="ds-direction" data-direction="none" aria-hidden="true"><\/span><\/span><small class="metric-strip-unit key-figure-unit">MWh\/d<\/small><\/strong>/);
   assert.doesNotMatch(html, /<strong class="is-(long|short)"/);
   // Method sits on the label line as a quiet link, so the figure keeps one height.
   assert.match(html, /<span class="key-figure-head"><span id="[^"]+" title="today\.net_today">today\.net_today<\/span><span class="key-figure-notes"><button[^>]*class="ds-inline-link"[^>]*data-method="net_position"/);

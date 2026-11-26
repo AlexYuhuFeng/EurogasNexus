@@ -3,6 +3,7 @@ import { useCallback, useEffect, useState } from "react";
 import { api, type TariffPublicationDTO } from "@/api/client";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 import { DataGrid } from "@/components/ui";
+import { useLiveTopics } from "@/app/hooks/useLive";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -21,6 +22,8 @@ export function TariffPublicationsPanel({ t }: { t: Translate }) {
     api.tariffPublications().then((response) => setRows(response.data.rows)).catch(() => setRows(null));
   }, []);
   useEffect(load, [load]);
+  // A publication's change (a TSO's page moved, a final arrived) shows without a reload.
+  useLiveTopics(["tariffs"], load, { minIntervalMs: 5_000 });
   const fail = (caught: unknown) => setMessage(caught instanceof Error ? caught.message : String(caught));
   const save = (body: typeof EMPTY, markReviewed = false) =>
     api.saveTariffPublication(body.publication_id.trim(), {

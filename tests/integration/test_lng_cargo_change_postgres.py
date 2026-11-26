@@ -33,6 +33,7 @@ from eurogas_nexus.application.notifications import dispatch
 from eurogas_nexus.db.models import (
     LngCargoHedgeRecord,
     LngCargoRecord,
+    LngDisruptionRunRecord,
     LngTerminalTermsRecord,
     MarketEventRecord,
     MonitoringAlertRecord,
@@ -93,7 +94,9 @@ def desk():
         ))
         session.add(RegasSlotRecord(
             slot_id=f"slot-{tag}", terminal_name=terminal,
-            window_start_utc=eta - timedelta(days=1), window_end_utc=eta + timedelta(days=9),
+            # The slot opens on the planned ETA and holds the whole cargo, so the plan fits and
+            # only the delay disrupts it (LNG-3 re-optimises a cargo due after its slot opens).
+            window_start_utc=eta, window_end_utc=eta + timedelta(days=10),
             send_out_gwh_d=100.0, cargo_id=cargo, book_id=book, source_system="ETRM",
             source_reference="etrm:slot", updated_at_utc=now - timedelta(days=1),
         ))
@@ -129,6 +132,12 @@ def desk():
         ).delete(synchronize_session=False)
         session.query(NotificationOutboxRecord).filter(
             NotificationOutboxRecord.dedupe_key.like(f"cargo:{cargo}:%")
+        ).delete(synchronize_session=False)
+        session.query(NotificationOutboxRecord).filter(
+            NotificationOutboxRecord.dedupe_key.like(f"lng_disruption:lng-pg-{tag}:%")
+        ).delete(synchronize_session=False)
+        session.query(LngDisruptionRunRecord).filter(
+            LngDisruptionRunRecord.book_id == f"lng-pg-{tag}"
         ).delete(synchronize_session=False)
         session.query(MonitoringAlertRecord).filter(
             MonitoringAlertRecord.entity_id == cargo
@@ -197,6 +206,23 @@ def _queued(engine, cargo: str, *, withdrawn: bool) -> float:
     raise AssertionError("no notification for every role within 30 s")
 
 
+def _disruption_queued(engine, book: str, count: int) -> None:
+    """Wait until LNG-3's re-optimisation has queued ``count`` notices for the book (it runs
+    in the same worker pass, after or before the LNG-2 consumer)."""
+
+    deadline = time.perf_counter() + 30
+    with Session(engine) as session:
+        while time.perf_counter() < deadline:
+            session.expire_all()
+            queued = session.query(NotificationOutboxRecord).filter(
+                NotificationOutboxRecord.dedupe_key.like(f"lng_disruption:{book}:%")
+            ).count()
+            if queued >= count:
+                return
+            time.sleep(0.02)
+    raise AssertionError(f"{count} disruption notices for {book} not queued within 30 s")
+
+
 def _send(engine) -> dict[str, list]:
     sent: dict[str, list] = {}
     with Session(engine) as session:
@@ -218,25 +244,49 @@ def test_a_late_cargo_reaches_each_role_through_the_listen_worker(desk) -> None:
         # The vessel feed reports the cargo four days late: every role is told.
         committed = _import_eta(engine, cargo, eta + timedelta(days=4), "AIS", "low")
         queued_at = _queued(engine, cargo, withdrawn=False)
+        _disruption_queued(engine, f"lng-pg-{tag}", 3)
         sent = _send(engine)
         delivered_at = time.perf_counter()
         report = json.loads(worker.stdout.readline() or "{}")
         assert report.get("woken") is True  # drained on the commit's notice, not the timer
         assert report["batches"][0]["consumer"] == CONSUMER_NAME
-        assert {name: len(items) for name, items in sent.items()} == {
+        # LNG-2's message reaches every role. Four days late, the cargo's only option (stay and
+        # absorb) cannot physically happen in this book (the tank overruns its storage right
+        # and 400,000 MWh has no send-out right left), so LNG-3's re-optimisation also tells
+        # the trader, the scheduler and the desk head that no option is workable; it is never
+        # announced as cleared. Risk is not on the disruption routes.
+        disruption = ("trader", "scheduler", "desk_head")
+        workable = {name: [m for m in items if m.title.startswith("No workable option")]
+                    for name, items in sent.items()}
+        assert {name: len(items) - len(workable[name]) for name, items in sent.items()} == {
             f"{role}-{tag}": 1 for role in ROLES
         }
-        assert sent[f"trader-{tag}"][0].title.startswith("Hedges no longer match Aurora")
+        assert {name: len(items) for name, items in workable.items()} == {
+            f"{role}-{tag}": int(role in disruption) for role in ROLES
+        }
+        assert sent[f"trader-{tag}"][0].title.startswith("Hedges no longer match Aurora") or (
+            sent[f"trader-{tag}"][1].title.startswith("Hedges no longer match Aurora")
+        )
+        assert not any("cleared" in m.title for items in sent.values() for m in items)
+        (note,) = [m for m in sent[f"trader-{tag}"] if m.title.startswith("No workable option")]
+        assert note.title == "No workable option: Aurora"
+        assert "no option meets the hard constraints" in note.body
 
         # The master corrects the ETA back to the plan: every message is withdrawn. The worker
         # has now loaded the cargo modules, so this is the warm figure.
         corrected = _import_eta(engine, cargo, eta, "master_notice", "high")
         withdrawn_at = _queued(engine, cargo, withdrawn=True)
+        _disruption_queued(engine, f"lng-pg-{tag}", 6)
         withdrawn = _send(engine)
         assert json.loads(worker.stdout.readline() or "{}").get("woken") is True
-        assert {name: [m.title.split(":")[0] for m in items]
+        # LNG-2 withdraws every message; the disruption that was open is now cleared, and
+        # the roles on the disruption routes hear that once.
+        assert {name: sorted(m.title.split(":")[0] for m in items)
                 for name, items in withdrawn.items()} == {
-            f"{role}-{tag}": ["Withdrawn"] for role in ROLES
+            f"{role}-{tag}": sorted(
+                ["Withdrawn"] + (["Disruption cleared"] if role in disruption else [])
+            )
+            for role in ROLES
         }
 
         cold, delivered = queued_at - committed, delivered_at - committed

@@ -376,7 +376,91 @@ The engine is about 2 ms per option (112 options in 0.22 s; the 256 cap about 0.
 | Markdown links | `python scripts/ci/check_markdown_links.py` | All local links resolve |
 | Web | `npx tsc --noEmit -p .`; `npm test` (in `clients/web`) | clean; 1,394 tests, 1,391 passed, 3 skipped, 0 failed (5 new in `disruptionOptionsModel.test.ts`); token lint 43 of 44 stylesheets clean, baseline unchanged |
 
+## CODEX-1 the Codex assessments reviewed (2026-11-25)
+
+Verdicts in [18](18_CODEX_ASSESSMENT_REVIEW.md). Codex's own measurements on the research
+branch, quoted and not re-run here (no model was called): the evidence-gated workflow costs
+about 74 µs at the median over direct engine calls (92.34 µs against 18.09 µs, 3,000
+iterations); the follow-up planner on two local models found a feasible follow-up in 3 of 9
+cases, as fixed order did, against 9 of 9 for a deterministic purpose rule, at 1,157 ms and
+2,254 ms median.
+
+| Run | Command | Result |
+| --- | --- | --- |
+| CODEX-1 tests | `pytest tests/unit/test_codex1_runtime_controls.py tests/streaming tests/api/test_capability_invocation_api.py tests/api/test_agents_api.py tests/evals/test_agent_evals.py` | all passed (15 new runtime cases, 11 new streaming cases, 4 new agent-evaluation tests, 2 new route cases) |
+| AI gate | `python scripts/ai/ai_gate.py` | passes; `agent_research` and `mcp_tools` re-recorded for the evaluation set (33 cases; prompts and fingerprints unchanged) |
+| Evaluations | `pytest tests/evals` | 253 passed |
+| Contract, docs and streaming (census 303 paths / 338 operations, unchanged) | `pytest tests/contract tests/docs tests/streaming` | 619 passed, 12 skipped |
+| Full serial run | `pytest tests/unit tests/domain tests/security tests/evals tests/db tests/sdk tests/release tests/integration tests/api` | 6,263 passed, 253 skipped (PostgreSQL and other preconditions), 0 failed |
+| Lint | `ruff check src tests scripts alembic` | All checks passed |
+| Markdown links | `python scripts/ci/check_markdown_links.py` | All local links resolve |
+
+No migration and no storage were added, so no PostgreSQL run was needed; the web client is
+unchanged.
+
+## TAR-2 contracted before public, tariff years and source precedence (2026-11-25)
+
+| What | Command | Result |
+| --- | --- | --- |
+| TAR2-1 to TAR2-9 (status as of T, tariff years, new finals, bookings, the split, its uses, the resolver, the bank connector type, the reads) | `pytest tests/domain/test_tar2_tariff_year_and_precedence.py tests/unit/test_tar2_capacity_costs.py tests/api/test_tar2_api.py` | 25 + 16 + 6 passed |
+| Worked example, pipeline | `test_long_term_capacity_covers_part_and_the_rest_is_priced_at_the_day_ahead_reserve`, `test_bookings_and_the_capacity_cost_read_name_layers_versions_and_sources` | ITP-1 exit, January 2027, 100 MWh/d: booking LT-7 (2,500 kWh/h = 60 MWh/d at 3.65 EUR/(kWh/h)/y = 0.416667 EUR per MWh/d a day) 1,860 MWh for 775.00 EUR; the other 40 MWh/d at the day-ahead reserve price (0.0125 EUR/(kWh/h)/d = 0.520833) plus 0.05 premium, final, GY 2026/27, 1,240 MWh for 707.83 EUR; total 1,482.83 EUR |
+| Worked example, LNG slot | `test_a_slot_booked_at_auction_prices_before_the_first_come_first_served_rate` | slot SLOT-3 bought at auction for March 2027 at 450,000 EUR: a 12 March arrival costs 450,000 EUR (contracted); a 12 April arrival takes the first-come-first-served public rate, 520,000 EUR, final (reviewed), CY 2027, with the contracted tier `not_covering` |
+| Tariff, capacity, route, contract-cost, optimiser, LNG, scheduler, import-contract and source suites, the demo planted cases | `pytest` the 85 files under `tests/unit`, `tests/domain`, `tests/api`, `tests/integration`, `tests/db` whose names hold tariff, capacity, optimi, lng, route, contract_cost, scheduler, tar2, spreads, desk_today, planted, import_contract or source (`tests/integration/test_demo_planted_cases.py` included) | 912 passed, 7 skipped |
+| Full serial suite | `pytest tests/unit tests/domain tests/security tests/evals tests/db tests/sdk tests/release tests/integration tests/api` (no PostgreSQL URL) | 6,286 passed, 253 skipped, 3 failed: three registry counts that the new connector moves (43 sources; `BANK` in the fx category), fixed in `84b4988` and re-run (61 passed) |
+| Contract, census, permissions, reachability and docs gates | `pytest tests/contract tests/docs` | 605 passed, 12 skipped; census 308 paths / 343 operations |
+| TAR-2 on PostgreSQL 16 (migration 0088) | store at `0086_lng_disruption`: `alembic upgrade head` (table `capacity_bookings`, column `tariff_versions.tariff_year`), `downgrade -1` (both gone), `upgrade head`; `pytest tests/integration/*postgres*.py tests/unit/test_postgres_native_schema_pipeline.py tests/db` with `RUNTIME_STORE_DATABASE_URL` and `EUROGAS_NEXUS_TEST_POSTGRES_URL` set | migration up, down, up clean; 255 passed, 16 skipped, 1 failed: `test_lng_cargo_change_postgres.py::test_a_late_cargo_reaches_each_role_through_the_listen_worker` (each role also receives LNG-3's "Disruption cleared" message); it fails the same way at `85d59f1`, before TAR-2 |
+| Web | `npx tsc --noEmit -p .`; `npm test` | clean; 1,416 tests, 1,413 passed, 0 failed (`capacityCostModel.test.ts` new; CSS token lint, locale and date-input gates pass) |
+| Lint | `ruff check src tests scripts alembic` | clean |
+
+## LNG-4 options with consequences, full cost, substitute supply, demurrage, REMIT (2026-11-26)
+
+The owner's scenario at full cost (06, "LNG-4"), through the store on SQLite and PostgreSQL,
+every figure illustrative. Two days late, EUR against the plan:
+
+| Option | Expected | Direct | Opportunity | Flags | Rank |
+| --- | --- | --- | --- | --- | --- |
+| Borrow in tank | -20,000 | -20,000 | 0 | none | 1, recommended `clean` |
+| Buy send-out | -36,000 | -36,000 | 0 | none | 2 |
+| Stay, absorb | -279,000 | -279,000 | 0 | none | 3 |
+| Divert to Dunkerque | -362,400 | -187,000 | 175,400 | none | 4 |
+| Swap with GATE-1 | +35,000 | +35,000 | 0 | moves GATE-1 | 5, recommended `best_expected` |
+| Swap with HUE-1, Cepsa covered with PVB gas | -215,000 | -215,000 | 0 | moves HUE-1 | 6 |
+| Swap with HUE-1 | -215,000 | -215,000 | 0 | breaks Cepsa (50,000 MWh short on 24 Jan, penalty not held); moves HUE-1 | 7 |
+
+The diversion's opportunity cost: the third-party carrier waits 48 h against 24 h of laytime
+(65,000 EUR) and boils off 2,000 MWh at PEG 30.20 (60,400 EUR); the spare slot's release value
+forgone (50,000 EUR). GATE-1's 77,000 USD/day at the ECB fix of 2027-01-19 is 70,000 EUR/day.
+Demo D1 (24 December): the Huelva swap is listed with `contract_breach` (45,000 MWh short on
+28 Dec, penalty not held), PVB hub gas covering it ranks just above it, the spot slot at
+Montoir ranks first (+371,317 EUR), and Meridian's 76,000 USD/day converts at the simulated
+demo rate (1.087, 2026-12-23) to 69,917 EUR/day only with demo marks on.
+
+| Run | Command | Result |
+| --- | --- | --- |
+| Full serial suite (before `2bdd6e8`) | `pytest tests/unit tests/domain tests/security tests/evals tests/db tests/sdk tests/release tests/integration tests/api` | 6,283 passed, 254 skipped, 0 failed (45 min 16 s) |
+| After `2bdd6e8` (the notice fix) | the same suites with `-k "lng or disruption or cargo or notification or outage or demo or market_event"` | 786 passed, 16 skipped, 0 failed |
+| LNG-4 tests | `pytest tests/domain/test_lng_disruption.py tests/unit/test_lng_demurrage.py tests/unit/test_lng_substitutes.py tests/unit/test_pipeline_outages.py tests/unit/test_lng_disruption_migration.py tests/api/test_lng_disruption_api.py tests/api/test_data1_import_contracts.py tests/integration/test_lng_disruption_postgres.py tests/integration/test_demo_planted_cases.py` | 88 passed, 4 skipped (the PostgreSQL cases, run below) |
+| Contract, docs and security (census 305 / 340, surface reachability, policy EN and CN) | `pytest tests/contract tests/docs tests/security` | 1,136 passed, 12 skipped |
+| PostgreSQL 16 (`egn_fixlng`: `alembic upgrade head`, `downgrade -1`, `upgrade head`, all clean; dropped afterwards) | every test file gated on `RUNTIME_STORE_DATABASE_URL` (25 files) plus the LNG store and schema tests, with `RUNTIME_STORE_DATABASE_URL` and `EUROGAS_NEXUS_TEST_POSTGRES_URL` set (pg8000) | 148 passed, 0 skipped (106 of them skip without `RUNTIME_STORE_DATABASE_URL`) |
+| PostgreSQL CI list | the pytest list of `scripts/ci/run_postgres_ci.sh` | 132 passed, 3 skipped (NumPy absent) |
+| Lint | `ruff check src tests scripts alembic` | All checks passed |
+| Markdown links | `python scripts/ci/check_markdown_links.py` | All local links resolve |
+| Web | `npx tsc --noEmit -p .`; `npm test` (in `clients/web`) | clean; 1,418 tests, 1,415 passed, 3 skipped, 0 failed |
+
+Found and fixed on the way (`2bdd6e8`): with `RUNTIME_STORE_DATABASE_URL` set, the LNG-2
+listen-worker test showed a cargo four days late announced as "Disruption cleared" beside
+LNG-2's message, because a run with no recommended option was titled cleared. Now that run is
+"No workable option" and "cleared" follows only the end of an open disruption (LNG4-10).
+
+Latency ([15](15_LIVE_PIPELINE_AND_LATENCY_BUDGET.md) section 8): the options read median
+0.063 s on SQLite and 0.103 s on PostgreSQL; an outage event to its link and run median 0.071 s
+and 0.114 s.
+
 ## Not yet evidenced
+
+- TAR-2: the capacity cost panel and the tariff years view have not been walked in a browser;
+  the time from ENTSOG republishing a reserve price to the version being held was not measured
+  live (no outbound network), only bounded by the hourly job and the poll interval.
 
 - NEWS-1 live feeds: no feed was read live (no outbound network in the build environment);
   end-to-end latency from publication to a role's alert not measured.

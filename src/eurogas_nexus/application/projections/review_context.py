@@ -567,11 +567,12 @@ _EVIDENCE_RESOLVERS = {
 
 
 def _monitoring_summary(session: Session) -> dict[str, Any]:
-    """Read the aggregate monitoring posture with the existing repository call."""
+    """Read the aggregate monitoring posture, counting only alerts the reader may see."""
 
+    from eurogas_nexus.application.alert_scope import alert_visibility
     from eurogas_nexus.db.repositories.monitoring import monitoring_summary
 
-    return monitoring_summary(session)
+    return monitoring_summary(session, alert_visibility(session))
 
 
 def _review_warnings(

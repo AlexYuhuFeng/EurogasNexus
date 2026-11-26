@@ -732,7 +732,8 @@ def test_an_older_volume_gets_bands_storage_and_assumptions_but_not_removed_cont
 def test_the_board_quotes_the_gas_day_the_desk_trades_on(session, monkeypatch):
     """On gas day D the desk reads D's prompt: WD is gas day D, DA the next quoted day; WD and
     DA are a running snapshot per roll-forward, with a size and a last inside bid and offer.
-    With the demo exchange feed running, the roll-forward writes no WD or DA of its own."""
+    While the demo exchange feed quotes a hub, the roll-forward writes no WD or DA for it; with
+    the feed on but quiet (outside its hours) or off, it writes them all."""
 
     from eurogas_nexus.db.models import MarketQuoteRecord
 
@@ -757,8 +758,23 @@ def test_the_board_quotes_the_gas_day_the_desk_trades_on(session, monkeypatch):
     session.commit()
     hubs = {hub for hub, _currency in seed.DEMO_PRICE_HUBS}
     assert counts["market_quote_rows"] == 2 * len(hubs)
-    monkeypatch.setenv(seed.EXCHANGE_FEED_SETTING, "true")
-    assert seed.roll_forward(session, later + timedelta(hours=1))["market_quote_rows"] == 0
+    # The default is on; a feed that has not ticked lately owns nothing.
+    assert seed.demo_exchange_feed_running() is True
+    assert seed.roll_forward(session, later + timedelta(minutes=30))["market_quote_rows"] == (
+        2 * len(hubs)
+    )
+    feed_quote = MarketQuoteRecord(**{
+        column.name: getattr(wd, column.name) for column in MarketQuoteRecord.__table__.columns
+    })
+    feed_quote.quote_id = "feed-ttf-wd"
+    feed_quote.source_reference = seed.EXCHANGE_FEED_REFERENCE
+    feed_quote.observed_at_utc = later + timedelta(minutes=58)
+    session.add(feed_quote)
+    session.commit()
+    rolled = seed.roll_forward(session, later + timedelta(hours=1))
+    assert rolled["market_quote_rows"] == 2 * (len(hubs) - 1)  # TTF is the feed's
+    monkeypatch.setenv(seed.EXCHANGE_FEED_SETTING, "off")
+    assert seed.demo_exchange_feed_running(session, later + timedelta(hours=1)) == set()
 
 
 def test_a_friday_board_quotes_monday_as_day_ahead(session):
@@ -797,3 +813,43 @@ def test_curve_months_a_year_apart_are_not_the_same_price(session):
     assert seed._forward_curve_price("TTF", seeded_at.date(), 3) == seed._forward_curve_price(
         "TTF", seeded_at.date(), 3
     )
+
+
+def _newest_curve(session, hub):
+    newest = (
+        session.query(MarketObservationRecord.observed_at_utc)
+        .filter_by(source_reference="demo:curve")
+        .order_by(MarketObservationRecord.observed_at_utc.desc())
+        .first()[0]
+    )
+    return {
+        row.period_start_utc.date(): row.price
+        for row in session.query(MarketObservationRecord).filter_by(
+            source_reference="demo:curve", observed_at_utc=newest
+        )
+        if row.metadata_json["hub"] == hub
+    }
+
+
+def test_the_curve_is_anchored_to_the_newest_month_ahead_close(session):
+    """Every hub's curve front month is its newest month-ahead close: on the seed, after a
+    daily roll-forward and after one across a month turn."""
+
+    seed = _load()
+    seeded_at = datetime(2026, 11, 25, 9, tzinfo=UTC)
+    seed.seed(session, seeded_at, history_days=20)
+    session.commit()
+    for now in (seeded_at, datetime(2026, 11, 26, 9, tzinfo=UTC),
+                datetime(2026, 12, 3, 9, tzinfo=UTC)):
+        if now != seeded_at:
+            seed.roll_forward(session, now)
+            session.commit()
+        for hub, _currency in seed.DEMO_PRICE_HUBS:
+            close = seed._last_history(session, hub)
+            front = close.period_start_utc.date()
+            assert front == seed._month_start(now.date(), 1)
+            assert _newest_curve(session, hub)[front] == pytest.approx(close.price, abs=1e-6), (
+                hub, now)
+    rows = session.query(MarketObservationRecord).filter_by(source_reference="demo:curve").all()
+    assert all(row.metadata_json["simulated"] is True and row.source_system.endswith("_Sim")
+               for row in rows)

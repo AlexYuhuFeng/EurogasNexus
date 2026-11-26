@@ -6,10 +6,13 @@ One read per cost kind, each answering::
     {value, unit, currency, basis, source_ref, as_of, input_class, note}
 
 ``basis`` is ``contract_sunk`` (capacity the firm holds: its charge is paid whatever flows, so
-the cost of using it is nil), ``contract_variable`` (a price or charge the firm's contract
-states per unit), ``public_tariff`` (the published register), ``assumption`` (the approved
-assumption set) or ``missing`` (with the reason in ``note``). ``value`` is per MWh in
-``currency`` (a supply price is in the contract's own unit). Nothing is estimated: a cost the
+the cost of using it is nil), ``contracted`` / ``contracted+public`` (TAR-2: capacity the firm
+has booked, at its contracted cost, with any part no booking covers at the public tariff;
+``breakdown`` then lists the layers and the sources in precedence order),
+``contract_variable`` (a price or charge the firm's contract states per unit),
+``public_tariff`` (the published register), ``assumption`` (the approved assumption set) or
+``missing`` (with the reason in ``note``). ``value`` is per MWh in ``currency`` (a supply
+price is in the contract's own unit). Nothing is estimated: a cost the
 sources do not hold is missing.
 
 Names agreed with the opportunity worker: :func:`transport_leg_cost`, :func:`regas_cost`,
@@ -33,9 +36,13 @@ class CostAnswer:
     as_of: str | None
     input_class: str
     note: str | None = None
+    breakdown: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return asdict(self)
+        out = asdict(self)
+        if out["breakdown"] is None:
+            out.pop("breakdown")
+        return out
 
 
 def _missing(note: str) -> dict[str, Any]:
@@ -105,19 +112,42 @@ def transport_leg_cost(
                 "contract",
                 f"capacity held under {record.contract_name}: its charge is paid whatever flows",
             ).as_dict()
+    from eurogas_nexus.application.capacity_costs import load_leg_bookings
+    from eurogas_nexus.application.source_precedence import configured_orders
+
     delivery = Delivery(gas_day, gas_day, "day_ahead", gas_day.isoformat())
-    route = route_cost(from_hub, to_hub, delivery, load_tariff_rows())
+    # TAR-2: capacity the firm has booked on a leg prices first, at its contracted cost.
+    route = route_cost(from_hub, to_hub, delivery, load_tariff_rows(),
+                       bookings=load_leg_bookings(session), orders=configured_orders(session))
     if route.complete and route.total is not None:
         tariffs = [leg.as_dict().get("tariff_id") for leg in route.legs]
+        booked = [leg for leg in route.legs if leg.cost_basis != "public"]
+        basis = "public_tariff"
+        if booked:
+            basis = (
+                "contracted"
+                if all(leg.cost_basis == "contracted" for leg in route.legs)
+                else "contracted+public"
+            )
         return CostAnswer(
             round(route.total, 6),
             f"{route.currency}/MWh",
             route.currency,
-            "public_tariff",
+            basis,
             ", ".join(str(item) for item in tariffs if item) or "tso_tariffs",
             gas_day.isoformat(),
             route.input_class,
-            f"firm yearly capacity at full load via {' → '.join(route.hubs) or from_hub}",
+            f"firm yearly capacity at full load via {' → '.join(route.hubs) or from_hub}"
+            + ("; booked capacity at its contracted cost first" if booked else ""),
+            breakdown={
+                "legs": [
+                    {"point_key": leg.point_key, "direction": leg.direction,
+                     **(leg.breakdown or {"cost_basis": leg.cost_basis})}
+                    for leg in route.legs
+                ]
+            }
+            if booked
+            else None,
         ).as_dict()
     reason = "; ".join(route.issues) or ", ".join(route.missing_legs()) or "no proven route"
     return _missing(f"no held capacity and no complete published tariff ({reason})")
@@ -134,6 +164,9 @@ def regas_cost(session, caller, *, terminal: str, month: str, cargo_mwh: float) 
 
     if cargo_mwh <= 0:
         return _missing("a cargo size is needed to state a regas cost per MWh")
+    slot = _held_slot_cost(session, terminal, month=month, cargo_mwh=cargo_mwh)
+    if slot is not None:
+        return slot
     charge = price_terminal(session, terminal, arrival_month=month, cargo_mwh=cargo_mwh)
     if charge.charge is None:
         return _missing(charge.reason or f"no terms or tariff held for {terminal}")
@@ -149,6 +182,42 @@ def regas_cost(session, caller, *, terminal: str, month: str, cargo_mwh: float) 
         if charge.indicative
         else ("contract" if basis.startswith("contract") else "published"),
         "; ".join(charge.excludes) or None,
+    ).as_dict()
+
+
+def _held_slot_cost(session, terminal: str, *, month: str, cargo_mwh: float):
+    """TAR-2: a slot the firm holds at ``terminal`` in ``month`` prices first, at its
+    contracted cost (``None`` when none is held)."""
+
+    import calendar
+
+    from eurogas_nexus.application.capacity_costs import bookings_as_of, terminal_cost
+
+    first = date(int(month[:4]), int(month[5:7]), 1)
+    end = first.replace(day=calendar.monthrange(first.year, first.month)[1])
+    held = [
+        record
+        for record in bookings_as_of(session, kinds=("lng_slot",), facility_id=terminal)
+        if record.first_gas_day <= end and record.last_gas_day >= first
+    ]
+    if not held:
+        return None
+    arrival = max(first, min(record.first_gas_day for record in held))
+    cost = terminal_cost(session, terminal, arrival=arrival, cargo_mwh=cargo_mwh)
+    if cost["total_cost"] is None or not cost["currency"]:
+        return _missing("; ".join(cost["issues"]) or f"the slot held at {terminal} has no "
+                        "contracted cost recorded")
+    contracted = cost["covered"]["public"] <= 1e-9
+    return CostAnswer(
+        round(cost["total_cost"] / cargo_mwh, 6),
+        f"{cost['currency']}/MWh",
+        cost["currency"],
+        "contracted" if contracted else "contracted+public",
+        ", ".join(item["reference"] for item in cost["layers"]),
+        arrival.isoformat(),
+        "contract" if contracted else "published",
+        "slot held at its contracted cost",
+        breakdown=cost,
     ).as_dict()
 
 

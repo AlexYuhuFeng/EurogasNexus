@@ -27,6 +27,7 @@ from eurogas_nexus.db.models.backtest import (
     BacktestSeriesRecord,
 )
 from eurogas_nexus.db.models.books import TradingBookRecord
+from eurogas_nexus.db.models.capacity_bookings import CapacityBookingRecord
 from eurogas_nexus.db.models.certification import ProviderCertificationRecord
 from eurogas_nexus.db.models.change_requests import ChangeRequestRecord
 from eurogas_nexus.db.models.commercial_assumptions import (
@@ -72,12 +73,14 @@ from eurogas_nexus.db.models.identity import (
 )
 from eurogas_nexus.db.models.jobs import JobRecord
 from eurogas_nexus.db.models.lng_disruption import (
+    LngBerthCallRecord,
     LngCapacityOfferRecord,
     LngDeliveryObligationRecord,
     LngDisruptionDecisionRecord,
     LngDisruptionRunRecord,
     LngSlotTermsRecord,
     LngVoyageTermsRecord,
+    PipelineOutageLinkRecord,
     PipelineSupplyRecord,
 )
 from eurogas_nexus.db.models.lng_positions import (
@@ -105,7 +108,10 @@ from eurogas_nexus.db.models.market_positioning import (
     ScreenOrderObservationRecord,
 )
 from eurogas_nexus.db.models.market_report import MarketReportRecord
-from eurogas_nexus.db.models.monitoring import MonitoringAlertRecord
+from eurogas_nexus.db.models.monitoring import (
+    MonitoringAlertReaderStateRecord,
+    MonitoringAlertRecord,
+)
 from eurogas_nexus.db.models.news import NewsItemRecord, NewsSourcePollRecord
 from eurogas_nexus.db.models.observation import (
     AuditEventRecord,
@@ -372,6 +378,8 @@ __all__ = [
     "FxObservationRecord",
     "InterestRateObservationRecord",
     "OrganisationSettingRecord",
+    "LngBerthCallRecord",
+    "PipelineOutageLinkRecord",
     "PipelineSupplyRecord",
     "PowerObservationRecord",
     "ErpReferenceRecord",
@@ -400,6 +408,7 @@ __all__ = [
     "LngTerminalTariffRecord",
     "TsoTariffEntryRecord",
     "TariffVersionRecord",
+    "CapacityBookingRecord",
     "CapacityNoticeRecord",
     "LngTerminalTermsRecord",
     "HedgeApprovalRecord",
@@ -441,6 +450,7 @@ __all__ = [
     "MarketTradeRecord",
     "StrategyTrackEventRecord",
     "StrategyTrackRecord",
+    "MonitoringAlertReaderStateRecord",
     "MonitoringAlertRecord",
     "NodeFacilityMapping",
     "NominationWindowMasterRecord",
