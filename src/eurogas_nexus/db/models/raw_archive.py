@@ -34,7 +34,9 @@ class RawPayloadArchiveRecord(Base):
     dataset: Mapped[str] = mapped_column(String(64), nullable=False)
     source_reference: Mapped[str] = mapped_column(String(256), nullable=False)
     payload_text: Mapped[str | None] = mapped_column(Text(), nullable=True)
-    payload_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # ``none_as_null``: a receipt without a page holds SQL NULL, not the JSON value ``null``
+    # (the default would make "no inline page" indistinguishable to ``IS NULL``).
+    payload_json: Mapped[dict | None] = mapped_column(JSON(none_as_null=True), nullable=True)
     payload_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     record_count: Mapped[int] = mapped_column(Integer, nullable=False)
     received_at_utc: Mapped[datetime] = mapped_column(

@@ -125,6 +125,10 @@ def _reads(session) -> list[list[tuple[str, str, datetime, list[dict[str, Any]]]
 
     from sqlalchemy import text
 
+    from eurogas_nexus.db.repositories.raw_archive import (
+        RawPayloadUnavailable,
+        load_raw_payload_text,
+    )
     from eurogas_nexus.ingestion.public_sources import entsog_capacity_observations_from_json
 
     pages = session.execute(
@@ -137,10 +141,11 @@ def _reads(session) -> list[list[tuple[str, str, datetime, list[dict[str, Any]]]
     reads: list[list[tuple[str, str, datetime, list[dict[str, Any]]]]] = []
     last: datetime | None = None
     for archive_id, reference, received in pages:
-        payload_text = session.execute(
-            text("SELECT payload_text FROM raw_payload_archives WHERE archive_id = :a"),
-            {"a": archive_id},
-        ).scalar()
+        # The page is kept once under its digest, hot or offloaded (raw_archive.py).
+        try:
+            payload_text = load_raw_payload_text(session, archive_id)
+        except RawPayloadUnavailable:
+            continue
         if not payload_text:
             continue
         payload = json.loads(payload_text, parse_float=str, parse_int=str)

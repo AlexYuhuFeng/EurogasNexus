@@ -140,10 +140,12 @@ def test_real_insert_and_unchanged_poll_preserve_whole_row_and_separate_raw_arch
         exact = next(a for a in archives if a["archive_id"] == metadata["archive_id"])
         assert exact["received_at_utc"] == RECEIPT
         assert exact["record_count"] == 1
-        assert exact["payload_text"].encode() == first.pages[0].raw_body
-        assert (
-            hashlib.sha256(exact["payload_text"].encode()).hexdigest() == metadata["payload_sha256"]
-        )
+        # The page is kept once under its digest; the receipt points at it.
+        from eurogas_nexus.db.repositories.raw_archive import load_raw_payload_bytes
+
+        exact_bytes = load_raw_payload_bytes(session, exact["archive_id"])
+        assert exact_bytes == first.pages[0].raw_body
+        assert hashlib.sha256(exact_bytes).hexdigest() == metadata["payload_sha256"]
     assert outcome["inserted"] == 1 and outcome["unchanged"] == 0
     assert next_outcome["inserted"] == 0 and next_outcome["unchanged"] == 1
 

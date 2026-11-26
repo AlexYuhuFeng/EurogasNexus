@@ -1394,12 +1394,16 @@ def _recent_tariff_points(
     if not 0 < float(max_age_hours) <= 24 * 7:
         raise ValueError("the ENTSOG-tariffs max age must be within (0, 168] hours.")
     cutoff = now - timedelta(hours=float(max_age_hours))
+    from eurogas_nexus.db.repositories.raw_archive import load_raw_payload_json
+
     done: set[str] = set()
-    for (payload,) in session.query(RawPayloadArchiveRecord.payload_json).filter(
+    for receipt in session.query(RawPayloadArchiveRecord).filter(
         RawPayloadArchiveRecord.source_system == "ENTSOG",
         RawPayloadArchiveRecord.dataset == "tariffsfulls",
         RawPayloadArchiveRecord.received_at_utc >= cutoff,
     ):
+        # Each page is kept once under its digest; the receipt no longer carries it.
+        payload = load_raw_payload_json(session, receipt)
         meta = (payload or {}).get("meta") or {}
         query = meta.get("query") or {}
         if query.get("from") != window["from"] or query.get("to") != window["to"]:

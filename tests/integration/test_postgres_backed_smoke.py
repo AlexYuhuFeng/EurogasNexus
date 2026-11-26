@@ -9,6 +9,7 @@ store instead of per-test SQLite fixtures.
 
 from __future__ import annotations
 
+import hashlib
 import os
 
 import pytest
@@ -94,7 +95,7 @@ def test_raw_payload_archive_write_and_readback() -> None:
             dataset="test",
             source_reference="postgres-smoke",
             payload_text="{}",
-            payload_sha256="a" * 64,
+            payload_sha256=hashlib.sha256(b"{}").hexdigest(),
             record_count=0,
             received_at_utc=datetime(2026, 7, 1, tzinfo=UTC),
         )

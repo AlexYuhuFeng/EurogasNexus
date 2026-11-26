@@ -14,6 +14,7 @@ The full ``alembic upgrade head`` / ``downgrade`` round trip on such a server is
 
 from __future__ import annotations
 
+import hashlib
 import importlib.util
 import os
 import uuid
@@ -147,7 +148,8 @@ def test_writers_work_on_compressed_chunks(engine):
     with Session(engine) as session:
         archive_raw_payload(
             session, archive_id="raw-ts-1", source_system="ENTSOG", dataset="flows",
-            source_reference="page:1", payload_text="{}", payload_sha256="0" * 64,
+            source_reference="page:1", payload_text="{}",
+            payload_sha256=hashlib.sha256(b"{}").hexdigest(),
             record_count=0, received_at_utc=now - timedelta(days=40),
         )
         tick = {"hub": "TTF", "product": "DA", "bid": 30.0, "ask": 30.2,
