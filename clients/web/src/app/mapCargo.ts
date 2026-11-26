@@ -1,5 +1,8 @@
 import type { MapCargoDTO } from "@/api/client";
 import { formatInstant } from "./time/timeFormat.ts";
+import { distanceNm, seaRoute } from "./seaLanes.ts";
+
+export { distanceNm };
 
 /**
  * A cargo on the map, answered the way a trader asks (owner review 2026-11-26): where is it,
@@ -7,9 +10,10 @@ import { formatInstant } from "./time/timeFormat.ts";
  *
  * Rule 19: nothing is invented. An ETA is the one the source reported (AIS, the master's
  * notice, the feed, the schedule, a manual entry, the confirmation's window), named as such;
- * only when no ETA was reported is one computed, from the straight-line distance still to go and
- * the speed the last two timed positions show, and it says so (straight line: a lower bound).
- * Without a destination or a position the map says that instead of drawing a guess.
+ * only when no ETA was reported is one computed, from the indicative sea-route distance still
+ * to go and the speed the last two timed positions show, and it says so (an indicative sea
+ * route: a lower bound). Without a destination or a position the map says that instead of
+ * drawing a guess.
  */
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -35,7 +39,7 @@ export interface CargoEta {
   source: string | null;
   /** The source's own confidence, when stated. */
   confidence: string | null;
-  /** For a computed ETA: the speed (knots) and straight-line distance (nautical miles) used. */
+  /** For a computed ETA: the speed (knots) and indicative sea-route distance (nautical miles) used. */
   speedKn: number | null;
   distanceNm: number | null;
 }
@@ -49,19 +53,10 @@ const REPORTED_BASIS: Record<string, EtaBasis> = {
   contract_window: "contract",
 };
 
-const EARTH_RADIUS_NM = 3440.065;
 /** Below this a vessel is not under way (drifting, anchored): no ETA is computed from it. */
 const MIN_UNDERWAY_KN = 3;
 
 const rad = (degrees: number) => (degrees * Math.PI) / 180;
-
-/** Great-circle distance in nautical miles. */
-export function distanceNm(from: [number, number], to: [number, number]): number {
-  const [lon1, lat1] = from.map(rad);
-  const [lon2, lat2] = to.map(rad);
-  const a = Math.sin((lat2 - lat1) / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin((lon2 - lon1) / 2) ** 2;
-  return 2 * EARTH_RADIUS_NM * Math.asin(Math.min(1, Math.sqrt(a)));
-}
 
 /** Initial bearing from one point to another, degrees clockwise from north (0-360). */
 export function bearing(from: [number, number], to: [number, number]): number {
@@ -135,7 +130,10 @@ export function cargoEta(cargo: MapCargoDTO, nowMs: number): CargoEta {
   }
   const speed = cargoSpeedKn(cargo);
   if (cargo.position && cargo.destination && speed !== null && speed >= MIN_UNDERWAY_KN) {
-    const distance = distanceNm([cargo.position.lon, cargo.position.lat], [cargo.destination.lon, cargo.destination.lat]);
+    const distance = seaRoute(
+      [cargo.position.lon, cargo.position.lat],
+      [cargo.destination.lon, cargo.destination.lat],
+    ).distanceNm;
     const fixedAt = cargo.position_at_utc ? Date.parse(cargo.position_at_utc) : nowMs;
     const etaMs = (Number.isFinite(fixedAt) ? fixedAt : nowMs) + (distance / speed) * 3_600_000;
     return {
