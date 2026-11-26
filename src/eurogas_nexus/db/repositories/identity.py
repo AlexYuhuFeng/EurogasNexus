@@ -415,10 +415,13 @@ def _effective_key_scopes(
     key = {_normalize_scope(value) for value in (key_scopes or [])}
     principal.discard("")
     key.discard("")
-    if "*" in principal:
-        effective = key
-    elif "*" in key:
+    if "*" in key:
+        # A full key carries everything its principal holds, explicit grants included.
         effective = principal
+    elif "*" in principal:
+        # A '*' principal reads every family and book, but '*' never grants a permission
+        # (security review H1): a key's PERM: entries count only if the principal has them.
+        effective = {scope for scope in key if not scope.startswith("PERM:")} | (key & principal)
     else:
         effective = principal & key
     return tuple(sorted(effective))

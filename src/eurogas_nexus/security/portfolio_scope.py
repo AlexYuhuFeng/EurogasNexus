@@ -1,7 +1,8 @@
 """Which books a person may see: head office everything, a regional office only its own.
 
-With ``EUROGAS_NEXUS_PORTFOLIO_ISOLATION=true`` every read of contracts, trades and books is
-restricted to the books the caller's data scopes name:
+Book isolation is on by default (security review H1). Every read of contracts, trades, books,
+credit lines, mandates, decision cases and the other book-bearing tables is restricted to the
+books the caller's data scopes name:
 
 - ``BOOKS:*``                    every book, and positions not yet in a book (head office)
 - ``BOOKS:ENTITY:<legal entity>`` books of that legal entity (for example EGN-UK)
@@ -12,10 +13,20 @@ restricted to the books the caller's data scopes name:
 positions. Scopes come from the administrator or from SSO groups through
 ``EUROGAS_NEXUS_OIDC_GROUPS_SCOPE_MAP``, so a regional head's access follows the directory.
 
-The scope is set once per request by the identity dependency and applied by
-:func:`restrict` wherever a query touches a book-bearing table, so a new read path cannot
-forget it as long as it goes through the helper. With isolation off (the default for a
-single-office installation) every caller sees every book, as before.
+The scope is set once per request by the identity dependency. It is enforced in one place,
+the ORM layer (``eurogas_nexus.db.book_scope``): every ORM read and write in a request passes
+through a session event that adds the scope's criteria to each book-bearing table, so a new
+route, repository or AI path cannot forget it. A request starts with a deny-all scope until
+its caller is identified, so a path that skips identification sees no rows.
+:func:`restrict` and :func:`visible_book_ids` remain for callers that need the book list.
+
+Outside a request (workers, the scheduler, command-line tools) the process acts as the
+system and is not narrowed; their results are filtered when a person reads them.
+
+Isolation can be switched off only with ``EUROGAS_NEXUS_PORTFOLIO_ISOLATION=false``; in a
+trial or release environment the application then refuses to start unless the deployment
+also declares ``EUROGAS_NEXUS_SINGLE_BOOK_FIRM=true`` (one office, one book family, no
+information barrier to enforce).
 """
 
 from __future__ import annotations
@@ -27,7 +38,19 @@ from contextvars import ContextVar
 from dataclasses import dataclass, field
 
 ISOLATION_ENV = "EUROGAS_NEXUS_PORTFOLIO_ISOLATION"
+SINGLE_BOOK_FIRM_ENV = "EUROGAS_NEXUS_SINGLE_BOOK_FIRM"
 PREFIX = "BOOKS:"
+_OFF = {"0", "false", "no", "off"}
+_ON = {"1", "true", "yes", "on"}
+
+
+class BookScopeViolation(PermissionError):
+    """A write into a book the caller's scope does not include (403 ``book_outside_scope``)."""
+
+    def __init__(self, table: str, book_id: str) -> None:
+        super().__init__(f"{table}: book {book_id!r} is outside your book scope")
+        self.table = table
+        self.book_id = book_id
 
 
 @dataclass(frozen=True)
@@ -52,12 +75,45 @@ class BookScope:
 
 
 UNRESTRICTED = BookScope(all_books=True)
+#: The scope of a request whose caller is not identified yet: no book at all.
+DENY_ALL = BookScope()
 _current: ContextVar[BookScope | None] = ContextVar("eurogas_book_scope", default=None)
+#: The identified caller of the request, for object rules that follow the author
+#: (a decision case or an analysis snapshot is always visible to the person who made it).
+_current_principal: ContextVar[tuple[str, ...]] = ContextVar(
+    "eurogas_scope_principal", default=()
+)
 
 
 def isolation_enabled(environ: dict[str, str] | None = None) -> bool:
+    """On unless the deployment says ``EUROGAS_NEXUS_PORTFOLIO_ISOLATION=false``."""
+
     env = os.environ if environ is None else environ
-    return str(env.get(ISOLATION_ENV, "")).strip().lower() in {"1", "true", "yes", "on"}
+    return str(env.get(ISOLATION_ENV, "")).strip().lower() not in _OFF
+
+
+def assert_isolation_setting_allowed(
+    environment: str, environ: dict[str, str] | None = None
+) -> None:
+    """Refuse to start a trial or release deployment with isolation off, unless declared.
+
+    Raises:
+        RuntimeError: isolation is off in a trial/release environment without
+            ``EUROGAS_NEXUS_SINGLE_BOOK_FIRM=true``.
+    """
+
+    env = os.environ if environ is None else environ
+    if isolation_enabled(env):
+        return
+    if str(environment or "").strip().lower() not in {"trial", "release"}:
+        return
+    if str(env.get(SINGLE_BOOK_FIRM_ENV, "")).strip().lower() in _ON:
+        return
+    raise RuntimeError(
+        f"{ISOLATION_ENV}=false is refused in a {environment!r} environment: book isolation "
+        f"keeps one office or legal entity from reading another's positions. Turn it back on, "
+        f"or declare {SINGLE_BOOK_FIRM_ENV}=true if this installation serves one office only."
+    )
 
 
 def scope_from_data_scopes(data_scopes: tuple[str, ...] | list[str]) -> BookScope:
@@ -77,10 +133,30 @@ def scope_from_data_scopes(data_scopes: tuple[str, ...] | list[str]) -> BookScop
     return BookScope(False, frozenset(entities), frozenset(regions), frozenset(books))
 
 
-def set_request_scope(data_scopes: tuple[str, ...] | list[str] | None) -> None:
-    """Called by the identity dependency for every request with a principal."""
+def set_request_scope(
+    data_scopes: tuple[str, ...] | list[str] | None, *identifiers: str | None
+) -> None:
+    """Called by the identity dependency for every request with a principal.
+
+    ``identifiers`` are the caller's principal id and name: authored objects (decision cases,
+    analysis snapshots) record one or the other.
+    """
 
     _current.set(scope_from_data_scopes(data_scopes or ()) if isolation_enabled() else None)
+    _current_principal.set(tuple(value for value in identifiers if value))
+
+
+def deny_request_scope() -> None:
+    """Start of a request: no book is visible until the caller is identified (fail closed)."""
+
+    _current.set(DENY_ALL if isolation_enabled() else None)
+    _current_principal.set(())
+
+
+def current_principal_ids() -> tuple[str, ...]:
+    """The identified caller of the current request (principal id and name), if any."""
+
+    return _current_principal.get()
 
 
 def current_scope() -> BookScope | None:

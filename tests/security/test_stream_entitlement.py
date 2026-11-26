@@ -85,6 +85,8 @@ def test_an_opportunity_change_follows_the_opportunitys_own_read_rule(session, m
         {"opportunity_id": "o3", "lane": "market", "book_ids": [], "source_families": []},
         {"opportunity_id": "o4", "lane": "could_act", "book_ids": ["nl-ttf"], "sent": False},
     ]
+    # Isolation switched off explicitly (it is on by default since security review H1).
+    monkeypatch.setenv(portfolio_scope.ISOLATION_ENV, "false")
     every = StreamGuard("opportunity", _principal("*"))(session, rows)
     assert [row["opportunity_id"] for row in every] == ["o1", "o2", "o3"]  # o4 never shown
     unlicensed = StreamGuard("opportunity", _principal())(session, rows)
@@ -99,7 +101,8 @@ def test_a_limits_alert_is_streamed_only_to_callers_who_see_its_books(session, m
         {"alert_id": "a1", "category": "limits", "evidence_snapshot": {"book_ids": ["uk-nbp"]}},
         {"alert_id": "a2", "category": "physical", "evidence_snapshot": {}},
     ]
-    # Isolation off: every alert, as before.
+    # Isolation switched off explicitly: every alert, as before.
+    monkeypatch.setenv(portfolio_scope.ISOLATION_ENV, "false")
     assert len(StreamGuard("alerts", _principal())(session, rows)) == 2
     monkeypatch.setenv(portfolio_scope.ISOLATION_ENV, "true")
     regional = StreamGuard("alerts", _principal("BOOKS:BOOK:nl-ttf"))

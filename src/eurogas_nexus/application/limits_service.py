@@ -187,6 +187,27 @@ def marks_freshness(day: date | None, today: date) -> dict[str, Any]:
 MANDATE_FRESHNESS = {"marks_as_of": None, "state": "current", "freshness_state": "FRESH"}
 
 
+LIMITS_NOT_GRANTED = (
+    "Credit and mandate limits are read by the risk function and the front office; "
+    "ask an administrator for the limits read grant."
+)
+
+
+def _limits_refused(caller: Caller) -> LimitRows | None:
+    """No rows for a caller without ``risk.limits.read`` (security review H1).
+
+    Every reader of credit exposure and mandate usage (the routes, Today, explanations,
+    discoveries, monitoring) goes through these two functions, so the grant is checked here
+    once rather than at each reader.
+    """
+
+    from eurogas_nexus.security.authorization import Permission, authorize
+
+    if authorize(caller.principal, Permission.RISK_LIMITS_READ).allowed:
+        return None
+    return LimitRows(warnings=[LIMITS_NOT_GRANTED])
+
+
 def credit_exposure_rows(caller: Caller, today: date) -> LimitRows:
     """Exposure to each counterparty with an approved credit line, against its limit.
 
@@ -198,6 +219,9 @@ def credit_exposure_rows(caller: Caller, today: date) -> LimitRows:
     from eurogas_nexus.domain.monitoring.freshness import marks_as_of
     from eurogas_nexus.domain.risk.limits import credit_exposure
 
+    refused = _limits_refused(caller)
+    if refused is not None:
+        return refused
     built = credit_inputs(caller, today)
     result = LimitRows(warnings=built.warnings, marks_as_of=built.marks_as_of)
     newest = date.fromisoformat(built.marks_as_of) if built.marks_as_of else None
@@ -288,6 +312,9 @@ def mandate_usage_rows(caller: Caller, today: date) -> LimitRows:
     from eurogas_nexus.db.session import get_session_factory
     from eurogas_nexus.domain.risk.limits import mandate_usage
 
+    refused = _limits_refused(caller)
+    if refused is not None:
+        return refused
     start, end = horizon(today)
     with get_session_factory()() as session:
         records = session.query(TraderMandateRecord).order_by(TraderMandateRecord.trader).all()

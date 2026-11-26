@@ -80,12 +80,17 @@ async def require_identity(request: Request) -> None:
     contracts, trades and books in this request is restricted the same way.
     """
 
+    from eurogas_nexus.security.portfolio_scope import deny_request_scope, set_request_scope
+
+    # Fail closed: until the caller is identified no book is visible, so a request that
+    # leaves this dependency by an exception or an exempt path never reads another's books.
+    deny_request_scope()
     await _resolve_identity(request)
     from eurogas_nexus.application.alert_scope import set_request_principal
-    from eurogas_nexus.security.portfolio_scope import set_request_scope
 
     principal = getattr(request.state, "identity", None)
-    set_request_scope(principal.data_scopes if principal is not None else ())
+    if principal is not None:
+        set_request_scope(principal.data_scopes, principal.principal_id, principal.name)
     # Price-bearing alerts are shown by the reader's source entitlement (alert_scope).
     set_request_principal(principal)
 
@@ -208,7 +213,6 @@ def _authenticate_identity_key(bearer: str) -> AuthenticatedPrincipal:
             detail={
                 "error": "identity_store_unavailable",
                 "message": "Identity store is configured but unavailable.",
-                "error_class": exc.__class__.__name__,
             },
         ) from exc
     return principal
@@ -243,6 +247,17 @@ def _authenticate_session_cookie(request: Request, token: str) -> AuthenticatedP
                     status_code=403,
                     detail={"error": "session_principal_inactive"},
                 )
+            if session_row.client_type == "mfa_enrolment" and not _enrolment_path(
+                request.url.path
+            ):
+                # The policy requires a second factor this person has not set up (H6).
+                raise HTTPException(
+                    status_code=403,
+                    detail={
+                        "error": "mfa_enrolment_required",
+                        "message": "Set up your second factor before you continue.",
+                    },
+                )
             touch_session(session, session_row)
             resolved = AuthenticatedPrincipal(
                 principal_id=principal.principal_id,
@@ -264,9 +279,17 @@ def _authenticate_session_cookie(request: Request, token: str) -> AuthenticatedP
     except _sqlalchemy_error_type() as exc:
         raise HTTPException(
             status_code=503,
-            detail={"error": "identity_store_unavailable", "error_class": exc.__class__.__name__},
+            detail={"error": "identity_store_unavailable"},
         ) from exc
     return resolved
+
+
+#: What an enrolment-only session may reach: its own status, the enrolment and sign-out.
+ENROLMENT_PATHS = ("/api/me/mfa", "/api/auth/logout", "/api/auth/status", "/api/health")
+
+
+def _enrolment_path(path: str) -> bool:
+    return path == "/api/me" or path.startswith(ENROLMENT_PATHS)
 
 
 def _authenticate_oidc(token: str) -> AuthenticatedPrincipal:

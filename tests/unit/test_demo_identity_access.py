@@ -93,23 +93,38 @@ def test_effective_access_matches_the_role_matrix(name):
     assert (Permission.PORTFOLIO_WRITE.value in granted) is expected["book_write"], name
     assert (Permission.REVIEW_RECORD.value in granted) is expected["review_record"], name
     assert (Permission.IDENTITY_MANAGE.value in granted) is expected["admin"], name
-    if expected["market"]:
+    if expected["market"] and name != "demo.ops":
         # Commercial reads the desk pages make: a role that reads the market reads the book.
         assert Permission.PORTFOLIO_READ.value in granted, name
+    elif name == "demo.ops":
+        # Source operations read no positions by role (security review H1).
+        assert Permission.PORTFOLIO_READ.value not in granted, name
     else:
         assert not granted & {permission.value for permission in COMMERCIAL_PERMISSIONS}, name
     assert functions, f"{name} has no job function, so no home screen"
 
 
 def test_every_demo_identity_reads_every_data_scope_of_the_demo():
-    """Data scopes gate licensed and simulated families; the demo grants them all (``*``)."""
+    """Data scopes gate licensed and simulated families: every commercial tester reads every
+    family the demo carries, and sees only the books its desk is entitled to (H1)."""
 
-    import inspect
+    from eurogas_nexus.security.portfolio_scope import scope_from_data_scopes
 
-    source = inspect.getsource(START.ensure_testers) + inspect.getsource(
-        START.ensure_test_accounts
-    )
-    assert source.count('["*"]') + source.count('("*",)') >= 2
+    assert set(START.TESTER_SCOPES) == set(EXPECTED)
+    for name, scopes in START.TESTER_SCOPES.items():
+        if not EXPECTED[name]["market"]:
+            assert scopes == (), name
+            continue
+        assert "*" in scopes or set(START.DEMO_SOURCE_FAMILIES) <= set(scopes), name
+    uk = scope_from_data_scopes(START.TESTER_SCOPES["demo.trader"])
+    nl = scope_from_data_scopes(START.TESTER_SCOPES["demo.nl.trader"])
+    assert uk.allows("demo-uk-nbp", "NWG-UK", "europe")
+    assert not uk.allows("demo-nl-ttf", "NWG-NL", "europe")
+    assert nl.allows("demo-nl-ttf", "NWG-NL", "europe")
+    assert not nl.allows("demo-uk-nbp", "NWG-UK", "europe")
+    ops = scope_from_data_scopes(START.TESTER_SCOPES["demo.ops"])
+    assert not ops.allows("demo-uk-nbp", "NWG-UK", "europe")
+    assert scope_from_data_scopes(START.TESTER_SCOPES["demo.risk"]).all_books
 
 
 def test_test_accounts_copy_a_documented_tester_and_only_test_admin_is_admin():

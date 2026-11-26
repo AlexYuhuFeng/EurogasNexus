@@ -117,14 +117,19 @@ def register_error_handlers(app: FastAPI) -> None:
 
     async def _http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         operator = _is_operator_request(request)
+        detail = exc.detail
+        if isinstance(detail, dict) and "error_class" in detail and not operator:
+            # Security review L1: an exception's class name is for operators only, whichever
+            # route put it in the detail.
+            detail = {key: value for key, value in detail.items() if key != "error_class"}
         body = error_body(
             exc.status_code,
-            exc.detail,
+            detail,
             code=getattr(exc, "code", None),
             params=getattr(exc, "params", None),
             correlation_id=getattr(request.state, "request_id", None),
             operator=operator,
-            operator_detail=_operator_detail(exc.detail, operator=operator),
+            operator_detail=_operator_detail(detail, operator=operator),
         )
         return JSONResponse(
             status_code=exc.status_code,
@@ -136,6 +141,24 @@ def register_error_handlers(app: FastAPI) -> None:
     # the lookup never reaches FastAPI's default handler first.
     app.add_exception_handler(StarletteHTTPException, _http_exception)
     app.add_exception_handler(HTTPException, _http_exception)
+
+    from eurogas_nexus.security.portfolio_scope import BookScopeViolation
+
+    async def _book_scope_violation(request: Request, exc: BookScopeViolation) -> JSONResponse:
+        """A write into a book outside the caller's book scope (security review H1)."""
+
+        return await _http_exception(
+            request,
+            HTTPException(
+                status_code=403,
+                detail={
+                    "code": "book_outside_scope",
+                    "message": "This record is held in a book you cannot see.",
+                },
+            ),
+        )
+
+    app.add_exception_handler(BookScopeViolation, _book_scope_violation)
 
     @app.exception_handler(RequestValidationError)
     async def _request_validation_error(

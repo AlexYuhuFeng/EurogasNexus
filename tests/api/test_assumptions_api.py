@@ -53,6 +53,8 @@ def _setup(tmp_path, monkeypatch, roles=None):
             )
         for name, role, scopes in roles or (
             ("viewer", "VIEWER", ["*"]),
+            # A viewer granted the limits read explicitly (security review H1).
+            ("marks_reader", "VIEWER", ["*", "PERM:risk.limits.read"]),
             ("trader", "ANALYST", ["*"]),
             ("trader2", "ANALYST", ["*"]),
             ("risk", "REVIEWER", ["*"]),
@@ -236,7 +238,12 @@ def test_firm_marks_are_labelled_and_audited_without_values(tmp_path, monkeypatc
     stored = client.put("/api/market/firm-marks", headers=who["trader"], json=grid)
     assert stored.status_code == 202, stored.text
     assert stored.json()["data"]["pending_approval"] is True
-    assert client.get("/api/market/firm-marks", headers=who["viewer"]).json()["data"]["marks"] == []
+    # Firm marks are read with the limits read grant, not by any viewer (security review H1).
+    assert client.get("/api/market/firm-marks", headers=who["viewer"]).status_code == 403
+    assert (
+        client.get("/api/market/firm-marks", headers=who["marks_reader"]).json()["data"]["marks"]
+        == []
+    )
     change_id = stored.json()["data"]["change"]["change_id"]
     approve = f"/api/portfolio/change-requests/{change_id}/approve"
     assert client.post(approve, headers=who["trader2"]).status_code == 403
@@ -252,7 +259,7 @@ def test_firm_marks_are_labelled_and_audited_without_values(tmp_path, monkeypatc
         ).status_code
         == 200
     )
-    read = client.get("/api/market/firm-marks", headers=who["viewer"]).json()["data"]
+    read = client.get("/api/market/firm-marks", headers=who["marks_reader"]).json()["data"]
     assert {row["input_class"] for row in read["marks"]} == {"firm_mark"}
     rows = {(row["hub"], row["period"]): row for row in read["marks"]}
     assert rows[("TTF", "2027-01")]["value"] == "31.5"

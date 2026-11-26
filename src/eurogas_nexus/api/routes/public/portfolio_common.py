@@ -54,6 +54,25 @@ def load_pnl_snapshots(
         raise db_unavailable(exc) from exc
 
 
+def require_permission(request: Request, permission) -> None:
+    """403 ``permission_denied`` unless the caller holds ``permission`` (role or explicit grant).
+
+    Used where the route floor (READ) is too wide: credit exposure, mandate usage and firm
+    marks are read by the risk function and the front office, and by operations or finance
+    staff only with an explicit ``PERM:risk.limits.read`` grant (security review H1).
+    """
+
+    from eurogas_nexus.security.authorization import authorize
+    from eurogas_nexus.security.identity import legacy_public_token_principal
+
+    principal = getattr(request.state, "identity", None) or legacy_public_token_principal()
+    if not authorize(principal, permission).allowed:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "permission_denied", "permission": str(permission)},
+        )
+
+
 def identity_id(request: Request) -> str | None:
     return getattr(getattr(request.state, "identity", None), "principal_id", None)
 

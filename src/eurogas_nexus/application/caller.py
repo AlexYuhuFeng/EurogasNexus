@@ -65,7 +65,11 @@ def firm_caller(principal: AuthenticatedPrincipal | None = None, session=None) -
             principal_type="SERVICE",
             role=Role.VIEWER.value,
             status="ACTIVE",
-            data_scopes=("BOOKS:*", *non_display_families(session)),
+            data_scopes=(
+                "BOOKS:*",
+                "PERM:risk.limits.read",
+                *non_display_families(session),
+            ),
             roles=(Role.VIEWER.value,),
         )
     )

@@ -340,6 +340,28 @@ HANDOFF_SCHEMA = "eurogas-nexus-handoff/v1"
 HANDOFF_KEY_ENV = "EUROGAS_NEXUS_HANDOFF_SIGNING_KEY"
 
 
+def _require_handoff_party(request: Request, case: dict, records: list) -> None:
+    """Only the case's author or one of its deciders issues the signed hand-off (H2).
+
+    The hand-off is signed with the deployment's key and read by ERP middleware as the
+    platform's word on a decision, so it is issued by someone who took part in the decision,
+    never by any reader of the case.
+    """
+
+    principal = acting_actor(request)
+    who = {principal.principal_id, principal.name}
+    parties = {case.get("created_by")} | {record.get("actor") for record in records}
+    if who & {party for party in parties if party}:
+        return
+    raise HTTPException(
+        status_code=403,
+        detail={
+            "error": "handoff_not_a_party",
+            "message": "Only the case's author or a person who decided it can issue the hand-off.",
+        },
+    )
+
+
 @router.get("/api/decision-cases/{case_id}/handoff")
 def get_decision_handoff(case_id: str, request: Request) -> dict:
     """A signed hand-off of a decided case for ERP/ETRM middleware; never an order.
@@ -390,8 +412,9 @@ def get_decision_handoff(case_id: str, request: Request) -> dict:
                         "status": case.get("status"),
                     },
                 )
-            pack = load_decision_pack(session, case_id, case=case) or {}
             records = case.get("records") or case.get("decisions") or []
+            _require_handoff_party(request, case, records)
+            pack = load_decision_pack(session, case_id, case=case) or {}
             actor = getattr(getattr(request.state, "identity", None), "principal_id", "api")
             body = {
                 "schema": HANDOFF_SCHEMA,
