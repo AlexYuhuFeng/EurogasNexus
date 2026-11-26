@@ -70,6 +70,33 @@ api_smoke:   200
 elapsed:     2.816s
 ```
 
+## TimescaleDB
+
+Only where the optional extension converted the store (`python scripts/ops/timescale.py
+status` → `state: active`; ADR Decision 39, [`TIMESCALEDB.md`](../deployment/TIMESCALEDB.md)).
+The custom-format dump above covers the hypertables and their compressed chunks; the dump
+prints a warning about circular foreign keys in TimescaleDB's own catalogue, which is expected.
+
+- The restore target must run the same TimescaleDB version as the source, preloaded
+  (`shared_preload_libraries = 'timescaledb'`, `timescaledb.license = 'timescale'`). Restored
+  onto plain PostgreSQL, the dump fails on the extension and the rows of the three hypertables
+  are not restored.
+- TimescaleDB's documented restore wraps `pg_restore` in its restoring mode:
+
+  ```bash
+  createdb -h <host> -U <user> nexus_restore
+  psql -h <host> -U <user> -d nexus_restore -c "CREATE EXTENSION IF NOT EXISTS timescaledb; SELECT timescaledb_pre_restore();"
+  pg_restore -h <host> -U <user> --no-owner -d nexus_restore nexus-runtime-<timestamp>.dump
+  psql -h <host> -U <user> -d nexus_restore -c "SELECT timescaledb_post_restore();"
+  ```
+
+- `backup_restore_drill.py` reports `timescaledb_source` and `timescaledb_target` and fails
+  with `timescale_not_restored` when a converted source comes back without hypertables.
+
+Evidence (2026-11-26, TimescaleDB 2.32.1 on PostgreSQL 16, with a compressed chunk): both the
+procedure above and the drill restored the three hypertables, the compressed chunk, the rows and
+the three compression jobs.
+
 ## Verification checklist (must run after every drill)
 
 - [ ] `alembic current` reports the expected head revision

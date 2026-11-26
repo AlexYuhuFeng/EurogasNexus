@@ -18,6 +18,17 @@ Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](histor
   call names its company. Not built: recording a terminal's rule, a call or a quote (no route or
   import writes them); the rest of the Options panel still shows the engine's English sentences
   (titles, reasons, notes, warnings) in ZH.
+- TimescaleDB (`wip/timescale-on-innovation`): migration renumbered `0092_timescale_optional`
+  on `0091`; off by default, a no-op on plain PostgreSQL and SQLite. The branch referenced an
+  ADR 39 and a deployment guide that did not exist: added ADR Decision 39 (amends Decision 24),
+  `docs/deployment/TIMESCALEDB.md` (enable, leave, proof), the TimescaleDB sections of
+  `BACKUP_RESTORE.md` and `DISASTER_RECOVERY.md`, the TSL review in
+  `docs/legal/DEPENDENCY_LICENSE_REVIEW.md` (self-hosted internal use permitted; not bundled or
+  hosted). New `tests/integration/test_timescale_present_postgres.py`
+  (`EUROGAS_NEXUS_TEST_TIMESCALE_URL`): conversion, writers on compressed chunks, idempotence,
+  no-op downgrade. The restore drill fails when hypertables do not come back. Proven on
+  `timescale/timescaledb:latest-pg16` (2.32.1): upgrade, downgrade, re-upgrade, a downgrade
+  past 0072, dump and restore. Not turned on anywhere: doc 19 found no measured need yet.
 - Migration tests no longer pin the schema head (merged from `inno-merge-test`); the head is
   checked once against the alembic chain in `tests/api/test_release_metadata_api.py`.
 

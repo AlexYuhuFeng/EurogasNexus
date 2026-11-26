@@ -257,3 +257,10 @@ If live PostgreSQL validation cannot run, report one of:
 
 Never include the password, full URL, `.env` content, or host credentials in the
 report.
+
+## Optional: TimescaleDB
+
+Plain PostgreSQL 16 is the complete runtime store. An operator may add the TimescaleDB
+Community Edition extension to compress the raw archive and tick tables; it is off by default
+(`EUROGAS_NEXUS_TIMESCALE=off`). See [`../deployment/TIMESCALEDB.md`](../deployment/TIMESCALEDB.md)
+(ADR Decision 39) before turning it on: it changes three primary keys and the restore target.

@@ -524,7 +524,8 @@ source/time indexes next to the existing entity/period ones. Reads that scan his
 bounded (for example the spread lab's 150k-row ceiling).
 
 Rejected for now: TimescaleDB or a separate time-series store (a new datastore and its
-licence; AGENTS.md rule 5). Native declarative partitioning by month is the next step
+licence; AGENTS.md rule 5). Amended 2026-11-26 by Decision 39: the TimescaleDB extension may be
+used, optional and off by default, on the same PostgreSQL server. Native declarative partitioning by month is the next step
 when any observation table passes about 50 million rows or a time-range read exceeds its
 latency budget after indexing. At that point a BRIN index on the time column replaces
 the B-tree on the largest partitions. Retention (raw archive and audit pruning) and the
@@ -1037,3 +1038,40 @@ are a configuration file the firm sets from its agreement with the bank. Without
 makes no network call and reports not connected. The scheduled source is off by default. The
 earlier rejection of a live bank connector now applies to every bank but this one. Tests:
 `tests/unit/test_socgen_bank_connector.py`.
+
+## Decision 39: TimescaleDB Community Edition is an optional extension, off by default
+
+Accepted 2026-11-26 on the owner's instruction to bring in the TimescaleDB work
+(`wip/timescale-on-innovation`) as an optional extension. It amends Decision 24, which rejected
+TimescaleDB "for now". PostgreSQL stays the runtime store and no new datastore or service is
+added (AGENTS.md rule 5): TimescaleDB is an extension inside the same server. The setting
+`EUROGAS_NEXUS_TIMESCALE` is `off` by default; `auto` converts where the server has TimescaleDB
+2.13 or later preloaded with the Community Edition licence loaded; `require` stops a migration
+that cannot. Migration `0092_timescale_optional` (on `0091_lng_berth_rules`) calls the
+idempotent `eurogas_nexus.db.timescale.apply`, also run by `scripts/ops/timescale.py apply`. It
+converts `raw_payload_archives`, `market_quotes` and `market_trades` to hypertables with
+compression policies, widening each primary key from `(id)` to `(id, time)`; no writer uses
+those keys as an `ON CONFLICT` target. The observation tables, the outbox and the audit log stay
+plain (their unique keys have no time column). No continuous aggregate (the daily readers are
+point-in-time and revision-aware). On SQLite, on PostgreSQL without the extension and with the
+setting `off`, the migration changes nothing; the downgrade is a no-op (turning a hypertable
+back into a table is a copy, `docs/deployment/TIMESCALEDB.md`). Readiness reports the
+extension's state (`extensions.timescaledb`), never failing on it; the restore drill fails when
+a converted source restores without its hypertables.
+
+Measured need: none yet. Doc 19 (CAP-1) found the benefit, compression of old raw archives and
+of ticks, not needed in its scenarios A and B and matched by partitions and Parquet, and
+recommended DEFER; the extension is therefore built so that an operator who reaches scenario C
+(licensed ticks kept beyond days) can turn it on, not turned on anywhere. The decision to turn
+it on in a deployment is the operator's, against that deployment's measured size.
+
+Licence: compression is under the Timescale License; the review (internal use and value-added
+grants, the database-as-a-service prohibition, the no-schema-access condition for a hosted
+offering) is in `docs/legal/DEPENDENCY_LICENSE_REVIEW.md`. The product does not bundle or host
+it. Rejected: on by default (`auto`) (a managed service listing `timescaledb` would be converted
+without anyone choosing it, and the key change is not reversed by a downgrade); converting the
+observation tables (their upserts are keyed on the id alone); continuous aggregates (they leak
+a later revision into an earlier read). Tests: `tests/unit/test_timescale_optional.py`,
+`tests/integration/test_timescale_optional_postgres.py` (plain PostgreSQL),
+`tests/integration/test_timescale_present_postgres.py` (TimescaleDB), `tests/unit/test_reliability_ops.py`.
+

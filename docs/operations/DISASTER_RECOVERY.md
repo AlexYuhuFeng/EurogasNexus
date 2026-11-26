@@ -22,6 +22,12 @@ Detection: readiness 503, runtime `/api/runtime/db` unreachable.
 Impact: all data routes unavailable; ingestion/shadow workers fail recorded.
 Recovery: provision PostgreSQL, run `backup_restore_drill.py` target restore
 or documented `pg_restore`, verify revision/required tables/API smoke.
+Where the lost store ran the optional TimescaleDB extension
+(`GET /api/health/ready` → `extensions.timescaledb: active`, ADR Decision 39), the
+replacement server needs TimescaleDB of the same version, preloaded, before the
+restore: a dump of a converted store restored onto plain PostgreSQL loses the rows of
+`raw_payload_archives`, `market_quotes` and `market_trades`
+([`BACKUP_RESTORE.md`](BACKUP_RESTORE.md#timescaledb), [`TIMESCALEDB.md`](../deployment/TIMESCALEDB.md)).
 Verification: `/api/health/ready` 200; representative business rows present.
 Escalation: deployment owner if backup is missing or unreadable.
 
