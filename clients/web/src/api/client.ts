@@ -4571,6 +4571,8 @@ export interface MandateUsageRowDTO {
   furthest_month: string;
   legs: number;
   breaches: string;
+  /** The same breaches as declared notes, each naming its contract (newer servers). */
+  breach_notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
   valid_until: string | null;
   status: "ok" | "watch" | "breach" | "expired";
   hedge_policy: string;
@@ -4690,6 +4692,8 @@ export interface HedgeApprovalRowDTO {
   hedge_range: string | null;
   months: HedgeApprovalMonthDTO[];
   breaches: string[];
+  /** The same breaches as declared notes, each naming its contract (newer servers). */
+  breach_notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
   status: "ok" | "breach" | "expired";
   linked_trades: number;
   contract_found: boolean;
@@ -5221,7 +5225,7 @@ export interface PositionLadderDTO {
   methods?: Record<string, RiskMethodNoteDTO>;
   warnings: string[];
   /** The same warnings as codes with parameters, for the reader's language (newer servers). */
-  notes?: { code: string; params?: Record<string, unknown> }[];
+  notes?: { code: string; params?: Record<string, unknown>; text?: string }[];
 }
 
 export interface SpreadSeriesDTO {

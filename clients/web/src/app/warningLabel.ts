@@ -44,7 +44,33 @@ const LEADING_CODE = /^[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?=:|$)/;
  * languages), a sentence as sent with any enum code inside it said in words. The one function a
  * list of server warnings renders through, so a new code never reaches the screen raw.
  */
-export function serverWarningText(warning: string, t: Translate, names?: ReadonlyMap<string, string>): string {
+/**
+ * A server note as the server declares it (`domain/ontology/notes.py`): a stable code, its
+ * parameters and the English text. A parameter naming a record comes with its name (`ref_name`).
+ */
+export interface ServerNote {
+  code: string;
+  params?: Record<string, unknown>;
+  text?: string;
+}
+
+function isServerNote(value: unknown): value is ServerNote {
+  return typeof value === "object" && value !== null && typeof (value as ServerNote).code === "string";
+}
+
+/** A declared note in words: `warning.<code>` with its parameters, the server's text otherwise. */
+export function serverNoteText(note: ServerNote, t: Translate, names?: ReadonlyMap<string, string>): string {
+  const params: Record<string, unknown> = { ...(note.params ?? {}) };
+  // A record is said by its name: the one the server sent, else one this page holds, else its id.
+  if (params.ref !== undefined) params.ref = params.ref_name ?? names?.get(String(params.ref)) ?? params.ref;
+  const key = `warning.${note.code.toLowerCase()}`;
+  const said = t(key, params);
+  if (said !== key) return said;
+  return note.text ? serverWarningText(note.text, t, names) : humanizeEnum(note.code);
+}
+
+export function serverWarningText(warning: string | ServerNote, t: Translate, names?: ReadonlyMap<string, string>): string {
+  if (isServerNote(warning)) return serverNoteText(warning, t, names);
   const text = String(warning ?? "").trim();
   if (LEADING_CODE.test(text)) return warningLabel(text, t);
   return serverSentence(text, t, names) ?? enumWordsIn(text);

@@ -21,6 +21,25 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 
 from eurogas_nexus.domain.ontology.markets import quote_currency
+from eurogas_nexus.domain.ontology.notes import declare, note
+
+INDICATIVE_PRICE_RISK_ONLY = declare(
+    "INDICATIVE_PRICE_RISK_ONLY",
+    "Indicative: price risk on the open position only; volume, basis, shape and credit risk "
+    "are not included. Not a substitute for the risk system.",
+)
+LEG_MONTHS_NOT_VALUED = declare(
+    "LEG_MONTHS_NOT_VALUED", "{count} leg-months have no mark or no price and are not valued."
+)
+VAR_OFFSETTING_MONTHS = declare(
+    "VAR_OFFSETTING_MONTHS",
+    "VaR unavailable: offsetting delivery months at {hubs} require tenor-level price history. "
+    "Gross tenor exposure and a tenor shock scenario are shown instead.",
+)
+VAR_SHORT_HISTORY = declare(
+    "VAR_SHORT_HISTORY",
+    "VaR needs at least 20 daily price changes on every hub held; {count} available.",
+)
 
 #: Leg sources that come from the firm's cargoes in transit, not from a contract or a trade.
 CARGO_SOURCES = frozenset({"cargo_plan", "cargo_hedge"})
@@ -60,6 +79,9 @@ class PositionLeg:
     #: Where the leg comes from: "contract", "trade", "cargo_plan" (a firm cargo's send-out by
     #: gas day) or "cargo_hedge" (a hedge the desk recorded against a cargo); "" when not said.
     source: str = ""
+    #: The leg as a person names it (a contract's name, a trade's venue, side and hub), so a
+    #: breach or a warning about it never has to show ``reference``.
+    label: str = ""
 
     @property
     def from_cargo(self) -> bool:
@@ -105,10 +127,11 @@ class LadderResult:
     #: (QA-R-07); the totals carry the least current hub's.
     marks_by_hub: dict[str, tuple[date | None, str]] = field(default_factory=dict)
 
-    def note(self, code: str, text: str, **params: object) -> None:
-        """Record a warning once as English text and once as a translatable code."""
-        self.warnings.append(text)
-        self.notes.append({"code": code, "params": params})
+    def note(self, code: str, **params: object) -> None:
+        """Record a declared note: its English text in ``warnings``, the note in ``notes``."""
+        item = note(code, **params)
+        self.warnings.append(item.text)
+        self.notes.append(item.as_dict())
 
     def _marks(self, hub: str) -> dict[str, object]:
         if not self.marks_by_hub:
@@ -396,22 +419,14 @@ def ladder_report(
     result.offsetting_hubs = sorted(long_by_hub & short_by_hub)
     if tenor_shocks:
         result.scenario = tenor_scenario(rows, tenor_shocks, fx_by_hub=fx_by_hub)
-    result.note(
-        "INDICATIVE_PRICE_RISK_ONLY",
-        "Indicative: price risk on the open position only; volume, basis, shape and credit "
-        "risk are not included. Not a substitute for the risk system.",
-    )
+    result.note(INDICATIVE_PRICE_RISK_ONLY)
     if marks is not None:
         value, missing = mark_to_market(
             legs, marks, horizon_start=horizon_start, horizon_end=horizon_end, fx_by_hub=fx_by_hub
         )
         result.mark_to_market, result.unpriced_rows = value, missing
         if missing:
-            result.note(
-                "LEG_MONTHS_NOT_VALUED",
-                f"{missing} leg-months have no mark or no price and are not valued.",
-                count=missing,
-            )
+            result.note(LEG_MONTHS_NOT_VALUED, count=missing)
     if daily_closes_by_hub is not None:
         net_by_hub: dict[str, float] = {}
         long_hubs: set[str] = set()
@@ -425,22 +440,11 @@ def ladder_report(
         offsetting_hubs = long_hubs & short_hubs
         if offsetting_hubs:
             hubs = ", ".join(sorted(offsetting_hubs))
-            result.note(
-                "VAR_OFFSETTING_MONTHS",
-                f"VaR unavailable: offsetting delivery months at {hubs} require tenor-level "
-                "price history. Gross tenor exposure and a tenor shock scenario are shown "
-                "instead.",
-                hubs=hubs,
-            )
+            result.note(VAR_OFFSETTING_MONTHS, hubs=hubs)
             return result
         result.var_95_1d, result.var_observations = historical_var(
             net_by_hub, daily_closes_by_hub, fx_by_hub=fx_by_hub
         )
         if result.var_95_1d is None:
-            result.note(
-                "VAR_SHORT_HISTORY",
-                f"VaR needs at least 20 daily price changes on every hub held; "
-                f"{result.var_observations} available.",
-                count=result.var_observations,
-            )
+            result.note(VAR_SHORT_HISTORY, count=result.var_observations)
     return result

@@ -241,6 +241,7 @@ def mandate_legs(inputs, today: date) -> list:
             instrument="physical"
             if leg.kind == "physical"
             else instruments.get(leg.reference, "future"),
+            label=getattr(leg, "label", ""),
         )
         for leg in inputs.legs
     ]
