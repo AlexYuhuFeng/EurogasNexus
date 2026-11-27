@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { api } from "@/api/client";
 import type { DealPnlRowDTO, EodCheckDTO, EodDifferenceDTO, PackScheduleDTO } from "@/api/deals";
 import { readKey, useCachedRead } from "@/app/data/readCache";
-import { DataGrid, Field, PeriodPicker, Select, type DataGridColumn } from "@/components/ui";
+import { Button, DataGrid, Field, PeriodPicker, Select, StatusBadge, type DataGridColumn } from "@/components/ui";
 
 import { differenceText, shownDecimal, todayIso, unacknowledged } from "@/app/model/dealCaptureModel";
 
@@ -130,7 +130,7 @@ export function EndOfDayPanel({ t, canWrite, canReadLimits }: { t: Translate; ca
     api.downloadDailyPack(day, kind, lang, format).catch(fail);
 
   return (
-    <section className="workspace-panel span-3" aria-labelledby="eod-title" data-end-of-day="true">
+    <section className="workspace-panel span-3 desk-panel" aria-labelledby="eod-title" data-end-of-day="true">
       <h2 id="eod-title">{t("eod.title")}</h2>
       <div className="ds-form-grid">
         <Field label={t("deals.day")}>
@@ -140,10 +140,12 @@ export function EndOfDayPanel({ t, canWrite, canReadLimits }: { t: Translate; ca
           <input type="file" accept=".csv,text/csv" data-eod-file="true" disabled={busy} onChange={(event) => runCheck(event.target.files?.[0] ?? null)} />
         </Field>
       </div>
-      <p className="muted" data-day-status={status?.closed ? "closed" : "estimate"}>
-        {status?.closed && status.closes.length
-          ? t("deals.status_closed", { who: status.closes[status.closes.length - 1].closed_by })
-          : t("deals.status_estimate")}
+      <p className="desk-status" data-day-status={status?.closed ? "closed" : "estimate"}>
+        <StatusBadge tone={status?.closed ? "ok" : "info"}>
+          {status?.closed && status.closes.length
+            ? t("deals.status_closed", { who: status.closes[status.closes.length - 1].closed_by })
+            : t("deals.status_estimate")}
+        </StatusBadge>
       </p>
 
       {check && (
@@ -168,9 +170,9 @@ export function EndOfDayPanel({ t, canWrite, canReadLimits }: { t: Translate; ca
                 <input value={closeNote} onChange={(event) => setCloseNote(event.target.value)} />
               </Field>
               <div className="ds-form-grid-action">
-                <button type="button" data-eod-close="true" disabled={busy || missing > 0} onClick={() => void close()}>
+                <Button variant="primary" data-eod-close="true" disabled={busy || missing > 0} onClick={() => void close()}>
                   {missing > 0 ? t("eod.close_missing", { count: missing }) : t("eod.close")}
-                </button>
+                </Button>
               </div>
             </div>
           )}
@@ -179,20 +181,20 @@ export function EndOfDayPanel({ t, canWrite, canReadLimits }: { t: Translate; ca
 
       <h3>{t("eod.pnl_title")}</h3>
       <p className="muted">{t("eod.pnl_method")}</p>
-      {pnl.data?.simulated_marks && <p className="limit-badge" data-status="breach">{t("eod.simulated")}</p>}
+      {pnl.data?.simulated_marks && <p className="desk-status"><StatusBadge tone="simulated">{t("eod.simulated")}</StatusBadge></p>}
       <DataGrid id="deal-pnl" label={t("eod.pnl_title")} columns={pnlColumns} rows={pnl.data?.by_trader_hub ?? []} rowKey={(row) => `${row.book_id}:${row.trader}:${row.hub}:${row.currency}`} density="compact" empty={t("eod.pnl_empty")} />
       {(pnl.data?.not_valued.length ?? 0) > 0 && <p className="muted">{t("eod.not_valued", { count: pnl.data?.not_valued.length })}</p>}
 
       <h3>{t("eod.pack_title")}</h3>
       <p className="muted">{t("eod.pack_hint")}</p>
-      <div className="ds-form-grid" role="group" aria-label={t("eod.pack_title")}>
+      <div className="desk-pack-rows" role="group" aria-label={t("eod.pack_title")}>
         {(["management", "risk"] as const).filter((kind) => kind === "management" || canReadLimits).map((kind) => (
-          <div key={kind} className="ds-form-grid-action" data-pack-kind={kind}>
-            <strong>{t(`eod.pack.${kind}`)}</strong>{" "}
+          <div key={kind} className="desk-actions" data-pack-kind={kind}>
+            <strong className="desk-actions-label">{t(`eod.pack.${kind}`)}</strong>
             {(["en", "zh-CN"] as const).map((lang) => (
-              <span key={lang}>
-                <button type="button" onClick={() => void download(kind, lang, "pdf")}>{t(`eod.pack_pdf_${lang === "en" ? "en" : "zh"}`)}</button>{" "}
-                <button type="button" onClick={() => void download(kind, lang, "xlsx")}>{t(`eod.pack_xlsx_${lang === "en" ? "en" : "zh"}`)}</button>{" "}
+              <span key={lang} className="desk-actions">
+                <Button onClick={() => void download(kind, lang, "pdf")}>{t(`eod.pack_pdf_${lang === "en" ? "en" : "zh"}`)}</Button>
+                <Button onClick={() => void download(kind, lang, "xlsx")}>{t(`eod.pack_xlsx_${lang === "en" ? "en" : "zh"}`)}</Button>
               </span>
             ))}
           </div>
@@ -211,9 +213,9 @@ export function EndOfDayPanel({ t, canWrite, canReadLimits }: { t: Translate; ca
               ]}
             />
           </Field>
-          <div className="ds-form-grid-action">
-            <button type="button" disabled={busy} data-pack-send="management" onClick={() => send(["management"])}>{t("eod.send_management")}</button>{" "}
-            {canReadLimits && <button type="button" disabled={busy} data-pack-send="risk" onClick={() => send(["management", "risk"])}>{t("eod.send_both")}</button>}
+          <div className="ds-form-grid-action desk-actions">
+            <Button disabled={busy} data-pack-send="management" onClick={() => send(["management"])}>{t("eod.send_management")}</Button>
+            {canReadLimits && <Button disabled={busy} data-pack-send="risk" onClick={() => send(["management", "risk"])}>{t("eod.send_both")}</Button>}
           </div>
           {current && Object.values(current.recipients ?? {}).every((count) => count === 0) && (
             <p className="muted">{t("eod.no_recipients")}</p>

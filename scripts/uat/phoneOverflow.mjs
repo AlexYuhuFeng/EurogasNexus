@@ -15,7 +15,7 @@
 // page, so a page that only overflows on its third tab is still found.
 
 export const PHONE_ROUTES = [
-  ...["overview", "curves", "network", "capacity"].map((task) => `?workspace=market&task=${task}`),
+  ...["board", "overview", "curves", "network", "capacity"].map((task) => `?workspace=market&task=${task}`),
   ...["overview", "resources", "exposure", "delivery", "deals"].map((task) => `?workspace=contracts&task=${task}`),
   ...["review", "nomination", "dispatch"].map((task) => `?workspace=scenario&task=${task}`),
   "?workspace=research&task=reports",
@@ -143,7 +143,7 @@ export function findVisibleEnums() {
 export const JSON_UPLOAD_PENDING_REMOVAL = new Set(["?workspace=contracts&task=resources"]);
 
 export const PURPOSE_ROUTES = new Set([
-  ...["overview", "curves", "network"].map((task) => `?workspace=market&task=${task}`),
+  ...["board", "overview", "curves", "network"].map((task) => `?workspace=market&task=${task}`),
   ...["overview", "resources", "exposure", "delivery", "deals"].map((task) => `?workspace=contracts&task=${task}`),
   ...["review", "nomination", "dispatch"].map((task) => `?workspace=scenario&task=${task}`),
   "?workspace=research&task=reports",

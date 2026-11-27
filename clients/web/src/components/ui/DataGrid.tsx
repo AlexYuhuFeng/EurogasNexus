@@ -103,6 +103,12 @@ export interface DataGridColumn<R> {
    * tenor). A change of identity resets the cell quietly; only a change of value is a tick.
    */
   flashIdentity?: (row: R) => string;
+  /** `direction`: the flash in the direction's colour (LiveValue `tone`). */
+  flashTone?: "neutral" | "direction";
+  /** A row whose value does not flash (a stale quote). */
+  flashQuiet?: (row: R) => boolean;
+  /** A row whose value is stale on its own: the stale mark in the glyph's place, with this text. */
+  staleLabel?: (row: R) => string | null | undefined;
   cellTitle?: (row: R) => string | undefined;
   cellClassName?: (row: R) => string | undefined;
   cellAttributes?: (row: R) => Record<string, string | undefined>;
@@ -117,6 +123,22 @@ export interface DataGridColumn<R> {
   priority?: "primary" | "secondary";
   /** Keep the column when no row has a value (by default a column of dashes is left out). */
   keepWhenEmpty?: boolean;
+  /**
+   * A header over several neighbouring columns (a hub over its Bid | Offer | Last | Chg): drawn
+   * as a row above the column headers, spanning the consecutive columns of the same `id`.
+   */
+  group?: { id: string; header: ReactNode; title?: string };
+}
+
+/** Consecutive runs of columns under one group header (a column with none is its own run). */
+export function groupRuns<R>(columns: readonly DataGridColumn<R>[]): { group: DataGridColumn<R>["group"] | null; span: number; first: string }[] {
+  const runs: { group: DataGridColumn<R>["group"] | null; span: number; first: string }[] = [];
+  for (const column of columns) {
+    const last = runs[runs.length - 1];
+    if (last && column.group && last.group?.id === column.group.id) last.span += 1;
+    else runs.push({ group: column.group ?? null, span: 1, first: column.id });
+  }
+  return runs;
 }
 
 export interface DataGridProps<R> {
@@ -203,6 +225,7 @@ interface RowProps<R> {
 
 function RowView<R>({ row, rowId, columns, spans, index, tabbable, interactive, selected, attributes, className, folded, expanded, onToggle, detailsLabel, detailId }: RowProps<R>) {
   const hasDetails = Boolean(folded && folded.length > 0);
+  const groupStarts = groupStartIds(columns);
   return (
     <Fragment>
     <tr
@@ -226,13 +249,14 @@ function RowView<R>({ row, rowId, columns, spans, index, tabbable, interactive, 
             rowSpan={span > 1 ? span : undefined}
             data-align={alignOf(column)}
             data-col={column.id}
+            data-group-start={groupStarts.has(column.id) ? "" : undefined}
             className={column.cellClassName?.(row)}
             title={column.cellTitle?.(row)}
             aria-hidden={column.decorative || undefined}
             {...column.cellAttributes?.(row)}
           >
             {column.flash ? (
-              <LiveValue watch={column.value?.(row)} identity={`${rowId}|${column.id}|${column.flashIdentity?.(row) ?? ""}`}>
+              <LiveValue watch={column.value?.(row)} identity={`${rowId}|${column.id}|${column.flashIdentity?.(row) ?? ""}`} tone={column.flashTone} quiet={column.flashQuiet?.(row)} staleLabel={column.staleLabel?.(row) ?? null}>
                 {content}
               </LiveValue>
             ) : (
@@ -286,6 +310,12 @@ function RowView<R>({ row, rowId, columns, spans, index, tabbable, interactive, 
 }
 
 const Row = memo(RowView) as typeof RowView;
+
+/** The columns that open a group after another column (they carry the group's start line). */
+function groupStartIds<R>(columns: readonly DataGridColumn<R>[]): Set<string> {
+  if (!columns.some((column) => column.group)) return new Set();
+  return new Set(groupRuns(columns).filter((run, index) => run.group && index > 0).map((run) => run.first));
+}
 
 export function DataGrid<R>({
   columns: declaredColumns,
@@ -403,6 +433,7 @@ export function DataGrid<R>({
   };
 
   const anySortable = columns.some((column) => column.sortable);
+  const headerGroupStarts = groupStartIds(columns);
   const showBody = !loading || rows.length > 0;
   const classes = ["ds-grid", `ds-grid-${density}`, interactive ? "ds-grid-interactive" : "", className]
     .filter(Boolean)
@@ -426,6 +457,23 @@ export function DataGrid<R>({
           ))}
         </colgroup>
         <thead>
+          {columns.some((column) => column.group) ? (
+            <tr className="ds-grid-group-row">
+              {groupRuns(columns).map((run, index) => (
+                <th
+                  key={`${run.first}-group`}
+                  scope={run.group ? "colgroup" : undefined}
+                  colSpan={run.span > 1 ? run.span : undefined}
+                  title={run.group?.title}
+                  data-group-start={run.group && index > 0 ? "" : undefined}
+                  aria-hidden={run.group ? undefined : true}
+                >
+                  {run.group?.header ?? null}
+                </th>
+              ))}
+              {split.folded.length > 0 ? <th aria-hidden="true" /> : null}
+            </tr>
+          ) : null}
           <tr>
             {columns.map((column) => {
               const sorted = sort?.columnId === column.id ? sort.direction : undefined;
@@ -441,6 +489,7 @@ export function DataGrid<R>({
                   scope="col"
                   data-align={alignOf(column)}
                   data-col={column.id}
+                  data-group-start={headerGroupStarts.has(column.id) ? "" : undefined}
                   aria-sort={column.sortable ? (sorted ?? "none") : undefined}
                   title={column.headerTitle}
                 >

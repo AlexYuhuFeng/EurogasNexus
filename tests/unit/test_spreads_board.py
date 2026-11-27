@@ -205,3 +205,33 @@ def test_the_prompt_day_ahead_is_the_next_working_day_as_the_tick_intake_stores_
     assert prompt_days(friday) == {"within_day": friday, "day_ahead": monday}
     assert prompt_days(monday)["day_ahead"] == date(2026, 11, 24)
     assert prompt_days(friday)["day_ahead"] == resolve_product("DA", friday).first_gas_day
+
+
+def test_named_pairs_replace_the_hubs_against_ttf(holdings):
+    """Desk → Board asks for the desk's pairs (TTF–THE here, THE as the reference) and a time
+    row for each of its hubs, held or not."""
+
+    pairs = [("TTF", "THE"), ("PVB", "TTF")]
+    data = board(holdings, ["TTF", "THE", "PVB"], carry=None, pairs=pairs)
+    assert [row["pair"] for row in data["locational"]] == ["TTF–THE", "PVB–TTF"]
+    month = data["locational"][0]["tenors"][0]
+    assert month["available"]
+    assert month["gross"] == pytest.approx(30.01 - 30.51)  # TTF − THE: the sign follows the pair
+    assert month["direction"] == "TTF → THE"
+    assert [leg["hub"] for leg in month["legs"]] == ["TTF", "THE"]
+    missing = data["locational"][1]["tenors"][0]
+    assert not missing["available"] and missing["reasons"][0]["code"] == "no_close_both"
+    assert [row["hub"] for row in data["time"]] == ["TTF", "THE", "PVB"]
+    # Without pairs the board is as before: each hub against TTF.
+    assert [row["pair"] for row in board(holdings, [], carry=None)["locational"]] == ["THE–TTF"]
+
+
+def test_the_board_reads_named_pairs_from_its_address():
+    from fastapi import HTTPException
+
+    from eurogas_nexus.api.routes.public.spreads import _pairs
+
+    assert _pairs(None) is None and _pairs("") is None
+    assert _pairs("ttf-nbp, ZTP–NBP,PVB-TTF") == [("TTF", "NBP"), ("ZTP", "NBP"), ("PVB", "TTF")]
+    with pytest.raises(HTTPException):
+        _pairs("not a pair")

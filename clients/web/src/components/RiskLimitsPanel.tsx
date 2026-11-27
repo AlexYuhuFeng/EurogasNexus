@@ -388,7 +388,7 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
   const breaches = [...(credit ?? []), ...(mandates ?? [])].filter((row) => row.status === "breach" || row.status === "expired").length;
 
   return (
-    <section className="workspace-panel span-3 risk-limits-panel" aria-labelledby="risk-limits-title">
+    <section className="workspace-panel span-3 risk-limits-panel desk-panel" aria-labelledby="risk-limits-title">
       <div className="panel-title-row">
         <h2 id="risk-limits-title">{t("limits.title")}</h2>
         {breaches > 0 && <StatusBadge tone="breach">{t("limits.breaches", { count: breaches })}</StatusBadge>}

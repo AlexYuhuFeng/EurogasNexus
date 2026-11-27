@@ -15,8 +15,10 @@ repository UI standard.
 - Non-map workspaces use one compact identity band: primary eyebrow + local task
   title + local task tabs only when the primary owns more than one view.
 - No sidebar + group tabs + page tabs + nested tabs at the same time.
-- Dense institutional styling: 8px spacing, hairline borders, system fonts,
-  tabular numerals, no gradients, no oversized cards, no consumer dashboard.
+- Dense institutional styling: a 4 px spacing scale (2, 4, 8, 12, 16, 24, 32 px; DESIGN_TOKENS.md),
+  hairline borders, the bundled Inter face (never a system font stack), tabular numerals, no
+  gradients, no oversized cards, no consumer dashboard. The brand name beside the mark is set in
+  the same interface face (`BrandMark` wordmark), not a display face.
 
 ## Reference targets
 
@@ -41,7 +43,7 @@ Accepted principles from the CR-05 research pass:
   visible compatibility caveats, not a chart wall;
 - charts are thin, muted, unit-labelled and break on missing data; they never
   create a smooth illustrative curve;
-- dense 8px grid, hairline borders, tabular numerals, 12–13px body text, no
+- dense 4 px spacing scale, hairline borders, tabular numerals, 12–13px body text, no
   marketing cards or gradients;
 - persistent identity/version/context header in every task.
 
@@ -76,8 +78,9 @@ Added after the supplier-acceptance review by an experienced gas trader
 unchanged; these rules govern how much of that evidence is *on screen by default*.
 
 1. **One number, one place.** A price, spread or position appears once per page.
-   Hub prices are a single hub × tenor board (bid/ask, mid, tick, spread vs TTF,
-   WD/DA/WE/MA mids, source, unit · age), not ticker cards plus lanes plus tables.
+   Hub prices are one board, contracts down and hubs across (Desk → Board: WD, DA, WE, BOM,
+   three months, two quarters, two seasons, Cal; Bid | Offer | Last | Chg under each hub),
+   not ticker cards plus lanes plus tables.
 2. **Provenance on demand.** Projection slice tables, per-source quotes, source
    matrices and reference-index evidence sit behind a one-line disclosure
    (`<details>`). The default line states the as-of instant and how many slices are
@@ -103,8 +106,11 @@ unchanged; these rules govern how much of that evidence is *on screen by default
    GY-27, Cal-27), "Bid / Offer", volumes in MW (continental) and th/d (NBP), and offer
    the ladder layout (products down, hubs across, Bid Vol | Bid | Offer | Offer Vol).
    Do not copy any vendor's visual design.
-10. **Simulated is never mistaken for market.** Any simulated price on screen carries a
-    board-level banner. Real and simulated quotes never compete for a best price.
+10. **Simulated is never mistaken for market.** A simulated figure carries the `sim` mark beside
+    the value; when every figure in a scope is simulated, one quiet source line ("Source:
+    simulated prices") replaces the marks (`components/ui/SimulatedScope.tsx`). It is a source
+    line, never a board-level banner or callout. A price with no licensed or public source shows
+    "no source", never a number. Real and simulated quotes never compete for a best price.
 11. **Accessible by default.** Text meets WCAG AA contrast in light and dark themes, and
     scrollable regions are keyboard focusable. The browser-acceptance axe sweep enforces
     this.
@@ -169,8 +175,8 @@ exact copy, so that presentation can improve without weakening a gate.
 15. **The top bar holds navigation, search, alerts, data status and the account, nothing else.**
     Below 1024 px the mark is the menu (one control). Every icon-only control has an accessible
     name and a tooltip, and is 44 px on a touch screen. Demo mode is said once and quietly: a small
-    "Demo" badge beside the mark and one line in the account menu, never a chip on every page (the
-    simulated-prices banner on a board stays, rule 10). Help, keyboard shortcuts and "Report a
+    "Demo" badge beside the mark and one line in the account menu, never a chip on every page (a
+    board's simulated prices are said by its marks or its one source line, rule 10). Help, keyboard shortcuts and "Report a
     problem" live in the account menu and in the answer bar ("help", "report a problem"), not as a
     "?" button on the bar.
 16. **Problems are listed, not pinned.** Reads that did not load show as a count on the top bar's
@@ -268,6 +274,25 @@ exact copy, so that presentation can improve without weakening a gate.
     (with Import and New draft), Assess in each Planning panel's action row. `WorkspaceHeader`
     has no action slot; the browser sweep's page contract fails a button or link in a page
     header that is not a tab.
+
+## Desk → Board, the small desk's screen (2026-11-27)
+
+The one screen the desk keeps open beside its trading screen (SMALL_DESK_PLAN section 9) is a
+task of the Desk page (`?workspace=market&task=board`), the trader's landing. Hub prices span two
+columns at the top with a chart beside them; spreads (net of transport, the rule stated on
+screen) and the book (P&L per currency as a desk estimate; position on the board's rows, th/d at
+NBP, MW on the continent) sit under the board, the fundamentals (GB mcm/d, continent GWh/d)
+under the chart. Light theme by default, English. At 1920 × 1080 the page never scrolls (panels
+scroll inside themselves); below 1600 px the board takes the width and the chart and the
+fundamentals share one place behind a switch. A bid, offer or last flashes in the direction's
+colour (the P&L up/down roles) and keeps its ▲/▼; a stale quote never flashes and carries the
+stale mark. The chart follows the last choice (a price, a hub's head for its forward curve, a
+spread, a storage, flow or send-out line) and says "no source" where nothing holds the history.
+The blotter, end of day, position and limits panels share its density (`desk-panel`).
+
+Stylesheet note: `components/situationStrip.css` still draws its 3 px severity edge and its 7 px
+dot with raw lengths, because the token scale has no step for either; its one other raw value
+(the link underline offset) is now `--ds-space-05`.
 
 ## Implementation note
 

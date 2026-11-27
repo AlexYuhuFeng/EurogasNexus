@@ -2453,6 +2453,8 @@ export interface MarginalRouteCostDTO {
   total: number | null;
   /** What a desk that already holds capacity pays: the flow charges only. */
   holder: number | null;
+  /** Whether the firm's bookings cover the route (all legs, part of it, none); newer servers. */
+  capacity_held?: "all" | "part" | "none";
   sunk_capacity: { product: string; load_factor: number; value: number | null; complete: boolean } | null;
 }
 
@@ -6886,8 +6888,12 @@ export const api = {
     post<InterpretationDTO>("/research/spreads/interpret", body, options),
   /** Research → Spreads: a spec's checks and its result, every figure from the engine. */
   /** Research → Spreads: the desk's spread board (focus hubs first, then the majors). */
-  spreadsBoard: (hubs: readonly string[] = [], options?: ApiRequestOptions) =>
-    get<SpreadBoardDTO>("/research/spreads/board", hubs.length ? { hubs: hubs.join(",") } : undefined, options),
+  spreadsBoard: (hubs: readonly string[] = [], options?: ApiRequestOptions, pairs?: string) =>
+    get<SpreadBoardDTO>(
+      "/research/spreads/board",
+      hubs.length || pairs ? { ...(hubs.length ? { hubs: hubs.join(",") } : {}), ...(pairs ? { pairs } : {}) } : undefined,
+      options,
+    ),
   spreadsEvaluate: (spec: StrategySpecDTO, options?: ApiRequestOptions) =>
     post<EvaluationDTO>("/research/spreads/evaluate", { spec }, options),
   /** Tracked strategies (paper shadow run): the caller's own. */

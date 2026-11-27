@@ -59,6 +59,10 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
     descriptionKey: "nav.mode.desk.description",
     aliasKeys: ["nav.primary.market"],
     tasks: [
+      // The small desk's one screen beside the trading screen (SMALL_DESK_PLAN step 4): a task
+      // of the Desk page, reading what Today and Prices read, not a page of its own (rule 9).
+      // First, so the Desk opens on it; a trader lands on it (ASSIGNMENT_HOME).
+      { id: "board", labelKey: "nav.mode.desk.board", page: "market", pageTask: "board", permissions: ["market.read"], aliasKeys: ["nav.mode.desk.board.alias"] },
       { id: "today", labelKey: "nav.mode.desk.today", page: "market", pageTask: "overview", permissions: ["market.read"], aliasKeys: ["market.task.overview"] },
       { id: "prices", labelKey: "nav.mode.desk.prices", page: "market", pageTask: "curves", permissions: ["market.read"], aliasKeys: ["market.task.curves", "nav.market"] },
       // One Network task: the map with outages, capacity and flows in the panel beside it. The

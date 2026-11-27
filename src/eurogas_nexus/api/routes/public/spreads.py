@@ -66,15 +66,36 @@ class InterpretInput(BaseModel):
     model: bool = True
 
 
+def _pairs(text: str | None) -> list[tuple[str, str]] | None:
+    """``"TTF-NBP,ZTP-NBP"`` as ``[("TTF", "NBP"), ...]``; None when no pair is named."""
+
+    if not text:
+        return None
+    out: list[tuple[str, str]] = []
+    for part in text.split(",")[:8]:
+        hub, _, reference = part.strip().upper().replace("–", "-").partition("-")
+        if hub.isalpha() and reference.isalpha() and 2 <= len(hub) <= 8 >= len(reference) >= 2:
+            out.append((hub, reference))
+    if not out:
+        raise HTTPException(status_code=422, detail={"code": "pairs_not_read"})
+    return out
+
+
 @router.get("/api/research/spreads/board")
 @warm_view(
     ViewSpec("research.spreads_board", max_age_seconds=120, shared_by_scope=True),
     skip=as_of_read,
 )
 def spreads_board(
-    request: Request, hubs: str | None = None, as_of: date | None = None
+    request: Request,
+    hubs: str | None = None,
+    as_of: date | None = None,
+    pairs: str | None = None,
 ) -> dict:
     """The desk's spread board: locational, time and cross-commodity spreads from what is held.
+
+    ``pairs`` (``TTF-NBP,ZTP-NBP``, at most eight) names the locational spreads instead of each
+    hub against TTF; Desk → Board asks for the desk's five-hub pairs this way.
 
     价差看板：按持有数据计算的地点价差、时间价差与跨商品价差，无需输入。
     """
@@ -105,7 +126,8 @@ def spreads_board(
                 status_code=503,
                 detail={"code": "runtime_db_unavailable", "error_class": exc.__class__.__name__},
             ) from exc
-    data = board(holdings, wanted, carry=carry, cross=cross, prices=prices)
+    named = _pairs(pairs)
+    data = board(holdings, wanted, carry=carry, cross=cross, prices=prices, pairs=named)
     warnings = (
         ["Simulated inputs: these spreads are not market prices."] if data["simulated"] else []
     )

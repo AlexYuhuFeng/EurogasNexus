@@ -94,3 +94,36 @@ def test_the_board_shows_which_product_priced_the_day_ahead_spread():
     # 0.50 daily capacity + 0.05 commodity + 0.5 % fuel of 30 EUR/MWh; before: 0.20 (yearly).
     assert day_ahead["cost"] == pytest.approx(0.70)
     assert day_ahead["route"]["marginal"]["sunk_capacity"]["value"] == pytest.approx(0.20)
+
+
+def _bookings_on_every_leg(a: str, b: str) -> list:
+    """The firm holds yearly capacity at every point of the a → b crossing (TAR-2)."""
+
+    from eurogas_nexus.application.route_tariff_cost import LegBooking
+    from eurogas_nexus.domain.tariffs.precedence import Held
+
+    graph = shipped_market_area_graph()
+    crossing = graph.crossings(graph.hub_for(a), graph.hub_for(b))[0]
+    return [
+        LegBooking(leg.point_key, leg.direction, None,
+                   Held(f"bk-{leg.point_key}", date(2026, 10, 1), date(2027, 9, 30), 100.0,
+                        0.08, "EUR"))
+        for leg in graph.legs(crossing)
+    ]
+
+
+def test_the_route_says_whether_the_firm_holds_capacity_on_it():
+    """Desk → Board's transport rule reads this: with no booking the default (short-term
+    capacity plus flow charges); with the route booked, a holder pays the flow charges only."""
+
+    day = Delivery(date(2026, 11, 27), date(2026, 11, 27), "day_ahead", "2026-11-27")
+    public = marginal_route_cost("TTF", "THE", day, _rows_for, gas_price=30.0)
+    assert public.capacity_held == "none"
+    assert public.as_dict()["capacity_held"] == "none"
+    bookings = _bookings_on_every_leg("TTF", "THE")
+    held = marginal_route_cost("TTF", "THE", day, _rows_for, gas_price=30.0, bookings=bookings)
+    assert held.capacity_held == "all"
+    assert held.as_dict()["holder"] == pytest.approx(0.05 + 0.15)
+    part = marginal_route_cost("TTF", "THE", day, _rows_for, gas_price=30.0,
+                               bookings=bookings[:1])
+    assert part.capacity_held == "part"
