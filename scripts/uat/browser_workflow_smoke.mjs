@@ -101,6 +101,50 @@ const VIEWPORTS = [
   { id: "narrow-390", width: 390, height: 844 },
 ];
 
+/**
+ * The sweep's parts after the per-workspace pages. Hosted CI runs the sweep as parallel shards
+ * (`scripts/uat/browser_shards.json`, selected with EUROGAS_UAT_SHARD); every workspace and every
+ * stage belongs to exactly one shard, so the shards together run what one whole run does. With no
+ * shard selected the whole sweep runs in one process, as before.
+ */
+const SWEEP_STAGES = ["phone-overflow", "interactions"];
+
+export function shardCoverageProblems(shards, workspaces = WORKSPACES, stages = SWEEP_STAGES) {
+  const problems = [];
+  const owners = new Map();
+  for (const [name, shard] of Object.entries(shards)) {
+    for (const item of [...(shard.workspaces || []), ...(shard.stages || [])]) {
+      if (!workspaces.includes(item) && !stages.includes(item)) {
+        problems.push(`shard ${name} names ${item}, which is neither a workspace nor a stage`);
+      }
+      if (owners.has(item)) problems.push(`${item} is in shards ${owners.get(item)} and ${name}`);
+      owners.set(item, name);
+    }
+  }
+  for (const item of [...workspaces, ...stages]) {
+    if (!owners.has(item)) problems.push(`${item} is in no shard`);
+  }
+  return problems;
+}
+
+function selectedShard() {
+  const name = process.env.EUROGAS_UAT_SHARD || "";
+  if (!name) return { name: null, workspaces: WORKSPACES, stages: SWEEP_STAGES };
+  const { shards } = JSON.parse(
+    readFileSync(new URL("./browser_shards.json", import.meta.url), "utf8"),
+  );
+  const problems = shardCoverageProblems(shards);
+  if (problems.length) throw new Error(`browser_shards.json: ${problems.join("; ")}`);
+  const shard = shards[name];
+  if (!shard) throw new Error(`EUROGAS_UAT_SHARD=${name} is not declared in browser_shards.json`);
+  return {
+    name,
+    // Kept in the declared order, so a shard sweeps its pages in the order a whole run does.
+    workspaces: WORKSPACES.filter((workspace) => (shard.workspaces || []).includes(workspace)),
+    stages: SWEEP_STAGES.filter((stage) => (shard.stages || []).includes(stage)),
+  };
+}
+
 
 /**
  * What each workspace must show, and where the data it shows comes from.
@@ -2277,6 +2321,7 @@ async function capacityBoardFailureInteraction(page, failures) {
 }
 
 export async function runWorkflowSmoke() {
+  const shard = selectedShard();
   mkdirSync(OUTPUT_DIR, { recursive: true });
   const browser = await chromium.launch({ headless: true });
   const contextOptions = {
@@ -2393,7 +2438,7 @@ export async function runWorkflowSmoke() {
     for (const language of LANGUAGES) {
       await setLanguage(page, language.id);
       for (const viewport of VIEWPORTS) {
-        for (const workspace of WORKSPACES) {
+        for (const workspace of shard.workspaces) {
           currentScope = `${language.id}/${viewport.id}/${workspace}`;
           try {
             await recoverPage(language.id);
@@ -2420,138 +2465,144 @@ export async function runWorkflowSmoke() {
       }
     }
 
-    currentScope = "phone-overflow";
-    await recoverPage(null);
-    await phoneOverflowSweep(page, failures, observations);
-
-    currentScope = "first-use-hints";
-    await firstUseHintCheck(page, failures);
-
-    currentScope = "interaction-checks";
-    await interactionChecks(page, failures);
-
-    // The glossary's selection behaviour is asserted as an interaction, not inferred from the
-    // rendered rows: the index is a control and the article must follow the clicked record.
-    currentScope = "interaction/glossary-term-selection";
-    await glossaryTermSelectionInteraction(page, failures);
-
-    // The answer bar's keyboard paths, axe and phone width (docs/user/ANSWER_BAR.md).
-    currentScope = "interaction/answer-bar";
-    await answerBarInteraction(page, failures);
-
-    // The situational strip (I13): keyboard, axe, Hide, and no band once nothing is left.
-    currentScope = "interaction/situation-strip";
-    await situationStripInteraction(
-      page,
-      BASE,
-      (message) => recordFailure(failures, currentScope, message),
-      (selector) => axeViolations(page, selector),
-      (message) => recordObservation(observations, message),
-    );
-
-    // The Source Center's catalog, selection and category filter are asserted the same way: the
-    // rows are compared with the registry read by exact source id, the detail panel must follow the
-    // clicked row, and the surface's own category filter must show exactly that category's rows.
-    currentScope = "interaction/source-center-selection";
-    await sourceCenterSelectionInteraction(page, failures);
-
-    // The Source Center's failure path: the harness itself refuses `GET /api/sources`, the surface
-    // must state that failure instead of a measured zero, and its own scoped retry of the store's
-    // bounded path must recover the read once the refusal is removed.
-    currentScope = "interaction/source-registry-failure";
-    const registryFailure = await sourceRegistryFailureInteraction(page, failures);
-    recordObservation(
-      observations,
-      `interaction/source-registry-failure: refused ${registryFailure.refusals} GET /api/sources`
-      + ` read(s); the browser reported ${registryFailure.consoleEntries.length} console error(s)`
-      + " for exactly that refused request (the harness's own induced failure, attributed by the"
-      + " request URL it refused)",
-    );
-
-    // The operating board's failure path: the harness itself refuses `GET /api/physical/capacity`,
-    // the board must state that one of its two required reads did not answer instead of a joined
-    // zero, and its own scoped retry of the store's bounded path must restore the reading once the
-    // refusal is removed. The joined rows themselves are compared by the sweep's own probe
-    // (`functional/capacity`).
-    currentScope = "interaction/capacity-board-failure";
-    const capacityFailure = await capacityBoardFailureInteraction(page, failures);
-    recordObservation(
-      observations,
-      `interaction/capacity-board-failure: refused ${capacityFailure.refusals}`
-      + " GET /api/physical/capacity read(s); the browser reported"
-      + ` ${capacityFailure.consoleEntries.length} console error(s) for exactly that refused`
-      + " request (the harness's own induced failure, attributed by the request URL it refused)",
-    );
-
-
-    // The receipt-bound EEX TTF NGP reference index, with a controlled transport fixture for
-    // exactly `GET /api/projections/market-context` while the helper is active. The fixture keeps
-    // the actual projection envelope/metadata and every other slice, and replaces only
-    // `data.slices.normalized_quotes.rows` with 51 clearly synthetic rows marked as such; it is
-    // not PostgreSQL, EEX or backend evidence. A read that is not a 200 envelope with that slice
-    // is left as the actual response (no forged fallback), and the route is removed in the
-    // helper's own finally before the market page is reloaded from the real API. The runner's
-    // existing language and viewport declarations decide the four measured cases.
-    for (const language of LANGUAGES) {
-      await setLanguage(page, language.id);
-      for (const viewport of VIEWPORTS.filter(
-        (item) => item.width === 1440 || item.width === 390,
-      )) {
-        currentScope = `${language.id}/${viewport.id}/reference-index`;
-        referenceIndexEvidence.push(
-          await inspectReferenceIndexInteraction({
-            page,
-            failures,
-            observations,
-            outputDir: OUTPUT_DIR,
-            baseUrl: BASE,
-            language,
-            viewport,
-          }),
-        );
-      }
+    if (shard.stages.includes("phone-overflow")) {
+      currentScope = "phone-overflow";
+      await recoverPage(null);
+      await phoneOverflowSweep(page, failures, observations);
     }
-    // Leave the shared page in the language the later interactions assume.
-    await setLanguage(page, "en");
 
-    // Contract kinds (docs/product/CONTRACT_TYPES.md): an LNG master and a cargo under it are
-    // saved through the type-first form; each stays on screen as saved and the cargo is listed
-    // under its master. A save that appears to lose the form is a failure.
-    currentScope = "interaction/contract-kinds";
-    await contractKindsInteraction(
-      page,
-      BASE,
-      (message) => recordFailure(failures, currentScope, message),
-      async (selector) => (await axeViolations(page, selector)).map((violation) => violation.id),
-    );
+    if (shard.stages.includes("interactions")) {
+      await recoverPage(null);
 
-    // The native capacity context panel, with its own controlled transport fixture for exactly
-    // one explicit point id. It runs last so no fixture can reach a later workspace check, and
-    // its handler is removed in the helper's own finally.
-    currentScope = "interaction/native-capacity-context";
-    nativeCapacityContext = await inspectNativeCapacityInteraction({
-      page,
-      failures,
-      observations,
-      outputDir: OUTPUT_DIR,
-      baseUrl: BASE,
-      onInducedReadRefusal: registerNativeCapacityRefusal,
-    });
-    const refusedReads = nativeCapacityRefusals.reduce(
-      (total, refusal) => total + refusal.refusals,
-      0,
-    );
-    const refusedConsoleEntries = nativeCapacityRefusals.reduce(
-      (total, refusal) => total + refusal.consoleEntries.length,
-      0,
-    );
-    recordObservation(
-      observations,
-      `interaction/native-capacity-context: the fixture refused ${refusedReads} controlled native`
-      + ` capacity read(s) with HTTP 503; the browser reported ${refusedConsoleEntries} console`
-      + " error(s) for exactly that request URL (the harness's own induced failure, attributed by"
-      + " exact URL)",
-    );
+      currentScope = "first-use-hints";
+      await firstUseHintCheck(page, failures);
+
+      currentScope = "interaction-checks";
+      await interactionChecks(page, failures);
+
+      // The glossary's selection behaviour is asserted as an interaction, not inferred from the
+      // rendered rows: the index is a control and the article must follow the clicked record.
+      currentScope = "interaction/glossary-term-selection";
+      await glossaryTermSelectionInteraction(page, failures);
+
+      // The answer bar's keyboard paths, axe and phone width (docs/user/ANSWER_BAR.md).
+      currentScope = "interaction/answer-bar";
+      await answerBarInteraction(page, failures);
+
+      // The situational strip (I13): keyboard, axe, Hide, and no band once nothing is left.
+      currentScope = "interaction/situation-strip";
+      await situationStripInteraction(
+        page,
+        BASE,
+        (message) => recordFailure(failures, currentScope, message),
+        (selector) => axeViolations(page, selector),
+        (message) => recordObservation(observations, message),
+      );
+
+      // The Source Center's catalog, selection and category filter are asserted the same way: the
+      // rows are compared with the registry read by exact source id, the detail panel must follow the
+      // clicked row, and the surface's own category filter must show exactly that category's rows.
+      currentScope = "interaction/source-center-selection";
+      await sourceCenterSelectionInteraction(page, failures);
+
+      // The Source Center's failure path: the harness itself refuses `GET /api/sources`, the surface
+      // must state that failure instead of a measured zero, and its own scoped retry of the store's
+      // bounded path must recover the read once the refusal is removed.
+      currentScope = "interaction/source-registry-failure";
+      const registryFailure = await sourceRegistryFailureInteraction(page, failures);
+      recordObservation(
+        observations,
+        `interaction/source-registry-failure: refused ${registryFailure.refusals} GET /api/sources`
+        + ` read(s); the browser reported ${registryFailure.consoleEntries.length} console error(s)`
+        + " for exactly that refused request (the harness's own induced failure, attributed by the"
+        + " request URL it refused)",
+      );
+
+      // The operating board's failure path: the harness itself refuses `GET /api/physical/capacity`,
+      // the board must state that one of its two required reads did not answer instead of a joined
+      // zero, and its own scoped retry of the store's bounded path must restore the reading once the
+      // refusal is removed. The joined rows themselves are compared by the sweep's own probe
+      // (`functional/capacity`).
+      currentScope = "interaction/capacity-board-failure";
+      const capacityFailure = await capacityBoardFailureInteraction(page, failures);
+      recordObservation(
+        observations,
+        `interaction/capacity-board-failure: refused ${capacityFailure.refusals}`
+        + " GET /api/physical/capacity read(s); the browser reported"
+        + ` ${capacityFailure.consoleEntries.length} console error(s) for exactly that refused`
+        + " request (the harness's own induced failure, attributed by the request URL it refused)",
+      );
+
+
+      // The receipt-bound EEX TTF NGP reference index, with a controlled transport fixture for
+      // exactly `GET /api/projections/market-context` while the helper is active. The fixture keeps
+      // the actual projection envelope/metadata and every other slice, and replaces only
+      // `data.slices.normalized_quotes.rows` with 51 clearly synthetic rows marked as such; it is
+      // not PostgreSQL, EEX or backend evidence. A read that is not a 200 envelope with that slice
+      // is left as the actual response (no forged fallback), and the route is removed in the
+      // helper's own finally before the market page is reloaded from the real API. The runner's
+      // existing language and viewport declarations decide the four measured cases.
+      for (const language of LANGUAGES) {
+        await setLanguage(page, language.id);
+        for (const viewport of VIEWPORTS.filter(
+          (item) => item.width === 1440 || item.width === 390,
+        )) {
+          currentScope = `${language.id}/${viewport.id}/reference-index`;
+          referenceIndexEvidence.push(
+            await inspectReferenceIndexInteraction({
+              page,
+              failures,
+              observations,
+              outputDir: OUTPUT_DIR,
+              baseUrl: BASE,
+              language,
+              viewport,
+            }),
+          );
+        }
+      }
+      // Leave the shared page in the language the later interactions assume.
+      await setLanguage(page, "en");
+
+      // Contract kinds (docs/product/CONTRACT_TYPES.md): an LNG master and a cargo under it are
+      // saved through the type-first form; each stays on screen as saved and the cargo is listed
+      // under its master. A save that appears to lose the form is a failure.
+      currentScope = "interaction/contract-kinds";
+      await contractKindsInteraction(
+        page,
+        BASE,
+        (message) => recordFailure(failures, currentScope, message),
+        async (selector) => (await axeViolations(page, selector)).map((violation) => violation.id),
+      );
+
+      // The native capacity context panel, with its own controlled transport fixture for exactly
+      // one explicit point id. It runs last so no fixture can reach a later workspace check, and
+      // its handler is removed in the helper's own finally.
+      currentScope = "interaction/native-capacity-context";
+      nativeCapacityContext = await inspectNativeCapacityInteraction({
+        page,
+        failures,
+        observations,
+        outputDir: OUTPUT_DIR,
+        baseUrl: BASE,
+        onInducedReadRefusal: registerNativeCapacityRefusal,
+      });
+      const refusedReads = nativeCapacityRefusals.reduce(
+        (total, refusal) => total + refusal.refusals,
+        0,
+      );
+      const refusedConsoleEntries = nativeCapacityRefusals.reduce(
+        (total, refusal) => total + refusal.consoleEntries.length,
+        0,
+      );
+      recordObservation(
+        observations,
+        `interaction/native-capacity-context: the fixture refused ${refusedReads} controlled native`
+        + ` capacity read(s) with HTTP 503; the browser reported ${refusedConsoleEntries} console`
+        + " error(s) for exactly that request URL (the harness's own induced failure, attributed by"
+        + " exact URL)",
+      );
+    }
   } catch (error) {
     // Whatever stopped the run is reported with the scope it stopped in, and the summary is
     // still written: a run that ends early is a failure with a name, not a stack trace.
@@ -2576,6 +2627,11 @@ export async function runWorkflowSmoke() {
     ok: failures.length === 0,
     baseUrl: BASE,
     workspaces: WORKSPACES.length,
+    // Which part of the sweep this run covered: null and every workspace and stage for a whole
+    // run, or one shard of the hosted run (scripts/uat/browser_shards.json).
+    shard: shard.name,
+    sweptWorkspaces: shard.workspaces,
+    sweptStages: shard.stages,
     languages: LANGUAGES.map((language) => language.id),
     viewports: VIEWPORTS,
     checks: results.length,

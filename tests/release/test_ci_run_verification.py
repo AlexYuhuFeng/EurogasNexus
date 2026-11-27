@@ -344,6 +344,16 @@ _PULL_REQUEST_ONLY_CONDITIONS = frozenset(
         'github.event_name == "pull_request"',
         "github.event_name != 'push'",
         'github.event_name != "push"',
+        # The `changes` job reports docs-only for pull requests alone; a push is never docs-only.
+        "needs.changes.outputs.docs_only == 'true'",
+    }
+)
+# Conditions that are always true on a main push: a push is never docs-only, and a gate job
+# (`always()`) runs whatever its parts concluded, so that it can fail on any of them.
+_RUNS_ON_EVERY_PUSH_CONDITIONS = frozenset(
+    {
+        "needs.changes.outputs.docs_only != 'true'",
+        "always()",
     }
 )
 
@@ -367,6 +377,8 @@ def _condition_target(condition: object) -> str:
         return "push"
     if text in _PULL_REQUEST_ONLY_CONDITIONS:
         return "pull-request-only"
+    if text in _RUNS_ON_EVERY_PUSH_CONDITIONS:
+        return "unconditional"
     raise AssertionError(f"unreviewed workflow condition: {text!r}")
 
 
@@ -415,6 +427,31 @@ def _render_leaf_name(
     return f"{caller_prefix} / {name}" if caller_prefix else name
 
 
+def _gate_aggregated_jobs(jobs: Mapping[str, Any]) -> set[str]:
+    """Jobs whose result a gate job (`if: always()`) checks, so G1 need not name them.
+
+    A gate must read every job it needs as `${{ needs.<id>.result }}` and test it; a `needs`
+    entry the gate does not check would let a failed part pass under the gate's name.
+    """
+
+    aggregated: set[str] = set()
+    for job_id, job in jobs.items():
+        if not isinstance(job, Mapping) or " ".join(str(job.get("if") or "").split()) != "always()":
+            continue
+        needs = job.get("needs") or []
+        needs = [needs] if isinstance(needs, str) else list(needs)
+        steps = job.get("steps") or []
+        env = {key: str(value) for step in steps for key, value in (step.get("env") or {}).items()}
+        run = "\n".join(str(step.get("run") or "") for step in steps)
+        for needed in needs:
+            expression = f"${{{{ needs.{needed}.result }}}}"
+            readers = [key for key, value in env.items() if value == expression]
+            if not readers or not any(f'"${reader}"' in run for reader in readers):
+                raise AssertionError(f"gate job {job_id!r} does not check the result of {needed!r}")
+            aggregated.add(str(needed))
+    return aggregated
+
+
 def _resolve_workflow_leaves(
     workflow_path: Path,
     *,
@@ -436,10 +473,15 @@ def _resolve_workflow_leaves(
     if len(leaves) > _MAX_RESOLVED_LEAVES:
         raise AssertionError(f"workflow resolution exceeds {_MAX_RESOLVED_LEAVES} leaf jobs")
     jobs = _workflow_jobs(resolved)
+    aggregated = _gate_aggregated_jobs(jobs)
     for job_id, job in jobs.items():
         if not isinstance(job, Mapping):
             raise AssertionError(f"job {job_id!r} must be a mapping")
         condition = _condition_target(job.get("if"))
+        if job_id in aggregated:
+            # A part of a gate job (validate's test shards, the browser acceptance shards): the
+            # gate, which is itself a leaf, fails unless this part succeeded.
+            continue
         if condition == "pull-request-only":
             continue
         if condition != "unconditional":
@@ -1176,3 +1218,16 @@ def test_api_from_environment_prefers_a_read_only_token() -> None:
     assert api is None and "GH_TOKEN" in detail
     api, detail = api_from_environment(spec, environ={"GH_TOKEN": " ", "GITHUB_TOKEN": "t"})
     assert api is not None and detail == ""
+
+
+def test_a_gate_job_must_check_every_part_it_stands_for() -> None:
+    """A summary job that needs a part without testing its result would let that part fail."""
+
+    jobs = copy.deepcopy(_workflow_jobs(CI_WORKFLOW_PATH))
+    assert {"validate-tests", "browser-acceptance-shard"} <= _gate_aggregated_jobs(jobs)
+    step = jobs["validate"]["steps"][0]
+    step["run"] = step["run"].replace('test "$TESTS" = "success"', "true").replace(
+        'test "$TESTS" = "skipped"', "true"
+    )
+    with pytest.raises(AssertionError, match="validate-tests"):
+        _gate_aggregated_jobs(jobs)

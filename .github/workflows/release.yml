@@ -109,7 +109,9 @@ jobs:
         run: ruff check .
 
       - name: Tests
-        run: pytest -q tests
+        # The full suite, in parallel worker processes (pytest-xdist, one per CPU), as ordinary
+        # CI's validate shards run it. Every test still runs; only the wall time changes.
+        run: pytest -q -n auto tests
 
       - name: Record Python test evidence
         shell: bash

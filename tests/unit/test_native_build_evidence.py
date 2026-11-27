@@ -330,7 +330,13 @@ def test_native_callers_delegate_to_the_single_reusable_workflow(caller: Path) -
         assert forbidden not in text
 
     for name, other in jobs.items():
-        assert "strategy" not in other, name
+        # The only matrices in the caller are the Linux test and browser-acceptance shards; a
+        # native build matrix belongs to the reusable workflow alone.
+        if name in {"validate-tests", "browser-acceptance-shard"}:
+            assert other["runs-on"] == "ubuntu-24.04", name
+            assert set(other["strategy"]["matrix"]) == {"include"}, name
+        else:
+            assert "strategy" not in other, name
         commands = "\n".join(step.get("run", "") for step in other.get("steps", []))
         assert "cargo build" not in commands, name
         assert "cargo check" not in commands, name

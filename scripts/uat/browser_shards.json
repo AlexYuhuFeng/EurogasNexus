@@ -1,0 +1,21 @@
+{
+  "description": "Hosted CI runs the whole-product browser sweep (scripts/uat/browser_workflow_smoke.mjs) as parallel shards, one CI job each, selected with EUROGAS_UAT_SHARD. Every workspace (swept in EN/ZH at the three viewports) and every later stage belongs to exactly one shard; the sweep refuses this file otherwise, and tests/contract/test_browser_shards.py holds the ci.yml matrix to these names. Balanced by measured sweep time (docs/engineering/CI_AND_BRANCH_PROTECTION.md).",
+  "shards": {
+    "desk": {
+      "workspaces": ["market", "scenario", "contracts", "review", "orders"],
+      "stages": []
+    },
+    "network-and-data": {
+      "workspaces": ["network", "capacity", "sources", "runtime", "research"],
+      "stages": []
+    },
+    "reference": {
+      "workspaces": ["glossary", "settings", "manual", "access"],
+      "stages": ["phone-overflow"]
+    },
+    "interactions": {
+      "workspaces": [],
+      "stages": ["interactions"]
+    }
+  }
+}
