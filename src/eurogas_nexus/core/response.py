@@ -1,6 +1,6 @@
 """Shared response models for API shell endpoints."""
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel
 
@@ -22,4 +22,10 @@ class HealthResponse(BaseModel):
     authentication: Literal[
         "enforced", "anonymous_allowed", "not_installed"
     ] = "enforced"
+    #: The server's own time when it answered: a client compares it with its clock (deal and
+    #: price ordering, the ages on screen), allowing for the round trip.
+    server_time_utc: str | None = None
+    #: The server clock's check (application/clock_check.py): ``state`` ok, warning, unknown
+    #: or checking; ``offset_seconds`` against NTP; ``synchronised``; ``threshold_seconds``.
+    clock: dict[str, Any] | None = None
 

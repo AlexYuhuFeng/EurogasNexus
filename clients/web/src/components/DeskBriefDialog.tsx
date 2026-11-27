@@ -10,6 +10,7 @@ import { useEffect, useState } from "react";
 import { api, type DeskBriefDTO } from "@/api/client";
 import { Button, Dialog, Segmented, WorkProgress } from "@/components/ui";
 import { useStagedProgress } from "@/app/hooks/useWorkProgress";
+import { useAiAvailability } from "@/app/model/aiAvailability";
 
 /** What drafting a brief reads, in order: shown while it works (UX_REFERENCE rule 18). */
 const BRIEF_STAGES = ["brief.stage.prices", "brief.stage.outages", "brief.stage.position", "brief.stage.writing"] as const;
@@ -25,6 +26,7 @@ export function openDeskBrief(kind: BriefKind): void {
 }
 
 export function DeskBriefDialog({ language, t }: { language: string; t: Translate }) {
+  const aiOn = useAiAvailability().available;
   const [kind, setKind] = useState<BriefKind | null>(null);
   const [brief, setBrief] = useState<DeskBriefDTO | null>(null);
   const [text, setText] = useState("");
@@ -120,6 +122,7 @@ export function DeskBriefDialog({ language, t }: { language: string; t: Translat
           <p className="desk-brief-hint">
             {t("brief.edit_hint")}
             {brief.lead_basis === "model" && <> {t("brief.lead_model")}</>}
+            {brief.lead_basis !== "model" && !aiOn && <> {t("ai.off.brief")}</>}
           </p>
           <textarea
             className="desk-brief-text"

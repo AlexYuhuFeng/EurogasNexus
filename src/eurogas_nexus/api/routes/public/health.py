@@ -18,10 +18,17 @@ async def health(request: Request) -> HealthResponse:
     check measures the process, not the queue of request threads behind a busy minute.
     """
 
+    from datetime import UTC, datetime
+
+    from eurogas_nexus.application.clock_check import clock_status
+
     settings = getattr(request.app.state, "settings", Settings())
     # People read the display spelling (1.0.0-beta); /api/runtime/release carries the
     # SemVer one (1.0.0-beta.1) that client/server compatibility compares.
     return HealthResponse(
+        server_time_utc=datetime.now(UTC).isoformat(timespec="milliseconds"),
+        # The last clock check (never waits: a due check runs in the background).
+        clock=clock_status(),
         version=display_version(settings.app_version),
         profile=settings.api_profile,
         authentication=authentication_posture(

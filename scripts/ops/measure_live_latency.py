@@ -24,6 +24,14 @@ no evaluator runs) to a counting consumer, then drains them; it reports publish 
 rates, the transport's capacity without evaluation cost. Its events and deliveries are deleted
 afterwards.
 
+``notice`` (small-desk plan section 5, "a price change on screen within 200 ms of arriving"):
+the API must be running. Each sample commits the TTF mark as above and stops at the first
+``change`` notice for the ``book`` topic on ``/api/stream/live`` (the tab's one stream: the
+browser re-reads the board on that notice). The figure is the server's share of the target:
+commit -> notice on the wire, bounded by ``EUROGAS_NEXUS_STREAM_POLL_SECONDS``. The browser's
+share (notice -> re-read -> painted cell) is measured in the browser on the desk's PC, as
+``docs/operations/SMALL_DESK_RESILIENCE.md`` describes; add the two.
+
 The latency modes also read the stages from the store: delivery processed, evaluation
 started and finished.
 Run it only against a local or demo store; nothing is traded, sent or published elsewhere.
@@ -35,6 +43,7 @@ Usage::
         python scripts/ops/measure_live_latency.py after --samples 10
     python scripts/ops/measure_live_latency.py before --samples 5
     python scripts/ops/measure_live_latency.py throughput --events 5000
+    python scripts/ops/measure_live_latency.py notice --samples 20 --gap 1
 """
 
 from __future__ import annotations
@@ -115,12 +124,18 @@ def _stages(session_factory, key: str, since: datetime) -> dict:
     return out
 
 
-def _reader(base_url: str, token: str, frames: queue.Queue, stop: threading.Event) -> None:
+def _reader(
+    base_url: str,
+    token: str,
+    frames: queue.Queue,
+    stop: threading.Event,
+    path: str = "/api/stream/opportunities",
+) -> None:
     import httpx
 
     headers = {"X-Eurogas-Api-Key": token, "Accept": "text/event-stream"}
     with httpx.stream(
-        "GET", f"{base_url}/api/stream/opportunities", headers=headers, timeout=None
+        "GET", f"{base_url}{path}", headers=headers, timeout=None
     ) as response:
         response.raise_for_status()
         event = None
@@ -183,6 +198,39 @@ def _after(session_factory, args) -> list[dict]:
             "evaluation_ms": stages.get("evaluation_ms"),
             "evaluation_committed_ms": _ms(stages.get("finished_at_utc"), committed),
         }
+        samples.append(sample)
+        print(json.dumps(sample), flush=True)
+        time.sleep(args.gap)
+    stop.set()
+    return samples
+
+
+def _notice(session_factory, args) -> list[dict]:
+    """Commit a mark -> its ``change`` notice (topic ``book``) on the tab's live stream."""
+
+    frames: queue.Queue = queue.Queue()
+    stop = threading.Event()
+    threading.Thread(
+        target=_reader,
+        args=(args.base_url, args.token, frames, stop, "/api/stream/live?topics=book,prices"),
+        daemon=True,
+    ).start()
+    time.sleep(3)  # the stream's first poll
+    while not frames.empty():
+        frames.get_nowait()
+    samples = []
+    for index in range(args.samples):
+        committed, _key = _settle(session_factory, _price(index))
+        noticed = None
+        deadline = committed + args.timeout
+        while time.time() < deadline and noticed is None:
+            try:
+                at, event, data = frames.get(timeout=0.05)
+            except queue.Empty:
+                continue
+            if at >= committed and event == "change" and data.get("topic") == "book":
+                noticed = at
+        sample = {"notice_on_stream_ms": round((noticed - committed) * 1000) if noticed else None}
         samples.append(sample)
         print(json.dumps(sample), flush=True)
         time.sleep(args.gap)
@@ -308,7 +356,7 @@ def main(argv: list[str] | None = None) -> int:
     from eurogas_nexus.db.session import get_session_factory, resolve_database_url
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("mode", choices=("after", "before", "throughput"))
+    parser.add_argument("mode", choices=("after", "before", "throughput", "notice"))
     parser.add_argument("--samples", type=int, default=10)
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--token", default=os.environ.get("EUROGAS_NEXUS_PUBLIC_API_TOKEN", ""))
@@ -319,7 +367,8 @@ def main(argv: list[str] | None = None) -> int:
     if not resolve_database_url().startswith("postgresql"):
         parser.error("needs PostgreSQL (RUNTIME_STORE_DATABASE_URL)")
     factory = get_session_factory()
-    run = {"after": _after, "before": _before, "throughput": _throughput}[args.mode]
+    run = {"after": _after, "before": _before, "throughput": _throughput,
+           "notice": _notice}[args.mode]
     try:
         samples = run(factory, args)
     finally:

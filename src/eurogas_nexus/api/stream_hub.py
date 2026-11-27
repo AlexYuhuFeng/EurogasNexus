@@ -301,7 +301,7 @@ def get_hub() -> StreamHub:
                 return db_session.get_session_factory()
 
             _HUB = StreamHub(
-                interval=lambda: streaming.POLL_SECONDS,
+                interval=streaming.poll_seconds,
                 session_factory=session_factory,
                 warning=streaming.warning_event,
             )

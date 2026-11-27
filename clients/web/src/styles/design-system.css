@@ -4572,6 +4572,61 @@
     gap: var(--ds-space-1);
   }
 
+  /* Settings → Organisation → AI: the model and time limits, label beside value. */
+  .settings-ai-facts {
+    display: grid;
+    grid-template-columns: max-content minmax(0, 1fr);
+    gap: var(--ds-space-1) var(--ds-space-3);
+    margin: var(--ds-space-2) 0;
+    font-size: var(--ds-text-sm);
+  }
+
+  .settings-ai-facts dt {
+    color: var(--ds-text-2);
+  }
+
+  .settings-ai-facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .copilot-ai-off {
+    margin: 0 0 var(--ds-space-2);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+  }
+
+  /* Server unreachable, browser offline, clock apart (ConnectionNotice): a calm neutral line. */
+  .connection-notice {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--ds-space-2) var(--ds-space-3);
+    margin: var(--ds-space-2) max(var(--eg-page-gutter), env(safe-area-inset-left)) var(--ds-space-2);
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 1px solid var(--ds-border-strong);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface-2);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  .connection-notice p {
+    flex: 1 1 16rem;
+    min-width: 0;
+    margin: 0;
+  }
+
+  /* The screen is not current (app/data/connection.ts): every figure on every page is muted, so
+     nothing is left looking live. The text says why; colour alone carries nothing. */
+  [data-screen-stale] .num,
+  [data-screen-stale] .ds-grid [data-align="end"],
+  [data-screen-stale] .key-figure > strong,
+  [data-screen-stale] .metric-grid strong {
+    color: var(--ds-text-2);
+  }
+
   .settings-preference-hint {
     margin: var(--ds-space-1) 0 0;
     color: var(--ds-text-2);

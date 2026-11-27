@@ -144,6 +144,7 @@ def post_news_note(item_id: str, body: NoteRequest, request: Request) -> dict:
     from sqlalchemy.exc import SQLAlchemyError
 
     from eurogas_nexus.api.routes.public.explain import _audit, _model_for
+    from eurogas_nexus.application.ai_controls import ai_sharing
     from eurogas_nexus.application.news_note import assemble, build_evidence, model_note
     from eurogas_nexus.application.news_reads import item_dict
     from eurogas_nexus.application.news_relevance import firm_exposures, matches
@@ -170,6 +171,11 @@ def post_news_note(item_id: str, body: NoteRequest, request: Request) -> dict:
             found = (matches(item, firm_exposures(session, now=now), visible)
                      if book_allowed else [])
             evidence = build_evidence(session, item, found, row)
+            if model is not None and found and not ai_sharing(session).get("deal_level"):
+                # The book matches are deal-level lines (a contract, cargo or nomination and
+                # its figure); they leave only on the administrator's opt-in. The rule note,
+                # which needs no model, says what the item means for the book.
+                model = None
             ai = None if model is None else model_note(model, evidence, language=body.language)
             note = assemble(item, found, evidence, ai=ai,
                             prompt_version=ai_use("news_note").prompt_version,

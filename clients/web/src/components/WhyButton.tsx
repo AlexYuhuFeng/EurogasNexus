@@ -14,6 +14,7 @@ import { useEffect, useState } from "react";
 import { api, type ExplainSubject, type ExplanationDTO } from "@/api/client";
 import { Popover, WorkProgress } from "@/components/ui";
 import { useStagedProgress } from "@/app/hooks/useWorkProgress";
+import { useAiAvailability } from "@/app/model/aiAvailability";
 import i18n from "@/i18n";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -33,6 +34,7 @@ export function WhyButton({
   language?: string;
   t: Translate;
 }) {
+  const aiOn = useAiAvailability().available;
   const [open, setOpen] = useState(false);
   const [state, setState] = useState<
     { kind: "loading" } | { kind: "ready"; data: ExplanationDTO } | { kind: "failed" }
@@ -74,7 +76,7 @@ export function WhyButton({
         <>
           <p className="why-text" aria-live="polite">{state.data.text}</p>
           <p className="ds-popover-meta why-meta">
-            <span>{t(state.data.basis === "model" ? "why.basis_model" : "why.basis_rule")}</span>
+            <span>{t(state.data.basis === "model" ? "why.basis_model" : aiOn ? "why.basis_rule" : "ai.off.why")}</span>
             {state.data.simulated && <span className="why-flag"> · {t("why.simulated")}</span>}
           </p>
           <p className="ds-popover-meta why-sources">

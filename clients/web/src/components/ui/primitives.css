@@ -292,6 +292,16 @@
     content: "▲";
   }
 
+  /* The screen is not current (app/data/connection.ts): the glyph's place holds a quiet clock
+     mark, and the figure is muted (not an alarm colour: the value is old, not wrong). */
+  .ds-stale-mark::before {
+    content: "◷";
+  }
+
+  .ds-cell-flash[data-stale] {
+    color: var(--ds-text-3);
+  }
+
   .ds-visually-hidden {
     position: absolute;
     width: 1px;

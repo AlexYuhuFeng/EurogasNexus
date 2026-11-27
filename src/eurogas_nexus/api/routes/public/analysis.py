@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Sequence
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 from uuid import uuid4
@@ -536,7 +537,14 @@ def _maybe_invoke_provider(
     if not body.invoke_provider:
         return None, "not_invoked"
 
-    from eurogas_nexus.application.ai_controls import ai_use_enabled, provenance
+    from eurogas_nexus.application.ai_controls import (
+        ai_sharing,
+        ai_use_enabled,
+        call_budget,
+        counterparty_aliases,
+        provenance,
+        provider_key,
+    )
     from eurogas_nexus.core.config import get_settings
 
     if not get_settings().llm_external_provider_enabled:
@@ -581,13 +589,14 @@ def _maybe_invoke_provider(
 
     if body.provider_id != "DEEPSEEK":
         return None, "LLM_PROVIDER_NOT_SUPPORTED_IN_V1"
-    credential = load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")
+    credential = provider_key(load_provider_api_key)
     if credential is None:
         return None, "LLM_PROVIDER_CREDENTIAL_MISSING"
 
     snapshot_payload = _filtered_llm_payload(
         snapshot,
         include_contract_prices=body.include_contract_prices,
+        include_deals=ai_sharing().get("deal_level", False),
     )
     messages = [
         {
@@ -606,17 +615,22 @@ def _maybe_invoke_provider(
             ),
         },
     ]
+    # Counterparty names stay on the platform unless the administrator allows them.
+    aliases = counterparty_aliases()
+    sent = aliases.hide_messages(messages) if aliases is not None else messages
     result = invoke_deepseek(
         api_key=credential,
-        messages=messages,
+        messages=sent,
         model=body.model,
-        **{**ANSWER_CALL, "temperature": 0.2},
+        **call_budget("analysis_query", {**ANSWER_CALL, "temperature": 0.2}),
     )
+    if result.status == "success" and aliases is not None and result.content:
+        result = replace(result, content=aliases.restore(result.content))
     if calls is not None:
         calls.append(
             provenance(
                 "analysis_query",
-                messages=messages,
+                messages=sent,
                 output=result.content if result.status == "success" else None,
                 status=result.status,
             )
@@ -649,11 +663,14 @@ def _filtered_llm_payload(
     snapshot: AnalysisSnapshot,
     *,
     include_contract_prices: bool,
+    include_deals: bool = False,
 ) -> dict:
     """Return the provider-bound snapshot payload with field filtering.
 
     Gate 1: contract financial details are excluded by default so raw
     commercial prices never leave the platform without explicit opt-in.
+    Gate 0: the contract rows themselves are deal-level data and leave only when the
+    administrator allows deal-level data to be sent (``ai_data_sharing.deal_level``).
     """
 
     from eurogas_nexus.application.ai_payloads import without_identifiers
@@ -661,6 +678,9 @@ def _filtered_llm_payload(
     # Ids and provider references never leave the platform (application/ai_payloads.py);
     # the model cites rows by their source system.
     payload = without_identifiers(snapshot.model_dump(mode="json"))
+    if not include_deals:
+        payload["portfolio_context"] = []
+        return payload
     if include_contract_prices:
         return payload
     filtered_contracts = []

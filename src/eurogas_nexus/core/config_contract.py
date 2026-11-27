@@ -1469,11 +1469,65 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         scope="OPERATOR",
         purpose="API key for the configured model endpoint (DeepSeek or any OpenAI-compatible).",
         sensitivity="secret",
-        required_when="An external model endpoint is enabled and no key is in the credential store",
+        required_when=(
+            "A model endpoint outside the firm's network is enabled and no key is in the "
+            "credential store (a self-hosted model on a private address may run without one)"
+        ),
         notes=(
             "Overrides the encrypted credential store unless an administrator disabled the "
             "provider. Setting it does not permit external calls: "
             "EUROGAS_NEXUS_LLM_EXTERNAL_PROVIDER_ENABLED still decides.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_AI_TIMEOUT_SECONDS",
+        scope="OPERATOR",
+        purpose=(
+            "Hard time limit of one interactive AI call (Why?, Ask, the brief's lead, a "
+            "question about an alert); after it the screen carries on without the AI part."
+        ),
+        default="3",
+        example="3",
+        notes=("Accepted from 0.5 to 60 seconds; any other value uses the default.",),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_AI_DRAFT_TIMEOUT_SECONDS",
+        scope="OPERATOR",
+        purpose=(
+            "Hard time limit of one AI call that drafts text read later (the market report "
+            "editor, the background note on a new alert)."
+        ),
+        default="240",
+        example="240",
+        notes=("Accepted from 1 to 900 seconds; any other value uses the default.",),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_STREAM_POLL_SECONDS",
+        scope="OPERATOR",
+        purpose=(
+            "How often the live-update poller reads new prices, trades and alerts for every "
+            "open stream: the bound from a price arriving at the server to its notice on the "
+            "stream."
+        ),
+        default="1.5",
+        example="0.15",
+        notes=(
+            "Accepted from 0.1 to 10 seconds. The small desk's 200 ms target needs about 0.15; "
+            "each poll is one shared read per source for all streams of the process.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_NTP_SERVER",
+        scope="OPERATOR",
+        purpose=(
+            "NTP server the clock check measures the server's offset against "
+            "(health, /metrics, the Runtime page); 'off' skips the measurement."
+        ),
+        default="pool.ntp.org",
+        example="pool.ntp.org",
+        notes=(
+            "The synchronisation state is read from the kernel either way; without an NTP "
+            "answer the kernel's own error estimate is reported.",
         ),
     ),
     ConfigVar(

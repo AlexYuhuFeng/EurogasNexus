@@ -39,6 +39,24 @@ if TYPE_CHECKING:
 router = APIRouter(tags=["streaming"])
 
 POLL_SECONDS = 1.5
+#: The poll interval an installation may set (small-desk plan section 5: a price on screen
+#: within 200 ms of arriving needs about 0.15 s here); outside 0.1-10 s the default applies.
+
+
+def poll_seconds() -> float:
+    """The live poller's interval: ``EUROGAS_NEXUS_STREAM_POLL_SECONDS``, else 1.5 s.
+
+    A price written by any process reaches every open stream at the next poll, so this is
+    the bound on "arrived at the server" to "on the stream" (``tests/api/test_stream_latency``).
+    """
+
+    import os
+
+    try:
+        value = float((os.environ.get("EUROGAS_NEXUS_STREAM_POLL_SECONDS") or "").strip())
+    except ValueError:
+        return POLL_SECONDS
+    return value if 0.1 <= value <= 10.0 else POLL_SECONDS
 #: How often an open stream re-reads its principal (status and data scopes).
 REAUTH_SECONDS = 30.0
 HEARTBEAT_SECONDS = 15.0
@@ -1020,7 +1038,7 @@ class _LiveStream:
                     {
                         "topics": list(self.topics),
                         "resumed_from": self.start if self.resumed else None,
-                        "poll_seconds": POLL_SECONDS,
+                        "poll_seconds": poll_seconds(),
                         "heartbeat_seconds": LIVE_HEARTBEAT_SECONDS,
                         # In the payload too (as every live event): a browser's EventSource
                         # keeps the id to itself, and the client resumes from the last one.

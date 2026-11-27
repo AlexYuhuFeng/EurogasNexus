@@ -76,7 +76,8 @@ ANSWER_SENTENCES = 4
 #: Words by which an answer says what the held data does not show.
 NOT_SHOWN = re.compile(r"does not show|do not show|not held|cannot (?:tell|show|attribute)|"
                        r"no .{0,40}is held|无法|未显示|不显示|没有显示|并未显示", re.I)
-EDITOR_CALL = {"temperature": 0.0, "max_tokens": 24000, "timeout_seconds": 240.0}
+#: Its time limit is the ``draft`` timing (``ai_controls.call_budget``; 240 s by default).
+EDITOR_CALL = {"temperature": 0.0, "max_tokens": 24000}
 
 
 # --------------------------------------------------------------------------- payload

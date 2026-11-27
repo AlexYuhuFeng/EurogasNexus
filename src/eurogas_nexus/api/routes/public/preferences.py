@@ -12,7 +12,11 @@ from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
 
-from eurogas_nexus.domain.ai.register import AI_FEATURES_SETTING
+from eurogas_nexus.domain.ai.register import (
+    AI_ENABLED_SETTING,
+    AI_FEATURES_SETTING,
+    AI_SHARING_SETTING,
+)
 from eurogas_nexus.domain.pricing.financial_institutions import SETTING as INSTITUTIONS_SETTING
 from eurogas_nexus.domain.pricing.source_precedence import SETTING as SOURCE_PRECEDENCE_SETTING
 from eurogas_nexus.domain.settings.preferences import (
@@ -25,7 +29,13 @@ from eurogas_nexus.governance.four_eyes import FOUR_EYES_SETTING
 from eurogas_nexus.security.authorization import Permission, authorize
 
 MERGED_SETTINGS = frozenset(
-    {AI_FEATURES_SETTING, FOUR_EYES_SETTING, SOURCE_PRECEDENCE_SETTING, INSTITUTIONS_SETTING}
+    {
+        AI_FEATURES_SETTING,
+        AI_SHARING_SETTING,
+        FOUR_EYES_SETTING,
+        SOURCE_PRECEDENCE_SETTING,
+        INSTITUTIONS_SETTING,
+    }
 )
 
 router = APIRouter(tags=["preferences"])
@@ -128,6 +138,47 @@ def write_preferences(body: dict[str, Any], request: Request) -> dict:
         return _env(_payload(session, principal_id))
 
 
+@router.get("/api/settings/ai")
+def read_ai_settings(request: Request) -> dict:
+    """What an administrator set for AI and what is in force (administrators only).
+
+    The master switch (``ai_enabled``), what may be sent (``ai_data_sharing``), the per-use
+    switches, the model endpoint the installation names (``EUROGAS_NEXUS_LLM_*``; the key
+    is never shown) and the time limits. Changed with ``PUT /api/settings/organisation``.
+    人工智能设置：总开关、可发送的数据类别、各功能开关、模型端点与超时。
+    """
+
+    from eurogas_nexus.application.ai_controls import ai_enabled, ai_state, ai_switches
+    from eurogas_nexus.domain.ai.register import AI_SHARING_CATEGORIES, AI_USES
+
+    principal = getattr(request.state, "identity", None)
+    if principal is None or not authorize(principal, Permission.IDENTITY_MANAGE).allowed:
+        raise HTTPException(status_code=403, detail={"code": "permission_denied"})
+    from eurogas_nexus.api.dependencies.ai_authority import ai_authority_denial
+
+    state = ai_state(role_denied=bool(ai_authority_denial(principal)))
+    try:
+        switches = ai_switches()
+    except Exception:  # noqa: BLE001 - unreadable switches are off (ai_use_enabled)
+        switches = {item.use: False for item in AI_USES}
+    return _env(
+        {
+            **state,
+            "enabled": ai_enabled(),
+            "uses": [
+                {"use": item.use, "title": item.title, "timing": item.timing,
+                 "on": switches.get(item.use, False)}
+                for item in AI_USES
+                if item.calls_model
+            ],
+            "sharing_categories": [
+                {"category": name, "description": text, "allowed": state["sharing"][name]}
+                for name, text in AI_SHARING_CATEGORIES.items()
+            ],
+        }
+    )
+
+
 @router.get("/api/settings/organisation")
 def read_organisation_settings(request: Request) -> dict:
     """Organisation defaults every signed-in user starts from."""
@@ -153,6 +204,11 @@ def _security_relevant(accepted: dict[str, Any]) -> list[str]:
     for name, value in (accepted.get(AI_FEATURES_SETTING) or {}).items():
         if value is True:
             parts.append(f"AI use {name} on")
+    if accepted.get(AI_ENABLED_SETTING) is True:
+        parts.append("AI on")
+    for name, value in (accepted.get(AI_SHARING_SETTING) or {}).items():
+        if value is True:
+            parts.append(f"AI may be sent {name}")
     return parts
 
 

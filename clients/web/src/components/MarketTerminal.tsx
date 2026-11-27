@@ -1,6 +1,7 @@
 import { PromptDeskPanel } from "@/components/market/PromptDeskPanel";
 import { enumLabel, sourceSystemLabel } from "@/app/model/enumLabels";
 import { useEffect, useMemo, useState } from "react";
+import { useNow } from "@/app/data/connection";
 import "@/styles/prices.css";
 import { api } from "@/api/client";
 import { catalogueFromDTO, type PickerCatalogue } from "@/app/model/instrumentPicker";
@@ -331,11 +332,11 @@ const quoteIdentityKey = (quote: MarketQuoteDTO): string => [
   quote.unit,
 ].join(":");
 
-const quoteAgeSeconds = (quote: MarketQuoteDTO | null | undefined): number | null => {
+const quoteAgeSeconds = (quote: MarketQuoteDTO | null | undefined, now: number): number | null => {
   if (!quote) return null;
   const observedAtMs = new Date(quote.observed_at_utc).getTime();
   if (!Number.isFinite(observedAtMs)) return null;
-  return Math.max((Date.now() - observedAtMs) / 1_000, 0);
+  return Math.max((now - observedAtMs) / 1_000, 0);
 };
 
 const formatAge = (seconds: number | null): string => {
@@ -396,6 +397,9 @@ export function MarketTerminal({
   onRefresh,
   t,
 }: MarketTerminalProps) {
+  // Quote ages count on while nothing arrives (a stopped feed sends nothing that re-renders the
+  // board), so a quote past its source's cadence turns stale on time (small-desk 3.7).
+  const nowMs = useNow(5_000);
   // The hubs on the board: the six majors unless this browser chose others with the picker.
   const [boardHubCodes, setBoardHubCodes] = useState<string[]>(() => readBoardHubs());
   const marketMajorHubs = useMemo<HubDefinition[]>(
@@ -685,7 +689,7 @@ export function MarketTerminal({
     const oneSided = quoteOneSided(quote);
     const closeRead = quoteClose(history);
     const closeNative = closeRead ? native(closeRead.price).value : null;
-    const ageSeconds = quoteAgeSeconds(quote);
+    const ageSeconds = quoteAgeSeconds(quote, nowMs);
     return {
       hub: row.hub,
       bidAskText: quote
@@ -1139,7 +1143,7 @@ export function MarketTerminal({
                 {formatPriceValue(latest.bid_price)} / {formatPriceValue(latest.ask_price)} {latest.currency}/{latest.unit}
               </span>
               <span data-label={t("market.freshness")} role="cell">
-                {formatAge(quoteAgeSeconds(latest))} · {enumLabel(latest.freshness, t)}
+                {formatAge(quoteAgeSeconds(latest, nowMs))} · {enumLabel(latest.freshness, t)}
               </span>
               <span className="market-sparkline-cell" data-label={t("market.trend")} role="cell">
                 <MarketSparkline

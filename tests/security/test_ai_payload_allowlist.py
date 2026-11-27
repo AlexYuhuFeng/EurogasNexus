@@ -126,7 +126,7 @@ def test_the_analysis_snapshot_carries_no_identifier_field():
                               "source_system": "EEX", "source_reference": "ref-secret"}],
         portfolio_context=[{"contract_id": "cp-secret-77", "contract_name": "TTF supply"}],
     )
-    payload = _filtered_llm_payload(snapshot, include_contract_prices=False)
+    payload = _filtered_llm_payload(snapshot, include_contract_prices=False, include_deals=True)
 
     def keys(value):
         if isinstance(value, dict):

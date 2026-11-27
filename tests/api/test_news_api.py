@@ -178,6 +178,11 @@ def test_the_ai_note_is_shown_labelled_only_when_grounded_and_is_audited(
         return _Stub(reply)
 
     monkeypatch.setattr(explain, "_model_for", fake_model_for)
+    # The note touches the book (deal-level lines): sent only on the administrator's opt-in.
+    from eurogas_nexus.application import ai_controls
+
+    monkeypatch.setattr(ai_controls, "ai_sharing",
+                        lambda _session=None: {"counterparty_names": False, "deal_level": True})
     response = client.post(f"/api/news/{ids[LANGELED]}/note", json={"language": "en"},
                            headers=headers["head"])
     assert response.status_code == 200, response.text
@@ -208,3 +213,31 @@ def test_without_a_runtime_store_the_list_is_empty_and_says_why(monkeypatch):
     assert response.status_code == 200
     assert response.json()["data"] == []
     assert client.get("/api/news/nw-x").status_code == 503
+
+
+def test_a_note_on_the_book_is_written_by_rule_without_the_deal_level_opt_in(seeded, monkeypatch):
+    """Small-desk 3.6: deal-level lines (the book matches) never reach a model by default."""
+
+    from eurogas_nexus.api.routes.public import explain
+
+    client, headers, ids, _engine = seeded
+    asked = []
+
+    def fake_model_for(principal, *, answer=False, use="explain"):
+        stub = _Stub("{}")
+        original = stub.__call__
+
+        def call(messages):
+            asked.append(messages)
+            return original(messages)
+
+        stub.__call__ = call
+        return stub
+
+    monkeypatch.setattr(explain, "_model_for", fake_model_for)
+    response = client.post(f"/api/news/{ids[LANGELED]}/note", json={"language": "en"},
+                           headers=headers["head"])
+    assert response.status_code == 200, response.text
+    note = response.json()["data"]
+    assert note["basis"] == "rule" and note["ai"]["status"] == "off"
+    assert asked == []

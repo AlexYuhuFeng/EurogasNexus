@@ -15,7 +15,12 @@ def test_health_route_returns_shell_status() -> None:
     response = client.get("/api/health")
 
     assert response.status_code == 200
-    assert response.json() == {
+    body = response.json()
+    # The server's time and its clock check (small-desk plan section 5) vary by run.
+    assert body.pop("server_time_utc").endswith("+00:00")
+    assert set(body.pop("clock")) >= {"state", "offset_seconds", "synchronised",
+                                       "threshold_seconds"}
+    assert body == {
         "status": "ok",
         "service": "eurogas-nexus",
         "version": APPLICATION_DISPLAY_VERSION,  # what people read (1.0.0-beta)

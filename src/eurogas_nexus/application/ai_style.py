@@ -63,9 +63,11 @@ ANALYSIS_QUERY_RULES = (
 #: (DeepSeek V4 Flash) spends several hundred tokens thinking before it writes, so a 300-token
 #: budget returned an empty reply on most calls and the rule text always stood (AI-04 live
 #: run, 2026-11-15). The reply's own length is held by the checks, not by this budget.
-NOTE_CALL = {"temperature": 0.1, "max_tokens": 3000, "timeout_seconds": 30.0}
-ANSWER_CALL = {"temperature": 0.15, "max_tokens": 2000, "timeout_seconds": 45.0}
-ENRICHMENT_CALL = {"temperature": 0.1, "max_tokens": 2000, "timeout_seconds": 45.0}
+#: The time limit is not part of the budget: it is the use's timing (``interactive`` 3 s,
+#: ``draft`` longer; ``ai_controls.call_budget``).
+NOTE_CALL = {"temperature": 0.1, "max_tokens": 3000}
+ANSWER_CALL = {"temperature": 0.15, "max_tokens": 2000}
+ENRICHMENT_CALL = {"temperature": 0.1, "max_tokens": 2000}
 
 _NUMBER = re.compile(r"\d+(?:[.,]\d+)*")
 

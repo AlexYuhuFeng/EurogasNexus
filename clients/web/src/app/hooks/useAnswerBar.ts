@@ -31,6 +31,7 @@ import { lookup, type AnswerReads } from "@/app/answer/lookups";
 import { routeQuery, type Route } from "@/app/answer/route";
 import { fxHeldFrom, type FxHeld } from "@/app/answer/units";
 import { useLiveTopics } from "@/app/hooks/useLive";
+import { useAiAvailability } from "@/app/model/aiAvailability";
 
 export const LOOKUP_DEBOUNCE_MS = 250;
 const READ_TTL_MS = 60_000;
@@ -197,6 +198,7 @@ export interface AnswerBarController {
 export function useAnswerBar({
   open, query, glossary, permissions, language, liveStamp = null, streaming = false, liveQuotes,
 }: AnswerBarOptions): AnswerBarController {
+  const aiOn = useAiAvailability().available;
   const [reference, setReference] = useState<Reference>({ units: null, fx: null });
   const [lookupState, setLookupState] = useState<LookupState>({ status: "idle" });
   const [askState, setAskState] = useState<AskState>({ status: "idle" });
@@ -226,7 +228,8 @@ export function useAnswerBar({
   }, [open, signedIn, marketAllowed]);
 
   const bookAllowed = permissions.includes("portfolio.read");
-  const aiAllowed = permissions.includes("analysis.query");
+  // AI off for the organisation (small-desk 3.6): the ask still answers with the desk's figures.
+  const aiAllowed = permissions.includes("analysis.query") && aiOn;
   const zh = language.toLowerCase().startsWith("zh");
 
   const route = useMemo(

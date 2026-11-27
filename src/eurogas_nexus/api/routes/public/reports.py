@@ -92,17 +92,20 @@ def _editor_for(principal):
     """
 
     from eurogas_nexus.api.dependencies.ai_authority import ai_authority_denial
-    from eurogas_nexus.application.ai_controls import ai_use_enabled, governed_model
+    from eurogas_nexus.application.ai_controls import (
+        ai_use_enabled,
+        governed_model,
+        provider_key,
+    )
     from eurogas_nexus.application.reports.editor import EDITOR_CALL
     from eurogas_nexus.core.config import get_settings
-    from eurogas_nexus.security.provider_keys import load_provider_api_key
 
     if not get_settings().llm_external_provider_enabled or ai_authority_denial(principal):
         return None
     if not ai_use_enabled("report_editor"):
         return None
-    api_key = load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")
-    if not api_key:
+    api_key = provider_key()
+    if api_key is None:
         return None
     return governed_model("report_editor", api_key=api_key, budget=EDITOR_CALL)
 
@@ -234,16 +237,18 @@ def _ai_state(principal) -> tuple[bool, str]:
     with AI on but no provider or key set up reads as "no key", not as an error."""
 
     from eurogas_nexus.api.dependencies.ai_authority import ai_authority_denial
+    from eurogas_nexus.application.ai_controls import ai_use_enabled, provider_key
     from eurogas_nexus.core.config import get_settings
-    from eurogas_nexus.security.provider_keys import load_provider_api_key
 
     try:
-        if not get_settings().llm_external_provider_enabled:
+        if not get_settings().llm_external_provider_enabled or not ai_use_enabled(
+            "report_editor"
+        ):
             return False, "switched_off"
         denial = ai_authority_denial(principal)
         if denial:
             return False, "role"
-        if not (load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")):
+        if provider_key() is None:
             return False, "no_key"
     except Exception:  # an incomplete provider set-up is "not available", never a failure
         return False, "no_key"

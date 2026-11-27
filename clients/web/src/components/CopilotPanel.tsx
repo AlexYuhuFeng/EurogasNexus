@@ -38,6 +38,7 @@ import { useCopilot, useCopilotSources, type CopilotController } from "@/app/hoo
 import { Button } from "@/components/ui";
 import "./copilot-panel.css";
 import { Icon } from "@/components/ui/Icon";
+import { useAiAvailability } from "@/app/model/aiAvailability";
 
 type Translate = (key: string) => string;
 
@@ -386,5 +387,12 @@ export function CopilotHost({ action, t, onClose, onSelectAction }: CopilotHostP
     runAnalysis: (body: AnalysisRequestDTO): Promise<ApiResponse<AnalysisResultDTO>> =>
       api.analysisQuery(body),
   });
-  return <CopilotPanel {...copilot} t={t} onClose={onClose} onSelectAction={onSelectAction} />;
+  const ai = useAiAvailability();
+  return (
+    <>
+      {/* AI off (small-desk 3.6): the analysis still answers from the snapshot, by rule. */}
+      {!ai.available && <p className="copilot-ai-off" role="note" data-ai-off={ai.reason}>{t("ai.off.copilot")}</p>}
+      <CopilotPanel {...copilot} t={t} onClose={onClose} onSelectAction={onSelectAction} />
+    </>
+  );
 }

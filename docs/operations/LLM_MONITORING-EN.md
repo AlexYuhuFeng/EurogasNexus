@@ -274,3 +274,10 @@ passed (90.9 %), the rule text stood in 11.1 % of calls (including one provider 
 error), median latency 3.5 s. Refusals: one empty reply (brief), one Chinese answer that
 used 提名 (nomination) as a noun (conservatively refused as advice), one "over its limit"
 where the evidence says "against", one hyphenated name since fixed.
+
+## Switching AI off, a self-hosted model, time limits and what may be sent
+
+The administrator's one switch for all AI (`ai_enabled`), a self-hosted OpenAI-compatible
+endpoint with an optional key, the 3 s interactive and 240 s draft time limits, and the
+counterparty-name and deal-level sharing switches are described in
+[SMALL_DESK_RESILIENCE.md](SMALL_DESK_RESILIENCE.md#3-ai-off-self-hosted-bounded).

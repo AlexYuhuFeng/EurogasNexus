@@ -9,6 +9,7 @@ import type {
   SourceSystemDTO,
 } from "@/api/client";
 import { useState } from "react";
+import { ClockCheckPanel } from "./ClockCheckPanel";
 import { dependencyDetailText } from "@/app/model/runtimeDependencyDetail";
 import { schedulerReadiness } from "@/app/model/runtimeScheduler";
 import {
@@ -400,6 +401,7 @@ export function RuntimeWorkspace({
 
       {activeView === "delivery" && (
       <>
+      <ClockCheckPanel t={t} />
       <div className="workspace-panel span-3">
         <h2>{t("runtime.dependency_health")}</h2>
         <div className="data-table" tabIndex={0} role="region" aria-label={t("runtime.dependency_health")}>

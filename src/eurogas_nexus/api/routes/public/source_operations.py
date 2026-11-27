@@ -442,12 +442,13 @@ def get_runtime_metrics(request: Request) -> dict:
     """Expose low-cardinality data-operations metrics (Prometheus text)."""
 
     _require_db()
+    from eurogas_nexus.application.clock_check import prometheus_lines as clock_lines
     from eurogas_nexus.application.dataops_observability import prometheus_metrics
 
     sqlalchemy_error = _sqlalchemy_error_type()
     try:
         with _session() as session:
-            body = prometheus_metrics(session)
+            body = prometheus_metrics(session) + clock_lines()
         return {
             "data": body,
             "meta": {

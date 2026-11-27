@@ -203,3 +203,148 @@ def ask_messages(
             ),
         },
     ]
+
+
+# ------------------------------------------------------------------ counterparty names (F)
+
+#: How long the set of known counterparty names is reused before it is read again.
+NAMES_TTL_SECONDS = 300.0
+#: Shorter names are not replaced (they would match ordinary words).
+MIN_NAME_LENGTH = 3
+_NAMES_CACHE: dict[str, Any] = {"at": 0.0, "names": ()}
+
+
+def _alias(index: int) -> str:
+    letters = ""
+    index += 1
+    while index:
+        index, rest = divmod(index - 1, 26)
+        letters = chr(65 + rest) + letters
+    return f"Counterparty {letters}"
+
+
+def known_counterparty_names(session: Any | None = None) -> tuple[str, ...]:
+    """Every counterparty name the firm's records hold, longest first.
+
+    Credit lines (name and the ETRM spellings in ``aliases``) and every table with a
+    ``counterparty`` text column (deals, contracts, cargoes, nominations), so a table added
+    later is covered without a change here. Read at most every :data:`NAMES_TTL_SECONDS`.
+    """
+
+    import time
+
+    now = time.monotonic()
+    if session is None and now - _NAMES_CACHE["at"] < NAMES_TTL_SECONDS:
+        return _NAMES_CACHE["names"]
+    names: set[str] = set()
+    try:
+        names = _read_names(session)
+    except Exception:  # noqa: BLE001 - no store: nothing is known, and nothing is aliased
+        names = set()
+    ordered = tuple(sorted((n for n in names if len(n) >= MIN_NAME_LENGTH),
+                           key=lambda n: (-len(n), n)))
+    if session is None:
+        _NAMES_CACHE.update(at=now, names=ordered)
+    return ordered
+
+
+def _read_names(session: Any | None) -> set[str]:
+    from sqlalchemy import String, select
+
+    from eurogas_nexus.db.base import Base
+    from eurogas_nexus.db.models import CreditLineRecord
+
+    if session is None:
+        from eurogas_nexus.db.session import get_session_factory, resolve_database_url
+
+        if resolve_database_url() is None:
+            return set()
+        with get_session_factory()() as own:
+            return _read_names(own)
+    from eurogas_nexus.security.portfolio_scope import system_scope
+
+    names: set[str] = set()
+    with system_scope():  # every book: a name must be hidden whoever's book it is in
+        for name, aliases in session.execute(
+            select(CreditLineRecord.name, CreditLineRecord.aliases)
+        ):
+            names.add(str(name).strip())
+            names.update(str(alias).strip() for alias in (aliases or []))
+        for table in Base.metadata.sorted_tables:
+            for column_name in ("counterparty", "counterparty_name"):
+                column = table.columns.get(column_name)
+                if column is None or not isinstance(column.type, String):
+                    continue
+                try:
+                    rows = session.execute(
+                        select(column).where(column.is_not(None)).distinct().limit(5000)
+                    )
+                    names.update(str(value).strip() for (value,) in rows if value)
+                except Exception:  # noqa: BLE001 - a table not created yet holds no names
+                    session.rollback()
+    return {name for name in names if name}
+
+
+class CounterpartyAliases:
+    """Replace counterparty names by ``Counterparty A``, ``B``... and put them back.
+
+    Applied to every message a governed model call sends while the administrator has not
+    allowed counterparty names to be sent (``ai_data_sharing.counterparty_names``), and to the
+    reply in reverse, so the reader sees the real name and the provider never does.
+    """
+
+    def __init__(self, names: tuple[str, ...] | list[str]):
+        import re
+
+        self._names = tuple(names)
+        self._to_alias: dict[str, str] = {}
+        self._from_alias: dict[str, str] = {}
+        self._pattern = (
+            re.compile(
+                "|".join(rf"(?<!\w){re.escape(name)}(?!\w)" for name in self._names), re.I
+            )
+            if self._names
+            else None
+        )
+
+    @classmethod
+    def from_store(cls, session: Any | None = None) -> CounterpartyAliases:
+        return cls(known_counterparty_names(session))
+
+    def _alias_for(self, match: Any) -> str:
+        found = match.group(0)
+        key = next((n for n in self._names if n.lower() == found.lower()), found)
+        if key not in self._to_alias:
+            alias = _alias(len(self._to_alias))
+            self._to_alias[key] = alias
+            self._from_alias[alias.lower()] = key
+        return self._to_alias[key]
+
+    def hide(self, text: str) -> str:
+        if self._pattern is None or not text:
+            return text
+        return self._pattern.sub(self._alias_for, text)
+
+    def hide_messages(self, messages: list[dict[str, str]]) -> list[dict[str, str]]:
+        return [
+            {**message, "content": self.hide(str(message.get("content") or ""))}
+            for message in messages
+        ]
+
+    def restore(self, text: str) -> str:
+        import re
+
+        if not self._from_alias or not text:
+            return text
+        pattern = re.compile(
+            "|".join(rf"(?<!\w){re.escape(alias)}(?!\w)"
+                     for alias in sorted(self._from_alias, key=len, reverse=True)),
+            re.I,
+        )
+        return pattern.sub(lambda m: self._from_alias[m.group(0).lower()], text)
+
+    @property
+    def hidden(self) -> dict[str, str]:
+        """The names hidden so far and their aliases (for tests and the audit)."""
+
+        return dict(self._to_alias)

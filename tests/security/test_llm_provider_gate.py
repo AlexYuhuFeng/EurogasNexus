@@ -182,7 +182,11 @@ def test_llm_payload_filters_contract_prices_by_default() -> None:
         ],
     )
 
-    payload = _filtered_llm_payload(snapshot, include_contract_prices=False)
+    # Deal-level rows leave only on the administrator's opt-in (ai_data_sharing.deal_level).
+    assert _filtered_llm_payload(snapshot, include_contract_prices=False)[
+        "portfolio_context"
+    ] == []
+    payload = _filtered_llm_payload(snapshot, include_contract_prices=False, include_deals=True)
 
     row = payload["portfolio_context"][0]
     assert "contract_price_gbp_mwh" not in row
@@ -210,7 +214,7 @@ def test_llm_payload_keeps_contract_prices_on_opt_in() -> None:
         ],
     )
 
-    payload = _filtered_llm_payload(snapshot, include_contract_prices=True)
+    payload = _filtered_llm_payload(snapshot, include_contract_prices=True, include_deals=True)
 
     assert payload["portfolio_context"][0]["contract_price_gbp_mwh"] == 25.0
 

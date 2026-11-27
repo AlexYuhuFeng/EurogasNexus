@@ -115,10 +115,11 @@ def render_exposition() -> str:
     """Process metrics plus, with a runtime database, the database metrics."""
 
     from eurogas_nexus.application import process_metrics
+    from eurogas_nexus.application.clock_check import prometheus_lines as clock
     from eurogas_nexus.db.session import resolve_database_url
 
     if resolve_database_url() is None:
-        return process_metrics.render() + _database_up(0)
+        return process_metrics.render() + _database_up(0) + clock()
     try:
         from eurogas_nexus.application.dataops_observability import prometheus_metrics
         from eurogas_nexus.db.resilience import in_recovery
@@ -132,9 +133,9 @@ def render_exposition() -> str:
             body = prometheus_metrics(session)
             # The same check readiness makes: a standby answers every read above.
             writable = not in_recovery(session.connection())
-        return body + _database_up(1) + _primary_writable(1 if writable else 0)
+        return body + _database_up(1) + _primary_writable(1 if writable else 0) + clock()
     except Exception:  # noqa: BLE001 - the process metrics are still worth a scrape
-        return process_metrics.render() + _database_up(0)
+        return process_metrics.render() + _database_up(0) + clock()
 
 
 def _database_up(value: int) -> str:
