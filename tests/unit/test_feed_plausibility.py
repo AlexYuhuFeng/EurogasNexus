@@ -65,8 +65,7 @@ def test_future_stamps_and_jumps_are_refused():
 
 def test_a_fat_finger_in_a_batch_stores_nothing(session):
     now = datetime.now(UTC) - timedelta(minutes=1)
-    ingest_ticks(session, source_system="EEX", quotes=[_quote("DA", 31.0, 31.1, now)],
-                 evaluate=False)
+    ingest_ticks(session, source_system="EEX", quotes=[_quote("DA", 31.0, 31.1, now)])
     session.commit()
     stored = session.query(MarketQuoteRecord).count()
 
@@ -80,19 +79,18 @@ def test_a_fat_finger_in_a_batch_stores_nothing(session):
         [_quote("DA", 31.2, 31.3, later), _quote("DA", 93.0, 93.1, later + timedelta(1))],
     ):
         with pytest.raises(FeedError):
-            ingest_ticks(session, source_system="EEX", quotes=bad, evaluate=False)
+            ingest_ticks(session, source_system="EEX", quotes=bad)
         session.rollback()
     assert session.query(MarketQuoteRecord).count() == stored
 
-    ingest_ticks(session, source_system="EEX", quotes=[_quote("DA", 33.0, 33.1, later)],
-                 evaluate=False)
+    ingest_ticks(session, source_system="EEX", quotes=[_quote("DA", 33.0, 33.1, later)])
     assert session.query(MarketQuoteRecord).count() == stored + 1
 
 
 def test_trade_prints_are_held_to_the_same_bands(session):
     now = datetime.now(UTC)
     with pytest.raises(FeedError, match="above the plausible ceiling"):
-        ingest_ticks(session, source_system="EEX", quotes=[], evaluate=False, trades=[
+        ingest_ticks(session, source_system="EEX", quotes=[], trades=[
             {"trade_id": "t1", "hub": "TTF", "product": "M+1", "price": 3_150,
              "qty": 5, "exchange_time": now.isoformat()}])
 

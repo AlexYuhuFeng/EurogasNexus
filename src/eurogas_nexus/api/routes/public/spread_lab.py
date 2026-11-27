@@ -1,7 +1,7 @@
 """/api/research spread lab: daily series catalogue and spread analysis.
 
 Thin: the history and its backtest are :mod:`eurogas_nexus.application.spread_history` (shared
-with Research → Spreads and the daily strategy tracks); this module answers HTTP.
+with Research → Spreads); this module answers HTTP.
 """
 
 from __future__ import annotations

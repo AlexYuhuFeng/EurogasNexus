@@ -21,7 +21,7 @@ reachable through the public HTTPS gateway (the shipped gateways answer `/metric
 | `eurogas_source_freshness_seconds{source_id}`, `eurogas_source_stale_after_seconds{source_id}` | How old each enabled source's data is, and the age its own freshness rule calls stale |
 | `eurogas_source_consecutive_failures`, `eurogas_source_stale`, `eurogas_source_enabled`, `eurogas_source_scheduler_overdue`, `eurogas_source_certification_state` | Per-source health |
 | `eurogas_ingestion_runs_total`, `eurogas_ingestion_failures_total`, `eurogas_ingestion_failures_last_hour{source_id}` | Ingestion outcomes |
-| `eurogas_scheduler_heartbeat_age_seconds{scheduler}` | Seconds since the data-operations (and shadow) scheduler last reported; `+Inf` when it never ran |
+| `eurogas_scheduler_heartbeat_age_seconds{scheduler}` | Seconds since the data-operations scheduler last reported; `+Inf` when it never ran |
 | `eurogas_scheduler_last_scan_age_seconds`, `eurogas_scheduler_sources_scheduled` | The scheduler's last scan and how many sources it has on a schedule |
 | `eurogas_jobs_finished_last_hour{kind,status}`, `eurogas_jobs_active{kind}` | Job outcomes and running work |
 | `eurogas_feed_last_quote_age_seconds{source_system}`, `eurogas_feed_receive_lag_seconds{source_system}` | Live price feeds: newest quote's age, and how far receipt lags the venue time |

@@ -95,9 +95,11 @@ def test_the_snapshot_kind_is_the_one_act_that_is_never_repeated() -> None:
     assert snapshot.rerun_possible is False
     assert "point in time" in snapshot.reason
 
-    # Every other kind can be re-issued, and says where from.
+    # Every other kind that still has a producer can be re-issued, and says where from. The
+    # governed research pipeline was removed with the strategy laboratory, so AGENT_RUN has no
+    # path that could issue it and says so instead of naming one that no longer exists.
     for kind in JobKind:
-        if kind is JobKind.SNAPSHOT:
+        if kind in (JobKind.SNAPSHOT, JobKind.AGENT_RUN):
             continue
         assert job_rerun_contract(kind).rerun_possible is True, kind
 

@@ -19,10 +19,6 @@ function server(overrides: Record<string, unknown> = {}) {
     database_schema_revision: "0030_reliability_indexes",
     minimum_supported_client: V,
     minimum_supported_server: V,
-    backtest_engine_version: "backtest-engine/2",
-    legacy_backtest_engine_version: "backtest-engine/1",
-    strategy_schema_version: "strategy-definition/v1",
-    strategy_run_schema_version: "strategy-run-manifest/v1",
     solver_version: "min-cost-flow/v1",
     ...overrides,
   } as Parameters<typeof compatibilityForServer>[1];

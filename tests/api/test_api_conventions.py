@@ -33,7 +33,7 @@ def test_review_decisions_respects_limit(monkeypatch) -> None:
     rows = [
         {
             "decision_id": f"d{i}",
-            "entity_type": "strategy_run",
+            "entity_type": "generated_report",
             "entity_id": f"run-{i}",
             "actor": "operator",
             "decision": "accepted",

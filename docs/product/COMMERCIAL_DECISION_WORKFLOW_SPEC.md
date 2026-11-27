@@ -206,7 +206,6 @@ explicitly says analytical/governance review, not trade approval.
 ## 19. Cross-workspace handoffs
 
 - Portfolio → Market (`Show market context`);
-- Portfolio → Strategy (`Inspect in Strategy Lab`);
 - Scenario → Review (`Open in Review`);
 - Scenario → Market (`Inspect market assumptions`);
 - Review → Scenario (`Reopen scenario`).
@@ -248,11 +247,6 @@ optimizer calls are user-triggered. No N+1 API calls are introduced.
 - Attribution limited to components already isolated by backend.
 - No true portfolio master identity; current resource pool is the scope.
 - No visual-regression runner locally.
-- The strategy lab's own result key (`strategyResultContextKey`) is stamped
-  only by a successful answer and now carries the payload identity
-  (section 27). The evaluate action exists in the model but no surface in the
-  current build starts it; the strategy views read persisted runs and the
-  summary, not this in-memory result.
 - The Scenario panel only offers the one draft value an action consumes (the
   annual financing-rate fallback). `delivery_quantity_mwh_per_day`,
   `contract_price_gbp_mwh`, `delivery_tolerance_pct`,

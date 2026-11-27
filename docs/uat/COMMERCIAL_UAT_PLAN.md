@@ -10,7 +10,7 @@ features.
 | --- | --- | --- |
 | A — Market trader | price, spread, infrastructure, capacity, route economics, opportunities, speed | Market / Network / Scenario |
 | B — Portfolio/commercial analyst | resources, availability, terms, routes, scenarios, optimizer, attribution | Portfolio / Decision Center |
-| C — Strategy/quant analyst | definition, reproducibility, backtest, assumptions, comparison, shadow | Strategy Lab |
+| C — Strategy/quant analyst | spread and fundamental research, reproducibility, assumptions, comparison | Research / Decision Center |
 | D — Reviewer/manager | evidence, alternatives, provenance, risk, assumptions, decision record | Review |
 | E — Data/platform operator | sources, freshness, failures, certification, entitlement, runtime, release state | Sources / Runtime / Settings |
 

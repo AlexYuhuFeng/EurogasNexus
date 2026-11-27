@@ -170,7 +170,7 @@ DELIBERATE: dict[str, str] = {
     # stay for the engines Deals → Opportunities will reuse, or as support APIs.
     "/api/data-products": "Research → Data left the client (CP-00); the catalogue stays an API",
     "/api/market/financing-rate": "the financing-rate helper left the contract form (CP-00)",
-    "/api/me/groups": "sharing groups for strategy sharing; its client left with CP-00",
+    "/api/me/groups": "identity groups the caller belongs to; its client left with CP-00",
     "/api/portfolio/desk-replay": "desk replay left the UI (CP-00, H); the JSON entry stays an API",
     "/api/portfolio/lng-cargo-bid": "superseded by the cargo chain (CP-12); kept for one release",
     "/api/research/netback": "the route what-if left the client (CP-00); engine kept for CP-09",

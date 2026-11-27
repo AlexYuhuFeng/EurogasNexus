@@ -53,7 +53,7 @@ string; data scopes are already separate JSON.
 ### 2.7 Data-scope behavior
 
 CR-09 propagates row/derived-result filtering across market, physical,
-storage, LNG, route candidates, strategy/shadow evidence and reports.
+storage, LNG, route candidates and reports.
 Principal data scopes are backend-owned and fail closed for unknown families.
 
 ### 2.8 Frontend auth state
@@ -86,9 +86,8 @@ return.
 
 Audit exists for identity lifecycle, review decisions, policy denials, LLM
 calls, source ingestion and CR-09 operator actions. Gaps: login/logout,
-session revocation, authorization denials, strategy freeze/retire,
-shadow lifecycle, explicit `permission`/`correlation_id`/`client_type`
-columns.
+session revocation, authorization denials, explicit
+`permission`/`correlation_id`/`client_type` columns.
 
 ### 2.13 Insecure token/storage patterns
 
@@ -308,9 +307,8 @@ RBAC for job function + data scopes for commercial entitlement. New
 permissions include:
 
 ```text
-market.read, portfolio.read, portfolio.write, strategy.read,
-strategy.create, strategy.edit, strategy.freeze, strategy.retire,
-strategy.shadow.manage, scenario.create, optimization.run,
+market.read, portfolio.read, portfolio.write,
+scenario.create, optimization.run,
 review.read, review.record, source.read, source.run, source.backfill,
 source.credentials.write, source.certification.manage, runtime.read,
 identity.read, identity.manage, api_keys.manage, audit.read, me.read
@@ -339,10 +337,6 @@ enforces the boundary per request; a commercial path returns 403
 | `market.read` | ✓ | ✓ | ✓ | ✓ | |
 | `portfolio.read` | ✓ | ✓ | ✓ | ✓ | |
 | `portfolio.write` | | ✓ | | | |
-| `strategy.read` | ✓ | ✓ | ✓ | ✓ | |
-| `strategy.create` / `strategy.edit` | | ✓ | | | |
-| `strategy.freeze` / `strategy.retire` | | ✓ | | | |
-| `strategy.shadow.manage` | | ✓ | | ✓ | |
 | `scenario.create` | | ✓ | | | |
 | `optimization.run` | | ✓ | | | |
 | `review.read` | ✓ | ✓ | ✓ | ✓ | |
@@ -400,7 +394,7 @@ or delete route exists. Admin may read bounded, filterable audit data.
 Retention pruning remains operator-controlled and dry-run by default.
 
 Audited actions: auth login/logout/revocation; identity enable/disable,
-role/scope changes; API-key lifecycle; strategy/version/shadow lifecycle;
+role/scope changes; API-key lifecycle;
 source run/backfill/credential/certification; review recording; sensitive
 denials.
 

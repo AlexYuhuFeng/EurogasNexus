@@ -1199,7 +1199,6 @@ input {
   grid-column: auto;
 }
 
-.strategy-view-tabs,
 .source-view-tabs,
 .runtime-view-tabs {
   display: flex;
@@ -1216,13 +1215,11 @@ input {
   grid-column: 1 / -1;
 }
 
-.strategy-view-tabs::-webkit-scrollbar,
 .source-view-tabs::-webkit-scrollbar,
 .runtime-view-tabs::-webkit-scrollbar {
   display: none;
 }
 
-.strategy-view-tabs button,
 .source-view-tabs button,
 .runtime-view-tabs button {
   position: relative;
@@ -1239,13 +1236,11 @@ input {
   padding: 0 14px;
 }
 
-.strategy-view-tabs button:last-child,
 .source-view-tabs button:last-child,
 .runtime-view-tabs button:last-child {
   border-right: 0;
 }
 
-.strategy-view-tabs button::after,
 .source-view-tabs button::after,
 .runtime-view-tabs button::after {
   position: absolute;
@@ -1257,8 +1252,6 @@ input {
   content: "";
 }
 
-.strategy-view-tabs button:hover,
-.strategy-view-tabs button.active,
 .source-view-tabs button:hover,
 .source-view-tabs button.active,
 .runtime-view-tabs button:hover,
@@ -1266,13 +1259,11 @@ input {
   color: var(--ds-text-1);
 }
 
-.strategy-view-tabs button.active::after,
 .source-view-tabs button.active::after,
 .runtime-view-tabs button.active::after {
   background: var(--ds-accent);
 }
 
-.strategy-view-tabs button:focus-visible,
 .source-view-tabs button:focus-visible,
 .runtime-view-tabs button:focus-visible {
   outline: 2px solid var(--ds-accent);
@@ -1309,9 +1300,7 @@ input {
     grid-template-columns: 1fr;
   }
 
-  .source-detail-panel,
-  .strategy-page .strategy-allocation-ladder,
-  .strategy-page .strategy-pnl-curve {
+  .source-detail-panel {
     grid-column: 1 / -1;
   }
 
@@ -1808,8 +1797,6 @@ body {
 .glossary-row button,
 .analysis-panel button,
 .cockpit-app .action-row button,
-.strategy-panel button,
-.strategy-command-deck button,
 .credential-form button {
   min-height: 34px;
   border: 1px solid var(--ds-border);
@@ -1825,8 +1812,6 @@ body {
 
 .cockpit-app .chip.active,
 .cockpit-app .action-row button,
-.strategy-panel button,
-.strategy-command-deck button,
 .credential-form button {
   border-color: var(--ds-ink);
   background: var(--ds-ink);
@@ -1834,8 +1819,6 @@ body {
 }
 
 .cockpit-app .action-row button:disabled,
-.strategy-panel button:disabled,
-.strategy-command-deck button:disabled,
 .credential-form button:disabled {
   border-color: var(--ds-border);
   background: var(--ds-bg);
@@ -4601,12 +4584,6 @@ button.glossary-related-chip {
   .source-health-grid,
   .source-posture-grid,
   .source-table-split,
-  .strategy-price-basis-grid,
-  .strategy-data-quality-banner,
-  .strategy-pool-baseline,
-  .strategy-performance-summary,
-  .strategy-selected-basis-metrics,
-  .strategy-tape-grid,
   .runtime-readiness-grid,
   .economics-grid.wide,
   .credential-form.horizontal {
@@ -7329,7 +7306,6 @@ button.glossary-related-chip {
 }
 
 .scenario-context-banner,
-.strategy-context-banner,
 .review-context-banner {
   display: flex;
   flex-wrap: wrap;
@@ -7341,14 +7317,12 @@ button.glossary-related-chip {
 }
 
 .scenario-context-banner > span,
-.strategy-context-banner > span,
 .review-context-banner > span {
   display: grid;
   gap: 2px;
 }
 
 .scenario-context-banner small,
-.strategy-context-banner small,
 .review-context-banner small {
   color: var(--ds-text-3);
   font-family: var(--ds-font-ui);
@@ -7356,7 +7330,6 @@ button.glossary-related-chip {
 }
 
 .scenario-context-banner strong,
-.strategy-context-banner strong,
 .review-context-banner strong {
   color: var(--ds-text-1);
   font-size: var(--ds-text-sm);

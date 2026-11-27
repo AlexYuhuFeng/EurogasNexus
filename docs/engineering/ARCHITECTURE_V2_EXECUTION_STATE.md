@@ -6,6 +6,43 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-27 — Strategy laboratory removed (branch `sd-rm-strategy`, not pushed)
+
+Owner-approved removal of the strategy laboratory: the strategy registry, evaluation and
+tracks, its decision-time "backtest" and the scheduled shadow runtime, including the inline
+strategy evaluation in tick ingestion. Profit is fixed at decision time, so the "backtest"
+proved no outcome. The spread laboratory, research datasets and leakage tooling, the
+opportunity engine, the hand-written solvers, forward curve, position ladder, P&L, limits and
+reports stay; the research bench (`/api/research/backtest`, `/api/research/shadow-run`) and the
+NWE model shadow evaluation stay.
+
+- Migration `0098_remove_strategy_laboratory` chains after `0097_deal_capture` (one head;
+  `DB_SCHEMA_REVISION` 0098) and drops 22 tables (registry, versions, runs, backtests,
+  allocation targets, alerts, tracks, eight shadow tables). Declared `irreversible`: the
+  downgrade refuses and going back means restoring the backup; `DATABASE_UPGRADE.md` says to
+  export stored runs first. Identity groups and members stay as identity infrastructure. The
+  full chain was applied on a scratch PostgreSQL 16 database; every dropped table is absent and
+  `identity_groups`, `identity_group_members` and `market_trades` remain.
+- Shared pieces moved to neutral modules rather than keeping the laboratory alive:
+  `core/content_hash.py` (agent records), `domain/market_intelligence/price_series.py` (market
+  discovery and research), `application/agents/review_access.py` (review capability),
+  `db/models/identity_groups.py` + `db/repositories/identity_access.py` (identity groups),
+  `api/routes/public/market_ticks.py` + `clients/web/src/api/promptMarket.ts` (licensed tick
+  ingestion and the prompt desk read, without the evaluation hook).
+- Removed: three public route modules, the internal shadow route, agent research orchestration
+  and shadow handlers, the strategy domain/application/repository/model packages, the SDK's
+  strategy/shadow clients, `run_shadow_scheduler.py`/`backtest_benchmark.py`, the release
+  metadata constants and manifest fields, the client pages/components/API client/store lanes,
+  selection-context and inspector kinds, CSS selectors, permissions/capabilities and the unused
+  translation keys. Old links (`?workspace=strategy`, `research:strategies`) still land on
+  Research → Spreads; the `strategy` primary id now carries the Research label.
+- Docs: the feature specs and user pages were deleted, indexes and current guides updated, SDK
+  reference regenerated; historical wave/audit records stay as records. Tests that only covered
+  the feature were deleted; mixed tests keep the surviving half (tick ingestion, review
+  evidence, agent contracts, tick quotas).
+- Validation: ruff clean; markdown links resolve; env templates current; full Python suite and
+  the Web type-check/tests/CSS lint recorded with the branch commit (not pushed).
+
 ## 2026-11-27 — Small-desk install and self-support, server part (branch `sd-install`, not pushed)
 
 `docs/product/SMALL_DESK_PLAN.md` section 3 items 2, 3 and 7 (server) and section 7 (server).

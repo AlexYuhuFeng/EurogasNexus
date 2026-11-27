@@ -82,13 +82,11 @@ test("Today's warnings: method notes are left out, failures are said in words", 
       "contract demo-mspa-atlantic-cn07: an FOB cargo is not on a European hub until it is sold or discharged",
       "book: not available (OperationalError)",
       "book: not available (OperationalError)",
-      "strategy findings: not available (KeyError)",
     ],
   });
-  assert.equal(notes.length, 2);
+  assert.equal(notes.length, 1);
   assert.equal(serverWarningText(notes[0], tEn), "The book could not be read.");
   assert.equal(serverWarningText(notes[0], tZh), "账簿未能读取。");
-  assert.equal(serverWarningText(notes[1], tZh), "策略发现未能读取。");
   // A newer server's notes are used as sent.
   const note = { code: "DESK_READ_UNAVAILABLE", params: { section: "prices", error: "X" }, text: "prices: not available (X)" };
   assert.deepEqual(todayNotes({ warnings: ["prices: not available (X)"], notes: [note] }), [note]);

@@ -2,7 +2,7 @@
 
 For the platform administrator (ADMIN role): who is told what by email, and who may do
 what. Administrators manage the platform, not the trading: an administrator does not see
-the firm's strategies or market data unless also granted them. The top bar therefore shows
+the firm's commercial data unless also granted it. The top bar therefore shows
 only Help & Settings and Admin, the sign-in lands on Data sources, and a link into a trading page
 brings the administrator back to their own surface.
 

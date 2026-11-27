@@ -174,9 +174,6 @@ export function PromptDeskPanel({ hub: initialHub }: { hub: string }) {
               </table>
             </div>
           )}
-          {(data.performance.missed_signals?.length ?? 0) > 0 && (
-            <p className="prompt-note" data-prompt-missed>{t("prompt.missed", { count: data.performance.missed_signals?.length ?? 0 })}</p>
-          )}
         </>
       )}
     </section>

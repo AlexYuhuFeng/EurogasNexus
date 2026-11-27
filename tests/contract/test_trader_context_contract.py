@@ -29,7 +29,6 @@ def test_context_subsystem_separates_trader_selection_persistence_and_evidence()
     assert "portfolioId" not in trader
     assert "routeId" in selection
     assert "resourceId" in selection
-    assert "strategyRunId" in selection
     assert "TRADER_CONTEXT_STORAGE_KEY" in persistence
     assert "traderContextKey" in invalidation
     assert "resultContextMatches" in invalidation
@@ -64,33 +63,23 @@ def test_context_url_precedence_and_legacy_workspace_links_are_explicit() -> Non
 
 def test_portfolio_model_consumes_hub_and_resource_selection_intentionally() -> None:
     model = _read("app", "model", "usePortfolioDecisionModel.ts")
-    strategy = _read("app", "strategyScenario.ts")
 
     assert "hubId: SupportedHubId | null" in model
     assert "selectedResourceId: string | null" in model
     assert "(!hubId || observation.hub.toUpperCase() === hubId)" in model
-    assert "selectedResourceId?: string | null" in strategy
-    assert "candidate.resource_id === selectedResourceId" in strategy
     assert "optimizerContextMismatch" in model
-    assert "strategyContextMismatch" in model
     assert "optimizeResourcePoolForCurrentContext" in model
 
 
 def test_high_value_cross_workspace_handoffs_are_explicit_actions() -> None:
     network = _read("components", "NetworkWorkspace.tsx")
     contracts = _read("components", "ContractWorkbench.tsx")
-    decision = _read("components", "DecisionWorkspace.tsx")
-    review = _read("components", "ReviewWorkspace.tsx")
 
     # The Network page no longer hands over to the scenario page (design basis 2, CP-21).
     assert "onOpenScenario" not in network
     # Nor does the contract workbench hand over to the Strategies page, which left with CP-00.
     assert "onOpenStrategyForResource" not in contracts
     assert 't("contracts.open_in_strategy")' not in contracts
-    # A strategy run carried in the URL still reaches Review, which opens on it and says so.
-    assert "carriedStrategyRunId={selection.strategyRunId}" in decision
-    assert "carriedStrategyRunId" in review
-    assert "carried_strategy_run" in review
 
 
 def test_context_ui_is_compact_accessible_and_clearable() -> None:
@@ -116,10 +105,6 @@ def test_context_labels_have_en_zh_parity() -> None:
         "context.result_mismatch",
         "context.result_mismatch_hint",
         "network.open_in_scenario",
-        "strategy.carried_resource",
-        "strategy.review",
-        "strategy.review_decision",
-        "review.carried_strategy_run",
     ]
     for key in keys:
         assert en[key].strip()

@@ -15,7 +15,6 @@ CLIENTS
 APPLICATION
   API (FastAPI/uvicorn)      -- single runtime process per container
   dataops scheduler          -- PostgreSQL SKIP LOCKED claims (script/worker)
-  shadow scheduler           -- PostgreSQL SKIP LOCKED claims (script/worker)
   monitoring worker          -- optional alert scan/LLM enrichment
   SSE streams                -- server-sent events polling PostgreSQL
   public ingestion worker    -- optional; invokes bounded provider fetch
@@ -78,8 +77,7 @@ Shutdown policy:
 - supervisors send SIGTERM; uvicorn drains in-flight requests;
 - scheduled claim loops stop on process termination without in-memory loss;
 - QUEUED/RUNNING jobs older than stale thresholds are recovered on the next
-  scheduler scan (`dataops_runtime.scan_scheduler`,
-  `shadow_runtime.run_due_shadow_evaluations`);
+  scheduler scan (`dataops_runtime.scan_scheduler`);
 - `scripts/ops/recover_stale_jobs.py --commit` is the explicit operator path
   after a crash.
 
@@ -87,10 +85,6 @@ Shutdown policy:
 
 - Ingestion QUEUED/RUNNING older than 900s -> FAILED `INTERNAL:STALE_RUN` and
   the source is rescheduled by policy.
-- Shadow RUNNING evaluations older than 300s -> FAILED with failure class
-  INTERNAL_ERROR and `OPERATIONAL_FAILURE:STALE_EVALUATION`.
-- Strategy/backtest RUNNING records are not auto-completed; they are surfaced
-  in diagnostics for operator review (they may be long legitimate backtests).
 
 ## 6a. Job record retention
 
@@ -113,8 +107,8 @@ python scripts/ops/prune_job_records.py --retention-days 180 --commit
   Rows older than the window that are still active are counted and reported, with
   `scripts/ops/recover_stale_jobs.py` named as the path to resolve them.
 - **Pruning removes bookkeeping, never work.** A job's output references, and the
-  reports, strategy runs, dataset snapshots and agent runs they name, are separate
-  records that the prune does not touch.
+  reports, dataset snapshots and agent runs they name, are separate records that the
+  prune does not touch.
 - The pass prints what it did: rows deleted, rows eligible, active rows retained
   and the oldest instant still represented in the table.
 - No route exposes this: bounding operational bookkeeping is an operator action on
@@ -154,9 +148,6 @@ routes never create a new engine per request.
 ## 9. Query performance policy
 
 - Add indexes only with query evidence. CR-11 adds:
-  - `strategy_runs (strategy_id, started_at_utc)`,
-  - `strategy_runs (strategy_version_id, started_at_utc)`,
-  - `strategy_runs (run_type, started_at_utc)`,
   - `user_sessions (session_token_hash)` unique,
   - `audit_events (principal, action)`.
 - List endpoints remain bounded (`limit` query parameters); historical
@@ -164,12 +155,12 @@ routes never create a new engine per request.
 
 ## 10. Interactive vs background isolation
 
-Long backtests and optimization calls execute synchronously in the API process
+Long research backtests and optimization calls execute synchronously in the API process
 today. CR-11 records this honestly and applies bounded request validation:
-- backtest period is already bounded by validated date range and evidence
-  pool limits;
+- research backtest period is already bounded by validated date range and
+  evidence pool limits;
 - optimizer inputs are bounded by Pydantic list sizes where present;
-- scheduled ingestion/shadow workers run as separate processes in the Compose
+- scheduled ingestion workers run as separate processes in the Compose
   profile, so they do not compete with API workers.
 - No distributed queue is introduced without measured need.
 
@@ -179,8 +170,8 @@ today. CR-11 records this honestly and applies bounded request validation:
 - Data-operations structured events and Prometheus-text metrics exist.
 - CR-11 adds in-process HTTP metrics (count/latency/status by low-cardinality
   route bucket), DB pool gauges, and a shared operational error taxonomy.
-- Recommended dashboards: System Health, Data Operations, Strategy/Shadow,
-  Auth/Security, Database.
+- Recommended dashboards: System Health, Data Operations, Auth/Security,
+  Database.
 
 ## 12. Error taxonomy
 
@@ -214,8 +205,8 @@ User-facing API errors use these codes without stack traces or secret data.
 3. `pg_restore`;
 4. Alembic revision check;
 5. required-table check;
-6. representative business-record checks (audit, strategy run, source
-   metadata, provider credential metadata);
+6. representative business-record checks (audit events, ingestion runs,
+   identities, source runtime states);
 7. DB-backed API read smoke.
 
 CR-11 executed this against a real local PostgreSQL 16 and recorded the
@@ -254,7 +245,6 @@ procedure, not a fabricated external run.
 - DB schema revision + required tables;
 - `/api/me` envelope (where auth profile permits);
 - source health endpoint;
-- strategy run list endpoint;
 - portfolio/route read endpoints;
 - SSE endpoint contract (non-streaming status via bounded client timeout).
 

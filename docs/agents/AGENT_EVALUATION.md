@@ -5,8 +5,8 @@ Deterministic business-task suite: `tests/evals/agent_task_evals.json` and
 
 ## Coverage
 
-30 cases spanning market, network, capacity, portfolio, route, strategy,
-backtest, dataset, and adversarial security. Each case asserts required
+27 cases spanning market, network, capacity, portfolio, route, dataset and
+adversarial security. Each case asserts required
 semantic capabilities exist and forbidden execution/SQL tools never exist.
 
 ## Scoring dimensions

@@ -7,6 +7,7 @@ fails loudly instead of drifting silently.
 
 from __future__ import annotations
 
+
 def test_sdk_optimization_route_dto_matches_backend_result() -> None:
     from dataclasses import fields
 

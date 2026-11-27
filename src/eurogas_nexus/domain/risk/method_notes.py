@@ -163,7 +163,7 @@ _NOTES: tuple[MethodNote, ...] = (
         "Sum of the latest P&L snapshots you can see, as imported; unknown, not zero, when "
         "no snapshot exists.",
         includes=(
-            ("snapshots", "Imported valuation snapshots in the strategies you can see"),
+            ("snapshots", "Imported valuation snapshots you can see"),
         ),
         excludes=(
             ("recompute", "Any check against current marks"),

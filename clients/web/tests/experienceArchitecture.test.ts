@@ -252,7 +252,7 @@ test("task patterns cover the vocabularies the live resolvers can return", () =>
   );
   for (const task of decisionTasks) assert.doesNotThrow(() => taskPatternFor("decision", task));
 
-  for (const task of ["design", "backtest", "compare", "shadow"]) {
+  for (const task of ["spreads", "fundamentals", "cargo", "reports"]) {
     assert.doesNotThrow(() => taskPatternFor("strategy", task));
   }
   // The system primary keeps local views until Wave 9 and claims no task pattern.
@@ -398,9 +398,6 @@ test("Active Context is canonical, keyed and honest about its gaps", () => {
     selection: {
       routeId: "ROUTE-1",
       resourceId: null,
-      strategyId: null,
-      strategyVersionId: null,
-      strategyRunId: null,
     },
   });
 
@@ -414,9 +411,6 @@ test("Active Context is canonical, keyed and honest about its gaps", () => {
     selection: {
       routeId: "ROUTE-1",
       resourceId: null,
-      strategyId: null,
-      strategyVersionId: null,
-      strategyRunId: null,
     },
   });
   assert.equal(activeContextKey(same), activeContextKey(context));
@@ -432,7 +426,7 @@ test("Active Context is canonical, keyed and honest about its gaps", () => {
     "?workspace=network&task=exposure&gasDay=2026-09-14&product=day-ahead&hub=NBP&route=ROUTE-1",
   );
   for (const key of Object.values(ACTIVE_CONTEXT_QUERY_KEYS)) {
-    if (key === "resource" || key === "run" || key === "strategy" || key === "version") continue;
+    if (key === "resource") continue;
     assert.ok(params.has(key), key);
   }
 });

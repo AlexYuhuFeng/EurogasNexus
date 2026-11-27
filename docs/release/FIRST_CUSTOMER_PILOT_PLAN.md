@@ -49,8 +49,8 @@ only and is never provider or live-market acceptance.
   multi-organisation or desk-isolation claim**: organisation/portfolio scope
   kinds remain unsupported and are reported as such by
   `ExperienceProfile.unsupported_scope_kinds`.
-- European gas decision support only: market evidence to portfolio, constrained
-  alternative review, reproducible strategy comparison. Power is deferred, and
+- European gas decision support only: market evidence to portfolio and constrained
+  alternative review. Power is deferred, and
   expensive model training is deferred and must not appear as pilot acceptance.
 - Retained architecture: FastAPI backend, React web client, PostgreSQL/Alembic
   store, thin Tauri host. No execution, order entry/routing, nomination
@@ -401,18 +401,6 @@ operator-supplied), `customer_acceptance`, `intended_context_selection`,
 - Exercise: challenge one proposed allocation end to end, reproduce its evidence
   by re-reading recorded references, and confirm stale/restricted inputs block
   recommendations and the audit chain names an independent decision actor.
-
-### WF-3 - reproducible strategy comparison
-
-- Surfaces: Strategy Lab backtest with freeze/fork, analysis snapshots
-  (`0034_analysis_snapshots`), snapshot citation verified before work and
-  recorded on every run path.
-- Proven: deterministic backtest contracts (`clients/web/tests/goldenWorkflow.test.ts`);
-  citation verified before provider work and recorded durably.
-- Not proven: populated strategy comparisons on customer data, walk-forward
-  evaluation and leakage controls for a populated dataset.
-- Exercise: compare two frozen versions on one populated dataset, re-read the
-  recorded snapshot reference, and state uncertainty and costs, not PnL alone.
 
 ## Milestones
 

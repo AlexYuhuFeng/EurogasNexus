@@ -20,7 +20,7 @@ def test_release_smoke_forwards_named_identity_and_preserves_denial(monkeypatch,
         assert request.headers["X-Eurogas-Api-Key"] == "synthetic-deployment-secret"
         assert request.headers["X-Eurogas-Identity"] == "synthetic-identity-secret"
         seen.append(request.url.path)
-        return httpx.Response(403 if denied and request.url.path.endswith("strategy-runs") else 200)
+        return httpx.Response(403 if denied and request.url.path.endswith("sources") else 200)
 
     client_type = httpx.Client
     monkeypatch.setattr(
@@ -32,8 +32,8 @@ def test_release_smoke_forwards_named_identity_and_preserves_denial(monkeypatch,
     assert "synthetic-identity-secret" not in output
     report = json.loads(output)
     assert report["ok"] is not denied
-    assert len(seen) == 8
+    assert len(seen) == 7
     if denied:
         assert (
-            next(row for row in report["results"] if row["check"] == "strategy_runs")["ok"] is False
+            next(row for row in report["results"] if row["check"] == "sources")["ok"] is False
         )

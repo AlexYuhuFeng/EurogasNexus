@@ -95,10 +95,6 @@ export interface ApiStoreState {
   resourcePoolOptions: Record<string, unknown> | null;
   resourcePoolResult: unknown;
   routeRecommendation: unknown;
-  /** The strategy lab's in-memory result, summary and runs lanes. */
-  strategyResult: unknown;
-  strategySummary: Record<string, unknown> | null;
-  strategyRuns: unknown[];
   /** The envelope metadata of the last committed on-demand answer. */
   meta: Record<string, unknown> | null;
   /** The two governed computes' own lifecycle lanes, as the store leaves them. */
@@ -127,9 +123,6 @@ export interface ApiStoreState {
     contextKey: string,
     options?: { timeoutMs?: number },
   ) => Promise<void>;
-  evaluateStrategyLab: (
-    scenario: Record<string, unknown>,
-  ) => Promise<Record<string, unknown> | null>;
   publishTradingContext: (context: TradingContextValue) => void;
   refetchTradingContextProjections: () => Promise<void>;
   saveDraftContract: (

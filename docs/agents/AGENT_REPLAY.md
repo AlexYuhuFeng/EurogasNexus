@@ -15,8 +15,7 @@ Hidden chain-of-thought. Replay payloads explicitly return
 
 ## API
 
-- `GET /api/agent/runs`
-- `GET /api/agent/runs/{id}`
-- `GET /api/agent/runs/{id}/replay`
-
-UI: System > Agent Research > Agent Runs with an observable step timeline.
+The governed agent research endpoints (runs, replay, plans, strategy IR) and the System >
+Agent Research UI were removed with the strategy laboratory on 2026-11-27. The AgentRun and
+ToolInvocation persistence, the capability runtime and its `/api/capabilities` surface remain;
+a historical agent run is evidence and is not re-issued.

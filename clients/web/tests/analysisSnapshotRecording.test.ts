@@ -35,7 +35,6 @@ const CONTEXT = {
   gas_day: "2026-02-01",
   product: "WithinDay",
   hub: "NBP",
-  strategy_run_id: "run-7",
 };
 
 const AS_OF = "2026-02-01T09:00:00.000Z";
@@ -56,7 +55,6 @@ test("only the context keys the backend accepts are sent", () => {
     "gas_day",
     "hub",
     "product",
-    "strategy_run_id",
     "task",
     "workspace",
   ]);
@@ -75,7 +73,6 @@ test("the request carries the frozen context and the instant the caller froze it
     gas_day: "2026-02-01",
     product: "WithinDay",
     hub: "NBP",
-    strategy_run_id: "run-7",
   });
   // Declaration order, so two snapshots of the same context hash the same way.
   assert.deepEqual(
@@ -170,7 +167,7 @@ test("the surface offers the step beside the reference it creates", () => {
   // The context it freezes is the Active Context the shell already holds.
   assert.match(
     decision,
-    /snapshotReadiness=\{analysisSnapshotReadiness\(\{\s*context: snapshotContextFrom\(\{\s*workspace: "review",\s*task,\s*gas_day: traderContext\.gasDay,\s*product: traderContext\.deliveryProduct,\s*hub: traderContext\.hubId,\s*strategy_run_id: selection\.strategyRunId \?\? "",\s*\}\),/s,
+    /snapshotReadiness=\{analysisSnapshotReadiness\(\{\s*context: snapshotContextFrom\(\{\s*workspace: "review",\s*task,\s*gas_day: traderContext\.gasDay,\s*product: traderContext\.deliveryProduct,\s*hub: traderContext\.hubId,\s*\}\),/s,
   );
   assert.match(decision, /void api\.recordAnalysisSnapshot\(/);
   assert.match(decision, /onSelectSnapshot=\{api\.setReviewSnapshotId\}/);

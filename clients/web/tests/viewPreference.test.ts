@@ -290,15 +290,13 @@ test("a stored view survives a write/read/resolve round trip for its principal",
 
 test("switching between the numeric and map views preserves trader context keys", () => {
   const context =
-    "?gasDay=2026-09-07&product=day-ahead&hub=TTF&route=route-1&resource=res-2&run=run-3&strategy=strat-4";
+    "?gasDay=2026-09-07&product=day-ahead&hub=TTF&route=route-1&resource=res-2";
   const carried: Array<[string, string]> = [
     ["gasDay", "2026-09-07"],
     ["product", "day-ahead"],
     ["hub", "TTF"],
     ["route", "route-1"],
     ["resource", "res-2"],
-    ["run", "run-3"],
-    ["strategy", "strat-4"],
   ];
 
   const toMap = workspaceTaskSearch(context, "market", "network");
@@ -318,11 +316,11 @@ test("switching between the numeric and map views preserves trader context keys"
 
   assert.equal(
     marketTaskToSearch(context, "network"),
-    "gasDay=2026-09-07&product=day-ahead&hub=TTF&route=route-1&resource=res-2&run=run-3&strategy=strat-4&workspace=market&task=network",
+    "gasDay=2026-09-07&product=day-ahead&hub=TTF&route=route-1&resource=res-2&workspace=market&task=network",
   );
   assert.equal(
     marketTaskToSearch(marketTaskToSearch(context, "network"), "curves"),
-    "gasDay=2026-09-07&product=day-ahead&hub=TTF&route=route-1&resource=res-2&run=run-3&strategy=strat-4&workspace=market&task=curves",
+    "gasDay=2026-09-07&product=day-ahead&hub=TTF&route=route-1&resource=res-2&workspace=market&task=curves",
   );
 
   // A bare switch keeps the hub/product/gas-day context even with no selection.

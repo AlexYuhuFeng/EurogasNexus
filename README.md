@@ -35,7 +35,7 @@ support routes are in [Support and updates](docs/guides/SUPPORT_AND_UPDATES.md).
 |---|---|
 | **Market** | Hub board and quote ladder (WD, DA, WE, BOM, months, quarters, seasons, Cal) for NBP, TTF, THE, PEG, ZTP, PSV; spreads to TTF; product strip; unit and FX converter; storage against EU targets; network map of flows and capacity |
 | **Fundamentals** | ENTSOG flows and capacity, GIE storage and LNG, ECB/BoE/NY Fed rates, ECMWF temperature, GB demand, ENTSO-E power (load, wind, solar, gas generation, prices), gas-for-power (residual load, spark/dark spreads, fuel switch); REMIT outage messages |
-| **Research** | Spread lab with declared-rule backtests; strategy design, frozen backtests, comparison and shadow runs; point-in-time training datasets over prices, power, storage, LNG and flows with lags, rolling features and walk-forward folds |
+| **Research** | Spread lab with declared-rule backtests; fundamentals (storage, LNG, balance, gas for power); cargo netback; market reports; point-in-time training datasets over prices, power, storage, LNG and flows with lags, rolling features and walk-forward folds |
 | **Portfolio and risk** | Position ladder (physical and financial by hub and month, hedge ratio), mark-to-market on the forward curve, indicative VaR, route economics, capacity billing, early-cash valuation with SONIA/€STR/SOFR |
 | **Decisions** | Evidence-backed decision cases with four-eyes approval, alerts with optional LLM explanations, full audit trail |
 | **Platform** | SSO (OIDC), RBAC with commercial data scopes, per-user preferences and organisation defaults, English and Chinese, light/dark, green-up or red-up P&L colours, keyboard-first navigation |

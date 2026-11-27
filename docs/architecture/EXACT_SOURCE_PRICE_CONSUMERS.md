@@ -12,7 +12,7 @@ the operator-published strings in `metadata_json.index_value_exact` and
 rounded binary value.
 
 Before this slice no downstream consumer read those strings. Normalization
-converted `price` as a float, and strategy research had only the float columns.
+converted `price` as a float, and research had only the float columns.
 A high-precision published index could therefore lose digits before any
 research arithmetic without any payload saying so.
 
@@ -118,18 +118,17 @@ The local conversion context is explicit (precision and exponent range), so a
 caller's hostile ambient `Decimal` precision/traps cannot change the result or
 make normalization raise.
 
-## 5. Strategy research adapter
+## 5. Research price-series adapter
 
-[`price_series.py`](../../src/eurogas_nexus/domain/strategy_lab/price_series.py)
+[`price_series.py`](../../src/eurogas_nexus/domain/market_intelligence/price_series.py)
 now exposes `source_price_for_series(row)` and
 `exact_source_price_decimal(row)`. They apply the same authority to a stored or
 normalized row, so research can obtain the validated `Decimal` and its
 provenance before financial arithmetic. The existing evidence-name helpers are
 unchanged.
 
-The strategy-lab evaluation models still consume float
-`StrategyPriceObservation.price_gbp_mwh`; wiring an exact field through that
-separate model/contract would be a follow-on task outside this bounded scope. No
+The spread laboratory consumes the same helpers for its daily spread series;
+no research calculation converts currency itself. No
 model, route, SDK or Web contract was changed here.
 
 ## 6. Non-goals and preserved boundaries
@@ -163,7 +162,7 @@ Run (from the repository root):
 
 ```text
 python -m pytest -q tests/unit/test_exact_source_price.py tests/unit/test_normalized_market_view.py tests/unit/test_market_intelligence_repository.py tests/ingestion/test_eex_ngp_csv.py
-python -m ruff check src/eurogas_nexus/domain/market_intelligence/source_price.py src/eurogas_nexus/domain/market_intelligence/normalized_view.py src/eurogas_nexus/domain/strategy_lab/price_series.py src/eurogas_nexus/db/repositories/market_intelligence.py tests/unit/test_exact_source_price.py
+python -m ruff check src/eurogas_nexus/domain/market_intelligence/source_price.py src/eurogas_nexus/domain/market_intelligence/normalized_view.py src/eurogas_nexus/domain/market_intelligence/price_series.py src/eurogas_nexus/db/repositories/market_intelligence.py tests/unit/test_exact_source_price.py
 ```
 
 The implementation worker could not execute these commands because the local

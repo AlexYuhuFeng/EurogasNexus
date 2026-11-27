@@ -29,7 +29,6 @@ BASELINE_PATHS = (
     "/api/reference-network/market-hubs?limit=200",
     "/api/market/quotes?limit=100",
     "/api/route-cost/route-candidates",
-    "/api/strategy-runs?limit=20",
     "/api/runtime/pipeline-health",
     "/api/runtime/source-operations",
 )

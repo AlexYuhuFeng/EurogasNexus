@@ -162,7 +162,7 @@ def desk_glossary_terms() -> list[GlossaryTerm]:
             "同一交付期两个枢纽之间的价差，如 NBP 减 TTF（便士/撒姆换算为欧元/MWh 后）。只有超过"
             "两地之间的输气成本，实物套利才有利可图。",
             related=("Route cost", "Interconnector"),
-            where=("Strategy Lab → Spread",),
+            where=("Research → Spreads",),
         ),
         _t(
             "price-time-spread",

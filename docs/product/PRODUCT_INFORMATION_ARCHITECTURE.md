@@ -24,7 +24,7 @@ Evidence used:
 |---|---|
 | Gas trader / desk analyst | Answer what is happening in markets and network, fast |
 | Portfolio manager / structurer | Inspect resources, contracts, exposure, and route economics |
-| Quant / strategy researcher | Design, backtest, compare, and shadow-run paper strategies |
+| Analyst / quant | Analyse spreads, fundamentals, cargo netback and research datasets |
 | Commercial operator / reviewer | Test scenarios and review decision-support evidence |
 | Data/runtime operator | Keep sources, runtime, credentials, and help healthy |
 
@@ -44,7 +44,7 @@ deep-link into, while `system` keeps the help, research and agent surfaces.
 |---|---|---|---|
 | `market` | Market | 市场 | What is happening physically and financially? |
 | `portfolio` | Portfolio | 组合 | What resources/exposures do we currently have? |
-| `strategy` | Strategy Lab | 策略实验室 | What research strategy are we testing/monitoring? |
+| `strategy` | Research | 研究 | What do spreads, fundamentals, cargo netback and reports say? |
 | `decision` | Decision Center | 决策中心 | What scenario/optimization output needs review? |
 | `system` | System | 系统 | What can I research, ask and look up? |
 | `administration` | Administration | 管理 | Are connections, access, entitlements and runtime healthy? (control plane) |
@@ -55,7 +55,7 @@ deep-link into, while `system` keeps the help, research and agent surfaces.
 |---|---|---|---|
 | Market | `market`, `network`, `capacity` | `market` | Prices first (hub board on the Curves task); the map and capacity stay one tab away. Amended 2026-10-30 after trader acceptance review: an experienced trader's first question is "where are prices", and an empty map without a licensed basemap was the landing page |
 | Portfolio | `contracts`, `orders` | `contracts` | `contracts` displayed as Resource Terms; `orders` displayed as Market Positioning |
-| Strategy Lab | `strategy` | `strategy` | Design / Backtest / Compare / Shadow are tasks of the one page |
+| Research | `research` | `research` | Fundamentals, Spreads, Cargo & netback and Reports are tasks of the one page |
 | Decision Center | `scenario`, `review` | `scenario` | Tasks are scenario, optimize, nomination, storage dispatch and review; pool-optimiser results remain reachable inside scenario/network workflows |
 | System | `research`, `agents`, `settings`, `manual`, `glossary` | `research` | Glossary re-homed as help/knowledge; direct links remain |
 | Administration | `sources`, `runtime`, `access` | `sources` | Control plane: hidden and refused without an administration capability |
@@ -112,8 +112,8 @@ existing i18n overrides. No redirect URL rewrite is introduced.
 - Market scan: open app -> Market/Curves (hub board, spreads, trader desk) ->
   Network for geography -> Capacity for flows/storage/LNG.
 - Portfolio review: Portfolio/Resource Terms -> Portfolio/Market Positioning.
-- Strategy research: Strategy Lab -> current shadow terminal; later subviews are
-  added under the same primary.
+- Research: Research/Fundamentals -> Research/Spreads -> Research/Cargo & netback ->
+  Research/Reports.
 - Decision review: Decision/Scenario -> optimize/compare -> Decision/Review.
 - Operations: System/Data Sources -> System/Runtime -> System/Settings ->
   System/Manual or System/Glossary for help.
@@ -147,5 +147,5 @@ existing i18n overrides. No redirect URL rewrite is introduced.
 - `CR-02` Persistent Trader Context and Cross-Workspace Selection Model is
   implemented in `clients/web/src/app/context/` and documented in
   `docs/product/TRADER_CONTEXT_SPEC.md`.
-- Strategy subviews (Design/Backtest/Compare/Shadow) are added in later strategy
-  milestones and must not introduce new global peers.
+- The strategy laboratory's subviews (Design/Backtest/Compare/Shadow) were removed with
+  the feature; Research keeps its four tasks and adds no global peer.

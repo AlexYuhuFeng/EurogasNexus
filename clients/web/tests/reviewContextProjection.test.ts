@@ -115,10 +115,10 @@ function projection(
             warnings: [],
           },
           {
-            entity_type: "strategy_run",
+            entity_type: "agent_review_pack",
             entity_id: "run-1",
             available: false,
-            resolver: "strategy_run",
+            resolver: "agent_review_pack",
             artifact: null,
             unavailable_reason: "ENTITLEMENT_DENIED",
             warnings: ["ENTITLEMENT_DENIED"],
@@ -127,7 +127,7 @@ function projection(
         payload: {
           requested_entity_count: 2,
           resolved_entity_count: 1,
-          supported_entity_types: ["intraday_opportunity", "strategy_run"],
+          supported_entity_types: ["intraday_opportunity", "agent_review_pack"],
         },
       }),
       monitoring: slice({
@@ -186,7 +186,7 @@ test("evidence a resolver could not produce stays unavailable with its reason", 
   assert.deepEqual(reviewEvidenceCoverage(payload), { requested: 2, resolved: 1 });
 
   // An entity the payload does not carry is absent, not a fabricated entry.
-  assert.equal(reviewEvidenceFor(payload, "strategy_run", "run-absent"), null);
+  assert.equal(reviewEvidenceFor(payload, "agent_review_pack", "run-absent"), null);
 });
 
 test("the decisions slice is the anchor, so a missing review is not an empty one", () => {

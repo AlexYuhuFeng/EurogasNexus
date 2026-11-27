@@ -65,8 +65,8 @@ revision `0013_gie_lng_dtmi_energy`, including:
 - `source_references`;
 - reference network tables;
 - runtime market/fx/capacity/storage/LNG/tariff tables;
-- credentials, entitlement, audit, glossary, route-cost, strategy, and
-  portfolio observation tables.
+- credentials, entitlement, audit, glossary, route-cost, and portfolio
+  observation tables.
 
 The authoritative list lives in code and should be validated with:
 

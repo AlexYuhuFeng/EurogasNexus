@@ -146,7 +146,7 @@ test("labels are stable keys, and an unknown blocker still gets one", () => {
   // The Decision Case chain names an "AI Findings/Challenge" stage, so an AI interpretation
   // run is citable evidence alongside the deterministic artefacts.
   assert.ok(DECISION_EVIDENCE_KINDS.includes("AI_ANALYSIS"));
-  assert.equal(DECISION_EVIDENCE_KINDS.length, 12);
+  assert.equal(DECISION_EVIDENCE_KINDS.length, 10);
   // Every kind has copy in both locales: a selector must never render a raw identifier.
   const en = JSON.parse(readWebSource("i18n/en.json")) as Record<string, string>;
   const zh = JSON.parse(readWebSource("i18n/zh.json")) as Record<string, string>;
@@ -163,7 +163,6 @@ test("the Active Context supplies identifiers instead of asking the user to type
     suggestedEvidenceRef("ROUTE_RECOMMENDATION", { routeId: "route-9" }),
     "route-9",
   );
-  assert.equal(suggestedEvidenceRef("STRATEGY_RUN", { strategyRunId: "run-3" }), "run-3");
   // The run the user just completed is offered by reference, never typed in.
   assert.equal(
     suggestedEvidenceRef("AI_ANALYSIS", { analysisId: "analysis-7" }),

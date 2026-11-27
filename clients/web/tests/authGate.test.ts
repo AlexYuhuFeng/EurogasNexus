@@ -265,8 +265,7 @@ test("a scope-only 403 keeps the session, a 401 anywhere fails it closed", () =>
 test("an unauthenticated entry URL is rewritten without protected context", () => {
   const href =
     "https://nexus.example/terminal?workspace=market&task=review&gasDay=2026-09-14" +
-    "&product=day-ahead&hub=NBP&route=route-1&resource=res-1&run=run-1" +
-    "&strategy=strategy-1&version=version-1&theme=dark#section";
+    "&product=day-ahead&hub=NBP&route=route-1&resource=res-1&theme=dark#section";
   const scrubbed = credentialFreeEntryUrl(href);
 
   for (const key of PROTECTED_CONTEXT_QUERY_KEYS) {

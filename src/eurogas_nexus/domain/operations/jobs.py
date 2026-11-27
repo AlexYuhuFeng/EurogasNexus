@@ -170,11 +170,11 @@ JOB_RERUN_CONTRACTS: tuple[JobRerunContract, ...] = (
     JobRerunContract(
         kind=JobKind.BACKTEST,
         rerun_possible=True,
-        input_owner="strategy run (scenario, frozen version, period)",
-        new_run_path="/api/strategy-runs",
+        input_owner="functional run (model, kind and inputs)",
+        new_run_path="/api/functional-runs",
         reason=(
-            "A backtest is reproducible from its frozen version and period; the engine version is "
-            "recorded too, so a re-run on a newer engine is a different measurement and says so."
+            "A model validation or shadow evaluation is reproducible from the functional run's "
+            "declared model and inputs; a second run is a new measurement and says so."
         ),
     ),
     JobRerunContract(

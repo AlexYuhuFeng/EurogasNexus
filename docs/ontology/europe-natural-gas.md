@@ -349,6 +349,8 @@
 
 ### ⑫ 风险与策略 (Risk & Strategy)
 
+> 实现说明（2026-11-27）：策略实验室（策略登记、决策时回测、跟踪与影子运行）及其表已按所有者批准移除（迁移 `0098_remove_strategy_laboratory`）。本节保留「策略」作为领域术语；可运行的价差规则由 Research → Spreads 的 `StrategySpec` 表达，历史回测仅作为研究证据。
+
 **概念**
 - `StrategyDefinition` / `StrategyRun`：策略定义与运行（backtest / shadow-run / live-monitor）。
 - **策略家族（示例）**：`SAP/ICIS Heren 日前 vs ICE OCM`（价差）、`mean_reversion`
@@ -500,7 +502,7 @@ BACKTEST, SHADOW_RUN, LIVE_MONITOR, REVIEW_STRATEGY_OUTPUT
 | ⑨ 平衡/提名 | `nomination` 原型、`tolerance` 术语 | 提名只评估不提交（符合边界）；模型为内部原型 |
 | ⑩ 结算 | `EFET` 术语、`portfolio_pnl_snapshots` | 现金流/PnL 是导入观测；无结算系统（符合边界） |
 | ⑪ 合规 | `entitlement_decisions`、`audit_events` | 有表；fail-closed 与审计深度待生产化 |
-| ⑫ 策略 | `strategy_definitions/runs`、shadow-run 持久化 | 已较完整；绩效/风控可再收紧 |
+| ⑫ 策略 | 领域术语；价差规则由 `StrategySpec` 表达 | 策略实验室的持久化已移除；价差规则与研究回测保留 |
 
 ---
 

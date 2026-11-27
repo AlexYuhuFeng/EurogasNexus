@@ -54,7 +54,7 @@ hidden map canvas or inactive map controls.
   11/12/13/14/18/20px type scale, 4/8/12/16/24/32px spacing scale, and one
   level of emphasis per row.
 - `app.css` is a deliberate global sheet. Scoped UI changes belong in narrowly
-  named component or workspace CSS and MUST NOT collide with Strategy WIP
+  named component or workspace CSS and MUST NOT collide with another workspace's WIP
   selectors.
 
 ## Typography
@@ -174,9 +174,9 @@ MUST NOT use in UI labels or copy:
 - `auto-trade`;
 - `submit nomination`.
 
-Strategy copy uses paper/shadow-run monitoring language; charts MUST be derived
-from persisted PostgreSQL runs and MUST show an empty state when history is
-absent. Illustrative performance curves are prohibited.
+Research copy calls a rule backtest a study of history, never a signal or a forecast;
+charts MUST be derived from the data the server returns and MUST show an empty state when
+history is absent. Illustrative performance curves are prohibited.
 
 ## English and Mandarin parity
 
@@ -212,7 +212,7 @@ absent. Illustrative performance curves are prohibited.
 - Do not create a third visual token system; consolidate existing semantic
   token families under the accepted Constitution. Motion remains
   subordinate to that Constitution.
-- Global CSS changes require a focused UI review and MUST avoid Strategy WIP
+- Global CSS changes require a focused UI review and MUST avoid another workspace's WIP
   selectors.
 
 

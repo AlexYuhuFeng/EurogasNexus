@@ -6,8 +6,7 @@
 
 The Python SDK is packaged with the repository's distribution under
 `packages/python-sdk/src/eurogas_nexus_sdk`. It provides typed API clients for health,
-market/physical observations, portfolio, research, strategy, review and operational
-surfaces. The CLI entry point is `eurogas-nexus`, implemented in
+market/physical observations, portfolio, research, review and operational surfaces. The CLI entry point is `eurogas-nexus`, implemented in
 `src/eurogas_nexus/cli/main.py`. Use the command help and SDK from the same release as
 the installation.
 

@@ -16,7 +16,7 @@
 import { create } from "zustand";
 
 import { api } from "@/api/client";
-import type { JobDTO, ResearchRunStartDTO } from "@/api/client";
+import type { JobDTO } from "@/api/client";
 import {
   jobPollDelay,
   newlyFinishedJobs,
@@ -59,8 +59,6 @@ export interface BackgroundJobsState {
     datasetSpec: Record<string, unknown>,
     options?: StartOptions & { snapshotId?: string | null },
   ) => Promise<JobDTO>;
-  /** Start a governed research run in the background and follow it. */
-  startResearchRun: (body: ResearchRunStartDTO, options?: StartOptions) => Promise<JobDTO>;
   /** Run a failed or cancelled job's request again, as a new job. */
   retry: (jobId: string) => Promise<JobDTO | null>;
   cancel: (jobId: string) => Promise<void>;
@@ -152,11 +150,6 @@ export const useBackgroundJobsStore = create<BackgroundJobsState>((set, get) => 
       remember(response.data, retry, options);
       return response.data;
     }
-    if (retry.action === "research-run") {
-      const response = await api.startResearchRun(retry.body as unknown as ResearchRunStartDTO);
-      remember(response.data, retry, options);
-      return response.data;
-    }
     throw new Error(`unknown_job_action:${String(retry.action)}`);
   }
 
@@ -217,8 +210,6 @@ export const useBackgroundJobsStore = create<BackgroundJobsState>((set, get) => 
         options,
       ),
 
-    startResearchRun: (body, options) =>
-      launch({ action: "research-run", body: { ...body } }, options),
 
     retry: async (jobId) => {
       const entry = get().started[jobId];

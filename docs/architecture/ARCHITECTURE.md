@@ -15,7 +15,7 @@ the multi-office topology is in [GLOBAL_DEPLOYMENT.md](GLOBAL_DEPLOYMENT.md).
                                      │
           PostgreSQL (Alembic migrations)        workers: data-ops scheduler,
           runtime truth, audit, research          ingestion scripts, monitoring,
-          artefacts metadata                      shadow scheduler
+          artefacts metadata
                                      │
       External sources: ENTSOG, GIE, ECB, BoE, NY Fed, ECMWF, National Gas, ENTSO-E,
       EEX public file; licensed feeds through the customer's own entitlement
@@ -30,7 +30,7 @@ the multi-office topology is in [GLOBAL_DEPLOYMENT.md](GLOBAL_DEPLOYMENT.md).
 | `optimization` | Resource-pool, capacity and storage optimisation | `domain` |
 | `ingestion` | Parsers and transports for each source; no analysis | `domain`, `core` |
 | `db` | SQLAlchemy models and repositories | `domain`, `core` |
-| `application` | Services that compose domain logic with storage: projections, data operations, research registry, decision packs, shadow runtime | `domain`, `db` |
+| `application` | Services that compose domain logic with storage: projections, data operations, research registry, decision packs | `domain`, `db` |
 | `security` | Identity, RBAC permissions, data scopes, capabilities, OIDC | `core`, `db` |
 | `governance` | Audit and policy evaluation | `db` |
 | `api` | HTTP routes, dependencies, error envelope, route registration | everything above |

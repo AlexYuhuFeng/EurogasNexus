@@ -15,10 +15,6 @@
     "adhocTime": 5,
     "browserLocaleNumber": 1
   },
-  "src/app/model/agentReplayModel.ts": {
-    "adhocTime": 2,
-    "browserLocaleNumber": 1
-  },
   "src/app/model/decisionDeadline.ts": {
     "adhocTime": 1
   },
@@ -30,9 +26,6 @@
   },
   "src/app/model/recordCount.ts": {
     "browserLocaleNumber": 1
-  },
-  "src/app/model/strategyDraftModel.ts": {
-    "adhocTime": 2
   },
   "src/app/model/todayModel.ts": {
     "adhocTime": 3
@@ -64,9 +57,6 @@
   "src/components/GasNetworkMap.tsx": {
     "browserLocaleNumber": 8
   },
-  "src/components/IntradayDecisionFeed.tsx": {
-    "browserLocaleNumber": 1
-  },
   "src/components/MapBookPanel.tsx": {
     "adhocTime": 2,
     "browserLocaleNumber": 2
@@ -90,21 +80,11 @@
   "src/components/ReferenceNetworkCatalogue.tsx": {
     "browserLocaleNumber": 1
   },
-  "src/components/ResearchDataWorkspace.tsx": {
-    "adhocTime": 1,
-    "browserLocaleNumber": 1
-  },
   "src/components/ResourcePoolPathOverlay.tsx": {
     "browserLocaleNumber": 2
   },
   "src/components/ReviewWorkspace.tsx": {
     "browserLocaleNumber": 1
-  },
-  "src/components/RouteCostWhatIfPanel.tsx": {
-    "browserLocaleNumber": 7
-  },
-  "src/components/ScenarioWorkspace.tsx": {
-    "browserLocaleNumber": 4
   },
   "src/components/SourceCenter.tsx": {
     "browserLocaleNumber": 1
@@ -112,32 +92,8 @@
   "src/components/decision/DayBoardPanel.tsx": {
     "browserLocaleNumber": 2
   },
-  "src/components/decision/DeskReplayPanel.tsx": {
-    "browserLocaleNumber": 2
-  },
   "src/components/decision/StorageDispatchPanel.tsx": {
     "browserLocaleNumber": 2
-  },
-  "src/components/strategy/SpreadLabWorkspace.tsx": {
-    "browserLocaleNumber": 1
-  },
-  "src/components/strategy/StrategyBacktestWorkspace.tsx": {
-    "browserLocaleNumber": 1
-  },
-  "src/components/strategy/StrategyCompareWorkspace.tsx": {
-    "browserLocaleNumber": 1
-  },
-  "src/components/strategy/StrategyLabCharts.tsx": {
-    "browserLocaleNumber": 1
-  },
-  "src/components/strategy/StrategyShadowRunDetail.tsx": {
-    "browserLocaleNumber": 2
-  },
-  "src/components/strategy/StrategyShadowRunSections.tsx": {
-    "browserLocaleNumber": 2
-  },
-  "src/components/strategy/StrategyShadowShell.tsx": {
-    "browserLocaleNumber": 1
   },
   "src/components/ui/charts/Chart.tsx": {
     "adhocTime": 1

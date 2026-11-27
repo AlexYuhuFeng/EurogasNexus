@@ -91,8 +91,8 @@ honest statement).
 
 Hot standby and restore to a chosen minute; several API processes with a shared cache; company
 single sign-on; the six-role model and the dual-control approval screen; test and training
-environments; the 50-user load test; LNG cargo economics; options; the strategy laboratory;
-the phase 3 feed handler. The removals list in the architecture plan still applies. The phase
+environments; the 50-user load test; LNG cargo economics; options; the strategy laboratory (removed, architecture plan
+section 5); the phase 3 feed handler. The removals list in the architecture plan still applies. The phase
 2 items that steps 1 to 3 need (exact money, the versioned trade copy, ETRM reconciliation,
 the end-of-day close) are built as part of those steps.
 

@@ -12,8 +12,8 @@
   calling identity's own analysis capability
   (`api/dependencies/ai_authority.py`; Architecture V2 finding C8).
 - Provider text, documents and comments are untrusted data, never instructions.
-- `HUMAN_ONLY` review recording and `HUMAN_CONFIRMATION` freeze/shadow operations cannot
-  be bypassed by an agent call.
+- `HUMAN_ONLY` review recording and any `HUMAN_CONFIRMATION` operation cannot be
+  bypassed by an agent call.
 - MCP tool names and descriptions contain no SQL or execution vocabulary.
 - Customer-facing MCP profiles are refused entirely (first-customer-pilot finding CA-05):
   when `EUROGAS_NEXUS_ENV` is `trial`/`release` or the API profile is `release`, the MCP

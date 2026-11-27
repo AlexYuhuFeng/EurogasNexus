@@ -125,7 +125,7 @@ def test_commercial_roles_keep_commercial_capabilities() -> None:
             Capability.MARKET_READ,
             Capability.PORTFOLIO_READ,
             Capability.OPTIMIZATION_RUN,
-            Capability.STRATEGY_DESIGN,
+            Capability.RESEARCH_QUERY,
         },
         "OPERATOR": {Capability.MARKET_READ, Capability.PROVIDER_INGESTION_OPERATE},
     }

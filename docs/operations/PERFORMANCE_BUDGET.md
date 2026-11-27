@@ -16,7 +16,6 @@ microbenchmark.
 | Web production bundle | ~460KB JS main bundle | ≤ 1MB JS main bundle | fail build review above 2MB | Vite build |
 | Desktop cargo check / build | passes CI | pass | pass | CI desktop job |
 | Dataops scheduler scan (24 sources) | 11.8ms | ≤ 100ms | ≤ 500ms | `scripts/ops/dataops_benchmark.py` |
-| Backtest throughput | recorded per engine benchmark | no universal budget | no broad gate | `scripts/ops/backtest_benchmark.py` |
 
 The Source Center row's before/after read on the live PostgreSQL store is owned
 by the parent review. The read shape changed on 2026-09-30 (grouped counts, a

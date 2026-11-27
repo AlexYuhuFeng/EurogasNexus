@@ -378,8 +378,8 @@ def _change_group_member(group_id: str, principal_id: str, request: Request, *, 
         if session.get(IdentityPrincipalRecord, principal_id) is None:
             raise HTTPException(status_code=404, detail={"error": "user_not_found"})
         row = session.get(IdentityGroupMemberRecord, (group_id, principal_id))
-        # Membership grants read access to private commercial strategies. Like
-        # role/scope grants, an administrator cannot grant this to themselves.
+        # Membership is an access grant. Like role/scope grants, an administrator
+        # cannot grant it to themselves.
         if add and row is None and principal_id == admin.principal_id:
             _audit_admin(
                 session,

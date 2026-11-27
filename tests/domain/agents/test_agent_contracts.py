@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-import pytest
-
 from eurogas_nexus.domain.agents.budget import (
     ResearchBudget,
     enforce_research_budget,

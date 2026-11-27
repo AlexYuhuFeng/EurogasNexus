@@ -158,9 +158,6 @@ function selectionContext(overrides: Partial<SelectionContext> = {}): SelectionC
   return {
     routeId: null,
     resourceId: null,
-    strategyId: null,
-    strategyVersionId: null,
-    strategyRunId: null,
     ...overrides,
   };
 }
@@ -307,14 +304,10 @@ test("an action is withheld without a complete context or without evidence", () 
     copilotEvidenceRefs({
       routeId: "ROUTE-9",
       resourceId: "RES-1",
-      strategyVersionId: "V-3",
-      strategyRunId: "RUN-4",
     }),
     [
       { kind: "route", ref: "ROUTE-9" },
       { kind: "resource", ref: "RES-1" },
-      { kind: "strategy-version", ref: "V-3" },
-      { kind: "strategy-run", ref: "RUN-4" },
     ],
   );
 

@@ -22,7 +22,6 @@ from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     FlowObservationRecord,
 )
-from eurogas_nexus.db.repositories.identity import create_identity_principal
 from eurogas_nexus.ingestion.entsog_native_units import (
     NORMALIZER_VERSION,
     parse_entsog_native_rate,

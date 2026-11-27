@@ -141,6 +141,15 @@ The `migrate` step now finds the database up to date and the API starts.
 - **The stack does not start after a version change** (`migrate` exits 1): the database needs
   the upgrade; run steps 1 to 5.
 
+## Data-dropping migrations
+
+`0098_remove_strategy_laboratory` drops the strategy laboratory's tables (registry, versions,
+runs, decision-time backtests, tracks and the shadow runtime) and is declared `irreversible`:
+its downgrade refuses and going back means restoring the backup from step 2. Export any stored
+runs you need to keep (a SQL read of `strategy_runs`, `backtest_*` and `strategy_tracks` before
+the upgrade, or the pre-upgrade backup) before running it. The identity groups the sharing
+feature used are identity infrastructure and stay.
+
 ## Going back
 
 - If every applied revision says `yes` (or `nothing to undo`), return the schema to the old

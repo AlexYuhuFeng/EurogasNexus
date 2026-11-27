@@ -123,8 +123,8 @@ def pytest_configure(config) -> None:  # type: ignore[no-untyped-def]
 
 @pytest.fixture(autouse=True)
 def _deferred_capabilities_when_marked(request, monkeypatch) -> None:  # type: ignore[no-untyped-def]
-    """Tests of the dormant backends (strategy lifecycle, shadow runtime, dataset builder,
-    agents) build an app that serves them; every other test sees the default surface."""
+    """Tests of the dormant backends (dataset builder, agents) build an app that
+    serves them; every other test sees the default surface."""
 
     if request.node.get_closest_marker("deferred_capabilities"):
         monkeypatch.setenv("EUROGAS_NEXUS_DEFERRED_CAPABILITIES", "on")

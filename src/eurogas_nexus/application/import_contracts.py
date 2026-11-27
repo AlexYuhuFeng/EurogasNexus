@@ -210,7 +210,7 @@ _DEALS = ImportContract(
     key="(system, trade_id)",
     columns=(
         _c("trade_id", True, "The ETRM's deal number; with the system, the row's key"),
-        _c("book_id", True, "Book (portfolio, strategy) the deal is booked in; must exist here"),
+        _c("book_id", True, "Book (portfolio) the deal is booked in; must exist here"),
         _c("hub", True, "Delivery hub (TTF, THE, NBP, PEG, PSV, ZTP...)"),
         _c("side", True, "BUY or SELL (B or S)"),
         _c("delivery_start", True, "First gas day, YYYY-MM-DD"),

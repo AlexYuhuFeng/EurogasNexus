@@ -15,7 +15,6 @@ RESOURCE_POOL_MAP_PATHS_TS = (
 CONTRACT_IMPORT_TS = ROOT / "clients" / "web" / "src" / "app" / "contractImport.ts"
 CONTRACT_PAYLOAD_TS = ROOT / "clients" / "web" / "src" / "app" / "contractPayload.ts"
 RESOURCE_POOL_REQUEST_TS = ROOT / "clients" / "web" / "src" / "app" / "resourcePoolRequest.ts"
-STRATEGY_SCENARIO_TS = ROOT / "clients" / "web" / "src" / "app" / "strategyScenario.ts"
 ROUTE_RECOMMENDATION_REQUEST_TS = (
     ROOT / "clients" / "web" / "src" / "app" / "routeRecommendationRequest.ts"
 )
@@ -126,26 +125,6 @@ def test_resource_pool_request_builder_is_wired_into_app() -> None:
     assert "research_only" not in module_text
 
 
-def test_strategy_scenario_builder_is_wired_into_app() -> None:
-    """Strategy scenario construction should be imported from the extracted builder."""
-
-    owner_text = _read(PORTFOLIO_MODEL_TS)
-    module_text = _read(STRATEGY_SCENARIO_TS)
-    assert "buildStrategyScenario(" in owner_text
-    assert "api.normalizedMarkets" in owner_text
-    assert "export function buildStrategyScenario" in module_text
-    for phrase in [
-        'run_mode: "SHADOW_RUN"',
-        'strategy_id: "nbp-sap-icis-ocm-window"',
-        'price_name: "ICE_OCM"',
-        "observation.price_gbp_mwh",
-        "latestPositiveObservation",
-        "require_tso_access: true",
-    ]:
-        assert phrase in module_text
-    assert "research_only" not in module_text
-
-
 def test_route_recommendation_request_builder_is_wired_into_app() -> None:
     """Route recommendation request construction should be imported from the builder."""
 
@@ -180,5 +159,4 @@ def test_api_store_does_not_send_research_only_payload_field() -> None:
     store_text = _read(API_STORE_TS)
     assert "withoutLegacyFlag" in store_text
     assert "api.optimizeResourcePool(withoutLegacyFlag(request), { signal })" in store_text
-    assert "api.evaluateStrategyLab(withoutLegacyFlag(scenario))" in store_text
     assert "research_only" not in store_text

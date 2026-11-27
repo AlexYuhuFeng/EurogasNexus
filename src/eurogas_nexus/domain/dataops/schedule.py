@@ -1,8 +1,7 @@
 """Pure, deterministic data-operations scheduling.
 
-The scheduler math is intentionally shared with the CR-06 shadow scheduler
-shape, but source schedules carry provider timezones and market-relative
-gas-day offsets, so this module is the single owner of that math for ingestion.
+Source schedules carry provider timezones and market-relative gas-day offsets,
+so this module is the single owner of that math for ingestion.
 """
 
 from __future__ import annotations

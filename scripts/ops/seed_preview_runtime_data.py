@@ -5,7 +5,7 @@ manually transcribed source references. Public route templates are derived from
 those tariff references. Preview contracts are clearly marked because customer
 contracts require entitlement. Price rows are inserted through the simulated
 EEX_Sim, ICE_OCM_Sim, Trayport_Sim, and ICIS_Sim feed path so the market terminal,
-source health, route costing, and strategy screens exercise the same PostgreSQL
+source health, route costing and portfolio screens exercise the same PostgreSQL
 tables used by licensed market-data connectors. The script does not call external
 APIs, run migrations, or print database secrets.
 """

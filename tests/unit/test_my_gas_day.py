@@ -116,15 +116,7 @@ def test_network_code_defaults_in_winter_and_summer():
     assert last_renomination(date(2026, 7, 1)) == datetime(2026, 7, 2, 1, tzinfo=UTC)
 
 
-def test_prompt_signals_read_the_same_calendar():
-    from eurogas_nexus.application.strategy_tracking import cutoff_for
-
-    class Leg:
-        def __init__(self, product):
-            self.product = product
-
-    assert cutoff_for([Leg("within-day")], {}, NOW) == datetime(2026, 11, 20, 2, tzinfo=UTC)
-    assert cutoff_for([Leg("day-ahead")], {}, NOW) == datetime(2026, 11, 19, 13, tzinfo=UTC)
+def test_a_prompt_product_reads_the_same_calendar():
     late = NOW.replace(hour=15)
     assert product_cutoff("day-ahead", late) == datetime(2026, 11, 20, 5, tzinfo=UTC)
 

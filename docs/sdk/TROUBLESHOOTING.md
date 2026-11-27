@@ -49,8 +49,7 @@ The SDK never retries. Use `recoverability`:
 | `unknown` | No; report it with the correlation id |
 
 Retry a `TransportError` on a read, too. Never retry a call that records something
-(`record_review_decision`, `acknowledge_monitoring_alert`, the `strategy_registry` create and
-update functions, `functional.submit_run`): it could be recorded twice. `submit_run` and
+(`record_review_decision`, `acknowledge_monitoring_alert`, `functional.submit_run`): it could be recorded twice. `submit_run` and
 `replay_run` take an `idempotency_key`; reuse the same key when you resend.
 [`examples/sdk/10_errors_and_retries.py`](../../examples/sdk/10_errors_and_retries.py) has a
 `with_retries` helper.
@@ -61,7 +60,7 @@ update functions, `functional.submit_run`): it could be recorded twice. `submit_
 |---|---|---|
 | `ConnectError: [Errno 111] Connection refused` | Nothing listens at that address and port | Start the server, or correct the port |
 | `404` on every call, URL contains `/api/api/` | `base_url` already ends in `/api` (the desktop client's setting uses that form) | Pass the origin only: `https://nexus.example.com` |
-| `404` from some functions only, URL contains `//api/` | `base_url` ends in `/`; 15 of the 33 modules do not strip it | Remove the trailing slash |
+| `404` from some functions only, URL contains `//api/` | `base_url` ends in `/`; some modules do not strip it | Remove the trailing slash |
 | `ReadTimeout` | The call took longer than its fixed timeout (10 to 30 seconds depending on the function) | Narrow the request where the function has filters; the timeout itself cannot be changed except for `fetch_health`, `stream_events` and `calculate_nwe_balance_scenario` |
 | TLS or certificate errors against an internal server | Your firm's CA is not trusted by Python | `httpx` honours the `SSL_CERT_FILE` and `SSL_CERT_DIR` environment variables and the `HTTPS_PROXY` family. Not tested while this guide was written |
 | `SdkProtocolError: Backend response is missing data/meta envelope fields.` | The address answers, but it is not the Eurogas Nexus API (for example a sign-in proxy page) | Use the API server's address; ask IT for it |
@@ -100,7 +99,6 @@ Details: [Authentication](AUTHENTICATION.md).
 | Symptom | Cause | Fix |
 |---|---|---|
 | `ValidationError` on a field you did not ask for | SDK and server come from different releases, or the server returns a value the SDK model does not allow | Install the SDK from the server's release (`fetch_health(...).version`) |
-| `shadow_runtime.runtime_status` raises `ValidationError` on `failed_evaluations_24h` while the scheduler is offline | Known SDK defect in 1.0.0-beta: the server sends `null`, the model requires an integer | Read `/api/shadow-runtime/status` with `httpx` until fixed |
 
 ## Error codes
 

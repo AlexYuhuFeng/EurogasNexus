@@ -535,7 +535,6 @@ def test_the_retention_pass_runs_only_under_the_scheduler_lock(monkeypatch, held
     monkeypatch.setattr(scheduler, "execute_claimed_runs", lambda *a, **k: {"outcomes": []})
     for name in ("evaluate_opportunities_if_due", "deliver_market_events"):
         monkeypatch.setattr(scheduler, name, lambda *a, **k: {"status": "ok"})
-    monkeypatch.setattr(scheduler, "track_strategies_if_due", lambda *a, **k: {"status": "ok"})
     calls = []
     monkeypatch.setattr(
         scheduler,

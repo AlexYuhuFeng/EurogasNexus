@@ -11,7 +11,7 @@ Architecture V2 separates platform administration from commercial-data access
 (``docs/engineering/Architecture-V2/06_IDENTITY_ACCESS_CONTROL_PLANE.md``
 section 7), so the UAT operator holds two overlapping functional assignments:
 ``ADMIN`` for the control plane it exercises and ``ANALYST`` for the market,
-portfolio and strategy flows the browser workflow validates. A single ADMIN
+portfolio and decision flows the browser workflow validates. A single ADMIN
 assignment would be refused commercial reads by
 ``eurogas_nexus.api.dependencies.commercial_access``.
 """

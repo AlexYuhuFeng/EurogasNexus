@@ -26,7 +26,7 @@ particular:
 |---|---|---|---|
 | Market | Network, Market, Capacity | Network | What is happening physically and financially? |
 | Portfolio | Resource Terms, Market Positioning | Resource Terms | What resources/exposures do we currently have? |
-| Strategy Lab | Strategy | Strategy | What research strategy are we testing/monitoring? |
+| Research | Research | Research | What do spreads, fundamentals, cargo netback and reports say? |
 | Decision Center | Scenario, Review | Scenario | What scenario/optimization output needs human review? |
 | System | Research Data, Agent Research, Settings, Manual, Glossary | Research Data | What governed data, research and preferences are available? |
 | Administration | Data Sources, Runtime, Access & Identity | Data Sources | Are providers, runtime and access configured and healthy? |
@@ -59,14 +59,14 @@ The visible global order is:
 ```text
 Market
 Portfolio
-Strategy Lab
+Research
 Decision Center
 System
 Administration   (only with an administration capability)
 ```
 
-Local task order follows the child tables above. Strategy Lab has one child and
-therefore renders no local task switcher until later strategy subviews land.
+Local task order follows the child tables above. Research has four tasks:
+Fundamentals, Spreads, Cargo & netback and Reports.
 
 ## Compatibility
 

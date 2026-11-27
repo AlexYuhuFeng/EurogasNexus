@@ -38,8 +38,7 @@ entry before use:
 
 - EEX, ICE OCM, Trayport, Kpler, Platts, ICIS, Argus, broker, and other
   commercial price or screen feeds;
-- customer contracts, resource pools, capacity ownership, TSO access rights,
-  and strategy parameters;
+- customer contracts, resource pools, capacity ownership and TSO access rights;
 - LLM provider execution keys.
 
 ## Test Data

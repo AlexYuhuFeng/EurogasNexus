@@ -115,7 +115,7 @@ tariff period opens once a year, so the newest period is late after 13 months an
 
 ## Symptoms
 
-- Market/Strategy/Shadow surfaces show stale or degraded evidence.
+- Market and research surfaces show stale or degraded evidence.
 - Runtime workspace reports stale/missing sources.
 - A DA source appears critical during a calendar-closed window (this must be
   `NOT_EXPECTED`, not a failure).

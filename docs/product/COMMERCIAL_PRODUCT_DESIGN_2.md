@@ -642,10 +642,13 @@ Implementation note: conversion is server-side through one service (J.3) so that
 
 ### I.3 Deferred: "add back if proven" (backend kept, dormant; no UI, no scheduled jobs)
 
+The strategy laboratory (registry, decision-time backtest, tracks and shadow runtime) is not
+deferred: the owner approved removing it with its backend and tables (migration
+`0098_remove_strategy_laboratory`); profit is fixed at decision time, so its "backtest" proved
+no outcome. The spread laboratory and research datasets stay.
+
 | Capability | Backend kept | Re-entry condition |
 |---|---|---|
-| Strategy lifecycle (design, frozen backtest, compare) | `domain/strategy_lab/`, `domain/backtest/`, `application/backtest_service.py` | An analyst needs reproducible frozen strategies; evidence of use of the simple rule test |
-| Shadow runtime | `application/shadow_runtime.py`, `domain/shadow/` | After the above |
 | Dataset builder, feature and target registry | `domain/research/datasets.py`, `features.py`, `targets.py`, `application/research_registry.py` | A quant team at a customer; until then the SDK and CSV |
 | Agents workspace | `application/agents/`, `domain/agents/` | A shown desk use beyond Ask |
 | Capacity billing calculator as a tool | `domain/research/capacity_billing.py` | If the tariff-leg disclosure proves insufficient |

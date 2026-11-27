@@ -320,6 +320,7 @@ WORK_MODE_CAPABILITIES: dict[WorkMode, frozenset[Capability]] = {
     ),
     WorkMode.RESEARCH: frozenset(
         {
+            Capability.RESEARCH_QUERY,
         }
     ),
     WorkMode.REVIEW: frozenset(

@@ -7,6 +7,11 @@ labels: `EU` denotes the European deployment domain in this protocol, not proof 
 European Union membership or a legally sufficient residency boundary. Operators
 must define the actual country, cloud region and permitted processing locations.
 
+Status note (2026-11-27): the strategy laboratory and its owner/group sharing layer were
+removed (migration `0098_remove_strategy_laboratory`). The protocol keeps `kind: "strategy"`
+for wire compatibility with envelopes already defined under `eurogas.exchange/1`, but this
+product no longer produces strategy exports; dataset exchange is the live case.
+
 ## Implemented contract
 
 - [Exchange envelope JSON Schema](schemas/exchange-envelope-v1.schema.json), version

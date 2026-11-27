@@ -79,8 +79,8 @@ def product_cutoff(product: str, now: datetime) -> datetime:
 
     Within-day: the last renomination of today's gas day; day-ahead: the nomination deadline
     for tomorrow while it is ahead, else the end of today's gas day; any other product: the
-    end of today's gas day. Used by the strategy signals (``strategy_tracking.cutoff_for``)
-    and by Today's gas day, so both read one calendar.
+    end of today's gas day. Used by Today's gas day and the prompt desk, so both read one
+    calendar.
     """
 
     from eurogas_nexus.domain.market.gas_day import gas_day_label

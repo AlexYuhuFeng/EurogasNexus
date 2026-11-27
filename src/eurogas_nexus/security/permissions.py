@@ -123,9 +123,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # (api/dependencies/ai_authority.py, finding C8).
     ("/api/monitoring/alerts/{alert_id}/analysis", Permission.GOVERNED),
     # Acknowledging an alert changes governed state and records who accepted it, so it
-    # carries the explicit governed-write permission of the shadow acknowledgement below,
-    # declared before the READ ``/api/monitoring/`` family: reads stay READ, the write is
-    # ANALYST-floor and remains inside the commercial-data boundary.
+    # carries an explicit governed-write permission, declared before the READ
+    # ``/api/monitoring/`` family: reads stay READ, the write is ANALYST-floor and remains
+    # inside the commercial-data boundary.
     ("/api/monitoring/alerts/{alert_id}/acknowledge", Permission.GOVERNED),
     ("/api/analysis/ontology", Permission.READ),
     # "Why?" on one object: a read of evidence the caller may already see. The model is

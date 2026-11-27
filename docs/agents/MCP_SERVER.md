@@ -53,8 +53,7 @@ is still necessary before offering MCP to customers.
 
 The MCP `tools/list` response is generated from active registry definitions
 with `mcp_name` set (e.g. `resolve_entity`, `get_market_snapshot`,
-`compute_hub_spread`, `calculate_route_economics`,
-`validate_strategy_ir`, `run_strategy_backtest`).
+`compute_hub_spread`, `calculate_route_economics`, `dataset.build`).
 
 ## Principal context
 

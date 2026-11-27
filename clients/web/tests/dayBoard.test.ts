@@ -361,7 +361,7 @@ test("an actionable opportunity with a recorded decision is not unactioned", () 
   ];
   // A decision on another entity type - and on a non-actionable opportunity - is not a decision
   // on the work this section lists.
-  const decisions = [decision("opp-decided"), decision("opp-blocked", "strategy_run")];
+  const decisions = [decision("opp-decided"), decision("opp-blocked", "generated_report")];
 
   const section = dayBoardDecisions(opportunities, decisions, true);
   assert.equal(section.posture, "measured");
