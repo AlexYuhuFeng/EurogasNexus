@@ -40,7 +40,8 @@ def test_the_downgrade_below_0096_refuses_while_a_receipt_has_no_inline_page() -
 
     with scratch_postgres_database(os.environ[SCRATCH_PG_ENV], prefix="ret0096") as url:
         config = alembic_config(url)
-        command.upgrade(config, "head")
+        # To this migration, not to head: head moves with every later migration.
+        command.upgrade(config, "0096_retention_by_class")
         assert _revision(url) == "0096_retention_by_class"
         engine = get_engine(url, one_off=True, statement_timeout=None)
         try:
@@ -69,5 +70,6 @@ def test_the_downgrade_below_0096_refuses_while_a_receipt_has_no_inline_page() -
             engine.dispose()
         command.downgrade(config, "0095_security_hardening")
         assert _revision(url) == "0095_security_hardening"
-        command.upgrade(config, "head")
+        # To this migration, not to head: head moves with every later migration.
+        command.upgrade(config, "0096_retention_by_class")
         assert _revision(url) == "0096_retention_by_class"

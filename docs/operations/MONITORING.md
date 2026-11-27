@@ -94,6 +94,7 @@ labels for Alertmanager routing, and a `runbook_url` that points at its section 
 | EurogasApiErrorRate | critical | over 5 % server errors for 10 minutes |
 | EurogasApiSlowP95 | warning | p95 latency of a route group over 1 s for 15 minutes |
 | EurogasMetricsCollectorFailing | warning | a group of database metrics fails for 15 minutes |
+| EurogasServerClockWrong | warning | the server clock is not synchronised or off by over 0.5 s for 10 minutes |
 
 **Prove it works** (the phase-1 acceptance check): stop the scheduler
 (`docker compose --profile public-ingestion stop public-ingestion-worker`); within about 7

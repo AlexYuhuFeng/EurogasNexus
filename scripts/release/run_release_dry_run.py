@@ -389,6 +389,27 @@ def main(argv: list[str] | None = None) -> int:
             True,
             "server operator bundle pinned to the explicit published image digest",
         )
+        # The small-desk bundle carries the same published identity and this release's web
+        # client (packaged above); without the web build it is not built.
+        if web_tar.is_file():
+            _run(
+                [
+                    sys.executable,
+                    "scripts/release/package_small_desk_bundle.py",
+                    "--release-context",
+                    str(context_file),
+                    "--image-digest",
+                    image_digest,
+                    "--web-archive",
+                    str(web_tar),
+                    "--out",
+                    str(output),
+                    "--archive",
+                ]
+            )
+            step("package-small-desk", True, "small-desk bundle pinned to the same digest")
+        else:
+            step("package-small-desk", False, "needs the web client; run with --build-web")
     else:
         step(
             "package-deployment",

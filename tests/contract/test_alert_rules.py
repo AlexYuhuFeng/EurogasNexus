@@ -22,6 +22,7 @@ RUNBOOK = ROOT / "docs" / "operations" / "ALERT_RESPONSES.md"
 METRIC_SOURCES = (
     ROOT / "src" / "eurogas_nexus" / "application" / "process_metrics.py",
     ROOT / "src" / "eurogas_nexus" / "application" / "dataops_observability.py",
+    ROOT / "src" / "eurogas_nexus" / "application" / "clock_check.py",
     ROOT / "src" / "eurogas_nexus" / "api" / "middleware" / "metrics_endpoint.py",
 )
 

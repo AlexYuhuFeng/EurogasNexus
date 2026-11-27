@@ -37,6 +37,24 @@ to paste the summary into an AI assistant. To put it on a USB stick:
 If the browser warns that the connection is not private, the trader's PC does not yet trust the
 server's certificate: install `desk-server-certificate.crt` on that PC (install guide, step 6).
 
+## The installation stopped halfway
+
+Read the PROBLEM line, do what it says, then run **the same install command again**. It continues
+from the step that stopped (it keeps what was already done, including the secrets the database
+was made with). Running install on a PC where the installation finished is refused and changes
+nothing.
+
+## Removing it
+
+```
+sudo nexus uninstall
+```
+
+removes the program but keeps the database, the backups and the secrets that open them; running
+install again from a release folder brings the desk back with its data. To delete everything,
+including the data and the backups on the backup disk (an office copy is not touched):
+`sudo nexus uninstall --delete-data`, then type `delete all desk data` when asked.
+
 ## It is slow
 
 1. `sudo nexus status`. Look at **Disks** (a nearly full disk slows everything) and **Data
@@ -139,6 +157,7 @@ The current data is backed up first and the replaced database is kept until the 
 | `sudo nexus update <folder>` | Install a new version (backs up first, undoes itself on failure) |
 | `sudo nexus undo-update` | Return to the version before the last update |
 | `sudo nexus diagnostics` | One file to send to the developers |
+| `sudo nexus uninstall` | Remove the program, keep the data and backups (`--delete-data` removes them too) |
 
 Where things are: the program and settings in `/opt/eurogas-nexus`; the database on the SSD in
 `/var/lib/eurogas-nexus`; backups on the second disk in `<backup folder>/nexus-backups`.

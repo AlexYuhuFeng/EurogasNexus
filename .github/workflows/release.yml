@@ -692,6 +692,69 @@ jobs:
           path: release-assets/*
           if-no-files-found: error
 
+  small-desk:
+    # The one-PC installation (deploy/small-desk, docs/operations/SMALL_DESK_INSTALL.md): the
+    # `nexus` tool, the stack, this release's web client and the API image pinned by the
+    # digest published above, as one archive. Its unit tests run in validate with tests/.
+    name: Package small-desk bundle
+    runs-on: ubuntu-24.04
+    needs: [resolve, web, runtime-image]
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Download release metadata
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-context
+          path: release-context
+
+      - name: Download immutable image identity
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: image-metadata
+          path: image-metadata
+
+      - name: Download the release's Web client
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: release-web
+          path: release-web
+
+      - name: The nexus tool runs on the server's own Python (standard library only)
+        shell: bash
+        run: |
+          # Ubuntu's system interpreter, isolated from the job's Python and site packages:
+          # the tool must start on a fresh Ubuntu LTS server with nothing installed.
+          /usr/bin/python3 -I -m compileall -q deploy/small-desk/nexusctl
+          PYTHONPATH= /usr/bin/python3 -I -c "import sys; sys.path.insert(0, 'deploy/small-desk'); import nexusctl.cli, nexusctl.operations"
+          PATH=/usr/bin:/bin deploy/small-desk/nexus help
+
+      - name: Package small-desk bundle
+        shell: bash
+        run: |
+          RELEASE_VERSION=$(python -c "import json; print(json.load(open('release-context/release-context.json'))['release_version'].lstrip('v'))")
+          IMAGE_DIGEST=$(python -c "import json,re; d=json.load(open('image-metadata/image-metadata.json'))['digest']; assert re.fullmatch(r'sha256:[0-9a-f]{64}', d), 'invalid image digest'; print(d)")
+          python scripts/release/package_small_desk_bundle.py \
+            --release-context release-context/release-context.json \
+            --image-digest "$IMAGE_DIGEST" \
+            --web-archive "release-web/eurogas-nexus-web-${RELEASE_VERSION}.tar.gz" \
+            --out release-assets --archive
+          test -f "release-assets/eurogas-nexus-small-desk-${RELEASE_VERSION}.tar.gz"
+
+      - name: Upload small-desk release asset
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: release-small-desk
+          path: release-assets/*
+          if-no-files-found: error
+
   sign-windows:
     name: Sign Windows artifacts (policy-aware)
     runs-on: windows-2025
@@ -857,10 +920,11 @@ jobs:
       - sign-linux
       - runtime-image
       - deployment
+      - small-desk
       - reliability
       - dependency-scan
       - container-acceptance
-    if: ${{ always() && needs.web.result == 'success' && needs.sign-windows.result == 'success' && needs.sign-linux.result == 'success' && needs.runtime-image.result == 'success' && needs.deployment.result == 'success' && needs.reliability.result == 'success' && needs.dependency-scan.result == 'success' && needs.container-acceptance.result == 'success' }}
+    if: ${{ always() && needs.web.result == 'success' && needs.sign-windows.result == 'success' && needs.sign-linux.result == 'success' && needs.runtime-image.result == 'success' && needs.deployment.result == 'success' && needs.small-desk.result == 'success' && needs.reliability.result == 'success' && needs.dependency-scan.result == 'success' && needs.container-acceptance.result == 'success' }}
     permissions:
       contents: read
 

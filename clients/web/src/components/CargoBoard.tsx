@@ -17,6 +17,7 @@
 import { useCallback, useEffect, useMemo, useState, type KeyboardEvent } from "react";
 
 import type { CargoPlanBoardLineDTO, CargoPlanMonthDTO } from "@/api/client";
+import { useNow } from "@/app/data/connection";
 import { useCargoBoard } from "@/app/hooks/useCargoBoard";
 import {
   ENERGY_DISPLAY_UNITS,
@@ -46,18 +47,6 @@ import { CargoPlanSheet, EtaBasis, type PlanSection } from "@/components/CargoPl
 import "./cargo-board.css";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
-
-/** Age words move on without a refetch: a minute clock, paused while hidden. */
-function useMinuteClock(): number {
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      if (document.visibilityState === "visible") setNowMs(Date.now());
-    }, 60_000);
-    return () => window.clearInterval(id);
-  }, []);
-  return nowMs;
-}
 
 /** The cargo whose plan is open: the `cargo` URL parameter (a link, a palette result, Back). */
 function useOpenCargo(): [string | null, (cargoId: string | null) => void] {
@@ -105,7 +94,8 @@ function signedHours(hours: number, language: string): string {
 
 export function CargoBoard({ t, language, canRecordHedges }: { t: Translate; language: string; canRecordHedges: boolean }) {
   const board = useCargoBoard(true);
-  const nowMs = useMinuteClock();
+  // Age words move on without a refetch: the shared minute clock.
+  const nowMs = useNow(60_000);
   const [unit, setUnit] = useState<EnergyDisplayUnit>("GWh");
   const [openCargo, setOpenCargo] = useOpenCargo();
   const [section, setSection] = useState<PlanSection>("plan");

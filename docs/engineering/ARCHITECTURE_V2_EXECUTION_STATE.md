@@ -62,6 +62,14 @@ NWE model shadow evaluation stay.
   freshness and backup marker. No data-model change.
 - Rehearsed against real containers here (`tests/integration/test_small_desk_rehearsal.py`,
   opt-in with `NEXUS_REHEARSAL_IMAGE`). Runbooks: `docs/operations/SMALL_DESK_*.md`.
+- Follow-up: `nexus install` records each step in `state.json` and continues from the step that
+  failed when run again (keeping the first attempt's secrets); it refuses a finished installation
+  and a database folder it did not create. `nexus uninstall` keeps the database, backups and
+  secrets (`--delete-data` with the typed words removes them). The replaced-PC path
+  (`--restore-from` + `--recovery-key`) is rehearsed: second factors and stored provider keys
+  decrypt on the new PC. The release workflow's `small-desk` job attaches
+  `eurogas-nexus-small-desk-<version>.tar.gz` (pinned to the published digest), and the artefact
+  contract and the dry run include it.
 
 ## 2026-11-26 — Live-stream 429s while browsing fixed at the cause (branch `streamfix`, not pushed)
 

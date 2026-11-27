@@ -3320,6 +3320,19 @@
     color: var(--ds-text-3);
     font-size: var(--ds-text-sm);
   }
+
+  /* On a phone the top bar has no room for the sentence (the Chinese one pushed the controls
+     off a 390 px screen). It stays in the page for screen readers; the figures keep their
+     own times. */
+  @media (max-width: 719px) {
+    .view-refreshing-note {
+      position: absolute;
+      width: 1px;
+      height: 1px;
+      margin: -1px;
+      clip: rect(0 0 0 0);
+    }
+  }
 }
 
 /* ------------------------------------------------------------ top-bar data status */
