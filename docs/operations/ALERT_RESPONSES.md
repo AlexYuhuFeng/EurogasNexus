@@ -217,3 +217,19 @@ events) fails at every scrape, so the alerts built on it cannot fire.
    `python scripts/ops/upgrade_database.py check` ([DATABASE_UPGRADE.md](DATABASE_UPGRADE.md)).
 2. Otherwise read the API log around a scrape for the database error and raise it with the
    vendor.
+
+## EurogasServerClockWrong
+
+**Means.** The server's clock is not synchronised by NTP, or it is off by more than 0.5 s, for
+10 minutes. Deals and prices are ordered by their timestamps, so a wrong clock can place a deal
+before the price it traded on, or a price in the wrong minute.
+
+**Do.**
+
+1. Check time synchronisation on the server: `timedatectl` (or `chronyc tracking` /
+   `ntpq -p`) should say the clock is synchronised and name a reachable NTP source.
+2. If it is not synchronised, start or restart the time service (`systemctl restart chronyd`,
+   `ntpd` or `systemd-timesyncd`), and allow NTP (UDP 123) through the firewall.
+3. In a container the clock is the host's: fix the host's time service, not the container's.
+4. When the check is synchronised and the offset is back below 0.5 s, the alert clears within
+   its next evaluation.

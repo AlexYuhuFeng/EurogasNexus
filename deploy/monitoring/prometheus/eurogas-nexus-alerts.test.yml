@@ -168,3 +168,24 @@ tests:
       - eval_time: 18m
         alertname: EurogasJobFailures
         exp_alerts: []
+
+  # The server clock: the warning is 1 from 5 minutes on; it fires only after 10 minutes of it.
+  - interval: 1m
+    input_series:
+      - series: 'eurogas_clock_warning{instance="api-1",job="eurogas-nexus-api"}'
+        values: '0x5 1+0x15'
+    alert_rule_test:
+      - eval_time: 5m
+        alertname: EurogasServerClockWrong
+        exp_alerts: []
+      - eval_time: 16m
+        alertname: EurogasServerClockWrong
+        exp_alerts:
+          - exp_labels:
+              severity: warning
+              team: platform
+              instance: api-1
+            exp_annotations:
+              summary: "The server clock on api-1 is wrong or not synchronised"
+              description: "Deals and prices are ordered by their timestamps, so this clock can place a deal before the price it traded on or in the wrong minute. The check warns when NTP synchronisation is off or the measured offset is above 0.5 s."
+              runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasserverclockwrong"

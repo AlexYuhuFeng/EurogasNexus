@@ -6,6 +6,7 @@ import { buildVisibleMapNetworkLines } from "@/app/networkMapLines";
 import { legPaths, zoneMemberIds } from "@/app/mapLineGeometry";
 import { corridorFlowDay, corridorFlowText } from "@/app/mapCorridors";
 import { readKey, useCachedRead } from "@/app/data/readCache";
+import { useNow } from "@/app/data/connection";
 import { INTENSITY_METRICS, rankIntensity, intensityPoints, type IntensityDatum, type IntensityMetric } from "@/app/mapIntensity";
 import type { SupplyCorridorDTO } from "@/api/client";
 import { normalizePointName } from "@/app/routeMetadata";
@@ -340,13 +341,7 @@ export function NetworkWorkspace({
   const reachableLines = useMemo(() => reachablePathLines(relevance, nodeById, legPath), [legPath, nodeById, relevance]);
   const tr = t as (key: string, options?: Record<string, unknown>) => string;
   // A clock for the windows to act: an opportunity whose window closed leaves the map.
-  const [clockMs, setClockMs] = useState(() => Date.now());
-  useEffect(() => {
-    if (!active) return undefined;
-    setClockMs(Date.now());
-    const id = window.setInterval(() => setClockMs(Date.now()), 30_000);
-    return () => window.clearInterval(id);
-  }, [active]);
+  const clockMs = useNow(30_000);
   // Opportunities dismissed here leave the map at once (the server hides them on its next read),
   // and so do those whose window closed.
   const [dismissedIds, setDismissedIds] = useState<ReadonlySet<string>>(new Set());

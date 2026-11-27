@@ -221,3 +221,19 @@ groups:
             The {{ $labels.collector }} metrics are missing, so the alerts built on them
             cannot fire.
           runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasmetricscollectorfailing"
+
+      # 1 when the kernel clock is not synchronised or is off by more than 0.5 s
+      # (application/clock_check.py).
+      - alert: EurogasServerClockWrong
+        expr: max by (instance) (eurogas_clock_warning) == 1
+        for: 10m
+        labels:
+          severity: warning
+          team: platform
+        annotations:
+          summary: "The server clock on {{ $labels.instance }} is wrong or not synchronised"
+          description: >-
+            Deals and prices are ordered by their timestamps, so this clock can place a deal
+            before the price it traded on or in the wrong minute. The check warns when NTP
+            synchronisation is off or the measured offset is above 0.5 s.
+          runbook_url: "docs/operations/ALERT_RESPONSES.md#eurogasserverclockwrong"

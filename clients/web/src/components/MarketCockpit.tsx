@@ -1,6 +1,7 @@
 import { PriceCharts } from "@/components/PriceCharts";
 import { openDeskBrief } from "@/components/DeskBriefDialog";
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
+import { useNow } from "@/app/data/connection";
 import { WorkspaceHeader } from "@/components/ui";
 import { MarketTerminal } from "@/components/MarketTerminal";
 import { DESK_NETWORK_KEPT } from "@/components/DeskNetworkTask";
@@ -29,18 +30,6 @@ import {
   type MarketTask,
 } from "@/app/model/marketCockpitModel";
 import { networkPanelToSearch } from "@/app/model/networkPanelModel";
-
-/** Age words on Today move on without a refetch: a minute clock, paused while hidden. */
-function useMinuteClock(): number {
-  const [nowMs, setNowMs] = useState(() => Date.now());
-  useEffect(() => {
-    const id = window.setInterval(() => {
-      if (document.visibilityState === "visible") setNowMs(Date.now());
-    }, 60_000);
-    return () => window.clearInterval(id);
-  }, []);
-  return nowMs;
-}
 
 export function MarketCockpit({ controller }: { controller: AppController }) {
   const {
@@ -80,7 +69,8 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
   // One read for the first screen; the context line on every market task uses it, so a
   // simulated desk's static store is not counted stale.
   const desk = useDeskToday();
-  const nowMs = useMinuteClock();
+  // Age words on Today move on without a refetch: the shared minute clock.
+  const nowMs = useNow(60_000);
   // Selecting a price hands its observation to the inspector (source, time, state), through
   // the Wave 1 contract: the page may only inspect the subject kinds it declares.
   const inspector = useInspectorStore();

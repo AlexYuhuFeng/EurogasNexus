@@ -36,6 +36,7 @@ import {
   jobProgressPercent,
   jobStatusLabelKey,
 } from "@/app/model/jobTimelineModel";
+import { useNow } from "@/app/data/connection";
 import { useApiStore } from "@/stores/api";
 import { useBackgroundJobsStore } from "@/stores/backgroundJobs";
 import { Button } from "./ui/Button";
@@ -248,13 +249,13 @@ export function JobNotifications({ t, onNavigate }: { t: Translate; onNavigate?:
   const dismissed = useBackgroundJobsStore((state) => state.dismissed);
   const store = useBackgroundJobsStore.getState;
   const [busyJobId, setBusyJobId] = useState<string | null>(null);
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  // Finished notices expire while the drawer stays open: the shared clock, not a snapshot.
+  const nowMs = useNow();
 
   // Opening the drawer reads the jobs once (the store polls only while one runs) and marks
   // what finished as seen, which clears the dot beside the trigger.
   useEffect(() => {
     void store().refresh();
-    setNowMs(Date.now());
   }, [store]);
   useEffect(() => {
     store().markSeen();
