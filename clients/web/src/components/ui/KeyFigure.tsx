@@ -1,4 +1,8 @@
 import { useId, type ReactNode } from "react";
+import { useTranslation } from "react-i18next";
+
+import { useScreenFreshness } from "@/app/data/connection";
+import { useInstantFormatter } from "@/app/time/useInstant";
 
 import { pnlClass } from "@/app/model/pnlColor";
 import type { ConvertedText } from "@/app/time/valueFormat";
@@ -83,6 +87,16 @@ export function KeyFigure({
 }: KeyFigureProps) {
   const labelId = useId();
   const convertedId = useId();
+  const freshness = useScreenFreshness();
+  const { t } = useTranslation();
+  const format = useInstantFormatter();
+  if (live && !freshness.current && state === "current") {
+    // Small-desk plan 3.7: a live figure on a screen that is not current keeps its last
+    // value, says "stale" and the time it was last known (app/data/connection.ts).
+    state = "stale";
+    stateLabel = t("stale.label");
+    age = freshness.since !== null ? format(freshness.since)?.text ?? age : age;
+  }
   const hoverConverted = converted && convertedMode === "hover";
   const classes = ["key-figure", size === "lg" ? "key-figure-lg" : "", className].filter(Boolean).join(" ");
   return (

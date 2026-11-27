@@ -9,7 +9,7 @@ Additive 2026-11-26 (security review 2026-11): twelve paths, twelve operations. 
 `POST /api/access/users/{principal_id}/mfa/reset`, `GET /api/audit/verify`,
 `POST /api/audit/checkpoint`, `POST /api/audit/prune`. The caller's own: `GET /api/me/mfa`,
 `POST /api/me/mfa/enrol`, `POST /api/me/mfa/confirm`; sign-in: `POST /api/auth/mfa/verify`.
-Census: 328 paths / 364 operations (+12 / +12 on 316 / 352). Behaviour changes on existing
+Census: 329 paths / 365 operations (+1 / +1 on 328 / 364: `GET /api/settings/ai`; +12 / +12 before that on 316 / 352). Behaviour changes on existing
 paths are listed in docs/release/notes/SECURITY_HARDENING_2026-11.md.
 
 Additive 2026-11-26 (planning inputs): one path, one operation, READ: `GET /api/optimization/planning-inputs`.

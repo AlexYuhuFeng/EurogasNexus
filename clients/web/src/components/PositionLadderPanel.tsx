@@ -1,3 +1,4 @@
+import { useScreenFreshness } from "@/app/data/connection";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { api, type LadderRollupDTO, type PositionLadderDTO, type PositionLadderRowDTO } from "@/api/client";
@@ -158,6 +159,7 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
   const [groupBy, setGroupBy] = useState("hub");
   const [currency, setCurrency] = useState("");
   const { ladder: held, error } = useLadder(months, groupBy, currency);
+  const screen = useScreenFreshness();
   // "See an example" (design H.1): a book with no position can look at a bundled example ladder,
   // drawn by the same grid and figures, inert and labelled.
   const exampleView = useExampleView();
@@ -211,7 +213,9 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
           </Field>
         </Toolbar>
       </div>
-      {error && <p role="alert">{error}</p>}
+      {/* With the server unreachable the shell's one line says so and the last ladder stays
+          (small-desk 3.7); a refresh that failed otherwise keeps it too and says why. */}
+      {error && screen.current && (ladder ? <p className="muted" role="status">{t("position.refresh_failed", { reason: error })}</p> : <p role="alert">{error}</p>)}
       {ladder?.rollup && ladder.rollup.length > 0 && (
         <DataGrid
           id="position-rollup"

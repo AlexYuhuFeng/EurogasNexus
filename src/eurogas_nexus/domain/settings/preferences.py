@@ -19,7 +19,12 @@ import re
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from eurogas_nexus.domain.ai.register import AI_FEATURES_SETTING
+from eurogas_nexus.domain.ai.register import (
+    AI_ENABLED_SETTING,
+    AI_FEATURES_SETTING,
+    AI_SHARING_CATEGORIES,
+    AI_SHARING_SETTING,
+)
 from eurogas_nexus.domain.ontology.markets import european_gas_hubs
 from eurogas_nexus.domain.pricing.financial_institutions import SETTING as INSTITUTIONS_SETTING
 from eurogas_nexus.domain.pricing.financial_institutions import (
@@ -197,6 +202,19 @@ def validate_ai_features(values: Any) -> dict[str, bool]:
     return {str(key): bool(value) for key, value in values.items()}
 
 
+def validate_ai_sharing(values: Any) -> dict[str, bool]:
+    """What the model may be sent, per category (``AI_SHARING_CATEGORIES``), each a bool."""
+
+    if not isinstance(values, Mapping) or not values:
+        raise SettingsError(f"{AI_SHARING_SETTING} must map data categories to true or false")
+    unknown = sorted(str(key) for key in values if key not in AI_SHARING_CATEGORIES)
+    if unknown:
+        raise SettingsError(f"{unknown[0]} is not a data category the model can be sent")
+    if any(not isinstance(value, bool) for value in values.values()):
+        raise SettingsError(f"each {AI_SHARING_SETTING} value must be true or false")
+    return {str(key): bool(value) for key, value in values.items()}
+
+
 def validate_organisation_defaults(values: Mapping[str, Any]) -> dict[str, Any]:
     """Organisation defaults use the preference vocabulary plus the languages offered."""
 
@@ -205,6 +223,8 @@ def validate_organisation_defaults(values: Mapping[str, Any]) -> dict[str, Any]:
         raise SettingsError(f"{personal_only[0]} is a personal preference, not a default")
     enabled = values.get("enabled_languages")
     switches = values.get(AI_FEATURES_SETTING)
+    ai_on = values.get(AI_ENABLED_SETTING)
+    sharing = values.get(AI_SHARING_SETTING)
     four_eyes = values.get(FOUR_EYES_SETTING)
     precedence = values.get(SOURCE_PRECEDENCE_SETTING)
     banks = values.get(INSTITUTIONS_SETTING)
@@ -215,6 +235,8 @@ def validate_organisation_defaults(values: Mapping[str, Any]) -> dict[str, Any]:
         not in {
             "enabled_languages",
             AI_FEATURES_SETTING,
+            AI_ENABLED_SETTING,
+            AI_SHARING_SETTING,
             FOUR_EYES_SETTING,
             SOURCE_PRECEDENCE_SETTING,
             INSTITUTIONS_SETTING,
@@ -223,6 +245,13 @@ def validate_organisation_defaults(values: Mapping[str, Any]) -> dict[str, Any]:
     accepted: dict[str, Any] = validate_preferences(rest)
     if switches is not None:
         accepted[AI_FEATURES_SETTING] = validate_ai_features(switches)
+    if ai_on is not None:
+        # The administrator's one switch for every AI feature (small-desk plan 3.6).
+        if not isinstance(ai_on, bool):
+            raise SettingsError(f"{AI_ENABLED_SETTING} must be true or false")
+        accepted[AI_ENABLED_SETTING] = ai_on
+    if sharing is not None:
+        accepted[AI_SHARING_SETTING] = validate_ai_sharing(sharing)
     if four_eyes is not None:
         # P-17: which reference writes need a second person (governance/four_eyes.py).
         try:

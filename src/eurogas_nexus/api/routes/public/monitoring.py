@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import UTC, datetime
 from typing import Literal
 from uuid import uuid4
@@ -312,7 +313,13 @@ def analyze_alert(alert_id: str, payload: AlertAnalysisRequest, request: Request
             raise _not_found(alert_id)
         alert_snapshot = monitoring_alert_payload(row)
 
-    from eurogas_nexus.application.ai_controls import ai_use_enabled, provenance
+    from eurogas_nexus.application.ai_controls import (
+        ai_use_enabled,
+        call_budget,
+        counterparty_aliases,
+        provenance,
+        provider_key,
+    )
 
     if not ai_use_enabled("alert_analysis"):
         # GOV-1: the organisation switched this AI use off; no provider call, the alert's own
@@ -331,8 +338,8 @@ def analyze_alert(alert_id: str, payload: AlertAnalysisRequest, request: Request
         }
         return _env(data, warnings=data["warnings"])
 
-    api_key = load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")
-    if not api_key:
+    api_key = provider_key(load_provider_api_key)
+    if api_key is None:
         data = {
             "analysis_id": None,
             "alert_id": alert_id,
@@ -353,10 +360,17 @@ def analyze_alert(alert_id: str, payload: AlertAnalysisRequest, request: Request
     except LlmEndpointError:
         provider_id, model_used = "DEEPSEEK", payload.model
     messages = _analysis_messages(alert_snapshot, payload)
-    result = invoke_deepseek(api_key=api_key, messages=messages, **ANSWER_CALL)
+    # Counterparty names stay on the platform unless the administrator allows them.
+    aliases = counterparty_aliases()
+    sent = aliases.hide_messages(messages) if aliases is not None else messages
+    result = invoke_deepseek(
+        api_key=api_key, messages=sent, **call_budget("alert_analysis", ANSWER_CALL)
+    )
+    if result.status == "success" and aliases is not None and result.content:
+        result = replace(result, content=aliases.restore(result.content))
     call = provenance(
         "alert_analysis",
-        messages=messages,
+        messages=sent,
         output=result.content if result.status == "success" else None,
         status=result.status,
     )

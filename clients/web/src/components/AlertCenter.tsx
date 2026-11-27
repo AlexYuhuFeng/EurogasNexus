@@ -19,6 +19,7 @@ import {
   type AlertReaderMarks,
 } from "@/app/alerts/alertCenterModel";
 import { WhyButton } from "./WhyButton";
+import { useAiAvailability } from "@/app/model/aiAvailability";
 import { ReportLink } from "./ReportLink";
 import { IconButton } from "./ui/Button";
 import { JobActivityIndicator, JobNotifications } from "./JobNotifications";
@@ -79,6 +80,8 @@ export function AlertCenter({
   onAcknowledge,
   onAnalyze,
 }: AlertCenterProps) {
+  // AI off (small-desk 3.6): the Ask control is not offered; Why? still answers by rule.
+  const aiOn = useAiAvailability().available;
   const [open, setOpen] = useState(false);
   const [view, setView] = useState<View>("active");
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
@@ -357,14 +360,14 @@ export function AlertCenter({
                       <div className="monitoring-alert-actions">
                         <WhyButton subject="alert" id={alert.alert_id} label={title} language={language} t={t} />
                         <ReportLink subject={{ kind: "alert", id: alert.alert_id }} label={title} t={t} />
-                        <button
+                        {aiOn && <button
                           type="button"
                           disabled={!askAvailable}
                           title={askAvailable ? undefined : t("experience.copilot.withheld_evidence")}
                           onClick={() => startDiscussion(alert)}
                         >
                           {t("experience.ai.ask")}
-                        </button>
+                        </button>}
                         {anyOpen && (
                           <button
                             type="button"

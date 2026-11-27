@@ -77,6 +77,8 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # A person's own read and dismissed marks on alerts; the shared alert status is untouched.
     ("/api/me/alert-state", Permission.READ),
     ("/api/settings/organisation", Permission.READ),
+    # AI settings in force (provider, time limits, what may be sent): administration only.
+    ("/api/settings/ai", Permission.ADMIN),
     ("/api/access/groups", Permission.ADMIN),
     ("/api/access/groups/{group_id}", Permission.ADMIN),
     ("/api/access/groups/{group_id}/members/{principal_id}", Permission.ADMIN),

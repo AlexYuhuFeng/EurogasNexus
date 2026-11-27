@@ -31,6 +31,29 @@ LEVELS = ("explain", "summarise", "retrieve", "classify", "draft", "propose")
 #: The organisation setting that holds the per-use switches: ``{"<use>": true|false}``.
 AI_FEATURES_SETTING = "ai_features"
 
+#: The administrator's one switch for every AI feature (small-desk plan section 3 item 6):
+#: ``false`` means no request leaves the server for any model, whatever ``ai_features`` says.
+AI_ENABLED_SETTING = "ai_enabled"
+
+#: What the administrator allows the model to be sent, per category: ``{"<category>": bool}``.
+#: Every category is off until switched on (an explicit opt-in, itself four-eyed).
+AI_SHARING_SETTING = "ai_data_sharing"
+
+#: The categories of the sharing setting and what each covers.
+AI_SHARING_CATEGORIES: dict[str, str] = {
+    # Off: every counterparty name in a message is replaced by "Counterparty A", "B", ... on
+    # the way out and put back in the reply (application/ai_payloads.CounterpartyAliases).
+    "counterparty_names": "Counterparty names in any text sent to the model",
+    # Off: no individual deal, contract, cargo or nomination row or figure is sent; totals by
+    # hub, book or counterparty still are.
+    "deal_level": "Individual deals, contracts, cargoes and nominations",
+}
+
+#: How long a use may wait for the model: ``interactive`` (a person is waiting on a page,
+#: default 3 s) or ``draft`` (a report or background note read later, default 240 s). See
+#: ``llm/provider.call_timeout_seconds``.
+TIMINGS = ("interactive", "draft")
+
 
 @dataclass(frozen=True, slots=True)
 class AiUse:
@@ -64,6 +87,8 @@ class AiUse:
     #: True when the platform itself calls a model for this use; False when the model is
     #: outside (an analyst's own assistant over MCP) or the planner is deterministic.
     calls_model: bool = True
+    #: ``interactive`` or ``draft`` (:data:`TIMINGS`): which hard time limit its calls get.
+    timing: str = "interactive"
 
 
 _NOTE = "application.ai_style"
@@ -178,6 +203,7 @@ AI_USES: tuple[AiUse, ...] = (
         evaluation_set="tests/evals/ai_note_cases.json",
         scorer="note_cases:enrichment",
         threshold=1.0,
+        timing="draft",
     ),
     AiUse(
         use="analysis_query",
@@ -220,6 +246,7 @@ AI_USES: tuple[AiUse, ...] = (
         evaluation_set="tests/evals/editor_cases.json",
         scorer="pytest:tests/evals/test_editor_evals.py",
         threshold=1.0,
+        timing="draft",
     ),
     AiUse(
         use="report_plan",
@@ -450,7 +477,11 @@ def ai_use(use: str) -> AiUse:
 
 
 __all__ = [
+    "AI_ENABLED_SETTING",
     "AI_FEATURES_SETTING",
+    "AI_SHARING_CATEGORIES",
+    "AI_SHARING_SETTING",
+    "TIMINGS",
     "AI_USES",
     "AI_USES_BY_NAME",
     "LEVELS",

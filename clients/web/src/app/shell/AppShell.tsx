@@ -7,6 +7,9 @@ import { MfaEnrolment } from "@/components/MfaEnrolment";
 import { WorkspaceTopBar } from "@/components/WorkspaceTopBar";
 import { ShellTicker } from "@/components/ShellTicker";
 import { DataProblemNotice } from "@/components/DataProblemNotice";
+import { ConnectionNotice } from "@/components/ConnectionNotice";
+import { aiAvailabilityOf } from "@/app/model/aiAvailability";
+import { startConnectionWatch, useScreenFreshness } from "@/app/data/connection";
 import { DeskBriefDialog, openDeskBrief } from "@/components/DeskBriefDialog";
 import type { AppController } from "@/app/hooks/useAppController";
 import { useCommandPalette } from "@/app/hooks/useCommandPalette";
@@ -161,6 +164,9 @@ interface AuthenticatedShellProps {
  * number of hooks one component calls.
  */
 function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
+  // One answer for the whole screen: is it current (app/data/connection.ts, small-desk 3.7).
+  const screenFreshness = useScreenFreshness();
+  useEffect(() => startConnectionWatch(), []);
   const {
     t,
     i18n,
@@ -311,6 +317,8 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
   const canReadBook = Array.isArray(currentUser?.permissions) && currentUser.permissions.includes("portfolio.read");
   const paletteCargoes = useCachedRead(cargoesWanted && canReadBook ? CARGO_BOARD_KEY : null, readCargoBoard);
   const palette = useCommandPalette({
+    // AI off (small-desk 3.6): the palette offers no AI command at all.
+    includeAiActions: aiAvailabilityOf(currentUser).available,
     activeWorkspace: navigation.activeWorkspace,
     context: {
       routeId: selection.routeId,
@@ -417,7 +425,7 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
   };
 
   return (
-    <div className={`app cockpit-app workspace-${layoutPage}`}>
+    <div className={`app cockpit-app workspace-${layoutPage}`} data-screen-stale={screenFreshness.current ? undefined : screenFreshness.reason}>
       <WorkspaceTopBar
         activeWorkspace={navigation.activeWorkspace}
         activePrimaryWorkspace={navigation.activePrimaryWorkspace}
@@ -453,13 +461,18 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
 
       {/* Reads that did not load: a quiet count on the bar's status indicator, and this line once
           per set of problems (dismissible); a store that does not answer stays (DataProblemNotice). */}
-      <DataProblemNotice
-        t={t}
-        failures={endpointFailures}
-        retry={endpointRetry}
-        onRetry={() => void api.retryFailedWorkspaceEndpoints()}
-        storeDown={api.dataStatus === "unavailable"}
-      />
+      {/* The server not answering (or this computer offline) is one calm line, not a list of
+          failed reads; the clock line says when this computer's clock is off (small-desk 3.7). */}
+      <ConnectionNotice t={t} />
+      {screenFreshness.current || screenFreshness.reason === "live_quiet" ? (
+        <DataProblemNotice
+          t={t}
+          failures={endpointFailures}
+          retry={endpointRetry}
+          onRetry={() => void api.retryFailedWorkspaceEndpoints()}
+          storeDown={api.dataStatus === "unavailable"}
+        />
+      ) : null}
 
       <main className="app-main" ref={mainRef} id="workspace-primary-content" data-shell-region="primary-workspace">
         {/* One composition path for every page: the shell owns the regions, the workspace

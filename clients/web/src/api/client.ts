@@ -288,6 +288,35 @@ export async function clearDesktopSessionData(): Promise<void> {
   await tryHostCommand(HOST_COMMANDS.clearSessionData);
 }
 
+let serverAnswerObserver: ((ok: boolean) => void) | null = null;
+
+/** Hear whether each API request reached the server (app/data/connection.ts). */
+export function observeServerAnswers(observer: ((ok: boolean) => void) | null): void {
+  serverAnswerObserver = observer;
+}
+
+/**
+ * `fetch` for the API, reporting each answer to the connection store (app/data/connection.ts):
+ * a network failure or a 502/504 from the proxy in front of the API means the server is not
+ * answering; any other answer means it is. An aborted request says nothing either way.
+ */
+async function trackedFetch(input: string, init?: RequestInit): Promise<Response> {
+  let response: Response;
+  try {
+    response = await fetch(input, init);
+  } catch (error) {
+    if ((error as { name?: unknown } | null)?.name !== "AbortError") serverAnswerObserver?.(false);
+    throw error;
+  }
+  serverAnswerObserver?.(response.status !== 502 && response.status !== 504);
+  return response;
+}
+
+/** `/api/health` without reporting it: the connection store's probe reports its own outcome. */
+export async function probeHealth(): Promise<HealthDTO> {
+  return parseResponse<HealthDTO>(await fetch(apiUrl("/health"), requestInit()));
+}
+
 function apiUrl(path: string): string {
   return apiUrlForBase(configuredApiBaseUrl(), path);
 }
@@ -321,7 +350,7 @@ function openHeaderEventStream(
   let retry: ReturnType<typeof setTimeout> | undefined;
   const connect = async () => {
     try {
-      const response = await fetch(apiUrl(path), requestInit({ signal: controller.signal, headers: { Accept: "text/event-stream" } }));
+      const response = await trackedFetch(apiUrl(path), requestInit({ signal: controller.signal, headers: { Accept: "text/event-stream" } }));
       if (!response.ok || !response.body) {
         void response.body?.cancel();
         if (!closed) onStatus?.("refused");
@@ -433,6 +462,18 @@ export interface HealthDTO {
   status: string;
   version: string;
   profile: string;
+  /** The server's time when it answered (the client measures its own clock against it). */
+  server_time_utc?: string | null;
+  /** The server clock's check against NTP (application/clock_check.py). */
+  clock?: {
+    state: "ok" | "warning" | "unknown" | "checking";
+    problems: string[];
+    offset_seconds: number | null;
+    synchronised: boolean | null;
+    reference: string;
+    threshold_seconds: number;
+    checked_at_utc: string | null;
+  } | null;
 }
 
 function errorDetail(payload: unknown, fallback: string): string {
@@ -599,7 +640,7 @@ async function get<T, M = ApiMeta>(
   const release = await acquireReadLane(options.signal);
   try {
     options.onDispatch?.();
-    const res = await fetch(url.toString(), requestInit({ signal: options.signal }));
+    const res = await trackedFetch(url.toString(), requestInit({ signal: options.signal }));
     const parsed = await parseResponse<ApiResponse<T, M>>(res);
     responseMetaObserver?.(path, (parsed as { meta?: unknown } | null)?.meta);
     return parsed;
@@ -628,7 +669,7 @@ export async function downloadReport(
 ): Promise<void> {
   const url = new URL(apiUrl(path));
   Object.entries({ ...params, format }).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
-  const response = await fetch(url.toString(), requestInit());
+  const response = await trackedFetch(url.toString(), requestInit());
   if (!response.ok) throw new Error(`export failed (${response.status})`);
   const disposition = response.headers.get("content-disposition") ?? "";
   const name = /filename="([^"]+)"/.exec(disposition)?.[1] ?? `eurogas-nexus-report.${format}`;
@@ -641,7 +682,7 @@ export async function downloadReport(
 
 /** A stored market report's self-contained HTML, read with the caller's credentials. */
 export async function fetchReportHtml(reportId: string): Promise<string> {
-  const response = await fetch(apiUrl(`/reports/market/${encodeURIComponent(reportId)}/html`), requestInit());
+  const response = await trackedFetch(apiUrl(`/reports/market/${encodeURIComponent(reportId)}/html`), requestInit());
   if (!response.ok) throw new Error(`report ${response.status}`);
   return response.text();
 }
@@ -653,7 +694,7 @@ export async function fetchReportHtml(reportId: string): Promise<string> {
 export async function intakeContractPdf(file: File): Promise<ContractIntakeDTO> {
   const url = new URL(apiUrl("/contracts/intake"));
   url.searchParams.set("file_name", file.name);
-  const response = await fetch(url.toString(), requestInit({
+  const response = await trackedFetch(url.toString(), requestInit({
     method: "POST",
     headers: { "Content-Type": "application/pdf" },
     body: file,
@@ -697,7 +738,7 @@ function notifyApiWrite(): void {
 async function patch<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
   // A write may change what any read answers: kept answers are refreshed on next view.
   notifyApiWrite();
-  const response = await fetch(apiUrl(path), requestInit({
+  const response = await trackedFetch(apiUrl(path), requestInit({
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -708,14 +749,14 @@ async function patch<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
 async function del<T>(path: string): Promise<ApiResponse<T>> {
   // A write may change what any read answers: kept answers are refreshed on next view.
   notifyApiWrite();
-  const response = await fetch(apiUrl(path), requestInit({ method: "DELETE" }));
+  const response = await trackedFetch(apiUrl(path), requestInit({ method: "DELETE" }));
   return parseResponse<ApiResponse<T>>(response);
 }
 
 async function put<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
   // A write may change what any read answers: kept answers are refreshed on next view.
   notifyApiWrite();
-  const response = await fetch(apiUrl(path), requestInit({
+  const response = await trackedFetch(apiUrl(path), requestInit({
     method: "PUT",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -726,7 +767,7 @@ async function put<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
 async function deleteWithBody<T>(path: string, body: unknown): Promise<ApiResponse<T>> {
   // A write may change what any read answers: kept answers are refreshed on next view.
   notifyApiWrite();
-  const response = await fetch(apiUrl(path), requestInit({
+  const response = await trackedFetch(apiUrl(path), requestInit({
     method: "DELETE",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -737,7 +778,7 @@ async function deleteWithBody<T>(path: string, body: unknown): Promise<ApiRespon
 async function post<T, M = ApiMeta>(path: string, body: unknown, options: ApiRequestOptions = {}): Promise<ApiResponse<T, M>> {
   // A write may change what any read answers: kept answers are refreshed on next view.
   notifyApiWrite();
-  const res = await fetch(apiUrl(path), requestInit({
+  const res = await trackedFetch(apiUrl(path), requestInit({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -751,7 +792,7 @@ async function post<T, M = ApiMeta>(path: string, body: unknown, options: ApiReq
  * convert). It changes nothing on the server, so kept answers stay valid: no write notice.
  */
 async function postRead<T, M = ApiMeta>(path: string, body: unknown, options: ApiRequestOptions = {}): Promise<ApiResponse<T, M>> {
-  const res = await fetch(apiUrl(path), requestInit({
+  const res = await trackedFetch(apiUrl(path), requestInit({
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
@@ -3861,6 +3902,18 @@ export interface PreferencesDTO {
   updated_at_utc: string | null;
 }
 
+/** `GET /api/settings/ai`: what an administrator set for AI and what is in force. */
+export interface AiSettingsDTO {
+  enabled: boolean;
+  available: boolean;
+  reason: string;
+  provider: { name: string; model: string; self_hosted: boolean } | null;
+  timeouts_seconds: { interactive: number; draft: number };
+  sharing: Record<string, boolean>;
+  uses: { use: string; title: string; timing: string; on: boolean }[];
+  sharing_categories: { category: string; description: string; allowed: boolean }[];
+}
+
 export type OrganisationSettingsDTO = Partial<Record<PreferenceKey, string>> & { enabled_languages?: string[] };
 
 export interface PositionLadderRowDTO {
@@ -5930,7 +5983,7 @@ export interface SupplyCorridorsDTO {
 
 export const api = {
   health: async () =>
-    parseResponse<HealthDTO>(await fetch(apiUrl("/health"), requestInit())),
+    parseResponse<HealthDTO>(await trackedFetch(apiUrl("/health"), requestInit())),
 
   nodes: (params?: { country?: string; node_type?: string }, options?: ApiRequestOptions) =>
     get<NodeDTO[]>("/reference-network/nodes", {
@@ -6199,7 +6252,7 @@ export const api = {
   credentialProviders: (options?: ApiRequestOptions) => get<CredentialProviderDTO[]>("/credentials/providers", undefined, options),
 
   saveCredential: (providerId: string, body: { api_key: string; label: string }) =>
-    fetch(apiUrl(`/credentials/${providerId}`), requestInit({
+    trackedFetch(apiUrl(`/credentials/${providerId}`), requestInit({
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
@@ -6728,6 +6781,11 @@ export const api = {
   organisationSettings: () => get<OrganisationSettingsDTO>("/settings/organisation"),
   saveOrganisationSettings: (settings: OrganisationSettingsDTO) =>
     put<OrganisationSettingsDTO>("/settings/organisation", settings),
+  /** Administrators: the AI settings in force (small-desk 3.6). */
+  aiSettings: () => get<AiSettingsDTO>("/settings/ai"),
+  /** Administrators: the AI master switch and what the model may be sent. */
+  saveAiSettings: (patch: { ai_enabled?: boolean; ai_data_sharing?: Record<string, boolean> }) =>
+    put<Record<string, unknown>>("/settings/organisation", patch),
   spreadSeries: (options?: ApiRequestOptions) => get<SpreadSeriesDTO[]>("/research/spread-series", undefined, options),
   spreadAnalysis: (
     body: { legs: SpreadLegInputDTO[]; date_from?: string | null; date_to?: string | null; rule: SpreadRuleInputDTO },
@@ -7019,6 +7077,8 @@ export interface CurrentUserDTO {
   identity_source: string; status: string; data_scopes: string[];
   permissions: string[]; auth_method: string; csrf_token: string | null;
   experience?: ExperienceProfileDTO;
+  /** Whether AI can be used for this person now and why not (app/model/aiAvailability.ts). */
+  ai?: { available: boolean; reason: string } | null;
 }
 
 export interface AuthStatusDTO {

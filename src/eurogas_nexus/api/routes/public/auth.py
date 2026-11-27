@@ -683,6 +683,16 @@ def oidc_desktop_token(
     }
 
 
+def _ai_state(principal) -> dict:
+    from eurogas_nexus.api.dependencies.ai_authority import ai_authority_denial
+    from eurogas_nexus.application.ai_controls import ai_state
+
+    state = ai_state(role_denied=bool(ai_authority_denial(principal)))
+    # The provider and the sharing choices are administration facts: a person sees whether
+    # AI is on and why not, an administrator sees the rest on the settings page.
+    return {"available": state["available"], "reason": state["reason"]}
+
+
 @router.get("/api/me")
 def get_me(
     request: Request,
@@ -732,6 +742,9 @@ def get_me(
             # assignments and work modes. Composition only - it grants nothing,
             # and every route re-authorises the caller server-side.
             "experience": build_experience_profile(principal).to_payload(),
+            # Whether AI can be used for this person now and why not (small-desk plan 3.6):
+            # the client hides or labels every AI control from this; it grants nothing.
+            "ai": _ai_state(principal),
         },
         "meta": {
             "research_only": False,

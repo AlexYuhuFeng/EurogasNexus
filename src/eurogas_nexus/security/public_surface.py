@@ -248,6 +248,7 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/research/allocation",
         "/api/research/backtest",
         "/api/settings/organisation",
+        "/api/settings/ai",
         "/api/setup",
         "/api/research/spread-analysis",
         "/api/research/spread-series",

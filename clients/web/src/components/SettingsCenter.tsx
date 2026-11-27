@@ -28,6 +28,7 @@ import { StatusBadge, Tabs, tabId } from "@/components/ui";
 import { OrganisationDefaultsPanel, PersonalPreferencesPanel } from "@/components/PreferencesPanels";
 import { PanelHelp } from "@/components/ui/PanelHelp";
 import { PersonalApiKeysPanel } from "@/components/PersonalApiKeysPanel";
+import { AiSettingsPanel } from "@/components/AiSettingsPanel";
 
 type Translate = (key: string) => string;
 
@@ -173,6 +174,7 @@ export function SettingsCenter({
         {group === "organisation" && (
           <>
             <OrganisationDefaultsPanel t={t} canManage={canManageOrganisation} />
+            {canManageOrganisation && <AiSettingsPanel t={t} />}
             {canManageOrganisation && (
               <div className="workspace-panel">
                 <NotificationChannelsPanel t={t} />

@@ -192,7 +192,13 @@ def enrich_monitoring_alert(
         )
 
     principal = authority.principal
-    from eurogas_nexus.application.ai_controls import ai_use_enabled, provenance
+    from eurogas_nexus.application.ai_controls import (
+        ai_use_enabled,
+        call_budget,
+        counterparty_aliases,
+        provenance,
+        provider_key,
+    )
 
     if not ai_use_enabled("enrichment", session):
         # GOV-1: switched off in organisation settings. No credential is loaded, no provider
@@ -200,10 +206,10 @@ def enrich_monitoring_alert(
         return DeepSeekCallResult(status="switched_off", error_code=AI_USE_SWITCHED_OFF)
     key_loader = api_key_loader or load_provider_api_key
     call = provider_call or invoke_deepseek
-    api_key = key_loader("DEEPSEEK") or key_loader("LLM")
+    api_key = provider_key(key_loader)
     alert.llm_provider_id = "DEEPSEEK"
     alert.llm_last_attempt_at_utc = now
-    if not api_key:
+    if api_key is None:
         result = DeepSeekCallResult(
             status="missing_credential",
             error_code="credential_missing",
@@ -213,15 +219,20 @@ def enrich_monitoring_alert(
         return result
 
     messages = _alert_enrichment_messages(alert)
+    # Counterparty names stay on the platform unless the administrator allows them.
+    aliases = counterparty_aliases(session)
+    sent = aliases.hide_messages(messages) if aliases is not None else messages
     result = call(
         api_key=api_key,
-        messages=messages,
+        messages=sent,
         model=DEEPSEEK_DEFAULT_MODEL,
-        **ENRICHMENT_CALL,
+        **call_budget("enrichment", ENRICHMENT_CALL),
     )
+    if result.status == "success" and aliases is not None and result.content:
+        result = replace(result, content=aliases.restore(result.content))
     call_record = provenance(
         "enrichment",
-        messages=messages,
+        messages=sent,
         output=result.content if result.status == "success" else None,
         status=result.status,
     )
@@ -836,6 +847,7 @@ def _price_move_candidates(session: Session, now: datetime) -> list[MonitoringCa
 
     from eurogas_nexus.application.caller import firm_caller
     from eurogas_nexus.application.projections.daily_closes import daily_rows, in_native_unit
+    from eurogas_nexus.domain.monitoring.freshness import close_state
     from eurogas_nexus.domain.portfolio.position_ladder import MAX_VAR_GAP_DAYS
 
     today = now.date()
@@ -872,14 +884,21 @@ def _price_move_candidates(session: Session, now: datetime) -> list[MonitoringCa
             continue
         product = "DA" if tenor == "day-ahead" else "FM"
         simulated = bool(last["simulated"])
+        # Small-desk plan 3.7: a move between closes that are no longer current (the feed has
+        # not delivered the latest close) is said to be stale, in the alert's own words.
+        close_age = close_state(days[-1], today)
+        stale_en = f" (stale: no close since {days[-1]:%d %b})" if close_age != "current" else ""
+        stale_zh = f"（数据滞后：{days[-1]:%m-%d} 之后无收盘价）" if close_age != "current" else ""
         candidates.append(
             MonitoringCandidate(
                 fingerprint=f"price_move:{hub}:{product}:{days[-1].isoformat()}",
                 category="market",
                 alert_type="price_move",
                 severity="critical" if abs(move) >= PRICE_MOVE_CRITICAL_PCT else "warning",
-                title_en=f"{hub} {product} {move:+.1f}% vs prior close ({price:,.2f} {unit})",
-                title_zh_cn=f"{hub} {product} 较前收盘 {move:+.1f}%（{price:,.2f} {unit}）",
+                title_en=(f"{hub} {product} {move:+.1f}% vs prior close ({price:,.2f} {unit})"
+                          f"{stale_en}"),
+                title_zh_cn=(f"{hub} {product} 较前收盘 {move:+.1f}%（{price:,.2f} {unit}）"
+                             f"{stale_zh}"),
                 message_en=(
                     f"{hub} {product} closed at {price:,.3f} {unit} on {days[-1]:%d %b}, "
                     f"{move:+.1f}% against {previous:,.3f} on {days[-2]:%d %b}."
@@ -903,6 +922,7 @@ def _price_move_candidates(session: Session, now: datetime) -> list[MonitoringCa
                     "previous_day": days[-2].isoformat(),
                     "source_system": source,
                     "simulated": simulated,
+                    "close_state": close_age,
                 },
                 source_refs=[f"market-close:{source}:{hub}:{tenor}:{days[-1].isoformat()}"],
                 simulated=simulated,
@@ -1265,6 +1285,17 @@ def _credit_candidate(row: dict, books: tuple[str, ...], now: datetime):
         title_zh = f"{name} 信用敞口不完整：{row['unvalued_legs']} 笔无估值"
     else:
         return None
+    marks_state = row.get("state")
+    if marks_state in {"late", "stale"} and row.get("marks_as_of"):
+        # Small-desk plan 3.7: a breach or watch computed from old marks says so in its own
+        # words, not only in the separate "marks behind" alert (the figure may be wrong).
+        day = row["marks_as_of"]
+        title_en += f" (marks from {day}, {marks_state})"
+        title_zh += f"（估值价格日期 {day}，{'滞后' if marks_state == 'late' else '过期'}）"
+        figures = (f"{figures} These figures use marks from {day}, older than one business "
+                   "day; check the price feed before acting on them.")
+        figures_zh = (f"{figures_zh}以上数字使用 {day} 的估值价格（超过一个工作日），"
+                      "请先检查价格数据源。")
     return MonitoringCandidate(
         fingerprint=f"credit:{row['counterparty_id']}",
         category="limits",

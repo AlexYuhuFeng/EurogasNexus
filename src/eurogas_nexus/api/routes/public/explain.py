@@ -190,17 +190,20 @@ def _model_for(principal, *, answer: bool = False, use: str = "explain"):
     audit row.
     """
 
-    from eurogas_nexus.application.ai_controls import ai_use_enabled, governed_model
+    from eurogas_nexus.application.ai_controls import (
+        ai_use_enabled,
+        governed_model,
+        provider_key,
+    )
     from eurogas_nexus.application.ai_style import ANSWER_CALL, NOTE_CALL
     from eurogas_nexus.core.config import get_settings
-    from eurogas_nexus.security.provider_keys import load_provider_api_key
 
     if not get_settings().llm_external_provider_enabled or ai_authority_denial(principal):
         return None
     if not ai_use_enabled(use):
         return None
-    api_key = load_provider_api_key("DEEPSEEK") or load_provider_api_key("LLM")
-    if not api_key:
+    api_key = provider_key()
+    if api_key is None:
         return None
     return governed_model(use, api_key=api_key, budget=ANSWER_CALL if answer else NOTE_CALL)
 
