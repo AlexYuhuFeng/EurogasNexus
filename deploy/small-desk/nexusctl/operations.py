@@ -257,6 +257,198 @@ def roles_sql(values: dict[str, str], roles_file: Path) -> str:
     return head + "\n" + roles_file.read_text(encoding="utf-8")
 
 
+#: The installation, step by step. Each finished step is recorded in state.json, so running
+#: `nexus install` again after a failure continues from the step that failed (the secrets of
+#: the first attempt are kept: the database was created with them).
+INSTALL_STEPS = (
+    ("release", "putting the release in place (a few minutes the first time)"),
+    ("secrets", "creating the secrets (kept on this PC, readable only by the administrator)"),
+    ("folders", "preparing the database and backup folders"),
+    ("tool", "installing the nexus command"),
+    ("database", "starting the database"),
+    ("schema", "creating the database tables (the gated database upgrade)"),
+    ("roles", "separating the database roles (schema owner, application, reader)"),
+    ("restore", "restoring the desk's data from the backup"),
+    ("start", "starting every part (a few minutes)"),
+    ("administrator", "creating the first administrator"),
+    ("first-backup", "taking the first backup"),
+    ("boot", "starting on boot and backing up every night"),
+)
+#: Test-only: stop the installation after this step, as a failure would (rehearsal and tests).
+FAIL_AFTER_ENV = "NEXUS_TEST_FAIL_AFTER_STEP"
+
+
+@dataclass
+class InstallJob:
+    bundle: Path
+    release: dict
+    settings: Settings
+    runner: Runner
+    out: Out
+    admin_user: str
+    systemd_dir: Path | None
+    bin_dir: Path | None
+    recovery_key: Path | None
+    restore_from: Path | None
+    ctx: Context | None = None
+    #: Over a database kept by `nexus uninstall`: its data is the desk's, back it up first.
+    over_kept_data: bool = False
+
+    @property
+    def record(self) -> dict:
+        return self.ctx.state.setdefault("install", {})
+
+    def values(self) -> dict[str, str]:
+        return read_env(self.settings.env_path)
+
+    def stack(self) -> Stack:
+        return self.ctx.stack()
+
+    # ---------------------------------------------------------------- the steps
+    def step_release(self) -> None:
+        release_dir = release.install_release(
+            self.bundle, self.release, self.settings.releases_dir, self.runner
+        )
+        shutil.copyfile(
+            self.bundle / "deploy" / "database_roles.sql", release_dir / "database_roles.sql"
+        )
+
+    def step_secrets(self) -> None:
+        if self.settings.env_path.is_file():
+            return  # an earlier attempt's secrets: the database was created with them
+        values = dict(FIXED_STACK_VALUES)
+        values.update(generate_secrets())
+        if self.recovery_key is not None:
+            kept = read_env(self.recovery_key)
+            if not kept.get("EUROGAS_NEXUS_SECRET_KEY"):
+                raise Stop(
+                    f"{self.recovery_key} holds no recovery key.",
+                    "Give the recovery-key.env file from the old PC's backup disk.",
+                )
+            values.update(
+                {name: value for name, value in kept.items() if name.startswith("EUROGAS")}
+            )
+        write_env(
+            self.settings.env_path, values, header="Eurogas Nexus secrets. Never share this file."
+        )
+
+    def step_folders(self) -> None:
+        for sub in ("postgres", "artifacts", "gateway"):
+            (self.settings.data_dir / sub).mkdir(parents=True, exist_ok=True)
+        owner = _image_user(self.runner, self.release["api_image"])
+        if owner:
+            os.chown(self.settings.data_dir / "artifacts", *owner)
+        self.settings.backups.mkdir(parents=True, exist_ok=True)
+        os.chmod(self.settings.backups, 0o700)
+
+    def step_tool(self) -> None:
+        copy_tool(self.bundle, self.settings, self.bin_dir)
+
+    def step_database(self) -> None:
+        stack = self.stack()
+        stack.up(["postgres"])
+        if not stack.wait_database():
+            raise Stop("The database did not start.", SEND_DIAGNOSTICS)
+
+    def step_schema(self) -> None:
+        values, stack = self.values(), self.stack()
+        if self.over_kept_data:
+            plan = migrate_plan(stack)
+            if plan and not plan.get("up_to_date"):
+                take_backup(self.ctx, "pre-update", stack=stack)
+        superuser_url = (
+            f"postgresql+pg8000://{values['POSTGRES_USER']}:{values['POSTGRES_PASSWORD']}"
+            f"@postgres:5432/{values['POSTGRES_DB']}"
+        )
+        argv = [*UPGRADE, "upgrade", "--operator", "nexus install", "--yes"]
+        if not self.over_kept_data:
+            # A failed earlier attempt can leave part of the schema: the store then holds no
+            # desk data yet, so there is nothing a backup could protect.
+            argv += ["--without-backup", "new installation: the database holds no desk data yet"]
+        result = stack.run_once(
+            "migrate", argv, pass_env={"RUNTIME_STORE_DATABASE_URL": superuser_url}, timeout=3600
+        )
+        if not result.ok:
+            raise Stop("The database tables could not be created.", SEND_DIAGNOSTICS)
+        self.out.ok("Database tables ready.")
+
+    def step_roles(self) -> None:
+        values, stack = self.values(), self.stack()
+        exists = db_value(stack, "SELECT 1 FROM pg_roles WHERE rolname = 'eurogas_owner';",
+                          values["POSTGRES_DB"])
+        if exists == "1":
+            self.out.ok("Database roles already set up.")
+            return
+        release_dir = self.settings.releases_dir / self.release["version"]
+        # One transaction: a failure leaves no half-made roles behind.
+        applied = stack.psql(
+            roles_sql(values, release_dir / "database_roles.sql"),
+            database=values["POSTGRES_DB"],
+            single_transaction=True,
+        )
+        if not applied.ok:
+            raise Stop("The database roles could not be set up.", SEND_DIAGNOSTICS)
+        self.out.ok("Database roles set up.")
+
+    def step_restore(self) -> None:
+        if self.restore_from is None:
+            return
+        restore(self.ctx, str(self.restore_from), assume_yes=True, safety_backup=False,
+                start=False)
+
+    def step_start(self) -> None:
+        healthy, reason = bring_up(self.ctx, self.stack())
+        if not healthy:
+            raise Stop(f"The product did not start: {reason}.", SEND_DIAGNOSTICS)
+
+    def step_administrator(self) -> None:
+        if self.restore_from is not None or self.over_kept_data:
+            return  # the people come with the restored or kept database
+        values, stack = self.values(), self.stack()
+        name = self.admin_user.replace("'", "")
+        exists = db_value(
+            stack, f"SELECT 1 FROM identity_principals WHERE name = '{name}';",
+            values["POSTGRES_DB"],
+        )
+        self.out.line(
+            "\n  >>> Write down the one-time password printed below. It is shown only once. <<<\n"
+        )
+        if exists == "1":
+            # An earlier attempt created it, but its password may not have been seen: issue
+            # a new one-time password (the earlier one stops working).
+            argv = ["reset-password", "--username", self.admin_user]
+        else:
+            argv = ["create", "--username", self.admin_user, "--display-name", "Administrator",
+                    "--admin", "--scope", "BOOKS:*"]
+        created = stack.run_once(
+            "api", ["python", "-m", "eurogas_nexus.cli.accounts", *argv],
+            passthrough=True, timeout=300,
+        )
+        self.out.line("")
+        if not created.ok:
+            raise Stop("The administrator could not be created.", SEND_DIAGNOSTICS)
+
+    def step_first_backup(self) -> None:
+        take_backup(self.ctx, "manual")
+
+    def step_boot(self) -> None:
+        enable_boot(self.ctx, self.settings.root / "tool" / "nexus", self.systemd_dir)
+
+
+def _same_folders(saved: Settings, given: Settings) -> None:
+    for label, old, new in (
+        ("database folder (--data-dir)", saved.data_dir, given.data_dir),
+        ("backup folder (--backup-dir)", saved.backup_dir, given.backup_dir),
+    ):
+        if Path(old) != Path(new):
+            raise Stop(
+                f"The earlier installation used {old} as the {label}, not {new}. Nothing was "
+                "changed.",
+                f"Run the same command with {old}, or remove the earlier attempt first: "
+                "`sudo nexus uninstall --delete-data`.",
+            )
+
+
 def install(
     *,
     bundle: Path,
@@ -276,12 +468,51 @@ def install(
     out.title("Installing Eurogas Nexus on this PC")
     rel = release.read_release(bundle)
     out.ok(f"Release folder: version {rel['version']}.")
-    if settings.state_path.is_file():
+
+    state = load_state(settings) if settings.state_path.is_file() else {}
+    record = dict(state.get("install") or {})
+    if state and record.get("status", "complete") == "complete":
+        current = (state.get("current") or {}).get("version", "?")
         raise Stop(
-            f"Eurogas Nexus is already installed in {settings.root}.",
-            "To see how it is: `sudo nexus status`. To install a new version: "
-            "`sudo nexus update <release folder>`.",
+            f"Eurogas Nexus {current} is already installed in {settings.root} and its "
+            "installation finished. Nothing was changed.",
+            "See how it is: `sudo nexus status`. Install a new version: `sudo nexus update "
+            "<release folder>`. Remove it: `sudo nexus uninstall` (keeps the data and backups).",
         )
+    resuming = bool(state) and record.get("status") == "in progress"
+    reinstalling = bool(state) and record.get("status") == "removed"
+    if resuming or reinstalling:
+        saved = Settings.load(settings.root)
+        _same_folders(saved, settings)
+        if resuming and (state.get("current") or {}).get("version") != rel["version"]:
+            raise Stop(
+                f"The earlier attempt installed version {state['current']['version']}; this "
+                f"release folder is {rel['version']}. Nothing was changed.",
+                "Run the install from the same release folder, or remove the earlier attempt "
+                "first: `sudo nexus uninstall --delete-data`.",
+            )
+        settings.server_names = settings.server_names or saved.server_names
+        if resuming:
+            out.ok(f"Continuing the installation that stopped at step "
+                   f"'{record.get('failed_step') or '?'}'.")
+        else:
+            out.ok(f"Installing again over the data kept in {saved.data_dir}.")
+    elif any((settings.data_dir / "postgres").glob("*")):
+        raise Stop(
+            f"{settings.data_dir / 'postgres'} already holds a database that this installation "
+            "did not create. Nothing was changed.",
+            "Choose another --data-dir, or, if that data is not needed, ask IT to remove the "
+            "folder first.",
+        )
+
+    if resuming or reinstalling:
+        # The earlier attempt's own containers hold the port; stop them before the checks.
+        version = (state.get("current") or {}).get("version")
+        if version and (settings.releases_dir / version / "compose.yaml").is_file():
+            # Only the application: the database keeps running for the steps still to do.
+            Context(settings, runner, out, state).stack_for(version).stop(
+                ["gateway", "api", "scheduler", "market-events"]
+            )
 
     out.line("\nChecking this PC")
     found = prerequisite_checks(
@@ -302,107 +533,69 @@ def install(
     out.line("\nInstalling")
     settings.root.mkdir(parents=True, exist_ok=True)
     out.log_path = settings.log_path
-    out.step("putting the release in place (this can take a few minutes the first time)")
-    release_dir = release.install_release(bundle, rel, settings.releases_dir, runner)
-    shutil.copyfile(bundle / "deploy" / "database_roles.sql", release_dir / "database_roles.sql")
-
-    out.step("creating the secrets (kept on this PC, readable only by the administrator)")
-    values = dict(FIXED_STACK_VALUES)
-    values.update(generate_secrets())
-    if recovery_key is not None:
-        kept = read_env(recovery_key)
-        if not kept.get("EUROGAS_NEXUS_SECRET_KEY"):
-            raise Stop(f"{recovery_key} holds no recovery key.", "Give the recovery-key.env file "
-                       "from the old PC's backup disk.")
-        values.update({name: value for name, value in kept.items() if name.startswith("EUROGAS")})
-    write_env(settings.env_path, values, header="Eurogas Nexus secrets. Never share this file.")
     settings.save()
-
-    for sub in ("postgres", "artifacts", "gateway"):
-        (settings.data_dir / sub).mkdir(parents=True, exist_ok=True)
-    owner = _image_user(runner, rel["api_image"])
-    if owner:
-        os.chown(settings.data_dir / "artifacts", *owner)
-    settings.backups.mkdir(parents=True, exist_ok=True)
-    os.chmod(settings.backups, 0o700)
-
-    ctx = Context(
-        settings,
-        runner,
-        out,
+    done = list(record.get("done") or []) if resuming else []
+    if reinstalling:
+        done = ["secrets", "roles"]  # kept by `nexus uninstall`, with the database
+    state.update(
         {
             "current": {"version": rel["version"], "api_image": rel["api_image"],
                         "installed_at_utc": iso(now_utc())},
             "previous": None,
             "update": None,
-            "history": [{"at_utc": iso(now_utc()), "event": "installed",
-                         "version": rel["version"]}],
-        },
+        }
+    )
+    state.setdefault("history", [])
+    state["install"] = {
+        "status": "in progress",
+        "done": done,
+        "failed_step": None,
+        "started_at_utc": record.get("started_at_utc") or iso(now_utc()),
+        "systemd_dir": str(systemd_dir) if systemd_dir else None,
+        "bin_dir": str(bin_dir) if bin_dir else None,
+    }
+    ctx = Context(settings, runner, out, state)
+    ctx.save()
+    job = InstallJob(bundle, rel, settings, runner, out, admin_user, systemd_dir, bin_dir,
+                     recovery_key, restore_from, ctx=ctx, over_kept_data=reinstalling)
+    fail_after = os.environ.get(FAIL_AFTER_ENV, "")
+    skipped = set()
+    if restore_from is None:
+        skipped.add("restore")
+    if restore_from is not None or reinstalling:
+        skipped.add("administrator")  # the people come with the restored or kept database
+    for name, words in INSTALL_STEPS:
+        # The database is started again on every run: a later step needs it running even
+        # when the PC was restarted between the attempts.
+        if name in job.record["done"] and name != "database":
+            continue
+        if name in skipped:
+            job.record["done"].append(name)
+            continue
+        out.step(words)
+        try:
+            getattr(job, "step_" + name.replace("-", "_"))()
+            if name == fail_after:
+                raise Stop(f"test stop after step '{name}' ({FAIL_AFTER_ENV})")
+        except (Stop, release.ReleaseError, OSError) as exc:
+            job.record["failed_step"] = name
+            ctx.save()
+            todo = getattr(exc, "todo", None)
+            raise Stop(
+                f"{exc} The installation stopped at step '{name}'.",
+                (todo.rstrip(".") + ". Then " if todo else "Fix the problem, then ")
+                + "run the same install command again: it continues from this step.",
+            ) from exc
+        if name not in job.record["done"]:
+            job.record["done"].append(name)
+        ctx.save()
+
+    job.record.update(status="complete", failed_step=None, finished_at_utc=iso(now_utc()))
+    state["history"].append(
+        {"at_utc": iso(now_utc()), "event": "reinstalled" if reinstalling else "installed",
+         "version": rel["version"]}
     )
     ctx.save()
-    nexus = copy_tool(bundle, settings, bin_dir)
-    stack = ctx.stack()
-
-    out.step("starting the database")
-    stack.up(["postgres"])
-    if not stack.wait_database():
-        raise Stop("The database did not start.", SEND_DIAGNOSTICS)
-
-    superuser_url = (
-        f"postgresql+pg8000://{values['POSTGRES_USER']}:{values['POSTGRES_PASSWORD']}"
-        f"@postgres:5432/{values['POSTGRES_DB']}"
-    )
-    out.step("creating the database tables (the gated database upgrade)")
-    result = stack.run_once(
-        "migrate",
-        [*UPGRADE, "upgrade", "--operator", "nexus install", "--yes"],
-        pass_env={"RUNTIME_STORE_DATABASE_URL": superuser_url},
-        timeout=3600,
-    )
-    if not result.ok:
-        raise Stop("The database tables could not be created.", SEND_DIAGNOSTICS)
-    out.ok("Database tables created.")
-
-    out.step("separating the database roles (schema owner, application, reader)")
-    applied = stack.psql(roles_sql(values, release_dir / "database_roles.sql"),
-                         database=values["POSTGRES_DB"])
-    if not applied.ok:
-        raise Stop("The database roles could not be set up.", SEND_DIAGNOSTICS)
-    out.ok("Database roles set up.")
-
-    if restore_from is not None:
-        out.step(f"restoring the desk's data from {restore_from}")
-        restore(ctx, str(restore_from), assume_yes=True, safety_backup=False, start=False)
-
-    out.step("starting every part (a few minutes)")
-    healthy, reason = bring_up(ctx, stack)
-    if not healthy:
-        raise Stop(f"The product did not start: {reason}.", SEND_DIAGNOSTICS)
-
-    if restore_from is None:
-        out.step(f"creating the first administrator, {admin_user!r}")
-        out.line(
-            "\n  >>> Write down the one-time password printed below. It is shown only once. <<<\n"
-        )
-        created = stack.run_once(
-            "api",
-            [
-                "python", "-m", "eurogas_nexus.cli.accounts", "create",
-                "--username", admin_user, "--display-name", "Administrator",
-                "--admin", "--scope", "BOOKS:*",
-            ],
-            passthrough=True,
-            timeout=300,
-        )
-        out.line("")
-        if not created.ok:
-            out.problem("The administrator could not be created.", SEND_DIAGNOSTICS)
-
-    out.step("taking the first backup")
-    take_backup(ctx, "manual")
-
-    out.step("starting on boot and backing up every night")
-    enable_boot(ctx, nexus, systemd_dir)
 
     certificate = export_certificate(settings)
     out.title("Installed")
@@ -415,7 +608,7 @@ def install(
             f"The browsers must trust this server's certificate once: install {certificate} on "
             "each trader's PC as a trusted root certificate (install guide, step 6)."
         )
-    if restore_from is None:
+    if restore_from is None and not reinstalling:
         out.line(
             f"Sign in as {admin_user!r} with the one-time password above; you will choose your "
             "own password and set up an authenticator app (second factor)."
@@ -425,6 +618,101 @@ def install(
         "replacement PC needs it to read the restored data (helpdesk card)."
     )
     out.line("Check the desk server at any time with:  sudo nexus status")
+    return 0
+
+
+# ====================================================================== uninstall
+DELETE_WORDS = "delete all desk data"
+
+
+def uninstall(ctx: Context, *, delete_data: bool, confirmation: str | None,
+              assume_yes: bool) -> int:
+    """Remove the product from this PC. Keeps the database, the backups and the secrets that
+    open them unless ``delete_data``, which needs the words in ``DELETE_WORDS`` typed."""
+
+    out, settings = ctx.out, ctx.settings
+    out.title("Removing Eurogas Nexus from this PC")
+    if delete_data:
+        out.line(
+            f"This deletes the desk's DATABASE ({settings.data_dir}), its BACKUPS "
+            f"({settings.backups}) and its secrets. It cannot be undone. A copy on an office "
+            "share or removable disk is not touched."
+        )
+        typed = confirmation
+        if typed is None:
+            try:
+                typed = input(f"Type '{DELETE_WORDS}' to continue: ")
+            except EOFError:
+                typed = ""
+        if typed.strip().lower() != DELETE_WORDS:
+            out.line("Not removed. Nothing was changed.")
+            return 1
+    else:
+        out.line(
+            f"The program is removed. The database ({settings.data_dir}), the backups "
+            f"({settings.backups}) and the secrets that open them are kept; `sudo ./nexus "
+            "install` from a release folder brings the desk back with its data."
+        )
+        if not assume_yes and not confirm("Type 'uninstall' to continue: ", "uninstall"):
+            out.line("Not removed. Nothing was changed.")
+            return 1
+
+    versions = sorted(
+        item.name for item in settings.releases_dir.glob("*") if (item / "compose.yaml").is_file()
+    ) if settings.releases_dir.is_dir() else []
+    current = ctx.state.get("current") or {}
+    running = current.get("version") in versions
+    if running and not delete_data and (ctx.state.get("install") or {}).get(
+        "status", "complete"
+    ) == "complete":
+        try:
+            out.step("taking a last backup")
+            take_backup(ctx, "manual")
+        except Stop as exc:
+            out.warn(f"No last backup ({exc}); the earlier backups are kept.")
+    if running:
+        out.step("stopping and removing the product's containers")
+        ctx.stack().compose(["down", "--remove-orphans"], timeout=600)
+    for version in versions:
+        try:
+            image = json.loads((settings.releases_dir / version / "release.json").read_text())[
+                "api_image"
+            ]
+            ctx.runner.run(["docker", "image", "rm", image], timeout=300)
+        except (OSError, ValueError, KeyError):
+            pass
+
+    record = ctx.state.get("install") or {}
+    systemd_dir = Path(record["systemd_dir"]) if record.get("systemd_dir") else None
+    if systemd_dir is not None:
+        if shutil.which("systemctl") and Path("/run/systemd/system").is_dir():
+            ctx.runner.run(["systemctl", "disable", "--now", systemd.SERVICE,
+                            systemd.BACKUP_TIMER], timeout=120)
+        for name in (systemd.SERVICE, systemd.BACKUP_SERVICE, systemd.BACKUP_TIMER):
+            (systemd_dir / name).unlink(missing_ok=True)
+        if shutil.which("systemctl") and Path("/run/systemd/system").is_dir():
+            ctx.runner.run(["systemctl", "daemon-reload"], timeout=60)
+    bin_dir = Path(record["bin_dir"]) if record.get("bin_dir") else None
+    if bin_dir is not None and (bin_dir / "nexus").is_symlink():
+        (bin_dir / "nexus").unlink()
+    for folder in (settings.releases_dir, settings.root / "tool", settings.root / "tool.staging"):
+        shutil.rmtree(folder, ignore_errors=True)
+
+    if delete_data:
+        out.log_path = None  # the log folder goes with the installation folder
+        shutil.rmtree(settings.data_dir, ignore_errors=True)
+        shutil.rmtree(settings.backups, ignore_errors=True)
+        shutil.rmtree(settings.root, ignore_errors=True)
+        out.ok("Removed, with the database, the backups and the secrets.")
+        return 0
+    ctx.state["install"] = {**record, "status": "removed", "done": [],
+                            "removed_at_utc": iso(now_utc())}
+    ctx.state.setdefault("history", []).append(
+        {"at_utc": iso(now_utc()), "event": "uninstalled", "version": current.get("version")}
+    )
+    ctx.save()
+    out.ok(f"Removed. Kept: {settings.data_dir}, {settings.backups} and the secrets in "
+           f"{settings.root}.")
     return 0
 
 

@@ -51,6 +51,7 @@ the beta channel, and an RC or stable release needs the final version (`1.0.0`),
 | `Eurogas-Nexus-Client-<version>-linux-x64.deb`, `-linux-arm64.deb` | Linux desktop client |
 | `Eurogas-Nexus-Server-<version>.zip` | Server operators on Linux or Windows: Compose file, HTTPS gateway configuration, configuration template, Windows installer scripts, deployment guides, and `release-identity.json` naming the exact API image digest |
 | `eurogas-nexus-web-<version>.tar.gz` | The web client, for hosting behind the gateway |
+| `eurogas-nexus-small-desk-<version>.tar.gz` | One-PC installation on Ubuntu with Docker: the `nexus` command (install, status, backup, update, undo, diagnostics), the stack, this release's web client, and the API image pinned by digest ([SMALL_DESK_INSTALL.md](../operations/SMALL_DESK_INSTALL.md)) |
 | `eurogas-nexus-sboms-<version>.tar.gz` | Software bills of materials (Python, npm, Rust, container) |
 | `release-manifest.json`, `SHA256SUMS` | What was built from which commit, and checksums for every asset |
 | API container image `ghcr.io/<owner>/eurogasnexus-api@sha256:...` | The server runtime, pulled by digest; build provenance is attested |

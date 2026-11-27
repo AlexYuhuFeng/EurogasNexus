@@ -88,6 +88,10 @@ What it does, in this order, and what it prints:
 6. Takes the first backup, sets up the nightly backup (01:30) and starting at boot.
 7. Ends with the **address to open** and the certificate file for the traders' browsers.
 
+If it stops on the way with a PROBLEM, fix what it says and run the same command again: it
+continues from the step that stopped. It never takes over a database folder it did not create,
+and it refuses to run over a finished installation.
+
 ## Step 6: the traders' PCs
 
 The address uses the server's own certificate. Each trader's browser must trust it once:

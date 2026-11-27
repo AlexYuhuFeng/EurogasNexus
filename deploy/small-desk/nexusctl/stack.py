@@ -246,7 +246,14 @@ class Stack:
     def secrets(self) -> dict[str, str]:
         return read_env(self.settings.env_path)
 
-    def psql(self, sql: str, *, database: str | None = None, timeout: float = 600) -> Result:
+    def psql(
+        self,
+        sql: str,
+        *,
+        database: str | None = None,
+        timeout: float = 600,
+        single_transaction: bool = False,
+    ) -> Result:
         values = self.secrets()
         return self.compose(
             [
@@ -260,6 +267,7 @@ class Stack:
                 "--no-align",
                 "-v",
                 "ON_ERROR_STOP=1",
+                *(["--single-transaction"] if single_transaction else []),
                 "-U",
                 values["POSTGRES_USER"],
                 "-d",

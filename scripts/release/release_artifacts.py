@@ -57,6 +57,8 @@ def artifact_platform_arch(name: str) -> tuple[str, str]:
         platform = "linux"
     elif "linux" in lowered or lowered.endswith(".deb") or lowered.endswith(".appimage"):
         platform = "linux"
+    elif lowered.endswith(".tar.gz") and "small-desk" in lowered:
+        platform = "linux"
     elif lowered.endswith(".tar.gz") and "web" in lowered:
         platform = "web"
     elif lowered.endswith(".zip"):
@@ -84,6 +86,8 @@ def artifact_type(name: str) -> str:
         return "debian-package"
     if lowered.endswith(".dmg"):
         return "macos-disk-image"
+    if lowered.endswith(".tar.gz") and "small-desk" in lowered:
+        return "small-desk-bundle"
     if lowered.endswith(".tar.gz") and "web" in lowered:
         return "web-bundle"
     if lowered.endswith(".zip"):
