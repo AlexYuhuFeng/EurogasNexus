@@ -145,6 +145,22 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # SCHED-1: the gas day's reconciliation of trades, confirmations and nominations, a read
     # of the caller's own books (portfolio.read held in the handler); nothing is sent.
     ("/api/desk/gas-day/{gas_day}/reconciliation", Permission.READ),
+    # Deal capture: reads of the caller's own books (portfolio.read in the handler; the risk
+    # pack also risk.limits.read). The end-of-day check reads an uploaded ETRM export and
+    # stores nothing. Writes are declared per method below.
+    ("/api/desk/deals", Permission.READ),
+    ("/api/desk/deals/formats", Permission.READ),
+    ("/api/desk/deals/history", Permission.READ),
+    ("/api/desk/deals/etrm-sheet", Permission.READ),
+    ("/api/desk/deals/pnl", Permission.READ),
+    ("/api/desk/deals/pack", Permission.READ),
+    ("/api/desk/deals/pack-schedule", Permission.READ),
+    ("/api/desk/deals/eod-check", Permission.READ),
+    ("/api/desk/deals/pack/send", Permission.WRITE),
+    ("/api/desk/deals/import", Permission.WRITE),
+    ("/api/desk/deals/manual", Permission.WRITE),
+    ("/api/desk/deals/problems/{problem_id}/resolve", Permission.WRITE),
+    ("/api/desk/deals/close", Permission.WRITE),
     # Market reports (application/reports): the catalogue is a declaration; reading a stored
     # report is a read of figures the reader is re-checked for (sources and books). Proposing
     # a plan may call the model, and generating one stores a record and may call the model,
@@ -463,6 +479,15 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("PUT", "/api/settings/organisation", Permission.ADMIN),
     ("POST", "/api/assumption-sets", Permission.GOVERNED),
     ("POST", "/api/desk/gas-day/status", Permission.WRITE),
+    # Deal capture writes record the desk's own deals and the day's close (portfolio.write
+    # held in the handler, audited); nothing is ordered, nominated or booked (rule 8).
+    ("POST", "/api/desk/deals/import", Permission.WRITE),
+    ("POST", "/api/desk/deals/manual", Permission.WRITE),
+    ("POST", "/api/desk/deals/problems/{problem_id}/resolve", Permission.WRITE),
+    ("POST", "/api/desk/deals/close", Permission.WRITE),
+    ("POST", "/api/desk/deals/pack/send", Permission.WRITE),
+    ("PUT", "/api/desk/deals/pack-schedule", Permission.WRITE),
+    ("POST", "/api/desk/deals/eod-check", Permission.READ),
     ("PUT", "/api/market/firm-marks", Permission.GOVERNED),
     ("POST", "/api/opportunities/evaluations", Permission.GOVERNED),
     ("PUT", "/api/opportunities/settings", Permission.REVIEW),

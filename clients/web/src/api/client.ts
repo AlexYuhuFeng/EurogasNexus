@@ -9,6 +9,21 @@ import type {
 } from "./comparablePrices";
 import type { EvaluationDTO, InterpretationDTO, SpreadBoardDTO, StrategySpecDTO } from "./spreads";
 import type { PromptMarketDTO, StrategyTrackDTO } from "./strategyTracks";
+import type {
+  CloseDayInput,
+  CloseDayResultDTO,
+  DealBlotterDTO,
+  DealBlotterFilters,
+  DealFormatsDTO,
+  DealImportDTO,
+  DealPnlDTO,
+  DealRowDTO,
+  EodCheckDTO,
+  ManualDealInput,
+  ManualDealResultDTO,
+  PackScheduleDTO,
+  PackScheduleInput,
+} from "./deals";
 import type { ViewMetaDTO } from "@/app/data/viewFreshness";
 import type { ServerNote } from "@/app/warningLabel";
 
@@ -713,6 +728,15 @@ export function reconciliationParams(filters: GasDayReconciliationFilters): Reco
   return params;
 }
 
+/** The deal blotter's filters as query parameters, leaving out what is not set. */
+export function dealBlotterParams(filters: DealBlotterFilters): Record<string, string> {
+  const params: Record<string, string> = { day: filters.day };
+  if (filters.trader) params.trader = filters.trader;
+  if (filters.hub) params.hub = filters.hub;
+  if (filters.venue) params.venue = filters.venue;
+  return params;
+}
+
 /** CSV download, kept for callers that offer only CSV. */
 export function downloadReportCsv(path: string, params: Record<string, string> = {}): Promise<void> {
   return downloadReport(path, params, "csv");
@@ -788,6 +812,27 @@ async function post<T, M = ApiMeta>(path: string, body: unknown, options: ApiReq
 }
 
 /**
+ * Send a file's bytes as the request body (an exchange export, an ETRM export), with query
+ * parameters; the server reads the body as the file, so no form-data parser is needed.
+ */
+async function postFile<T, M = ApiMeta>(
+  path: string,
+  file: Blob,
+  params: Record<string, string> = {},
+  contentType = "text/csv",
+): Promise<ApiResponse<T, M>> {
+  notifyApiWrite();
+  const url = new URL(apiUrl(path));
+  Object.entries(params).forEach(([k, v]) => { if (v) url.searchParams.set(k, v); });
+  const response = await fetch(url.toString(), requestInit({
+    method: "POST",
+    headers: { "Content-Type": contentType },
+    body: file,
+  }));
+  return parseResponse<ApiResponse<T, M>>(response);
+}
+
+/**
  * A read sent as POST because its question does not fit a query string (a list of prices to
  * convert). It changes nothing on the server, so kept answers stay valid: no write notice.
  */
@@ -802,6 +847,22 @@ async function postRead<T, M = ApiMeta>(path: string, body: unknown, options: Ap
 }
 
 // --- Types ---
+
+export type {
+  CloseDayInput,
+  CloseDayResultDTO,
+  DealBlotterDTO,
+  DealBlotterFilters,
+  DealFormatsDTO,
+  DealImportDTO,
+  DealPnlDTO,
+  DealRowDTO,
+  EodCheckDTO,
+  ManualDealInput,
+  ManualDealResultDTO,
+  PackScheduleDTO,
+  PackScheduleInput,
+} from "./deals";
 
 export interface NodeDTO {
   id: string; name: string; node_type: string; country: string;
@@ -4779,6 +4840,9 @@ export interface CreditLineInput {
   limit_amount: number;
   currency: string;
   collateral_amount: number;
+  /** A guarantee held (exact decimal text, in the line's currency) and its expiry. */
+  guarantee_amount?: string | null;
+  guarantee_expiry?: string | null;
   rating?: string | null;
   contract_ids: string[];
   receivable_days: number;
@@ -4793,6 +4857,7 @@ export interface CreditLineInput {
 export interface CreditLineDTO {
   counterparty_id: string; name: string; aliases: string[]; legal_entity: string | null;
   limit_amount: number; currency: string; collateral_amount: number; rating: string | null;
+  guarantee_amount?: string | null; guarantee_expiry?: string | null;
   contract_ids: string[]; receivable_days: number; valid_until: string | null;
   updated_by: string; updated_at_utc: string | null;
   provenance?: FigureProvenanceDTO;
@@ -6768,6 +6833,31 @@ export const api = {
     put<GovernedSaveDTO>(`/portfolio/hedge-approvals/${encodeURIComponent(contractId)}`, body),
   sellDownPlan: (body: SellDownInput, options?: ApiRequestOptions) =>
     post<SellDownPlanDTO>("/portfolio/sell-down-plan", body, options),
+  // Deal capture (SMALL_DESK_PLAN steps 1-2): the blotter, imports, the ETRM entry sheet,
+  // the end-of-day check and close, and the daily pack. Types in ./deals.ts.
+  dealBlotter: (filters: DealBlotterFilters, options?: ApiRequestOptions) =>
+    get<DealBlotterDTO>("/desk/deals", dealBlotterParams(filters), options),
+  dealFormats: (options?: ApiRequestOptions) => get<DealFormatsDTO>("/desk/deals/formats", undefined, options),
+  dealHistory: (dealKey: string, options?: ApiRequestOptions) =>
+    get<DealRowDTO[]>("/desk/deals/history", { deal_key: dealKey }, options),
+  dealPnl: (day: string, options?: ApiRequestOptions) => get<DealPnlDTO>("/desk/deals/pnl", { day }, options),
+  importDeals: (file: File, bookId: string, format?: string) =>
+    postFile<DealImportDTO>("/desk/deals/import", file, { book_id: bookId, file_name: file.name, ...(format ? { format } : {}) }),
+  enterManualDeal: (body: ManualDealInput) => post<ManualDealResultDTO>("/desk/deals/manual", body),
+  resolveDealProblem: (problemId: string, note: string) =>
+    post<{ problem_id: string }>(`/desk/deals/problems/${encodeURIComponent(problemId)}/resolve`, { note }),
+  dealEodCheck: (file: File, day: string) =>
+    postFile<EodCheckDTO>("/desk/deals/eod-check", file, { day, file_name: file.name }),
+  closeDealDay: (body: CloseDayInput) => post<CloseDayResultDTO>("/desk/deals/close", body),
+  sendDailyPack: (body: { day: string; kinds: string[]; languages: string[] }) =>
+    post<{ queued: { pack_id: string; kind: string; language: string; warnings: string[] }[] }>("/desk/deals/pack/send", body),
+  dailyPackSchedule: (options?: ApiRequestOptions) => get<PackScheduleDTO>("/desk/deals/pack-schedule", undefined, options),
+  saveDailyPackSchedule: (body: PackScheduleInput) => put<PackScheduleDTO>("/desk/deals/pack-schedule", body),
+  /** The ETRM entry sheet (`format` csv or xlsx) and the daily pack (pdf or xlsx) as files. */
+  downloadEtrmSheet: (day: string, format: "csv" | "xlsx") => downloadReport("/desk/deals/etrm-sheet", { day }, format),
+  downloadDailyPack: (day: string, kind: "management" | "risk", language: "en" | "zh-CN", format: "pdf" | "xlsx") =>
+    downloadReport("/desk/deals/pack", { day, kind, language }, format),
+  downloadDealBlotter: (filters: DealBlotterFilters) => downloadReport("/desk/deals", dealBlotterParams(filters), "csv"),
   tradingBooks: (options?: ApiRequestOptions) => get<TradingBooksDTO>("/portfolio/books", undefined, options),
   saveTradingBook: (bookId: string, body: TradingBookInput) =>
     put<{ book_id: string; created: boolean; contracts_assigned: number; orders_assigned: number }>(

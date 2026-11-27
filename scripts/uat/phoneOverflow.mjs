@@ -16,7 +16,7 @@
 
 export const PHONE_ROUTES = [
   ...["overview", "curves", "network", "capacity"].map((task) => `?workspace=market&task=${task}`),
-  ...["overview", "resources", "exposure", "delivery"].map((task) => `?workspace=contracts&task=${task}`),
+  ...["overview", "resources", "exposure", "delivery", "deals"].map((task) => `?workspace=contracts&task=${task}`),
   ...["review", "nomination", "dispatch"].map((task) => `?workspace=scenario&task=${task}`),
   "?workspace=research&task=reports",
   "?workspace=research&task=spreads",
@@ -144,7 +144,7 @@ export const JSON_UPLOAD_PENDING_REMOVAL = new Set(["?workspace=contracts&task=r
 
 export const PURPOSE_ROUTES = new Set([
   ...["overview", "curves", "network"].map((task) => `?workspace=market&task=${task}`),
-  ...["overview", "resources", "exposure", "delivery"].map((task) => `?workspace=contracts&task=${task}`),
+  ...["overview", "resources", "exposure", "delivery", "deals"].map((task) => `?workspace=contracts&task=${task}`),
   ...["review", "nomination", "dispatch"].map((task) => `?workspace=scenario&task=${task}`),
   "?workspace=research&task=reports",
   "?workspace=research&task=spreads",

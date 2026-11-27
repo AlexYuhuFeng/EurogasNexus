@@ -1,0 +1,5 @@
+trade_id,trade_time,book_id,hub,side,delivery_start,delivery_end,quantity,quantity_unit,price,price_unit,status,counterparty,external_reference
+E-1,2026-11-26T09:15:02Z,desk-a,TTF,BUY,2026-12-01,2026-12-31,5,MW,31.25,EUR/MWh,,ICE Endex,9100001
+E-2,2026-11-26T10:01:44Z,desk-a,NBP,SELL,2027-01-01,2027-03-31,2000,th/d,95.10,GBp/th,,ICE Futures Europe,9100002
+E-3,2026-11-26T14:00:00Z,desk-a,THE,BUY,2026-12-01,2026-12-31,250,MWh/d,30.95,EUR/MWh,,Northwind Gas Trading,
+E-9,2026-11-26T16:00:00Z,desk-a,ZTP,BUY,2026-12-01,2026-12-31,100,MWh/d,29.00,EUR/MWh,,Example Energy GmbH,

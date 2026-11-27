@@ -1,0 +1,140 @@
+# The ETRM entry sheet: the day's deals laid out the way they are keyed into the ETRM.
+#
+# HOW TO EDIT (no programming needed)
+# - One [[column]] block per column of the sheet, in the order they appear left to right.
+#   Move a block to move the column; delete a block to drop it; copy one to add a column.
+# - header  = the column title exactly as the ETRM template has it.
+# - field   = which deal value goes in it (list below), or
+#   value   = a fixed text written in every row (a portfolio name, a strategy code).
+# - values  = how a value is written for the ETRM, e.g. { buy = "B", sell = "S" }.
+# - decimals = number of decimal places for a number; type = "number" writes a number cell in
+#   the XLSX (otherwise text exactly as formatted).
+# - date_format / datetime_format below: %d day, %m month, %b month name, %Y year (2026),
+#   %y year (26), %H hour, %M minute. E.g. "%d/%m/%Y" gives 27/11/2026.
+# - Put your edited copy in the folder named by EUROGAS_NEXUS_DEAL_FORMATS_DIR with the same
+#   file name (etrm_entry_sheet.toml); it then replaces this default.
+#
+# Deal values (field = ...):
+#   deal_key, venue, venue_trade_id, leg_id, trade_date, trade_time, trader, counterparty,
+#   counterparty_or_venue (the counterparty, or the exchange for a cleared deal), cleared,
+#   hub, product, delivery_start, delivery_end, side, volume, volume_unit, total_mwh, price,
+#   price_unit, price_currency, price_per_mwh, physical, instrument, fees, fee_currency,
+#   book, source, version, status
+#
+# STATUS: a sensible default. The desk's real ETRM template replaces it by editing this file.
+
+name = "etrm_entry_sheet"
+title = "ETRM entry sheet (default layout)"
+sheet_name = "ETRM entry"
+include_header = true
+csv_delimiter = ","
+date_format = "%d/%m/%Y"
+datetime_format = "%d/%m/%Y %H:%M"
+# Times in the sheet are written in this time zone.
+timezone = "Europe/London"
+decimal_separator = "."
+# Cancelled deals are left out of the entry sheet (they are listed on the blotter).
+include_cancelled = false
+
+[[column]]
+header = "Trade Date"
+field = "trade_date"
+
+[[column]]
+header = "Trade Time"
+field = "trade_time"
+
+[[column]]
+header = "Exchange Ref"
+field = "venue_trade_id"
+
+[[column]]
+header = "Venue"
+field = "venue"
+
+[[column]]
+header = "Trader"
+field = "trader"
+
+[[column]]
+header = "Book"
+field = "book"
+
+[[column]]
+header = "Counterparty"
+field = "counterparty_or_venue"
+
+[[column]]
+header = "Buy/Sell"
+field = "side"
+values = { buy = "Buy", sell = "Sell" }
+
+[[column]]
+header = "Hub"
+field = "hub"
+
+[[column]]
+header = "Product"
+field = "product"
+
+[[column]]
+header = "Start"
+field = "delivery_start"
+
+[[column]]
+header = "End"
+field = "delivery_end"
+
+[[column]]
+header = "Volume"
+field = "volume"
+decimals = 3
+type = "number"
+
+[[column]]
+header = "Volume Unit"
+field = "volume_unit"
+
+[[column]]
+header = "Total MWh"
+field = "total_mwh"
+decimals = 3
+type = "number"
+
+[[column]]
+header = "Price"
+field = "price"
+decimals = 4
+type = "number"
+
+[[column]]
+header = "Price Unit"
+field = "price_unit"
+
+[[column]]
+header = "Phys/Fin"
+field = "physical"
+values = { true = "Physical", false = "Financial" }
+
+[[column]]
+header = "Instrument"
+field = "instrument"
+
+[[column]]
+header = "Fees"
+field = "fees"
+decimals = 2
+type = "number"
+
+[[column]]
+header = "Source"
+field = "source"
+
+# How the ETRM's own export reads, for the end-of-day check. The export uses the columns of
+# scripts/ops/import_etrm_trades.py (trade_id, book_id, hub, side, delivery_start,
+# delivery_end, quantity, quantity_unit, price, price_unit[, status, counterparty]).
+[etrm_export]
+system = "ETRM"
+# The ETRM column that carries the exchange's trade id (what "Exchange Ref" above is keyed
+# into). Blank: deals are matched by hub, side, delivery period, volume and price instead.
+reference_column = "external_reference"

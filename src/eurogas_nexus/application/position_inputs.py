@@ -11,6 +11,9 @@ Keeping it here, not inside one router, means the risk reads cannot drift from t
 
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -21,6 +24,34 @@ from eurogas_nexus.domain.ontology.identity import resolve_hub
 from eurogas_nexus.domain.ontology.markets import european_gas_hubs, quote_currency
 
 HUB_CODES = european_gas_hubs()
+
+#: Deals captured today and not yet in the ETRM book, laid over the book for one calculation
+#: (the daily pack's desk estimate): screen-order-shaped observations with provider
+#: ``DEAL_CAPTURE``, their books and counterparties. Empty everywhere else, so no other screen
+#: changes (``application/deal_capture.overlay``).
+_OVERLAY: ContextVar[tuple[list, dict[str, str], dict[str, str]] | None] = ContextVar(
+    "eurogas_deal_overlay", default=None
+)
+
+
+@contextmanager
+def captured_overlay(
+    orders: list, books: dict[str, str], counterparties: dict[str, str]
+) -> Iterator[None]:
+    """Lay captured deals over the book for the calculations inside the block."""
+
+    token = _OVERLAY.set((list(orders), dict(books), dict(counterparties)))
+    try:
+        yield
+    finally:
+        _OVERLAY.reset(token)
+
+
+def overlay_counterparties() -> dict[str, str]:
+    """Per overlaid deal reference, its counterparty (credit exposure faces it)."""
+
+    held = _OVERLAY.get()
+    return held[2] if held else {}
 HUB_CURRENCY = {code: quote_currency(code) for code in HUB_CODES}
 CURVE_QUOTE_LOOKBACK_DAYS = 10
 
@@ -754,6 +785,10 @@ def ladder_inputs(
         identity = load_resolver(session)
         eur_rates = ecb_rates(session)
         orders = screen_orders(session, principal_id=caller.principal_id)
+    overlay = _OVERLAY.get()
+    if overlay is not None:
+        orders = [*orders, *overlay[0]]
+        order_books = {**order_books, **overlay[1]}
     from eurogas_nexus.domain.contracts import kinds
 
     cargo_contracts: dict[str, str] = {}  # cargo id -> the contract leg that already holds it

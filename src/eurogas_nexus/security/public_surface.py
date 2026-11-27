@@ -65,6 +65,21 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/desk/gas-day/status",
         # SCHED-1: why trades, confirmations and nominations disagree (read only).
         "/api/desk/gas-day/{gas_day}/reconciliation",
+        # Deal capture (SMALL_DESK_PLAN step 1-2): imports, blotter, ETRM sheet, the
+        # end-of-day check and close, and the daily pack.
+        "/api/desk/deals",
+        "/api/desk/deals/formats",
+        "/api/desk/deals/history",
+        "/api/desk/deals/etrm-sheet",
+        "/api/desk/deals/pnl",
+        "/api/desk/deals/pack",
+        "/api/desk/deals/pack-schedule",
+        "/api/desk/deals/pack/send",
+        "/api/desk/deals/import",
+        "/api/desk/deals/manual",
+        "/api/desk/deals/problems/{problem_id}/resolve",
+        "/api/desk/deals/eod-check",
+        "/api/desk/deals/close",
         "/api/reports/catalogue",
         "/api/reports/plan",
         "/api/reports/market",

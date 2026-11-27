@@ -40,7 +40,7 @@ test("the primary row is four modes in the plan's order, each with its tasks", (
     // Opportunities first (CP-14); Evaluate, Optimise and Routes & netback left with CP-00.
     ["opportunities", "contracts", "review"],
     // Nominations and Storage are one Planning task, two views behind a switch (A.4).
-    ["position", "limits", "delivery", "planning"],
+    ["position", "blotter", "limits", "delivery", "planning"],
     ["fundamentals", "spreads", "cargo", "reports"],
   ]);
 });
@@ -82,6 +82,7 @@ test("every old task address lands on its new task; Decision Center's tasks each
     "contracts.overview": "book/position",
     "contracts.exposure": "book/limits",
     "contracts.delivery": "book/delivery",
+    "contracts.deals": "book/blotter",
     "contracts.resources": "deals/contracts",
     // Decision Center dissolved: review sits with the deals it approves; nomination and storage
     // planning are the two views of Book → Planning; Opportunities is the first Deals task.
@@ -186,12 +187,12 @@ test("a mode or task the role cannot use is absent; a mode never grants anything
   assert.deepEqual(ids(user(["REVIEWER"], reviewer)), [
     "desk:today,prices,network,cargoes",
     "deals:opportunities,contracts,review",
-    "book:position,limits,delivery",
+    "book:position,blotter,limits,delivery",
     "research:fundamentals,spreads,cargo,reports",
   ]);
   assert.equal(modeLanding("book", user(["REVIEWER"], reviewer))?.id, "position");
   // An analyst has everything.
-  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 15);
+  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 16);
   // No identity, or an older server without a permission list: what it had before.
   assert.equal(visibleModes(null).length, 4);
   assert.equal(visibleModes(user(["TRADER"], undefined)).length, 4);

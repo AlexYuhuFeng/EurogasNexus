@@ -60,7 +60,8 @@ where = ["src", "packages/python-sdk/src"]
 
 [tool.setuptools.package-data]
 # The NWE reference network bundle (MAP-01): seeded offline by scripts/ops/seed_reference_network.py.
-"eurogas_nexus.reference_data" = ["*.json"]
+# The deal-file formats and the ETRM entry sheet layout (deal capture), editable TOML.
+"eurogas_nexus.reference_data" = ["*.json", "deal_formats/*.toml"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
