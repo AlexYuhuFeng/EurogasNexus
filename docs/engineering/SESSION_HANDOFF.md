@@ -10,8 +10,8 @@ Eurogas Nexus is a decision-support second screen for a European gas trading des
 trading screens and the trading and risk system of record (the ETRM). It never places orders,
 submits nominations, settles or books.
 
-- `main` holds everything described below. The beta pre-release is created by the release
-  workflow (see section 8); the cloud session could not push tags.
+- `main` holds everything described below. `v1.0.0-beta.1` was published as a pre-release on
+  2026-11-27 from commit `8afe4cf`.
 - The demo server (https://8080-agq6hf7a5l6f4ybvl7s2z7xpuq.instabox.tech) runs the released
   `main` of 2026-11-27. The owner decided it stays on that version: do not deploy to it again
   unless he asks.
@@ -25,7 +25,8 @@ submits nominations, settles or books.
 ## 2. Read these, in this order
 
 1. `AGENTS.md` (the standing rules; rules 7, 8, 15, 16, 17, 18 and 19 matter most).
-2. `docs/architecture/ARCHITECTURE_V3_PLAN.md` sections 1, 5, 6, 7 and 8, then the layer
+2. `docs/product/SMALL_DESK_PLAN.md` (the current order of work), then
+   `docs/architecture/ARCHITECTURE_V3_PLAN.md` sections 1, 5, 6, 7 and 8, then the layer
    sections of section 3 as each work package needs them.
 3. `docs/engineering/ARCHITECTURE_V2_EXECUTION_STATE.md`, the newest entries at the top: what
    each merged package built and the decisions it recorded.
@@ -96,27 +97,16 @@ those files, seed from a stated instant the same way. The largest groups are in
 `test_map_situation_api`, `test_nwe_balance_api`, `test_remit_outages_api`,
 `test_opportunity_stream`, `test_gas_for_power_api` and `test_position_ladder_cargoes`.
 
-Phase 1 items not yet built:
+**The order of feature work changed on 2026-11-27.** The owner interviewed the first user
+and approved `docs/product/SMALL_DESK_PLAN.md`: read it before the architecture plan. It sets
+five steps (end of day without retyping; a risk pack by email; position and profit and loss
+during the day; one trader screen; pre-filled orders) and parks most of the remaining phase 1
+and phase 3 work. Start at step 1 when the owner supplies the sample files and the private
+user profile; until then, build the install and self-support commands in section 3 of that
+file, which need nothing from the owner. `AGENTS.md` rule 8 was reworded the same day.
 
-1. **Removals** (plan section 5, approved): the strategy laboratory's "backtest", strategy
-   tracks and the shadow runtime; the second LNG cargo-economics engine and the second LNG
-   workspace; alerts and breach banners computed on simulated prices, and the credit banner on
-   the trader's landing page; the Linux desktop build as a supported product; two-thirds of
-   the documentation files moved to an archive.
-2. **Role model and segregation of duties**
-   (`decisions/DRAFT-role-model-and-segregation-of-duties.md`): separate roles for risk,
-   credit, compliance, product control and the head of desk; compliance reads the audit trail;
-   an approval screen in the client for dual control (today approval is an API call); alerts
-   routed to the right role.
-3. **Environments**: test and training environments with masked data.
-4. **Support model**, desk fallback card, onboarding path.
-5. **Phase 1 exit checks that need real hardware**: the load test at 50 users with three tabs
-   each, a restore to a chosen minute on a store of at least 50 GB, a failover drill with the
-   real standby image. See section 6.
-
-Then phase 2, "numbers you can sign" (plan section 6): legal entities and calendars, exact
-money and currency, the versioned trade copy with ETRM reconciliation, settlement history,
-the end-of-day close, one exposure model, the numerical library stack.
+Still worth doing from the earlier list, because the small desk needs it too: the approved
+**removals** (architecture plan section 5), which make the product smaller to run and support.
 
 Known open items from the merged work (do not lose these):
 
@@ -221,9 +211,8 @@ pushes and branch deletions were refused. Do these with the owner's own git cred
 1. Check that the hosted CI run for the newest commit on `main` is green (rule 16); fix what
    is red before anything else. See `docs/engineering/CI_AND_BRANCH_PROTECTION.md` for what
    only hosted CI verifies and how to reproduce each job.
-2. Release: the product version is `1.0.0-beta.1`. Either run the "Build and Release" workflow
-   on `main` with `release_channel: beta` (it creates the tag and the pre-release), or push
-   the tag `v1.0.0-beta`, which the workflow accepts as the alias of `v1.0.0-beta.1`.
+2. Release: done. `v1.0.0-beta.1` is published as a pre-release; check the tag exists locally
+   after `git fetch --tags`.
 3. Archive the research branch, then delete it:
    `git tag -a archive/research-agentic-decision-architecture origin/research/agentic-decision-architecture -m "Archived research branch"`
    and push the tag.

@@ -8,7 +8,9 @@
 5. No new microservices/Kubernetes/Kafka/service mesh/datastore without reviewed ADR and measured need.
 6. Preserve FastAPI, React, Tauri, PostgreSQL/Alembic and existing security/release/DR foundations unless an approved migration says otherwise.
 7. Work mode/persona never grants backend authority.
-8. No trade execution/order entry/nomination/settlement.
+8. No trade execution, order submission, nomination or settlement. The product may pre-fill an
+   order in the firm's own execution tool; a trader confirms every order there, and the product
+   never sends one by itself (owner, 2026-11-27).
 9. A new capability does not automatically earn a new page.
 10. Use bounded tasks, focused tests, explicit checkpoint updates and deterministic gates.
 11. Stop for Architecture V2 hard STOP conditions.
