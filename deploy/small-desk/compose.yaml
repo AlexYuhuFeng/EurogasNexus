@@ -51,6 +51,9 @@ x-runtime-environment: &runtime-environment
   # Local accounts, every person with a second factor (an authenticator app).
   EUROGAS_NEXUS_LOCAL_ACCOUNTS: "on"
   EUROGAS_NEXUS_MFA_REQUIRED: all
+  # One PC serves a handful of screens, so the live stream can look for new prices often: a
+  # price is on screen within about 200 ms of arriving (docs/product/SMALL_DESK_PLAN.md, 5).
+  EUROGAS_NEXUS_STREAM_POLL_SECONDS: "0.15"
   # Book and entity isolation, enforced in one place (db/book_scope.py).
   EUROGAS_NEXUS_PORTFOLIO_ISOLATION: "true"
   EUROGAS_NEXUS_SESSION_IDLE_MINUTES: ${EUROGAS_NEXUS_SESSION_IDLE_MINUTES:-30}
