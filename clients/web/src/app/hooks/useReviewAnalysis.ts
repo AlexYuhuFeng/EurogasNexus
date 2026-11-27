@@ -9,7 +9,7 @@ import { buildAnalysisPayload } from "@/app/index";
  * an AI-drafted artefact is the `draft` action's job, and the report itself is the backend's
  * deterministic run. What remains here is that run's input.
  */
-const REPORT_QUESTION = "Summarize current portfolio PnL, route, market, and strategy status.";
+const REPORT_QUESTION = "Summarize current portfolio PnL, route and market status.";
 
 export function useReviewAnalysis(
   language: string,

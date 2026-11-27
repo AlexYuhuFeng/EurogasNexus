@@ -1,4 +1,4 @@
-"""CR-15 domain contract tests: plans, StrategyIR, budgets, challenger."""
+"""CR-15 domain contract tests: plans, budgets, challenger."""
 
 from __future__ import annotations
 
@@ -17,18 +17,6 @@ from eurogas_nexus.domain.agents.research_plan import (
     ResearchPlan,
     deterministic_plan,
     validate_research_plan,
-)
-from eurogas_nexus.domain.agents.strategy_ir import (
-    StrategyIR,
-    StrategyIRDataRequirements,
-    StrategyIRParameter,
-    compile_strategy_ir,
-    example_strategy_ir,
-    validate_strategy_ir,
-)
-from eurogas_nexus.domain.ontology.vocabulary import (
-    ParameterType,
-    StrategyComponentType,
 )
 
 
@@ -120,78 +108,6 @@ def test_research_plan_validation_rejects_invalid_analysis() -> None:
         available_series={},
     )
     assert "INVALID_ANALYSIS" in result.blockers
-
-
-def test_strategy_ir_valid_example_compiles() -> None:
-    ir = example_strategy_ir()
-    result = validate_strategy_ir(ir, feature_catalog=_catalog())
-    assert result.ok is True
-    compiled = compile_strategy_ir(ir)
-    assert compiled.components[0].component_type == "OCM_VS_DAY_AHEAD"
-    assert compiled.parameter_definitions[0].parameter_id == "premium_threshold"
-    assert compiled.data_requirements.require_fx is True
-
-
-def test_strategy_ir_rejects_unknown_feature() -> None:
-    ir = example_strategy_ir()
-    result = validate_strategy_ir(ir, feature_catalog={})
-    assert "UNKNOWN_FEATURE" in {item.code for item in result.issues}
-
-
-def test_strategy_ir_rejects_unit_mismatch() -> None:
-    ir = example_strategy_ir()
-    ir.components[0].conditions[0].unit = "GBP/MWh"
-    result = validate_strategy_ir(ir, feature_catalog=_catalog())
-    assert "INVALID_UNIT" in {item.code for item in result.issues}
-
-
-def test_strategy_ir_rejects_invalid_parameter_range() -> None:
-    ir = example_strategy_ir()
-    ir.parameters = [
-        StrategyIRParameter(
-            parameter_id="bad",
-            parameter_type=ParameterType.DECIMAL,
-            min_value=5.0,
-            max_value=1.0,
-            default_value=0.0,
-        )
-    ]
-    result = validate_strategy_ir(ir, feature_catalog=_catalog())
-    assert "STRATEGY_INVALID" in {item.code for item in result.issues}
-
-
-def test_strategy_ir_rejects_extra_fields_and_code() -> None:
-    payload = example_strategy_ir().model_dump(mode="json")
-    payload["executable_code"] = "import os"
-    with pytest.raises(ValueError):
-        StrategyIR.model_validate(payload)
-
-
-def test_strategy_ir_rejects_unsupported_component() -> None:
-    ir = example_strategy_ir()
-    ir.components[0].component_type = StrategyComponentType.SCORING
-    result = validate_strategy_ir(ir, feature_catalog=_catalog())
-    assert result.ok is True  # SCORING is a known CR-03 component family
-
-    payload = ir.model_dump(mode="json")
-    payload["components"][0]["component_type"] = "ARBITRARY_PYTHON"
-    with pytest.raises(ValueError):
-        StrategyIR.model_validate(payload)
-
-
-def test_strategy_ir_rejects_missing_data_requirement() -> None:
-    ir = example_strategy_ir()
-    ir.data_requirements = StrategyIRDataRequirements(series_ids=["missing.series"])
-    result = validate_strategy_ir(ir, feature_catalog=_catalog(), available_series=set())
-    assert "DATA_MISSING" in {item.code for item in result.issues}
-
-
-def test_strategy_ir_rejects_invalid_risk_control() -> None:
-    ir = example_strategy_ir()
-    ir.risk_controls.max_ocm_allocation_pct = 5.0
-    ir.risk_controls.min_day_ahead_allocation_pct = 50.0
-    result = validate_strategy_ir(ir, feature_catalog=_catalog())
-    assert "STRATEGY_INVALID" in {item.code for item in result.issues}
 
 
 def test_budget_tracks_hypotheses_variants_and_backtests() -> None:

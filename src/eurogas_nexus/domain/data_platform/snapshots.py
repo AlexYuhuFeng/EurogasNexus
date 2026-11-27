@@ -2,7 +2,7 @@
 
 ``docs/engineering/Architecture-V2/07_DATA_PLATFORM.md`` section 6 makes the
 Analysis Snapshot the reproducibility reference that scenario, optimisation,
-strategy, report and AI evidence cite: a descriptor naming the as-of instant,
+report and AI evidence cite: a descriptor naming the as-of instant,
 time basis, and the *versions* of every input the analysis was computed
 against.
 
@@ -70,9 +70,6 @@ ACTIVE_CONTEXT_KEYS: tuple[str, ...] = (
     "hub",
     "route_id",
     "resource_id",
-    "strategy_id",
-    "strategy_version_id",
-    "strategy_run_id",
     "portfolio_id",
 )
 

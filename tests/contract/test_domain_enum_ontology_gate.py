@@ -114,9 +114,7 @@ _REVIEWED_DOMAIN_STR_ENUMS: set[str] = {
     "eurogas_nexus.domain.agents.contracts:CapabilityStatus",
     "eurogas_nexus.domain.agents.contracts:DeterminismClass",
     "eurogas_nexus.domain.agents.contracts:IdempotencyClass",
-    "eurogas_nexus.domain.agents.contracts:OrchestrationStage",
     "eurogas_nexus.domain.agents.contracts:SideEffectClass",
-    "eurogas_nexus.domain.agents.strategy_ir:StrategyIROperator",
     # Architecture V2 Wave 4 / Unified Data Platform ontology review. These are
     # data-contract posture vocabularies, not gas-market semantics, so they stay
     # beside their contract instead of entering the GRM ontology: availability

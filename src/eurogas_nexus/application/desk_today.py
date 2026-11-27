@@ -1626,7 +1626,6 @@ def _needs_me(
     urgent: list[dict] = []
     later: list[dict] = []
     could: list[dict] = []
-    signals: list[dict] = []
     try:
         from eurogas_nexus.application.discovery import discoveries
 
@@ -1647,9 +1646,7 @@ def _needs_me(
             entry = _finding_item(item, chinese.get(item["finding_id"]), found.get("as_of_utc"))
             if entry is None:
                 continue
-            if entry["kind"] == "strategy":
-                signals.append(entry)  # a tracked strategy's changed signal (paper)
-            elif entry["kind"] != "opportunity":
+            if entry["kind"] != "opportunity":
                 later.append(entry)  # credit and mandate findings sit with the limit alerts
             elif entry["lane"] == "could_act":
                 could.append(entry)
@@ -1682,7 +1679,6 @@ def _needs_me(
     items += [item for item in cargo if item["status"] == "breach"]
     later += [item for item in cargo if item["status"] != "breach"]
     items += urgent
-    items += signals
     held = {hub.upper() for hub in book.positions}
     scope = held | {hub.upper() for hub in focus}
     for outage in (changes.get("outages") or {}).get("items") or []:
@@ -1795,17 +1791,6 @@ def _finding_item(
             **common,
             "target": {"mode": "deals", "task": "opportunities",
                        "params": {"opportunity": opportunity_id}},
-        }
-    if kind.startswith("strategy."):
-        track_id = (item.get("link") or {}).get("track_id")
-        if not track_id:
-            return None
-        return {
-            "kind": "strategy",
-            "id": track_id,
-            **common,
-            "since_utc": evidence.get("as_of_utc"),
-            "target": {"mode": "research", "task": "spreads", "params": {"track": track_id}},
         }
     if kind.startswith(("credit.", "mandate.")):
         return {

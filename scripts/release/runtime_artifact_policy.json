@@ -30,7 +30,6 @@
     "scripts/ops/run_dataops_scheduler.py",
     "scripts/ops/run_monitoring_worker.py",
     "scripts/ops/run_public_ingestion_worker.py",
-    "scripts/ops/run_shadow_scheduler.py",
     "scripts/ops/seed_reference_network.py",
     "scripts/ops/upgrade_database.py",
     "scripts/ops/validate_runtime_db.py",

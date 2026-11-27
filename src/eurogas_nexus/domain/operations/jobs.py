@@ -189,12 +189,13 @@ JOB_RERUN_CONTRACTS: tuple[JobRerunContract, ...] = (
     ),
     JobRerunContract(
         kind=JobKind.AGENT_RUN,
-        rerun_possible=True,
-        input_owner="agent run row (objective, profile, period, frozen version)",
-        new_run_path="/api/agent/research",
+        rerun_possible=False,
+        input_owner="",
+        new_run_path="",
         reason=(
-            "A research run can be repeated from its recorded objective and profile. Its findings "
-            "are evidence of that run, so a repeat adds a run rather than replacing the chain."
+            "The governed research pipeline (plan, strategy draft, decision-time backtest) was "
+            "removed with the strategy laboratory; a historical run is evidence and is not "
+            "re-issued."
         ),
     ),
     JobRerunContract(

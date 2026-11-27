@@ -2,12 +2,9 @@
 
 from eurogas_nexus.domain.agents.challenge import ChallengeReport, ChallengeResult
 from eurogas_nexus.domain.agents.contracts import (
-    DEFAULT_AGENT_PROFILES,
-    PROFILES_BY_ID,
     ActionPolicy,
     AgentContext,
     AgentInvocationContext,
-    AgentProfile,
     AgentRunStatus,
     CapabilityDefinition,
     CapabilityDomain,
@@ -18,20 +15,16 @@ from eurogas_nexus.domain.agents.contracts import (
     CapabilityStatus,
     DeterminismClass,
     IdempotencyClass,
-    OrchestrationStage,
     RetryPolicy,
     SideEffectClass,
 )
 
 __all__ = [
-    "DEFAULT_AGENT_PROFILES",
-    "PROFILES_BY_ID",
     "ActionPolicy",
     "ChallengeReport",
     "ChallengeResult",
     "AgentContext",
     "AgentInvocationContext",
-    "AgentProfile",
     "AgentRunStatus",
     "CapabilityDefinition",
     "CapabilityDomain",
@@ -42,7 +35,6 @@ __all__ = [
     "CapabilityStatus",
     "DeterminismClass",
     "IdempotencyClass",
-    "OrchestrationStage",
     "RetryPolicy",
     "SideEffectClass",
 ]

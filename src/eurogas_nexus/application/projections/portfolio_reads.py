@@ -40,22 +40,11 @@ def screen_orders(
 ) -> list[ScreenOrderObservation]:
     """Return imported read-only screen-order observations, newest first."""
 
-    from sqlalchemy import or_, select
-
-    from eurogas_nexus.db.models import ScreenOrderObservationRecord, StrategyRecord
-    from eurogas_nexus.db.repositories.strategy_access import visible_strategy_clause
+    from eurogas_nexus.db.models import ScreenOrderObservationRecord
     from eurogas_nexus.security.portfolio_scope import restrict
 
-    visible = select(StrategyRecord.strategy_id).where(visible_strategy_clause(principal_id))
     rows = (
         restrict(session.query(ScreenOrderObservationRecord), ScreenOrderObservationRecord, session)
-        .filter(
-            or_(
-                ScreenOrderObservationRecord.linked_strategy_id.is_(None),
-                ScreenOrderObservationRecord.linked_strategy_id == "",
-                ScreenOrderObservationRecord.linked_strategy_id.in_(visible),
-            )
-        )
         .order_by(
             ScreenOrderObservationRecord.observed_at_utc.desc(),
             ScreenOrderObservationRecord.venue,
@@ -78,21 +67,10 @@ def pnl_snapshots(
     if not firm_level_visible():
         return []
 
-    from sqlalchemy import or_, select
+    from eurogas_nexus.db.models import PortfolioPnlSnapshotRecord
 
-    from eurogas_nexus.db.models import PortfolioPnlSnapshotRecord, StrategyRecord
-    from eurogas_nexus.db.repositories.strategy_access import visible_strategy_clause
-
-    visible = select(StrategyRecord.strategy_id).where(visible_strategy_clause(principal_id))
     rows = (
         session.query(PortfolioPnlSnapshotRecord)
-        .filter(
-            or_(
-                PortfolioPnlSnapshotRecord.strategy_id.is_(None),
-                PortfolioPnlSnapshotRecord.strategy_id == "",
-                PortfolioPnlSnapshotRecord.strategy_id.in_(visible),
-            )
-        )
         .order_by(
             PortfolioPnlSnapshotRecord.valuation_time_utc.desc(),
             PortfolioPnlSnapshotRecord.portfolio_id,

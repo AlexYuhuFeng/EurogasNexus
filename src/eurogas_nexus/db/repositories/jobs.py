@@ -56,7 +56,7 @@ def create_job(
 
     now = _as_utc(now_utc or datetime.now(UTC))
     if owner_principal_id is not None:
-        from eurogas_nexus.db.repositories.strategy_access import require_named_principal
+        from eurogas_nexus.db.repositories.identity_access import require_named_principal
 
         owner_principal_id = require_named_principal(session, owner_principal_id)
     row = JobRecord(

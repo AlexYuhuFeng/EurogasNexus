@@ -4,7 +4,7 @@
 Demo profile only. Every tick is invented, stored as simulated (``DEMO_Sim`` by the continuous
 feed, ``EEX_Sim`` by the API replay) and labelled simulated wherever it travels; it is never a
 market price (AGENTS.md rule 17). It exists so the screens that read prices (the Prices board,
-Today, marks and P&L, spreads, the prompt desk, strategy evaluation on arrival) move as they
+Today, marks and P&L, spreads and the prompt desk) move as they
 would on a licensed feed, and can be seen and measured without one.
 
 **Continuous (``--continuous``, the demo server's feed, :class:`LiveScreen`).** Every demo hub
@@ -1015,29 +1015,22 @@ def main(argv: list[str] | None = None) -> int:
     pending_quotes, pending_trades = [], []
     flushed_at = time.monotonic()
     timings = []
-    total_quotes = total_trades = evaluated = 0
+    total_quotes = total_trades = 0
 
     def flush() -> None:
-        nonlocal pending_quotes, pending_trades, total_quotes, total_trades, evaluated
+        nonlocal pending_quotes, pending_trades, total_quotes, total_trades
         if not pending_quotes and not pending_trades:
             return
         sent = time.perf_counter()
         result = call(args.api, token, "POST", "/api/market/ticks", {
-            "source_system": SOURCE, "quotes": pending_quotes, "trades": pending_trades,
-            "replay": args.replay})
+            "source_system": SOURCE, "quotes": pending_quotes, "trades": pending_trades})
         elapsed = time.perf_counter() - sent
         if "http_error" in result:
             print(json.dumps(result), file=sys.stderr)
-        data = result.get("data") or {}
-        evaluation = data.get("evaluation") or {}
         timings.append({"ticks": len(pending_quotes) + len(pending_trades),
-                        "seconds": round(elapsed, 4), "evaluated": evaluation.get("evaluated"),
-                        "latency_ms": [r.get("latency_ms") for r in evaluation.get("results", [])],
-                        "evaluation_ms": [r.get("evaluation_ms")
-                                          for r in evaluation.get("results", [])]})
+                        "seconds": round(elapsed, 4)})
         total_quotes += len(pending_quotes)
         total_trades += len(pending_trades)
-        evaluated += int(evaluation.get("evaluated") or 0)
         pending_quotes, pending_trades = [], []
 
     booker = TradeBooker(args.book_every, random.Random(f"{STREAM}:book:{args.seed}")) \
@@ -1054,13 +1047,13 @@ def main(argv: list[str] | None = None) -> int:
         pending_trades += trades
         if args.replay:
             if len(pending_quotes) >= 1:
-                flush()  # one exchange event per call, so each tick is evaluated at its time
+                flush()  # one exchange event per call, so the replay keeps its cadence
         elif (time.monotonic() - flushed_at) * 1000 >= args.batch_ms:
             flush()
             flushed_at = time.monotonic()
     flush()
     wall = time.monotonic() - wall0
-    summary = {"quotes": total_quotes, "trades": total_trades, "evaluations": evaluated,
+    summary = {"quotes": total_quotes, "trades": total_trades,
                "wall_seconds": round(wall, 2), "batches": len(timings),
                "ticks_per_second": round((total_quotes + total_trades) / wall, 1) if wall else None,
                "source": SOURCE, "simulated": True,

@@ -111,12 +111,6 @@ def test_every_tool_pattern_names_a_real_capability() -> None:
         ("mcp_tools", ["ANALYST"], "market.get_curve", True),
         ("mcp_tools", ["VIEWER"], "analytics.correlation", False),  # role allowlist
         ("mcp_tools", ["ANALYST"], "dataset.build", False),  # not a tool of the use
-        ("agent_research", ["ANALYST"], "dataset.build", True),
-        ("agent_research", ["ANALYST"], "dataset.export", False),  # never by a model
-        ("agent_research", ["ANALYST"], "shadow.start", False),
-        ("agent_research", ["ADMIN"], "market.get_curve", False),  # admin: catalogue only
-        ("agent_research", ["ADMIN"], "capabilities.list", True),
-        ("agent_research", ["viewer", "ANALYST"], "strategy.get", True),  # any held role
         ("explain", ["ANALYST"], "market.get_curve", False),  # a note use calls no tool
         ("unknown", ["ANALYST"], "market.get_curve", False),
     ],
@@ -155,12 +149,10 @@ def test_the_runtime_refuses_a_model_tool_call_outside_the_allowlist(monkeypatch
     assert "ai_tool_not_allowed" not in direct.model_dump_json()
 
 
-def test_mcp_and_research_run_as_their_registered_uses() -> None:
+def test_mcp_runs_as_its_registered_use() -> None:
     from eurogas_nexus.mcp.server import _agent_context
 
     assert _agent_context().ai_use == "mcp_tools"
-    source = (SRC / "application/agents/research_orchestrator.py").read_text(encoding="utf-8")
-    assert '"ai_use": "agent_research"' in source
 
 
 def test_provenance_holds_versions_and_hashes_never_the_text(monkeypatch) -> None:

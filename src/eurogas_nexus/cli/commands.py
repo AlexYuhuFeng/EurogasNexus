@@ -35,7 +35,6 @@ from eurogas_nexus_sdk.review import fetch_review_decisions
 from eurogas_nexus_sdk.runtime import fetch_runtime_db_status
 from eurogas_nexus_sdk.sources import fetch_ingestion_runs, fetch_source, fetch_sources
 from eurogas_nexus_sdk.storage import fetch_storage_observations, fetch_storage_sites
-from eurogas_nexus_sdk.strategy_lab import list_strategy_runs, strategy_summary
 from eurogas_nexus_sdk.weather import (
     fetch_hdd_cdd,
     fetch_weather_observations,
@@ -232,19 +231,6 @@ def cmd_term(base_url: str, term: str, *, lang: str = "en") -> str:
     """Fetch one glossary term by name/id/alias as JSON."""
 
     return _to_json(fetch_term(base_url, term, lang=lang))
-
-
-# --- Strategy Lab ---
-
-def cmd_strategy_runs(base_url: str, *, strategy_id: str | None = None) -> list:
-    """List strategy runs, optionally filtered by strategy."""
-
-    return list_strategy_runs(base_url, strategy_id=strategy_id)
-
-def cmd_strategy_summary(base_url: str, *, strategy_id: str | None = None) -> object:
-    """Fetch the strategy-run summary."""
-
-    return strategy_summary(base_url, strategy_id=strategy_id)
 
 
 # --- Optimization (P2: sandbox requests from JSON files) ---

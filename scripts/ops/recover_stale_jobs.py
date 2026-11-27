@@ -1,8 +1,7 @@
-"""Recover ingestion and shadow jobs left QUEUED/RUNNING by a process crash.
+"""Recover ingestion jobs left QUEUED/RUNNING by a process crash.
 
 Dry-run by default. With ``--commit``, stale ingestion runs are marked FAILED
-with INTERNAL:STALE_RUN and stale shadow evaluations are marked FAILED with
-INTERNAL_ERROR / OPERATIONAL_FAILURE:STALE_EVALUATION.
+with INTERNAL:STALE_RUN.
 """
 
 from __future__ import annotations
@@ -20,9 +19,6 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--ingestion-stale-seconds", type=int, default=900,
     )
-    parser.add_argument(
-        "--shadow-stale-seconds", type=int, default=300,
-    )
     args = parser.parse_args(argv)
 
     if resolve_database_url() is None:
@@ -37,12 +33,6 @@ def main(argv: list[str] | None = None) -> int:
             session,
             stale_after_seconds=max(30, args.ingestion_stale_seconds),
         )
-        from eurogas_nexus.application.shadow_runtime import recover_stale_evaluations
-
-        shadow_recovered = recover_stale_evaluations(
-            session,
-            stale_after_seconds=max(30, args.shadow_stale_seconds),
-        )
         summary = {
             "status": "ok",
             "committed": False,
@@ -50,7 +40,6 @@ def main(argv: list[str] | None = None) -> int:
                 "recovered_stale_runs": scan["recovered_stale_runs"],
                 "claimed_runs": len(scan["claimed_runs"]),
             },
-            "shadow": {"recovered_stale_evaluations": shadow_recovered},
         }
         if args.commit:
             session.commit()

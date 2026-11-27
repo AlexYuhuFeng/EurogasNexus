@@ -1,2 +1,0 @@
-"""Strategy lab domain package."""
-

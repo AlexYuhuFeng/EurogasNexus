@@ -38,7 +38,7 @@ from eurogas_nexus.domain.market_intelligence.source_price import (
     STATUS_MISSING,
     resolve_source_price,
 )
-from eurogas_nexus.domain.strategy_lab.price_series import (
+from eurogas_nexus.domain.market_intelligence.price_series import (
     exact_source_price_decimal,
     source_price_for_series,
 )

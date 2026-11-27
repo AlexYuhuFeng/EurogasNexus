@@ -128,7 +128,7 @@ def build_portfolio_report(
         provider_id=request.provider_id,
         model=request.model,
         invoke_provider=request.invoke_provider,
-        # The report request's portfolio/resource/contract/strategy selections are
+        # The report request's portfolio/resource/contract selections are
         # refused by the route when non-empty, and no builder reads them, so they are
         # not projected here: a selection that reached this point would be a claim the
         # report does not honour.
@@ -149,10 +149,10 @@ def _default_sections(
     snapshot: AnalysisSnapshot,
     provider_text: str | None,
 ) -> list[ReportSection]:
-    """Assemble the default report sections (portfolio/market/strategy[/llm]).
+    """Assemble the default report sections (portfolio/market[/llm]).
 
-    默认章节：组合与资源、市场与物理上下文、策略与 PnL；有 provider
-    文本时追加 LLM 综合章节。每章都带快照引用。
+    默认章节：组合与资源、市场与物理上下文；有 provider 文本时追加 LLM 综合章节。
+    每章都带快照引用。
     """
 
     sections = [
@@ -175,16 +175,6 @@ def _default_sections(
             ),
             citations=_snapshot_citations(snapshot),
         ),
-        ReportSection(
-            section_id="strategy",
-            title="Strategy and PnL context",
-            content=(
-                f"{len(snapshot.strategy_runs)} strategy run records were available. "
-                "Historical PnL requires persisted strategy or portfolio PnL records."
-            ),
-            citations=_snapshot_citations(snapshot),
-            warnings=["HISTORICAL_PNL_REQUIRES_PERSISTED_PNL_SERIES"],
-        ),
     ]
     if provider_text:
         sections.append(
@@ -205,8 +195,7 @@ def _deterministic_answer_en(request: AnalysisRequest, snapshot: AnalysisSnapsho
         f"{request.task} was evaluated against snapshot {snapshot.snapshot_id}. "
         f"Available context: {len(snapshot.market_observations)} market observations, "
         f"{len(snapshot.fx_rates)} FX rates, {len(snapshot.flow_observations)} flow records, "
-        f"{len(snapshot.route_candidates)} routes, and "
-        f"{len(snapshot.strategy_runs)} strategy runs. "
+        f"and {len(snapshot.route_candidates)} routes. "
         "Use the cited source snapshots and warnings before making any commercial decision."
     )
 
@@ -218,7 +207,7 @@ def _deterministic_answer_zh(request: AnalysisRequest, snapshot: AnalysisSnapsho
         f"{request.task} 已基于快照 {snapshot.snapshot_id} 进行评估。"
         f"可用上下文包括 {len(snapshot.market_observations)} 条市场观测、"
         f"{len(snapshot.fx_rates)} 条汇率、{len(snapshot.flow_observations)} 条物理流量、"
-        f"{len(snapshot.route_candidates)} 条路线和 {len(snapshot.strategy_runs)} 条策略运行。"
+        f"{len(snapshot.route_candidates)} 条路线。"
         "在作出任何商业决策前，必须查看引用来源、缺失输入和预警。"
     )
 
@@ -229,14 +218,12 @@ def _missing_inputs_for_task(
 ) -> list[str]:
     """List missing snapshot inputs required by the request's task.
 
-    按任务类型判定缺失输入：PnL/组合报告需要策略与组合上下文，
+    按任务类型判定缺失输入：PnL/组合报告需要组合上下文，
     TSO 状态报告需要流量观测，市场异动需要市场观测；缺什么报什么。
     """
 
     missing: list[str] = []
     if request.task in {AnalysisTask.PNL_TRACKING, AnalysisTask.PORTFOLIO_REPORT}:
-        if not snapshot.strategy_runs:
-            missing.append("STRATEGY_OR_PORTFOLIO_PNL_SERIES_MISSING")
         if not snapshot.portfolio_context:
             missing.append("PORTFOLIO_CONTEXT_MISSING")
     if request.task == AnalysisTask.TSO_STATUS_REPORT and not snapshot.flow_observations:
@@ -261,7 +248,6 @@ def _snapshot_citations(snapshot: AnalysisSnapshot) -> list[str]:
         snapshot.flow_observations,
         snapshot.capacity_context,
         snapshot.route_candidates,
-        snapshot.strategy_runs,
         snapshot.portfolio_context,
     ):
         for row in collection:

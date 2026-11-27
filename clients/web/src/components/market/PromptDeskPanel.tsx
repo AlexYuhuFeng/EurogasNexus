@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import "@/styles/promptDesk.css";
 import { api } from "@/api/client";
-import type { PromptMarketDTO, PromptQuoteDTO } from "@/api/strategyTracks";
+import type { PromptMarketDTO, PromptQuoteDTO } from "@/api/promptMarket";
 import { EmptyState, Instant, LiveValue, Segmented, Skeleton } from "@/components/ui";
 import { formatMeasure } from "@/app/time/valueFormat";
 import { liveStatus } from "@/app/data/liveStream";

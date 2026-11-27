@@ -78,7 +78,6 @@ def _snapshot(*, restricted: bool = False) -> AnalysisSnapshot:
             }
         ],
         route_candidates=[{"route_id": "r1", "route_name": "TTF -> NBP"}],
-        strategy_runs=[{"run_id": "sr1", "status": "COMPLETED_WITH_WARNINGS"}],
         warnings=["SOURCE_SIMULATED"],
     )
 

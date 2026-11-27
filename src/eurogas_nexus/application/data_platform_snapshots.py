@@ -301,16 +301,11 @@ def _model_calculation_versions() -> dict[str, Any]:
     """Declared model, solver and schema versions of this platform build."""
 
     from eurogas_nexus.domain.agents.research_plan import PLAN_SCHEMA_VERSION
-    from eurogas_nexus.domain.agents.strategy_ir import STRATEGY_IR_SCHEMA_VERSION
     from eurogas_nexus.domain.research.ontology import ONTOLOGY_SCHEMA_VERSION
     from eurogas_nexus.ingestion.provenance_versions import SIMULATOR_VERSION
     from eurogas_nexus.release.constants import (
         API_CONTRACT_VERSION,
-        BACKTEST_ENGINE_VERSION,
-        RUN_SCHEMA_VERSION,
         SOLVER_VERSION,
-        STRATEGY_SCHEMA_VERSION,
-        TARGET_BACKTEST_ENGINE_VERSION,
     )
     from eurogas_nexus.version import APPLICATION_VERSION
 
@@ -320,15 +315,8 @@ def _model_calculation_versions() -> dict[str, Any]:
         "analysis_snapshot_schema_version": ANALYSIS_SNAPSHOT_SCHEMA_VERSION,
         "gas_day_calendar": EU_CAM_UTC_CALENDAR,
         "solver_version": SOLVER_VERSION,
-        # The public application historical run executes engine/2; the legacy
-        # engine/1 helper identity is declared separately rather than relabelled.
-        "backtest_engine_version": TARGET_BACKTEST_ENGINE_VERSION,
-        "legacy_backtest_engine_version": BACKTEST_ENGINE_VERSION,
-        "strategy_schema_version": STRATEGY_SCHEMA_VERSION,
-        "strategy_run_schema_version": RUN_SCHEMA_VERSION,
         "research_ontology_schema_version": ONTOLOGY_SCHEMA_VERSION,
         "research_plan_schema_version": PLAN_SCHEMA_VERSION,
-        "strategy_ir_schema_version": STRATEGY_IR_SCHEMA_VERSION,
         "market_simulator_version": SIMULATOR_VERSION,
     }
 

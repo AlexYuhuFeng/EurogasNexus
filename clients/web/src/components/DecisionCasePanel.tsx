@@ -61,7 +61,6 @@ interface DecisionCasePanelProps {
   deliveryProduct: string;
   hubId: string | null;
   routeId: string | null;
-  strategyRunId: string | null;
   /**
    * The last governed AI analysis run this identity completed, if any. The Decision Case
    * chain cites AI findings and challenges, so the panel offers that run by reference
@@ -82,7 +81,6 @@ export function DecisionCasePanel({
   deliveryProduct,
   hubId,
   routeId,
-  strategyRunId,
   analysisId,
   t,
 }: DecisionCasePanelProps) {
@@ -109,24 +107,12 @@ export function DecisionCasePanel({
   const [evidenceRef, setEvidenceRef] = useState("");
   // The live principle (UX_REFERENCE rule 25): evidence is a record that exists, chosen by name;
   // what the page already carries is offered first, a typed reference is marked as typed.
-  const runsRead = useCachedRead(
-    evidenceKind === "STRATEGY_RUN" || evidenceKind === "BACKTEST" ? "/strategy-lab/runs?limit=50" : null,
-    async () => (await api.strategyRuns({ limit: 50 })).data,
-  );
   const evidenceOptions = useMemo<RecordOption[]>(() => {
     const options: RecordOption[] = [];
-    const carried = suggestedEvidenceRef(evidenceKind, { routeId, strategyRunId, analysisId });
+    const carried = suggestedEvidenceRef(evidenceKind, { routeId, analysisId });
     if (carried) options.push({ id: carried, label: t("decision_case.evidence_carried"), detail: carried });
-    for (const run of runsRead.data ?? []) {
-      if (run.run_id === carried) continue;
-      options.push({
-        id: run.run_id,
-        label: run.strategy_name || run.strategy_id,
-        detail: [run.run_mode, displayTime(run.finished_at_utc ?? run.started_at_utc, "")].filter(Boolean).join(" · "),
-      });
-    }
     return options;
-  }, [analysisId, evidenceKind, routeId, runsRead.data, strategyRunId, t]);
+  }, [analysisId, evidenceKind, routeId, t]);
   const [note, setNote] = useState("");
   const [busy, setBusy] = useState(false);
   const [errorText, setErrorText] = useState<string | null>(null);
@@ -447,8 +433,7 @@ export function DecisionCasePanel({
                   // offered instead of asking the user to copy an identifier.
                   const suggestion = suggestedEvidenceRef(next, {
                     routeId,
-                    strategyRunId,
-                    analysisId,
+                                      analysisId,
                   });
                   if (suggestion) setEvidenceRef(suggestion);
                 }}

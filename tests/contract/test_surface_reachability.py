@@ -150,11 +150,6 @@ SURFACED_BY_THE_DESK_SLICE: dict[str, str] = {
     "/api/optimization/nomination-windows": "the day board's clock, above every Decision task",
 }
 
-STRATEGY_REBUILD = (
-    "served for the StrategySpec backtest and shadow rebuild (strategy-audit); "
-    "no client since CP-00"
-)
-
 #: Paths that are deliberately not a product surface, each with the reason it is not.
 DELIBERATE: dict[str, str] = {
     "/api/market/ticks": (
@@ -182,26 +177,6 @@ DELIBERATE: dict[str, str] = {
     "/api/research/route-cost": "the route what-if left the client (CP-00); engine kept for CP-09",
     "/api/research/lng-economics-only": "the LNG sandbox left the UI (CP-00); superseded by CP-12",
     "/api/research/capacity-billing": "the calculator panel left the UI (CP-00); engine kept (I.3)",
-    # The strategy registry and shadow runtime stay served while the Spreads backtest and shadow
-    # tracking are rebuilt on StrategySpec (strategy-audit); their old pages left with CP-00.
-    "/api/backtest-experiments": STRATEGY_REBUILD,
-    "/api/backtest-experiments/{experiment_id}": STRATEGY_REBUILD,
-    "/api/shadow-alerts": STRATEGY_REBUILD,
-    "/api/shadow-alerts/{alert_id}/acknowledge": STRATEGY_REBUILD,
-    "/api/shadow-evaluations/{evaluation_id}": STRATEGY_REBUILD,
-    "/api/shadow-monitors": STRATEGY_REBUILD,
-    "/api/shadow-monitors/{monitor_id}": STRATEGY_REBUILD,
-    "/api/shadow-monitors/{monitor_id}/drift": STRATEGY_REBUILD,
-    "/api/shadow-monitors/{monitor_id}/evaluations": STRATEGY_REBUILD,
-    "/api/shadow-monitors/{monitor_id}/pause": STRATEGY_REBUILD,
-    "/api/shadow-monitors/{monitor_id}/resume": STRATEGY_REBUILD,
-    "/api/shadow-monitors/{monitor_id}/retire": STRATEGY_REBUILD,
-    "/api/shadow-runtime/status": STRATEGY_REBUILD,
-    "/api/strategy-runs": STRATEGY_REBUILD,
-    "/api/strategy-runs/{run_id}": STRATEGY_REBUILD,
-    "/api/strategy-runs/{run_id}/attribution": STRATEGY_REBUILD,
-    "/api/strategy-runs/{run_id}/events": STRATEGY_REBUILD,
-    "/api/strategy-runs/{run_id}/series": STRATEGY_REBUILD,
     "/api/source-certifications": "control-plane administration, outside the business workspaces",
     "/api/source-certifications/{source_id}/certify": "control-plane administration act",
     "/api/projections/scenario-context": (

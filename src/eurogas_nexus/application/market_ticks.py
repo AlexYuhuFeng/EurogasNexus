@@ -1,11 +1,8 @@
-"""Store ticks from a licensed exchange/broker feed (or the demo simulator) and act on them.
+"""Store ticks from a licensed exchange/broker feed (or the demo simulator).
 
 One call stores a batch of top-of-book quotes with the session fields the feed carries
-(``domain/market/feed.py``) and the trade prints, under the source family, then evaluates the
-tracked strategies listening to those instruments (``application/strategy_tracking``) in the
-same transaction: the signal is computed on the quote that was just stored, with no queue,
-broker or second service in between (AGENTS.md rule 5). PostgreSQL stays the event log the
-quote stream reads.
+(``domain/market/feed.py``) and the trade prints, under the source family. PostgreSQL stays
+the event log the quote stream reads.
 
 Sources: the licensed families the operator import accepts (``EEX``, ``ICE_OCM``,
 ``Trayport``), entitled per principal as every quote is; and ``EEX_Sim`` (the demo exchange
@@ -15,7 +12,7 @@ are stored per MWh in the quote currency with the native values in the metadata;
 in the screen convention (MW, NBP therms/day) and are stored per gas day in MWh, as the CSV
 import does.
 
-许可行情源（或演示模拟器）的逐笔报价与成交入库，并在同一事务内评估监听这些合约的跟踪策略。
+许可行情源（或演示模拟器）的逐笔报价与成交入库。
 """
 
 from __future__ import annotations
@@ -53,12 +50,9 @@ _SESSION_PRICE_FIELDS = ("open", "high", "low", "vwap", "settlement", "prior_set
 class TickBatchResult:
     quotes: int
     trades: int
-    evaluation: dict[str, Any]
-    subscribers: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return {"quotes": self.quotes, "trades": self.trades, "evaluation": self.evaluation,
-                "subscribers": sorted((self.subscribers or {}).keys())}
+        return {"quotes": self.quotes, "trades": self.trades}
 
 
 def _venue(source_system: str) -> str:
@@ -341,13 +335,8 @@ def ingest_ticks(
     trades: list[dict[str, Any]] | None = None,
     simulated_allowed: bool = False,
     received_at: datetime | None = None,
-    evaluate: bool = True,
-    replay: bool = False,
 ) -> TickBatchResult:
-    """Store one batch and evaluate the tracks listening to its instruments.
-
-    ``replay`` (simulated sources only) evaluates at the batch's newest exchange time instead
-    of the wall clock, so a compressed simulated session runs the same rule as a live one.
+    """Store one batch of quotes and trade prints.
 
     Raises:
         FeedError: an unknown source, a bad tick or print; nothing of the batch is stored.
@@ -361,8 +350,6 @@ def ingest_ticks(
     if len(quotes) + len(trades) > MAX_TICKS_PER_CALL:
         raise FeedError(f"at most {MAX_TICKS_PER_CALL} ticks per call")
     simulated = check_source(source_system, simulated_allowed=simulated_allowed)
-    if replay and not simulated:
-        raise FeedError("replay is for simulated sessions only")
     received = received_at or datetime.now(UTC)
     quote_rows = [quote_row(source_system, simulated, tick, received) for tick in quotes]
     trade_rows = [trade_row(source_system, simulated, item, received) for item in trades]
@@ -382,15 +369,4 @@ def ingest_ticks(
         if fresh_quotes:
             session.execute(insert(MarketQuoteRecord), fresh_quotes)
     session.flush()
-    evaluation: dict[str, Any] = {"evaluated": 0, "debounced": 0, "results": []}
-    subscribers: dict[str, Any] = {}
-    if evaluate:
-        from eurogas_nexus.application.market_inputs import notify_inputs_changed
-
-        instruments = frozenset(f"{row['hub']}|{row['product']}" for row in quote_rows)
-        moment = datetime.now(UTC)
-        if replay and quote_rows:
-            moment = max(row["observed_at_utc"] for row in quote_rows)
-        subscribers = notify_inputs_changed(session, instruments, at=moment, replay=replay)
-        evaluation = subscribers.get("strategy_tracks") or evaluation
-    return TickBatchResult(len(quote_rows), len(trade_rows), evaluation, subscribers)
+    return TickBatchResult(len(quote_rows), len(trade_rows))

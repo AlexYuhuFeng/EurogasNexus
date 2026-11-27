@@ -52,7 +52,6 @@ export const ALERT_CATEGORIES = [
   "data_source",
   "opportunity",
   "market_opportunity",
-  "strategy",
   "capacity",
   "lng_hedge",
   "lng_schedule",

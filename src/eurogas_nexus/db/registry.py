@@ -63,64 +63,6 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
         introduced_in="0015_llm_monitoring_alerts",
     ),
     RequiredTable(name="glossary_terms", introduced_in="0006_route_cost_decision_support"),
-    RequiredTable(name="strategy_definitions", introduced_in="0007_strategy_lab_foundation"),
-    RequiredTable(name="strategies", introduced_in="0025_strategy_registry_v1"),
-    RequiredTable(name="strategy_versions", introduced_in="0025_strategy_registry_v1"),
-    RequiredTable(
-        name="strategy_data_snapshots",
-        introduced_in="0025_strategy_registry_v1",
-    ),
-    RequiredTable(
-        name="backtest_experiments",
-        introduced_in="0026_backtest_engine_v1",
-    ),
-    RequiredTable(
-        name="backtest_decision_events",
-        introduced_in="0026_backtest_engine_v1",
-    ),
-    RequiredTable(
-        name="backtest_series",
-        introduced_in="0026_backtest_engine_v1",
-    ),
-    RequiredTable(
-        name="backtest_attribution",
-        introduced_in="0026_backtest_engine_v1",
-    ),
-    RequiredTable(
-        name="strategy_shadow_monitors",
-        introduced_in="0027_shadow_runtime_v1",
-    ),
-    RequiredTable(
-        name="strategy_shadow_evaluations",
-        introduced_in="0027_shadow_runtime_v1",
-    ),
-    RequiredTable(
-        name="strategy_shadow_candidates",
-        introduced_in="0027_shadow_runtime_v1",
-    ),
-    RequiredTable(
-        name="strategy_shadow_risk_checks",
-        introduced_in="0027_shadow_runtime_v1",
-    ),
-    RequiredTable(
-        name="strategy_shadow_outcomes",
-        introduced_in="0027_shadow_runtime_v1",
-    ),
-    RequiredTable(
-        name="strategy_shadow_alerts",
-        introduced_in="0027_shadow_runtime_v1",
-    ),
-    RequiredTable(
-        name="strategy_shadow_drift_snapshots",
-        introduced_in="0027_shadow_runtime_v1",
-    ),
-    RequiredTable(
-        name="strategy_shadow_scheduler_heartbeat",
-        introduced_in="0027_shadow_runtime_v1",
-    ),
-    RequiredTable(name="strategy_runs", introduced_in="0007_strategy_lab_foundation"),
-    RequiredTable(name="strategy_allocation_targets", introduced_in="0007_strategy_lab_foundation"),
-    RequiredTable(name="strategy_alerts", introduced_in="0007_strategy_lab_foundation"),
     RequiredTable(name="analysis_runs", introduced_in="0008_analysis_reporting"),
     RequiredTable(name="generated_reports", introduced_in="0008_analysis_reporting"),
     RequiredTable(name="review_decisions", introduced_in="0017_review_decisions"),
@@ -226,7 +168,6 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
     ),
     RequiredTable(name="identity_groups", introduced_in="0040_strategy_owner_sharing"),
     RequiredTable(name="identity_group_members", introduced_in="0040_strategy_owner_sharing"),
-    RequiredTable(name="strategy_group_shares", introduced_in="0040_strategy_owner_sharing"),
     RequiredTable(name="functional_runs", introduced_in="0059_functional_runs"),
     RequiredTable(name="functional_models", introduced_in="0059_functional_runs"),
     RequiredTable(name="functional_dependencies", introduced_in="0059_functional_runs"),

@@ -185,9 +185,9 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
 
     Raises:
         HTTPException: 422 ``analysis_selection_not_supported`` when a portfolio,
-            resource, contract or strategy selection is supplied - the report is
-            computed from the whole entitled snapshot, so a selection would be a
-            scope the caller believed was applied.
+            resource or contract selection is supplied - the report is computed
+            from the whole entitled snapshot, so a selection would be a scope the
+            caller believed was applied.
     """
 
     _refuse_unsupported_selection(
@@ -195,7 +195,6 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
             ("portfolio_id", body.portfolio_id),
             ("selected_resources", body.selected_resources),
             ("selected_contracts", body.selected_contracts),
-            ("selected_strategies", body.selected_strategies),
         ),
         resource="portfolio_report",
     )
@@ -355,7 +354,6 @@ def _db_snapshot(
             LiveMarketMarkRecord,
             MarketObservationRecord,
             RouteCandidateRecord,
-            StrategyRunRecord,
             UpstreamResourceContractRecord,
         )
         from eurogas_nexus.db.session import get_session_factory
@@ -436,16 +434,6 @@ def _db_snapshot(
                 .limit(50)
                 .all()
             )
-            from eurogas_nexus.db.repositories.strategy_access import visible_strategy_ids
-
-            allowed = visible_strategy_ids(session, principal_id)
-            strategies = (
-                session.query(StrategyRunRecord)
-                .filter(StrategyRunRecord.strategy_id.in_(allowed))
-                .order_by(StrategyRunRecord.started_at_utc.desc())
-                .limit(20)
-                .all()
-            )
             from eurogas_nexus.security.portfolio_scope import restrict
 
             contracts = (
@@ -513,7 +501,6 @@ def _db_snapshot(
                 flow_observations=admitted_flows,
                 capacity_context=[_capacity_row(row) for row in capacities],
                 route_candidates=[_route_row(row) for row in routes],
-                strategy_runs=[_strategy_row(row) for row in strategies],
                 portfolio_context=[_contract_row(row) for row in contracts],
                 warnings=snapshot_warnings,
             )
@@ -876,7 +863,7 @@ def _selection_was_supplied(value: object) -> bool:
 
     Absent (``None``), blank and empty collections are all "nothing was selected", so a
     caller who sends the field with an empty value is not refused while a caller who names
-    a portfolio, a resource, a contract, a strategy, a section, an asset or a term is.
+    a portfolio, a resource, a contract, a section, an asset or a term is.
     """
 
     if value is None:
@@ -896,7 +883,7 @@ def _refuse_unsupported_selection(
     """Refuse a selection the analysis pipeline cannot apply.
 
     The run's deterministic builders read the snapshot, the task and the question.
-    They read no glossary term, asset, contract, strategy, section or portfolio
+    They read no glossary term, asset, contract, section or portfolio
     selection, so a non-empty one describes work that will not happen: the caller
     would receive a report over the whole entitled snapshot while believing it had
     been narrowed to what they named. Refusing is the only honest answer, and it is
@@ -1227,19 +1214,6 @@ def _route_row(row) -> dict:
         "business_model": row.business_model,
         "required_tso_access": row.required_tso_access,
         "source_systems": row.source_systems,
-    }
-
-
-def _strategy_row(row) -> dict:
-    return {
-        "run_id": row.run_id,
-        "strategy_id": row.strategy_id,
-        "run_mode": row.run_mode,
-        "status": row.status,
-        "started_at_utc": row.started_at_utc.isoformat(),
-        "finished_at_utc": row.finished_at_utc.isoformat() if row.finished_at_utc else None,
-        "source_refs": row.source_refs,
-        "warnings": row.warnings,
     }
 
 

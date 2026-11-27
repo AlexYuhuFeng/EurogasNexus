@@ -11,7 +11,6 @@ from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     MarketObservationRecord,
     ScreenOrderObservationRecord,
-    StrategyRecord,
     UpstreamResourceContractRecord,
 )
 from eurogas_nexus.db.repositories.identity import (
@@ -34,16 +33,6 @@ def test_ladder_combines_physical_supply_and_financial_hedge(tmp_path, monkeypat
         )
         _, bearer = create_identity_api_key(
             session, owner.principal_id, display_name="ladder", scopes=["*"]
-        )
-        session.add(
-            StrategyRecord(
-                strategy_id="hedge-book",
-                name="Hedges",
-                owner_principal_id=owner.principal_id,
-                visibility="PRIVATE",
-                created_at_utc=now,
-                updated_at_utc=now,
-            )
         )
         session.add(
             UpstreamResourceContractRecord(

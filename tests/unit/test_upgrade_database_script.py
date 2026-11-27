@@ -50,9 +50,9 @@ def test_release_start_refuses_an_old_schema_and_says_what_to_run(
 
 def test_plan_changes_nothing_and_exits_zero(empty_sqlite, capsys) -> None:
     assert upgrade_database.main(["plan"]) == 0
-    # Every revision of the chain is pending on an empty store (0095 is the security hardening,
-    # 0096 the retention by data class).
-    assert "pending revisions : 96" in capsys.readouterr().out
+    # Every revision of the chain is pending on an empty store (0096 is the retention by
+    # data class, 0097 removes the strategy laboratory).
+    assert "pending revisions : 97" in capsys.readouterr().out
 
 
 def test_upgrade_needs_confirmation_in_a_script(empty_sqlite, monkeypatch, capsys) -> None:
@@ -87,15 +87,17 @@ def test_plan_json_lists_each_revision_with_its_declaration(empty_sqlite, capsys
     by_revision = {item["revision"]: item["reversibility"] for item in payload["pending"]}
     assert by_revision["0040_strategy_owner_sharing"] == "irreversible"
     assert by_revision["0096_retention_by_class"] == "conditional"
+    assert by_revision["0097_remove_strategy_laboratory"] == "irreversible"
 
 
 def test_revisions_to_undo_walks_down_from_the_current_revision(empty_sqlite) -> None:
     config = database_upgrade.alembic_config(empty_sqlite)
     undo = database_upgrade.revisions_to_undo(
-        config, "0096_retention_by_class", "0093_timescale_optional"
+        config, "0097_remove_strategy_laboratory", "0093_timescale_optional"
     )
     assert [item.revision for item in undo] == [
-        "0096_retention_by_class", "0095_security_hardening", "0094_option_settlements",
+        "0097_remove_strategy_laboratory", "0096_retention_by_class",
+        "0095_security_hardening", "0094_option_settlements",
     ]
     assert database_upgrade.revisions_to_undo(config, "0093_timescale_optional",
                                                "0093_timescale_optional") == []

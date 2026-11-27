@@ -30,7 +30,6 @@ from eurogas_nexus.domain.ontology.vocabulary import (
     PriceType,
     ProductKind,
     ProductTenor,
-    StrategyRunMode,
     TariffDirection,
 )
 
@@ -355,39 +354,6 @@ CONCEPTS: tuple[Concept, ...] = (
             Slot("point", "ReferenceNode"),
             Slot("quantity_mwh_per_day", float),
             Slot("tolerance_pct", float, "0..1"),
-        ),
-    ),
-    Concept(
-        "StrategyDefinition",
-        "Strategy Definition",
-        "A configured paper strategy with components and risk controls.",
-        "带有组件与风控的已配置纸面策略。",
-        (
-            Slot("components", str, "0..n"),
-            Slot("risk_control", str, "0..1"),
-        ),
-    ),
-    Concept(
-        "StrategyRun",
-        "Strategy Run",
-        "A persisted backtest, shadow-run, or live-monitor evaluation snapshot.",
-        "已持久化的 backtest / shadow-run / live-monitor 评估快照。",
-        (
-            Slot("strategy", "StrategyDefinition"),
-            Slot("mode", StrategyRunMode),
-            Slot("paper_pnl_gbp", float),
-            Slot("status", str),
-        ),
-    ),
-    Concept(
-        "StrategyAllocationTarget",
-        "Strategy Allocation Target",
-        "A paper allocation target produced by a strategy run.",
-        "策略运行产生的纸面分配目标。",
-        (
-            Slot("market_bucket", str),
-            Slot("target_allocation_pct", float),
-            Slot("target_quantity_mwh_per_day", float),
         ),
     ),
     Concept(

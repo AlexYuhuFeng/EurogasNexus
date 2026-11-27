@@ -56,7 +56,7 @@ export const aiActions: readonly AiActionContract[] = [
   },
   {
     action: "compare",
-    purpose: "Compare alternatives, scenarios or strategy versions on one explicit time basis.",
+    purpose: "Compare alternatives, scenarios or spread studies on one explicit time basis.",
     posture: "interpret-only",
     requiresActiveContext: true,
     requiresEvidenceRefs: true,
@@ -72,7 +72,7 @@ export const aiActions: readonly AiActionContract[] = [
   },
   {
     action: "draft",
-    purpose: "Draft a research plan, hypothesis, StrategyIR candidate or report structure for human review.",
+    purpose: "Draft a research plan, hypothesis or report structure for human review.",
     posture: "evidence-backed-draft",
     requiresActiveContext: true,
     requiresEvidenceRefs: true,

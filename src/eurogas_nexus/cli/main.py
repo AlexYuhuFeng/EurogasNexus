@@ -38,8 +38,6 @@ def main(argv: list[str] | None = None) -> int:
     _add_simple(subparsers, "routes", _routes)
     _add_simple(subparsers, "capacity-contracts", _capacity_contracts)
     _add_simple(subparsers, "hdd-cdd", _hdd_cdd)
-    _add_simple(subparsers, "strategy-runs", _strategy_runs)
-    _add_simple(subparsers, "strategy-summary", _strategy_summary)
     _add_simple(subparsers, "sources", _sources)
     _add_simple(subparsers, "market", _market)
     _add_simple(subparsers, "fx", _fx)
@@ -91,14 +89,6 @@ def _capacity_contracts(base_url: str, _args: argparse.Namespace) -> object:
 
 def _hdd_cdd(base_url: str, _args: argparse.Namespace) -> object:
     return commands.cmd_hdd_cdd(base_url)
-
-
-def _strategy_runs(base_url: str, _args: argparse.Namespace) -> object:
-    return commands.cmd_strategy_runs(base_url)
-
-
-def _strategy_summary(base_url: str, _args: argparse.Namespace) -> object:
-    return commands.cmd_strategy_summary(base_url)
 
 
 def _sources(base_url: str, _args: argparse.Namespace) -> object:

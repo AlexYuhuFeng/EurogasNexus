@@ -233,7 +233,7 @@ def _apply_grants(
     row.job_functions = [item.value for item in functions] or None
     row.office = (grants.office or "").strip().upper()[:16] or None
     if grants.groups:
-        from eurogas_nexus.db.models.strategy_access import (
+        from eurogas_nexus.db.models.identity_groups import (
             IdentityGroupMemberRecord,
             IdentityGroupRecord,
         )
@@ -604,7 +604,7 @@ def delete_user(session: Session, principal_id: str, *, actor: str) -> None:
     """Delete a person who has never acted; anyone with audit history is disabled instead."""
 
     from eurogas_nexus.db.models import AuditEventRecord
-    from eurogas_nexus.db.models.strategy_access import IdentityGroupMemberRecord
+    from eurogas_nexus.db.models.identity_groups import IdentityGroupMemberRecord
 
     row = session.get(IdentityPrincipalRecord, principal_id)
     if row is None:

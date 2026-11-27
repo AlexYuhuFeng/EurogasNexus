@@ -30,7 +30,7 @@ from eurogas_nexus.db.models import (
     TradingBookRecord,
     UpstreamResourceContractRecord,
 )
-from eurogas_nexus.db.models.strategy_access import IdentityGroupRecord
+from eurogas_nexus.db.models.identity_groups import IdentityGroupRecord
 from eurogas_nexus.db.repositories.identity import (
     create_identity_api_key,
     create_identity_principal,

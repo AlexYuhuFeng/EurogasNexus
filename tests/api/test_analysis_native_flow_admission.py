@@ -21,8 +21,6 @@ from eurogas_nexus.application.physical_native_rates import serialize_native_rat
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     FlowObservationRecord,
-    StrategyRecord,
-    StrategyRunRecord,
 )
 from eurogas_nexus.db.repositories.identity import create_identity_principal
 from eurogas_nexus.ingestion.entsog_native_units import (
@@ -89,23 +87,6 @@ def _flow_observation(**overrides) -> FlowObservationRecord:
     }
     values.update(overrides)
     return FlowObservationRecord(**values)
-
-
-def _strategy_run(run_id: str, strategy_id: str, started_at: datetime) -> StrategyRunRecord:
-    return StrategyRunRecord(
-        run_id=run_id,
-        strategy_id=strategy_id,
-        run_mode="BACKTEST",
-        status="SUCCEEDED",
-        started_at_utc=started_at,
-        input_snapshot={},
-        result_snapshot={},
-        source_refs=[],
-        warnings=[],
-        missing_inputs=[],
-        research_only=True,
-        human_review_required=True,
-    )
 
 
 def test_load_snapshot_retains_non_entsog_and_valid_native_volume(tmp_path, monkeypatch) -> None:
@@ -230,60 +211,3 @@ def test_malformed_native_is_typed_503_on_every_analysis_reader(
         assert _FORBIDDEN_NATIVE_MARKER not in response.text
         assert "sqlite" not in response.text.lower()
         assert database_url not in response.text
-
-
-def test_load_snapshot_preserves_principal_strategy_owner_scoping(
-    tmp_path, monkeypatch
-) -> None:
-    engine, _ = _database(monkeypatch, tmp_path, "strategy-owner")
-    now = datetime.now(UTC)
-    with Session(engine) as session:
-        owner = create_identity_principal(
-            session,
-            name="snapshot-owner",
-            display_name="Snapshot owner",
-            role="ANALYST",
-            data_scopes=["*"],
-        )
-        other = create_identity_principal(
-            session,
-            name="snapshot-other",
-            display_name="Snapshot other",
-            role="ANALYST",
-            data_scopes=["*"],
-        )
-        session.add_all(
-            [
-                StrategyRecord(
-                    strategy_id="strategy-owner",
-                    name="Owner strategy",
-                    owner_principal_id=owner.principal_id,
-                    visibility="PRIVATE",
-                    created_at_utc=now,
-                    updated_at_utc=now,
-                ),
-                StrategyRecord(
-                    strategy_id="strategy-other",
-                    name="Other strategy",
-                    owner_principal_id=other.principal_id,
-                    visibility="PRIVATE",
-                    created_at_utc=now,
-                    updated_at_utc=now,
-                ),
-            ]
-        )
-        session.add_all(
-            [
-                _strategy_run("run-owner", "strategy-owner", now),
-                _strategy_run("run-other", "strategy-other", now),
-            ]
-        )
-        session.commit()
-        owner_id = owner.principal_id
-        other_id = other.principal_id
-
-    owner_snapshot = analysis_module._load_snapshot(principal_id=owner_id)
-    other_snapshot = analysis_module._load_snapshot(principal_id=other_id)
-
-    assert [row["run_id"] for row in owner_snapshot.strategy_runs] == ["run-owner"]
-    assert [row["run_id"] for row in other_snapshot.strategy_runs] == ["run-other"]

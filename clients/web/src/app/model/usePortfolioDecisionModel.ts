@@ -14,7 +14,6 @@ import {
   buildReviewWarnings,
   buildRouteGeometryEdgesByRouteId,
   buildRouteRecommendationRequest,
-  buildStrategyScenario,
   buildWorkspaceLatestRows,
   marketMatchesTradingContext,
   resolveNetworkGeometryState,
@@ -66,7 +65,6 @@ export function usePortfolioDecisionModel({
   autoOptimize = true,
 }: PortfolioDecisionModelParams) {
   const lastAutoOptimizerSignatureRef = useRef<string | null>(null);
-  const [strategyResultContextKey, setStrategyResultContextKey] = useState<string | null>(null);
   const currentContextKey = useMemo(
     () => traderContextKey({ gasDay, deliveryProduct, hubId }),
     [deliveryProduct, gasDay, hubId],
@@ -135,17 +133,6 @@ export function usePortfolioDecisionModel({
     ),
     [api.upstreamContracts, gasDay, portfolioResources, saleOptions, totalPoolVolume],
   );
-  const strategyScenario = useMemo(
-    () => buildStrategyScenario(
-      contract,
-      liveMark,
-      contextMarkets,
-      portfolioResources,
-      selectedResourceId,
-    ),
-    [contextMarkets, contract, liveMark, portfolioResources, selectedResourceId],
-  );
-
   /**
    * The provenance key a run is stamped with: which act, the trading context, and the canonical
    * identity of the caller-known inputs the request was composed from
@@ -183,52 +170,6 @@ export function usePortfolioDecisionModel({
       ),
     [api.upstreamContracts, currentContextKey, routeRecommendationRequest, saleOptions],
   );
-  /**
-   * The strategy evaluation request as it will actually be sent (the scenario plus the shadow
-   * PnL the run continues from). Its identity is built from this payload, so a contract
-   * revision, pool read or market observation change invalidates a shown strategy result too.
-  */
-  function strategyEvaluationPayload(overrides?: {
-    risk_control?: Record<string, unknown>;
-    bar_minutes?: number;
-  }) {
-    return {
-      ...strategyScenario,
-      risk_control: {
-        ...(strategyScenario.risk_control ?? {}),
-        ...(overrides?.risk_control ?? {}),
-      },
-      existing_shadow_pnl_gbp: api.strategySummary?.cumulative_pnl_gbp ?? 0,
-      components: overrides?.bar_minutes
-        ? strategyScenario.components.map((component) => ({
-            ...component,
-            target_bar_minutes: overrides.bar_minutes,
-          }))
-        : strategyScenario.components,
-    };
-  }
-  /**
-   * The current key is composed from the *default* payload (`strategyEvaluationPayload()`).
-   *
-   * An evaluation started with overrides sends a payload this key does not describe: it is
-   * stamped with the identity of the payload actually sent, so a successful overridden run does
-   * not match and is withheld as stale (`currentStrategyResult` null) rather than presented as
-   * the default payload's result. That is the conservative posture, not an equivalence claim -
-   * the overridden and default payloads are different requests - and no surface in this build
-   * calls the evaluation with overrides.
-   */
-  const strategyProvenanceKey = useMemo(
-    () =>
-      decisionProvenanceKey(
-        "strategy_evaluation",
-        currentContextKey,
-        decisionInputIdentity({
-          request: strategyEvaluationPayload(),
-          savedContracts: api.upstreamContracts,
-        }),
-      ),
-    [api.strategySummary, api.upstreamContracts, currentContextKey, strategyScenario],
-  );
   // Each result carries its own provenance lane, so one action's run cannot relabel the other's
   // payload and a failed retry cannot erase a context or input change. One rule decides
   // staleness (`decisionProvenanceMismatch`): a held result is current only while its key equals
@@ -243,11 +184,6 @@ export function usePortfolioDecisionModel({
     api.routeRecommendation !== null,
     compareProvenanceKey,
   );
-  const strategyContextMismatch = decisionProvenanceMismatch(
-    api.strategyResult !== null,
-    strategyResultContextKey,
-    strategyProvenanceKey,
-  );
   // The one derived posture every consumer reads: a payload whose provenance is not the caller's
   // current inputs is withheld from current metrics - never substituted with 0 - and the surface
   // states that it is stale. The scenario selector, the map's decision rail, the Portfolio PnL
@@ -256,7 +192,6 @@ export function usePortfolioDecisionModel({
   const currentRouteRecommendation = routeRecommendationContextMismatch
     ? null
     : api.routeRecommendation;
-  const currentStrategyResult = strategyContextMismatch ? null : api.strategyResult;
 
   const selectedAllocation = currentRouteRecommendation?.allocations[0] ?? null;
   const poolAllocations = currentResourcePoolResult?.allocations ?? [];
@@ -281,11 +216,7 @@ export function usePortfolioDecisionModel({
     null;
   const purchasePrice = firstPortfolioResource?.contract_cost_gbp_mwh ?? null;
   const routeCharge = firstAllocationOption?.route_cost_gbp_mwh ?? selectedAllocation?.route_cost ?? null;
-  const firstStrategyTarget = currentStrategyResult?.allocation_targets[0];
-  const activeWarning = [
-    ...(currentStrategyResult?.warnings ?? []),
-    ...(api.meta?.warnings ?? []),
-  ][0] ?? null;
+  const activeWarning = (api.meta?.warnings ?? [])[0] ?? null;
   const { latestCapacityRows } = useMemo(
     () => buildWorkspaceLatestRows({
       flows: api.flows,
@@ -301,7 +232,6 @@ export function usePortfolioDecisionModel({
     () => buildReviewWarnings(
       currentResourcePoolResult,
       currentRouteRecommendation,
-      currentStrategyResult,
       api.analysisResult,
       api.meta,
     ),
@@ -310,7 +240,6 @@ export function usePortfolioDecisionModel({
       api.meta,
       currentResourcePoolResult,
       currentRouteRecommendation,
-      currentStrategyResult,
     ],
   );
   // Three states, not two: a status read that has not answered is not a disconnection, and the
@@ -519,29 +448,6 @@ export function usePortfolioDecisionModel({
     void api.recommendRouteAllocation(routeRecommendationRequest, compareProvenanceKey);
   }
 
-  function evaluateStrategyForCurrentContext(overrides?: {
-    risk_control?: Record<string, unknown>;
-    bar_minutes?: number;
-  }) {
-    // `overrides` are stamped with the identity of the payload actually sent; that differs from
-    // the model's default-payload current key, so an overridden run is withheld as stale by the
-    // rule above instead of being relabelled current (no equivalence is claimed).
-    const payload = strategyEvaluationPayload(overrides);
-    const provenanceKey = decisionProvenanceKey(
-      "strategy_evaluation",
-      currentContextKey,
-      decisionInputIdentity({
-        request: payload,
-        savedContracts: api.upstreamContracts,
-      }),
-    );
-    void api.evaluateStrategyLab(payload).then((completed) => {
-      // Stamped only by a run that actually produced a result: a refused or failed evaluation
-      // leaves the previous result and its own provenance key in place.
-      if (completed) setStrategyResultContextKey(provenanceKey);
-    });
-  }
-
   return {
     portfolioResources,
     saleOptions,
@@ -551,16 +457,12 @@ export function usePortfolioDecisionModel({
     contextMarkets,
     resourcePoolOptimizationRequest,
     routeRecommendationRequest,
-    strategyScenario,
-    strategySummary: api.strategySummary,
-    strategyRuns: api.strategyRuns,
     selectedAllocation,
     poolAllocations,
     optimizerContextMismatch,
     routeRecommendationContextMismatch,
     /** Either governed result the surfaces display is stale for the current inputs. */
     resultsContextMismatch: optimizerContextMismatch || routeRecommendationContextMismatch,
-    strategyContextMismatch,
     /**
      * The one provenance gate every consumer reads: each is null while the held payload was not
      * computed from the inputs the caller now knows, so stale economics are withheld rather than
@@ -568,10 +470,8 @@ export function usePortfolioDecisionModel({
      */
     currentResourcePoolResult,
     currentRouteRecommendation,
-    currentStrategyResult,
     optimizeResourcePoolForCurrentContext,
     recommendRouteAllocationForCurrentContext,
-    evaluateStrategyForCurrentContext,
     firstPoolAllocation,
     decisionPnl,
     decisionMargin,
@@ -579,7 +479,6 @@ export function usePortfolioDecisionModel({
     purchasePrice,
     routeCharge,
     scenarioRouteEconomics,
-    firstStrategyTarget,
     activeWarning,
     latestCapacityRows,
     reviewWarnings,

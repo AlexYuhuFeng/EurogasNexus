@@ -365,8 +365,6 @@ export const DEEP_LINK_CONTEXT_KEYS = [
   "hub",
   "route",
   "resource",
-  "strategyVersion",
-  "strategyRun",
   "case",
 ] as const;
 

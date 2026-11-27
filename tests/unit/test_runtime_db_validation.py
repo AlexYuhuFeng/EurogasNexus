@@ -148,7 +148,7 @@ def test_a_missing_table_is_still_reported_as_missing(
 
 
 @pytest.mark.parametrize(
-    "missing", ["identity_groups", "identity_group_members", "strategy_group_shares"]
+    "missing", ["identity_groups", "identity_group_members"]
 )
 def test_privacy_schema_tables_are_required_for_runtime_readiness(missing: str) -> None:
     from sqlalchemy import create_engine

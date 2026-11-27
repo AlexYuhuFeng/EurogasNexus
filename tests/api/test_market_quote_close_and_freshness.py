@@ -17,7 +17,6 @@ from eurogas_nexus.api.app import create_app
 from eurogas_nexus.application.projections.market_reads import annotate_quotes
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import MarketObservationRecord, MarketQuoteRecord
-from eurogas_nexus.db.repositories.backtest import _quote_side_prices
 
 NOW = datetime(2026, 11, 24, 13, 50, tzinfo=UTC)
 DA_START = datetime(2026, 11, 25, 5, 0, tzinfo=UTC)
@@ -121,14 +120,6 @@ def _record(quote_id: str, **overrides) -> MarketQuoteRecord:
     }
     values.update(overrides)
     return MarketQuoteRecord(**values)
-
-
-def test_backtest_pool_gives_a_one_sided_quote_no_mid() -> None:
-    prices = dict(_quote_side_prices(_record("one-sided")))
-    assert prices["MID"] is None
-    assert prices["LAST"] == 45.0
-    two_sided = dict(_quote_side_prices(_record("two", bid_price=41.4, ask_price=41.5)))
-    assert two_sided["MID"] == 41.45
 
 
 def test_quotes_route_carries_as_of_staleness_and_previous_close(tmp_path, monkeypatch) -> None:

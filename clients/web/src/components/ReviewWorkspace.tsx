@@ -45,8 +45,6 @@ interface ReviewWorkspaceProps {
   /** The review projection, when its on-demand read has landed. */
   reviewProjection: ReviewContextProjectionDTO | null;
   reviewMessage: string | null;
-  latestStrategyRunId: string | null;
-  carriedStrategyRunId: string | null;
   /**
    * The reproducibility references the deployment recorded (Architecture V2 Wave 4) and the
    * one the next report run cites. The surface offers the deployment's own list; it never
@@ -73,7 +71,6 @@ const REVIEW_DECISIONS: ReviewDecisionInputDTO["decision"][] = [
 ];
 
 const REVIEW_ENTITY_TYPES: ReviewDecisionInputDTO["entity_type"][] = [
-  "strategy_run",
   "intraday_opportunity",
   "generated_report",
 ];
@@ -93,8 +90,6 @@ export function ReviewWorkspace({
   reviewDecisions,
   reviewProjection,
   reviewMessage,
-  latestStrategyRunId,
-  carriedStrategyRunId,
   analysisSnapshots,
   analysisSnapshotSource,
   reviewSnapshotId,
@@ -112,19 +107,11 @@ export function ReviewWorkspace({
   // gated by the model; the evidence pack below reads the same gate, while the banner above
   // names what is being withheld. Nothing is substituted with a figure.
   const poolResult = poolResultContextMismatch ? null : resourcePoolResult;
-  const [entityType, setEntityType] = useState<ReviewDecisionInputDTO["entity_type"]>("strategy_run");
-  const [entityId, setEntityId] = useState(carriedStrategyRunId ?? latestStrategyRunId ?? "");
+  const [entityType, setEntityType] = useState<ReviewDecisionInputDTO["entity_type"]>(
+    "intraday_opportunity",
+  );
+  const [entityId, setEntityId] = useState("");
   const entityRead = useCachedRead<RecordOption[]>(`/review/entities/${entityType}`, async (signal) => {
-    if (entityType === "strategy_run") {
-      const runs = (await api.strategyRuns({ limit: 50 })).data;
-      return runs.map((run) => ({
-        id: run.run_id,
-        label: run.strategy_name || run.strategy_id,
-        // A strategy-lab history run is a signal study (its P&L is the decision-time margin).
-        detail: [run.run_mode === "BACKTEST" ? t("job.kind.BACKTEST") : run.run_mode, displayTime(run.finished_at_utc ?? run.started_at_utc, "")].filter(Boolean).join(" · "),
-        keywords: [run.strategy_id],
-      }));
-    }
     if (entityType === "intraday_opportunity") {
       const items = (await api.intradayOpportunities({ signal })).data;
       return items.map((item) => ({
@@ -149,15 +136,6 @@ export function ReviewWorkspace({
   const [aiAction, setAiAction] = useState<AiActionKind | null>(null);
   const copilotSources = useCopilotSources();
 
-  useEffect(() => {
-    if (carriedStrategyRunId) {
-      setEntityId(carriedStrategyRunId);
-      setEntityType("strategy_run");
-      return;
-    }
-    if (!entityId && latestStrategyRunId) setEntityId(latestStrategyRunId);
-  }, [carriedStrategyRunId, entityId, latestStrategyRunId]);
-
   const submitDecision = (decision: ReviewDecisionInputDTO["decision"]) => {
     const trimmedId = entityId.trim();
     if (!trimmedId) return;
@@ -173,11 +151,6 @@ export function ReviewWorkspace({
 
   return (
     <div className="workspace-grid review-page">
-      {carriedStrategyRunId && (
-        <div className="workspace-panel span-3 review-context-banner" role="status" aria-live="polite">
-          <span><small>{t("review.carried_strategy_run")}</small><strong>{carriedStrategyRunId}</strong></span>
-        </div>
-      )}
       {poolResultContextMismatch && resourcePoolResult !== null && (
         <div className="workspace-panel span-3 review-context-banner" role="status">
           <span className="context-mismatch">

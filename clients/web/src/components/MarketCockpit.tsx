@@ -246,9 +246,6 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
                   window.history.replaceState(window.history.state, "", url);
                   window.dispatchEvent(new PopStateEvent("popstate", { state: window.history.state }));
                 }
-              } else if (item.kind === "strategy") {
-                // Research → Spreads, where the tracked strategy and its paper book are shown.
-                navigation.openWorkspace("research", "spreads");
               } else {
                 // Deals → Opportunities (CP-14) with the opportunity selected (`opportunity=`, the
                 // item's target); until the page exists, Deals → Contracts.

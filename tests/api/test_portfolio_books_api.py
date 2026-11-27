@@ -12,7 +12,6 @@ from eurogas_nexus.db.models import (
     FxObservationRecord,
     MarketObservationRecord,
     ScreenOrderObservationRecord,
-    StrategyRecord,
 )
 from eurogas_nexus.db.repositories.identity import (
     create_identity_api_key,
@@ -87,16 +86,6 @@ def test_books_roll_up_by_legal_entity_in_eur(tmp_path, monkeypatch):
         )
         _, bearer = create_identity_api_key(
             session, owner.principal_id, display_name="b", scopes=["*"]
-        )
-        session.add(
-            StrategyRecord(
-                strategy_id="book-test",
-                name="Books",
-                owner_principal_id=owner.principal_id,
-                visibility="PRIVATE",
-                created_at_utc=now,
-                updated_at_utc=now,
-            )
         )
         session.add(_order("nbp-buy", "NBP", "BUY", 30.0, "GBP", month_start, now))
         session.add(_order("ttf-sell", "TTF", "SELL", 36.0, "EUR", month_start, now))

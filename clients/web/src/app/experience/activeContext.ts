@@ -33,9 +33,6 @@ export interface ActiveContext {
   readonly hubId: SupportedHubId | null;
   readonly routeId: string | null;
   readonly resourceId: string | null;
-  readonly strategyId: string | null;
-  readonly strategyVersionId: string | null;
-  readonly strategyRunId: string | null;
 }
 
 /**
@@ -67,9 +64,6 @@ export const ACTIVE_CONTEXT_QUERY_KEYS = {
   hub: "hub",
   route: "route",
   resource: "resource",
-  run: "run",
-  strategy: "strategy",
-  version: "version",
 } as const;
 
 export interface ActiveContextParts {
@@ -86,9 +80,6 @@ export function activeContextFromParts(parts: ActiveContextParts): ActiveContext
     hubId: parts.trader.hubId,
     routeId: parts.selection.routeId,
     resourceId: parts.selection.resourceId,
-    strategyId: parts.selection.strategyId,
-    strategyVersionId: parts.selection.strategyVersionId,
-    strategyRunId: parts.selection.strategyRunId,
   };
 }
 
@@ -105,9 +96,6 @@ export function activeContextKey(context: ActiveContext): string {
     context.hubId ?? "ANY",
     context.routeId ?? "-",
     context.resourceId ?? "-",
-    context.strategyId ?? "-",
-    context.strategyVersionId ?? "-",
-    context.strategyRunId ?? "-",
   ].join("|");
 }
 
@@ -138,8 +126,5 @@ export function activeContextSummary(context: ActiveContext): ReadonlyArray<{
     { field: "hubId", value: context.hubId },
     { field: "resourceId", value: context.resourceId },
     { field: "routeId", value: context.routeId },
-    { field: "strategyId", value: context.strategyId },
-    { field: "strategyVersionId", value: context.strategyVersionId },
-    { field: "strategyRunId", value: context.strategyRunId },
   ];
 }

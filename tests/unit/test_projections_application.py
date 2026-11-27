@@ -40,7 +40,6 @@ from eurogas_nexus.db.models import (
     ReviewDecisionRecord,
     RouteCandidateRecord,
     ScreenOrderObservationRecord,
-    StrategyRunRecord,
     UpstreamResourceContractRecord,
 )
 from eurogas_nexus.security.identity import AuthenticatedPrincipal
@@ -123,27 +122,6 @@ def _session(tmp_path, name: str = "projections.sqlite") -> Session:
     engine = create_engine(database_url, future=True)
     Base.metadata.create_all(engine)
     return Session(engine)
-
-
-def _owned_strategy_fixture(session: Session) -> None:
-    from eurogas_nexus.db.repositories.identity import create_identity_principal
-    from eurogas_nexus.db.repositories.strategy_registry import create_strategy
-
-    owner = create_identity_principal(
-        session, name="fixture-principal", display_name="Fixture", role="ANALYST", data_scopes=["*"]
-    )
-    owner.principal_id = "fixture-principal"
-    session.flush()
-    create_strategy(
-        session,
-        strategy_id="strategy-1",
-        name="Owned projection fixture",
-        description="",
-        created_by=owner.name,
-        owner_principal_id=owner.principal_id,
-        now_utc=AS_OF,
-    )
-    session.commit()
 
 
 def _observation(
@@ -747,13 +725,12 @@ def test_market_context_observation_slice_fails_closed_without_an_entitled_sourc
 
 def test_portfolio_snapshot_keeps_unknown_totals_and_per_slice_freshness(tmp_path) -> None:
     with _session(tmp_path, "portfolio.sqlite") as session:
-        _owned_strategy_fixture(session)
         session.add(
             PortfolioPnlSnapshotRecord(
                 pnl_snapshot_id="pnl-1",
                 portfolio_id="portfolio-demo",
                 resource_id="resource-1",
-                strategy_id="strategy-1",
+                strategy_id=None,
                 valuation_time_utc=AS_OF - timedelta(minutes=5),
                 realized_pnl_gbp=100.0,
                 unrealized_pnl_gbp=200.0,
@@ -1099,17 +1076,6 @@ def _review_fixture(session: Session) -> None:
             created_at_utc=AS_OF - timedelta(minutes=1),
         )
     )
-    session.add(
-        ReviewDecisionRecord(
-            decision_id="dec-3",
-            entity_type="strategy_run",
-            entity_id="run-missing",
-            actor="operator-c",
-            decision="accepted",
-            note=None,
-            created_at_utc=AS_OF - timedelta(minutes=2),
-        )
-    )
     session.add(_opportunity("opp-1", detected_at=AS_OF - timedelta(minutes=5)))
     session.add(
         GeneratedReportRecord(
@@ -1154,57 +1120,8 @@ def test_review_context_resolves_decisions_evidence_and_warnings(tmp_path) -> No
     assert evidence["opp-1"]["artifact"]["opportunity_id"] == "opp-1"
     assert evidence["report-1"]["available"] is True
     assert evidence["report-1"]["artifact"]["section_count"] == 1
-    # A missing strategy cannot prove ownership; its decision is withheld too.
-    assert "run-missing" not in evidence
     assert "REVIEW_DECISION_NEEDS_ATTENTION" in payload["meta"]["warnings"]
     assert "REVIEW_EVIDENCE_INCOMPLETE" not in payload["meta"]["warnings"]
-
-
-def test_review_context_withholds_evidence_from_an_unentitled_principal(tmp_path) -> None:
-    scoped = _principal(scopes=("ENTSOG",))
-    with _session(tmp_path, "review-scope.sqlite") as session:
-        _owned_strategy_fixture(session)
-        session.add(
-            StrategyRunRecord(
-                run_id="run-1",
-                strategy_id="strategy-1",
-                strategy_version_id=None,
-                run_type="EVALUATION",
-                run_mode="BACKTEST",
-                status="SUCCEEDED",
-                started_at_utc=AS_OF - timedelta(hours=1),
-                input_snapshot={},
-                result_snapshot={"source_systems": ["EEX", "ENTSOG"]},
-                source_refs=["fixture:run"],
-                warnings=["RUN_WARNING"],
-                missing_inputs=[],
-                research_only=True,
-                human_review_required=True,
-            )
-        )
-        session.add(
-            ReviewDecisionRecord(
-                decision_id="dec-1",
-                entity_type="strategy_run",
-                entity_id="run-1",
-                actor="operator-a",
-                decision="accepted",
-                note=None,
-                created_at_utc=AS_OF,
-            )
-        )
-        session.commit()
-        payload = build_review_context(scoped, session=session, as_of_utc=AS_OF)
-
-    entry = payload["data"]["slices"]["evidence"]["rows"][0]
-    # The run declares contributing source systems (EEX is not granted); the
-    # principal gets an explicit denial instead of the evidence payload.
-    assert entry["entity_type"] == "strategy_run"
-    assert entry["available"] is False
-    assert entry["unavailable_reason"] == "ENTITLEMENT_DENIED"
-    assert entry["artifact"] is None
-    assert "ENTITLEMENT_DENIED" in entry["warnings"]
-    assert "REVIEW_EVIDENCE_INCOMPLETE" in payload["meta"]["warnings"]
 
 
 def test_review_context_reports_unknown_entity_types_instead_of_guessing(tmp_path) -> None:

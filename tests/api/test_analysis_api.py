@@ -13,7 +13,7 @@ def test_business_ontology_endpoint_exposes_guardrails() -> None:
 
     assert response.status_code == 200
     data = response.json()["data"]
-    assert "StrategyRun" in data["entities"]
+    assert "VirtualHub" in data["entities"]
     assert "LLM providers are not source of truth" in data["guardrails"]
 
 
@@ -58,7 +58,6 @@ def test_portfolio_report_returns_required_sections() -> None:
     assert {section["section_id"] for section in data["sections"]} >= {
         "portfolio",
         "market",
-        "strategy",
     }
 
 

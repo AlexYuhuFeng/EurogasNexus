@@ -7,7 +7,7 @@ Two ways to record an audit event, and which one a caller uses is a rule, not a 
   be written the helper raises :class:`GovernedAuditError`: the caller's transaction is not
   committed and the change does not happen. The API answers 503 ``audit_unavailable``. The
   governed writes are listed in :data:`GOVERNED_WRITES`; tests hold each one to the rule.
-* **Everything else** (entitlement and export denials, LLM invocations, review and shadow
+* **Everything else** (entitlement and export denials, LLM invocations, review
   decisions recorded after the fact, list and read events, sign-in events, refusals of a
   governed write that changed nothing) calls :func:`record_audit_event`, which opens its own
   session and never raises: a missing audit row for a read must not break the read, and the

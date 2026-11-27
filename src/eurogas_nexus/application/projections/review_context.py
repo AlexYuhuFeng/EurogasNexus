@@ -11,7 +11,6 @@ What it composes (existing services only, never a re-implementation):
   ``GET /api/review/decisions`` serves;
 - one evidence resolver per ``domain.ontology.vocabulary.ReviewEntityType``:
   ``db.repositories.market_intelligence.get_intraday_opportunity``,
-  ``db.repositories.strategy.get_strategy_run``,
   ``GeneratedReportRecord`` (the row ``POST /api/reports/portfolio`` persists)
   and ``db.repositories.agents`` (agent run replay is the review-pack evidence,
   the same payload ``GET /api/agent/runs/{id}/replay`` returns);
@@ -65,7 +64,6 @@ PROJECTION_VERSION = "review-context.v1"
 TABLE_LINEAGE: tuple[str, ...] = (
     "review_decisions",
     "intraday_opportunities",
-    "strategy_runs",
     "generated_reports",
     "agent_runs",
     "monitoring_alerts",
@@ -80,7 +78,6 @@ _DEGRADED_RULE = "not evaluated: no runtime database read was possible"
 #: Resolvers this projection can address, keyed by review entity type value.
 SUPPORTED_ENTITY_TYPES: tuple[str, ...] = (
     "intraday_opportunity",
-    "strategy_run",
     "generated_report",
     "agent_review_pack",
 )
@@ -488,22 +485,6 @@ def _intraday_opportunity_evidence(
     return artifact, list(artifact.get("warnings") or [])
 
 
-def _strategy_run_evidence(
-    session: Session,
-    entity_id: str,
-    now_utc: datetime,
-) -> tuple[dict[str, Any] | None, list[str]]:
-    """Resolve a strategy-run review artifact."""
-
-    _ = now_utc
-    from eurogas_nexus.db.repositories.strategy import get_strategy_run
-
-    artifact = get_strategy_run(session, entity_id)
-    if artifact is None:
-        return None, []
-    return artifact, list(artifact.get("warnings") or [])
-
-
 def _generated_report_evidence(
     session: Session,
     entity_id: str,
@@ -560,7 +541,6 @@ def _agent_review_pack_evidence(
 
 _EVIDENCE_RESOLVERS = {
     "intraday_opportunity": _intraday_opportunity_evidence,
-    "strategy_run": _strategy_run_evidence,
     "generated_report": _generated_report_evidence,
     "agent_review_pack": _agent_review_pack_evidence,
 }

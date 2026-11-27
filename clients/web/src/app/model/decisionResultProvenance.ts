@@ -36,10 +36,7 @@
  */
 
 /** Which governed act a provenance key belongs to. */
-export type DecisionProvenanceScope =
-  | "optimize_pool"
-  | "compare_routes"
-  | "strategy_evaluation";
+export type DecisionProvenanceScope = "optimize_pool" | "compare_routes";
 
 /**
  * Keys whose array value is a semantically unordered set of strings (TSO access names, allowed
@@ -86,9 +83,7 @@ export interface DecisionInputIdentityParts {
   readonly savedContracts?: readonly SavedContractIdentityLike[];
   /**
    * The market-read marks the sale options were derived from. Needed where the request
-   * projection drops them (the route comparison sends only prices and costs); a request that
-   * embeds its own observations (the strategy evaluation) already covers them through
-   * `request`.
+   * projection drops them (the route comparison sends only prices and costs).
    */
   readonly marketReads?: readonly MarketReadIdentityLike[];
 }

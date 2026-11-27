@@ -83,10 +83,9 @@ class PortfolioReportRequest(BaseModel):
     """Request for a portfolio decision-support report.
 
     与 ``AnalysisRequest`` 相同的诚实契约：报告由具权限的整份快照计算，
-    因此 ``portfolio_id`` / ``selected_resources`` / ``selected_contracts`` /
-    ``selected_strategies`` 一旦非空即被路由以
-    ``422 analysis_selection_not_supported`` 拒绝，绝不把"未过滤"的报告
-    当成"已按选择过滤"的结果返回。
+    因此 ``portfolio_id`` / ``selected_resources`` / ``selected_contracts``
+    一旦非空即被路由以 ``422 analysis_selection_not_supported`` 拒绝，绝不把
+    "未过滤"的报告当成"已按选择过滤"的结果返回。
 
     Attributes:
         title: Report title (also the question for the LLM synthesis).
@@ -101,7 +100,6 @@ class PortfolioReportRequest(BaseModel):
             run carries travel in the report title, which is the question the
             provider receives.
         selected_contracts: Refused when non-empty (same reason).
-        selected_strategies: Refused when non-empty (same reason).
         duration_start_utc: Window start; None = unbounded.
         duration_end_utc: Window end; None = unbounded.
         language: Output language hint.
@@ -118,7 +116,6 @@ class PortfolioReportRequest(BaseModel):
     portfolio_id: str | None = None
     selected_resources: list[str] = Field(default_factory=list)
     selected_contracts: list[str] = Field(default_factory=list)
-    selected_strategies: list[str] = Field(default_factory=list)
     duration_start_utc: datetime | None = None
     duration_end_utc: datetime | None = None
     language: str = "en"
@@ -140,7 +137,6 @@ class AnalysisSnapshot(BaseModel):
         flow_observations: Physical flow rows.
         capacity_context: Capacity profile rows.
         route_candidates: Route candidate rows.
-        strategy_runs: Strategy run rows.
         portfolio_context: Portfolio/contract rows.
         warnings: Snapshot-level warnings carried into every output.
     """
@@ -156,7 +152,6 @@ class AnalysisSnapshot(BaseModel):
     flow_observations: list[dict] = Field(default_factory=list)
     capacity_context: list[dict] = Field(default_factory=list)
     route_candidates: list[dict] = Field(default_factory=list)
-    strategy_runs: list[dict] = Field(default_factory=list)
     portfolio_context: list[dict] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 

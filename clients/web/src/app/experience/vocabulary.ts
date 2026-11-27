@@ -80,8 +80,6 @@ export const INSPECTOR_SUBJECT_KINDS = [
   "contract",
   "resource",
   "market-observation",
-  "strategy-version",
-  "strategy-run",
   "decision-evidence",
   "provider-connection",
   "job",

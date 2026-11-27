@@ -115,14 +115,10 @@ def runtime_release_metadata(request: Request) -> dict:
     from eurogas_nexus.core.config import Settings, demo_marks_allowed
     from eurogas_nexus.release.constants import (
         API_CONTRACT_VERSION,
-        BACKTEST_ENGINE_VERSION,
         DB_SCHEMA_REVISION,
         MINIMUM_SUPPORTED_CLIENT_VERSION,
         MINIMUM_SUPPORTED_SERVER_VERSION,
-        RUN_SCHEMA_VERSION,
         SOLVER_VERSION,
-        STRATEGY_SCHEMA_VERSION,
-        TARGET_BACKTEST_ENGINE_VERSION,
     )
 
     settings = getattr(request.app.state, "settings", Settings())
@@ -139,13 +135,6 @@ def runtime_release_metadata(request: Request) -> dict:
             "database_schema_revision": DB_SCHEMA_REVISION,
             "minimum_supported_client": MINIMUM_SUPPORTED_CLIENT_VERSION,
             "minimum_supported_server": MINIMUM_SUPPORTED_SERVER_VERSION,
-            # The public application historical run executes engine/2. The
-            # legacy engine/1 helper identity is reported separately so stored
-            # engine/1 runs are never relabelled.
-            "backtest_engine_version": TARGET_BACKTEST_ENGINE_VERSION,
-            "legacy_backtest_engine_version": BACKTEST_ENGINE_VERSION,
-            "strategy_schema_version": STRATEGY_SCHEMA_VERSION,
-            "strategy_run_schema_version": RUN_SCHEMA_VERSION,
             "solver_version": SOLVER_VERSION,
             "deployment": deployment_profile(),
             # True only in a demo run with simulated demo marks; the client then labels every
@@ -201,18 +190,14 @@ def runtime_dependencies(request: Request) -> dict:
             if engine is not None:
                 engine.dispose()
 
-    schedulers = {"dataops": {"state": "UNKNOWN"}, "shadow": {"state": "UNKNOWN"}}
+    schedulers = {"dataops": {"state": "UNKNOWN"}}
     if database_url:
         try:
-            from eurogas_nexus.db.models import (
-                DataOperationsHeartbeatRecord,
-                StrategyShadowSchedulerHeartbeatRecord,
-            )
+            from eurogas_nexus.db.models import DataOperationsHeartbeatRecord
             from eurogas_nexus.db.session import get_session_factory
 
             with get_session_factory()() as session:
                 dataops = session.get(DataOperationsHeartbeatRecord, "primary")
-                shadow = session.get(StrategyShadowSchedulerHeartbeatRecord, "primary")
                 schedulers["dataops"] = _heartbeat_state(
                     dataops.last_heartbeat_at_utc if dataops else None, now
                 )
@@ -230,9 +215,6 @@ def runtime_dependencies(request: Request) -> dict:
                         schedulers["dataops"]["last_scan_at_utc"] = as_utc(
                             dataops.last_scan_at_utc
                         ).isoformat()
-                schedulers["shadow"] = _heartbeat_state(
-                    shadow.last_heartbeat_at_utc if shadow else None, now
-                )
         except Exception:
             pass
 

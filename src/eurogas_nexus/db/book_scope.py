@@ -58,11 +58,7 @@ NOT_BOOK_DATA: dict[str, str] = {
     "identity_local_credentials": "credential store; never served",
     "agent_research_plans": "research plans; owner checks in the agent routes",
     "assumption_set_versions": "versions of a set; the set row carries the book scope",
-    "backtest_experiments": "research on public and licensed prices, no position",
     "dataset_snapshots": "research datasets; licensed-family entitlement applies",
-    "strategies": "strategy definitions; owner and sharing checks (strategy_access)",
-    "strategy_versions": "strategy definitions; owner and sharing checks (strategy_access)",
-    "strategy_shadow_monitors": "strategy monitors; owner and sharing checks",
     "valuation_snapshots": "input version lines of an evaluation, no position",
 }
 

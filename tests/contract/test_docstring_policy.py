@@ -37,7 +37,6 @@ CHECKED_MODULES = [
     "api/dependencies/sandbox.py",
     "domain/ingestion/source_registry.py",
     "domain/ingestion/certification.py",
-    "domain/constraints/risk.py",
     "domain/constraints/route_economics.py",
     "domain/identity/principal.py",
     "domain/ontology/actions.py",
@@ -70,7 +69,6 @@ CHECKED_MODULES = [
     "domain/route_cost/schemas.py",
     "domain/market_intelligence/normalized_view.py",
     "domain/market_intelligence/opportunity_engine.py",
-    "domain/strategy_lab/evaluation.py",
     "domain/market_positioning_import.py",
     # 第五轮：API 路由模块
     "api/routes/internal/source_certification.py",

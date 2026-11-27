@@ -235,7 +235,6 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             deliveryProduct={traderContext.deliveryProduct}
             hubId={traderContext.hubId}
             routeId={selection.routeId}
-            strategyRunId={selection.strategyRunId ?? api.strategyRuns[0]?.run_id ?? null}
             // The Decision Case chain cites AI findings and challenges, so the run this
             // identity last completed is offered as evidence by reference.
             analysisId={api.analysisResult?.analysis_id ?? null}
@@ -247,7 +246,7 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
              run is being withheld; the panel gates its allocations and evidence pack with the
              same provenance flag (`poolResultContextMismatch`) and never presents the raw
              payload as current evidence. */
-          <details className="review-supporting-tools" open={Boolean(selection.strategyRunId)}>
+          <details className="review-supporting-tools" open={false}>
           <summary>{t("review.supporting_tools")}</summary>
           <PanelHelp text={t("review.supporting_tools_help")} label={t("panel.how_to_read")} />
           <ReviewWorkspace
@@ -261,8 +260,6 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
             reviewDecisions={api.reviewDecisions}
             reviewProjection={api.reviewContext}
             reviewMessage={api.reviewMessage}
-            latestStrategyRunId={api.strategyRuns[0]?.run_id ?? null}
-            carriedStrategyRunId={selection.strategyRunId}
             analysisSnapshots={api.analysisSnapshots}
             analysisSnapshotSource={api.analysisSnapshotSource}
             reviewSnapshotId={api.reviewSnapshotId}
@@ -273,7 +270,6 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
                 gas_day: traderContext.gasDay,
                 product: traderContext.deliveryProduct,
                 hub: traderContext.hubId,
-                strategy_run_id: selection.strategyRunId ?? "",
               }),
               runtimeDbReady:
                 api.runtimeDb?.database_url_present === true && api.runtimeDb.connectivity.ok,
@@ -288,7 +284,6 @@ export function DecisionWorkspace({ controller }: { controller: AppController })
                   gas_day: traderContext.gasDay,
                   product: traderContext.deliveryProduct,
                   hub: traderContext.hubId,
-                  strategy_run_id: selection.strategyRunId ?? "",
                 },
                 api.runtimeDb?.database_url_present === true && api.runtimeDb.connectivity.ok,
               )

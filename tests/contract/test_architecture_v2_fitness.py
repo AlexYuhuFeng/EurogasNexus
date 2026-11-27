@@ -598,7 +598,6 @@ _ENGINE_FILE_PATTERN = re.compile(
 BACKEND_COMPUTE_ENDPOINTS = (
     "/route-cost/recommend",
     "/route-cost/resource-pool/optimize",
-    "/strategy-lab/evaluate",
 )
 
 _IMPORT_SPECIFIER = re.compile(r"""(?:from\s+|import\()\s*["']([^"']+)["']""")

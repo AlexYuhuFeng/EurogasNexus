@@ -31,6 +31,7 @@ from eurogas_nexus.api.routes.public.market_normalisation import (
     router as market_normalisation_router,
 )
 from eurogas_nexus.api.routes.public.market_options import router as market_options_router
+from eurogas_nexus.api.routes.public.market_ticks import router as market_ticks_router
 from eurogas_nexus.api.routes.public.monitoring import router as monitoring_router
 from eurogas_nexus.api.routes.public.news import router as news_router
 from eurogas_nexus.api.routes.public.opportunities import router as opportunities_router
@@ -49,26 +50,20 @@ from eurogas_nexus.api.routes.public.risk import router as risk_router
 from eurogas_nexus.api.routes.public.route_cost import router as route_cost_router
 from eurogas_nexus.api.routes.public.runtime import router as runtime_router
 from eurogas_nexus.api.routes.public.setup import router as setup_router
-from eurogas_nexus.api.routes.public.shadow import router as shadow_router
 from eurogas_nexus.api.routes.public.source_operations import router as source_operations_router
 from eurogas_nexus.api.routes.public.sources import router as sources_router
 from eurogas_nexus.api.routes.public.spread_lab import router as spread_lab_router
 from eurogas_nexus.api.routes.public.spreads import router as spreads_router
 from eurogas_nexus.api.routes.public.storage import router as storage_router
-from eurogas_nexus.api.routes.public.strategy_lab import router as strategy_lab_router
-from eurogas_nexus.api.routes.public.strategy_registry import router as strategy_registry_router
-from eurogas_nexus.api.routes.public.strategy_tracks import router as strategy_tracks_router
 from eurogas_nexus.api.routes.public.streaming import router as streaming_router
 from eurogas_nexus.api.routes.public.support import router as support_router
 from eurogas_nexus.api.routes.public.tariffs import router as tariffs_router
 from eurogas_nexus.api.routes.public.weather import router as weather_router
 
 #: Design basis 2, I.3 and decision L4: capabilities kept in the backend, dormant, until a desk
-#: use is proven: the dataset builder and the agents workspace. (The strategy registry and the
-#: shadow runtime stay served while the Spreads backtest and shadow tracking are rebuilt on
-#: StrategySpec; whether they are deferred is decided by that work.) Their routes are not served
-#: unless an operator turns them back on, so the attack and maintenance surface shrinks with the
-#: UI. The domain and application code stay, with tests.
+#: use is proven: the dataset builder and the agent capability catalogue. Their routes are not
+#: served unless an operator turns them back on, so the attack and maintenance surface shrinks
+#: with the UI. The domain and application code stay, with tests.
 DEFERRED_CAPABILITIES_ENV = "EUROGAS_NEXUS_DEFERRED_CAPABILITIES"
 
 
@@ -107,6 +102,7 @@ def register_routes(
         app.include_router(sources_router)
         app.include_router(source_operations_router)
         app.include_router(market_router)
+        app.include_router(market_ticks_router)
         app.include_router(imports_router)
         app.include_router(market_options_router)
         app.include_router(assumptions_router)
@@ -133,7 +129,6 @@ def register_routes(
         app.include_router(research_router)
         app.include_router(spread_lab_router)
         app.include_router(spreads_router)
-        app.include_router(strategy_tracks_router)
         app.include_router(preferences_router)
         app.include_router(setup_router)
         if deferred:
@@ -143,11 +138,8 @@ def register_routes(
         app.include_router(tariffs_router)
         app.include_router(pricing_router)
         app.include_router(optimization_router)
-        app.include_router(strategy_lab_router)
-        app.include_router(strategy_registry_router)
         app.include_router(streaming_router)
         app.include_router(runtime_router)
-        app.include_router(shadow_router)
 
     if route_profile.include_internal:
         app.include_router(internal_router)
