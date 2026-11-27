@@ -8,7 +8,11 @@ from eurogas_nexus.domain.agents.contracts import CapabilityFailureCode, Capabil
 
 
 def guard_review_capability(session, arguments, context, definition):
-    """Check that the caller may read every review target the call names.
+    """Check that a named caller may read every review target the call names.
+
+    The caller must be an active named identity (the same refusal the strategy guard this
+    replaced applied before any target check), so an unnamed caller is refused rather than
+    answered with the decisions visible to nobody in particular.
 
     Args:
         session: Open database session.
@@ -20,15 +24,17 @@ def guard_review_capability(session, arguments, context, definition):
         A blocked :class:`CapabilityResult` when a target is not readable, else None.
     """
 
+    from eurogas_nexus.db.repositories.identity_access import require_named_principal
     from eurogas_nexus.db.repositories.review import can_read_review_target
 
     try:
+        principal_id = require_named_principal(session, getattr(context, "principal_id", None))
         if arguments.get("entity_type") and arguments.get("entity_id"):
             if not can_read_review_target(
                 session,
                 arguments["entity_type"],
                 arguments["entity_id"],
-                getattr(context, "principal_id", None),
+                principal_id,
             ):
                 raise HTTPException(404)
     except HTTPException:

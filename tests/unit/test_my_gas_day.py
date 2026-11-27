@@ -117,6 +117,10 @@ def test_network_code_defaults_in_winter_and_summer():
 
 
 def test_a_prompt_product_reads_the_same_calendar():
+    # Within-day: the last renomination of today's gas day; day-ahead: tomorrow's nomination
+    # deadline while it is ahead, else the end of today's gas day.
+    assert product_cutoff("within-day", NOW) == datetime(2026, 11, 20, 2, tzinfo=UTC)
+    assert product_cutoff("day-ahead", NOW) == datetime(2026, 11, 19, 13, tzinfo=UTC)
     late = NOW.replace(hour=15)
     assert product_cutoff("day-ahead", late) == datetime(2026, 11, 20, 5, tzinfo=UTC)
 
