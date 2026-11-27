@@ -621,7 +621,14 @@ jobs:
           mkdir -p artifacts/uat-browser
           python -m uvicorn apps.api.main:app --host 127.0.0.1 --port 8000 > artifacts/uat-browser/api.log 2>&1 &
           echo $! > /tmp/eurogas-api.pid
-          npm --prefix clients/web exec -- vite preview --host 127.0.0.1 --port 3000 --strictPort --outDir dist-acceptance > artifacts/uat-browser/vite.log 2>&1 &
+          # Run Vite from the client directory: `npm --prefix ... exec` keeps the repository root
+          # as the working directory, so Vite found neither its config (the /api proxy) nor the
+          # downloaded build and answered 404 on the first hosted run of this job.
+          (
+            cd clients/web
+            exec npx vite preview --host 127.0.0.1 --port 3000 --strictPort --outDir dist-acceptance \
+              > "$GITHUB_WORKSPACE/artifacts/uat-browser/vite.log" 2>&1
+          ) &
           echo $! > /tmp/eurogas-vite.pid
 
           api_ready=0
