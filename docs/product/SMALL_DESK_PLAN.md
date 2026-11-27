@@ -114,3 +114,41 @@ the end-of-day close) are built as part of those steps.
 2. Whether the user's Trayport, ICE and EEX terms allow their data and trades to be read by
    another program. The user confirms with each vendor; nobody accepts terms on their behalf.
 3. How intraday deals can be captured without a manual export.
+
+## 9. The trader screen: defaults the owner set (2026-11-27)
+
+The owner reviewed a mock-up of step 4 and set these. Where he said "the professional way",
+the choice below is the coordinator's, recorded so it can be challenged.
+
+- **Board:** contracts down, hubs across (NBP, TTF, ZTP, THE, PVB). Rows: within-day,
+  day-ahead, weekend, balance of month, three months, two quarters, two seasons, next calendar
+  year. Bid and offer always visible, with last and change on the day.
+- **Spreads:** between hubs (TTF-NBP, ZTP-NBP, TTF-ZTP, TTF-THE, PVB-TTF); across time at each
+  hub (day-ahead against within-day, prompt against front month, month to month, summer
+  against winter); regasification against the hub. A spread with an NBP leg is quoted in pence
+  per therm, the other leg converted with the rate shown on demand.
+- **Transport cost in a hub spread:** the published short-term capacity price plus the flow
+  charge when the desk holds no capacity on the route (the default, and the screen says so);
+  the flow charge alone when it has entered booked capacity for that route.
+- **Position:** therms per day at NBP, MW at the continental hubs; physical, financial and net;
+  the same rows as the board.
+- **Fundamentals:** storage (GB, NL, DE, BE, ES, EU total); Norwegian supply into GB and the
+  continent; the two GB-continent interconnectors with direction; LNG send-out by country;
+  France-Spain and Algeria-Spain pipelines; outages at fields, terminals and storage;
+  temperature and wind for GB, north-west Europe and Iberia. GB in mcm/d, the continent in
+  GWh/d.
+- **Theme:** light by default, dark available.
+- **Language:** the trader screens are English. Chinese is for the managers' emailed reports.
+- **Look:** the mock-up is the visual target for the trader screen and for the other screens
+  the desk uses (blotter, end of day, position and profit and loss, limits). Parked pages are
+  not restyled. The owner holds the mock-up and the design-system reference as private pages.
+- **Counterparty guarantees** are shown beside exposure, not subtracted from it, until the
+  risk function says otherwise.
+
+## 10. Bringing back something that was removed
+
+The branch `archive/full-platform-2026-11-27` and the release `v1.0.0-beta.1` hold the product
+before any removal. Each removal is one commit (or one merge) on `main`, named in
+`docs/engineering/ARCHITECTURE_V2_EXECUTION_STATE.md`; restoring a feature starts from
+reverting that commit and refitting it to the code as it then stands. Keep the archive branch
+when tidying branches. Parked features (section 6) are still in the code and need no restore.
