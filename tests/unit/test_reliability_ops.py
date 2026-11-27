@@ -1,0 +1,143 @@
+"""CR-11 reliability/operations tests."""
+
+from __future__ import annotations
+
+import asyncio
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+
+from eurogas_nexus.api.app import create_app
+from eurogas_nexus.application import process_metrics
+from eurogas_nexus.core.config import Settings
+from eurogas_nexus.db.base import Base
+from eurogas_nexus.db.session import get_engine
+from eurogas_nexus.domain.operations.errors import (
+    OperationalErrorCategory,
+    classify_exception,
+    classify_http_status,
+)
+from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
+
+
+def test_liveness_never_depends_on_database(monkeypatch) -> None:
+    monkeypatch.delenv("RUNTIME_STORE_DATABASE_URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+
+    client = TestClient(create_app(Settings(api_profile="release")))
+    monkeypatch.setenv("EUROGAS_NEXUS_PUBLIC_API_TOKEN", "public-token")
+    response = client.get("/api/health/live", headers={"X-Eurogas-Api-Key": "public-token"})
+    assert response.status_code == 200
+    assert response.json()["scope"] == "liveness"
+
+
+def test_readiness_is_not_liveness(monkeypatch) -> None:
+    monkeypatch.delenv("RUNTIME_STORE_DATABASE_URL", raising=False)
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+    client = TestClient(create_app())
+
+    response = client.get("/api/health/ready")
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "runtime_db_not_configured"
+
+
+@pytest.mark.parametrize("revision", [DB_SCHEMA_REVISION, "0040_strategy_owner_sharing", None])
+def test_readiness_with_complete_sqlite_schema(tmp_path, monkeypatch, revision) -> None:
+    db_path = tmp_path / "ready.sqlite"
+    engine = create_engine(f"sqlite+pysqlite:///{db_path.as_posix()}", future=True)
+    Base.metadata.create_all(engine)
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE alembic_version (version_num VARCHAR(32) NOT NULL PRIMARY KEY)"
+        )
+        if revision is not None:
+            connection.exec_driver_sql(
+                "INSERT INTO alembic_version (version_num) VALUES (?)", (revision,)
+            )
+    monkeypatch.setenv(
+        "RUNTIME_STORE_DATABASE_URL",
+        f"sqlite+pysqlite:///{db_path.as_posix()}",
+    )
+    monkeypatch.delenv("DATABASE_URL", raising=False)
+    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
+    response = TestClient(create_app()).get("/api/health/ready")
+    if revision != DB_SCHEMA_REVISION:
+        assert response.status_code == 503
+        assert response.json()["detail"] == {
+            "code": "runtime_schema_revision_mismatch",
+            "message": "Runtime PostgreSQL migrations are not current.",
+            "current_revision": revision,
+            "required_revision": DB_SCHEMA_REVISION,
+        }
+        return
+    assert response.status_code == 200
+    assert response.json()["status"] == "ready"
+    # TimescaleDB is optional and informational (ADR Decision 39); SQLite is never it.
+    assert response.json()["extensions"] == {"timescaledb": "not_postgresql"}
+    # A fresh store: ready, and it names the public sources waiting for an approval.
+    attention = response.json()["attention"]
+    held = {item["source_id"]: item["state"] for item in attention["public_sources_held_back"]}
+    assert held["src-entsog"] == "not_approved"
+    assert "Admin → Connectors" in attention["action"]
+
+
+def test_optional_provider_outage_does_not_change_liveness() -> None:
+    # Liveness route never imports provider/LLM/OIDC call paths.
+    from eurogas_nexus.api.routes.public.health import health_live
+
+    request = type(
+        "Request",
+        (),
+        {"app": type("App", (), {"state": type("State", (), {"settings": Settings()})()})()},
+    )()
+    # Answered on the event loop since P1-A (it reads settings only).
+    payload = asyncio.run(health_live(request))
+    assert payload["scope"] == "liveness"
+
+
+def test_error_taxonomy_is_stable() -> None:
+    assert classify_exception(TimeoutError("too slow")).category == OperationalErrorCategory.TIMEOUT
+    assert classify_exception(ConnectionError("db")).category == OperationalErrorCategory.DATABASE
+    assert classify_http_status(429).code == "rate_limited"
+    assert classify_http_status(503).retryable is True
+    assert classify_http_status(401).category == OperationalErrorCategory.AUTHENTICATION
+
+
+def test_http_observability_records_low_cardinality_metrics() -> None:
+    # The label is the matched route template's group, never the raw path.
+    process_metrics.observe_request("/api/sources/{source_id}/health", "GET", 200, 0.0125)
+    process_metrics.observe_request("/api/market/observations", "GET", 503, 0.08)
+    lines = process_metrics.render().splitlines()
+    assert any('route_group="/api/sources"' in line for line in lines)
+    assert any(
+        line.startswith("eurogas_http_requests_total")
+        and 'route_group="/api/market"' in line
+        and 'status_class="5xx"' in line
+        for line in lines
+    )
+    assert not any("src-123" in line or "{source_id}" in line for line in lines)
+
+
+def test_db_pool_settings_are_applied(monkeypatch) -> None:
+    import eurogas_nexus.db.session as db_session
+
+    monkeypatch.setenv("EUROGAS_NEXUS_DB_POOL_SIZE", "3")
+    monkeypatch.setenv("EUROGAS_NEXUS_DB_MAX_OVERFLOW", "4")
+    monkeypatch.setenv("EUROGAS_NEXUS_DB_POOL_TIMEOUT", "2")
+    captured: dict[str, object] = {}
+
+    def fake_create_engine(url: str, **kwargs: object):
+        captured["url"] = url
+        captured.update(kwargs)
+        # A real engine (never connected): a pg8000 URL also gets the date decoders registered
+        # on connect, and an event needs an engine to listen on.
+        return create_engine("sqlite+pysqlite:///:memory:")
+
+    monkeypatch.setattr(db_session, "create_engine", fake_create_engine)
+    get_engine("postgresql+pg8000://user:pass@db/eurogas")
+    assert captured["pool_size"] == 3
+    assert captured["max_overflow"] == 4
+    assert captured["pool_timeout"] == 2.0

@@ -29,7 +29,8 @@ NWE model shadow evaluation stay.
   `db/models/identity_groups.py` + `db/repositories/identity_access.py` (identity groups),
   `api/routes/public/market_ticks.py` + `clients/web/src/api/promptMarket.ts` (licensed tick
   ingestion and the prompt desk read, without the evaluation hook).
-- Removed: three public route modules, the internal shadow route, agent research orchestration
+- Removed: four public route modules (strategy lab, registry, tracks, shadow) and the internal
+  shadow route, agent research orchestration
   and shadow handlers, the strategy domain/application/repository/model packages, the SDK's
   strategy/shadow clients, `run_shadow_scheduler.py`/`backtest_benchmark.py`, the release
   metadata constants and manifest fields, the client pages/components/API client/store lanes,
