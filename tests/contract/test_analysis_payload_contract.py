@@ -26,6 +26,7 @@ REFUSED_SELECTION_FIELDS = (
     "selected_terms",
     "selected_assets",
     "selected_contracts",
+    "selected_strategies",
     "selected_resources",
     "include_sections",
     "portfolio_id",

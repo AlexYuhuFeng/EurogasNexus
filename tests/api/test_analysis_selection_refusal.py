@@ -26,6 +26,7 @@ REPORT_FIELDS = (
     "portfolio_id",
     "selected_resources",
     "selected_contracts",
+    "selected_strategies",
 )
 
 

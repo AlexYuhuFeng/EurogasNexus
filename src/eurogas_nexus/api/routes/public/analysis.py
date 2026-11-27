@@ -195,6 +195,7 @@ def post_portfolio_report(body: PortfolioReportRequest, request: Request) -> dic
             ("portfolio_id", body.portfolio_id),
             ("selected_resources", body.selected_resources),
             ("selected_contracts", body.selected_contracts),
+            ("selected_strategies", body.selected_strategies),
         ),
         resource="portfolio_report",
     )
