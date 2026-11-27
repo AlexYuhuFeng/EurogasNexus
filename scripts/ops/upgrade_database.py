@@ -3,9 +3,10 @@
 
 Commands:
 
-``plan``
+``plan [--json]``
     Print the database's revision, the revision this version needs, and each pending
-    revision with whether it can be undone. Changes nothing. Exit 0.
+    revision with whether it can be undone. Changes nothing. Exit 0. ``--json`` prints the
+    same as one JSON object (the small-desk ``nexus update`` reads it).
 ``check``
     As ``plan``; exit 0 when the database is up to date, 1 when revisions are pending
     (the start-up step of a production stack: the API does not start on an old schema).
@@ -18,6 +19,10 @@ Commands:
 ``record-backup --operator NAME --reference REF [--kind KIND]``
     Record a backup taken outside this product (pgBackRest, a managed database snapshot),
     so ``upgrade`` accepts it. ``scripts/ops/backup_runtime.py`` records its own dumps.
+``downgrade --to REVISION --operator NAME [--without-backup REASON] [--yes]``
+    Return the schema to an earlier revision (``nexus undo-update``). Refuses when a revision
+    on the way down is declared irreversible: going back then means restoring the backup.
+    Needs a recent recorded backup and is audited like ``upgrade``. Exit 0/1/2 as upgrade.
 ``on-start``
     The stack's start-up step. With ``EUROGAS_NEXUS_AUTO_MIGRATE`` in force (development
     and demo by default; never in trial or release) it upgrades, recorded as
@@ -61,8 +66,14 @@ def _plan() -> upgrade.UpgradePlan:
         engine.dispose()
 
 
-def cmd_plan(_args) -> int:
-    for line in upgrade.plan_lines(_plan()):
+def cmd_plan(args) -> int:
+    plan = _plan()
+    if getattr(args, "json", False):
+        import json
+
+        print(json.dumps(upgrade.plan_payload(plan), sort_keys=True))
+        return 0
+    for line in upgrade.plan_lines(plan):
         print(line)
     return 0
 
@@ -95,6 +106,30 @@ def cmd_upgrade(args) -> int:
     try:
         return upgrade.run_upgrade(
             _database_url(),
+            operator=args.operator,
+            max_backup_age_hours=args.max_backup_age_hours,
+            override_reason=args.without_backup,
+            lock_timeout=args.lock_timeout,
+            statement_timeout=args.statement_timeout,
+        )
+    except (upgrade.UpgradeRefused, ValueError) as refusal:
+        print(f"REFUSED: {refusal}")
+        return 2
+
+
+def cmd_downgrade(args) -> int:
+    if not args.yes:
+        if not sys.stdin.isatty():
+            print("refusing to downgrade without confirmation: pass --yes in a script")
+            return 2
+        answer = input(f"return the database to {args.to}? type 'downgrade' to continue: ")
+        if answer.strip() != "downgrade":
+            print("not changed")
+            return 2
+    try:
+        return upgrade.run_downgrade(
+            _database_url(),
+            target=args.to,
             operator=args.operator,
             max_backup_age_hours=args.max_backup_age_hours,
             override_reason=args.without_backup,
@@ -141,9 +176,9 @@ def cmd_on_start(_args) -> int:
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__.split("\n\n", 1)[0])
     sub = parser.add_subparsers(dest="command", required=True)
-    sub.add_parser("plan", help="print the pending revisions; change nothing").set_defaults(
-        func=cmd_plan
-    )
+    plan = sub.add_parser("plan", help="print the pending revisions; change nothing")
+    plan.add_argument("--json", action="store_true", help="one JSON object instead of text")
+    plan.set_defaults(func=cmd_plan)
     sub.add_parser("check", help="exit 1 when revisions are pending").set_defaults(
         func=cmd_check
     )
@@ -164,6 +199,17 @@ def build_parser() -> argparse.ArgumentParser:
     run.add_argument("--statement-timeout", help="per-statement limit, e.g. 2h (default 1h)")
     run.add_argument("--yes", action="store_true", help="do not ask for confirmation")
     run.set_defaults(func=cmd_upgrade)
+    down = sub.add_parser("downgrade", help="return the schema to an earlier revision")
+    down.add_argument("--to", required=True, help="the revision to return to")
+    down.add_argument("--operator", required=True, help="who runs it (recorded in the audit)")
+    down.add_argument("--without-backup", metavar="REASON")
+    down.add_argument(
+        "--max-backup-age-hours", type=float, default=upgrade.DEFAULT_BACKUP_MAX_AGE_HOURS
+    )
+    down.add_argument("--lock-timeout")
+    down.add_argument("--statement-timeout")
+    down.add_argument("--yes", action="store_true", help="do not ask for confirmation")
+    down.set_defaults(func=cmd_downgrade)
     backup = sub.add_parser("record-backup", help="record a backup taken outside the product")
     backup.add_argument("--operator", required=True)
     backup.add_argument("--reference", required=True, help="backup label, file or snapshot id")

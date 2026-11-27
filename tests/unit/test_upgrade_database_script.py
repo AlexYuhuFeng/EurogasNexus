@@ -76,3 +76,33 @@ def test_timeouts_are_validated_not_interpolated() -> None:
     )
     with pytest.raises(ValueError):
         migration_timeouts({"lock_timeout": "1s'; DROP TABLE x; --"})
+
+
+def test_plan_json_lists_each_revision_with_its_declaration(empty_sqlite, capsys) -> None:
+    import json
+
+    assert upgrade_database.main(["plan", "--json"]) == 0
+    payload = json.loads(capsys.readouterr().out.strip().splitlines()[-1])
+    assert payload["empty_store"] is True and payload["up_to_date"] is False
+    by_revision = {item["revision"]: item["reversibility"] for item in payload["pending"]}
+    assert by_revision["0040_strategy_owner_sharing"] == "irreversible"
+    assert by_revision["0096_retention_by_class"] == "conditional"
+
+
+def test_revisions_to_undo_walks_down_from_the_current_revision(empty_sqlite) -> None:
+    config = database_upgrade.alembic_config(empty_sqlite)
+    undo = database_upgrade.revisions_to_undo(
+        config, "0096_retention_by_class", "0093_timescale_optional"
+    )
+    assert [item.revision for item in undo] == [
+        "0096_retention_by_class", "0095_security_hardening", "0094_option_settlements",
+    ]
+    assert database_upgrade.revisions_to_undo(config, "0093_timescale_optional",
+                                               "0093_timescale_optional") == []
+
+
+def test_downgrade_needs_confirmation_in_a_script(empty_sqlite, monkeypatch, capsys) -> None:
+    monkeypatch.setattr("sys.stdin.isatty", lambda: False)
+    assert upgrade_database.main(["downgrade", "--to", "0093_timescale_optional",
+                                  "--operator", "Ops"]) == 2
+    assert "pass --yes" in capsys.readouterr().out

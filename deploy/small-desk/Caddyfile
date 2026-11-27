@@ -1,0 +1,54 @@
+# Small-desk gateway: one HTTPS address on the office network for the web client and the API.
+#
+# NEXUS_SITE_ADDRESSES is written by `nexus install` (the PC's name and address, for example
+# "https://desk-server:443, https://192.168.1.20:443"). NEXUS_TLS is "internal" by default: the
+# gateway's own certificate authority, whose root certificate `nexus install` copies to the
+# installation folder for the helpdesk to add to the traders' browsers once. A firm with its own
+# certificate sets NEXUS_TLS to "/data/tls/server.crt /data/tls/server.key".
+{
+	# The admin endpoint stays inside the container (the health check reads it).
+	admin 127.0.0.1:2019
+}
+
+{$NEXUS_SITE_ADDRESSES} {
+	tls {$NEXUS_TLS}
+	encode gzip
+	request_body {
+		max_size 25MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	# Not through the gateway (no scraper on a small desk; the API has no /metrics either).
+	handle /metrics {
+		respond 404
+	}
+
+	handle /api/* {
+		# The API states its own hardening headers on every answer.
+		reverse_proxy api:8000
+	}
+	handle /api {
+		reverse_proxy api:8000
+	}
+
+	handle {
+		# The web client: the same browser hardening the API gives a page it serves itself
+		# (src/eurogas_nexus/api/web_client.py; tests/unit/test_small_desk_profile.py keeps
+		# them equal).
+		header {
+			Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://tiles.openfreemap.org; font-src 'self' data: https://tiles.openfreemap.org; connect-src 'self' https://tiles.openfreemap.org; worker-src 'self' blob:; child-src 'self' blob:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+			X-Content-Type-Options "nosniff"
+			X-Frame-Options "DENY"
+			Referrer-Policy "strict-origin-when-cross-origin"
+			Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+			Cross-Origin-Opener-Policy "same-origin"
+		}
+		@hashed path /assets/*
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		root * /srv/web
+		try_files {path} /index.html
+		file_server
+	}
+}

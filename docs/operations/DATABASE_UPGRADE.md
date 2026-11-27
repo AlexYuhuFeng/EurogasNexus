@@ -143,8 +143,18 @@ The `migrate` step now finds the database up to date and the API starts.
 
 ## Going back
 
-- If every applied revision says `yes`, the previous version's schema can be restored with
-  Alembic's downgrade to the old revision (vendor-assisted; take a backup first).
+- If every applied revision says `yes` (or `nothing to undo`), return the schema to the old
+  revision with the new version's image, then start the previous version:
+
+  ```sh
+  docker compose run --rm migrate python scripts/ops/upgrade_database.py downgrade \
+    --to <old revision> --operator "Jane Smith"
+  ```
+
+  It needs a recent recorded backup like `upgrade`, is audited the same way, and refuses before
+  it starts when a revision on the way down says `no` (or declares nothing). A `conditional`
+  revision refuses by itself when data recorded since would be lost. On a small-desk server
+  `sudo nexus undo-update` makes this choice and runs it ([SMALL_DESK_HELPDESK_CARD.md](SMALL_DESK_HELPDESK_CARD.md)).
 - If any says `no`, restore the backup from step 2
   ([BACKUP_RESTORE.md](BACKUP_RESTORE.md), [DISASTER_RECOVERY.md](DISASTER_RECOVERY.md)) and
   start the previous version.

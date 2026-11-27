@@ -1,0 +1,227 @@
+# Eurogas Nexus, small-desk profile: the whole product on one PC (docs/product/SMALL_DESK_PLAN.md).
+#
+# Do not run this file by hand. `nexus` (deploy/small-desk/nexus) starts, stops, backs up and
+# updates it, and fills the variables below from the installation's own files:
+#   stack.env (secrets, written by `nexus install`, readable by root only) and the release
+#   being run (EUROGAS_NEXUS_API_IMAGE, EUROGAS_NEXUS_VERSION, NEXUS_WEB_DIR).
+#
+# What is in it, and nothing optional:
+#   postgres         the database; its files on the SSD (NEXUS_DATA_DIR), never published
+#   config-check     refuses to start on a wrong setting
+#   migrate          refuses to start on an old schema (`nexus update` runs the gated upgrade)
+#   reference-seed   the shipped gas-network reference, offline
+#   api              the application, one process, local accounts with a required second factor
+#   scheduler        the one data scheduler (lock and heartbeat), public sources and retention
+#   market-events    re-evaluation within a second of a price, deal or outage change
+#   gateway          HTTPS for the office network: the web client and /api on one address
+#
+# Not in it (kept in the code for larger firms, docs/product/SMALL_DESK_PLAN.md section 6): a hot
+# standby, several API processes with a shared cache, company single sign-on, demo data and
+# simulated prices. Every service restarts after a crash or a power cut; `nexus` also starts the
+# stack at boot through a systemd unit. Backups go to the second disk (`nexus backup`).
+name: eurogas-nexus
+
+x-db-environment: &db-environment
+  RUNTIME_STORE_DATABASE_URL: postgresql+pg8000://${EUROGAS_NEXUS_APP_DB_USER}:${EUROGAS_NEXUS_APP_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  EUROGAS_NEXUS_DB_POOL_SIZE: "8"
+  EUROGAS_NEXUS_DB_MAX_OVERFLOW: "8"
+  EUROGAS_NEXUS_ENV: release
+  EUROGAS_NEXUS_API_PROFILE: release
+  EUROGAS_NEXUS_VERSION: ${EUROGAS_NEXUS_VERSION}
+  EUROGAS_NEXUS_AUDIT_RETENTION_DAYS: "2557"
+  EUROGAS_NEXUS_DB_STARTUP_WAIT_SECONDS: "120"
+  EUROGAS_NEXUS_LOG_FORMAT: json
+
+# The schema owner: migrations and the backup marker only (docs/security/DATABASE_ROLES.md).
+x-migrate-environment: &migrate-environment
+  RUNTIME_STORE_DATABASE_URL: postgresql+pg8000://${EUROGAS_NEXUS_OWNER_DB_USER}:${EUROGAS_NEXUS_OWNER_DB_PASSWORD}@postgres:5432/${POSTGRES_DB}
+  EUROGAS_NEXUS_ENV: release
+  EUROGAS_NEXUS_API_PROFILE: release
+  EUROGAS_NEXUS_VERSION: ${EUROGAS_NEXUS_VERSION}
+  EUROGAS_NEXUS_LOG_FORMAT: json
+
+x-provider-environment: &provider-environment
+  <<: *db-environment
+  EUROGAS_NEXUS_SECRET_KEY: ${EUROGAS_NEXUS_SECRET_KEY}
+  EUROGAS_NEXUS_SECRET_KEY_PREVIOUS: ${EUROGAS_NEXUS_SECRET_KEY_PREVIOUS:-}
+
+x-runtime-environment: &runtime-environment
+  <<: *provider-environment
+  EUROGAS_NEXUS_PUBLIC_API_TOKEN: ${EUROGAS_NEXUS_PUBLIC_API_TOKEN}
+  # Local accounts, every person with a second factor (an authenticator app).
+  EUROGAS_NEXUS_LOCAL_ACCOUNTS: "on"
+  EUROGAS_NEXUS_MFA_REQUIRED: all
+  # Book and entity isolation, enforced in one place (db/book_scope.py).
+  EUROGAS_NEXUS_PORTFOLIO_ISOLATION: "true"
+  EUROGAS_NEXUS_SESSION_IDLE_MINUTES: ${EUROGAS_NEXUS_SESSION_IDLE_MINUTES:-30}
+  EUROGAS_NEXUS_SESSION_ABSOLUTE_HOURS: ${EUROGAS_NEXUS_SESSION_ABSOLUTE_HOURS:-10}
+  # Two traders on one PC: one API process, no shared cache.
+  UVICORN_WORKERS: "1"
+  # uvicorn trusts X-Forwarded-* only from the gateway's fixed address on this stack's network.
+  FORWARDED_ALLOW_IPS: ${NEXUS_SUBNET_PREFIX:-172.30.58}.10
+  # No scraper on a small desk: with no metrics token or network set, /metrics does not exist.
+  PROMETHEUS_MULTIPROC_DIR: /run/eurogas-metrics
+
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+x-hardening: &hardening
+  read_only: true
+  cap_drop: ["ALL"]
+  security_opt: ["no-new-privileges:true"]
+  tmpfs:
+    - /tmp:size=256m,mode=1777
+  logging: *default-logging
+
+services:
+  postgres:
+    image: postgres:16-alpine@sha256:81e77a4833487b8132fe4b00bedd39dc3f74b8641e387f19312a48f7de218c2e
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB}
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    # On the SSD. No published port: only this stack's services reach the database.
+    volumes:
+      - ${NEXUS_DATA_DIR}/postgres:/var/lib/postgresql/data
+    shm_size: 256m
+    # Time to write everything to disk on a clean stop (the UPS gives the PC that time).
+    stop_grace_period: 60s
+    logging: *default-logging
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+      start_period: 20s
+
+  config-check:
+    <<: *hardening
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    environment: *runtime-environment
+    command: ["python", "scripts/ops/check_config.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  migrate:
+    <<: *hardening
+    # Checks only: the API does not start on an old schema. `nexus update` runs the gated
+    # upgrade (backup first) through this service (docs/operations/DATABASE_UPGRADE.md).
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    environment: *migrate-environment
+    command: ["python", "scripts/ops/upgrade_database.py", "on-start"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      config-check:
+        condition: service_completed_successfully
+    restart: "no"
+
+  reference-seed:
+    <<: *hardening
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    environment: *db-environment
+    command: ["python", "scripts/ops/seed_reference_network.py", "--json"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  api:
+    <<: *hardening
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    restart: unless-stopped
+    environment:
+      <<: *runtime-environment
+      EUROGAS_NEXUS_RESEARCH_ARTIFACT_ROOT: /var/lib/eurogas-nexus/snapshots
+    volumes:
+      - ${NEXUS_DATA_DIR}/artifacts:/var/lib/eurogas-nexus
+    tmpfs:
+      - /tmp:size=256m,mode=1777
+      - /run/eurogas-metrics:mode=1777
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import json,urllib.request; assert json.load(urllib.request.urlopen('http://127.0.0.1:8000/api/health/ready', timeout=4))['status'] == 'ready'"
+      interval: 10s
+      timeout: 6s
+      retries: 12
+      start_period: 30s
+
+  scheduler:
+    # The product's one scheduler path: every public source the desk has switched on (Admin ->
+    # Data sources), each on its own schedule, the daily retention pass, a lock so a second
+    # copy never runs, and the heartbeat `nexus status` reads.
+    <<: *hardening
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    restart: unless-stopped
+    environment: *provider-environment
+    command:
+      - python
+      - scripts/ops/run_dataops_scheduler.py
+      - --interval-seconds
+      - "60"
+      - --entsog-lookback-gas-days
+      - "7"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  market-events:
+    <<: *hardening
+    image: ${EUROGAS_NEXUS_API_IMAGE}
+    restart: unless-stopped
+    environment: *db-environment
+    command: ["python", "scripts/ops/market_events.py", "listen", "--interval", "15"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+
+  gateway:
+    image: caddy:2-alpine@sha256:003a97808e781aa9f7e75cc2f43d34d461099031faf5e20faefb9f61126836f0
+    restart: unless-stopped
+    cap_drop: ["ALL"]
+    cap_add: ["NET_BIND_SERVICE"]
+    security_opt: ["no-new-privileges:true"]
+    environment:
+      NEXUS_SITE_ADDRESSES: ${NEXUS_SITE_ADDRESSES}
+      NEXUS_TLS: ${NEXUS_TLS:-internal}
+    ports:
+      - "${NEXUS_BIND_ADDRESS:-0.0.0.0}:${NEXUS_HTTPS_PORT:-443}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - ${NEXUS_WEB_DIR}:/srv/web:ro
+      # The gateway's own certificate authority (tls internal) lives on the SSD, so the
+      # certificate the traders' browsers trust survives a restart and an update.
+      - ${NEXUS_DATA_DIR}/gateway:/data
+    networks:
+      default:
+        ipv4_address: ${NEXUS_SUBNET_PREFIX:-172.30.58}.10
+    logging: *default-logging
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      # Caddy's own admin endpoint, reachable only inside this container.
+      test: ["CMD-SHELL", "wget -q -O /dev/null http://127.0.0.1:2019/config/"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+
+networks:
+  default:
+    name: eurogas-nexus-desk
+    ipam:
+      config:
+        - subnet: ${NEXUS_SUBNET_PREFIX:-172.30.58}.0/24

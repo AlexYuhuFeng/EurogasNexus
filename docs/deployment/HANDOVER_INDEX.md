@@ -24,6 +24,7 @@ deployment's own posture is reported at runtime by `GET /api/health` and `/api/h
 | The API answers and identifies its callers | `GET /api/health` → `authentication: enforced \| anonymous_allowed` | derived from the deployment's own configuration |
 | The runtime schema is complete | `python scripts/ops/validate_runtime_db.py --json` → `missing_tables: 0`, `alembic_revision` | `docs/operations/LIVE_POSTGRESQL.md` |
 | The database can be restored | `python scripts/ops/backup_restore_drill.py` | `docs/operations/BACKUP_RESTORE.md` |
+| A small-desk server is healthy, backed up and restorable | `sudo nexus status`, `sudo nexus backup`, `sudo nexus restore` (one PC, `deploy/small-desk`) | `docs/operations/SMALL_DESK_INSTALL.md`, `docs/operations/SMALL_DESK_HELPDESK_CARD.md` |
 | The automated security posture | `python scripts/security/run_security_acceptance.py` | `docs/release/SECURITY_ACCEPTANCE_EVIDENCE.md` |
 | Dependencies carry no known critical advisory | `python scripts/release/scan_vulnerabilities.py --channel preview` | `release-assets/release-evidence/vulnerability-scan.json` |
 | The product surface is bounded | `python -m pytest tests/contract/test_api_surface_stability.py -q` | `docs/architecture/API_CONTRACT_EVOLUTION_POLICY.md` |

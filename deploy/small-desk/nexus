@@ -1,0 +1,10 @@
+#!/bin/sh
+# Eurogas Nexus on one PC: `sudo nexus help` lists the commands.
+# Thin wrapper: the logic is the Python package next to this file (nexusctl/).
+here="$(dirname "$(readlink -f "$0")")"
+if ! command -v python3 >/dev/null 2>&1; then
+    echo "PROBLEM: python3 is not installed on this PC."
+    echo "What to do: ask IT to install it (Ubuntu: sudo apt install python3), then run this again."
+    exit 2
+fi
+PYTHONPATH="$here${PYTHONPATH:+:$PYTHONPATH}" exec python3 -m nexusctl "$@"

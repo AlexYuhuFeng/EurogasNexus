@@ -243,3 +243,58 @@ def test_first_upgrade_from_before_the_audit_chain_seals_its_audit_rows(
     with Session(engine) as session:
         assert verify_chain(session)["ok"] is True
     engine.dispose()
+
+
+def _downgrade(url: str, target: str, **kwargs) -> tuple[int, list[str]]:
+    from eurogas_nexus.application.database_upgrade import run_downgrade
+
+    lines: list[str] = []
+    code = run_downgrade(url, target=target, emit=lines.append, **kwargs)
+    return code, lines
+
+
+def test_downgrade_undoes_reversible_revisions_and_is_audited(scratch_url) -> None:
+    """`nexus undo-update` path: back to the previous version's revision, backup-gated."""
+
+    from eurogas_nexus.application.database_upgrade import record_backup
+
+    assert _upgrade(scratch_url, operator="Ops Tester")[0] == 0
+    code, lines = _downgrade(scratch_url, "0093_timescale_optional", operator="Undo")
+    assert code == 2 and any("REFUSED: no backup recorded" in line for line in lines)
+
+    engine = create_engine(scratch_url, future=True)
+    with Session(engine) as session:
+        record_backup(session, operator="Backup Bot", reference="pre-update", kind="pg_dump")
+        session.commit()
+    code, lines = _downgrade(scratch_url, "0093_timescale_optional", operator="Undo")
+    assert code == 0, lines
+    assert any("0096_retention_by_class" in line for line in lines)
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar() == (
+            "0093_timescale_optional"
+        )
+    engine.dispose()
+    assert _audit(scratch_url)[-2:] == [
+        ("Undo", "database.upgrade", "started"),
+        ("Undo", "database.upgrade", "succeeded"),
+    ]
+
+
+def test_downgrade_refuses_to_cross_an_irreversible_revision(scratch_url) -> None:
+    from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
+
+    assert _upgrade(scratch_url, operator="Ops Tester")[0] == 0
+    code, lines = _downgrade(
+        scratch_url, "0039_identity_api_key_hash_width", operator="Undo", override_reason="test"
+    )
+    assert code == 2
+    refusal = next(line for line in lines if line.startswith("REFUSED"))
+    assert "0042_national_gas_actual_demand" in refusal
+    assert "0040_strategy_owner_sharing" in refusal
+    assert "restoring the pre-update backup" in refusal
+    engine = create_engine(scratch_url, future=True)
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT version_num FROM alembic_version")).scalar() == (
+            DB_SCHEMA_REVISION
+        )
+    engine.dispose()

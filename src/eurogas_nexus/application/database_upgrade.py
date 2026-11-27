@@ -191,6 +191,164 @@ def plan_lines(plan: UpgradePlan) -> list[str]:
     return lines
 
 
+def plan_payload(plan: UpgradePlan) -> dict[str, Any]:
+    """The plan as data, for a program that decides what an update can undo (``plan --json``)."""
+
+    return {
+        "current": plan.current,
+        "head": plan.head,
+        "up_to_date": plan.up_to_date,
+        "empty_store": plan.empty_store,
+        "pending": [
+            {
+                "revision": item.revision,
+                "description": item.description,
+                "reversibility": item.reversibility,
+                "note": item.note,
+            }
+            for item in plan.pending
+        ],
+    }
+
+
+#: Declarations a downgrade may cross. "conditional" migrations refuse by themselves when data
+#: recorded since would be lost; "irreversible" and an undeclared one need the backup.
+DOWNGRADABLE = frozenset({"reversible", "conditional", "no-op"})
+
+
+def revisions_to_undo(config, current: str | None, target: str) -> list[PendingRevision]:
+    """The revisions a downgrade from ``current`` to ``target`` would undo, newest first."""
+
+    from alembic.script import ScriptDirectory
+
+    if current is None or current == target:
+        return []
+    scripts = ScriptDirectory.from_config(config)
+    undo: list[PendingRevision] = []
+    for script in scripts.iterate_revisions(current, target):
+        if script.revision == target:
+            continue
+        module = script.module
+        undo.append(
+            PendingRevision(
+                revision=script.revision,
+                description=_description(script.path, script.doc or script.revision),
+                reversibility=str(getattr(module, "reversibility", "undeclared")),
+                note=getattr(module, "reversibility_note", None),
+            )
+        )
+    return undo
+
+
+def run_downgrade(
+    database_url: str,
+    *,
+    target: str,
+    operator: str,
+    max_backup_age_hours: float = DEFAULT_BACKUP_MAX_AGE_HOURS,
+    override_reason: str | None = None,
+    lock_timeout: str | None = None,
+    statement_timeout: str | None = None,
+    emit=print,
+    now_utc: datetime | None = None,
+) -> int:
+    """Return the schema to ``target`` (undoing an update). 0 done, 1 failed, 2 refused.
+
+    Refuses when a revision on the way down is declared irreversible (or declares nothing):
+    going back below it means restoring the pre-update backup, which the caller does. Needs a
+    recent recorded backup like the upgrade, and is audited the same way.
+    """
+
+    from sqlalchemy.orm import Session
+
+    from alembic import command
+    from eurogas_nexus.db.migration_rules import migration_timeouts
+    from eurogas_nexus.db.session import default_driver_url, get_engine
+
+    principal = _principal(operator)
+    now = now_utc or datetime.now(UTC)
+    timeouts = migration_timeouts(
+        {"lock_timeout": lock_timeout, "statement_timeout": statement_timeout}
+    )
+    url = default_driver_url(database_url)
+    engine = get_engine(database_url, one_off=True, statement_timeout=None)
+    try:
+        config = alembic_config(url, lock_timeout=timeouts[0], statement_timeout=timeouts[1])
+        plan = build_plan(engine, config)
+        undo = revisions_to_undo(config, plan.current, target)
+        emit(f"database revision : {plan.current or '(none)'}")
+        emit(f"return to         : {target}")
+        if not undo:
+            emit("revisions to undo : none")
+            return 0
+        emit(f"revisions to undo : {len(undo)}, in this order")
+        for item in undo:
+            emit(f"  {item.revision}  {item.description}")
+            emit(f"      can be undone: {item.downgrade_text}")
+        blocked = [item.revision for item in undo if item.reversibility not in DOWNGRADABLE]
+        if blocked:
+            emit(
+                "REFUSED: " + ", ".join(blocked) + " cannot be undone by a downgrade; going "
+                "back means restoring the pre-update backup"
+            )
+            return 2
+        refusal = ddl_refusal(engine)
+        if refusal:
+            emit(f"REFUSED: {refusal}")
+            return 2
+        try:
+            with Session(engine) as session:
+                basis, marker = check_backup(
+                    session,
+                    plan=UpgradePlan(current=plan.current, head=target, pending=undo),
+                    max_age_hours=max_backup_age_hours,
+                    override_reason=override_reason,
+                    now_utc=now,
+                )
+        except UpgradeRefused as refusal:
+            emit(f"REFUSED: {refusal}")
+            return 2
+        summary = {
+            "from_revision": plan.current,
+            "to_revision": target,
+            "revisions": [item.revision for item in undo],
+            "backup_reference": marker.reference if marker else None,
+            "direction": "downgrade",
+        }
+        _write_audit(
+            engine,
+            operator=principal,
+            outcome="started",
+            detail=f"downgrade {plan.current} -> {target}; {basis}",
+            summary=summary,
+        )
+        try:
+            command.downgrade(config, target)
+        except Exception as exc:  # noqa: BLE001 - reported, audited, exit code 1
+            reached = build_plan(engine, config).current
+            _write_audit(
+                engine,
+                operator=principal,
+                outcome="failed",
+                detail=f"downgrade {plan.current} -> {target} stopped at {reached}: "
+                f"{exc.__class__.__name__}",
+                summary={**summary, "reached_revision": reached},
+            )
+            emit(f"FAILED at {reached}: {exc.__class__.__name__}")
+            return 1
+        _write_audit(
+            engine,
+            operator=principal,
+            outcome="succeeded",
+            detail=f"downgrade {plan.current} -> {target}; {basis}",
+            summary=summary,
+        )
+        emit(f"returned to {target}; recorded in the audit trail as {principal}")
+        return 0
+    finally:
+        engine.dispose()
+
+
 OWNER_ROLE_HINT = (
     "connect as the schema owner: the migrate service uses EUROGAS_NEXUS_OWNER_DB_USER "
     "(docs/security/DATABASE_ROLES.md); the application role cannot change the schema"
@@ -515,6 +673,9 @@ __all__ = [
     "check_backup",
     "latest_backup",
     "plan_lines",
+    "plan_payload",
     "record_backup",
+    "revisions_to_undo",
+    "run_downgrade",
     "run_upgrade",
 ]

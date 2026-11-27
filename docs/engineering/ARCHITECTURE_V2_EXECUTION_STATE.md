@@ -6,6 +6,26 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-27 — Small-desk install and self-support, server part (branch `sd-install`, not pushed)
+
+`docs/product/SMALL_DESK_PLAN.md` section 3 items 2, 3 and 7 (server) and section 7 (server).
+
+- `deploy/small-desk/`: one compose stack (PostgreSQL on the SSD, config check, start-up schema
+  check, reference seed, API, scheduler, market-events worker, Caddy gateway serving the web
+  client and `/api` on one HTTPS address), release environment, local accounts with
+  `EUROGAS_NEXUS_MFA_REQUIRED=all`, book isolation on, separate database roles, restart policies.
+  No demo seed, simulated prices, Valkey, standby or SSO.
+- `nexus <verb>` (`deploy/small-desk/nexus`, stdlib Python in `nexusctl/`, Python 3.10+): install,
+  start, stop, status, backup, restore, update, undo-update, diagnostics. systemd units for boot
+  and the nightly backup are the only Linux-specific part. Release folders are built by
+  `scripts/release/package_small_desk_bundle.py`.
+- `scripts/ops/upgrade_database.py` gained `plan --json` and `downgrade --to` (gated, audited,
+  refuses to cross an irreversible or undeclared migration); `python -m
+  eurogas_nexus.cli.desk_status` gives `nexus status` the schema, scheduler heartbeat, source
+  freshness and backup marker. No data-model change.
+- Rehearsed against real containers here (`tests/integration/test_small_desk_rehearsal.py`,
+  opt-in with `NEXUS_REHEARSAL_IMAGE`). Runbooks: `docs/operations/SMALL_DESK_*.md`.
+
 ## 2026-11-26 — Live-stream 429s while browsing fixed at the cause (branch `streamfix`, not pushed)
 
 - Cause (measured on a local demo stack with a Playwright crawl, `scripts/uat/cold_load_requests.mjs`):

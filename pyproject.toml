@@ -95,6 +95,11 @@ exclude = [
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP"]
 
+[tool.ruff.lint.per-file-ignores]
+# The small-desk operator tool runs on the server PC's own Python (Ubuntu 22.04 ships 3.10), so it
+# keeps the 3.10 spelling of UTC (datetime.timezone.utc) instead of datetime.UTC (3.11).
+"deploy/small-desk/**" = ["UP017"]
+
 [tool.ruff.lint.flake8-bugbear]
 # FastAPI's parameter functions are *meant* to be called in a signature default
 # (`limit: int = Query(default=50, ge=1, le=500)`); B008 exists to catch a mutable or
