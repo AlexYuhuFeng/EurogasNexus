@@ -3,9 +3,11 @@ its consequences and full cost, the recommended set, the option detail with the 
 line, demurrage in USD at the FX choice, the frontier with a pipeline what-if, the recorded
 choice, and the outbox consumer's timeline.
 
-The book is the demo's planted case D1 (``scripts/demo/seed_demo_desk.py``), relative to
-today: every figure is illustrative. The hand-worked numbers are asserted in
-``tests/domain/test_lng_disruption.py``; here the wiring is.
+The book is the demo's planted case D1 (``scripts/demo/seed_demo_desk.py``), seeded relative
+to ``NOW``, a stated instant, with the disruption module's clock frozen there: the case's dates
+decide which month contract a re-hedge trades in, so a fixture seeded from today's date gives a
+different ranking on different days (2026-11-27). Every figure is illustrative. The hand-worked
+numbers are asserted in ``tests/domain/test_lng_disruption.py``; here the wiring is.
 """
 
 from __future__ import annotations
@@ -16,12 +18,14 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, event
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.api.app import create_app
+from eurogas_nexus.application import lng_disruption as disruption_service
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     AuditEventRecord,
@@ -37,10 +41,14 @@ from eurogas_nexus.db.repositories.identity import (
     create_identity_api_key,
     create_identity_principal,
 )
+from tests.support.clock import freeze_module_clock
 
 PUBLIC_TOKEN = "test-public-api-token"
 DEMO = Path(__file__).resolve().parents[2] / "scripts" / "demo"
 PRICES = {"ZTP": 30.0, "TTF": 30.4, "PEG": 29.9, "PVB": 31.0}
+#: Thursday 26 November 2026, noon UTC. The Huelva window (and so the Iberia shortfall) then
+#: starts on 30 November, in a month whose contract has stopped trading.
+NOW = datetime(2026, 11, 26, 12, 0, tzinfo=UTC)
 
 
 def _seed_module():
@@ -101,11 +109,11 @@ def _fx(session, now: datetime) -> None:
     )
 
 
-def _setup(tmp_path, monkeypatch):
+def _setup(tmp_path, monkeypatch, now: datetime = NOW):
     url = f"sqlite+pysqlite:///{(tmp_path / 'lng3.sqlite').as_posix()}"
     engine = create_engine(url, future=True)
     Base.metadata.create_all(engine)
-    now = datetime.now(UTC).replace(microsecond=0)
+    freeze_module_clock(monkeypatch, disruption_service, now)
     who = {}
     with Session(engine) as session:
         for name, role in (("analyst", "ANALYST"), ("viewer", "VIEWER")):
@@ -175,7 +183,13 @@ def test_a_late_cargo_gets_valued_options_a_frontier_and_a_default(tmp_path, mon
     # Hub gas at PVB covers the shortfall as a further option with no breach.
     covered = options["swap:demo-lng-c+absorb + cover:hub:PVB:demo-d1-iberia"]
     assert covered["kind"] == "substitute" and not covered["flags"]["contract_breach"]
-    assert covered["rank"] < iberia["rank"]  # same score, fewer contracts broken
+    # The ranking is by score (at the precision shown), then fewer contracts broken. On NOW the
+    # two cost the same: the swap's shortfall falls in a month that has stopped trading, so
+    # re-hedging it pays the same 0.25 EUR/MWh as the cover's short-notice premium. The cover,
+    # which breaks no contract, ranks first. On other days they differ (see
+    # test_an_option_that_breaks_no_contract_never_ranks_behind_an_equal_one_that_does).
+    assert covered["score"] == iberia["score"]
+    assert covered["rank"] < iberia["rank"]
     # The contracted Dunkerque slot carries the slot's release value; the carrier of another
     # company due there is stated as berthing later, never valued at its demurrage (the owner,
     # 2026-11-26). The Montoir spot slot is valued beside it.
@@ -260,6 +274,80 @@ def test_a_late_cargo_gets_valued_options_a_frontier_and_a_default(tmp_path, mon
     )
     assert missing.status_code == 404
     assert missing.json()["error"] == "option_not_found"
+
+
+COVER = "swap:demo-lng-c+absorb + cover:hub:PVB:demo-d1-iberia"
+BREACH = "swap:demo-lng-c+absorb"
+
+
+def _ranked_on(now: datetime) -> dict[str, dict]:
+    """The disruption options for cargo A with the case seeded at ``now`` and the engine run at
+    ``now`` (the service's own ``now`` parameter; no clock read)."""
+
+    engine = create_engine("sqlite+pysqlite://", future=True)
+    Base.metadata.create_all(engine)
+    with Session(engine) as session:
+        SEED.seed_lng_disruption_case(session, now)
+        _marks(session, now)
+        _fx(session, now)
+        session.commit()
+        data = disruption_service.disruption_options(session, "demo-lng-a", now=now)
+    return _by_kind(data["options"])
+
+
+@pytest.mark.parametrize(
+    "now",
+    [
+        datetime(2026, 11, 23, 9, 0, tzinfo=UTC),  # a Monday
+        datetime(2026, 11, 26, 12, 0, tzinfo=UTC),  # NOW: the two cost the same
+        datetime(2026, 11, 27, 0, 39, tzinfo=UTC),  # a Friday; the first failing run
+        datetime(2026, 11, 28, 12, 0, tzinfo=UTC),  # a Saturday
+        datetime(2026, 11, 30, 23, 30, tzinfo=UTC),  # a month end
+        datetime(2026, 10, 1, 5, 0, tzinfo=UTC),  # the gas-year boundary
+        datetime(2026, 10, 25, 1, 30, tzinfo=UTC),  # the autumn DST change
+        datetime(2027, 3, 28, 1, 30, tzinfo=UTC),  # the spring DST change
+    ],
+    ids=lambda d: d.strftime("%Y-%m-%d-%a"),
+)
+def test_an_option_that_breaks_no_contract_never_ranks_behind_an_equal_one_that_does(now):
+    """The rule behind the Huelva swap and its PVB cover: rank by score at the precision shown,
+    then by fewer contracts broken. A breach is not in the score while its penalty is not held
+    (``breach_eur_per_contract`` 0, the desk standard), so on a day when breaking the delivery is
+    genuinely cheaper (the swap's shortfall nets against its later surplus inside one traded
+    month, while the cover pays the short-notice premium) the breach ranks ahead, and it says so
+    in its flags. Whatever the day, an option breaking no contract never ranks behind an option
+    with the same shown score that breaks one."""
+
+    options = _ranked_on(now)
+    cover, breach = options[COVER], options[BREACH]
+    assert not cover["flags"]["contract_breach"] and breach["flags"]["contract_breach"]
+    if cover["score"] == breach["score"]:
+        assert cover["rank"] < breach["rank"]
+    else:
+        assert (cover["rank"] < breach["rank"]) == (cover["score"] > breach["score"])
+    ranked = sorted((o for o in options.values() if o["rank"]), key=lambda o: o["rank"])
+    for better, worse in zip(ranked, ranked[1:], strict=False):
+        if (
+            better["flags"]["counterparty_quote_pending"]
+            != (worse["flags"]["counterparty_quote_pending"])
+        ):
+            continue  # a known cost ranks before one waiting on a counterparty quote
+        assert better["score"] >= worse["score"], (better["key"], worse["key"])
+        if better["score"] == worse["score"]:
+            assert len(better["breaches"]) <= len(worse["breaches"]), (better["key"], worse["key"])
+
+
+def test_breaking_the_delivery_ranks_first_only_when_it_is_cheaper():
+    """Friday 27 November 2026: the Huelva window opens on 1 December, so the swap's 45,000 MWh
+    shortfall and its 46,000 MWh later surplus net inside December (4,000 MWh re-hedged in
+    futures at 0.01), while the cover buys 45,000 MWh at the PVB month price + 0.25 short notice
+    and sells the 41,000 MWh surplus in futures: 11,250 + 410 - 40 = 11,620 EUR more."""
+
+    options = _ranked_on(datetime(2026, 11, 27, 0, 39, tzinfo=UTC))
+    cover, breach = options[COVER], options[BREACH]
+    assert round(breach["score"] - cover["score"], 2) == 11_620.0
+    assert breach["rank"] < cover["rank"]
+    assert breach["flags"]["contract_breach"] and not cover["flags"]["contract_breach"]
 
 
 def test_a_cargo_running_normally_is_as_planned(tmp_path, monkeypatch):
