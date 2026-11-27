@@ -139,7 +139,8 @@ reached, which is not an end-to-end claim.
   of `/api/monitoring/` stays READ.
 - The platform-admin boundary is implemented: a path in the commercial-data
   list (`/api/monitoring/`, `/api/contracts/`, `/api/route-cost/`,
-  `/api/strategy-*`, `/api/shadow-*`, `/api/research/`, `/api/optimization/`)
+  `/api/research/`, `/api/optimization/`; the `/api/strategy-*` and `/api/shadow-*` entries
+  left with the strategy laboratory on 2026-11-27)
   refuses an identity holding administration alone
   ([commercial_access.py](../../src/eurogas_nexus/api/dependencies/commercial_access.py)).
 - Row-level entitlement is applied on source/observation/LNG/route reads

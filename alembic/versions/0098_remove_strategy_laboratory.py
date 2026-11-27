@@ -3,8 +3,9 @@
 The owner approved removing the strategy registry, evaluation and tracks, the
 decision-time "backtest" and the scheduled shadow runtime: profit is fixed at the
 moment of decision, so there is no outcome for the "backtest" to prove, and the
-laboratory duplicated the spread laboratory. Its stored runs are exported before
-this revision is applied.
+laboratory duplicated the spread laboratory. Export any stored runs that must be
+kept before applying this revision (``docs/operations/DATABASE_UPGRADE.md``,
+"Data-dropping migrations"); the pre-upgrade backup also holds them.
 
 The downgrade cannot recreate the dropped rows, so it refuses; going back means
 restoring the pre-upgrade backup. The identity groups the sharing feature used

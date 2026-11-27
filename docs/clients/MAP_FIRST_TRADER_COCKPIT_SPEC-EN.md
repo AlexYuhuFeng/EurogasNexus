@@ -194,7 +194,7 @@ Detailed work must not crowd the home map. Provide separate tabs/windows for:
 - price monitoring;
 - portfolio/resource combinations;
 - route-cost and LNG regas analysis;
-- strategy backtest, shadow-run, and live monitoring;
+- spread studies (Research → Spreads), with their back-test over realised history;
 - imported external order records;
 - warning and alert center;
 - source lineage and entitlement;
@@ -207,24 +207,12 @@ place, route, amend, or cancel orders.
 
 ## Strategy UX
 
-Strategy panels must support:
-
-- backtest mode;
-- shadow-run mode;
-- live-monitor mode;
-- configured resource pool;
-- selected time window such as 15:00-17:00;
-- bar size such as 5 minutes;
-- components such as SAP versus ICIS day-ahead versus ICE OCM, mean reversion,
-  scoring, best buckets, and weighted combinations;
-- risk controls such as max OCM allocation, minimum day-ahead allocation,
-  maximum single-market volume, minimum expected margin, stop-loss, stale-data
-  blocking, and TSO-access blocking;
-- paper allocation targets with rationale, missing inputs, warnings, sources,
-  and human-review status.
-
-The UI must use decision-support language: signal, candidate, option, target,
-review. Do not use execution language.
+Removed (2026-11-27, owner approval; `docs/architecture/ARCHITECTURE_V3_PLAN.md` section 5).
+The strategy laboratory - backtest, shadow-run and live-monitor modes, paper allocation targets
+and their risk controls - left the product: its profit was fixed at decision time, so the
+"backtest" proved nothing. Spread studies stay in Research → Spreads. Any surface that remains
+uses decision-support language: signal, candidate, option, target, review. Do not use execution
+language.
 
 ## Visual Quality Bar
 

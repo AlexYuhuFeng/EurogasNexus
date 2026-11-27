@@ -154,8 +154,9 @@ Status: planned.
 Purpose:
 
 - retrieve route cost, indicative netback, feasibility, allocation, nowcast,
-  strategy backtest, shadow run, and report outputs after those backend slices
-  exist.
+  the research sandbox's trade-history backtest and paper shadow-run calculators,
+  and report outputs after those backend slices exist. (The strategy laboratory's
+  registry, decision-time backtest and shadow runtime were removed on 2026-11-27.)
 
 All methods must return metadata including assumptions, missing inputs,
 warnings, source references, lineage, `research_only`, and

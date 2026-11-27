@@ -1,7 +1,9 @@
 """Local identity groups and membership (neutral identity storage).
 
-Groups are used by access administration and by the owner-scoped reads that
-name a group; no strategy-specific state lives here.
+Groups are managed by an administrator (``/api/access/groups``) and listed to their
+members (``/api/me/groups``). Their only reader before 2026-11-27 was the strategy
+laboratory's group sharing, removed with it; the groups and memberships stay as identity
+data. No strategy-specific state lives here.
 """
 
 from sqlalchemy import ForeignKey, String
