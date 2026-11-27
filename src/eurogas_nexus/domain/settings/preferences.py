@@ -140,7 +140,8 @@ PERSONAL_ONLY_KEYS: frozenset[str] = frozenset({"strip_hidden", "hints_seen"})
 
 BUILT_IN_DEFAULTS: dict[str, str] = {
     "language": "en",
-    "theme": "system",
+    # Light by default (SMALL_DESK_PLAN section 9); dark and the device's choice stay a click away.
+    "theme": "light",
     "market_view": "overview",
     "market_board_layout": "board",
     "pnl_colors": "green_up",

@@ -44,6 +44,10 @@
 @import url("../components/cargo-roles.css");
 /* Desk → Cargoes (LNG-3): a disrupted cargo's options, the frontier and the recorded choice. */
 @import url("../components/cargo-options.css");
+/* Desk → Board, the small desk's one screen (TraderScreen.tsx). */
+@import url("../components/trader-screen.css");
+/* The desk's own panels at the Board's density (blotter, end of day, position, limits). */
+@import url("../components/desk-panels.css");
 /* Book → Exposure (P-17): changes awaiting a second person, and who set and approved a figure. */
 @import url("../components/pending-changes.css");
 @import url("../components/news-panel.css");

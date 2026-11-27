@@ -173,7 +173,7 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
   const ladderColumns = useLadderColumns(ladder, t);
 
   return (
-    <section className="workspace-panel span-3 position-ladder-panel" aria-labelledby="position-ladder-title">
+    <section className="workspace-panel span-3 position-ladder-panel desk-panel" aria-labelledby="position-ladder-title">
       <div className="panel-title-row">
         <h2 id="position-ladder-title">{t("position.title")}</h2>
         <Toolbar

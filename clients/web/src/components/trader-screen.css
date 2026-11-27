@@ -1,0 +1,431 @@
+/*
+ * Desk → Board (TraderScreen.tsx): one screen beside the trading screen. Tokens only
+ * (scripts/cssTokenLint.mjs). At 1920 × 1080 the board spans two columns over spreads and the
+ * book; the chart sits beside the board and the fundamentals under it. Below 1600 px wide the
+ * board takes the whole width and the chart and the fundamentals share one place behind a
+ * switch; at phone width everything stacks.
+ * The page never scrolls on a desktop: the screen fills the viewport under the page header.
+ */
+
+@layer ds-components {
+
+  .trader-screen {
+    /* Rows and headers at 24 (the compact header step): twelve contracts, two header rows,
+       spreads and the book fit one 1080-pixel screen. */
+    --trader-head: calc(var(--ds-control-sm) - var(--ds-space-1));
+    --ds-row: var(--trader-head);
+    --ds-row-header: var(--trader-head);
+    display: grid;
+    grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr) minmax(0, 0.7fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    /* The chart follows the last choice beside the board; the fundamentals give way below it
+       (they scroll inside their panel). */
+    grid-template-areas:
+      "board board detail"
+      "spreads book fund";
+    gap: var(--ds-space-3);
+    box-sizing: border-box;
+    min-height: 0;
+    padding-bottom: var(--ds-space-3);
+  }
+
+  .trader-area-board {
+    grid-area: board;
+  }
+
+  .trader-area-spreads {
+    grid-area: spreads;
+  }
+
+  .trader-area-book {
+    grid-area: book;
+  }
+
+  .trader-area-fund {
+    grid-area: fund;
+  }
+
+  /* The chart fills the place the board's height gives it; it never makes the row taller. */
+  .trader-area-detail {
+    grid-area: detail;
+  }
+
+  @media (min-width: 1600px) {
+    .trader-area-detail {
+      contain: size;
+    }
+  }
+
+  .trader-panel {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    min-height: 0;
+    box-sizing: border-box;
+    padding: var(--ds-space-2) var(--ds-space-3);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-md);
+    background: var(--ds-surface);
+  }
+
+  .trader-panel-head {
+    flex-shrink: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-1) var(--ds-space-3);
+    min-height: var(--ds-control-sm);
+    margin-bottom: var(--ds-space-1);
+  }
+
+  .trader-panel-head h2 {
+    margin: 0;
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-md);
+    font-weight: var(--ds-weight-semibold);
+    line-height: var(--ds-line-md);
+  }
+
+  .trader-panel-head .ds-status {
+    align-self: center;
+  }
+
+  .trader-meta {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+    white-space: nowrap;
+  }
+
+  .trader-degraded {
+    color: var(--ds-status-watch);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-sm);
+  }
+
+  .trader-panel-body {
+    display: flex;
+    flex: 1 1 auto;
+    flex-direction: column;
+    gap: var(--ds-space-2);
+    min-height: 0;
+    overflow: auto;
+    overscroll-behavior: contain;
+  }
+
+  /* The body scrolls as a whole when it must; its tables keep their rows. */
+  .trader-panel-body > * {
+    flex-shrink: 0;
+  }
+
+  .trader-panel-body > .simulated-scope-notice,
+  .trader-fundamentals > .simulated-scope-notice {
+    margin: 0;
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
+  .trader-foot,
+  .trader-rule {
+    margin: var(--ds-space-1) 0 0;
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
+  .trader-rule {
+    color: var(--ds-text-2);
+  }
+
+  .trader-muted {
+    color: var(--ds-text-3);
+  }
+
+  /* ---- tables on this screen: the header rows a step under the body rows */
+
+  .trader-screen .ds-grid thead th {
+    height: var(--trader-head);
+  }
+
+  .trader-screen .ds-grid thead .ds-grid-group-row + tr th {
+    top: var(--trader-head);
+  }
+
+  .trader-screen .ds-grid th,
+  .trader-screen .ds-grid td {
+    padding: 0 var(--ds-space-1);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  .trader-board-grid th,
+  .trader-board-grid td {
+    padding: 0 var(--ds-space-05);
+  }
+
+  .trader-screen .ds-grid tbody th {
+    padding-left: var(--ds-space-2);
+  }
+
+  /* Equal columns, so a direction mark appearing after a tick never moves the board. */
+  .trader-board-grid {
+    table-layout: fixed;
+  }
+
+  .trader-hub-head {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--ds-space-1);
+  }
+
+  .trader-board-grid td.is-empty {
+    position: relative;
+  }
+
+  /* "no source" is written once per hub and contract, across its empty cells. */
+  .trader-no-source {
+    position: absolute;
+    top: 50%;
+    right: var(--ds-space-1);
+    transform: translateY(-50%);
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-regular);
+    white-space: nowrap;
+  }
+
+  /* When the screen is not current every live value carries the stale mark: on the board one
+     per hub and contract is enough (the offer's), so the figures keep their room. */
+  [data-screen-stale] .trader-board-grid td[data-col$="-bid"] .ds-stale-mark,
+  [data-screen-stale] .trader-board-grid td[data-col$="-last"] .ds-stale-mark {
+    visibility: hidden;
+  }
+
+  /* The hub's Last and Chg are secondary to its Bid and Offer. */
+  .trader-board-grid td.trader-secondary {
+    color: var(--ds-text-2);
+  }
+
+  .trader-board-grid td.is-stale {
+    color: var(--ds-text-3);
+  }
+
+  .trader-pair {
+    font-weight: var(--ds-weight-medium);
+  }
+
+  .trader-net {
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .trader-basis {
+    margin-left: var(--ds-space-1);
+    color: var(--ds-status-info);
+    font-size: var(--ds-text-xs);
+  }
+
+  /* ---- book */
+
+  .trader-book-top {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: var(--ds-space-2) var(--ds-space-4);
+    padding-bottom: var(--ds-space-2);
+    border-bottom: 1px solid var(--ds-border-subtle);
+  }
+
+  .trader-pnl {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-2) var(--ds-space-6);
+    min-width: 0;
+  }
+
+  .trader-book-tools {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+  }
+
+  .trader-order-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: var(--ds-space-2);
+    margin-top: auto;
+    padding-top: var(--ds-space-1);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
+  /* ---- choosing what the chart shows: a cell, a hub's head, a row */
+
+  .trader-select {
+    display: inline-flex;
+    align-items: center;
+    justify-content: flex-end;
+    width: 100%;
+    min-height: 0;
+    margin: 0;
+    padding: 0;
+    border: 0;
+    border-radius: var(--ds-radius-sm);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: inherit;
+    cursor: pointer;
+  }
+
+  .trader-select:hover {
+    color: var(--ds-accent);
+  }
+
+  .trader-select:focus-visible {
+    outline: var(--ds-focus-outline);
+    outline-offset: var(--ds-focus-offset);
+    box-shadow: var(--ds-focus);
+  }
+
+  .trader-select[aria-pressed="true"] {
+    box-shadow: inset 0 -2px 0 var(--ds-accent);
+  }
+
+  .trader-board-grid tr.trader-row-chosen > th {
+    color: var(--ds-accent);
+  }
+
+  .trader-detail {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-2);
+    min-width: 0;
+  }
+
+  .trader-detail-stale {
+    align-self: flex-start;
+  }
+
+  .trader-detail-controls {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .trader-detail-empty h3 {
+    margin: 0 0 var(--ds-space-1);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-base);
+    font-weight: var(--ds-weight-semibold);
+    line-height: var(--ds-line-base);
+  }
+
+  /* ---- what just happened */
+
+  .trader-events .ds-grid tbody th {
+    font-weight: var(--ds-weight-regular);
+    white-space: normal;
+  }
+
+  .trader-event-time {
+    display: inline-flex;
+    flex-direction: column;
+    line-height: var(--ds-line-xs);
+  }
+
+  .trader-event-time .trader-muted {
+    font-size: var(--ds-text-xs);
+  }
+
+  /* Planned and unplanned in words and weight, not alarm colours. */
+  .trader-event-kind {
+    color: var(--ds-text-2);
+  }
+
+  .trader-event-kind[data-kind="unplanned"] {
+    color: var(--ds-text-1);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .trader-event-hubs {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-1);
+  }
+
+  /* ---- fundamentals */
+
+  .trader-fundamentals {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-2);
+  }
+
+  .trader-fundamentals .ds-grid thead th:first-child {
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-semibold);
+  }
+
+  .trader-fundamentals .ds-grid tbody th {
+    font-weight: var(--ds-weight-regular);
+    white-space: normal;
+  }
+
+  .trader-fundamentals .ds-grid tbody td,
+  .trader-fundamentals .ds-grid tbody th {
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  /* ---- narrower desktops (1440 × 900): the board takes the width, three panels under it */
+
+  @media (max-width: 1599px) {
+    .trader-screen {
+      grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 0.9fr);
+      grid-template-areas:
+        "board board board"
+        "spreads book side";
+    }
+
+    /* The chart and the fundamentals share one place, behind a switch in its head. */
+    .trader-area-fund,
+    .trader-area-detail {
+      grid-area: side;
+    }
+  }
+
+  /* ---- phone and tablet: one column, the page scrolls, tables scroll inside themselves */
+
+  @media (max-width: 1023px) {
+    .trader-screen {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: none;
+      grid-template-areas:
+        "board"
+        "side"
+        "spreads"
+        "book";
+    }
+
+    .trader-panel-body {
+      overflow: visible;
+    }
+  }
+
+}
+
+/* A new unplanned event at one of the five hubs: the board's cell-flash cue, once, in the
+   direction colour for a supply loss (the keyframes are DataGrid's, datagrid.css). */
+@layer ds-motion {
+  @media (prefers-reduced-motion: no-preference) {
+    .trader-event-new > th,
+    .trader-event-new > td {
+      animation: ds-flash-down-a var(--ds-duration-slow) var(--ds-ease-out) 3;
+    }
+  }
+}

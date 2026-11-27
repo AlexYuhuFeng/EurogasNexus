@@ -395,6 +395,48 @@ async function installSweepSettings(page) {
   });
 }
 
+/**
+ * Desk → Board (SMALL_DESK_PLAN step 4): at 1920 × 1080 the page neither scrolls sideways nor
+ * down; at 1440 × 900 it does not scroll sideways. The board shows five hubs, every cell is a
+ * price or "no source", and choosing a price moves the chart panel to it.
+ */
+async function traderBoardCheck(page, failures) {
+  const scope = "interaction/trader-board";
+  const viewport = page.viewportSize();
+  try {
+    await setLanguage(page, "en");
+    for (const size of [{ width: 1920, height: 1080, noVertical: true }, { width: 1440, height: 900, noVertical: false }]) {
+      await page.setViewportSize({ width: size.width, height: size.height });
+      await page.goto(`${BASE}/?workspace=market&task=board`, { waitUntil: "domcontentloaded" });
+      await page.locator("[data-trader-board] tbody tr").first().waitFor({ state: "visible", timeout: 30_000 });
+      await page.waitForTimeout(1_500);
+      const box = await page.evaluate(() => ({
+        sw: document.documentElement.scrollWidth,
+        sh: document.documentElement.scrollHeight,
+        iw: window.innerWidth,
+        ih: window.innerHeight,
+        hubs: document.querySelectorAll("[data-trader-board] thead .ds-grid-group-row th[scope=colgroup]").length,
+        rows: document.querySelectorAll("[data-trader-board] tbody tr").length,
+      }));
+      if (box.sw > box.iw) recordFailure(failures, scope, `${size.width}px: the page scrolls sideways (${box.sw} > ${box.iw})`);
+      if (size.noVertical && box.sh > box.ih) recordFailure(failures, scope, `${size.width}px: the page scrolls down (${box.sh} > ${box.ih})`);
+      if (box.hubs !== 5) recordFailure(failures, scope, `${size.width}px: ${box.hubs} hub columns, expected 5`);
+      if (box.rows !== 12) recordFailure(failures, scope, `${size.width}px: ${box.rows} contracts, expected 12`);
+    }
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    const target = page.locator('[data-select="price:DA:NBP"]').first();
+    await target.click();
+    await page.waitForTimeout(1_000);
+    if ((await target.getAttribute("aria-pressed")) !== "true") recordFailure(failures, scope, "choosing NBP DA did not select it");
+    const detail = await page.locator("[data-trader-panel=detail] [data-detail]").getAttribute("data-detail");
+    if (detail !== "price") recordFailure(failures, scope, `the chart panel shows ${detail}, expected the price`);
+  } catch (error) {
+    recordFailure(failures, scope, error);
+  } finally {
+    if (viewport) await page.setViewportSize(viewport).catch(() => undefined);
+  }
+}
+
 /** A first-use hint shows once on Today after "Show the tips again", and "Got it" moves on. */
 async function firstUseHintCheck(page, failures) {
   const scope = "interaction/first-use-hints";
@@ -2479,6 +2521,9 @@ export async function runWorkflowSmoke() {
 
       currentScope = "interaction-checks";
       await interactionChecks(page, failures);
+
+      currentScope = "interaction/trader-board";
+      await traderBoardCheck(page, failures);
 
       // The glossary's selection behaviour is asserted as an interaction, not inferred from the
       // rendered rows: the index is a control and the article must follow the clicked record.

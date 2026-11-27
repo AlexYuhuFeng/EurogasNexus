@@ -47,7 +47,7 @@ def test_preferences_are_per_person_and_merge_over_organisation_defaults(tmp_pat
     clients = _clients(tmp_path, monkeypatch)
     initial = clients["trader"].get("/api/me/preferences")
     assert initial.status_code == 200, initial.text
-    assert initial.json()["data"]["effective"]["theme"] == "system"
+    assert initial.json()["data"]["effective"]["theme"] == "light"
 
     saved = clients["trader"].put(
         "/api/me/preferences", json={"theme": "dark", "market_board_layout": "ladder"}

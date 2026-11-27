@@ -15,6 +15,8 @@ import { SourceApprovalNotice } from "@/components/PublicSourceApprovals";
 import { CargoBoard } from "@/components/CargoBoard";
 import { NewsPanel } from "@/components/NewsPanel";
 import { TodayFreshness, TodayHeadActions, TodayHeadline, TodayScreen } from "@/components/TodayScreen";
+import { TraderScreen } from "@/components/TraderScreen";
+import { readStoredDensity } from "@/app/model/density";
 import { tradingContextControlsFor } from "@/components/TradingContextControls";
 import { useDeskToday } from "@/app/hooks/useDeskToday";
 import { useModeHeader } from "@/app/navigation/useModeHeader";
@@ -71,6 +73,8 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
   const desk = useDeskToday();
   // Age words on Today move on without a refetch: the shared minute clock.
   const nowMs = useNow(60_000);
+  // The board ages each quote against its source's cadence: a five-second clock, as Prices.
+  const boardNowMs = useNow(5_000);
   // Selecting a price hands its observation to the inspector (source, time, state), through
   // the Wave 1 contract: the page may only inspect the subject kinds it declares.
   const inspector = useInspectorStore();
@@ -112,7 +116,9 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
           the cockpit and this element. */}
       <div id="market-cockpit-panel" className="market-cockpit-panel">
         {task === "overview" && <FirstUseHints hints={FIRST_USE_HINTS["desk.today"]} />}
-        <MarketContextStrip
+        {/* Desk → Board has no context strip: it shows the desk's five hubs for today, on one
+            screen, and every figure carries its own time (SMALL_DESK_PLAN step 4). */}
+        {task !== "board" && <MarketContextStrip
           projection={api.marketContext}
           t={t}
           // No filter strip on Today: it is about today, my hubs and my book (design basis 2, E.1).
@@ -151,14 +157,28 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
               }}
             />
           )}
-        </MarketContextStrip>
+        </MarketContextStrip>}
         {/* A public source the ingestion gate holds back is operator information: an
             administrator sees it here and in Data feeds; a desk user does not. */}
-        {api.currentUser?.permissions.includes("identity.manage") && <SourceApprovalNotice
+        {/* Not on Board: the trader's one screen has no room for operator notices; the
+            administrator meets them on the other Desk tasks and in Data feeds. */}
+        {task !== "board" && api.currentUser?.permissions.includes("identity.manage") && <SourceApprovalNotice
           sources={api.sources}
           t={t}
           onOpen={() => navigation.openWorkspace("sources", "attention")}
         />}
+        {task === "board" && (
+          <TraderScreen
+            quotes={api.marketQuotes}
+            markets={api.normalizedMarkets}
+            // Until the first workspace read has answered, an empty board is "reading", not "no source".
+            quotesLoading={api.marketQuotes.length === 0 && (api.workspaceLoading || api.workspaceLoadsCommitted === 0)}
+            nowMs={boardNowMs}
+            t={t}
+            canSeeBook={!Array.isArray(api.currentUser?.permissions) || api.currentUser.permissions.includes("portfolio.read")}
+            compact={readStoredDensity() === "compact"}
+          />
+        )}
         {task === "overview" && (
           <TodayScreen
             today={desk.today}

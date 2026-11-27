@@ -125,12 +125,13 @@ const page = (id: WorkspacePageId): PlaceRef => ({ kind: "page", page: id });
 
 /** §4.2, one row per composition. */
 export const ROLE_COMPOSITIONS: Readonly<Record<CompositionId, RoleComposition>> = {
-  // D1: the trader lands on Today, whose first row carries the home-hub prices; place 3 is
-  // Deals → Opportunities (design basis 2, B.8).
+  // The small desk's trader lands on Desk → Board, the one screen beside the trading screen
+  // (SMALL_DESK_PLAN step 4); Today keeps the gas-day rows (D1); place 3 is Book → Blotter,
+  // the end-of-day work (step 1); Limits last.
   trader: {
     id: "trader",
-    landing: task("desk", "today"),
-    shortlist: [task("desk", "today"), task("desk", "prices"), task("deals", "opportunities"), task("book", "limits")],
+    landing: task("desk", "board"),
+    shortlist: [task("desk", "board"), task("desk", "today"), task("book", "blotter"), task("book", "limits")],
     panels: {},
     // A trader reads prices first (owner, 2026-11-24, replacing "My gas day" first of
     // 2026-11-19): "My market" leads, and a slim strip above it carries the next nomination

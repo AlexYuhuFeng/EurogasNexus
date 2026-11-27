@@ -147,8 +147,11 @@ def _why(code: str, text: str, **params: Any) -> dict[str, Any]:
 # ----------------------------------------------------------------------------- locational
 
 
-def _pair(holdings: Holdings, hub: str, tenor: str, prices=None) -> dict[str, Any]:
-    """One locational row: ``hub`` − TTF for the tenor (``month-ahead`` or ``day-ahead``).
+def _pair(
+    holdings: Holdings, hub: str, tenor: str, prices=None, reference: str = REFERENCE_HUB
+) -> dict[str, Any]:
+    """One locational row: ``hub`` − ``reference`` (TTF unless named) for the tenor
+    (``month-ahead`` or ``day-ahead``).
 
     The spread, its range and percentile compare closes with closes. With ``prices`` (a
     ``price_resolver.PriceBook``), each front-month leg also carries ``resolved_price``: the
@@ -156,17 +159,17 @@ def _pair(holdings: Holdings, hub: str, tenor: str, prices=None) -> dict[str, An
     """
 
     code = "MA" if tenor == "month-ahead" else "DA"
-    mine, ref = _daily(holdings, hub, tenor), _daily(holdings, REFERENCE_HUB, tenor)
+    mine, ref = _daily(holdings, hub, tenor), _daily(holdings, reference, tenor)
     days = sorted(set(mine) & set(ref))
     out: dict[str, Any] = {"tenor": code, "available": False}
     if not days:
         out.update(
             _why(
                 "no_close_both",
-                f"no {code} close held for both {hub} and {REFERENCE_HUB}",
+                f"no {code} close held for both {hub} and {reference}",
                 tenor=code,
                 hub=hub,
-                reference=REFERENCE_HUB,
+                reference=reference,
             )
         )
         return out
@@ -199,7 +202,7 @@ def _pair(holdings: Holdings, hub: str, tenor: str, prices=None) -> dict[str, An
         out.update(_why("no_fx_delivery", "FX for the delivery period not held"))
         return out
     gross = a - b
-    start_hub, end_hub = spread_direction(gross, hub, REFERENCE_HUB)
+    start_hub, end_hub = spread_direction(gross, hub, reference)
     # Fuel gas is valued at the gas at the route's start (the cheaper hub).
     choice, marginal = _route(holdings, start_hub, end_hub, delivery,
                               gas_price=a if start_hub == hub else b)
@@ -208,7 +211,7 @@ def _pair(holdings: Holdings, hub: str, tenor: str, prices=None) -> dict[str, An
     cost = None if capacity is None else capacity + marginal.holder
     values = [value for _day, value in series]
     native_a, unit_a = _native(hub, last)
-    native_b, unit_b = _native(REFERENCE_HUB, last_ref)
+    native_b, unit_b = _native(reference, last_ref)
     classes = [_klass(last), _klass(last_ref)]
     if fx_a is not None:
         classes.append(fx_a.input_class)
@@ -222,8 +225,8 @@ def _pair(holdings: Holdings, hub: str, tenor: str, prices=None) -> dict[str, An
             "legs": [
                 {"hub": hub, "native_value": native_a, "native_unit": unit_a, "value": a,
                  **_leg_price(prices, hub, code, delivery)},
-                {"hub": REFERENCE_HUB, "native_value": native_b, "native_unit": unit_b, "value": b,
-                 **_leg_price(prices, REFERENCE_HUB, code, delivery)},
+                {"hub": reference, "native_value": native_b, "native_unit": unit_b, "value": b,
+                 **_leg_price(prices, reference, code, delivery)},
             ],
             "gross": gross,
             "direction": f"{start_hub} → {end_hub}",
@@ -268,27 +271,36 @@ def _leg_price(prices, hub: str, code: str, delivery: Delivery) -> dict[str, Any
 
 
 def locational_rows(
-    holdings: Holdings, hubs: Sequence[str], prices=None
+    holdings: Holdings,
+    hubs: Sequence[str],
+    prices=None,
+    pairs: Sequence[tuple[str, str]] | None = None,
 ) -> list[dict[str, Any]]:
+    """Each hub against TTF, or with ``pairs`` each ``(hub, reference)`` the desk named
+    (Desk → Board: TTF–NBP, ZTP–NBP, ...), priced by the same rule."""
+
+    wanted = (
+        list(pairs)
+        if pairs is not None
+        else [(hub, REFERENCE_HUB) for hub in hubs if hub != REFERENCE_HUB]
+    )
     rows = []
-    for hub in hubs:
-        if hub == REFERENCE_HUB:
-            continue
+    for hub, reference in wanted:
         rows.append(
             {
-                "pair": f"{hub}–{REFERENCE_HUB}",
+                "pair": f"{hub}–{reference}",
                 "hub": hub,
-                "reference": REFERENCE_HUB,
+                "reference": reference,
                 "tenors": [
-                    _pair(holdings, hub, "month-ahead", prices),
-                    _pair(holdings, hub, "day-ahead"),
+                    _pair(holdings, hub, "month-ahead", prices, reference),
+                    _pair(holdings, hub, "day-ahead", reference=reference),
                 ],
                 "spec": {
                     "kind": "curve",
-                    "legs": [{"hub": hub, "weight": 1}, {"hub": REFERENCE_HUB, "weight": -1}],
+                    "legs": [{"hub": hub, "weight": 1}, {"hub": reference, "weight": -1}],
                     "unit": UNIT,
                     "fx": "forward",
-                    "cost": {"from_hub": REFERENCE_HUB, "to_hub": hub},
+                    "cost": {"from_hub": reference, "to_hub": hub},
                 },
             }
         )
@@ -545,18 +557,23 @@ def board(
     carry: Mapping[str, Any] | None,
     cross: Sequence[dict[str, Any]] = (),
     prices=None,
+    pairs: Sequence[tuple[str, str]] | None = None,
 ) -> dict[str, Any]:
     """The whole board for ``hubs`` (focus hubs first, then the majors).
 
     ``prices`` (a ``price_resolver.PriceBook`` for now) adds each front-month leg's
-    ``resolved_price``; a board for a past day is read without it.
+    ``resolved_price``; a board for a past day is read without it. With ``pairs`` (Desk →
+    Board) the locational rows are those pairs and the time rows are for exactly ``hubs``,
+    held or not, so a hub without prices says so instead of dropping out.
     """
 
     order = list(dict.fromkeys([*hubs, *MAJOR_HUBS]))
     held = set(holdings.hubs())
     shown = [hub for hub in order if hub in held] or [hub for hub in order][:6]
-    locational = locational_rows(holdings, shown, prices)
-    time = [time_rows(holdings, hub, carry) for hub in shown[:4]]
+    if pairs is not None:
+        shown = list(dict.fromkeys(hubs))
+    locational = locational_rows(holdings, shown, prices, pairs)
+    time = [time_rows(holdings, hub, carry) for hub in (shown if pairs is not None else shown[:4])]
     simulated = (
         any(t.get("simulated") for row in locational for t in row["tenors"])
         or any(item["simulated"] for item in time)
