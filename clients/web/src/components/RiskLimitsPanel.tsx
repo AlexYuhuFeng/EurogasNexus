@@ -71,6 +71,8 @@ const EMPTY_LINE = {
   limit_amount: "",
   currency: "EUR",
   collateral_amount: "0",
+  guarantee_amount: "",
+  guarantee_expiry: "",
   rating: "",
   contract_ids: "",
   receivable_days: "50",
@@ -166,6 +168,8 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
           limit_amount: String(stored.limit_amount),
           currency: stored.currency,
           collateral_amount: String(stored.collateral_amount),
+          guarantee_amount: stored.guarantee_amount ?? "",
+          guarantee_expiry: stored.guarantee_expiry ?? "",
           rating: stored.rating ?? "",
           contract_ids: stored.contract_ids.join(", "),
           receivable_days: String(stored.receivable_days),
@@ -231,6 +235,9 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
       limit_amount: Number(line.limit_amount),
       currency: line.currency.trim().toUpperCase(),
       collateral_amount: Number(line.collateral_amount || 0),
+      // Exact: the guarantee travels as decimal text, never through a float.
+      guarantee_amount: line.guarantee_amount.trim() || null,
+      guarantee_expiry: line.guarantee_expiry || null,
       rating: line.rating.trim() || null,
       contract_ids: splitList(line.contract_ids),
       receivable_days: Number(line.receivable_days || 50),
@@ -463,6 +470,8 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
             </select>
           </label>
           <label><span>{t("limits.collateral")}</span><input inputMode="decimal" value={line.collateral_amount} onChange={lineField("collateral_amount")} /></label>
+          <label><span>{t("limits.guarantee_amount")}</span><input inputMode="decimal" value={line.guarantee_amount} onChange={lineField("guarantee_amount")} /></label>
+          <label><span>{t("limits.guarantee_expiry")}</span><PeriodPicker label={t("limits.guarantee_expiry")} value={line.guarantee_expiry} clearable onChange={(value) => setLine((current) => ({ ...current, guarantee_expiry: value }))} /></label>
           <label><span>{t("limits.rating")}</span><input value={line.rating} onChange={lineField("rating")} /></label>
           <RecordPicker
             id="credit-contracts"

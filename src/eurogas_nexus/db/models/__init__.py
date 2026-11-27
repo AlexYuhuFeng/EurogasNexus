@@ -45,6 +45,13 @@ from eurogas_nexus.db.models.dataops import (
     IngestionRunIssueRecord,
     SourceRuntimeStateRecord,
 )
+from eurogas_nexus.db.models.deal_capture import (
+    CapturedDealRecord,
+    DailyPackRecord,
+    DealDayCloseRecord,
+    DealImportFileRecord,
+    DealImportProblemRecord,
+)
 from eurogas_nexus.db.models.decision import (
     DecisionCaseDecisionRecord,
     DecisionCaseRecord,
@@ -419,6 +426,11 @@ __all__ = [
     "SupportReportRecord",
     "ContractDeliveryRecord",
     "CreditLineRecord",
+    "CapturedDealRecord",
+    "DailyPackRecord",
+    "DealDayCloseRecord",
+    "DealImportFileRecord",
+    "DealImportProblemRecord",
     "LngTerminalOperatorTermsRecord",
     "LngTerminalTariffRecord",
     "TsoTariffEntryRecord",

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import time
 from datetime import UTC, datetime
 
@@ -99,11 +100,36 @@ def main() -> int:
                 # administrator); their e-mail rows are dispatched below with the rest.
                 reports = run_due_reports(session, now=now, caller=authority.principal,
                                           balance_reader=report_balance_reader)
+                # The daily pack on the desk's schedule, as the service principal; its e-mail
+                # rows (with the PDF and XLSX) are dispatched below with the rest.
+                packs = None
+                try:
+                    from eurogas_nexus.application.daily_pack import run_due as run_due_packs
+
+                    packs = run_due_packs(session, now=now, caller=authority.principal)
+                except Exception as exc:  # noqa: BLE001 - the scan carries on
+                    session.rollback()
+                    print(json.dumps({"status": "daily_pack_failed",
+                                      "error_type": exc.__class__.__name__}), flush=True)
                 sent = dispatch(session, now=now)
                 session.commit()
+            # Exchange exports dropped in the watched folder (one subfolder per book).
+            drop_dir = os.environ.get("EUROGAS_NEXUS_DEAL_DROP_DIR", "").strip()
+            dropped = []
+            if drop_dir:
+                try:
+                    from eurogas_nexus.application.caller import firm_caller
+                    from eurogas_nexus.application.deal_capture import import_drop_folder
+
+                    dropped = import_drop_folder(
+                        session_factory, firm_caller(authority.principal), drop_dir)
+                except Exception as exc:  # noqa: BLE001 - the scan carries on
+                    print(json.dumps({"status": "deal_drop_failed",
+                                      "error_type": exc.__class__.__name__}), flush=True)
             print(
                 json.dumps({"status": "ok", **result, "notified": {"queued": queued, **sent},
-                            "reports": reports}),
+                            "reports": reports, "daily_pack": packs,
+                            "deal_files": dropped}, default=str),
                 flush=True,
             )
         except Exception as exc:

@@ -43,7 +43,12 @@ CATEGORIES = (
     # LNG-2: a cargo change's hedge proposal (the LNG desk) and its material escalation.
     "cargo",
     "desk_head",
+    # The daily pack (application/daily_pack.py): PDF and XLSX attached; a channel receives it
+    # only when it lists the category itself, whatever its minimum severity.
+    "pack_management",
+    "pack_risk",
 )
+PACK_CATEGORIES = frozenset({"pack_management", "pack_risk"})
 KINDS = ("email",)
 MAX_ATTEMPTS = 3
 RETRY_AFTER = timedelta(minutes=5)
@@ -62,6 +67,8 @@ class Message:
     severity: str
     title: str
     body: str
+    #: Files sent with the message: (file name, media type, bytes) (the daily pack).
+    attachments: tuple[tuple[str, str, bytes], ...] = ()
 
 
 Sender = Callable[[object, Message], None]
@@ -146,7 +153,7 @@ def _recipients(channel) -> list[str]:
 
 ALERT_EMAIL_DOMAINS_ENV = "EUROGAS_NEXUS_ALERT_EMAIL_DOMAINS"
 #: Categories whose messages carry book figures (limit breaches by book and counterparty).
-BOOK_CATEGORIES = frozenset({"limits"})
+BOOK_CATEGORIES = frozenset({"limits", "pack_management", "pack_risk"})
 
 
 def approved_domains(environ=None) -> frozenset[str] | None:
@@ -220,6 +227,9 @@ def send_email(channel, message: Message, environ=None) -> None:
     email["To"] = ", ".join(_recipients(channel))
     email["Subject"] = f"[Eurogas Nexus] {message.severity.upper()}: {message.title}"
     email.set_content(f"{message.body}\n\n-- Eurogas Nexus ({message.category})")
+    for file_name, media_type, content in message.attachments:
+        maintype, _, subtype = media_type.partition("/")
+        email.add_attachment(content, maintype=maintype, subtype=subtype, filename=file_name)
     port = int(env.get(SMTP_PORT_ENV, "587") or 587)
     domains = approved_domains(env)
     if domains is not None and any(
@@ -247,6 +257,9 @@ def channel_matches(channel, message: Message) -> bool:
     from eurogas_nexus.application.alert_routing import UMBRELLA
 
     categories = channel.categories or []
+    if message.category in PACK_CATEGORIES:
+        # A pack goes only where it was asked for, and is never held back by severity.
+        return message.category in categories
     if categories and not any(
         message.category == item or message.category in UMBRELLA.get(item, ())
         for item in categories
@@ -279,7 +292,12 @@ def dispatch(session, *, now: datetime, senders: dict[str, Sender] | None = None
         query = query.with_for_update(skip_locked=True)
     pending = query.all()
     for row in pending:
-        message = Message(row.category, row.severity, row.title, row.body)
+        attachments: tuple = ()
+        if row.category in PACK_CATEGORIES:
+            from eurogas_nexus.application.daily_pack import attachments_for
+
+            attachments = tuple(attachments_for(session, row.notification_id))
+        message = Message(row.category, row.severity, row.title, row.body, attachments)
         settled = True
         for channel in channels:
             if not channel_matches(channel, message):

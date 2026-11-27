@@ -8,6 +8,7 @@ maintenance of the approved limits (REVIEWER, audited; nobody sets their own man
 from __future__ import annotations
 
 from datetime import UTC, date, datetime, timedelta
+from decimal import Decimal
 
 from fastapi import APIRouter, HTTPException, Query, Request, Response
 from pydantic import BaseModel, ConfigDict, Field
@@ -195,6 +196,10 @@ class CreditLineRequest(BaseModel):
     limit_amount: float = Field(ge=0)
     currency: str = Field(default="EUR", pattern="^[A-Z]{3}$")
     collateral_amount: float = Field(default=0.0, ge=0)
+    #: A guarantee held for the counterparty (exact, in the line's currency) and its expiry,
+    #: shown beside the exposure in the risk pack; the exposure still nets ``collateral``.
+    guarantee_amount: Decimal | None = Field(default=None, ge=0, max_digits=28, decimal_places=10)
+    guarantee_expiry: date | None = None
     rating: str | None = Field(default=None, max_length=16)
     contract_ids: list[str] = Field(default_factory=list, max_length=500)
     receivable_days: int = Field(default=50, ge=0, le=120)
@@ -366,6 +371,10 @@ def get_credit_line(counterparty_id: str, request: Request) -> dict:
                 "limit_amount": float(row.limit_amount),
                 "currency": row.currency,
                 "collateral_amount": float(row.collateral_amount or 0.0),
+                "guarantee_amount": None if row.guarantee_amount is None
+                else format(row.guarantee_amount.normalize(), "f"),
+                "guarantee_expiry": row.guarantee_expiry.isoformat()
+                if row.guarantee_expiry else None,
                 "rating": row.rating,
                 "contract_ids": list(row.contract_ids or []),
                 "receivable_days": int(row.receivable_days or 0),

@@ -1,0 +1,3 @@
+venue,trade_id,trade_date,trade_time,trader,counterparty,hub,product,side,volume,volume_unit,price,price_unit,physical,instrument,status
+BROKER,B-2611-01,2026-11-26,2026-11-26 14:00:00,trader.a,Northwind Gas Trading,THE,Dec-26,buy,240,MWh/d,30.95,EUR/MWh,yes,forward,
+BROKER,B-2611-02,2026-11-26,2026-11-26 14:20:00,trader.b,Example Energy GmbH,PVB,DA,sell,500,MWh/d,33.40,EUR/MWh,yes,spot,

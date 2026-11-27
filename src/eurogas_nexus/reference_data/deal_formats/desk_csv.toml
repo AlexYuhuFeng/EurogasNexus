@@ -1,0 +1,55 @@
+# A generic mapped CSV: any layout that is a header row and one deal per row.
+#
+# Use this file as the starting point for a new layout (a broker's recap sheet, another
+# exchange, the desk's own spreadsheet saved as CSV): copy it, give it a new name and title,
+# and under [columns] write the export's header for each field. No code is needed.
+# See the notes at the top of eex_trades.toml for the editing rules, and check a copy with
+#     python scripts/ops/check_deal_format.py --format <name> --file <export.csv>
+#
+# Fields: venue, venue_trade_id, leg_id, trade_date, trade_time, trader, counterparty,
+# cleared, hub, product, delivery_start, delivery_end, side, volume, volume_unit, price,
+# price_unit, physical, instrument, fees, fee_currency, status, book.
+# Volume units: MW, MWh/d, MWh, th/d, th, kWh/h, lots (lots need [lot_sizes]).
+# Price units: EUR/MWh, GBp/th (pence per therm), GBP/th, GBP/MWh.
+# Products: WD, DA, WE, BOM, Dec-26, Q1-27, Sum-27, Win-26, GY-27, Cal-27 (or delivery dates).
+
+name = "desk_csv"
+title = "Desk CSV (one deal per row, columns named as below)"
+venue = "OTC"
+adapter = "mapped_csv"
+verified = false
+provenance = "Generic layout; edit the column names to match the file."
+detect = ["trade_id", "hub", "side", "volume", "price"]
+delimiter = ","
+decimal_separator = "."
+thousands_separator = ","
+timezone = "Europe/Amsterdam"
+date_formats = ["%Y-%m-%d", "%d/%m/%Y", "%d-%b-%Y"]
+datetime_formats = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%d/%m/%Y %H:%M"]
+
+[columns]
+venue = ["venue", "exchange", "broker"]
+venue_trade_id = ["trade_id", "deal_id", "reference"]
+trade_date = ["trade_date"]
+trade_time = ["trade_time"]
+trader = ["trader"]
+counterparty = ["counterparty"]
+cleared = ["cleared"]
+hub = ["hub"]
+product = ["product", "period"]
+delivery_start = ["delivery_start"]
+delivery_end = ["delivery_end"]
+side = ["side", "buy_sell"]
+volume = ["volume", "quantity"]
+volume_unit = ["volume_unit", "unit"]
+price = ["price"]
+price_unit = ["price_unit"]
+physical = ["physical"]
+instrument = ["instrument"]
+fees = ["fees"]
+fee_currency = ["fee_currency"]
+status = ["status"]
+book = ["book"]
+
+[defaults]
+physical = "no"

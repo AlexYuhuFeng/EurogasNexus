@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from typing import Any
 
 #: What each reference write changes for the opportunity evaluators (CP-13).
@@ -28,6 +29,8 @@ def json_safe(value: Any) -> Any:
 
     if isinstance(value, (date, datetime)):
         return value.isoformat()
+    if isinstance(value, Decimal):
+        return format(value.normalize(), "f")
     if isinstance(value, (list, tuple)):
         return [json_safe(item) for item in value]
     return value
@@ -47,6 +50,8 @@ def from_json(record_type: Any, values: dict[str, Any]) -> dict[str, Any]:
                 python_type = None
             if python_type is date:
                 value = date.fromisoformat(value)
+            elif python_type is Decimal:
+                value = Decimal(value)
             elif python_type is datetime:
                 value = datetime.fromisoformat(value)
         typed[name] = value

@@ -725,6 +725,21 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         example="eurogas-nexus@example-energy.com",
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_DEAL_FORMATS_DIR",
+        scope="OPERATOR",
+        purpose="Folder of the desk's own deal-file formats and ETRM entry sheet layout (TOML); "
+        "a file there replaces the built-in one of the same name.",
+        example="/srv/eurogas-nexus/deal-formats",
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_DEAL_DROP_DIR",
+        scope="OPERATOR",
+        purpose="Watched folder for exchange trade exports: one subfolder per book id; the "
+        "monitoring worker imports each file dropped there and moves it to imported/ or "
+        "refused/ with a result note.",
+        example="/srv/eurogas-nexus/deal-drop",
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_SMTP_STARTTLS",
         scope="OPERATOR",
         purpose="Upgrade the SMTP connection with STARTTLS (default true).",
