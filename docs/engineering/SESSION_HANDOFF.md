@@ -12,8 +12,9 @@ submits nominations, settles or books.
 
 - `main` holds everything described below. The beta pre-release is created by the release
   workflow (see section 8); the cloud session could not push tags.
-- The demo server (https://8080-agq6hf7a5l6f4ybvl7s2z7xpuq.instabox.tech) runs the final `main` of 2026-11-26. The
-  owner decided it stays on that version: do not deploy to it again unless he asks.
+- The demo server (https://8080-agq6hf7a5l6f4ybvl7s2z7xpuq.instabox.tech) runs the released
+  `main` of 2026-11-27. The owner decided it stays on that version: do not deploy to it again
+  unless he asks.
 - Seven professional reviews were run on 2026-11-26 (front office, middle and back office,
   technology, multinational, security, operations and governance, quant models). They are in
   `docs/assessments/professional-review-2026-11-26/`.
@@ -69,6 +70,31 @@ Danish hub, the berth rule, the optional TimescaleDB extension, the portfolio re
 housekeeping job for the demo server.
 
 ## 4. What is next, in order
+
+First, before any feature work: **make hosted CI fast** (owner approved, 2026-11-27). A run
+takes 45 to 60 minutes, almost all of it in two jobs that run their tests one after another:
+`validate` (the whole Python suite in one process) and `browser-acceptance` (every page sweep
+in one job). Target: about 15 minutes for a full run. In `.github/workflows/ci.yml`:
+
+- split `validate` into four parallel shards (contract; unit, security, release and evals;
+  api; db and ingestion), keeping one required summary job so branch protection needs no change;
+- split the browser sweep into parallel jobs by page group, sharing one built client artefact;
+- pushes to `main` are grouped by commit, so a superseded run is never cancelled: group by
+  branch and cancel the older run (keep the newest commit's run, which rule 16 judges);
+- skip the heavy jobs when a push changes only `docs/**` or `*.md`;
+- then, if still slow, `pytest-xdist` inside each shard and a seed-once database fixture for
+  the API tests (most of the API suite's time is re-seeding the same store per test).
+
+Keep `scripts/ci/pre_push_check.sh` running the same tests as hosted CI, and do not skip,
+quarantine or weaken any test to gain time. Measure before and after and record both here.
+
+Also from the last CI failure: about 40 tests in 22 files under `tests/api` and `tests/unit`
+seed their fixtures from today's date and could not be checked for calendar dependence (one,
+the LNG disruption ranking, failed from 27 November because a delivery window crossed a month
+end; it is now pinned to a stated instant with `tests/support/clock.py`). When touching one of
+those files, seed from a stated instant the same way. The largest groups are in
+`test_map_situation_api`, `test_nwe_balance_api`, `test_remit_outages_api`,
+`test_opportunity_stream`, `test_gas_for_power_api` and `test_position_ladder_cargoes`.
 
 Phase 1 items not yet built:
 
