@@ -1,0 +1,109 @@
+# ICE deal report export -> canonical deal record.
+#
+# HOW TO EDIT (no programming needed): see the notes at the top of eex_trades.toml; the same
+# rules apply. Check an edit with
+#     python scripts/ops/check_deal_format.py --format ice_deal_report --file <export.csv>
+#
+# STATUS: from public documentation, unverified against the desk's own files.
+# Basis: the column titles of the deal report a desk exports from ICE's trading front end
+# (Deal ID, Leg ID, Trade Date, B/S, Hub, Strip, Begin Date, End Date, Price, Price Units,
+# Lots, Total Quantity, Qty Units, Trader, Counterparty, Clearing Venue) as recalled from
+# ICE's user material. No public column-by-column specification was found on 2026-11-27, so
+# every header, date format and time zone below must be checked against a real export.
+
+name = "ice_deal_report"
+title = "ICE deal report (CSV export)"
+venue = "ICE"
+adapter = "ice"
+verified = false
+provenance = "From public documentation, unverified against the desk's own files."
+notes = [
+  "Column titles are recalled from ICE user material; no public specification was found.",
+  "Dates are read day-first (31-Dec-2026, 31/12/2026); a month-first export needs date_formats changed.",
+  "Times are taken as London time; change timezone if the export is in another zone.",
+  "When Total Quantity and Qty Units are present they are used instead of Lots.",
+]
+detect = ["Deal ID", "B/S", "Hub"]
+delimiter = ","
+decimal_separator = "."
+thousands_separator = ","
+timezone = "Europe/London"
+date_formats = ["%d-%b-%Y", "%d-%b-%y", "%d/%m/%Y", "%Y-%m-%d"]
+datetime_formats = ["%d-%b-%Y %H:%M:%S", "%d/%m/%Y %H:%M:%S", "%Y-%m-%d %H:%M:%S"]
+end_inclusive = true
+
+[columns]
+venue_trade_id = ["Deal ID", "Trade ID", "TradeID", "Deal Id"]
+leg_id = ["Leg ID", "Leg"]
+trade_date = ["Trade Date"]
+trade_time = ["Trade Time", "Time"]
+trader = ["Trader", "Trader Name", "User ID", "User"]
+counterparty = ["Counterparty", "Counter Party", "Cpty"]
+side = ["B/S", "Buy/Sell", "Side"]
+hub = ["Hub", "Market", "Product"]
+product = ["Strip", "Contract"]
+delivery_start = ["Begin Date", "Start Date"]
+delivery_end = ["End Date"]
+volume = ["Lots", "Quantity", "Qty"]
+volume_unit = ["Lot Units"]
+price = ["Price"]
+price_unit = ["Price Units", "Price Unit"]
+instrument = ["Option", "Product Type"]
+fees = ["Fees", "Exchange Fee", "Brokerage"]
+status = ["Status", "Deal Status"]
+
+[values.side]
+"B" = "buy"
+"S" = "sell"
+"Bought" = "buy"
+"Sold" = "sell"
+
+[values.hub]
+"Dutch TTF" = "TTF"
+"TTF Hi Cal 51.6" = "TTF"
+"Dutch TTF Gas" = "TTF"
+"UK NBP" = "NBP"
+"NBP Natural Gas" = "NBP"
+"German THE" = "THE"
+"THE Natural Gas" = "THE"
+"French PEG" = "PEG"
+"Belgian ZTP" = "ZTP"
+"Spanish PVB" = "PVB"
+
+[values.volume_unit]
+"Therms/Day" = "th/d"
+"Therms" = "th"
+"MW" = "MW"
+"MWh" = "MWh"
+"MWh/Day" = "MWh/d"
+"Lots" = "lots"
+
+[values.price_unit]
+"pence/therm" = "GBp/th"
+"p/therm" = "GBp/th"
+"GBX/therm" = "GBp/th"
+"EUR/MWh" = "EUR/MWh"
+"Euro/MWh" = "EUR/MWh"
+
+[values.instrument]
+"Call" = "option"
+"Put" = "option"
+"Futures" = "future"
+"Future" = "future"
+
+[values.status]
+"Cancelled" = "cancelled"
+"Canceled" = "cancelled"
+"Deleted" = "cancelled"
+
+[defaults]
+physical = "no"
+volume_unit = "lots"
+
+[lot_sizes]
+TTF = "1 MW"
+THE = "1 MW"
+PEG = "1 MW"
+ZTP = "1 MW"
+PVB = "1 MW"
+NBP = "1000 th/d"

@@ -69,10 +69,10 @@ test("network rail does not duplicate shell-owned gas day product hub or source 
   assert.doesNotMatch(network, /className="panel scenario-intro"/);
 });
 
-test("portfolio tasks are overview resources exposure delivery", () => {
+test("portfolio tasks are overview resources exposure delivery deals", () => {
   // Delivery (Book → Delivery, WF-05) left the contract terms it used to sit under; Routes &
   // netback left with CP-00.
-  assert.deepEqual(PORTFOLIO_TASKS, ["overview", "resources", "exposure", "delivery"]);
+  assert.deepEqual(PORTFOLIO_TASKS, ["overview", "resources", "exposure", "delivery", "deals"]);
   // Register C14/D8: the two desk assessments live in the Decision workspace as the two views of
   // Book → Planning, each with its own primary action; Scenario and Optimise left with CP-00 and
   // Deals → Opportunities (CP-14) is the page's first task.

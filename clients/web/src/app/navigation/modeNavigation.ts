@@ -91,6 +91,10 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
     aliasKeys: ["nav.primary.portfolio"],
     tasks: [
       { id: "position", labelKey: "nav.mode.book.position", page: "contracts", pageTask: "overview", permissions: ["portfolio.read"], aliasKeys: ["portfolio.task.overview", "nav.primary.portfolio"] },
+      // The day's deals from the exchange exports and by hand, the ETRM entry sheet, the
+      // end-of-day check and the daily pack (SMALL_DESK_PLAN step 1): a task of the book, not
+      // a page of its own (AGENTS rule 9).
+      { id: "blotter", labelKey: "nav.mode.book.blotter", page: "contracts", pageTask: "deals", permissions: ["portfolio.read"], aliasKeys: ["portfolio.task.deals", "deals.alias_eod", "deals.alias_etrm"] },
       // Limits carries the hedge approvals (approval with the exposure it approves), the books
       // and the P&L snapshots; the legacy `orders` page lands here.
       { id: "limits", labelKey: "nav.mode.book.limits", shortLabelKey: "nav.mode.book.limits.short", page: "contracts", pageTask: "exposure", alsoPages: ["orders"], permissions: ["portfolio.read"], aliasKeys: ["portfolio.task.exposure", "nav.orders"] },

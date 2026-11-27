@@ -177,3 +177,20 @@ def report_response(
             **_decision_headers(decision),
         },
     )
+
+
+def file_response(content: bytes, *, media_type: str, file_name: str, file_format: str,
+                  rows: int | None = None) -> Response:
+    """A file built elsewhere (the ETRM entry sheet, the daily pack) under the export decision.
+
+    The decision applies to the licensed families the request read, as for every report file.
+    """
+
+    decision = _export_decision(file_format)
+    headers = {
+        "Content-Disposition": f'attachment; filename="{file_name}"',
+        **_decision_headers(decision),
+    }
+    if rows is not None:
+        headers["X-Eurogas-Report-Rows"] = str(rows)
+    return Response(content=content, media_type=media_type, headers=headers)

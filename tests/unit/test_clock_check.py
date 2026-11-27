@@ -73,6 +73,23 @@ def test_reading_the_status_never_waits_for_the_network(monkeypatch):
     clock_check.reset_for_tests()
 
 
+def test_the_first_check_runs_on_a_pc_that_has_just_booted(monkeypatch):
+    """The monotonic clock counts from boot: minutes after a start it is below the check interval.
+
+    The first hosted run of this module failed for that reason, and a desk server would have
+    reported "checking" for its first ten minutes after every power cut.
+    """
+
+    clock_check.reset_for_tests()
+    monkeypatch.setattr(clock_check.time, "monotonic", lambda: 5.0)
+    monkeypatch.setattr(
+        clock_check, "measure",
+        lambda: assess(offset_seconds=0.0, synchronised=True, reference="ntp"),
+    )
+    assert clock_check.clock_status(wait=True)["state"] != "checking"
+    clock_check.reset_for_tests()
+
+
 def test_health_reports_the_server_time_and_the_clock(monkeypatch):
     from fastapi.testclient import TestClient
 

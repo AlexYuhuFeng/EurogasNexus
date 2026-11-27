@@ -1,0 +1,5 @@
+Deal ID,Leg ID,Trade Date,Trade Time,B/S,Hub,Strip,Begin Date,End Date,Price,Price Units,Lots,Total Quantity,Qty Units,Trader,Counterparty,Clearing Venue,Option,Status
+9100001,,26-Nov-2026,09:15:02,B,Dutch TTF,Dec26,01-Dec-2026,31-Dec-2026,31.250,EUR/MWh,5,5,MW,trader.a,,ICE Endex,,
+9100002,,26-Nov-2026,10:01:44,S,UK NBP,Q1 27,01-Jan-2027,31-Mar-2027,95.15,pence/therm,2,"2,000",Therms/Day,trader.a,,ICE Futures Europe,,
+9100004,,26-Nov-2026,12:45:10,S,Dutch TTF,Cal27,01-Jan-2027,31-Dec-2027,29.80,EUR/MWh,1,1,MW,trader.b,,ICE Endex,,Cancelled
+9100005,,26-Nov-2026,15:30:00,B,Dutch TTF,Feb27,01-Feb-2027,28-Feb-2027,32.05,EUR/MWh,3,3,MW,trader.b,,ICE Endex,Call,

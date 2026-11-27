@@ -176,6 +176,11 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
     RequiredTable(name="retention_policies", introduced_in="0096_retention_by_class"),
     RequiredTable(name="retention_archives", introduced_in="0096_retention_by_class"),
     RequiredTable(name="retention_runs", introduced_in="0096_retention_by_class"),
+    RequiredTable(name="deal_import_files", introduced_in="0097_deal_capture"),
+    RequiredTable(name="deal_import_problems", introduced_in="0097_deal_capture"),
+    RequiredTable(name="captured_deals", introduced_in="0097_deal_capture"),
+    RequiredTable(name="deal_day_closes", introduced_in="0097_deal_capture"),
+    RequiredTable(name="daily_packs", introduced_in="0097_deal_capture"),
 )
 
 

@@ -6,8 +6,9 @@ contract actually delivered against its nominations, and what each regas termina
 """
 
 from datetime import date, datetime
+from decimal import Decimal
 
-from sqlalchemy import JSON, Boolean, Date, DateTime, Float, Integer, String
+from sqlalchemy import JSON, Boolean, Date, DateTime, Float, Integer, Numeric, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
@@ -27,6 +28,10 @@ class CreditLineRecord(Base):
     currency: Mapped[str] = mapped_column(String(3), nullable=False)
     #: Letters of credit, parent guarantees and cash collateral held against the exposure.
     collateral_amount: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    #: The guarantee held for this counterparty (parent guarantee or letter of credit), in the
+    #: line's currency, exact; and the day it expires. ``None`` when none is held.
+    guarantee_amount: Mapped[Decimal | None] = mapped_column(Numeric(28, 10), nullable=True)
+    guarantee_expiry: Mapped[date | None] = mapped_column(Date, nullable=True)
     rating: Mapped[str | None] = mapped_column(String(16), nullable=True)
     #: Upstream supply contracts facing this counterparty.
     contract_ids: Mapped[list[str] | None] = mapped_column(JSON, nullable=True)

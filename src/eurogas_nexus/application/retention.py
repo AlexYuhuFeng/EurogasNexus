@@ -109,6 +109,13 @@ DATA_CLASSES: tuple[DataClass, ...] = (
             "gas_day_schedule_lines",
             "gas_day_nomination_events",
             "portfolio_pnl_snapshots",
+            # Deal capture: every version of the desk's captured deals, the files they came
+            # from, the rows that could not be read, the day's close and the packs sent.
+            "captured_deals",
+            "deal_import_files",
+            "deal_import_problems",
+            "deal_day_closes",
+            "daily_packs",
         ),
         floor_days=SEVEN_YEARS_DAYS,
         legal_basis="REMIT Art. 8 and Implementing Regulation 1348/2014 Art. 9 (records of "

@@ -2,7 +2,8 @@
 
     python scripts/ops/dispatch_notifications.py
 
-Mirrors open monitoring alerts into the outbox, then sends every due outbox row to the
+Mirrors open monitoring alerts into the outbox, queues the daily pack when the desk's
+schedule says so, then sends every due outbox row to the
 matching channels (email, webhook, SMS) and prints the counts. Safe to repeat.
 """
 
@@ -35,6 +36,16 @@ def main() -> int:
             queued += queue_break_alerts(session, now=now)["notified"]
         except Exception as exc:  # noqa: BLE001 - the alerts still go out
             print(json.dumps({"status": "gas_day_breaks_failed",
+                              "error_type": exc.__class__.__name__}))
+        try:
+            from eurogas_nexus.application.daily_pack import run_due as run_due_packs
+            from eurogas_nexus.application.service_identity import resolve_service_authority
+
+            authority = resolve_service_authority(session)
+            run_due_packs(session, now=now, caller=authority.principal)
+        except Exception as exc:  # noqa: BLE001 - the alerts still go out
+            session.rollback()
+            print(json.dumps({"status": "daily_pack_failed",
                               "error_type": exc.__class__.__name__}))
         counts = dispatch(session, now=now)
         session.commit()

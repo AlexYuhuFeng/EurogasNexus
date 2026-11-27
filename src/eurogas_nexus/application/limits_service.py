@@ -88,11 +88,19 @@ def credit_inputs(caller: Caller, today: date) -> CreditInputs:
     inputs = ladder_inputs(caller, today, start - timedelta(days=lookback), end)
     legs_by_ref = {leg.reference: leg for leg in inputs.legs}
     etrm_by_name: dict[str, list[str]] = {}
+    from eurogas_nexus.application.position_inputs import overlay_counterparties
+
+    captured = overlay_counterparties()
     for order in inputs.orders:
         if str(order.provider_id).upper() == "ETRM":
             etrm_by_name.setdefault(order.account_label.casefold(), []).append(
                 order.order_observation_id
             )
+        elif order.order_observation_id in captured and captured[order.order_observation_id]:
+            # A captured bilateral deal (the daily pack's overlay) faces its counterparty.
+            etrm_by_name.setdefault(
+                captured[order.order_observation_id].casefold(), []
+            ).append(order.order_observation_id)
 
     def mark(hub: str, month: str) -> float | None:
         return inputs.marks.get((hub, month))
@@ -349,6 +357,8 @@ def mandate_usage_rows(caller: Caller, today: date) -> LimitRows:
 def instrument_of(order) -> str:
     """What kind of financial trade a filled order is, for the mandate's instrument list."""
 
+    if str(order.provider_id).upper() == "DEAL_CAPTURE":
+        return str(order.order_type)  # the captured deal's own instrument
     text = f"{order.product} {order.order_type} {order.contract_code}".casefold()
     if "option" in text or " call" in text or " put" in text:
         return "option"

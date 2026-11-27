@@ -1,0 +1,111 @@
+# EEX trade export -> canonical deal record.
+#
+# HOW TO EDIT (no programming needed)
+# - Lines starting with # are notes and are ignored.
+# - [columns]: on the left the field the product needs, on the right the column header(s) in
+#   the export that hold it. Give several spellings in a list; the first one found is used.
+#   Upper/lower case and extra spaces in the export's headers do not matter.
+# - [values.<field>]: how the export writes a value, and what it means ("B" = "buy").
+# - [defaults]: the value to use when the export has no such column or the cell is empty.
+# - [lot_sizes]: what one lot is, per hub ("1 MW" = one megawatt in every hour of delivery).
+# - Save the file, then check it against a real export:
+#       python scripts/ops/check_deal_format.py --format eex_trades --file <export.csv>
+#   It lists every row it cannot read and why. Nothing is stored by the check.
+# - Put your edited copy in the folder named by EUROGAS_NEXUS_DEAL_FORMATS_DIR (keep the same
+#   name = "eex_trades" to replace this built-in layout).
+#
+# STATUS: from public documentation, unverified against the desk's own files.
+# Basis: the field names of the T7 "Daily Trade Confirmation" report (TC810, formerly TE810)
+# in the T7 XML Report Reference Manual published by Deutsche Boerse/Eurex for the T7 trading
+# system EEX derivatives run on, plus the plain column titles a trading front end typically
+# exports. The column list could not be read in full when this file was written (the manual's
+# host was not reachable), so every header below must be checked against a real EEX export.
+# EEX product ids are mapped to hubs from memory and must be confirmed.
+
+name = "eex_trades"
+title = "EEX trades (T7 trade confirmation or front-end export, CSV)"
+venue = "EEX"
+adapter = "eex"
+verified = false
+provenance = "From public documentation, unverified against the desk's own files."
+notes = [
+  "Headers follow the T7 Daily Trade Confirmation (TC810) field names; check them against a real export.",
+  "EEX product ids (G3BM ...) to hubs are believed, not confirmed.",
+  "Volumes are taken as lots of the size in [lot_sizes] unless the export states a unit.",
+]
+# Headers that, all present, identify this layout when a file is dropped without a format.
+detect = ["tranIdNo", "buyCod", "prodId"]
+delimiter = ","
+decimal_separator = "."
+thousands_separator = ","
+timezone = "Europe/Berlin"
+date_formats = ["%Y-%m-%d", "%d.%m.%Y", "%d/%m/%Y", "%Y%m%d"]
+datetime_formats = ["%Y-%m-%d %H:%M:%S", "%Y-%m-%dT%H:%M:%S", "%d.%m.%Y %H:%M:%S"]
+end_inclusive = true
+
+[columns]
+venue_trade_id = ["tranIdNo", "Trade ID", "Trade Number", "Deal ID", "TradeID"]
+leg_id = ["legNo", "Leg", "Leg No"]
+trade_date = ["tranDat", "Trade Date", "Business Date"]
+trade_time = ["tranTim", "Trade Time", "Time", "Timestamp"]
+trader = ["usrId", "Trader", "Trader ID", "User ID", "User"]
+side = ["buyCod", "Side", "Buy/Sell", "B/S"]
+hub = ["prodId", "Product ID", "Product Code", "Product", "Hub", "Market Area"]
+product = ["Delivery Period", "Contract Period", "Period"]
+delivery_start = ["Delivery Start", "dlvyStrtDat"]
+delivery_end = ["Delivery End", "dlvyEndDat"]
+volume = ["trdQty", "Quantity", "Qty", "Traded Quantity", "Volume"]
+volume_unit = ["Quantity Unit", "Unit", "Volume Unit"]
+price = ["trdPrc", "Price", "Trade Price"]
+price_unit = ["Price Unit", "Currency/Unit"]
+fees = ["Fee", "Fees", "Transaction Fee"]
+status = ["trdStat", "Trade Status", "Status"]
+counterparty = ["Counterparty"]
+
+[values.side]
+"B" = "buy"
+"S" = "sell"
+"Buy" = "buy"
+"Sell" = "sell"
+
+[values.hub]
+# EEX derivative product ids (last letter = tenor: M month, Q quarter, S season, Y year).
+# BELIEVED, NOT CONFIRMED: correct these from the desk's own exports.
+"G3BM" = "TTF"
+"G3BQ" = "TTF"
+"G3BS" = "TTF"
+"G3BY" = "TTF"
+"TTF Natural Gas" = "TTF"
+"THE Natural Gas" = "THE"
+"PEG Natural Gas" = "PEG"
+"ZTP Natural Gas" = "ZTP"
+"PVB Natural Gas" = "PVB"
+"NBP Natural Gas" = "NBP"
+
+[values.status]
+"Cancelled" = "cancelled"
+"Canceled" = "cancelled"
+"Deleted" = "cancelled"
+"Reversed" = "cancelled"
+
+[values.volume_unit]
+"Contracts" = "lots"
+"Lots" = "lots"
+"MW" = "MW"
+"MWh" = "MWh"
+"MWh/d" = "MWh/d"
+
+[defaults]
+cleared = "yes"
+physical = "no"
+instrument = "future"
+volume_unit = "lots"
+
+[lot_sizes]
+# One lot: "<amount> <unit>". MW = that many megawatts in every hour of delivery.
+TTF = "1 MW"
+THE = "1 MW"
+PEG = "1 MW"
+ZTP = "1 MW"
+PVB = "1 MW"
+NBP = "1000 th/d"

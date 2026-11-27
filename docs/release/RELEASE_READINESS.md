@@ -61,7 +61,10 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **329 paths / 365 operations**
+- OpenAPI public surface: **342 paths / 379 operations**
+
+  (2026-11-27: deal capture, 13 paths and 14 operations under `/api/desk/deals` (reads READ,
+  writes WRITE with `portfolio.write` in the handler); 329 / 365 before.)
 
   (2026-11-27: `GET /api/settings/ai` (ADMIN, the AI settings in force); 2026-11-26: `GET /api/optimization/planning-inputs` (READ, from the merged desk review);
   315 / 351 before.)

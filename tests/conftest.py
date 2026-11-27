@@ -27,6 +27,8 @@ os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 # a suite that changes rows directly between two reads would be answered from before. Off for
 # the suite; its own tests switch it on.
 os.environ.setdefault("EUROGAS_NEXUS_WARM_VIEWS", "off")
+# No test asks a public time server for the time; the clock check's own tests use a local one.
+os.environ.setdefault("EUROGAS_NEXUS_NTP_SERVER", "off")
 
 import pytest  # noqa: E402
 

@@ -26,6 +26,9 @@ function readLocale(name: "en" | "zh"): Record<string, string> {
  */
 const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "access.view.sso": "an acronym",
+  "eod.detail.volume": "two figures and the unit MWh, no words",
+  "eod.detail.price": "two figures and a currency per MWh, no words",
+  "eod.detail.pair": "two values joined by a slash, no words",
   "answer.as_of_source": "a date and a source name joined by a separator, no words",
   "answer.convert.factor": "an equation of a figure and unit codes, no words",
   "answer.gasday.window": "two times joined by an arrow, no words",

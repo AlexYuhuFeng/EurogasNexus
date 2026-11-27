@@ -23,8 +23,8 @@ import sqlalchemy as sa  # noqa: F401  (kept for the migration template's import
 
 from alembic import op
 
-revision = "0097_remove_strategy_laboratory"
-down_revision = "0096_retention_by_class"
+revision = "0098_remove_strategy_laboratory"
+down_revision = "0097_deal_capture"
 branch_labels = None
 depends_on = None
 # Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).
@@ -47,6 +47,7 @@ _DROPPED_TABLES = (
     "strategy_shadow_drift_snapshots",
     "strategy_shadow_evaluations",
     "strategy_shadow_monitors",
+    "strategy_shadow_scheduler_heartbeat",
     "backtest_attribution",
     "backtest_series",
     "backtest_decision_events",

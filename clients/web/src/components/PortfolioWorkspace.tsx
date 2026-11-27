@@ -14,6 +14,8 @@ import { PositionLadderPanel } from "@/components/PositionLadderPanel";
 import { TradingBooksPanel } from "@/components/TradingBooksPanel";
 import { RiskLimitsPanel } from "@/components/RiskLimitsPanel";
 import { PendingChangesPanel } from "@/components/PendingChangesPanel";
+import { DealBlotterPanel } from "@/components/DealBlotterPanel";
+import { EndOfDayPanel } from "@/components/EndOfDayPanel";
 import { DeliveryPerformancePanel } from "@/components/DeliveryPerformancePanel";
 import { DailyBalancePanel } from "@/components/DailyBalancePanel";
 import { DealHedgeApprovalsPanel } from "@/components/DealHedgeApprovalsPanel";
@@ -154,6 +156,9 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
   const currentUser = api.currentUser;
   const canMaintainRisk = currentUser?.role === "REVIEWER"
     || (currentUser?.roles.includes("REVIEWER") ?? false);
+  // The server authorises every request; these only decide which controls are offered.
+  const canWriteDeals = currentUser?.permissions.includes("portfolio.write") ?? false;
+  const canReadLimits = currentUser?.permissions.includes("risk.limits.read") ?? false;
   const [task, setTask] = useState<PortfolioTask>(() =>
     portfolioTaskFromLocation(window.location.search),
   );
@@ -321,6 +326,10 @@ export function PortfolioWorkspace({ controller }: { controller: AppController }
         )}
         {/* Book → Delivery (WF-05): what was delivered against what was nominated, the day's
             balance and the sell-down plan, apart from the contract terms they used to sit under. */}
+        {/* Book → Blotter (SMALL_DESK_PLAN step 1): the day's captured deals, the ETRM entry
+            sheet, the end-of-day check against the ETRM and the daily pack. */}
+        {task === "deals" && <DealBlotterPanel t={t} canWrite={canWriteDeals} />}
+        {task === "deals" && <EndOfDayPanel t={t} canWrite={canWriteDeals} canReadLimits={canReadLimits} />}
         {task === "delivery" && <DeliveryPerformancePanel t={t} />}
         {task === "delivery" && <DailyBalancePanel t={t} />}
         {task === "delivery" && <SellDownPanel t={t} />}
