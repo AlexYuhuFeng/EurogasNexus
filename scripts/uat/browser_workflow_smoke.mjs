@@ -408,28 +408,45 @@ async function traderBoardCheck(page, failures) {
     for (const size of [{ width: 1920, height: 1080, noVertical: true }, { width: 1440, height: 900, noVertical: false }]) {
       await page.setViewportSize({ width: size.width, height: size.height });
       await page.goto(`${BASE}/?workspace=market&task=board`, { waitUntil: "domcontentloaded" });
-      await page.locator("[data-trader-board] tbody tr").first().waitFor({ state: "visible", timeout: 30_000 });
+      // The twelve contracts are drawn at once from the board's definition; the measure waits until
+      // the first quote read has answered (no cell still "reading"), whatever data the seed holds.
+      await page.locator('[data-trader-board] tbody tr[data-record="board-contract"]').first().waitFor({ state: "visible", timeout: 30_000 });
+      await page.waitForFunction(() => document.querySelectorAll("[data-trader-board] [data-reading]").length === 0, null, { timeout: 45_000 });
       await page.waitForTimeout(1_500);
       const box = await page.evaluate(() => ({
         sw: document.documentElement.scrollWidth,
         sh: document.documentElement.scrollHeight,
         iw: window.innerWidth,
         ih: window.innerHeight,
+        // What reaches below the window, so a failure names it (outside the panels, which scroll).
+        below: [...document.querySelectorAll("body *")]
+          .filter((el) => el.getBoundingClientRect().bottom > window.innerHeight + 1 && el.getBoundingClientRect().height > 0 && !el.closest(".trader-panel-body"))
+          .slice(0, 6)
+          .map((el) => `${el.tagName.toLowerCase()}.${String(el.className).split(" ")[0]}@${Math.round(el.getBoundingClientRect().top)}-${Math.round(el.getBoundingClientRect().bottom)}`),
+        screen: document.querySelector("[data-trader-screen]")?.getAttribute("style") ?? "",
         hubs: document.querySelectorAll("[data-trader-board] thead .ds-grid-group-row th[scope=colgroup]").length,
-        rows: document.querySelectorAll("[data-trader-board] tbody tr").length,
+        rows: document.querySelectorAll('[data-trader-board] tbody tr[data-record="board-contract"]').length,
+        unlabelled: [...document.querySelectorAll('[data-trader-board] tbody tr[data-record="board-contract"] td[data-col$="-bid"]')]
+          .filter((cell) => !(cell.textContent ?? "").trim()).length,
       }));
       if (box.sw > box.iw) recordFailure(failures, scope, `${size.width}px: the page scrolls sideways (${box.sw} > ${box.iw})`);
-      if (size.noVertical && box.sh > box.ih) recordFailure(failures, scope, `${size.width}px: the page scrolls down (${box.sh} > ${box.ih})`);
+      if (size.noVertical && box.sh > box.ih) recordFailure(failures, scope, `${size.width}px: the page scrolls down (${box.sh} > ${box.ih}; below the window: ${box.below.join(", ") || "nothing"}; screen ${box.screen})`);
       if (box.hubs !== 5) recordFailure(failures, scope, `${size.width}px: ${box.hubs} hub columns, expected 5`);
       if (box.rows !== 12) recordFailure(failures, scope, `${size.width}px: ${box.rows} contracts, expected 12`);
+      // Every hub and contract says a price or why not ("no source"): no blank cell.
+      if (box.unlabelled > 0) recordFailure(failures, scope, `${size.width}px: ${box.unlabelled} board cells say nothing`);
     }
     await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.waitForTimeout(500);
     const target = page.locator('[data-select="price:DA:NBP"]').first();
     await target.click();
     await page.waitForTimeout(1_000);
     if ((await target.getAttribute("aria-pressed")) !== "true") recordFailure(failures, scope, "choosing NBP DA did not select it");
     const detail = await page.locator("[data-trader-panel=detail] [data-detail]").getAttribute("data-detail");
     if (detail !== "price") recordFailure(failures, scope, `the chart panel shows ${detail}, expected the price`);
+    // The panel draws the contract's chart, or says "no source" and what would supply it.
+    const drawn = page.locator('[data-trader-panel=detail] [data-detail="price"] :is([data-chart], [data-detail-state="no-source"])');
+    await drawn.first().waitFor({ state: "visible", timeout: 20_000 }).catch(() => recordFailure(failures, scope, "the chart panel shows neither a chart nor its no-source state"));
   } catch (error) {
     recordFailure(failures, scope, error);
   } finally {

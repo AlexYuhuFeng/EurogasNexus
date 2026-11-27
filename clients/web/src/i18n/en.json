@@ -8050,7 +8050,7 @@
   "board.hub_unit": "{{hub}} in {{unit}}",
   "board.no_source": "no source",
   "board.no_source_long": "No licensed or public price for {{hub}} {{contract}}: it appears when the desk's own exchange or Trayport entitlement is connected.",
-  "board.unit_short": "unit",
+  "board.unit_short": "other unit",
   "board.unit_long": "The quote is in a unit this board does not put in the hub's quotation without an FX rate.",
   "board.cell_title": "{{source}} · {{time}} · {{unit}}",
   "board.simulated_source": "{{source}} (simulated, not a market price)",
@@ -8197,5 +8197,6 @@
   "board.events.licensed_none": "No licensed headline service is registered.",
   "board.events.age_min": "{{count}} min ago",
   "board.events.age_h": "{{count}} h ago",
-  "board.events.age_d": "{{count}} d ago"
+  "board.events.age_d": "{{count}} d ago",
+  "board.reading": "reading…"
 }

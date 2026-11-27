@@ -8050,7 +8050,7 @@
   "board.hub_unit": "{{hub}}，单位 {{unit}}",
   "board.no_source": "无来源",
   "board.no_source_long": "{{hub}} {{contract}} 无授权或公开价格：接入交易台自己的交易所或 Trayport 授权后显示。",
-  "board.unit_short": "单位",
+  "board.unit_short": "其他单位",
   "board.unit_long": "该报价的单位无法在不使用汇率的情况下换算为本枢纽报价单位。",
   "board.cell_title": "{{source}} · {{time}} · {{unit}}",
   "board.simulated_source": "{{source}}（模拟数据，并非市场价格）",
@@ -8197,5 +8197,6 @@
   "board.events.licensed_none": "未登记授权的头条服务。",
   "board.events.age_min": "{{count}} 分钟前",
   "board.events.age_h": "{{count}} 小时前",
-  "board.events.age_d": "{{count}} 天前"
+  "board.events.age_d": "{{count}} 天前",
+  "board.reading": "读取中…"
 }
