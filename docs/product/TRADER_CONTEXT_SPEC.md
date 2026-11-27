@@ -6,8 +6,8 @@ calculations, gas-day boundaries, freshness, provenance, and entitlement.
 ## 1. Purpose
 
 Continuity of intent: a trader establishes gas day, delivery product, and
-optional hub focus once, then moves across Market, Portfolio, Strategy Lab,
-and Decision Center without reconstructing that intent. Object selection is a
+optional hub focus once, then moves across Market, Portfolio, Research and
+Decision Center without reconstructing that intent. Object selection is a
 separate transient context used only for explicit cross-workspace handoffs.
 
 ## 2. Context categories
@@ -15,7 +15,7 @@ separate transient context used only for explicit cross-workspace handoffs.
 | Category | Owner | Lifetime | Examples |
 |---|---|---|---|
 | Trader / analytical context | client context hook | persistent | gas day, delivery product, hub focus |
-| Cross-workspace selection | client selection hook | session + URL, not localStorage | route id, resource id, strategy run id |
+| Cross-workspace selection | client selection hook | session + URL, not localStorage | route id, resource id |
 | Display preferences | existing settings/theme stores | persistent | language, theme, currency/unit |
 | Evidence / runtime state | backend API response | backend-owned | as-of, freshness, provenance, entitlement, runtime health |
 
@@ -37,7 +37,6 @@ As-of/freshness is never a user-editable fake context value.
 |---|---|---|
 | `routeId` | string or null | `route_id` from backend route/recommendation objects |
 | `resourceId` | string or null | `resource_id` from backend resource-pool resources |
-| `strategyRunId` | string or null | `run_id` from backend strategy-run records |
 
 No translated labels, array indexes, display positions, or client-generated
 fake portfolio ids are used for cross-workspace identity.
@@ -68,7 +67,7 @@ fake portfolio ids are used for cross-workspace identity.
   (`EU-CAM-UTC-2025`, 05:00Z winter / 04:00Z DST).
 - `deliveryProduct`: `all`.
 - `hubId`: `null` (all hubs).
-- Selection: empty (no route/resource/strategy run).
+- Selection: empty (no route/resource).
 
 ## 7. Persistence
 
@@ -89,12 +88,11 @@ Canonical query model:
 &hub=NBP
 &route=<safe-id>
 &resource=<safe-id>
-&run=<safe-id>
 ```
 
 - Legacy `workspace` remains the navigation source of truth.
 - Default values are omitted to keep URLs short.
-- Secrets, credentials, strategy parameters, and commercial terms are never
+- Secrets, credentials, commercial parameters and commercial terms are never
   serialized.
 
 ## 9. Update/invalidation behavior
@@ -110,24 +108,23 @@ context.
 
 Invalidation rules:
 
-- Change `gasDay`, `deliveryProduct`, or `hubId` marks existing optimizer,
-  route, and strategy results as context-mismatched until re-run for the
-  current context.
+- Change `gasDay`, `deliveryProduct`, or `hubId` marks existing optimizer and
+  route results as context-mismatched until re-run for the current context.
 - Change display currency/unit re-renders presentation; it does not invalidate
-  strategy identity or result objects.
+  result objects.
 - Change a selection id may update the target workspace focus but never clears
   unrelated market history automatically.
 - Clearing optional hub focus returns hub-consuming views to all-hub scope.
 
 ## 10. Workspace consumption matrix
 
-| Primary | gasDay | product | hub | route selection | resource selection | strategy-run selection |
-|---|---|---|---|---|---|---|
-| Market | RW | RW | RW | R | - | - |
-| Portfolio | R | R | R | - | RW | - |
-| Strategy Lab | R | R | R | - | R | RW |
-| Decision Center | R | R | R | R | R | R |
-| System | - | - | - | - | - | - |
+| Primary | gasDay | product | hub | route selection | resource selection |
+|---|---|---|---|---|---|
+| Market | RW | RW | RW | R | - |
+| Portfolio | R | R | R | - | RW |
+| Research | R | R | R | - | R |
+| Decision Center | R | R | R | R | R |
+| System | - | - | - | - | - |
 
 R = consumes; W = may update; RW = consumes and may update; - = independent.
 
@@ -145,7 +142,7 @@ R = consumes; W = may update; RW = consumes and may update; - = independent.
 - A context-specific result generated under a different context key shows a
   `Result context mismatch` warning and a re-run prompt.
 - Missing optional hub focus means all hubs.
-- Missing/empty strategy or optimizer results retain existing empty states.
+- Missing/empty research or optimizer results retain existing empty states.
 - Failed context-specific API calls never silently revert to an unrelated
   previous result.
 

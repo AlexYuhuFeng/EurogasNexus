@@ -8,8 +8,8 @@ reuses the web workspace and accesses runtime data through the same backend
 
 The packaged experience must preserve the map-first workflow: route options,
 capacity/contract context, live source posture, market/weather signals,
-strategy shadow runs, glossary, and LLM-assisted analysis are presented through
-the web workspace, not through a separate desktop data layer.
+research surfaces, glossary and LLM-assisted analysis are presented through the
+web workspace, not through a separate desktop data layer.
 
 ## Product Boundary
 
@@ -83,7 +83,7 @@ The current implementation authority is:
   `splashscreen` after startup.
 
 The Windows shell does not implement an independent UI. It packages the same Web
-workspace so map animation, order/PnL labels, glossary, settings, and strategy
+workspace so map animation, order/PnL labels, glossary, settings and research
 surfaces remain identical across Web and Windows.
 
 ## Connection Screen
@@ -160,7 +160,6 @@ Preserve the intent:
 - result review;
 - runtime status.
 - capacity/contract context linked to routes;
-- strategy shadow-run review;
 - glossary and analyst explanation surfaces.
 
 Redesign completely:

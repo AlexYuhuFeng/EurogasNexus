@@ -52,7 +52,7 @@ forecasting covers GB demand and data preparation rather than a full balance mod
 | Gas-for-power (residual load, clean spark/dark, fuel switch, implied burn) | Served daily per zone with EUA/UKA and API2; not yet a fitted burn model |
 | Point-in-time training datasets (prices, power, storage, LNG, flows; lags, rolling, walk-forward) | Implemented |
 | Spread analysis and declared-rule backtests | Implemented |
-| Strategy design, frozen backtests, shadow runs | Implemented |
+| Strategy design, frozen backtests, shadow runs | Removed with the strategy laboratory (2026-11-27); the spread laboratory and research backtests stay |
 | Position ladder, MtM on the forward curve, indicative VaR | Implemented (price risk only) |
 | Supply/demand balance (NW Europe) with storage trajectory and REMIT-adjusted Norwegian supply | Implemented as a component model ([NWE_BALANCE.md](../research/NWE_BALANCE.md)); weather call needs per-country HDD forecasts; LNG uses averages until a cargo feed is licensed |
 | Forward curve construction (months, quarters, seasons, years; optional seasonal shape) | Implemented; ladder marks use it, with a flagged flat fallback |

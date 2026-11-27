@@ -30,8 +30,8 @@ NWE model shadow evaluation stay.
   `api/routes/public/market_ticks.py` + `clients/web/src/api/promptMarket.ts` (licensed tick
   ingestion and the prompt desk read, without the evaluation hook).
 - Removed: four public route modules (strategy lab, registry, tracks, shadow) and the internal
-  shadow route, agent research orchestration
-  and shadow handlers, the strategy domain/application/repository/model packages, the SDK's
+  shadow route, the agent research orchestration and shadow handlers, the strategy
+  domain/application/repository/model packages, the SDK's
   strategy/shadow clients, `run_shadow_scheduler.py`/`backtest_benchmark.py`, the release
   metadata constants and manifest fields, the client pages/components/API client/store lanes,
   selection-context and inspector kinds, CSS selectors, permissions/capabilities and the unused
@@ -41,8 +41,12 @@ NWE model shadow evaluation stay.
   reference regenerated; historical wave/audit records stay as records. Tests that only covered
   the feature were deleted; mixed tests keep the surviving half (tick ingestion, review
   evidence, agent contracts, tick quotas).
-- Validation: ruff clean; markdown links resolve; env templates current; full Python suite and
-  the Web type-check/tests/CSS lint recorded with the branch commit (not pushed).
+- Validation: `ruff check .` clean; `check_markdown_links.py` resolves all 495 files;
+  `generate_env_template.py --check` current; `pytest -q -n auto tests`: 8430 passed,
+  268 skipped, 0 failed; Web `tsc --noEmit` clean, `npm test`: 1558 passed, 3 skipped,
+  0 failed, `lint:css` clean; on PostgreSQL 16 the full Alembic chain, the gated upgrade
+  tests and `validate_runtime_db.py` all report `0098_remove_strategy_laboratory` with no
+  missing required tables.
 
 ## 2026-11-27 — Small-desk install and self-support, server part (branch `sd-install`, not pushed)
 
