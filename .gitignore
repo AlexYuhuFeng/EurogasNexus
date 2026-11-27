@@ -42,6 +42,7 @@ dist/*
 node_modules/
 clients/*/node_modules/
 clients/*/dist/
+clients/web/dist-acceptance/
 clients/*/src-tauri/target/
 # Browser-acceptance tooling is installed from its committed lock file, never
 # checked in.

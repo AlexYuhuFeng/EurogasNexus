@@ -11,11 +11,13 @@ on:
 permissions:
   contents: read
 
-# A newer push to the same pull request supersedes the older run, so it is cancelled.
-# Runs on main are never cancelled: each one is release evidence for its own commit.
+# A newer push to the same pull request (or a newer manual run on the same non-main branch)
+# supersedes the older run, so it is cancelled. Runs on main are grouped by commit and never
+# cancelled: each one is release evidence (G1) for its own commit, and AGENTS.md rule 16 judges
+# every pushed commit by its own run.
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.ref || github.sha }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  group: ci-${{ github.workflow }}-${{ github.ref == 'refs/heads/main' && github.sha || github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 env:
   # Declared once. `.python-version`, `.nvmrc` and `rust-toolchain.toml` are the
@@ -28,7 +30,41 @@ env:
   RUST_TOOLCHAIN: "1.94.0"
 
 jobs:
-  validate:
+  changes:
+    # Decides whether a pull request changes only documentation (`docs/**` or any `*.md`).
+    # Plain git, no third-party action: a pull-request checkout is GitHub's test merge commit,
+    # whose first parent is the base branch, so `HEAD^1..HEAD` is exactly what the pull request
+    # changes. Pushes to main and manual runs are never docs-only: each pushed commit is release
+    # evidence (G1) for itself, and a release-notes commit is docs-only and still gets tagged.
+    name: Change scope
+    runs-on: ubuntu-24.04
+    outputs:
+      docs_only: ${{ steps.scope.outputs.docs_only }}
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 2
+
+      - name: Classify the change
+        id: scope
+        run: |
+          docs_only=false
+          if test "$GITHUB_EVENT_NAME" = "pull_request"; then
+            changed="$(git diff --name-only HEAD^1 HEAD)"
+            printf 'changed files:\n%s\n' "$changed"
+            # An empty diff is not "docs only": it runs everything.
+            if test -n "$changed" && ! printf '%s\n' "$changed" | grep -Ev '^docs/|\.md$' >/dev/null; then
+              docs_only=true
+            fi
+          fi
+          echo "docs_only=$docs_only"
+          echo "docs_only=$docs_only" >> "$GITHUB_OUTPUT"
+
+  validate-checks:
+    # The validate gates that are not the test suite. They run once, on every change, docs-only
+    # included: the markdown link check is the one that matters most for a docs change.
+    name: validate checks
     runs-on: ubuntu-24.04
 
     steps:
@@ -88,8 +124,10 @@ jobs:
         # script is present and runnable in the operator's runtime.
         run: python scripts/ops/check_config.py --env-file scripts/ci/fixtures/release.env --strict
 
-      - name: Tests
-        run: pytest -q tests
+      - name: Lock completeness
+        # The same check the pre-push gate runs: every declared dependency is pinned for the
+        # canonical Python in each lock a CI job installs from.
+        run: python scripts/ci/check_lock_completeness.py
 
       - name: API load smoke (in-process, no server)
         # Owner decision D1: every profile identifies its callers, so the smoke presents the
@@ -112,8 +150,122 @@ jobs:
       - name: Import API
         run: python -c "from apps.api.main import app; print('app import ok'); print(len(app.openapi()['paths']))"
 
+  validate-tests:
+    # The full Python suite (`pytest -q tests`), split into shards balanced by measured test
+    # time and run in parallel worker processes inside each shard (pytest-xdist, `-n auto`).
+    # The last shard runs everything the others do not name, so a new test directory is
+    # covered without editing this list. Timings: docs/engineering/CI_AND_BRANCH_PROTECTION.md.
+    name: validate tests (${{ matrix.shard }})
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
+    runs-on: ubuntu-24.04
+    strategy:
+      # Every shard reports, so one failure does not hide another.
+      fail-fast: false
+      matrix:
+        include:
+          - shard: unit
+            paths: tests/unit
+          - shard: api-security
+            paths: tests/api tests/security
+          - shard: rest
+            paths: tests --ignore=tests/unit --ignore=tests/api --ignore=tests/security
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          # Download cache only: --require-hashes still verifies every package.
+          cache: pip
+          cache-dependency-path: |
+            requirements-build.lock
+            requirements.lock
+            requirements-runtime.lock
+
+      - name: Install package from hash-pinned locks
+        run: |
+          python -m pip install --require-hashes -r requirements-build.lock -r requirements.lock
+          python -m pip install --no-deps --no-build-isolation -e .
+
+      - name: Tests
+        env:
+          SHARD_PATHS: ${{ matrix.paths }}
+        # SHARD_PATHS is word-split on purpose: it is a list of paths and --ignore options.
+        run: pytest -q -n auto $SHARD_PATHS
+
+  validate-docs-tests:
+    # A docs-only pull request skips the full suite, but many contract tests read documentation
+    # (README, docs/**) and assert what it says. Those test files run here, so a docs change
+    # that breaks one is caught before it reaches main.
+    name: validate tests (documentation readers)
+    needs: changes
+    if: needs.changes.outputs.docs_only == 'true'
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Python
+        uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6.3.0
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          # Download cache only: --require-hashes still verifies every package.
+          cache: pip
+          cache-dependency-path: |
+            requirements-build.lock
+            requirements.lock
+            requirements-runtime.lock
+
+      - name: Install package from hash-pinned locks
+        run: |
+          python -m pip install --require-hashes -r requirements-build.lock -r requirements.lock
+          python -m pip install --no-deps --no-build-isolation -e .
+
+      - name: Tests that read documentation
+        run: |
+          mapfile -t files < <(grep -rlE '"docs"|docs/|\.md\b|README' tests --include='test_*.py' | sort)
+          echo "${#files[@]} test files read documentation"
+          pytest -q -n auto "${files[@]}"
+
+  validate:
+    # The required check (branch protection, and G1 in scripts/release/policy/stable_gate_policy.json)
+    # keeps its name: it succeeds only when the checks and every test shard succeeded - or, on a
+    # docs-only pull request, when the checks and the documentation-reading tests did.
+    name: validate
+    if: always()
+    needs: [changes, validate-checks, validate-tests, validate-docs-tests]
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Every validate part succeeded
+        env:
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
+          CHANGES: ${{ needs.changes.result }}
+          CHECKS: ${{ needs.validate-checks.result }}
+          TESTS: ${{ needs.validate-tests.result }}
+          DOCS_TESTS: ${{ needs.validate-docs-tests.result }}
+        run: |
+          echo "change scope: $CHANGES (docs only: $DOCS_ONLY); checks: $CHECKS; test shards: $TESTS; documentation tests: $DOCS_TESTS"
+          test "$CHANGES" = "success"
+          test "$CHECKS" = "success"
+          if test "$DOCS_ONLY" = "true"; then
+            test "$TESTS" = "skipped"
+            test "$DOCS_TESTS" = "success"
+          else
+            test "$TESTS" = "success"
+            test "$DOCS_TESTS" = "skipped"
+          fi
+
   dependency-audit:
     name: Dependency license & CVE audit
+    # Skipped on a docs-only pull request; a skipped job counts as passed for a required check.
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-24.04
 
     steps:
@@ -227,6 +379,9 @@ jobs:
 
   integration-postgres:
     name: PostgreSQL integration
+    # Skipped on a docs-only pull request; a skipped job counts as passed for a required check.
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-24.04
 
     services:
@@ -275,6 +430,9 @@ jobs:
         run: bash scripts/ci/run_postgres_ci.sh
 
   web-client-build:
+    # Skipped on a docs-only pull request; a skipped job counts as passed for a required check.
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-24.04
 
     steps:
@@ -307,9 +465,67 @@ jobs:
           path: clients/web/dist
           if-no-files-found: error
 
-  browser-acceptance:
-    name: Browser acceptance (EN/ZH, 3 viewports)
+  browser-acceptance-build:
+    # The acceptance shards share one build of the Web client instead of each starting a Vite dev
+    # server that compiles every page on first visit. It is a development-mode build (React's
+    # development warnings reach the console, where the sweep fails on them, as they did from the
+    # dev server); the production build is web-client-build's.
+    name: Browser acceptance client build
+    needs: changes
+    if: needs.changes.outputs.docs_only != 'true'
     runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Set up Node.js
+        uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: clients/web/package-lock.json
+
+      - name: Install Web dependencies
+        working-directory: clients/web
+        run: npm ci
+
+      - name: Build the Web client in development mode
+        working-directory: clients/web
+        env:
+          NODE_ENV: development
+        run: npx vite build --mode development --outDir dist-acceptance
+
+      - name: Upload the acceptance client
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: eurogas-nexus-web-acceptance
+          path: clients/web/dist-acceptance
+          if-no-files-found: error
+          retention-days: 1
+
+  browser-acceptance-shard:
+    # The whole-product sweep in parallel shards. scripts/uat/browser_shards.json assigns every
+    # workspace (all of them in EN/ZH at the three viewports) and every later stage (the phone
+    # overflow sweep; the interaction checks) to exactly one shard, and the sweep refuses a shard
+    # file that leaves one out or names one twice; tests/contract/test_browser_shards.py holds
+    # this matrix to that file. Each shard has its own PostgreSQL, seeded the same way.
+    name: Browser acceptance shard (${{ matrix.shard }})
+    needs: [changes, browser-acceptance-build]
+    if: needs.changes.outputs.docs_only != 'true'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - shard: desk
+          - shard: network-and-data
+            # The map lives on the Network page; its host check runs where that page is swept.
+            map_check: true
+          - shard: reference
+          - shard: interactions
+            # The geometry audit (about 3.5 minutes) sits with the shortest sweep part.
+            geometry_audit: true
 
     services:
       postgres:
@@ -369,8 +585,16 @@ jobs:
           python -m pip install --no-deps --no-build-isolation -e .
 
       - name: Install Web dependencies
+        # Vite itself serves the built client (vite preview), with the same /api proxy the dev
+        # server has, so the Web client's locked dependencies are still installed.
         working-directory: clients/web
         run: npm ci
+
+      - name: Download the acceptance client
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: eurogas-nexus-web-acceptance
+          path: clients/web/dist-acceptance
 
       - name: Install pinned browser acceptance tools
         # Installed from a committed lock file with integrity hashes rather than
@@ -397,7 +621,7 @@ jobs:
           mkdir -p artifacts/uat-browser
           python -m uvicorn apps.api.main:app --host 127.0.0.1 --port 8000 > artifacts/uat-browser/api.log 2>&1 &
           echo $! > /tmp/eurogas-api.pid
-          npm --prefix clients/web run dev -- --host 127.0.0.1 > artifacts/uat-browser/vite.log 2>&1 &
+          npm --prefix clients/web exec -- vite preview --host 127.0.0.1 --port 3000 --strictPort --outDir dist-acceptance > artifacts/uat-browser/vite.log 2>&1 &
           echo $! > /tmp/eurogas-vite.pid
 
           api_ready=0
@@ -427,16 +651,19 @@ jobs:
             sleep 1
           done
           if test "$web_ready" != "1"; then
-            echo "::error::the Web dev server did not answer on :3000 within 60s - vite.log follows"
+            echo "::error::the Web server did not answer on :3000 within 60s - vite.log follows"
             tail -n 200 artifacts/uat-browser/vite.log || true
             exit 1
           fi
+          # The built client must reach the API through the same origin, as the dev server's did.
+          curl --fail --silent --show-error http://127.0.0.1:3000/api/health >/dev/null
 
-      - name: Run whole-product browser acceptance
+      - name: Run whole-product browser acceptance (this shard)
         env:
           EUROGAS_UAT_PLAYWRIGHT_PATH: scripts/ci/browser-acceptance/node_modules/playwright/index.js
           EUROGAS_UAT_AXE_PATH: scripts/ci/browser-acceptance/node_modules/axe-core/axe.min.js
           EUROGAS_UAT_OUTPUT_DIR: artifacts/uat-browser
+          EUROGAS_UAT_SHARD: ${{ matrix.shard }}
         run: |
           set +e
           node scripts/uat/browser_workflow_smoke.mjs
@@ -452,6 +679,7 @@ jobs:
       - name: The map asks only its own host and its one basemap (OpenFreeMap)
         # One basemap: OpenStreetMap data through OpenFreeMap (commercial use allowed). This
         # fails when the map asks any other host for tiles, styles, glyphs or data.
+        if: matrix.map_check
         env:
           EUROGAS_UAT_PLAYWRIGHT_PATH: scripts/ci/browser-acceptance/node_modules/playwright/index.js
           EUROGAS_UAT_BASE_URL: http://127.0.0.1:3000
@@ -462,7 +690,7 @@ jobs:
         # scripts/uat/geometry_budget.json. The budgets were measured on the demo desk; until they
         # are confirmed on this job's UAT fixture data the step reports without failing the job.
         # Locally: node scripts/uat/geometry_audit.mjs (fails on excess). See DESIGN_TOKENS.md.
-        if: always()
+        if: always() && matrix.geometry_audit
         env:
           EUROGAS_UAT_PLAYWRIGHT_PATH: scripts/ci/browser-acceptance/node_modules/playwright/index.js
           EUROGAS_UAT_OUTPUT_DIR: artifacts/uat-browser
@@ -478,10 +706,37 @@ jobs:
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          name: eurogas-nexus-browser-acceptance
+          name: eurogas-nexus-browser-acceptance-${{ matrix.shard }}
           path: artifacts/uat-browser
           if-no-files-found: warn
           retention-days: 7
+
+  browser-acceptance:
+    # The required check (branch protection, and G1 in scripts/release/policy/stable_gate_policy.json)
+    # keeps its name: it succeeds only when the client build and every shard succeeded, or when a
+    # docs-only pull request skipped them.
+    name: Browser acceptance (EN/ZH, 3 viewports)
+    if: always()
+    needs: [changes, browser-acceptance-build, browser-acceptance-shard]
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Every browser acceptance shard succeeded
+        env:
+          DOCS_ONLY: ${{ needs.changes.outputs.docs_only }}
+          CHANGES: ${{ needs.changes.result }}
+          BUILD: ${{ needs.browser-acceptance-build.result }}
+          SHARDS: ${{ needs.browser-acceptance-shard.result }}
+        run: |
+          echo "change scope: $CHANGES (docs only: $DOCS_ONLY); client build: $BUILD; shards: $SHARDS"
+          test "$CHANGES" = "success"
+          if test "$DOCS_ONLY" = "true"; then
+            test "$BUILD" = "skipped"
+            test "$SHARDS" = "skipped"
+          else
+            test "$BUILD" = "success"
+            test "$SHARDS" = "success"
+          fi
 
   desktop-client-build:
     # Single native pipeline. The reusable workflow owns the pinned three-platform

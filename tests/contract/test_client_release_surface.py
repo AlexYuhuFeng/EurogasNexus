@@ -1640,7 +1640,8 @@ def test_release_workflow_publishes_web_windows_and_linux_assets() -> None:
     assert "docker/setup-buildx-action@" in workflow and "# v4.3.0" in workflow
     assert "docker/login-action@" in workflow and "# v4.6.0" in workflow
     assert "docker/build-push-action@" in workflow and "# v7.3.0" in workflow
-    assert "pytest -q tests" in workflow
+    # The full suite, in parallel worker processes (pytest-xdist).
+    assert "pytest -q -n auto tests" in workflow
     linux_dependencies = (
         ROOT / "scripts" / "ci" / "install_linux_tauri_dependencies.sh"
     ).read_text(encoding="utf-8")

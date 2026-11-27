@@ -72,22 +72,38 @@ housekeeping job for the demo server.
 
 ## 4. What is next, in order
 
-First, before any feature work: **make hosted CI fast** (owner approved, 2026-11-27). A run
-takes 45 to 60 minutes, almost all of it in two jobs that run their tests one after another:
-`validate` (the whole Python suite in one process) and `browser-acceptance` (every page sweep
-in one job). Target: about 15 minutes for a full run. In `.github/workflows/ci.yml`:
+**Done (2026-11-27, branch `ci-speed`, not yet pushed): make hosted CI fast.** A run took 40
+to 53 minutes, almost all of it in `validate` (the whole Python suite in one process) and
+`browser-acceptance` (every page sweep in one job). Now, in `.github/workflows/ci.yml`:
 
-- split `validate` into four parallel shards (contract; unit, security, release and evals;
-  api; db and ingestion), keeping one required summary job so branch protection needs no change;
-- split the browser sweep into parallel jobs by page group, sharing one built client artefact;
-- pushes to `main` are grouped by commit, so a superseded run is never cancelled: group by
-  branch and cancel the older run (keep the newest commit's run, which rule 16 judges);
-- skip the heavy jobs when a push changes only `docs/**` or `*.md`;
-- then, if still slow, `pytest-xdist` inside each shard and a seed-once database fixture for
-  the API tests (most of the API suite's time is re-seeding the same store per test).
+- `validate` is a summary job with the same required-check name: `validate checks` runs the
+  non-test gates once, `validate tests` runs `tests/` in three shards (unit; api and security;
+  everything else) balanced by measured time, each with `pytest -n auto` (pytest-xdist, MIT,
+  added to the `dev` extra and `requirements.lock` without moving any other pin). The suite
+  passed in parallel workers unchanged: no test needed a fix, marker or serial group.
+- `Browser acceptance (EN/ZH, 3 viewports)` is a summary job over four shards by page group
+  (`scripts/uat/browser_shards.json`), which share one development-mode client build served
+  by `vite preview` instead of a dev server each.
+- pull-request runs (and manual runs on other branches) are cancelled when superseded; `main`
+  runs stay grouped by commit and are never cancelled (each is G1 evidence for its commit).
+- a docs-only pull request skips the test and browser shards, the dependency audit, the
+  PostgreSQL job and the Web build, but still runs markdown links, the other checks and the
+  test files that read documentation; pushes to `main` always run everything.
+- the release `validate` test step and `scripts/ci/pre_push_check.sh` use `pytest -n auto`.
 
-Keep `scripts/ci/pre_push_check.sh` running the same tests as hosted CI, and do not skip,
-quarantine or weaken any test to gain time. Measure before and after and record both here.
+Before and after (4-core container; hosted figures are estimates until the first hosted run):
+the Python suite went from one process (28 min on 8 cores; 41 min here for 7,364 of its
+tests) to 15.5 min with `pytest -n auto tests`, and to three shards of 5.1, 6.1 and 5.1 min;
+the browser sweep from 16.6 min plus a 3.6 min geometry audit in one job to four shards of at
+most 6 min; the pre-push gate from about 28 min to 13 min on 4 cores (about 7 to 8 min expected
+on 8). Hosted estimates: a whole `ci.yml` run 13 to 15 min (was 40 to 53), the release
+`validate` test step about 15 min (was about 40). Details: `CI_AND_BRANCH_PROTECTION.md`.
+
+Left for later: confirm the hosted timings on the first run of this branch's pull request and
+correct the table in `CI_AND_BRANCH_PROTECTION.md`; the native desktop builds were not touched
+or measured and may now be the longest job; the seed-once fixture for `tests/api` was not
+needed (that suite is a third of one shard). Do not skip, quarantine or weaken a test to gain
+time.
 
 Also from the last CI failure: about 40 tests in 22 files under `tests/api` and `tests/unit`
 seed their fixtures from today's date and could not be checked for calendar dependence (one,
