@@ -112,10 +112,16 @@ class Desk:
         self.root = root
         self.timings: dict[str, float] = {}
 
-    def nexus(self, *args: str, tool: Path | None = None, expect: int | None = 0) -> str:
+    def nexus(
+        self, *args: str, tool: Path | None = None, expect: int | None = 0,
+        env: dict[str, str] | None = None,
+    ) -> str:
         command = [str(tool or self.root / "tool" / "nexus"), "--root", str(self.root), *args]
         started = time.monotonic()
-        done = subprocess.run(command, capture_output=True, text=True, stdin=subprocess.DEVNULL)
+        done = subprocess.run(
+            command, capture_output=True, text=True, stdin=subprocess.DEVNULL,
+            env={**os.environ, **(env or {})},
+        )
         label = " ".join(args[:2]) if args[0] == "restore" else args[0]
         count = sum(1 for key in self.timings if key.split(" #")[0] == label)
         self.timings[f"{label} #{count + 1}"] = round(time.monotonic() - started, 1)
@@ -173,11 +179,21 @@ class Desk:
             "--username", name,
         )
 
+    def python(self, code: str) -> dict:
+        """Run ``code`` in the application container; its last line is JSON."""
+
+        output = self.compose("exec", "-T", "api", "python", "-", input_text=code)
+        return json.loads(output.strip().splitlines()[-1])
+
     def teardown(self) -> None:
         subprocess.run(
             ["docker", "compose", "-p", "eurogas-nexus", "down", "--volumes", "--remove-orphans"],
             capture_output=True,
         )
+
+
+def remove_images(*tags: str) -> None:
+    subprocess.run(["docker", "image", "rm", "--force", *tags], capture_output=True)
 
 
 def test_install_backup_restore_update_undo_diagnostics(tmp_path) -> None:
@@ -300,4 +316,140 @@ def test_install_backup_restore_update_undo_diagnostics(tmp_path) -> None:
         if report:
             Path(report).write_text(json.dumps(desk.timings, indent=2))
         desk.teardown()
+        remove_images(
+            "eurogas-nexus-api:sd-reversible", "eurogas-nexus-api:sd-irreversible",
+            "eurogas-nexus-api:sd-broken",
+        )
         shutil.rmtree(backup_disk, ignore_errors=True)
+        shutil.rmtree(data, ignore_errors=True)
+
+
+#: On PC 1: a second factor for the administrator and a stored data-provider key, both
+#: encrypted with the installation's key (security/credentials.py).
+ENROL = """
+import json
+from datetime import UTC, datetime
+from eurogas_nexus.application import mfa
+from eurogas_nexus.db.models import IdentityPrincipalRecord, ProviderCredentialRecord
+from eurogas_nexus.db.session import get_session_factory
+from eurogas_nexus.security import totp
+from eurogas_nexus.security.credentials import encrypt_credential_payload
+from eurogas_nexus.security.portfolio_scope import system_scope
+
+with system_scope(), get_session_factory()() as session:
+    row = session.query(IdentityPrincipalRecord).filter_by(name="admin").one()
+    secret = mfa.begin_enrolment(session, row)["secret"]
+    mfa.confirm_enrolment(session, row, totp.hotp(secret, totp.current_step()))
+    envelope = encrypt_credential_payload({"api_key": "rehearsal-provider-key-0123456789"})
+    now = datetime.now(UTC)
+    session.merge(ProviderCredentialRecord(
+        provider_id="GIE", label="rehearsal", encrypted_payload=envelope.encrypted_payload,
+        redacted_preview=envelope.redacted_preview,
+        credential_fingerprint=envelope.credential_fingerprint, status="configured",
+        created_at_utc=now, updated_at_utc=now, research_only=True, human_review_required=True))
+    session.commit()
+print(json.dumps({"secret": secret}))
+"""
+
+#: On PC 2: the restored rows decrypt with the recovery key.
+CHECK = """
+import json
+from eurogas_nexus.db.models import (
+    IdentityMfaRecord, IdentityPrincipalRecord, ProviderCredentialRecord)
+from eurogas_nexus.db.session import get_session_factory
+from eurogas_nexus.security import totp
+from eurogas_nexus.security.credentials import decrypt_credential_payload, decrypt_text
+from eurogas_nexus.security.portfolio_scope import system_scope
+
+with system_scope(), get_session_factory()() as session:
+    row = session.query(IdentityPrincipalRecord).filter_by(name="admin").one()
+    record = session.get(IdentityMfaRecord, row.principal_id)
+    secret = decrypt_text(record.secret_encrypted)
+    code = totp.hotp(secret, totp.current_step())
+    credential = session.get(ProviderCredentialRecord, "GIE")
+    payload = decrypt_credential_payload(credential.encrypted_payload)
+print(json.dumps({"secret": secret, "code_ok": totp.verify(secret, code) is not None,
+                  "confirmed": record.confirmed_at_utc is not None,
+                  "api_key": payload["api_key"]}))
+"""
+
+
+def test_failed_install_resumes_and_a_replaced_pc_restores_everything(tmp_path) -> None:
+    """PC 1 installs (one attempt stops halfway and is run again), takes on a second factor
+    and a provider key, backs up; then PC 1 is gone. PC 2 installs from the backup disk and
+    the recovery key: the desk's data, the second factor and the provider key all work."""
+
+    disk_root = Path(os.environ.get("NEXUS_REHEARSAL_BACKUP", "/dev/shm"))
+    pc1_backup = disk_root / ("nexus-pc1-" + tmp_path.name)
+    pc2_backup = disk_root / ("nexus-pc2-" + tmp_path.name)
+    pc1_backup.mkdir(parents=True)
+    pc1, pc2 = Desk(tmp_path / "pc1" / "opt"), Desk(tmp_path / "pc2" / "opt")
+    keep_tag = BASE_IMAGE.split(":")[0] + ":rehearsal-keep"
+    subprocess.run(["docker", "tag", BASE_IMAGE, keep_tag], check=True)
+    release_folder = bundle(tmp_path / "bundles", "1.0.0-sd.1", BASE_IMAGE)
+
+    def install(desk: Desk, data: Path, backup: Path, *extra: str, **kwargs) -> str:
+        return desk.nexus(
+            "install", "--data-dir", str(data), "--backup-dir", str(backup),
+            "--server-name", "localhost", "--https-port", "18443",
+            "--systemd-dir", str(desk.root.parent / "systemd"),
+            "--bin-dir", str(desk.root.parent / "bin"),
+            "--data-min-gb", "1", "--backup-min-gb", "1", *extra,
+            tool=release_folder / "nexus", **kwargs,
+        )
+
+    try:
+        # -- PC 1: the first attempt stops after the roles step; the same command continues
+        output = install(pc1, tmp_path / "pc1" / "ssd", pc1_backup, expect=1,
+                         env={"NEXUS_TEST_FAIL_AFTER_STEP": "roles"})
+        assert "The installation stopped at step 'roles'" in output
+        assert "run the same install command again" in output
+        secrets_first = (pc1.root / "stack.env").read_text()
+        output = install(pc1, tmp_path / "pc1" / "ssd", pc1_backup)
+        assert "Continuing the installation that stopped at step 'roles'" in output
+        assert "Installed" in output
+        assert (pc1.root / "stack.env").read_text() == secrets_first
+        # Running it again over the finished installation changes nothing.
+        output = install(pc1, tmp_path / "pc1" / "ssd", pc1_backup, expect=1)
+        assert "already installed" in output and "Nothing was changed" in output
+
+        enrolled = pc1.python(ENROL)
+        pc1.add_user("trader_on_pc1")
+        output = pc1.nexus("backup")
+        assert "Backup written and verified" in output
+
+        # -- PC 1 is lost; its backup disk and the recovery key from the password safe survive
+        shutil.copytree(pc1_backup, pc2_backup)
+        newest = max((pc2_backup / "nexus-backups").glob("nexus-*-manual.dump"))
+        recovery = tmp_path / "password-safe" / "recovery-key.env"
+        recovery.parent.mkdir()
+        shutil.copyfile(pc2_backup / "nexus-backups" / "recovery-key.env", recovery)
+        output = pc1.nexus("uninstall", "--delete-data", "--confirm", "delete all desk data")
+        assert "Removed, with the database" in output
+        assert not (tmp_path / "pc1" / "ssd").exists() and not pc1.root.exists()
+        assert not (pc1_backup / "nexus-backups").exists()
+        listed = subprocess.run(
+            ["docker", "ps", "-a", "--filter", "label=com.docker.compose.project=eurogas-nexus",
+             "-q"], capture_output=True, text=True,
+        ).stdout.strip()
+        assert listed == ""
+        subprocess.run(["docker", "tag", keep_tag, BASE_IMAGE], check=True)
+
+        # -- PC 2: a new installation from the backup and the recovery key
+        output = install(pc2, tmp_path / "pc2" / "ssd", pc2_backup,
+                         "--recovery-key", str(recovery), "--restore-from", str(newest))
+        assert "Installed" in output
+        assert "one-time password" not in output  # the people came with the backup
+        assert "trader_on_pc1" in pc2.users()
+        checked = pc2.python(CHECK)
+        assert checked["secret"] == enrolled["secret"] and checked["confirmed"]
+        assert checked["code_ok"]
+        assert checked["api_key"] == "rehearsal-provider-key-0123456789"
+        assert "The database is at the right version." in pc2.nexus("status", expect=None)
+    finally:
+        pc2.teardown()
+        pc1.teardown()
+        subprocess.run(["docker", "tag", keep_tag, BASE_IMAGE], capture_output=True)
+        remove_images(keep_tag)
+        for folder in (pc1_backup, pc2_backup, tmp_path / "pc1", tmp_path / "pc2"):
+            shutil.rmtree(folder, ignore_errors=True)

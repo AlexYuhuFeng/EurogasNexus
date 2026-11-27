@@ -31,6 +31,8 @@ def expected_artifacts(context: dict) -> list[str]:
         f"Eurogas-Nexus-Server-{version}.zip",
         f"eurogas-nexus-web-{version}.tar.gz",
         f"eurogas-nexus-sboms-{version}.tar.gz",
+        # The one-PC installation (deploy/small-desk); appended so earlier positions hold.
+        f"eurogas-nexus-small-desk-{version}.tar.gz",
         "release-manifest.json",
         "SHA256SUMS",
     ]

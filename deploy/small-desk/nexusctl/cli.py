@@ -27,7 +27,9 @@ Eurogas Nexus on one PC. Every command needs administrator rights: put sudo in f
   sudo nexus update <folder>     Install the new version in the release folder you were sent.
   sudo nexus undo-update         Go back to the version before the last update.
   sudo nexus diagnostics         Write one file to send to the developers when something is wrong.
-  sudo ./nexus install ...       First installation (see the install guide).
+  sudo ./nexus install ...       First installation (see the install guide). If it stops,
+                                 run the same command again: it continues where it stopped.
+  sudo nexus uninstall           Remove the program; keeps the database and the backups.
 
 Guides: docs/operations/SMALL_DESK_HELPDESK_CARD.md and SMALL_DESK_INSTALL.md.
 """
@@ -85,6 +87,12 @@ def build_parser() -> argparse.ArgumentParser:
     update.add_argument("--force", action="store_true", help=argparse.SUPPRESS)
     undo = sub.add_parser("undo-update")
     undo.add_argument("--yes", action="store_true")
+    uninstall = sub.add_parser("uninstall")
+    uninstall.add_argument("--delete-data", action="store_true",
+                           help="also delete the database, the backups and the secrets")
+    uninstall.add_argument("--confirm", default=None,
+                           help="with --delete-data in a script: the words to type")
+    uninstall.add_argument("--yes", action="store_true")
     diagnostics = sub.add_parser("diagnostics")
     diagnostics.add_argument("--out", type=Path, default=None,
                              help="folder to write to (for example a USB stick)")
@@ -93,7 +101,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 #: Commands that change the installation: one at a time (the nightly backup never runs in the
 #: middle of an update or a restore).
-CHANGING = {"start", "stop", "backup", "restore", "update", "undo-update"}
+CHANGING = {"start", "stop", "backup", "restore", "update", "undo-update", "uninstall"}
 
 
 def one_at_a_time(root: Path, *, wait_seconds: float):
@@ -150,6 +158,15 @@ def main(argv: list[str] | None = None, *, runner: Runner | None = None, out: Ou
                 backup_min_gb=args.backup_min_gb,
             )
         ctx = operations.load_context(args.root, runner, out)
+        if (ctx.state.get("install") or {}).get("status") == "removed" and (
+            args.command != "uninstall"
+        ):
+            out.problem(
+                "Eurogas Nexus was removed from this PC (its data and backups were kept).",
+                "Install it again from a release folder: `sudo ./nexus install --backup-dir "
+                f"{ctx.settings.backup_dir}`.",
+            )
+            return 1
         if args.command in CHANGING:
             scheduled = getattr(args, "scheduled", False)
             lock = one_at_a_time(args.root, wait_seconds=3600 if scheduled else 0)
@@ -173,6 +190,11 @@ def main(argv: list[str] | None = None, *, runner: Runner | None = None, out: Ou
             return operations.update(ctx, args.bundle, assume_yes=args.yes, force=args.force)
         if args.command == "undo-update":
             return operations.undo_update(ctx, assume_yes=args.yes)
+        if args.command == "uninstall":
+            return operations.uninstall(
+                ctx, delete_data=args.delete_data, confirmation=args.confirm,
+                assume_yes=args.yes,
+            )
         if args.command == "diagnostics":
             return operations.diagnostics(ctx, args.out)
     except operations.Stop as stop:

@@ -331,6 +331,7 @@ def test_release_artifact_names_follow_contract() -> None:
         f"Eurogas-Nexus-Server-{CORE}-preview.7.033df92a856e.zip"
     )
     assert names[4] == f"eurogas-nexus-web-{CORE}-preview.7.033df92a856e.tar.gz"
+    assert names[6] == f"eurogas-nexus-small-desk-{CORE}-preview.7.033df92a856e.tar.gz"
 
 
 def test_beta_publishes_a_prerelease_like_rc_with_both_linux_architectures() -> None:
