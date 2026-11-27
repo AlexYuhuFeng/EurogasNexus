@@ -72,7 +72,7 @@ housekeeping job for the demo server.
 
 ## 4. What is next, in order
 
-**Done (2026-11-27, branch `ci-speed`, not yet pushed): make hosted CI fast.** A run took 40
+**Done (2026-11-27): make hosted CI fast.** A run took 40
 to 53 minutes, almost all of it in `validate` (the whole Python suite in one process) and
 `browser-acceptance` (every page sweep in one job). Now, in `.github/workflows/ci.yml`:
 
@@ -120,6 +120,17 @@ during the day; one trader screen; pre-filled orders) and parks most of the rema
 and phase 3 work. Start at step 1 when the owner supplies the sample files and the private
 user profile; until then, build the install and self-support commands in section 3 of that
 file, which need nothing from the owner. `AGENTS.md` rule 8 was reworded the same day.
+
+Work that needs nothing from the owner or the traders, in this order: the install, start on
+boot, backup, update-with-undo and diagnostics commands; the small-desk profile as the default;
+deal import and a blotter with the file format as a replaceable part; the daily management
+summary and the risk pack as emailed PDF and XLSX in English and Chinese; counterparty exposure
+against limit and guarantee with expiry; the trader screen for NBP, TTF, ZTP, THE and PVB from
+public data; stale-data marking, the clock check, the AI off switch and a self-hosted AI
+provider with a 3-second cut-off. The owner has sent the desk an IT requirements
+questionnaire; its answers on office policy (Linux, Docker, supplier remote access) can change
+the server recommendation, so keep the install commands free of assumptions that only hold
+on one operating system where that is cheap.
 
 Still worth doing from the earlier list, because the small desk needs it too: the approved
 **removals** (architecture plan section 5), which make the product smaller to run and support.
