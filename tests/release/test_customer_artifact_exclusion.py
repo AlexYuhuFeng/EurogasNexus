@@ -86,11 +86,13 @@ def test_actual_wheel_snapshot_and_shipped_tool_imports_without_source(
     # Replay only files explicitly selected by the final Docker stage. The
     # subprocess cwd and PYTHONPATH do not include this repository's source.
     shutil.copytree(
-        ROOT / "apps", tmp_path / "apps",
+        ROOT / "apps",
+        tmp_path / "apps",
         ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
     )
     for relative in (
-        POLICY["runtime_scripts"] + POLICY["required_runtime_members"]
+        POLICY["runtime_scripts"]
+        + POLICY["required_runtime_members"]
         + [POLICY["runtime_policy_path"]]
     ):
         target = tmp_path / relative
@@ -99,7 +101,8 @@ def test_actual_wheel_snapshot_and_shipped_tool_imports_without_source(
     verify_runtime_tree(tmp_path, POLICY)
     env = os.environ.copy()
     dependency_paths = [
-        path for path in sys.path
+        path
+        for path in sys.path
         if path and Path(path).name.startswith(".dnx") and "src" not in Path(path).parts
     ]
     # Wheels are installed directories, not importable ZIP applications: some
@@ -108,19 +111,44 @@ def test_actual_wheel_snapshot_and_shipped_tool_imports_without_source(
     installed = customer_wheel.parent.parent / "installed-runtime"
     installation = subprocess.run(
         [
-            sys.executable, "-m", "pip", "install", "--no-deps", "--no-index",
-            "--target", str(installed), str(customer_wheel),
+            sys.executable,
+            "-m",
+            "pip",
+            "install",
+            "--no-deps",
+            "--no-index",
+            "--target",
+            str(installed),
+            str(customer_wheel),
         ],
-        cwd=tmp_path, env=env, capture_output=True, text=True, timeout=60,
+        cwd=tmp_path,
+        env=env,
+        capture_output=True,
+        text=True,
+        timeout=60,
     )
     assert installation.returncode == 0, installation.stdout + installation.stderr
     env["PYTHONPATH"] = os.pathsep.join([str(installed), *dependency_paths])
     env["PYTHONDONTWRITEBYTECODE"] = "1"
-    env["EUROGAS_NEXUS_ENV"] = "test"
-    env["EUROGAS_NEXUS_API_PROFILE"] = "development"
-    # Do not inherit database/provider configuration into this import replay.
+    # The same environment the image declares (deploy/runtime/Dockerfile.api): a release server
+    # with no deployment configuration. Replaying it as "test" hid a start-up rule that failed
+    # the image build of the first 1.0.0 beta release.
+    env["EUROGAS_NEXUS_ENV"] = "release"
+    env["EUROGAS_NEXUS_API_PROFILE"] = "release"
+    # Do not inherit database/provider or sign-in configuration into this import replay.
     for key in list(env):
-        if key in {"DATABASE_URL", "RUNTIME_STORE_DATABASE_URL"} or "API_KEY" in key:
+        if (
+            key in {"DATABASE_URL", "RUNTIME_STORE_DATABASE_URL"}
+            or "API_KEY" in key
+            or key.startswith(
+                (
+                    "EUROGAS_NEXUS_OIDC",
+                    "EUROGAS_NEXUS_LOCAL_ACCOUNTS",
+                    "EUROGAS_NEXUS_MFA",
+                    "EUROGAS_NEXUS_GATEWAY",
+                )
+            )
+        ):
             del env[key]
     result = subprocess.run(
         [sys.executable, "scripts/release/verify_customer_artifact.py", "--runtime-root", "."],
@@ -159,7 +187,8 @@ def test_content_gate_refuses_missing_required_runtime_members() -> None:
 )
 def test_runtime_gate_refuses_unreviewed_script_or_local_data(tmp_path, extra) -> None:
     for relative in (
-        POLICY["runtime_scripts"] + POLICY["required_runtime_members"]
+        POLICY["runtime_scripts"]
+        + POLICY["required_runtime_members"]
         + [POLICY["runtime_policy_path"], extra]
     ):
         path = tmp_path / relative
@@ -171,7 +200,8 @@ def test_runtime_gate_refuses_unreviewed_script_or_local_data(tmp_path, extra) -
 
 def test_runtime_gate_refuses_missing_startup_payload(tmp_path) -> None:
     for relative in (
-        POLICY["runtime_scripts"] + POLICY["required_runtime_members"][1:]
+        POLICY["runtime_scripts"]
+        + POLICY["required_runtime_members"][1:]
         + [POLICY["runtime_policy_path"]]
     ):
         path = tmp_path / relative

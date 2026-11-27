@@ -15,6 +15,7 @@ import argparse
 import importlib
 import importlib.metadata
 import json
+import os
 import sys
 import zipfile
 from pathlib import Path, PurePosixPath
@@ -31,8 +32,10 @@ def load_policy(path: Path = POLICY_PATH) -> dict:
     if policy.get("schema_version") != 1:
         raise ArtifactError("Unsupported customer artifact policy")
     for key in (
-        "runtime_scripts", "required_runtime_members",
-        "required_wheel_members", "excluded_wheel_modules"
+        "runtime_scripts",
+        "required_runtime_members",
+        "required_wheel_members",
+        "excluded_wheel_modules",
     ):
         values = policy.get(key)
         if not isinstance(values, list) or not values or len(values) != len(set(values)):
@@ -83,7 +86,11 @@ def verify_runtime_tree(root: Path, policy: dict) -> None:
         if any(part.startswith(".dnx") for part in relative.parts):
             raise ArtifactError("Local development artifacts found in runtime")
         if relative.parts[0] not in {
-            "scripts", "apps", "alembic", "alembic.ini", "requirements-runtime.lock"
+            "scripts",
+            "apps",
+            "alembic",
+            "alembic.ini",
+            "requirements-runtime.lock",
         }:
             raise ArtifactError("Unreviewed payload found in runtime")
         if relative.parts[0] == "scripts" and path.is_file():
@@ -101,6 +108,12 @@ def verify_runtime_tree(root: Path, policy: dict) -> None:
 def verify_runtime_imports(root: Path, policy: dict) -> None:
     """Import shipped tools and the metadata seam; never call operational main()."""
     sys.path.insert(0, str(root))
+    # The image is built as a release server with no deployment configuration, and a release
+    # server refuses to start with no way to sign in. This is an import check, not a server:
+    # declare a sign-in for this process only, so the start-up rule itself stays untouched.
+    # A deployment's own setting, when present, is left as it is.
+    os.environ.setdefault("EUROGAS_NEXUS_LOCAL_ACCOUNTS", "on")
+    os.environ.setdefault("EUROGAS_NEXUS_MFA_REQUIRED", "on")
     for path in policy["runtime_scripts"]:
         importlib.import_module(path.removesuffix(".py").replace("/", "."))
     from apps.api.main import app
