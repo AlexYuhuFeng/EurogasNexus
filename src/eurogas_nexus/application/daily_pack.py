@@ -39,7 +39,6 @@ from eurogas_nexus.application.deal_capture import (
     day_status,
     dec,
     open_problems,
-    overlay_orders,
     totals,
 )
 
@@ -70,10 +69,13 @@ _TEXT: dict[str, tuple[str, str]] = {
     "check.simulated": ("prices are simulated, not market prices", "价格为模拟价格，并非市场价格"),
     "check.not_valued": ("{n} deal(s) could not be valued (no price held)",
                          "{n} 笔交易无法估值（无可用价格）"),
+    "check.calendar": ("the exchange holiday calendar does not cover {year}; a holiday reads "
+                       "as a trading day",
+                       "交易所假日日历未覆盖 {year} 年；假日将按交易日处理"),
     "section.pnl": ("Profit and loss", "损益"),
     "section.pnl_trader": ("Profit and loss by trader and hub", "按交易员与枢纽的损益"),
     "section.volume": ("Volume traded today by hub and period", "今日按枢纽与交割期的成交量"),
-    "section.position": ("Open position by hub and month (MWh)", "按枢纽与月份的未平仓头寸（MWh）"),
+    "section.position": ("Open position by hub and month", "按枢纽与月份的未平仓头寸"),
     "section.limits": ("Limit usage", "限额使用"),
     "section.market": ("Market", "市场"),
     "section.credit": ("Counterparty exposure against limit and guarantee",
@@ -95,6 +97,9 @@ _TEXT: dict[str, tuple[str, str]] = {
     "col.buy": ("Bought MWh", "买入 MWh"),
     "col.sell": ("Sold MWh", "卖出 MWh"),
     "col.net": ("Net MWh", "净额 MWh"),
+    "col.physical": ("Physical MWh", "实物 MWh"),
+    "col.financial": ("Financial MWh", "金融 MWh"),
+    "col.net_desk": ("Net (desk unit)", "净额（交易台单位）"),
     "col.avg_buy": ("Avg buy", "平均买价"),
     "col.avg_sell": ("Avg sell", "平均卖价"),
     "col.unit": ("Unit", "单位"),
@@ -125,8 +130,11 @@ _TEXT: dict[str, tuple[str, str]] = {
                        "当日尚未日结：{n} 笔捕获交易尚未与 ETRM 录入核对。"),
     "eod.closed": ("Closed by {who} at {when}; {n} difference(s) listed and acknowledged.",
                    "由 {who} 于 {when} 日结；列出并确认 {n} 项差异。"),
-    "overlay": ("Positions are the book plus {n} captured deal(s) not yet in the ETRM book.",
-                "头寸为账簿加上尚未进入 ETRM 账簿的 {n} 笔捕获交易。"),
+    "overlay": ("Positions are the book plus {n} captured deal(s) not yet in the ETRM book; a "
+                "deal and its ETRM trade count once. Net in therms per day at NBP, MW at the "
+                "continental hubs.",
+                "头寸为账簿加上尚未进入 ETRM 账簿的 {n} 笔捕获交易；"
+                "同一笔交易与其 ETRM 记录只计一次。净额单位：NBP 为撇姆/日，欧陆枢纽为 MW。"),
     "pnl.method": ("P&L of captured deals at the position ladder's prices: (price - deal "
                    "price) x MWh per delivery month; the day is the change since the previous "
                    "close. Currencies are not added together.",
@@ -162,9 +170,24 @@ def t(lang: str, key: str, **params: Any) -> str:
 
 
 def is_trading_day(day: date) -> bool:
-    """Monday to Friday (exchange holidays are not modelled; a holiday says no deals)."""
+    """A weekday on which at least one of the desk's exchanges is open.
 
-    return day.weekday() < 5
+    The exchange holidays come from the hand-maintained calendar file
+    (``reference_data/desk/trading_calendars.toml``, with its sources); a year it does not
+    cover reads Monday to Friday, and the pack says so (``check.calendar``).
+    """
+
+    return _calendar().is_trading_day(day)
+
+
+def _calendar():
+    from eurogas_nexus.domain.deals.formats import FormatError
+    from eurogas_nexus.domain.deals.position import TradingCalendar, load_trading_calendar
+
+    try:
+        return load_trading_calendar()
+    except (OSError, FormatError):
+        return TradingCalendar(years=frozenset(), venues=())
 
 
 def _d(value: Any) -> Decimal | None:
@@ -185,6 +208,29 @@ def _month_label(month: str) -> str:
 # ----------------------------------------------------------------------------- figures
 
 
+def _position_row(row, horizon_start: date) -> dict[str, Any]:
+    """One ladder row: physical, financial and net MWh, and the net in the hub's desk unit.
+
+    The ladder sums its legs in floating point (contracts and ETRM trades are stored as
+    floats); each figure is taken as its shortest decimal text and rounded to whole MWh.
+    """
+
+    from eurogas_nexus.domain.deals.position import desk_unit, in_desk_unit
+
+    month_start = date(int(row.month[:4]), int(row.month[5:7]), 1)
+    first = max(month_start, horizon_start)  # the current month from the day on
+    last = (month_start.replace(day=28) + timedelta(days=4)).replace(day=1) - timedelta(days=1)
+    net = Decimal(repr(row.net_mwh))
+    return {
+        "hub": row.hub, "month": _month_label(row.month),
+        "physical_mwh": dec(Decimal(repr(row.physical_mwh)).quantize(Decimal(1))),
+        "financial_mwh": dec(Decimal(repr(row.financial_mwh)).quantize(Decimal(1))),
+        "net_mwh": dec(net.quantize(Decimal(1))),
+        "net_desk": dec(in_desk_unit(row.hub, net, first, last)),
+        "desk_unit": desk_unit(row.hub),
+    }
+
+
 def pack_data(session, caller, *, day: date, now: datetime | None = None) -> dict[str, Any]:
     """Every figure both packs read, computed once (no rendering)."""
 
@@ -192,7 +238,7 @@ def pack_data(session, caller, *, day: date, now: datetime | None = None) -> dic
         credit_exposure_rows,
         mandate_usage_rows,
     )
-    from eurogas_nexus.application.position_inputs import captured_overlay, ladder_inputs
+    from eurogas_nexus.application.position_inputs import ladder_inputs
     from eurogas_nexus.db.models import CreditLineRecord, TraderMandateRecord
     from eurogas_nexus.domain.portfolio.position_ladder import build_ladder, ladder_horizon
     from eurogas_nexus.security.authorization import Permission, authorize
@@ -203,19 +249,16 @@ def pack_data(session, caller, *, day: date, now: datetime | None = None) -> dic
     status = day_status(session, day, records)
     problems = open_problems(session, day)
     pnl = day_pnl(session, caller, day=day, now=now)
-    orders, books, counterparties, left_out = overlay_orders(session, day)
     start, end = ladder_horizon(day, 12)
     limits_allowed = authorize(caller.principal, Permission.RISK_LIMITS_READ).allowed
-    with captured_overlay(orders, books, counterparties):
-        inputs = ladder_inputs(caller, day, start, end, now=now)
-        ladder = build_ladder(inputs.legs, horizon_start=start, horizon_end=end)
-        credit = credit_exposure_rows(caller, day) if limits_allowed else None
-        mandates = mandate_usage_rows(caller, day) if limits_allowed else None
-    position = [
-        {"hub": row.hub, "month": _month_label(row.month),
-         "net_mwh": dec(Decimal(repr(row.net_mwh)).quantize(Decimal(1)))}
-        for row in ladder if abs(row.net_mwh) >= 0.5
-    ]
+    # The one position source (``ladder_inputs``): the book, the captured deals and the ETRM
+    # trades loaded so far, each deal once; credit and mandates read the same.
+    inputs = ladder_inputs(caller, day, start, end, now=now)
+    ladder = build_ladder(inputs.legs, horizon_start=start, horizon_end=end)
+    credit = credit_exposure_rows(caller, day) if limits_allowed else None
+    mandates = mandate_usage_rows(caller, day) if limits_allowed else None
+    captured = inputs.captured
+    position = [_position_row(row, start) for row in ladder if abs(row.net_mwh) >= 0.5]
     guarantees = {
         row.counterparty_id: (row.guarantee_amount, row.guarantee_expiry)
         for row in session.query(CreditLineRecord).all()
@@ -287,8 +330,11 @@ def pack_data(session, caller, *, day: date, now: datetime | None = None) -> dic
             "simulated": bool((resolved or {}).get("simulated")),
         })
     sanity = []
-    if is_trading_day(day) and not records:
+    calendar = _calendar()
+    if calendar.is_trading_day(day) and not records:
         sanity.append(("check.no_deals", {}))
+    if day.weekday() < 5 and not calendar.covers(day):
+        sanity.append(("check.calendar", {"year": day.year}))
     if problems:
         sanity.append(("check.unreadable", {"n": len(problems)}))
     if not status["closed"]:
@@ -315,8 +361,9 @@ def pack_data(session, caller, *, day: date, now: datetime | None = None) -> dic
         "deals": len(records),
         "manual_deals": sum(1 for r in records if r.origin == "manual"),
         "position": position,
-        "overlay_deals": len(orders),
-        "overlay_left_out": left_out,
+        "overlay_deals": len(captured.orders) if captured else 0,
+        "overlay_left_out": sum(1 for d in (captured.deals if captured else [])
+                                if d["counted_as"] == "etrm"),
         "limits_allowed": limits_allowed,
         "credit": credit_rows,
         "mandates": mandate_rows,
@@ -366,10 +413,14 @@ def _sections(data: dict[str, Any], kind: str, lang: str) -> list[dict[str, Any]
         sections.append({
             "key": "position", "heading": t(lang, "section.position"),
             "lines": [t(lang, "overlay", n=data["overlay_deals"])],
-            "columns": [t(lang, "col.hub"), t(lang, "col.month"), t(lang, "col.net")],
-            "rows": [[row["hub"], row["month"], num(row["net_mwh"])]
+            "columns": [t(lang, "col.hub"), t(lang, "col.month"), t(lang, "col.physical"),
+                        t(lang, "col.financial"), t(lang, "col.net"), t(lang, "col.net_desk"),
+                        t(lang, "col.unit")],
+            "rows": [[row["hub"], row["month"], num(row["physical_mwh"]),
+                      num(row["financial_mwh"]), num(row["net_mwh"]), num(row["net_desk"]),
+                      row["desk_unit"]]
                      for row in data["position"]],
-            "numeric": [False, False, True],
+            "numeric": [False, False, True, True, True, True, False],
         })
         limit_rows = [[row["counterparty"], f"{row['used_pct']}" if row["used_pct"] is not None
                        else "", row["status"]] for row in data["credit"]]

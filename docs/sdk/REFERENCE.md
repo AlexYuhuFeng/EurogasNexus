@@ -175,7 +175,7 @@ Models:
 
 - `StaleFigure` (4 fields). A late or stale figure named on its own (FRESH-02).
 - `DeskNote` (3 fields). One warning as a declared note: the client says it in the user's language.
-- `DeskToday` (11 fields). The Today read for the calling principal.
+- `DeskToday` (12 fields). The Today read for the calling principal.
 
 ## functional
 

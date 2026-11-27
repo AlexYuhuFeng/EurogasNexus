@@ -51,6 +51,7 @@ from eurogas_nexus.db.models.deal_capture import (
     DealDayCloseRecord,
     DealImportFileRecord,
     DealImportProblemRecord,
+    DealPositionKindRecord,
 )
 from eurogas_nexus.db.models.decision import (
     DecisionCaseDecisionRecord,
@@ -431,6 +432,7 @@ __all__ = [
     "DealDayCloseRecord",
     "DealImportFileRecord",
     "DealImportProblemRecord",
+    "DealPositionKindRecord",
     "LngTerminalOperatorTermsRecord",
     "LngTerminalTariffRecord",
     "TsoTariffEntryRecord",

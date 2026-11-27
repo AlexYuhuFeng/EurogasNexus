@@ -240,6 +240,7 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
     RequiredTable(name="captured_deals", introduced_in="0097_deal_capture"),
     RequiredTable(name="deal_day_closes", introduced_in="0097_deal_capture"),
     RequiredTable(name="daily_packs", introduced_in="0097_deal_capture"),
+    RequiredTable(name="deal_position_kinds", introduced_in="0098_deal_position_source"),
 )
 
 

@@ -6,6 +6,33 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-27 — Position and P&L during the day from captured deals (branch `sd-ladder`, not pushed)
+
+`docs/product/SMALL_DESK_PLAN.md` section 4 step 3, section 5 ("a new deal changes position and
+P&L within one second") and section 9 (position units).
+
+- One position source: `position_inputs.ladder_inputs` now reads the captured deals on every
+  call (`application/captured_position.captured_book`), so the ladder, Today, credit exposure,
+  mandate usage, the limit alerts, the opportunity stream, the reports and the daily pack all
+  include them. The daily pack's context-variable overlay is removed.
+- Same deal counted once, at read time: captured deals are paired with the ETRM trades in the
+  book by the end-of-day check's own rule (`domain/deals/eod.pair_deals`: a pair recorded at a
+  close, else the exchange reference, else hub, side and delivery period); the captured deal
+  counts while its day is open, the ETRM trade once it is closed.
+- Physical or financial from a rule file (`reference_data/desk/position_kinds.toml`, desk copy
+  replaces it) with a per-deal choice by hand (`POST /api/desk/deals/position-kind`, audited);
+  the ETRM entry sheet's physical column follows it.
+- Exact decimal rows in desk units (th/d at NBP, MW elsewhere, MWh beside) for the captured
+  deals in the ladder response (`captured`); the estimate wording on the ladder, Today, limits,
+  limit alerts and the packs.
+- Live: a `deals` topic on `/api/stream/live`; the deal routes wake the poller at once and make
+  the position warm views unservable (`ViewSpec.follows_deals`); the web client re-reads on
+  `deals` past the price throttle (`useLiveTopics` `immediateTopics`). Commit to notice measured
+  3 to 8 ms with the wake, 1.3 s without (the default poll).
+- Exchange holidays from a hand-maintained file (`reference_data/desk/trading_calendars.toml`).
+- Data model: migration `0098_deal_position_source` (exchange reference on ETRM trades, the
+  `deal_position_kinds` table), reversible.
+
 ## 2026-11-27 — Small-desk install and self-support, server part (branch `sd-install`, not pushed)
 
 `docs/product/SMALL_DESK_PLAN.md` section 3 items 2, 3 and 7 (server) and section 7 (server).

@@ -36,6 +36,13 @@ shared cache cannot be read, nothing is answered from memory (each read computes
 Without a shared cache (one process: the demo, development) the signal is this process's own.
 ``EUROGAS_NEXUS_WARM_VIEWS=off`` switches it off.
 
+**Captured deals** (small-desk plan section 5: a new deal changes position and P&L within one
+second): a view that reads positions declares ``follows_deals``. A deal captured, corrected,
+cancelled or reclassified, or a day closed (:meth:`WarmViews.note_deals`, called by the deal
+routes and by the live poller when it sees a deal another process stored) makes those views
+unservable for every reader, not just due: the next read computes, so no screen shows the
+position from before the deal.
+
 预热视图：重型读取按调用者缓存最近一次结果，立即返回并在后台按变更信号刷新。
 """
 
@@ -102,6 +109,12 @@ class ViewSpec:
     #: not depend on who reads it beyond that scope: no per-reader state (alert read marks,
     #: dismissals, follows, "my" anything), no reader's name in it. Decision 2026-11-26.
     shared_by_scope: bool = False
+    #: A read of positions or P&L: a captured deal makes it unservable (see the module text).
+    follows_deals: bool = False
+
+
+#: The write-signal owner a captured deal bumps (no principal is named like this).
+DEALS_OWNER = "~captured-deals"
 
 
 @dataclass
@@ -120,6 +133,7 @@ class _Entry:
     last_access: float
     refreshing: Future | None = None
     error: str | None = None
+    deals_generation: Generation | None = None
 
 
 @dataclass
@@ -142,8 +156,9 @@ def enabled(environ=os.environ) -> bool:
 #: shared count could not be raised).
 Generation = tuple[int, int]
 Signals = tuple[Generation, dict[str, Generation]]
-#: The outbox watermark, the generation, the owner's generation, and when (wall, monotonic).
-Stamp = tuple[int | None, Generation, Generation, datetime, float]
+#: The outbox watermark, the generation, the owner's generation, when (wall, monotonic), and
+#: the captured deals' generation.
+Stamp = tuple[int | None, Generation, Generation, datetime, float, Generation]
 #: An owner's shared write count is forgotten after this long without a write (it then
 #: restarts at zero, which only makes that owner's kept entries unservable once).
 OWNER_GENERATION_TTL_SECONDS = 7 * 24 * 3600.0
@@ -281,6 +296,14 @@ class WarmViews:
             # The next read of the outbox is not deferred by the poll interval.
             self._watermark_at = None
 
+    def note_deals(self) -> None:
+        """A captured deal changed (or a day closed): every view that follows deals is
+        unservable until it is computed again, for every reader."""
+
+        self._generations.bump(DEALS_OWNER)
+        with self._lock:
+            self._watermark_at = None
+
     def clear(self) -> None:
         with self._lock:
             self._entries.clear()
@@ -309,7 +332,7 @@ class WarmViews:
         from eurogas_nexus.governance.usage import note_licensed_read
 
         full_key = (spec.name, key)
-        signals = self._signals([owner])
+        signals = self._signals([owner, DEALS_OWNER])
         if signals is None:
             # The write signal cannot be read: a kept answer might predate a write made
             # through another process. Compute, and keep nothing, until it can be read.
@@ -344,6 +367,11 @@ class WarmViews:
 
         if now - entry.computed_mono > entry.spec.max_stale_seconds:
             return False
+        # A captured deal since: a position read never answers from before it.
+        if entry.spec.follows_deals and (
+            signals[1].get(DEALS_OWNER, entry.deals_generation) != entry.deals_generation
+        ):
+            return False
         # The caller's own write: never answer from before it.
         return signals[1].get(entry.owner) == entry.owner_generation
 
@@ -375,7 +403,7 @@ class WarmViews:
 
         with self._key_lock(full_key):
             # Another request computed it while this one waited: serve that.
-            signals = self._signals([owner])
+            signals = self._signals([owner, DEALS_OWNER])
             watermark = self.watermark()
             now = self._clock()
             with self._lock:
@@ -414,19 +442,20 @@ class WarmViews:
         """The signals as they stand before a computation starts (a change during it wins);
         None when the write signal cannot be read (the result is then not kept)."""
 
-        signals = self._signals([owner])
+        signals = self._signals([owner, DEALS_OWNER])
         if signals is None:
             return None
         watermark = self.watermark()
-        return (watermark, signals[0], signals[1][owner], self._wall_clock(), self._clock())
+        return (watermark, signals[0], signals[1][owner], self._wall_clock(), self._clock(),
+                signals[1][DEALS_OWNER])
 
     def _store(self, spec, owner, full_key, result, families, stamp, compute, context) -> _Entry:
-        watermark, generation, owner_generation, computed_at, computed_mono = stamp
+        watermark, generation, owner_generation, computed_at, computed_mono, deals = stamp
         entry = _Entry(
             spec=spec, owner=owner, value=result, computed_at=computed_at,
             computed_mono=computed_mono, watermark=watermark, generation=generation,
             owner_generation=owner_generation, families=frozenset(families), compute=compute,
-            context=context, last_access=self._clock(),
+            context=context, last_access=self._clock(), deals_generation=deals,
         )
         with self._lock:
             self._entries[full_key] = entry

@@ -9,6 +9,11 @@
  * (`offline`, `stale`, or `paused` when the server would not open it), every
  * `LIVE_FALLBACK_MS`: a page never depends on the push alone, and degrades to timed re-reads
  * without a word of its own (the top bar says once that live updates are paused).
+ *
+ * `immediateTopics` (a page that shows positions passes `["deals"]`) bypass that interval: a
+ * captured, corrected or cancelled deal re-reads at once (bursts within `DEAL_LIVE_MS` once),
+ * while price notices stay throttled (small-desk plan section 5: a new deal changes position
+ * and P&L within one second).
  */
 import { useEffect, useRef, useSyncExternalStore } from "react";
 
@@ -23,6 +28,10 @@ import {
 
 /** The timed re-read of a page that gave no `fallbackMs`, while its live connection is down. */
 export const LIVE_FALLBACK_MS = 60_000;
+/** The shortest time between two re-reads on deal notices (an import's burst reads once). */
+export const DEAL_LIVE_MS = 250;
+/** What a page that shows positions or P&L passes as `immediateTopics`. */
+export const DEAL_TOPICS = ["deals"] as const;
 const DEGRADED = new Set(["offline", "stale", "paused"]);
 
 export function useLiveStatus(): LiveStatus {
@@ -36,6 +45,40 @@ export interface LiveTopicsOptions {
   fallbackMs?: number;
   /** Subscribe only while true (default true). */
   enabled?: boolean;
+  /** Topics that bypass `minIntervalMs` (re-read at most once per `DEAL_LIVE_MS`). */
+  immediateTopics?: readonly Exclude<LiveTopic, "jobs">[];
+}
+
+type Timers = { set: (fn: () => void, ms: number) => unknown; clear: (handle: unknown) => void };
+
+/**
+ * Route change notices to two throttles: `topics` at most once per `minMs`, `immediate` at most
+ * once per `immediateMs` and never held back by the first (a deal does not wait for prices).
+ */
+export function createLiveRereader(
+  fire: () => void,
+  minMs: number,
+  immediate: readonly string[],
+  immediateMs: number = DEAL_LIVE_MS,
+  clock: () => number = () => Date.now(),
+  timers?: Timers,
+) {
+  const slow = createThrottle(fire, minMs, clock, timers);
+  const fast = createThrottle(fire, immediateMs, clock, timers);
+  const quick = new Set(immediate);
+  return {
+    notice(topic: string) {
+      (quick.has(topic) ? fast : slow).call();
+    },
+    /** A re-read that is not a notice (a poll, back from a drop): the throttled path. */
+    call() {
+      slow.call();
+    },
+    cancel() {
+      slow.cancel();
+      fast.cancel();
+    },
+  };
 }
 
 /** A leading-and-trailing throttle: `fire` at once, then at most once per `minMs`. */
@@ -72,22 +115,25 @@ export function createThrottle(
 export function useLiveTopics(
   topics: readonly Exclude<LiveTopic, "jobs">[],
   reload: () => void,
-  { minIntervalMs = 2_000, fallbackMs, enabled = true }: LiveTopicsOptions = {},
+  { minIntervalMs = 2_000, fallbackMs, enabled = true, immediateTopics = [] }: LiveTopicsOptions = {},
 ): void {
   const reloadRef = useRef(reload);
   reloadRef.current = reload;
-  const key = [...topics].sort().join(",");
+  const quick = [...immediateTopics].sort().join(",");
+  const key = [...new Set([...topics, ...immediateTopics])].sort().join(",");
   useEffect(() => {
     if (!enabled || !key) return undefined;
     let dirty = false;
-    const throttle = createThrottle(() => {
+    const throttle = createLiveRereader(() => {
       if (document.visibilityState !== "visible") {
         dirty = true;
         return;
       }
       reloadRef.current();
-    }, minIntervalMs);
-    const stops = key.split(",").map((topic) => subscribeLive(topic as Exclude<LiveTopic, "jobs">, () => throttle.call()));
+    }, minIntervalMs, quick ? quick.split(",") : []);
+    const stops = key
+      .split(",")
+      .map((topic) => subscribeLive(topic as Exclude<LiveTopic, "jobs">, () => throttle.notice(topic)));
     let wasLive = liveStatus().state === "live";
     let pollEvery = 0;
     let poll: ReturnType<typeof setInterval> | undefined;
@@ -122,7 +168,7 @@ export function useLiveTopics(
       if (poll) clearInterval(poll);
       document.removeEventListener("visibilitychange", shown);
     };
-  }, [enabled, fallbackMs, key, minIntervalMs]);
+  }, [enabled, fallbackMs, key, minIntervalMs, quick]);
 }
 
 /**

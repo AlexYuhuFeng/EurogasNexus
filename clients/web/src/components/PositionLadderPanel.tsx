@@ -1,7 +1,7 @@
 import { useScreenFreshness } from "@/app/data/connection";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { api, type LadderRollupDTO, type PositionLadderDTO, type PositionLadderRowDTO } from "@/api/client";
+import { api, type CapturedPositionRowDTO, type LadderRollupDTO, type PositionLadderDTO, type PositionLadderRowDTO } from "@/api/client";
 import { hubCurrency } from "@/app/contractChoices";
 import { ReportExport } from "./ReportExport";
 import { MethodNote } from "./MethodNote";
@@ -20,7 +20,7 @@ import { pnlClass } from "@/app/model/pnlColor";
 import { ladderNotes } from "@/app/model/ladderNotes";
 import { unitLabel } from "@/app/model/instrumentPicker";
 import { formatMeasure } from "@/app/time/valueFormat";
-import { useLiveTopics } from "@/app/hooks/useLive";
+import { DEAL_TOPICS, useLiveTopics } from "@/app/hooks/useLive";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -70,7 +70,8 @@ function HedgeValue({ ratio, t }: { ratio: number | null | undefined; t: Transla
 const signClass = (value: number) => (value >= 0 ? "is-long" : "is-short");
 
 /** The ladder re-reads on price, trade and book notices at most this often: marks and the
- * mark-to-market move with the prices (a live feed's ticks), positions with the trades. */
+ * mark-to-market move with the prices (a live feed's ticks), positions with the trades. A
+ * captured deal (`deals`) bypasses it: the position changes within a second of the deal. */
 export const LADDER_LIVE_MS = 5_000;
 
 function useLadder(months: number, groupBy = "hub", reportingCurrency = "") {
@@ -92,7 +93,7 @@ function useLadder(months: number, groupBy = "hub", reportingCurrency = "") {
     };
   }, [months, groupBy, reportingCurrency, generation]);
   const reread = useCallback(() => setGeneration((value) => value + 1), []);
-  useLiveTopics(["prices", "trades", "book"], reread, { minIntervalMs: LADDER_LIVE_MS });
+  useLiveTopics(["prices", "trades", "book"], reread, { minIntervalMs: LADDER_LIVE_MS, immediateTopics: DEAL_TOPICS });
   return { ladder, error };
 }
 
@@ -246,6 +247,7 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
       {!example && ladder && ladder.rows.length > 0 && (
         <>
           <SummaryStrip ladder={ladder} t={t} />
+          <CapturedPosition ladder={ladder} t={t} />
           <DataGrid
             id="position-ladder"
             label={t("position.title")}
@@ -264,6 +266,55 @@ export function PositionLadderPanel({ t }: { t: Translate }) {
         </>
       )}
     </section>
+  );
+}
+
+/**
+ * The captured deals in the position: the estimate wording while a day is open, the exact
+ * rows in the desk's units (th/d at NBP, MW elsewhere, MWh on demand) and the deals not valued.
+ */
+function CapturedPosition({ ladder, t }: { ladder: PositionLadderDTO; t: Translate }) {
+  const captured = ladder.captured;
+  const columns = useMemo<DataGridColumn<CapturedPositionRowDTO>[]>(() => [
+    { id: "month", header: t("position.month"), rowHeader: true, value: (row) => row.month, format: (value) => ladderMonthLabel(String(value)) },
+    { id: "hub", header: t("position.hub"), value: (row) => row.hub },
+    ...(["physical", "financial", "net"] as const).map((key) => ({
+      id: key,
+      header: t(`position.${key}_desk`),
+      type: "number" as const,
+      value: (row: CapturedPositionRowDTO) => Number(row[key]),
+      cellTitle: (row: CapturedPositionRowDTO) => `${row[`${key}_mwh`]} MWh`,
+      render: (row: CapturedPositionRowDTO) => (
+        <>
+          {mwh(Number(row[key]))} <small className="ds-grid-unit">{row.unit}</small>
+        </>
+      ),
+    })),
+  ], [t]);
+  if (!captured && !ladder.estimate_label) return null;
+  return (
+    <div className="position-captured" data-position-captured="true">
+      {ladder.estimate_label && (
+        <p className="muted" role="status" data-position-estimate="true">{t("position.estimate")}</p>
+      )}
+      {captured && captured.rows.length > 0 && (
+        <Fold summary={t("position.captured_title", { count: captured.deals_counted })}>
+          <DataGrid
+            id="position-captured"
+            label={t("position.captured_title", { count: captured.deals_counted })}
+            columns={columns}
+            rows={captured.rows}
+            rowKey={(row) => `${row.month}-${row.hub}`}
+            density="compact"
+          />
+        </Fold>
+      )}
+      {captured && captured.not_valued.length > 0 && (
+        <p className="warning-text" data-position-not-valued={captured.not_valued.length}>
+          {t("position.not_valued", { deals: captured.not_valued.map((item) => `${item.hub} ${item.product}`).join(", ") })}
+        </p>
+      )}
+    </div>
   );
 }
 

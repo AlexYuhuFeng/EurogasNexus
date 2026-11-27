@@ -13,7 +13,11 @@ import argparse
 from pathlib import Path
 
 from eurogas_nexus.db.session import get_session_factory, redact_database_url, resolve_database_url
-from eurogas_nexus.ingestion.etrm_trades import EtrmImportError, parse_etrm_trades
+from eurogas_nexus.ingestion.etrm_trades import (
+    EtrmImportError,
+    layout_reference_column,
+    parse_etrm_trades,
+)
 
 MAX_BYTES = 64 * 1024 * 1024
 
@@ -22,6 +26,12 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--system", required=True, help="ETRM name, e.g. Endur, Allegro")
     parser.add_argument("--file", required=True)
+    parser.add_argument(
+        "--reference-column",
+        default=None,
+        help="Column holding the exchange's trade id (default: the deal-capture layout's "
+        "reference_column, else exchange_reference); it pairs captured deals with these trades",
+    )
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args(argv)
     path = Path(args.file)
@@ -33,6 +43,7 @@ def main(argv: list[str] | None = None) -> int:
             path.read_text(encoding="utf-8"),
             system=args.system,
             source_reference=f"etrm:{args.system}:{path.name}",
+            reference_column=args.reference_column or layout_reference_column(),
         )
     except EtrmImportError as exc:
         print(f"Refused: {exc}")

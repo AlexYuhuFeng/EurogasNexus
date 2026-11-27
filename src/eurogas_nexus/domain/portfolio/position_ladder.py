@@ -95,7 +95,8 @@ class PositionLeg:
     reference: str = ""
     book_id: str = ""  # trading book; "" while unassigned
     open_ended: bool = False  # evergreen contract ("2025+"): runs to the horizon, renews yearly
-    #: Where the leg comes from: "contract", "trade", "cargo_plan" (a firm cargo's send-out by
+    #: Where the leg comes from: "contract", "trade", "capture" (a deal captured from an
+    #: exchange export or by hand), "cargo_plan" (a firm cargo's send-out by
     #: gas day) or "cargo_hedge" (a hedge the desk recorded against a cargo); "" when not said.
     source: str = ""
     #: The leg as a person names it (a contract's name, a trade's venue, side and hub), so a

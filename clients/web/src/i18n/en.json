@@ -8034,5 +8034,22 @@
   "notify.category_pack_management": "Daily management summary (PDF and XLSX attached)",
   "notify.category_pack_risk": "Daily risk pack (PDF and XLSX attached)",
   "limits.guarantee_amount": "Guarantee held",
-  "limits.guarantee_expiry": "Guarantee expires"
+  "limits.guarantee_expiry": "Guarantee expires",
+  "position.estimate": "Desk estimate, before ETRM close",
+  "position.captured_title": "Captured deals in it ({{count}}), in desk units",
+  "position.physical_desk": "Physical",
+  "position.financial_desk": "Financial",
+  "position.net_desk": "Net",
+  "position.not_valued": "Not valued, no price held: {{deals}}",
+  "deals.col.position_kind": "In position as",
+  "deals.kind.physical": "Physical",
+  "deals.kind.financial": "Financial",
+  "deals.kind.by_rule": "By the rule",
+  "deals.kind.physical_hand": "Physical (by hand)",
+  "deals.kind.financial_hand": "Financial (by hand)",
+  "deals.kind_basis.entered_by_hand": "Set by hand by {{who}}",
+  "deals.kind_basis.stated_on_deal": "Stated on the deal",
+  "deals.kind_basis.rule": "By rule: {{rule}}",
+  "deals.kind_basis.until_delivery": "By rule: {{rule}} (physical from its first delivery day)",
+  "deals.kind_basis.default": "By the rule file's default"
 }

@@ -34,6 +34,8 @@ class ScreenOrderObservation(BaseModel):
     linked_resource_id: str | None = None
     research_only: bool = True
     human_review_required: bool = True
+    #: The exchange's trade id an ETRM extract carries for the trade (its reference column).
+    exchange_reference: str | None = None
 
 
 class PortfolioPnlSnapshot(BaseModel):

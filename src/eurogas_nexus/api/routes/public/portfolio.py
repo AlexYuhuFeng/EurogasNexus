@@ -161,7 +161,8 @@ def get_live_summary(
 
 
 @router.get("/api/portfolio/position-ladder")
-@warm_view(ViewSpec("portfolio.position_ladder", max_age_seconds=60), skip=not_json)
+@warm_view(ViewSpec("portfolio.position_ladder", max_age_seconds=60, follows_deals=True),
+           skip=not_json)
 def get_position_ladder(
     request: Request,
     months: int = Query(12, ge=1, le=36),
@@ -274,6 +275,14 @@ def get_position_ladder(
             "rates could be read."
         )
     payload["horizon"] = {"start": horizon_start.isoformat(), "end": horizon_end.isoformat()}
+    # Captured deals in the position (the one position source): exact rows in desk units,
+    # the deals not valued, and "desk estimate, before ETRM close" while a day is open.
+    from eurogas_nexus.application.captured_position import summary as captured_summary
+
+    payload["estimate_label"] = inputs.estimate_label
+    payload["captured"] = captured_summary(
+        inputs.captured, horizon_start=horizon_start, horizon_end=horizon_end, marks=marks
+    )
     # Which product and source each hub's VaR and freshness read (one series per hub).
     payload["close_series"] = inputs.close_series
     payload["methods"] = _ladder_methods(payload, closes, today)
@@ -306,6 +315,8 @@ def get_position_ladder(
         from eurogas_nexus.api.csv_export import report_response
 
         about = [("Horizon", f"{horizon_start.isoformat()} to {horizon_end.isoformat()}")]
+        if inputs.estimate_label:
+            about.append(("Status", inputs.estimate_label))
         totals = payload["totals"]
         about.append(("Net position (MWh)", str(totals["net_mwh"])))
         about.append(("Gross tenor exposure (MWh)", str(totals["gross_tenor_mwh"])))

@@ -41,6 +41,9 @@ class ScreenOrderObservationRecord(Base):
     linked_resource_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
     research_only: Mapped[bool] = mapped_column(Boolean, nullable=False)
     human_review_required: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    #: The exchange's trade id an ETRM extract carries (its reference column), so a captured
+    #: deal and the same deal from the ETRM are one deal (``domain/deals/eod.pair_deals``).
+    exchange_reference: Mapped[str | None] = mapped_column(String(128), nullable=True)
 
 
 class PortfolioPnlSnapshotRecord(Base):

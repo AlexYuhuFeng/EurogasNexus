@@ -145,7 +145,7 @@ Identifiers are never sent, whatever these say (`application/ai_payloads.py`).
 | Target | How it is held |
 |---|---|
 | A price change on screen within 200 ms of arriving | Server share: a price reaches every open stream at the next poll of the live poller. `tests/api/test_stream_latency.py` asserts commit to stream within one interval plus 0.35 s at 0.15 s. The interval is `EUROGAS_NEXUS_STREAM_POLL_SECONDS` (default 1.5 s); **the desk sets 0.15** to meet the target. |
-| A new deal changes position and P&L within one second | The `trades` notice arrives within one poll; the position ladder re-reads at once on a first notice, but at most every 5 s (`LADDER_LIVE_MS`) while prices tick, so during a busy tape a deal can wait up to 5 s: not yet met, see the open items. |
+| A new deal changes position and P&L within one second | A deal stored through the API (an upload, a hand entry, a correction, a close, a physical-or-financial choice) wakes the live poller at once and makes the position views (ladder, Today, limits) compute afresh; its `deals` notice reaches every open stream in milliseconds (`tests/api/test_deal_stream_latency.py`: under 1 s with the default 1.5 s poll; measured 3 to 8 ms in the container). Position pages re-read on `deals` past their 5 s price throttle (`useLiveTopics` `immediateTopics`). A deal stored by another process (the watched folder) is seen at the next poll (`EUROGAS_NEXUS_STREAM_POLL_SECONDS`; at the desk's 0.15 s, well inside the target), and the folder's own scan interval comes first. The rest is the ladder's own read time on the desk's PC (step 3 below). |
 | An AI call abandoned after 3 s | `EUROGAS_NEXUS_AI_TIMEOUT_SECONDS`; `tests/unit/test_llm_provider.py` asserts it. |
 
 On the real PC:
@@ -155,6 +155,7 @@ On the real PC:
 2. Browser share: open Market → Prices, then in the browser's developer tools record a
    performance profile while step 1 runs; the time from the stream event to the paint of the cell
    is the browser's share. Add the two; the sum is the 200 ms figure.
-3. Deal to position: import a deal file (or book a test deal), note the time of the commit, and
-   time the position ladder's change on screen the same way; the `trades` notice and the
-   ladder's read are the two parts.
+3. Deal to position: `python scripts/ops/measure_live_latency.py deal --book <book> --samples 10
+   --gap 1` with the API running; it enters a 1 MW test deal by hand, times its `deals` notice
+   and the position ladder's re-read, and cancels every test deal at the end. The browser's
+   share (notice to painted figures) is timed in the browser as in step 2.
