@@ -55,7 +55,8 @@ function outage(id: string, overrides: Partial<TickerOutage> = {}): TickerOutage
   return {
     event_id: id, facility_name: `Asset ${id}`, balancing_zone: "NBP", event_type: "unplanned",
     status: "active", start_utc: hoursAgo(3), published_at_utc: hoursAgo(3), version: 1, unit: "mcm/d",
-    unavailable_capacity: 52, technical_capacity: 70, unavailable_gwh_d: 563.2, source_system: "REMIT",
+    unavailable_capacity: 52, technical_capacity: 70, unavailable_gwh_d: 563.2,
+    capacity_impact_mcm_d: 52, source_system: "REMIT",
     source_reference: `remit:${id}:v1`, ...overrides,
   };
 }
@@ -104,8 +105,8 @@ test("trader: a large unplanned outage where the book holds a position is urgent
       outages: [
         outage("big"),
         outage("planned", { event_type: "planned" }),
-        outage("small", { unavailable_capacity: 5, unavailable_gwh_d: 54, technical_capacity: 70 }),
-        outage("tiny", { unavailable_capacity: 2, unavailable_gwh_d: 21, technical_capacity: 70 }),
+        outage("small", { unavailable_capacity: 5, unavailable_gwh_d: 54, technical_capacity: 70, capacity_impact_mcm_d: 5 }),
+        outage("tiny", { unavailable_capacity: 2, unavailable_gwh_d: 21, technical_capacity: 70, capacity_impact_mcm_d: 2 }),
         outage("elsewhere", { balancing_zone: "PSV" }),
         outage("scheduled", { status: "scheduled" }),
       ],
@@ -119,9 +120,29 @@ test("trader: a large unplanned outage where the book holds a position is urgent
   assert.equal(big.severity, "critical");
   assert.equal(big.audience, "outage_position");
   assert.equal(big.magnitude, 563.2);
-  assert.equal(big.unit, "GWh/d");
-  assert.deepEqual(big.comparison, { key: "strip.comparison.of_capacity", values: { value: 563, total: 758, unit: "GWh/d" } });
+  assert.equal(big.unit, "mcm/d", "NBP, a GB zone, is quoted in mcm/d");
+  assert.deepEqual(big.headline, { key: "strip.headline.outage", values: { asset: "Asset big", zone: "NBP", size: "52 mcm/d" } });
+  assert.deepEqual(big.comparison, { key: "strip.comparison.of_capacity", values: { value: 52, total: 70, unit: "mcm/d" } });
   assert.equal(big.source.name, "REMIT");
+});
+
+test("one outage reads the same everywhere: GB in mcm/d, the continent in GWh/d", () => {
+  const gb = buildSituation(inputs({ outages: [outage("gb")] }), context("trader")).items[0];
+  assert.equal(gb.unit, "mcm/d");
+  assert.deepEqual(gb.comparison, { key: "strip.comparison.of_capacity", values: { value: 52, total: 70, unit: "mcm/d" } });
+
+  // A continental transmission message published in GWh/d keeps that figure and unit.
+  const continental = outage("the", {
+    balancing_zone: "THE", unit: "GWh/d", unavailable_capacity: 520, technical_capacity: 1040,
+    unavailable_gwh_d: 520, capacity_impact_mcm_d: null,
+  });
+  const item = buildSituation(
+    inputs({ outages: [continental] }),
+    context("trader", { thresholds: { ...DEFAULT_STRIP_THRESHOLDS, focusHubs: ["THE"] } }),
+  ).items[0];
+  assert.equal(item.unit, "GWh/d");
+  assert.deepEqual(item.headline, { key: "strip.headline.outage", values: { asset: "Asset the", zone: "THE", size: "520 GWh/d" } });
+  assert.deepEqual(item.comparison, { key: "strip.comparison.of_capacity", values: { value: 520, total: 1040, unit: "GWh/d" } });
 });
 
 test("trader: a focus hub counts as much as a position; without either the zone is out", () => {
@@ -139,7 +160,7 @@ test("trader: a focus hub counts as much as a position; without either the zone 
 
 test("WP-06: changing a threshold changes which fixture outage qualifies", () => {
   // 30 GWh/d, 20 % of the asset: below both defaults (50 GWh/d, 50 %).
-  const medium = outage("medium", { unavailable_capacity: 14, technical_capacity: 70, unavailable_gwh_d: 30 });
+  const medium = outage("medium", { unavailable_capacity: 14, technical_capacity: 70, unavailable_gwh_d: 30, capacity_impact_mcm_d: 14 });
   const at = (effective: Record<string, string>) =>
     ids(buildSituation(inputs({ outages: [medium] }), context("trader", { thresholds: stripThresholdsFrom(effective) })));
   assert.deepEqual(at({}), []);
@@ -152,7 +173,7 @@ test("WP-06: changing a threshold changes which fixture outage qualifies", () =>
     ids(buildSituation(inputs({ outages: [big] }), context("trader", { thresholds: stripThresholdsFrom(effective) })));
   assert.deepEqual(bigAt({ strip_outage_gwh_d: "500" }), ["outage:big"]);
   assert.deepEqual(bigAt({ strip_outage_gwh_d: "500", strip_outage_share_pct: "75" }), ["outage:big"]);
-  const shareOnly = outage("share", { unavailable_gwh_d: null, unavailable_capacity: 40, technical_capacity: 70 });
+  const shareOnly = outage("share", { unavailable_gwh_d: null, unavailable_capacity: 40, technical_capacity: 70, capacity_impact_mcm_d: 40 });
   const shareAt = (effective: Record<string, string>) =>
     ids(buildSituation(inputs({ outages: [shareOnly] }), context("trader", { thresholds: stripThresholdsFrom(effective) })));
   assert.deepEqual(shareAt({}), ["outage:share"]);

@@ -129,6 +129,34 @@ export function referenceClose(points: readonly PricePoint[], gasDayStartIso: st
   return before.length ? before[before.length - 1]!.value : null;
 }
 
+/** Fewer today's prices than this is not a chart: a line through one or two prints is noise. */
+export const MIN_INTRADAY_POINTS = 3;
+
+export interface IntradaySummary {
+  /** Today's points, oldest first, ending at the board's mid when it is newer. */
+  points: PricePoint[];
+  /** False when today has fewer than {@link MIN_INTRADAY_POINTS}: draw no chart. */
+  enough: boolean;
+  /** Today's newest point, when one is held. */
+  last: PricePoint | null;
+  /** The prior close the panel states as a figure (the quote's own close, else the last held). */
+  priorClose: number | null;
+}
+
+/**
+ * What the intraday panel can say about today. With fewer than three points it says so and
+ * names the last price's time and the prior close instead of drawing a meaningless box.
+ */
+export function intradaySummary(points: readonly PricePoint[], gasDayStartIso: string, quote: MarketQuoteDTO | null, hub: string): IntradaySummary {
+  const today = intradayPoints(points, gasDayStartIso, quote, hub);
+  return {
+    points: today,
+    enough: today.length >= MIN_INTRADAY_POINTS,
+    last: today.length ? today[today.length - 1]! : null,
+    priorClose: referenceClose(points, gasDayStartIso, quote, hub),
+  };
+}
+
 const MONTH_TENOR = /^\d{4}-\d{2}$/;
 
 export interface CurveSnapshot {

@@ -20,9 +20,8 @@ import {
   dailyCloses,
   forwardCurves,
   historyProduct,
-  intradayPoints,
+  intradaySummary,
   observationSeries,
-  referenceClose,
   spreadHistory,
   type BoardSelection,
   type PriceRange,
@@ -32,7 +31,7 @@ import { formatMeasure } from "@/app/time/valueFormat";
 import { useInstantFormatter } from "@/app/time/useInstant";
 import { Chart } from "@/components/ui/charts";
 import type { ChartData } from "@/components/ui/charts/chartModel";
-import { EmptyState, Segmented, StatusBadge } from "@/components/ui";
+import { EmptyState, Instant, Segmented, StatusBadge } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -83,9 +82,9 @@ function PriceDetail({ selection, contracts, quotes, gasDay, nowMs, t, height, s
   const unit = hubPriceUnit(selection.hub);
   const title = t("board.detail.price_title", { hub: selection.hub, contract: contract?.label ?? selection.contract });
   const start = gasDayStartIso(gasDay);
-  // Today first; until today has two ticks the panel opens on the month, and says so.
-  const todayTicks = new Set(intradayPoints(series.points, start, quote, selection.hub).map((point) => point.at)).size;
-  const range: PriceRange = chosenRange ?? (todayTicks >= 2 ? "intraday" : "1m");
+  // Today first; until today holds enough prices for a line, the panel opens on the month.
+  const today = useMemo(() => intradaySummary(series.points, start, quote, selection.hub), [series.points, start, quote, selection.hub]);
+  const range: PriceRange = chosenRange ?? (today.enough ? "intraday" : "1m");
   const fellBack = chosenRange === null && range === "1m";
   const controls = (
     <Segmented
@@ -101,15 +100,14 @@ function PriceDetail({ selection, contracts, quotes, gasDay, nowMs, t, height, s
   );
   let data: ChartData | null = null;
   if (range === "intraday") {
-    const today = intradayPoints(series.points, start, quote, selection.hub);
-    const close = referenceClose(series.points, start, quote, selection.hub);
-    if (today.length > 0) {
+    const close = today.priorClose;
+    if (today.enough) {
       data = {
         axis: "time",
-        x: today.map((point) => point.at),
+        x: today.points.map((point) => point.at),
         xTitle: t("board.detail.time"),
         unit,
-        series: [{ id: "price", label: title, values: today.map((point) => point.value), style: "step", simulated: series.simulated || Boolean(quote?.simulated), decimals: 3 }],
+        series: [{ id: "price", label: title, values: today.points.map((point) => point.value), style: "step", simulated: series.simulated || Boolean(quote?.simulated), decimals: 3 }],
         rules: close !== null ? [{ id: "close", value: close, label: t("board.detail.prior_close", { value: formatMeasure("price", close) }), kind: "threshold" }] : [],
       };
     }
@@ -128,6 +126,21 @@ function PriceDetail({ selection, contracts, quotes, gasDay, nowMs, t, height, s
   }
   if (!data) {
     if (history.loading) return <EmptyState compact reason={t("board.loading")} />;
+    if (range === "intraday") {
+      return (
+        <>
+          <div className="trader-detail-controls">{controls}</div>
+          <div className="trader-detail-empty" data-detail-state="not-enough">
+            <h3>{title}</h3>
+            <p>{t("board.detail.intraday_thin")}</p>
+            <p className="trader-detail-empty-figures">
+              <span>{t("board.detail.intraday_last")} <Instant value={today.last?.at ?? null} seconds /></span>
+              <span>{t("board.detail.prior_close_label")} {today.priorClose !== null ? formatMeasure("price", today.priorClose) : "–"}</span>
+            </p>
+          </div>
+        </>
+      );
+    }
     return (
       <>
         <div className="trader-detail-controls">{controls}</div>

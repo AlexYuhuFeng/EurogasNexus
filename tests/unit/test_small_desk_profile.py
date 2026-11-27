@@ -75,6 +75,13 @@ def test_local_accounts_second_factor_and_book_isolation_are_on() -> None:
     assert SERVICES["migrate"]["command"][-1] == "on-start"  # checks, never migrates on start
 
 
+def test_remit_pollers_run_at_the_fastest_interval_the_documented_limit_allows() -> None:
+    scheduler = SERVICES["scheduler"]["environment"]
+    # Both connector manifests declare 6 requests an hour: 10 minutes is 6 runs an hour.
+    assert scheduler["EUROGAS_NEXUS_REMIT_IIP_INTERVAL_SECONDS"] == "600"
+    assert scheduler["EUROGAS_NEXUS_REMIT_ENTSOG_INTERVAL_SECONDS"] == "600"
+
+
 def test_gateway_gives_web_pages_the_same_hardening_as_the_api() -> None:
     from eurogas_nexus.api.web_client import CONTENT_SECURITY_POLICY
 

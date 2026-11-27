@@ -23,6 +23,10 @@ const ZONE_HUBS: Readonly<Record<string, readonly string[]>> = {
   ZTP: ["ZTP"], BE: ["ZTP"], ZEE: ["ZTP"], FLUXYS: ["ZTP"],
   PVB: ["PVB"], ES: ["PVB"], ENAGAS: ["PVB"],
   NO: ["NBP", "TTF", "THE", "ZTP"], NORWAY: ["NBP", "TTF", "THE", "ZTP"],
+  // Balancing-zone and trading-point EIC codes REMIT messages give.
+  "21YNL----TTF---1": ["TTF"], "37Y005053MH0000R": ["THE"], "37Z005053MH0000D": ["THE"],
+  "21YGB-UKGASGRIDW": ["NBP"], "21Y0000000001278": ["PEG"], "21Z000000000248J": ["ZTP"],
+  "21Y---A001A003-5": ["ETF"],
 };
 
 /** The desk's hubs an outage zone or a news item's hubs and countries bear on (board order). */
@@ -61,6 +65,31 @@ function isUnplanned(outage: OutageEventDTO): boolean {
   return /unplan|forced|unscheduled/i.test(outage.event_type ?? "");
 }
 
+/** The fields of an outage the native-size rule needs. */
+export interface OutageSizeFields {
+  balancing_zone?: string | null;
+  capacity_impact_mcm_d?: number | null;
+  unavailable_mcm_d?: number | null;
+  unavailable_gwh_d?: number | null;
+}
+
+/**
+ * Capacity removed in the hub's native unit (SMALL_DESK_PLAN section 9): Great Britain in
+ * mcm/d, the continent in GWh/d. One rule for the events list, the fundamentals panel and the
+ * situation strip, so one outage reads the same on every surface. Null when the message has
+ * no figure in that unit; another unit's figure is never substituted.
+ */
+export function outageNativeSize(
+  outage: OutageSizeFields,
+  hubs: readonly string[] = hubsFor([outage.balancing_zone]),
+): { value: number; unit: "mcm/d" | "GWh/d" } | null {
+  const gb = hubs.length === 1 && hubs[0] === "NBP";
+  const value = gb
+    ? outage.capacity_impact_mcm_d ?? outage.unavailable_mcm_d ?? null
+    : outage.unavailable_gwh_d ?? null;
+  return value === null ? null : { value, unit: gb ? "mcm/d" : "GWh/d" };
+}
+
 /**
  * The list, newest first. `bookHubs` are the hubs where the desk holds a position (from the
  * position ladder): an outage there touches the book.
@@ -76,14 +105,13 @@ export function boardEvents(
     if (/ended|cancel|inactive/i.test(outage.status ?? "")) continue;
     outageKeys.add(outage.event_id);
     const hubs = hubsFor([outage.balancing_zone]);
-    const gb = hubs.length === 1 && hubs[0] === "NBP";
-    const value = gb ? outage.capacity_impact_mcm_d ?? null : outage.unavailable_gwh_d ?? null;
+    const size = outageNativeSize(outage, hubs);
     events.push({
       key: `outage:${outage.event_id}`,
       at: outage.published_at_utc ?? outage.start_utc,
       kind: isUnplanned(outage) ? "unplanned" : "planned",
       what: outage.facility_name,
-      size: value === null ? null : { value: -Math.abs(value), unit: gb ? "mcm/d" : "GWh/d" },
+      size: size === null ? null : { value: -Math.abs(size.value), unit: size.unit },
       until: outage.end_utc,
       hubs,
       touchesBook: hubs.some((hub) => bookHubs.has(hub)),

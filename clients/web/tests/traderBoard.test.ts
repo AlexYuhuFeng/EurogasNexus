@@ -30,6 +30,8 @@ import {
   forwardCurves,
   historyProduct,
   intradayPoints,
+  intradaySummary,
+  MIN_INTRADAY_POINTS,
   observationSeries,
   selectionKey,
   spreadHistory,
@@ -258,6 +260,24 @@ test("the detail panel's price series: real history wins, one close a day, today
   assert.deepEqual(today.map((point) => point.value), [32, 30.05]);
   // Only simulated rows: the series says so (drawn with the sim mark, never as a market line).
   assert.equal(observationSeries([obs(1, "2026-11-27T08:00:00Z", "EEX_Sim")], "TTF").simulated, true);
+});
+
+test("the intraday panel needs three prices today: fewer is a calm line, not a chart", () => {
+  const start = "2026-11-27T05:00:00.000Z";
+  const point = (value: number, at: string) => ({ at, value });
+  const live = quote({ product: "month-ahead", close_price: 29.5, observed_at_utc: "2026-11-27T09:59:30Z" });
+  // One stored tick plus the board's mid: two points is not a line.
+  const two = intradaySummary([point(30, "2026-11-26T16:00:00Z"), point(31, "2026-11-27T08:00:00Z")], start, live, "TTF");
+  assert.equal(MIN_INTRADAY_POINTS, 3);
+  assert.equal(two.enough, false);
+  assert.equal(two.points.length, 2);
+  assert.equal(two.last?.value, 30.05, "the last point is the board's mid");
+  assert.equal(two.priorClose, 29.5, "the prior close is the quote's own close");
+  // Three today's prices is enough to draw.
+  const three = intradaySummary([point(30, "2026-11-26T16:00:00Z"), point(31, "2026-11-27T07:00:00Z"), point(31.2, "2026-11-27T08:00:00Z"), point(31.5, "2026-11-27T09:00:00Z")], start, null, "TTF");
+  assert.equal(three.enough, true);
+  assert.equal(three.last?.value, 31.5);
+  assert.equal(three.priorClose, 30, "without a quote close the last held close is stated");
 });
 
 test("the forward curve today against a day and a week ago, and its shape", () => {

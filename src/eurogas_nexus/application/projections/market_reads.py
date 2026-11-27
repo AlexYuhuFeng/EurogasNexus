@@ -437,16 +437,22 @@ def quote_close_rows(who: Any, now: Any) -> list[dict[str, Any]]:
 def _previous_close(
     quote: Mapping[str, Any], closes: Sequence[Mapping[str, Any]], today: Any
 ) -> Mapping[str, Any] | None:
-    """The newest close of the quote's hub and tenor before ``today``, in the quote's basis.
+    """The newest close of the quote's own source, hub and contract before ``today``.
 
-    A provider's close wins over a simulated one; the month-ahead close must be for the same
-    delivery month as the quote (at a month roll the previous M+1 is another contract).
+    A change on the day is only ever the quote against the previous close of the *same*
+    source and the *same* contract (SMALL_DESK_PLAN section 9): a close from another feed
+    is not the quote's earlier price, and at a month roll the previous front month is a
+    different contract whose close says nothing about the new one. When that close is not
+    held the result is ``None`` (the change is left empty), never a substitute close.
     """
 
     from eurogas_nexus.application.projections.daily_closes import _price_unit, per_mwh
 
     hub = str(quote.get("hub") or "").upper()
     tenor = str(quote.get("product") or "").lower()
+    source = quote.get("source_system")
+    if not source:
+        return None
     quote_basis = per_mwh(
         1.0, _price_unit(str(quote.get("currency") or ""), str(quote.get("unit") or ""))
     )
@@ -457,11 +463,15 @@ def _previous_close(
     for row in closes:
         if row.get("hub") != hub or row.get("tenor") != tenor or not row.get("hub_resolved", True):
             continue
+        if row.get("source_system") != source:
+            continue
         if row["day"] >= today or row.get("unit_mwh") != quote_basis[1]:
             continue
-        if tenor == "month-ahead" and delivery is not None:
+        if tenor == "month-ahead":
+            # The contract is the delivery month: without it on both sides the close cannot
+            # be shown to belong to the quote's contract, so it is not used.
             start = _utc(row.get("period_start_utc"))
-            if start is not None and start != delivery:
+            if delivery is None or start is None or start != delivery:
                 continue
         rank = (not row.get("simulated"), row["day"])
         # Rows arrive oldest first, so on a tie the later row (the day's last print) wins.
@@ -483,9 +493,10 @@ def annotate_quotes(
       as ``/api/sources`` reports it); ``freshness_state`` ``FRESH``, ``STALE`` or
       ``UNKNOWN`` (no cadence declared: never read as fresh).
     - ``close_price`` / ``close_day`` / ``close_kind`` / ``close_source_system`` /
-      ``close_simulated``: the newest daily close of the same hub and tenor before today,
-      per MWh in the quote's currency like the bid and ask; else the venue's prior settlement
-      the feed carried on the quote (``close_kind`` ``prior_settlement``, no day stated).
+      ``close_simulated``: the newest daily close of the same source, hub and contract before
+      today, per MWh in the quote's currency like the bid and ask; else the venue's prior
+      settlement the feed carried on the quote (``close_kind`` ``prior_settlement``, no day
+      stated). No close of another source or another contract is ever substituted.
     """
 
     from eurogas_nexus.application.projections.freshness import (

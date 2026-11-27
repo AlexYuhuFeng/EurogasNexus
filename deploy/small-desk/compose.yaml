@@ -168,7 +168,14 @@ services:
     <<: *hardening
     image: ${EUROGAS_NEXUS_API_IMAGE}
     restart: unless-stopped
-    environment: *provider-environment
+    environment:
+      <<: *provider-environment
+      # REMIT urgent market messages are the feed that moves a gas desk fastest. Both
+      # connectors declare 6 requests an hour, so a 10-minute poll is the fastest interval
+      # that stays within it (5 minutes, 12 runs an hour, would exceed it). The reads stay
+      # incremental: IIP pages only the newest submissions and stops at its window.
+      EUROGAS_NEXUS_REMIT_IIP_INTERVAL_SECONDS: "600"
+      EUROGAS_NEXUS_REMIT_ENTSOG_INTERVAL_SECONDS: "600"
     command:
       - python
       - scripts/ops/run_dataops_scheduler.py
