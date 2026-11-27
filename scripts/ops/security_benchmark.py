@@ -46,7 +46,7 @@ def main() -> int:
         )
         results[f"authorize_{role.lower()}_seconds"] = _measure(
             f"authorize_{role}",
-            lambda principal=principal: authorize(principal, Permission.STRATEGY_FREEZE),
+            lambda principal=principal: authorize(principal, Permission.PORTFOLIO_WRITE),
         )
 
     key = generate_api_key(key_id="benchmark-key", display_name="benchmark")
