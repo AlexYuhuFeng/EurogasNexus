@@ -15,6 +15,15 @@ if [ -n "$untracked" ]; then
   exit 1
 fi
 
+# The lint must be the pinned one. A newer ruff sorted an import differently and passed here
+# while hosted CI, which installs from the lock, failed on 2026-11-27.
+pinned_ruff=$(sed -n 's/^ruff==\([0-9.]*\).*/\1/p' requirements.lock | head -1)
+local_ruff=$(python -m ruff --version | awk '{print $2}')
+if [ -n "$pinned_ruff" ] && [ "$pinned_ruff" != "$local_ruff" ]; then
+  echo "Refusing push: ruff $local_ruff is installed but requirements.lock pins $pinned_ruff." >&2
+  echo "Run: python -m pip install ruff==$pinned_ruff" >&2
+  exit 1
+fi
 python -m ruff check .
 python -c "from apps.api.main import app; assert app.openapi()['paths']"
 # Hosted CI installs only from the hash-pinned locks into a clean canonical Python: a dependency

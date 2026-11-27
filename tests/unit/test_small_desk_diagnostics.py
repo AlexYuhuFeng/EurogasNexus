@@ -15,7 +15,12 @@ import pytest
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "deploy" / "small-desk"))
 
 from nexusctl import diagnostics, redact  # noqa: E402
-from nexusctl.settings import FIXED_STACK_VALUES, Settings, generate_secrets, write_env  # noqa: E402
+from nexusctl.settings import (  # noqa: E402
+    FIXED_STACK_VALUES,
+    Settings,
+    generate_secrets,
+    write_env,
+)
 from nexusctl.stack import Result  # noqa: E402
 from nexusctl.status import Finding  # noqa: E402
 

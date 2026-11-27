@@ -49,7 +49,9 @@ NTP_TIMEOUT_SECONDS = 1.5
 _NTP_EPOCH_DELTA = 2_208_988_800
 
 _lock = threading.Lock()
-_state: dict[str, Any] = {"result": None, "checked_at": 0.0, "running": False}
+# ``checked_at`` is None until the first check: the monotonic clock counts from boot, so "0"
+# would read as "checked at boot" and a freshly started PC would skip its first check.
+_state: dict[str, Any] = {"result": None, "checked_at": None, "running": False}
 
 
 class _Timeval(ctypes.Structure):
@@ -224,7 +226,8 @@ def clock_status(*, wait: bool = False) -> dict[str, Any]:
     """
 
     with _lock:
-        due = time.monotonic() - _state["checked_at"] >= CHECK_EVERY_SECONDS
+        checked_at = _state["checked_at"]
+        due = checked_at is None or time.monotonic() - checked_at >= CHECK_EVERY_SECONDS
         start = due and not _state["running"]
         if start:
             _state["running"] = True
@@ -272,7 +275,7 @@ def prometheus_lines() -> str:
 
 def reset_for_tests(result: dict[str, Any] | None = None) -> None:
     with _lock:
-        _state.update(result=result, checked_at=time.monotonic() if result else 0.0,
+        _state.update(result=result, checked_at=time.monotonic() if result else None,
                       running=False)
 
 
