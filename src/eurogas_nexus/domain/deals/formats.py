@@ -32,6 +32,9 @@ FORMATS_DIR_ENV = "EUROGAS_NEXUS_DEAL_FORMATS_DIR"
 BUILTIN_DIR = Path(__file__).resolve().parents[2] / "reference_data" / "deal_formats"
 #: The layout file of the ETRM entry sheet (a different shape: see ``sheet.py``).
 SHEET_FILE = "etrm_entry_sheet.toml"
+#: The desk's other editable files (``reference_data/desk``), read from the same desk folder.
+DESK_DIR = Path(__file__).resolve().parents[2] / "reference_data" / "desk"
+DESK_FILES = ("position_kinds.toml", "trading_calendars.toml")
 #: Code hooks a format may name for what a mapping cannot say; ``mapped_csv`` has none.
 ADAPTERS = ("mapped_csv", "eex", "ice")
 MAX_FORMAT_BYTES = 256 * 1024
@@ -213,7 +216,7 @@ def load_formats(environ: dict[str, str] | None = None) -> tuple[dict[str, DealF
                 errors.append(f"{folder}: folder not found")
             continue
         for path in sorted(folder.glob("*.toml")):
-            if path.name == SHEET_FILE:
+            if path.name == SHEET_FILE or path.name in DESK_FILES:
                 continue
             try:
                 if path.stat().st_size > MAX_FORMAT_BYTES:
@@ -239,6 +242,16 @@ def detect_format(headers: list[str], formats: dict[str, DealFormat]) -> DealFor
             if best is None or score > best[0]:
                 best = (score, item)
     return best[1] if best else None
+
+
+def desk_file_path(name: str, environ: dict[str, str] | None = None) -> Path:
+    """One of the desk's editable files: its copy in the desk folder, else the built-in."""
+
+    for folder in reversed(format_dirs(environ)[1:]):
+        candidate = folder / name
+        if candidate.is_file():
+            return candidate
+    return DESK_DIR / name
 
 
 def sheet_layout_path(environ: dict[str, str] | None = None) -> Path:

@@ -3,7 +3,7 @@
  * share. The server sends money and volume as exact decimal text; these only format it for
  * display in the app's language and never add figures together.
  */
-import type { DealSourceDTO, EodDifferenceDTO } from "../../api/deals.ts";
+import type { DealPositionKindDTO, DealSourceDTO, EodDifferenceDTO } from "../../api/deals.ts";
 import { formatAmount } from "../time/valueFormat.ts";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -24,6 +24,23 @@ export function shownDecimal(text: string | null | undefined, language: string, 
 export function dealSourceText(row: { source: DealSourceDTO }, t: Translate): string {
   if (row.source.kind === "manual") return t("deals.source_manual", { who: row.source.entered_by ?? "" });
   return t("deals.source_file", { file: row.source.file_name ?? "", line: row.source.line ?? "" });
+}
+
+/** Why a deal counts as physical or financial: chosen by hand (by whom), stated, or the rule. */
+export function positionKindText(kind: DealPositionKindDTO | null | undefined, t: Translate): string {
+  if (!kind) return "";
+  switch (kind.basis) {
+    case "entered_by_hand":
+      return t("deals.kind_basis.entered_by_hand", { who: kind.rule ?? "" });
+    case "stated_on_deal":
+      return t("deals.kind_basis.stated_on_deal");
+    case "rule":
+      return kind.rule_kind === "financial_until_delivery"
+        ? t("deals.kind_basis.until_delivery", { rule: kind.rule ?? "" })
+        : t("deals.kind_basis.rule", { rule: kind.rule ?? "" });
+    default:
+      return t("deals.kind_basis.default");
+  }
 }
 
 /** One line for an end-of-day difference: what each side holds (from the check's detail). */

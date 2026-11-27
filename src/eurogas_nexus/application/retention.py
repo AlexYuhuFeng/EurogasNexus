@@ -116,6 +116,7 @@ DATA_CLASSES: tuple[DataClass, ...] = (
             "deal_import_problems",
             "deal_day_closes",
             "daily_packs",
+            "deal_position_kinds",
         ),
         floor_days=SEVEN_YEARS_DAYS,
         legal_basis="REMIT Art. 8 and Implementing Regulation 1348/2014 Art. 9 (records of "

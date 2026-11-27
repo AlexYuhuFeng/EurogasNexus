@@ -154,6 +154,27 @@ class DealDayCloseRecord(Base):
                                                                nullable=True)
 
 
+class DealPositionKindRecord(Base):
+    """A person's choice that a captured deal counts as physical or financial (entered by hand).
+
+    Overrides the rule file (``reference_data/desk/position_kinds.toml``) for that deal key in
+    every version; a later choice supersedes it and the earlier one is kept.
+    """
+
+    __tablename__ = "deal_position_kinds"
+    __table_args__ = (Index("ix_deal_position_kinds_key", "deal_key", "superseded_at_utc"),)
+
+    choice_id: Mapped[str] = mapped_column(String(32), primary_key=True)
+    deal_key: Mapped[str] = mapped_column(String(200), nullable=False)
+    book_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    kind: Mapped[str] = mapped_column(String(16), nullable=False)  # physical | financial
+    note: Mapped[str | None] = mapped_column(String(300), nullable=True)
+    entered_by: Mapped[str] = mapped_column(String(128), nullable=False)
+    entered_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    superseded_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                               nullable=True)
+
+
 class DailyPackRecord(Base):
     """The files of one daily pack queued for e-mail (attached when the outbox row is sent)."""
 

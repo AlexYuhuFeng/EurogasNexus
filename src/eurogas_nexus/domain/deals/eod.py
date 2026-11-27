@@ -190,32 +190,69 @@ def _distance(deal: CapturedSide, row: EtrmSide) -> tuple[Decimal, Decimal]:
     return abs(deal.total_mwh - row.total_mwh), abs(deal.price_per_mwh - row.price_per_mwh)
 
 
-def check(captured: list[CapturedSide], etrm: list[EtrmSide]) -> CheckResult:
-    """Pair captured deals with ETRM trades and list every difference."""
+@dataclass
+class Pairing:
+    """Which captured deal is which ETRM trade: the one same-deal rule (``pair_deals``)."""
 
-    result = CheckResult()
+    #: deal key -> the ETRM trade paired with it.
+    pairs: dict[str, EtrmSide] = field(default_factory=dict)
+    #: deal key -> how the pair was found: ``close`` (recorded at a day's close),
+    #: ``reference`` (the exchange's trade id) or ``terms``.
+    matched_by: dict[str, str] = field(default_factory=dict)
+
+
+def pair_deals(
+    captured: list[CapturedSide],
+    etrm: list[EtrmSide],
+    recorded: dict[str, str] | None = None,
+) -> Pairing:
+    """Pair captured deals with ETRM trades, each at most once: the same-deal rule.
+
+    In order, a captured deal and an ETRM trade are the same deal when:
+
+    1. a day's close recorded them as a pair (``recorded``: deal key -> ETRM trade id);
+    2. the ETRM trade's exchange reference is the deal's venue trade id or deal key;
+    3. else, for an ETRM trade that carries no reference, the same hub, side and delivery
+       period (first and last gas day); among several, the closest volume, then price.
+
+    Live deals are paired by terms first; a cancelled captured deal is then paired by terms
+    only with an ETRM trade no live deal took (the ETRM still holds a deal the desk cancelled:
+    "cancelled, still in the ETRM"). The end-of-day check and the position both use this
+    function, so what the check calls one deal the position counts once.
+    """
+
+    out = Pairing()
+    used: set[int] = set()
+    by_trade = {row.trade_id: row for row in etrm}
+    pending: list[CapturedSide] = []
+    for deal in captured:
+        held = by_trade.get((recorded or {}).get(deal.deal_key, ""))
+        if held is not None and id(held) not in used:
+            used.add(id(held))
+            out.pairs[deal.deal_key] = held
+            out.matched_by[deal.deal_key] = "close"
+        else:
+            pending.append(deal)
     by_reference: dict[str, list[EtrmSide]] = {}
     for row in etrm:
         if row.reference:
             by_reference.setdefault(row.reference.strip().casefold(), []).append(row)
-    used: set[int] = set()
-    pending: list[CapturedSide] = []
-    for deal in captured:
+    unmatched: list[CapturedSide] = []
+    for deal in pending:
         keys = {deal.venue_trade_id.strip().casefold(), deal.deal_key.strip().casefold()}
         candidates = [
-            row for key in keys for row in by_reference.get(key, []) if id(row) not in used
+            row for key in sorted(keys) for row in by_reference.get(key, [])
+            if id(row) not in used
         ]
         if candidates:
-            row = candidates[0]
-            used.add(id(row))
-            result.matched += 1
-            result.pairs[deal.deal_key] = row.trade_id
-            result.differences += _compare(deal, row, by_terms=False)
+            used.add(id(candidates[0]))
+            out.pairs[deal.deal_key] = candidates[0]
+            out.matched_by[deal.deal_key] = "reference"
         else:
-            pending.append(deal)
-    for deal in pending:
-        if deal.status == "cancelled":
-            continue  # a cancelled deal with nothing in the ETRM is as it should be
+            unmatched.append(deal)
+    ordered = [d for d in unmatched if d.status != "cancelled"]
+    ordered += [d for d in unmatched if d.status == "cancelled"]
+    for deal in ordered:
         candidates = [
             row for row in etrm
             if id(row) not in used and not row.reference
@@ -223,6 +260,25 @@ def check(captured: list[CapturedSide], etrm: list[EtrmSide]) -> CheckResult:
             == (deal.hub, deal.side, deal.first_day, deal.last_day)
         ]
         if not candidates:
+            continue
+        row = min(candidates, key=lambda item: (*_distance(deal, item), item.trade_id))
+        used.add(id(row))
+        out.pairs[deal.deal_key] = row
+        out.matched_by[deal.deal_key] = "terms"
+    return out
+
+
+def check(captured: list[CapturedSide], etrm: list[EtrmSide]) -> CheckResult:
+    """Pair captured deals with ETRM trades (``pair_deals``) and list every difference."""
+
+    result = CheckResult()
+    pairing = pair_deals(captured, etrm)
+    used = {id(row) for row in pairing.pairs.values()}
+    for deal in captured:
+        row = pairing.pairs.get(deal.deal_key)
+        if row is None:
+            if deal.status == "cancelled":
+                continue  # a cancelled deal with nothing in the ETRM is as it should be
             result.differences.append({
                 "id": difference_id("missing_in_etrm", deal.deal_key, None),
                 "kind": "missing_in_etrm", "deal_key": deal.deal_key, "etrm_trade_id": None,
@@ -230,12 +286,11 @@ def check(captured: list[CapturedSide], etrm: list[EtrmSide]) -> CheckResult:
                 "captured": _captured_view(deal), "etrm": None, "detail": {},
             })
             continue
-        row = min(candidates, key=lambda item: _distance(deal, item))
-        used.add(id(row))
+        by_terms = pairing.matched_by[deal.deal_key] == "terms"
         result.matched += 1
-        result.matched_by_terms += 1
+        result.matched_by_terms += 1 if by_terms else 0
         result.pairs[deal.deal_key] = row.trade_id
-        result.differences += _compare(deal, row, by_terms=True)
+        result.differences += _compare(deal, row, by_terms=by_terms)
     for row in etrm:
         if id(row) in used:
             continue

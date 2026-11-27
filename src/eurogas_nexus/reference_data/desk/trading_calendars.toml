@@ -1,0 +1,47 @@
+# Weekdays on which an exchange the desk trades on is closed (exchange holidays).
+#
+# MAINTAINED BY HAND. Nothing reads these from the exchanges. Each venue's list comes from the
+# public trading calendar named in `source`; `checked = false` means nobody has yet compared the
+# list with that calendar for the years given, so do that (and set it to true) before relying
+# on it. Add the next year before it starts: a year not listed under `years` is treated as
+# Monday to Friday, and the daily pack says the calendar does not cover it.
+#
+# A desk copy of this file (same file name) in the folder named by
+# EUROGAS_NEXUS_DEAL_FORMATS_DIR replaces this one.
+#
+# Used by the daily pack's check "no deals on a trading day": a day is a trading day when it is
+# a weekday and at least one venue below is open. Saturdays and Sundays are never trading days
+# for the desk's derivatives (exchange spot markets trade every day and are not listed).
+
+years = [2026, 2027]
+
+[venue.EEX]
+title = "EEX natural gas derivatives"
+source = "EEX trading calendar, derivatives market (eex.com, Trading Calendar)"
+checked = false
+non_trading_days = [
+    "2026-01-01",  # New Year's Day
+    "2026-04-03",  # Good Friday
+    "2026-04-06",  # Easter Monday
+    "2026-05-01",  # Labour Day
+    "2026-12-24",  # Christmas Eve
+    "2026-12-25",  # Christmas Day
+    "2026-12-31",  # New Year's Eve
+    "2027-01-01",  # New Year's Day
+    "2027-03-26",  # Good Friday
+    "2027-03-29",  # Easter Monday
+    "2027-12-24",  # Christmas Eve
+    "2027-12-31",  # New Year's Eve
+]
+
+[venue.ICE]
+title = "ICE Endex and ICE Futures Europe gas futures"
+source = "ICE holiday schedule for ICE Futures Europe and ICE Endex (ice.com, Holidays)"
+checked = false
+non_trading_days = [
+    "2026-01-01",  # New Year's Day
+    "2026-04-03",  # Good Friday
+    "2026-12-25",  # Christmas Day
+    "2027-01-01",  # New Year's Day
+    "2027-03-26",  # Good Friday
+]

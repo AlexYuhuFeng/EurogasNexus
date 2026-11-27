@@ -36,6 +36,8 @@ class LimitRows:
     books: list[tuple[str, ...]] = field(default_factory=list)
     #: Newest daily close behind the marks (ISO date), for the figures' method notes.
     marks_as_of: str | None = None
+    #: "desk estimate, before ETRM close" while captured deals of an open day are in it.
+    estimate_label: str | None = None
 
 
 def latest_close_day(closes: dict) -> str | None:
@@ -68,6 +70,8 @@ class CreditInputs:
     closes: dict = field(default_factory=dict)
     #: ``valuation(currency, as_of)``: forward FX and discounting (``LadderInputs.valuation``).
     valuation: Any = None
+    #: "desk estimate, before ETRM close" while captured deals of an open day are in it.
+    estimate_label: str | None = None
 
 
 def credit_inputs(caller: Caller, today: date) -> CreditInputs:
@@ -88,16 +92,14 @@ def credit_inputs(caller: Caller, today: date) -> CreditInputs:
     inputs = ladder_inputs(caller, today, start - timedelta(days=lookback), end)
     legs_by_ref = {leg.reference: leg for leg in inputs.legs}
     etrm_by_name: dict[str, list[str]] = {}
-    from eurogas_nexus.application.position_inputs import overlay_counterparties
-
-    captured = overlay_counterparties()
+    captured = inputs.captured_counterparties
     for order in inputs.orders:
         if str(order.provider_id).upper() == "ETRM":
             etrm_by_name.setdefault(order.account_label.casefold(), []).append(
                 order.order_observation_id
             )
         elif order.order_observation_id in captured and captured[order.order_observation_id]:
-            # A captured bilateral deal (the daily pack's overlay) faces its counterparty.
+            # A captured bilateral deal faces its counterparty (``captured_position``).
             etrm_by_name.setdefault(
                 captured[order.order_observation_id].casefold(), []
             ).append(order.order_observation_id)
@@ -171,6 +173,7 @@ def credit_inputs(caller: Caller, today: date) -> CreditInputs:
         simulated_marks=demo_marks_allowed(),
         closes=inputs.closes,
         valuation=inputs.valuation,
+        estimate_label=inputs.estimate_label,
     )
 
 
@@ -235,7 +238,8 @@ def credit_exposure_rows(caller: Caller, today: date) -> LimitRows:
     if refused is not None:
         return refused
     built = credit_inputs(caller, today)
-    result = LimitRows(warnings=built.warnings, marks_as_of=built.marks_as_of)
+    result = LimitRows(warnings=built.warnings, marks_as_of=built.marks_as_of,
+                       estimate_label=built.estimate_label)
     newest = date.fromisoformat(built.marks_as_of) if built.marks_as_of else None
     for item in built.lines:
         row = credit_exposure(
@@ -335,7 +339,7 @@ def mandate_usage_rows(caller: Caller, today: date) -> LimitRows:
         session.expunge_all()
     inputs = ladder_inputs(caller, today, start, end)
     legs = mandate_legs(inputs, today)
-    result = LimitRows(warnings=list(inputs.warnings))
+    result = LimitRows(warnings=list(inputs.warnings), estimate_label=inputs.estimate_label)
     for record in records:
         mandate = mandate_of(record)
         elsewhere = books_elsewhere(records, record)

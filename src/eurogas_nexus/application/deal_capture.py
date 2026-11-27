@@ -29,13 +29,11 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
+from eurogas_nexus.application.captured_position import ESTIMATE_LABEL
 from eurogas_nexus.domain.deals.formats import DealFormat, FormatError
 from eurogas_nexus.domain.deals.record import FIELDS, CanonicalDeal, RowProblem
 
 MAX_FILE_BYTES = 16 * 1024 * 1024
-#: The provider id captured deals carry when laid over the book (``position_inputs``).
-OVERLAY_PROVIDER = "DEAL_CAPTURE"
-ESTIMATE_LABEL = "desk estimate, before ETRM close"
 
 
 class DealCaptureError(ValueError):
@@ -488,6 +486,51 @@ def _record_fields(record) -> dict[str, str]:
     }  # fmt: skip
 
 
+def set_position_kind(session, caller, deal_key: str, *, kind: str | None,
+                      note: str | None = None, now: datetime | None = None) -> dict[str, Any]:
+    """Count a captured deal as physical or financial by a person's choice (or withdraw it).
+
+    The choice holds for every version of the deal, is recorded with who made it and when (the
+    earlier choice is kept, superseded), is shown as entered by hand wherever the deal's kind
+    is shown, and is audited. ``kind`` ``None`` withdraws it: the rule file decides again.
+    """
+
+    from eurogas_nexus.db.models import CapturedDealRecord, DealPositionKindRecord
+    from eurogas_nexus.db.repositories.audit import record_audit_event
+
+    now = now or datetime.now(UTC)
+    if kind not in (None, "physical", "financial"):
+        raise DealCaptureError("kind_invalid", "kind is physical or financial")
+    current = (
+        session.query(CapturedDealRecord)
+        .filter(CapturedDealRecord.deal_key == deal_key,
+                CapturedDealRecord.superseded_at_utc.is_(None))
+        .one_or_none()
+    )
+    if current is None:
+        raise DealCaptureError("deal_not_found", "no such deal in your books", status=404)
+    actor = actor_of(caller)
+    for held in session.query(DealPositionKindRecord).filter(
+            DealPositionKindRecord.deal_key == deal_key,
+            DealPositionKindRecord.superseded_at_utc.is_(None)):
+        held.superseded_at_utc = now
+    if kind is not None:
+        session.add(DealPositionKindRecord(
+            choice_id=uuid.uuid4().hex, deal_key=deal_key, book_id=current.book_id, kind=kind,
+            note=(note or None) and note[:300], entered_by=actor, entered_at_utc=now,
+        ))
+    record_audit_event(
+        session, event_type="desk.deal_capture", principal=actor,
+        action="deals.position_kind", resource=f"deal:{deal_key}",
+        outcome=kind or "withdrawn", now_utc=now,
+        detail=(f"counted as {kind} by hand" if kind else "choice withdrawn; the rule decides")
+        + (f": {note[:200]}" if note else ""),
+    )
+    session.flush()
+    return {"deal_key": deal_key, "kind": kind, "entered_by": actor,
+            "entered_at_utc": now.isoformat()}
+
+
 def resolve_problem(session, caller, problem_id: str, *, note: str, now: datetime | None = None
                     ) -> dict[str, Any]:
     """Mark an unreadable row as dealt with (entered by hand, or not a deal), audited."""
@@ -569,8 +612,12 @@ def deal_row(record, versions: int = 1) -> dict[str, Any]:
     }  # fmt: skip
 
 
-def sheet_values(record) -> dict[str, Any]:
-    """A deal's values as the ETRM entry sheet layout names them (typed, not text)."""
+def sheet_values(record, kind: dict[str, Any] | None = None) -> dict[str, Any]:
+    """A deal's values as the ETRM entry sheet layout names them (typed, not text).
+
+    ``kind`` is the deal's position classification (``position_kinds``): the sheet's
+    ``physical`` column follows it, so the ETRM receives what the position counts.
+    """
 
     return {
         "deal_key": record.deal_key, "venue": record.venue,
@@ -584,7 +631,8 @@ def sheet_values(record) -> dict[str, Any]:
         "volume_unit": record.volume_unit, "total_mwh": Decimal(record.total_mwh),
         "price": Decimal(record.price), "price_unit": record.price_unit,
         "price_currency": record.price_currency, "price_per_mwh": price_per_mwh(record),
-        "physical": record.physical, "instrument": record.instrument,
+        "physical": (kind["kind"] == "physical") if kind else record.physical,
+        "instrument": record.instrument,
         "fees": Decimal(record.fees) if record.fees is not None else None,
         "fee_currency": record.fee_currency, "book": record.book_id or "",
         "source": source_text(record), "version": record.version, "status": record.status,
@@ -727,9 +775,11 @@ def blotter(session, *, day: date, trader: str | None = None, hub: str | None = 
     versions = _version_counts(session, [r.deal_key for r in shown])
     problems = [row for row in open_problems(session, day)
                 if not book_id or row.book_id == book_id]
+    kinds = position_kinds(session, shown, day)
     return {
         "business_date": day.isoformat(),
-        "deals": [deal_row(r, versions.get(r.deal_key, 1)) for r in shown],
+        "deals": [{**deal_row(r, versions.get(r.deal_key, 1)),
+                   "position_kind": kinds.get(r.deal_key)} for r in shown],
         "unreadable": [problem_row(row) for row in problems],
         "totals": totals(shown),
         "counts": {
@@ -742,6 +792,27 @@ def blotter(session, *, day: date, trader: str | None = None, hub: str | None = 
         "choices": choices,
         "status": day_status(session, day, records),
     }
+
+
+def position_kinds(session, records, day: date) -> dict[str, dict[str, Any]]:
+    """Per deal, how it counts in the position on ``day``: physical or financial, and why
+    (entered by hand, stated on the deal, the rule file's rule, or its default)."""
+
+    from eurogas_nexus.application.captured_position import kind_rules, overrides
+    from eurogas_nexus.domain.deals.position import classify
+
+    rules, _warning = kind_rules()
+    chosen = overrides(session, [record.deal_key for record in records])
+    out = {}
+    for record in records:
+        kind = classify(record, day, rules, chosen.get(record.deal_key))
+        note = chosen.get(record.deal_key)
+        out[record.deal_key] = {
+            **kind.as_dict(),
+            "entered_at_utc": note.entered_at_utc.isoformat() if note is not None else None,
+            "note": note.note if note is not None else None,
+        }
+    return out
 
 
 def deal_history(session, deal_key: str) -> list[dict[str, Any]]:
@@ -770,7 +841,8 @@ def etrm_sheet(session, *, day: date, file_format: str) -> tuple[bytes, str, str
 
     layout = sheet_layout()
     records = current_deals(session, day=day)
-    values = [sheet_values(record) for record in records]
+    kinds = position_kinds(session, records, day)
+    values = [sheet_values(record, kinds.get(record.deal_key)) for record in records]
     name = f"etrm-entry-{day.isoformat()}"
     if file_format == "xlsx":
         about = [("Business date", day.isoformat()), ("Layout", layout.title),
@@ -817,7 +889,8 @@ def read_etrm_export(text: str, layout) -> tuple[list, list[dict[str, Any]], int
         csv.writer(buffer, lineterminator="\n").writerows([header, raw])
         try:
             parsed = parse_etrm_trades(buffer.getvalue(), system=layout.etrm_system,
-                                       source_reference=f"eod-check:{line}")
+                                       source_reference=f"eod-check:{line}",
+                                       reference_column=layout.etrm_reference_column or None)
         except EtrmImportError as exc:
             unreadable.append({"line": line, "message": str(exc),
                                "code": getattr(exc, "reason_code", "etrm_row_invalid")})
@@ -1166,68 +1239,6 @@ def day_pnl(session, caller, *, day: date, now: datetime | None = None) -> dict[
                    "month): (mark − price) × MWh per delivery month; day P&L is the change "
                    "since the previous close. Fees apart."),
     }
-
-
-# ----------------------------------------------------------------------------- overlay
-
-
-def overlay_orders(session, day: date) -> tuple[list, dict[str, str], dict[str, str], int]:
-    """Captured live deals not yet in the ETRM book, shaped as screen orders for the ladder.
-
-    A deal leaves the overlay when a close paired it with an ETRM trade that is now loaded
-    in the book (``etrm-<system>-<trade id>``). Returns the orders, their books, their
-    counterparties and how many deals were left out because their ETRM twin is loaded.
-    """
-
-    from eurogas_nexus.db.models import DealDayCloseRecord, ScreenOrderObservationRecord
-    from eurogas_nexus.domain.market.gas_day import gas_day_start_for_date
-    from eurogas_nexus.domain.market_positioning import ScreenOrderObservation
-    from eurogas_nexus.domain.ontology.boundary import check_boundary
-
-    pairs: dict[str, str] = {}
-    system = "ETRM"
-    for row in session.query(DealDayCloseRecord).filter(
-            DealDayCloseRecord.superseded_at_utc.is_(None)).all():
-        figures = row.figures or {}
-        system = figures.get("etrm_system") or system
-        for key, trade in (figures.get("pairs") or {}).items():
-            system_key = "".join(ch for ch in str(figures.get("etrm_system") or "ETRM").upper()
-                                 if ch.isalnum())[:16] or "ETRM"
-            pairs[key] = f"etrm-{system_key.lower()}-{trade}"[:64]
-    loaded = {
-        oid for (oid,) in session.query(ScreenOrderObservationRecord.order_observation_id)
-        .filter(ScreenOrderObservationRecord.order_observation_id.in_(list(pairs.values())))
-        .all()
-    } if pairs else set()
-    orders, books, counterparties, left_out = [], {}, {}, 0
-    for record in current_deals(session, until=day):
-        if record.status != "live" or record.delivery_end < day:
-            continue
-        if pairs.get(record.deal_key) in loaded:
-            left_out += 1
-            continue
-        market = check_boundary(market=record.hub, gas_hub_required=True).market
-        calendar = market.calendar if market else "EU-CAM-UTC-2025"
-        start = gas_day_start_for_date(record.delivery_start, calendar)
-        end = gas_day_start_for_date(record.delivery_end + timedelta(days=1), calendar)
-        oid = f"capture-{record.deal_key}"[:128]
-        orders.append(ScreenOrderObservation(
-            order_observation_id=oid, provider_id=OVERLAY_PROVIDER, venue=record.venue,
-            account_label=record.trader, external_order_id=record.venue_trade_id,
-            side="BUY" if record.side == "buy" else "SELL", order_type=record.instrument,
-            hub=record.hub, product=record.product, contract_code=record.deal_key[:128],
-            delivery_start_utc=start.isoformat(), delivery_end_utc=end.isoformat(),
-            price=float(price_per_mwh(record)), currency=record.price_currency,
-            unit=f"{record.price_currency}/MWh", quantity_mwh=float(record.total_mwh),
-            filled_quantity_mwh=float(record.total_mwh), remaining_quantity_mwh=0.0,
-            status="FILLED", observed_at_utc=(record.trade_time_utc or record.recorded_at_utc
-                                              ).isoformat(),
-            source_system=OVERLAY_PROVIDER, source_reference=source_text(record)[:128],
-        ))
-        books[oid] = record.book_id or ""
-        if record.counterparty and not record.cleared:
-            counterparties[oid] = record.counterparty
-    return orders, books, counterparties, left_out
 
 
 # ----------------------------------------------------------------------------- watched folder

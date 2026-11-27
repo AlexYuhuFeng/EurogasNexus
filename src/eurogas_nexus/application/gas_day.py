@@ -304,12 +304,14 @@ def trade_lines(inputs, days: list[date], today: date) -> list[tuple[date, GasDa
     from eurogas_nexus.domain.market.gas_day import gas_day_label, gas_day_start_for_date
 
     orders = {order.order_observation_id: order for order in inputs.orders}
+    captured_bilateral = getattr(inputs, "captured_counterparties", None) or {}
     prompt_starts = {gas_day_start_for_date(day) for day in days}
     out: list[tuple[date, GasDayLine]] = []
     prompt: dict[tuple, dict] = {}
     for leg in inputs.legs:
-        # A hedge recorded on a cargo is not a booked trade: the trade, when booked, is.
-        if leg.kind != "financial" or leg.from_cargo:
+        # A hedge recorded on a cargo is not a booked trade: the trade, when booked, is. A
+        # captured deal is a booked trade whether it counts as physical or financial.
+        if leg.from_cargo or (leg.kind != "financial" and leg.source != "capture"):
             continue
         order = orders.get(leg.reference)
         simulated = bool(order is not None and str(order.source_system).endswith("_Sim"))
@@ -322,7 +324,9 @@ def trade_lines(inputs, days: list[date], today: date) -> list[tuple[date, GasDa
         )
         direction = IN if leg.mwh_per_day > 0 else OUT
         provider = str(getattr(order, "provider_id", "") or "").upper()
-        venue = "bilateral" if provider == "ETRM" else "exchange"
+        # A captured bilateral (not cleared) deal names its counterparty: bilateral too.
+        bilateral = provider == "ETRM" or leg.reference in captured_bilateral
+        venue = "bilateral" if bilateral else "exchange"
         for day in days:
             if not leg.first_gas_day <= day <= leg.last_gas_day:
                 continue

@@ -21,7 +21,7 @@
 import { useCallback, useEffect, useSyncExternalStore } from "react";
 
 import { api, type DeskTodayDTO } from "@/api/client";
-import { useLiveTopics } from "@/app/hooks/useLive";
+import { DEAL_LIVE_MS, DEAL_TOPICS, useLiveTopics } from "@/app/hooks/useLive";
 import { useApiStore } from "@/stores/api";
 
 export interface DeskTodayRead {
@@ -165,5 +165,8 @@ export function useDeskToday(enabled = true): DeskTodayRead {
     enabled,
     minIntervalMs: DESK_TODAY_LIVE_MS,
   });
+  // A captured deal changes the book row at once, past the price throttle, and never joins a
+  // read that started before it (small-desk plan section 5).
+  useLiveTopics(DEAL_TOPICS, () => void loadDeskToday(key, true), { enabled, minIntervalMs: DEAL_LIVE_MS });
   return { ...snapshot, loading: enabled ? snapshot.loading || (!snapshot.today && !snapshot.error) : snapshot.loading, refresh };
 }

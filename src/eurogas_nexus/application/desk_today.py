@@ -246,6 +246,9 @@ def _compose_today(session, caller, now, balance_reader, read, price_book) -> di
         "simulated_notice": "Source: simulated figures." if simulated
         else None,
         "rows": rows,
+        # "desk estimate, before ETRM close" while the book holds captured deals of a day not
+        # yet closed against the ETRM (``captured_position``); None otherwise.
+        "position_estimate": getattr(book.inputs, "estimate_label", None),
         # The hubs the page is about: the book's, then the board's (or the user's own list).
         "focus_hubs": focus,
         "stale_figures": stale,
@@ -989,6 +992,9 @@ def _book_row(today: date, book: _Book, prices: dict, read: _Read) -> dict[str, 
         "horizon_months": BOOK_HORIZON_MONTHS,
         "populated": True,
         "empty": None,
+        # Captured deals on a day not yet closed against the ETRM: the positions are the
+        # desk's estimate, and say so ("desk estimate, before ETRM close").
+        "estimate_label": getattr(book.inputs, "estimate_label", None),
     }
 
 

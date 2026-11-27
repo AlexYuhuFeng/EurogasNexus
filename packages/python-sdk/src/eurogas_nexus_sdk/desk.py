@@ -76,6 +76,8 @@ class DeskToday(BaseModel):
         stale_figures: Every late or stale figure by name.
         warnings: Non-blocking warnings.
         notes: The same warnings as declared notes (``code``, ``params``, ``text``), once each.
+        position_estimate: "desk estimate, before ETRM close" while the book holds captured
+            deals of a day not yet closed against the ETRM; None otherwise.
     """
 
     model_config = ConfigDict(extra="allow")
@@ -91,6 +93,7 @@ class DeskToday(BaseModel):
     stale_figures: list[StaleFigure] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
     notes: list[DeskNote] = Field(default_factory=list)
+    position_estimate: str | None = None
 
     def row(self, key: RowKey) -> dict[str, Any] | None:
         """The row named ``key``, or None when the server did not return it."""

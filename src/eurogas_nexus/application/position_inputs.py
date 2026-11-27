@@ -5,15 +5,14 @@ failure into a 503; a worker (monitoring) calls these functions with a firm call
 
 One place builds what the position ladder, credit exposure, mandate usage and LNG cargo
 bids all read: the caller's contracts (portfolio isolation applied, retired contracts left
-out) and filled trades as legs, and the forward-curve marks with the latest-close fallback.
+out) and filled trades as legs, the deals captured from the exchange exports and by hand
+(``application/captured_position``: a deal and its ETRM trade counted once, physical or
+financial by the rule file), and the forward-curve marks with the latest-close fallback.
 Keeping it here, not inside one router, means the risk reads cannot drift from the ladder.
 """
 
 from __future__ import annotations
 
-from collections.abc import Iterator
-from contextlib import contextmanager
-from contextvars import ContextVar
 from dataclasses import dataclass, field
 from typing import Any
 
@@ -24,37 +23,8 @@ from eurogas_nexus.domain.ontology.identity import resolve_hub
 from eurogas_nexus.domain.ontology.markets import european_gas_hubs, quote_currency
 
 HUB_CODES = european_gas_hubs()
-
-#: Deals captured today and not yet in the ETRM book, laid over the book for one calculation
-#: (the daily pack's desk estimate): screen-order-shaped observations with provider
-#: ``DEAL_CAPTURE``, their books and counterparties. Empty everywhere else, so no other screen
-#: changes (``application/deal_capture.overlay``).
-_OVERLAY: ContextVar[tuple[list, dict[str, str], dict[str, str]] | None] = ContextVar(
-    "eurogas_deal_overlay", default=None
-)
-
-
-@contextmanager
-def captured_overlay(
-    orders: list, books: dict[str, str], counterparties: dict[str, str]
-) -> Iterator[None]:
-    """Lay captured deals over the book for the calculations inside the block."""
-
-    token = _OVERLAY.set((list(orders), dict(books), dict(counterparties)))
-    try:
-        yield
-    finally:
-        _OVERLAY.reset(token)
-
-
-def overlay_counterparties() -> dict[str, str]:
-    """Per overlaid deal reference, its counterparty (credit exposure faces it)."""
-
-    held = _OVERLAY.get()
-    return held[2] if held else {}
 HUB_CURRENCY = {code: quote_currency(code) for code in HUB_CODES}
 CURVE_QUOTE_LOOKBACK_DAYS = 10
-
 
 
 #: The warning a ladder read carries when simulated prices value it (said once, as its source).
@@ -642,6 +612,21 @@ class LadderInputs:
     #: The FX reference rates, licensed forwards and benchmark fixings the caller may read
     #: (``market_normalisation.load_holdings``), for a forward, discounted valuation.
     fx_holdings: Any = None
+    #: The captured deals in this read (``captured_position.CapturedBook``): which count,
+    #: which ETRM trades they stand for, physical or financial, and whether it is an estimate.
+    captured: Any = None
+
+    @property
+    def estimate_label(self) -> str | None:
+        """"desk estimate, before ETRM close" while a counted captured deal's day is open."""
+
+        return getattr(self.captured, "label", None)
+
+    @property
+    def captured_counterparties(self) -> dict[str, str]:
+        """Per captured order id, the counterparty of a bilateral deal (credit faces it)."""
+
+        return dict(getattr(self.captured, "counterparties", None) or {})
 
     def valuation(self, reporting_currency: str, as_of):
         """Forward FX and discounting for a mark-to-market in ``reporting_currency``
@@ -785,10 +770,16 @@ def ladder_inputs(
         identity = load_resolver(session)
         eur_rates = ecb_rates(session)
         orders = screen_orders(session, principal_id=caller.principal_id)
-    overlay = _OVERLAY.get()
-    if overlay is not None:
-        orders = [*orders, *overlay[0]]
-        order_books = {**order_books, **overlay[1]}
+        # Captured deals (the one position source for them): each deal and its ETRM trade
+        # count once, whatever order they arrived in (``captured_position``).
+        from eurogas_nexus.application.captured_position import captured_book
+
+        captured = captured_book(session, today, horizon_start, orders, order_books)
+    if captured.suppressed:
+        orders = [o for o in orders if o.order_observation_id not in captured.suppressed]
+    orders = [*orders, *captured.orders]
+    order_books = {**order_books, **captured.books}
+    warnings += captured.warnings
     from eurogas_nexus.domain.contracts import kinds
 
     cargo_contracts: dict[str, str] = {}  # cargo id -> the contract leg that already holds it
@@ -885,7 +876,9 @@ def ladder_inputs(
         currency_matches = (order.currency or "").upper() == HUB_CURRENCY.get(hub, "EUR")
         legs.append(
             PositionLeg(
-                kind="financial",
+                # A captured deal (or the ETRM trade standing for one) is physical or
+                # financial by its classification; any other trade is financial.
+                kind=captured.kinds.get(order.order_observation_id, "financial"),
                 hub=hub,
                 first_gas_day=first,
                 last_gas_day=last,
@@ -896,7 +889,7 @@ def ladder_inputs(
                 price_currency=None if currency_matches else (order.currency or "").upper(),
                 reference=order.order_observation_id,
                 book_id=order_books.get(order.order_observation_id, ""),
-                source="trade",
+                source="capture" if order.provider_id == "DEAL_CAPTURE" else "trade",
                 label=" ".join(
                     part for part in (str(order.venue or ""), str(order.side or "").lower(), hub)
                     if part
@@ -1000,6 +993,7 @@ def ladder_inputs(
     except Exception:  # noqa: BLE001 - the valuation then says it is spot and undiscounted
         fx_holdings = None
     return LadderInputs(
+        captured=captured,
         fx_holdings=fx_holdings,
         legs=legs,
         warnings=warnings,

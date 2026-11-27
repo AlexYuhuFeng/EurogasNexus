@@ -8197,5 +8197,22 @@
   "board.events.licensed_none": "No licensed headline service is registered.",
   "board.events.age_min": "{{count}} min ago",
   "board.events.age_h": "{{count}} h ago",
-  "board.events.age_d": "{{count}} d ago"
+  "board.events.age_d": "{{count}} d ago",
+  "position.estimate": "Desk estimate, before ETRM close",
+  "position.captured_title": "Captured deals in it ({{count}}), in desk units",
+  "position.physical_desk": "Physical",
+  "position.financial_desk": "Financial",
+  "position.net_desk": "Net",
+  "position.not_valued": "Not valued, no price held: {{deals}}",
+  "deals.col.position_kind": "In position as",
+  "deals.kind.physical": "Physical",
+  "deals.kind.financial": "Financial",
+  "deals.kind.by_rule": "By the rule",
+  "deals.kind.physical_hand": "Physical (by hand)",
+  "deals.kind.financial_hand": "Financial (by hand)",
+  "deals.kind_basis.entered_by_hand": "Set by hand by {{who}}",
+  "deals.kind_basis.stated_on_deal": "Stated on the deal",
+  "deals.kind_basis.rule": "By rule: {{rule}}",
+  "deals.kind_basis.until_delivery": "By rule: {{rule}} (physical from its first delivery day)",
+  "deals.kind_basis.default": "By the rule file's default"
 }

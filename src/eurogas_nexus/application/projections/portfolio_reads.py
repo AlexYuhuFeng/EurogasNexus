@@ -131,6 +131,7 @@ def screen_order_from_row(row: object) -> ScreenOrderObservation:
         linked_resource_id=row.linked_resource_id,
         research_only=row.research_only,
         human_review_required=row.human_review_required,
+        exchange_reference=getattr(row, "exchange_reference", None),
     )
 
 

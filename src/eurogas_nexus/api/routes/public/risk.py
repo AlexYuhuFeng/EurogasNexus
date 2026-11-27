@@ -88,7 +88,8 @@ def _download(rows: list[dict], *, report: str, title: str, format: str, warning
 
 
 @router.get("/api/portfolio/credit-exposure")
-@warm_view(ViewSpec("portfolio.credit_exposure", max_age_seconds=60), skip=not_json)
+@warm_view(ViewSpec("portfolio.credit_exposure", max_age_seconds=60, follows_deals=True),
+           skip=not_json)
 def get_credit_exposure(request: Request, format: str = Query("json", pattern=_FORMAT)):
     """Exposure to each counterparty with an approved credit line, against its limit.
 
@@ -109,7 +110,8 @@ def get_credit_exposure(request: Request, format: str = Query("json", pattern=_F
 
 
 @router.get("/api/portfolio/mandate-usage")
-@warm_view(ViewSpec("portfolio.mandate_usage", max_age_seconds=60), skip=not_json)
+@warm_view(ViewSpec("portfolio.mandate_usage", max_age_seconds=60, follows_deals=True),
+           skip=not_json)
 def get_mandate_usage(request: Request, format: str = Query("json", pattern=_FORMAT)):
     """Each trader's open positions against their mandate: size, hubs, tenor and products.
 
@@ -139,7 +141,9 @@ def _limits_report(request: Request, format: str, compute, *, report: str, title
         raise _db_unavailable(exc) from exc
     warnings = [*result.warnings, *_scope_note()]
     if format != "json":
-        return _download(result.rows, report=report, title=title, format=format, warnings=warnings)
+        label = getattr(result, "estimate_label", None)
+        return _download(result.rows, report=report, title=title, format=format,
+                         warnings=[label, *warnings] if label else warnings)
     from eurogas_nexus.domain.risk.method_notes import method_note
 
     # NUM-05: every figure says what it is and leaves out (one registry for the wording).
@@ -155,7 +159,10 @@ def _limits_report(request: Request, format: str, compute, *, report: str, title
         rows = _with_limit_provenance(report, rows)
     except _sqlalchemy_error_type() as exc:
         raise _db_unavailable(exc) from exc
-    return _env({"rows": rows, "as_of": today.isoformat()}, request, "runtime-postgresql", warnings)
+    data = {"rows": rows, "as_of": today.isoformat(),
+            # Captured deals of a day not closed against the ETRM are in these figures.
+            "estimate_label": getattr(result, "estimate_label", None)}
+    return _env(data, request, "runtime-postgresql", warnings)
 
 
 def _with_limit_provenance(report: str, rows: list[dict]) -> list[dict]:
@@ -516,7 +523,7 @@ class HedgeApprovalRequest(BaseModel):
 
 
 @router.get("/api/portfolio/hedge-approvals")
-@warm_view(ViewSpec("portfolio.hedge_approvals", max_age_seconds=60))
+@warm_view(ViewSpec("portfolio.hedge_approvals", max_age_seconds=60, follows_deals=True))
 def get_hedge_approvals(request: Request) -> dict:
     """Each approved deal's hedge band against the cover its linked trades give, by month.
 
@@ -909,7 +916,8 @@ def post_lng_cargo_bid(body: CargoBidBody, request: Request) -> dict:
 
 
 @router.get("/api/portfolio/daily-balance")
-@warm_view(ViewSpec("portfolio.daily_balance", max_age_seconds=60), skip=not_json)
+@warm_view(ViewSpec("portfolio.daily_balance", max_age_seconds=60, follows_deals=True),
+           skip=not_json)
 def get_daily_balance(
     request: Request,
     hub: str = Query("NBP", min_length=2, max_length=16),
