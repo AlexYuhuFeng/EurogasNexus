@@ -37,4 +37,8 @@
     of valid contracts in execution, not a typed contract id). Manual entry stays possible where
     it is needed, and the result then states which inputs were entered by hand. Changing a data
     source (a licensed vessel feed instead of public AIS) changes accuracy, never the
-    calculation. See `docs/product/UX_REFERENCE.md`.
+    calculation. See `docs/product/UX_REFERENCE.md`. What the desk needs and is publicly
+    published, the product fetches from where it is published, when it is published, only where
+    the publisher's terms allow storing it (recorded in `docs/legal/DATA_SOURCE_TERMS.md`), and
+    tells the desk; what may not be fetched is kept by hand, marked so, with a dated reminder to
+    check it against the publisher's page (owner, 2026-11-28).
