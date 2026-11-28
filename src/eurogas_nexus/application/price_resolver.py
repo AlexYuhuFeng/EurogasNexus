@@ -283,6 +283,16 @@ def quote_candidates(
     return out
 
 
+def _published_detail(metadata: dict) -> str:
+    """``published <kind> of <day>`` for a price fetched from its publisher."""
+
+    kind = {"reference_index": "reference index", "daily_price": "daily price"}.get(
+        str(metadata.get("price_kind")), "price")
+    publisher = metadata.get("publisher") or ""
+    return (f"published {kind} of {metadata.get('price_day')}"
+            + (f" ({publisher})" if publisher else ""))
+
+
 def observation_candidates(
     session,
     *,
@@ -365,6 +375,8 @@ def observation_candidates(
             if versions is not None:
                 versions[str(record.observation_id)] = version
         metadata = record.metadata_json or {}
+        if metadata.get("price_kind") == "imbalance_price":
+            continue  # a TSO's cash-out price prices no contract (My gas day reads it)
         stated = metadata.get("hub") or record.product
         resolution = resolved.get(stated)
         if resolution is None:
@@ -395,7 +407,10 @@ def observation_candidates(
                 simulated=bool(metadata.get("simulated"))
                 or str(record.source_system).endswith("_Sim"),
                 reference=record.observation_id,
-                detail="settlement" if metadata.get("settlement") else "close",
+                # A figure fetched from its publisher (an index, a daily price) says what it
+                # is and its day, so no reader takes it for a settlement or a live price.
+                detail=(_published_detail(metadata) if metadata.get("public_price")
+                        else "settlement" if metadata.get("settlement") else "close"),
             )
         )
     return out

@@ -29,8 +29,7 @@ own use, no resale); not seen by the development team.
 - Board: published daily prices fill NBP/TTF/THE WD and PVB DA, M1, Q1, Cal, dated, no bid or
   offer; spreads never mix a real and a simulated leg; My gas day uses the published cash-out.
 - Data model: migration `0102_publisher_consents` (one table, three states, two columns),
-  reversible, `down_revision = "0100_watched_publications"` (0101 is another package's; the
-  coordinator re-chains).
+  reversible, chained after `0101_regas_auction_cases`.
 
 ## 2026-11-28 — Package G: what is published is fetched, not typed (branch `sd-publications`, not pushed)
 

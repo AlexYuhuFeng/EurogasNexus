@@ -44,6 +44,7 @@ from eurogas_nexus.api.routes.public.pricing import router as pricing_router
 from eurogas_nexus.api.routes.public.projections import router as projections_router
 from eurogas_nexus.api.routes.public.publications import router as publications_router
 from eurogas_nexus.api.routes.public.reference_network import router as reference_network_router
+from eurogas_nexus.api.routes.public.regas_auctions import router as regas_auctions_router
 from eurogas_nexus.api.routes.public.reports import router as reports_router
 from eurogas_nexus.api.routes.public.research import router as research_router
 from eurogas_nexus.api.routes.public.research_data import router as research_data_router
@@ -99,6 +100,7 @@ def register_routes(
         app.include_router(explain_router)
         app.include_router(desk_router)
         app.include_router(deals_router)
+        app.include_router(regas_auctions_router)
         app.include_router(discoveries_router)
         app.include_router(reports_router)
         app.include_router(reference_network_router)

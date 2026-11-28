@@ -2,7 +2,7 @@ import { PriceCharts } from "@/components/PriceCharts";
 import { openDeskBrief } from "@/components/DeskBriefDialog";
 import { useEffect } from "react";
 import { useNow } from "@/app/data/connection";
-import { WorkspaceHeader } from "@/components/ui";
+import { Segmented, WorkspaceHeader } from "@/components/ui";
 import { MarketTerminal } from "@/components/MarketTerminal";
 import { DESK_NETWORK_KEPT } from "@/components/DeskNetworkTask";
 import { KeptSlot } from "@/app/data/keepAlive";
@@ -13,6 +13,7 @@ import { FirstUseHints } from "@/components/ui/FirstUseHints";
 import { FIRST_USE_HINTS } from "@/app/experience/firstUseHints";
 import { SourceApprovalNotice } from "@/components/PublicSourceApprovals";
 import { CargoBoard } from "@/components/CargoBoard";
+import { RegasAuctionPanel } from "@/components/RegasAuctionPanel";
 import { NewsPanel } from "@/components/NewsPanel";
 import { TodayFreshness, TodayHeadActions, TodayHeadline, TodayScreen } from "@/components/TodayScreen";
 import { TraderScreen } from "@/components/TraderScreen";
@@ -126,8 +127,8 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
           controls={
             task === "overview"
               ? <TodayHeadline today={desk.today} language={controller.i18n.language} t={t} />
-              : task === "cargoes"
-                ? // The cargo board is the book's cargoes: no hub or tenor filter applies to it.
+              : task === "cargoes" || task === "auctions"
+                ? // The cargo board and the auction cases are the book's own: no hub or tenor filter.
                   undefined
                 : task === "network"
                   ? // The map: the gas day only. A delivery product does not apply to a map, and
@@ -301,6 +302,27 @@ export function MarketCockpit({ controller }: { controller: AppController }) {
             <PriceCharts markets={api.normalizedMarkets} t={t} />
           </SimulatedScope>
           </>
+        )}
+        {(task === "cargoes" || task === "auctions") && (
+          // One LNG workspace, two views (level 2): the cargoes in transit and the regas slots
+          // the desk bids for.
+          <Segmented
+            label={t("nav.mode.desk.cargoes")}
+            className="lng-switch"
+            options={[
+              { value: "cargoes", label: t("lng.view.cargoes") },
+              { value: "auctions", label: t("lng.view.auctions") },
+            ]}
+            value={task}
+            onChange={(next) => openTask(next)}
+          />
+        )}
+        {task === "auctions" && (
+          <RegasAuctionPanel
+            t={t}
+            language={controller.i18n.language}
+            canWrite={Array.isArray(api.currentUser?.permissions) && api.currentUser.permissions.includes("portfolio.write")}
+          />
         )}
         {task === "cargoes" && (
           <CargoBoard

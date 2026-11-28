@@ -70,7 +70,9 @@ export const PRODUCT_MODES: readonly ProductMode[] = [
       { id: "network", labelKey: "nav.mode.desk.network", page: "market", pageTask: "network", alsoPages: ["network", "capacity"], permissions: ["market.read"], aliasKeys: ["nav.network", "nav.mode.desk.events", "nav.mode.desk.events.short", "market.task.capacity", "nav.capacity"] },
       // The firm's LNG cargoes in transit, each with its plan from ETA to hedge months (QA-L-05).
       // The book's own cargoes: book read, like Position.
-      { id: "cargoes", labelKey: "nav.mode.desk.cargoes", page: "market", pageTask: "cargoes", permissions: ["portfolio.read"], aliasKeys: ["lng.cargo.alias_plan", "lng.cargo.alias_vessels"] },
+      // The regas auction desk is the same LNG workspace's second view (`task=auctions`), behind
+      // the switch at the top of Cargoes: the one LNG workspace the architecture plan keeps.
+      { id: "cargoes", labelKey: "nav.mode.desk.cargoes", page: "market", pageTask: "cargoes", alsoPageTasks: ["auctions"], permissions: ["portfolio.read"], aliasKeys: ["lng.cargo.alias_plan", "lng.cargo.alias_vessels", "regas.alias"] },
     ],
   },
   {

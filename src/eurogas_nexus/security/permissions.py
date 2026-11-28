@@ -164,6 +164,14 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # A person's physical-or-financial choice for a captured deal (portfolio.write in the
     # handler, audited, recorded as entered by hand).
     ("/api/desk/deals/position-kind", Permission.WRITE),
+    # The regas auction desk: reads of the caller's own books (portfolio.read in the handler);
+    # writes are declared per method below. Nothing is bid, ordered or booked (rule 8).
+    ("/api/desk/regas-auctions", Permission.READ),
+    ("/api/desk/regas-auctions/{case_id}", Permission.READ),
+    ("/api/desk/regas-auctions/{case_id}/what-if", Permission.READ),
+    ("/api/desk/regas-auctions/{case_id}/report", Permission.READ),
+    ("/api/desk/regas-auctions/{case_id}/snapshots", Permission.READ),
+    ("/api/desk/regas-auctions/{case_id}/close", Permission.WRITE),
     # Market reports (application/reports): the catalogue is a declaration; reading a stored
     # report is a read of figures the reader is re-checked for (sources and books). Proposing
     # a plan may call the model, and generating one stores a record and may call the model,
@@ -456,6 +464,12 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("POST", "/api/desk/deals/close", Permission.WRITE),
     ("POST", "/api/desk/deals/pack/send", Permission.WRITE),
     ("PUT", "/api/desk/deals/pack-schedule", Permission.WRITE),
+    # Regas auction cases: open, change, snapshot and close (portfolio.write in the handler,
+    # audited); the case computes a bid limit, it never bids or orders (rule 8).
+    ("POST", "/api/desk/regas-auctions", Permission.WRITE),
+    ("PUT", "/api/desk/regas-auctions/{case_id}", Permission.WRITE),
+    ("POST", "/api/desk/regas-auctions/{case_id}/snapshots", Permission.WRITE),
+    ("POST", "/api/desk/regas-auctions/{case_id}/close", Permission.WRITE),
     ("POST", "/api/desk/deals/eod-check", Permission.READ),
     ("PUT", "/api/market/firm-marks", Permission.GOVERNED),
     ("POST", "/api/opportunities/evaluations", Permission.GOVERNED),

@@ -24,6 +24,14 @@ import type {
   PackScheduleDTO,
   PackScheduleInput,
 } from "./deals";
+import type {
+  RegasCaseAnswerDTO,
+  RegasCaseBody,
+  RegasCaseDTO,
+  RegasCasesDTO,
+  RegasSnapshotDTO,
+  RegasWhatIfDTO,
+} from "./regasAuction";
 import type { ViewMetaDTO } from "@/app/data/viewFreshness";
 import type { ServerNote } from "@/app/warningLabel";
 
@@ -6750,6 +6758,24 @@ export const api = {
   downloadDailyPack: (day: string, kind: "management" | "risk", language: "en" | "zh-CN", format: "pdf" | "xlsx") =>
     downloadReport("/desk/deals/pack", { day, kind, language }, format),
   downloadDealBlotter: (filters: DealBlotterFilters) => downloadReport("/desk/deals", dealBlotterParams(filters), "csv"),
+  // The regas auction desk (Desk → Cargoes → Regas auctions): cases, the live answer, snapshots,
+  // close, a read-only what-if and the case report. Types in ./regasAuction.ts. Nothing bids.
+  regasAuctions: (options?: ApiRequestOptions) => get<RegasCasesDTO>("/desk/regas-auctions", undefined, options),
+  regasAuction: (caseId: string, options?: ApiRequestOptions) =>
+    get<RegasCaseAnswerDTO>(`/desk/regas-auctions/${encodeURIComponent(caseId)}`, undefined, options),
+  openRegasAuction: (body: RegasCaseBody) => post<RegasCaseDTO>("/desk/regas-auctions", body),
+  saveRegasAuction: (caseId: string, body: RegasCaseBody) =>
+    put<RegasCaseDTO>(`/desk/regas-auctions/${encodeURIComponent(caseId)}`, body),
+  regasAuctionSnapshots: (caseId: string, options?: ApiRequestOptions) =>
+    get<{ snapshots: RegasSnapshotDTO[] }>(`/desk/regas-auctions/${encodeURIComponent(caseId)}/snapshots`, undefined, options),
+  saveRegasSnapshot: (caseId: string, note: string) =>
+    post<RegasSnapshotDTO>(`/desk/regas-auctions/${encodeURIComponent(caseId)}/snapshots`, { note }),
+  closeRegasAuction: (caseId: string, outcome: "won" | "lost" | "lapsed", note: string) =>
+    post<RegasCaseDTO>(`/desk/regas-auctions/${encodeURIComponent(caseId)}/close`, { outcome, note }),
+  regasAuctionWhatIf: (caseId: string, options?: ApiRequestOptions) =>
+    get<RegasWhatIfDTO>(`/desk/regas-auctions/${encodeURIComponent(caseId)}/what-if`, undefined, options),
+  downloadRegasReport: (caseId: string, language: "en" | "zh-CN", format: "pdf" | "xlsx") =>
+    downloadReport(`/desk/regas-auctions/${encodeURIComponent(caseId)}/report`, { language }, format),
   tradingBooks: (options?: ApiRequestOptions) => get<TradingBooksDTO>("/portfolio/books", undefined, options),
   saveTradingBook: (bookId: string, body: TradingBookInput) =>
     put<{ book_id: string; created: boolean; contracts_assigned: number; orders_assigned: number }>(

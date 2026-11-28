@@ -184,6 +184,28 @@
     table-layout: fixed;
   }
 
+  /* The columns are equal and narrow, so the "sim" word after a change would spill into the
+     next hub's bid. On the board the mark is a dot in its own cell's left padding, clear of
+     the right-aligned figure; its words stay in the title and for screen readers. */
+  .trader-board-grid td {
+    position: relative;
+  }
+
+  .trader-board-grid td .ds-cell-mark {
+    position: absolute;
+    top: 50%;
+    left: var(--ds-space-05);
+    width: var(--ds-space-1);
+    height: var(--ds-space-1);
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    transform: translateY(-50%);
+    border-radius: var(--ds-radius-pill);
+    background: var(--ds-status-simulated);
+    color: transparent;
+  }
+
   .trader-hub-head {
     display: inline-flex;
     align-items: baseline;

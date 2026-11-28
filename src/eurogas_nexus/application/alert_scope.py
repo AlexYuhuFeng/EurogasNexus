@@ -27,7 +27,7 @@ from typing import Any
 #: Alert categories that carry book-level figures.
 BOOK_SCOPED_CATEGORIES = frozenset(
     {"limits", "delivery", "lng_hedge", "lng_schedule", "lng_exposure", "lng_material",
-     "gas_day_break", "news_trader", "news_lng", "news_scheduler"}
+     "gas_day_break", "news_trader", "news_lng", "news_scheduler", "regas_auction"}
 )
 #: Alert categories that carry a price and name its source system in the evidence.
 SOURCE_SCOPED_CATEGORIES = frozenset({"market", "fundamentals"})

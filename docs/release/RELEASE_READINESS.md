@@ -63,11 +63,14 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **315 paths / 346 operations**
+- OpenAPI public surface: **321 paths / 355 operations**
 
   (2026-11-28: the publishers' written consents, `GET /api/publications/consents` (READ) and
   `POST /api/publications/consents/{publisher_id}/withdraw` and `/restore` (ADMIN, audited);
-  312 / 343 before.)
+  318 / 352 before.)
+
+  (2026-11-28: the regas auction desk under `/api/desk/regas-auctions`, 6 paths / 9 operations,
+  reads READ with book scope, writes WRITE with `portfolio.write`, audited; 312 / 343 before.)
 
   (2026-11-28: the watched publications, `GET /api/publications/calendar`,
   `GET /api/publications/sources` (READ) and `POST /api/publications/sources/{publication_id}/confirm` (ADMIN, audited); 309 / 340 before.)

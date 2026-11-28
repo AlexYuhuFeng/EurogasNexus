@@ -120,3 +120,46 @@ def test_my_gas_day_values_an_open_net_at_the_published_cash_out_with_its_day():
     # A published price in another currency is never used.
     assert cost_of_nothing(-100.0, None, "NBP", "short", published=published)["basis"] == \
         "missing"
+
+
+def test_a_published_price_is_never_a_forward_mark_it_is_not(tmp_path):
+    """The valuation reader (the regas auction case reads it) never takes a cash-out price or a
+    past day's index for a future delivery, and says what a published daily price is."""
+
+    from datetime import timedelta
+
+    from sqlalchemy.orm import Session
+
+    from eurogas_nexus.application.price_resolver import open_price_book
+    from eurogas_nexus.application.public_prices import store_points
+    from eurogas_nexus.domain.publications.public_prices import PricePoint
+    from tests.fixtures.news_seed import store
+
+    _url, engine = store(tmp_path, "book.sqlite")
+    now = datetime(2026, 11, 28, 10, tzinfo=UTC)
+    day = date(2026, 11, 27)
+    points = [
+        PricePoint("the:vtp-daily-average", "THE", "within-day", "reference_index", day, day,
+                   day, 90.0, "EUR/MWh"),
+        PricePoint("the:imbalance-negative", "THE", "imbalance-short", "imbalance_price", day,
+                   day, day, 95.0, "EUR/MWh"),
+        PricePoint("mibgas:pvb-ma", "PVB", "month", "daily_price", day, date(2026, 12, 1),
+                   date(2026, 12, 31), 81.77, "EUR/MWh"),
+    ]
+    with Session(engine) as session:
+        store_points(session, points[:2], family="THE", publication_id="the-imbalance-prices",
+                     publisher="Trading Hub Europe", consent_publisher="trading-hub-europe",
+                     document_url="https://x", now=now)
+        store_points(session, points[2:], family="MIBGAS", publication_id="mibgas-prices",
+                     publisher="MIBGAS", consent_publisher="mibgas", document_url="https://x",
+                     now=now)
+        session.commit()
+        book = open_price_book(session, None, now=now)
+        # The past gas day's index prices that day only; no future delivery month of THE.
+        assert book.month("THE", "2026-12") is None
+        found = book.resolve("THE", day, day + timedelta(days=1))
+        assert found is not None and found.value == 90.0  # never the imbalance price
+        assert found.detail.startswith("published reference index of 2026-11-27")
+        december = book.month("PVB", "2026-12")
+        assert december is not None and december.detail.startswith(
+            "published daily price of 2026-11-27")

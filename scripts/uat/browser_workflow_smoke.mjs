@@ -454,6 +454,102 @@ async function traderBoardCheck(page, failures) {
   }
 }
 
+/** The case the regas auction check opens: hand-entered prices and costs, so the answer is the
+ *  same whatever market data the seed holds (the manual path, stated in the answer). */
+function regasSweepCase(now = new Date()) {
+  const day = (offset) => new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 10 + offset)).toISOString().slice(0, 10);
+  const at = (hours) => new Date(now.getTime() + hours * 3_600_000).toISOString().replace(/\.\d+Z$/, "Z");
+  return {
+    title: "Sweep slot",
+    terminal: { terminal_id: "gate-terminal", name: "Gate (Rotterdam)", hub: "TTF" },
+    slot: { first_day: day(0), last_day: day(3), quantity: "1000", unit: "GWh" },
+    auction: { format: "rising_rounds", opens_at: at(-1), closes_at: at(26), time_zone: "Europe/Amsterdam", quotation: "per_mwh", level: "0.40" },
+    owner: { name: "Sweep cargo owner" },
+    offer: { kind: "fixed", price: "28.00", price_unit: "EUR/MWh", tolerance_pct: "5", expires_at: at(28) },
+    costs: { regas_fee: { value: "450000" }, losses: { value: "1" }, berthing: { value: "120000" }, entry: { value: "0.50" } },
+    prices: { TTF: { all: "30.60" } },
+    rate_pct: "2.5",
+  };
+}
+
+/** Open a regas auction case through the API with the page's own session (CSRF from /api/me). */
+async function openRegasCase(page, body) {
+  return page.evaluate(async (payload) => {
+    const me = await (await fetch("/api/me", { credentials: "include" })).json();
+    const csrf = me?.data?.csrf_token ?? me?.csrf_token ?? "";
+    const headers = { "Content-Type": "application/json", "X-Eurogas-CSRF": csrf };
+    const listing = await (await fetch("/api/desk/regas-auctions", { credentials: "include" })).json();
+    let book = listing?.data?.choices?.books?.[0]?.book_id;
+    if (!book) {
+      // The UAT seed holds no trading book; a case belongs to one (book isolation), so the check
+      // defines the desk's book the way middle office does (audited), once.
+      book = "uat-regas-desk";
+      await fetch(`/api/portfolio/books/${book}`, {
+        method: "PUT",
+        credentials: "include",
+        headers,
+        body: JSON.stringify({ name: "UAT regas desk", legal_entity: "UAT", region: "europe", business: "gas", base_currency: "EUR", commodities: ["natural_gas"] }),
+      });
+    }
+    const response = await fetch("/api/desk/regas-auctions", {
+      method: "POST",
+      credentials: "include",
+      headers,
+      body: JSON.stringify({ ...payload, book_id: book }),
+    });
+    return { status: response.status, body: await response.json().catch(() => null) };
+  }, body);
+}
+
+/**
+ * Desk → Cargoes → Regas auctions ("bid at most X for this slot"): a case opens with the most to
+ * bid, the level and the headroom in words; "Prepare hedge orders" is disabled (rule 8); a new
+ * level entered on the screen moves the state to Stop; axe finds nothing on the case; at 1920 and
+ * at 390 the page does not scroll sideways.
+ */
+async function regasAuctionCheck(page, failures) {
+  const scope = "interaction/regas-auction";
+  const viewport = page.viewportSize();
+  try {
+    await setLanguage(page, "en");
+    await page.setViewportSize({ width: 1920, height: 1080 });
+    await page.goto(`${BASE}/?workspace=market&task=auctions`, { waitUntil: "domcontentloaded" });
+    await page.locator("[data-regas-desk]").waitFor({ state: "visible", timeout: 30_000 });
+    const created = await openRegasCase(page, regasSweepCase());
+    if (created.status !== 200) {
+      recordFailure(failures, scope, `opening a case answered ${created.status}: ${JSON.stringify(created.body).slice(0, 200)}`);
+      return;
+    }
+    const caseId = created.body.data.case_id;
+    await page.goto(`${BASE}/?workspace=market&task=auctions&auction=${caseId}`, { waitUntil: "domcontentloaded" });
+    const answer = page.locator(`[data-regas-case="${caseId}"] [data-regas-answer]`);
+    await answer.waitFor({ state: "visible", timeout: 30_000 });
+    const state = await answer.getAttribute("data-regas-answer");
+    if (state !== "room") recordFailure(failures, scope, `the case reads ${state}, expected room`);
+    const badge = (await page.locator("[data-regas-state-badge]").first().textContent())?.trim();
+    if (badge !== "Room to bid") recordFailure(failures, scope, `the state reads "${badge}", expected "Room to bid"`);
+    if (!(await page.locator("[data-regas-prepare-orders]").isDisabled())) recordFailure(failures, scope, "Prepare hedge orders is enabled");
+    if ((await page.locator('[data-record="regas-hedge"]').count()) < 1) recordFailure(failures, scope, "no hedge row");
+    if ((await page.locator("[data-regas-hand]").count()) !== 1) recordFailure(failures, scope, "the hand-entered inputs are not stated");
+    const wide = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth);
+    if (wide) recordFailure(failures, scope, "1920px: the page scrolls sideways");
+    const violations = await axeViolations(page, "[data-regas-desk]");
+    for (const violation of violations) recordFailure(failures, scope, `axe ${violation.id}: ${violation.help}`);
+    await page.locator("[data-regas-level-input]").fill("5");
+    await page.locator("[data-regas-level-save]").click();
+    await page.waitForFunction((id) => document.querySelector(`[data-regas-case="${id}"]`)?.getAttribute("data-regas-state") === "stop", caseId, { timeout: 20_000 })
+      .catch(() => recordFailure(failures, scope, "a level above the maximum bid did not read Stop"));
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.waitForTimeout(800);
+    const { problems } = await page.evaluate(measurePhoneOverflow);
+    for (const problem of problems) recordFailure(failures, scope, `phone overflow on the case: ${problem}`);
+  } catch (error) {
+    recordFailure(failures, scope, error);
+  } finally {
+    if (viewport) await page.setViewportSize(viewport).catch(() => undefined);
+  }
+}
+
 /** A first-use hint shows once on Today after "Show the tips again", and "Got it" moves on. */
 async function firstUseHintCheck(page, failures) {
   const scope = "interaction/first-use-hints";
@@ -2541,6 +2637,10 @@ export async function runWorkflowSmoke() {
 
       currentScope = "interaction/trader-board";
       await traderBoardCheck(page, failures);
+
+      // Desk → Cargoes → Regas auctions: the answer, its states and rule 8 on screen.
+      currentScope = "interaction/regas-auction";
+      await regasAuctionCheck(page, failures);
 
       // The glossary's selection behaviour is asserted as an interaction, not inferred from the
       // rendered rows: the index is a control and the article must follow the clicked record.

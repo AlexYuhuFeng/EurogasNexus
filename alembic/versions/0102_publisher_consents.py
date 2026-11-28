@@ -9,8 +9,7 @@
 
 Expand-only; the downgrade drops the table and the two columns. It leaves the widened state
 check in place (no row is rewritten in a migration); code of the earlier version never writes
-the three new states. Chained after ``0100_watched_publications``;
-``0101`` is claimed by another package, so the coordinator re-chains this one.
+the three new states. Chained after ``0101_regas_auction_cases``.
 """
 
 import sqlalchemy as sa
@@ -18,7 +17,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0102_publisher_consents"
-down_revision = "0100_watched_publications"
+down_revision = "0101_regas_auction_cases"
 branch_labels = None
 depends_on = None
 # Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).

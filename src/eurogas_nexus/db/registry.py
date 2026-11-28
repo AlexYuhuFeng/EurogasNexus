@@ -183,6 +183,8 @@ REQUIRED_TABLES: tuple[RequiredTable, ...] = (
     RequiredTable(name="daily_packs", introduced_in="0097_deal_capture"),
     RequiredTable(name="deal_position_kinds", introduced_in="0098_deal_position_source"),
     RequiredTable(name="watched_publications", introduced_in="0100_watched_publications"),
+    RequiredTable(name="regas_auction_cases", introduced_in="0101_regas_auction_cases"),
+    RequiredTable(name="regas_auction_snapshots", introduced_in="0101_regas_auction_cases"),
     RequiredTable(name="publisher_consent_states", introduced_in="0102_publisher_consents"),
 )
 

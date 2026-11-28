@@ -63,6 +63,7 @@ picture, never fly blind during the day.
 | 2 | **Risk pack by email.** Profit and loss by trader and hub (day, month, year to date); exposure per counterparty against its limit and guarantee, with guarantee expiry; a check that every captured deal is in the ETRM entry; mandate checks (no options, tenor, volume). | An export of limits and guarantees from the ETRM |
 | 3 | **Position and profit and loss during the day.** By hub and delivery period, physical and financial, from deals captured so far and live prices. | Step 1; intraday deal capture (repeat the export, or a trade feed if the user's Trayport contract allows) |
 | 4 | **One trader screen.** Their hubs, spreads between hubs net of transport cost, storage, flows, outages, weather, regasification. | The user's own data entitlements, confirmed by them with each vendor (rule 18) |
+| 4a | **Regas auction desk.** During a terminal's regas slot auction, one view (Desk → Cargoes → Regas auctions) says "bid at most X for this slot", live as hub prices move, with what drives it, the hedges it implies, a read-only what-if on position and limits, snapshots and a case report in English and Chinese ([user guide](../user/REGAS_AUCTION.md)). Never bids or orders. | Step 4; the traders' answers on terminals, auction formats, cargo pricing and costs (defaults stated until then) |
 | 5 | **Pre-filled orders** into the execution tool. | See section 7 |
 | Throughout | Install and self-support (section 3, items 2 and 3). | |
 

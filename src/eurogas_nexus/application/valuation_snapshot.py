@@ -380,6 +380,9 @@ class LiveSnapshotReader(RecordingReader):
         elif found.kind == LIVE_TICK:
             text = f"{label} {side} ({venue}{', simulated' if simulated else ''})"
             basis = "quote"
+        elif str(found.detail or "").startswith("published "):
+            # A published daily figure (an index or a daily price of a past day): said so.
+            text, basis = f"{label} {found.detail}", "published"
         else:
             text = f"{label} {'simulated price' if simulated else 'settlement'}"
             basis = "demo" if simulated else "settlement"

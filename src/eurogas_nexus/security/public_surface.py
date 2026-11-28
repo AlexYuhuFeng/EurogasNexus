@@ -82,6 +82,14 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/desk/deals/close",
         # Step 3: a captured deal counted as physical or financial by hand (audited).
         "/api/desk/deals/position-kind",
+        # The regas auction desk (Desk > Cargoes > Regas auctions): cases, answer, snapshots,
+        # close, a read-only what-if and the case report.
+        "/api/desk/regas-auctions",
+        "/api/desk/regas-auctions/{case_id}",
+        "/api/desk/regas-auctions/{case_id}/snapshots",
+        "/api/desk/regas-auctions/{case_id}/close",
+        "/api/desk/regas-auctions/{case_id}/what-if",
+        "/api/desk/regas-auctions/{case_id}/report",
         "/api/reports/catalogue",
         "/api/reports/plan",
         "/api/reports/market",
