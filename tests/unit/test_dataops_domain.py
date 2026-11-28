@@ -86,6 +86,23 @@ def test_registry_is_canonical_and_classified() -> None:
     }
 
 
+def test_remit_poll_intervals_are_configurable_per_source(monkeypatch) -> None:
+    # The general defaults are the connector manifests' own (30 minutes, hourly).
+    assert definition_for_source("src-remit-umm").schedule.interval_seconds == 30 * 60
+    assert definition_for_source("src-entsog-umm").schedule.interval_seconds == 60 * 60
+
+    monkeypatch.setenv("EUROGAS_NEXUS_REMIT_IIP_INTERVAL_SECONDS", "600")
+    monkeypatch.setenv("EUROGAS_NEXUS_REMIT_ENTSOG_INTERVAL_SECONDS", "600")
+    assert definition_for_source("src-remit-umm").schedule.interval_seconds == 600
+    assert definition_for_source("src-entsog-umm").schedule.interval_seconds == 600
+
+    # An unset or invalid setting keeps the default rather than a zero-interval schedule.
+    monkeypatch.setenv("EUROGAS_NEXUS_REMIT_IIP_INTERVAL_SECONDS", "not-a-number")
+    monkeypatch.setenv("EUROGAS_NEXUS_REMIT_ENTSOG_INTERVAL_SECONDS", "0")
+    assert definition_for_source("src-remit-umm").schedule.interval_seconds == 30 * 60
+    assert definition_for_source("src-entsog-umm").schedule.interval_seconds == 60 * 60
+
+
 def test_interval_schedule_is_anchored_and_deterministic() -> None:
     entsog = definition_for_provider("ENTSOG")
     activated = datetime(2026, 1, 1, 6, 0, tzinfo=UTC)

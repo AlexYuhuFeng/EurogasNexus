@@ -9,6 +9,7 @@ scheduler, freshness engine and API. It must stay import-safe and DB-free.
 
 from __future__ import annotations
 
+import os
 from dataclasses import replace
 
 from eurogas_nexus.domain.dataops.contracts import (
@@ -18,6 +19,7 @@ from eurogas_nexus.domain.dataops.contracts import (
     LicensedDataPolicy,
     RateLimitPolicy,
     RetryPolicy,
+    ScheduleType,
     SourceCalendar,
     SourceClass,
     SourceDefinition,
@@ -41,6 +43,21 @@ _SIMULATED_SOURCES = {
     "src-icis-sim": ("ICIS", SourceClass.SIMULATED),
     "src-ice-endex-sim": ("ICE_ENDEX", SourceClass.SIMULATED),
 }
+
+
+def _interval_from_env(env_name: str, schedule: SourceScheduleSpec) -> SourceScheduleSpec:
+    """The source's configured interval, or the manifest default when unset or invalid."""
+
+    if schedule.schedule_type != ScheduleType.INTERVAL:
+        return schedule
+    raw = (os.environ.get(env_name) or "").strip()
+    if not raw:
+        return schedule
+    try:
+        seconds = int(raw)
+    except ValueError:
+        return schedule
+    return replace(schedule, interval_seconds=seconds) if seconds > 0 else schedule
 
 
 def _source_class_for(source_id: str, provider: str) -> SourceClass:
@@ -104,6 +121,22 @@ def source_definitions() -> tuple[SourceDefinition, ...]:
             description=str(row["description"]),
             integration=str(row.get("integration") or "api"),
         )
+        # The two REMIT pollers can be tuned per source (small-desk profile); every other
+        # source keeps its manifest schedule.
+        if source_id == "src-remit-umm":
+            definition = replace(
+                definition,
+                schedule=_interval_from_env(
+                    "EUROGAS_NEXUS_REMIT_IIP_INTERVAL_SECONDS", definition.schedule
+                ),
+            )
+        elif source_id == "src-entsog-umm":
+            definition = replace(
+                definition,
+                schedule=_interval_from_env(
+                    "EUROGAS_NEXUS_REMIT_ENTSOG_INTERVAL_SECONDS", definition.schedule
+                ),
+            )
         definitions.append(definition)
     return tuple(definitions)
 

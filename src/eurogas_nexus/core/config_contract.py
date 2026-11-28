@@ -1063,6 +1063,36 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         ),
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_REMIT_IIP_INTERVAL_SECONDS",
+        scope="OPERATOR",
+        purpose=(
+            "Polling interval for GIE IIP REMIT urgent market messages (source "
+            "src-remit-umm); unset keeps the connector's 30-minute default."
+        ),
+        default="1800",
+        example="1800",
+        notes=(
+            "The connector manifest allows 6 requests an hour; 600 s (10 minutes) is the "
+            "fastest interval that stays within it. The small-desk profile sets 600.",
+            "The read is incremental: it pages newest-first and stops at the window bound.",
+        ),
+    ),
+    ConfigVar(
+        name="EUROGAS_NEXUS_REMIT_ENTSOG_INTERVAL_SECONDS",
+        scope="OPERATOR",
+        purpose=(
+            "Polling interval for ENTSOG transmission REMIT urgent market messages (source "
+            "src-entsog-umm); unset keeps the connector's hourly default."
+        ),
+        default="3600",
+        example="3600",
+        notes=(
+            "The connector manifest allows 6 requests an hour; 600 s (10 minutes) is the "
+            "fastest interval that stays within it. The small-desk profile sets 600.",
+            "The whole dataset is small and is read each run.",
+        ),
+    ),
+    ConfigVar(
         name="EUROGAS_NEXUS_ENABLE_SIMULATED_SOURCES",
         scope="OPERATOR",
         purpose="Permit simulated market price sources.",

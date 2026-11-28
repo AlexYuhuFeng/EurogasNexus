@@ -341,6 +341,19 @@
     line-height: var(--ds-line-base);
   }
 
+  .trader-detail-empty p {
+    margin: 0;
+    color: var(--ds-text-2);
+  }
+
+  .trader-detail-empty-figures {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--ds-space-3);
+    margin-top: var(--ds-space-2);
+    color: var(--ds-text-1);
+  }
+
   /* ---- what just happened */
 
   .trader-events .ds-grid tbody th {
