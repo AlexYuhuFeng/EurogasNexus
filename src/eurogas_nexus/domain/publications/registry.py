@@ -56,6 +56,10 @@ KINDS = (
     "storage_auctions",
     "reference_prices",
     "exchange_prices",
+    # A publisher's published operating figures (fuel and boil-off rates, regas, entry/exit,
+    # imbalance and scheduling charges, exchange and clearing fees): records are
+    # ``domain/publications/parameters.PublishedParameter``. No entry of this kind yet.
+    "published_parameters",
 )
 DELIVERY = ("web", "platform", "email")
 HUBS = ("NBP", "TTF", "ZTP", "THE", "PVB")

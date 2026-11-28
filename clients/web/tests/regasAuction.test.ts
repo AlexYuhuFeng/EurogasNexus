@@ -203,7 +203,7 @@ test("a fetched slot offer fills the case: window, slot days, size in m³ LNG an
     offers_to: "2027-03-09",
     quantity: 99000,
     quantity_unit: "m3_lng",
-    source_url: "https://www.fluxys.com/en/news/x",
+    source_url: "https://operator.example/news/x",
   };
   const terminals = [{ terminal_id: "zeebrugge", name: "Zeebrugge", hub: "ZTP", operator: null, country: "BE", link_only: false, firm_terms: false }];
   const filled = draftFromNotice(draft, notice, terminals);

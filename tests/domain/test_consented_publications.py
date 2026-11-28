@@ -187,3 +187,19 @@ def test_the_exchange_calendars_are_read_from_their_documents():
         seed.EEX_HOLIDAY_PDF
     with pytest.raises(calendars.CalendarUncertain):
         calendars.eex_document_link(b"<html></html>", seed.EEX_CAL_PAGE, kind="gas")
+
+
+def test_the_registry_can_carry_a_published_parameter_record():
+    from datetime import UTC, datetime
+
+    from eurogas_nexus.domain.publications.parameters import PublishedParameter
+    from eurogas_nexus.domain.publications.registry import KINDS
+
+    assert "published_parameters" in KINDS
+    figure = PublishedParameter(
+        key="terminal-x:fuel-loss-pct", name="Fuel and losses", value="0.5", unit="%",
+        valid_from=date(2027, 1, 1), valid_to=date(2027, 12, 31),
+        document_url="https://operator.example/tariff.pdf", location="page 4, table 2",
+        publisher="Operator", publication_id="x", published_at_utc=None,
+        fetched_at_utc=datetime(2026, 11, 28, tzinfo=UTC), consent_publisher="fluxys")
+    assert figure.to_json()["location"] == "page 4, table 2"
