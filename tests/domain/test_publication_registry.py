@@ -16,6 +16,7 @@ from eurogas_nexus.domain.publications.entsog_cam_calendar import (
     parse_calendar,
 )
 from eurogas_nexus.domain.publications.registry import (
+    CONSENTED,
     FETCH,
     HAND_MAINTAINED,
     HUBS,
@@ -48,13 +49,19 @@ def test_every_publication_has_its_finding_in_the_legal_register():
         assert item.terms_quote
 
 
-def test_only_publications_whose_terms_allow_storing_are_fetched():
-    fetched = [item.publication_id for item in WATCHED_PUBLICATIONS if fetch_refusal(item) is None]
-    assert fetched == ["entsog-cam-auction-calendar"]
-    # The EEX finding of 2026-11-18 stands: nothing from eex.com is fetched.
-    assert all(fetch_refusal(item) for item in WATCHED_PUBLICATIONS if "eex.com" in item.url)
-    hand = {item.hand_venue for item in WATCHED_PUBLICATIONS if item.verdict == HAND_MAINTAINED}
+def test_only_publications_whose_terms_or_a_written_consent_allow_storing_are_fetched():
+    fetched = [item for item in WATCHED_PUBLICATIONS if fetch_refusal(item) is None]
+    # Allowed by the terms themselves: ENTSOG's calendar only.
+    assert [i.publication_id for i in fetched if i.verdict == FETCH] == [
+        "entsog-cam-auction-calendar"]
+    # Everything else fetched rests on a publisher's written consent (owner, 2026-11-28).
+    assert all(i.verdict == CONSENTED and i.consent_publisher for i in fetched
+               if i.verdict != FETCH)
+    assert all(i.consent_publisher == "eex" for i in fetched if "eex.com" in i.url)
+    # The exchange calendars are fetched now; the hand file stays as their fallback.
+    hand = {item.hand_venue for item in WATCHED_PUBLICATIONS if item.hand_venue}
     assert hand == {"EEX", "ICE_ENDEX", "ICE_FUTURES_EUROPE"}
+    assert not [item for item in WATCHED_PUBLICATIONS if item.verdict == HAND_MAINTAINED]
 
 
 def test_a_publication_without_a_register_entry_is_refused_even_when_marked_fetch():

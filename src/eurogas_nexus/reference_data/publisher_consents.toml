@@ -1,0 +1,85 @@
+# Written consents to use publicly available data, as reported by the owner on 2026-11-28.
+#
+# The owner contacted each publisher below and reports that each gave written consent to use
+# the data it makes publicly available, "so long as those data are used by us and we're not
+# reselling them". The owner holds the written consents and hands them to the desk's
+# organisation at go-live. The development team has not seen the documents.
+#
+# These records are data, not code: a publication whose website terms forbid storing it is
+# fetched only while its publisher has a record here that an administrator has not withdrawn
+# (Admin -> Data sources -> Watched publications; withdrawal is audited and stops fetching at
+# once). The legal register's section "Written consents reported by the owner, 2026-11-28"
+# (docs/legal/DATA_SOURCE_TERMS.md) states each record and the earlier finding it supersedes.
+#
+# Scope, enforced by the product (security/identity, governance/entitlement):
+#   - publicly available data only: nothing behind a login, an account or a paywall;
+#   - the firm's own use: read by the firm's own authenticated users and in the daily packs to
+#     the firm's own managers and risk function;
+#   - no resale or redistribution: never in a file or report meant for outside the firm, never
+#     to an anonymous caller, whatever a licence record says.
+#
+# `families` are the source systems the product stores this publisher's fetched prices under.
+
+reported_on = "2026-11-28"
+scope = "publicly available data; the firm's own use; no resale or redistribution"
+basis = "written consent held by the owner; not seen by the development team"
+
+[publisher.trading-hub-europe]
+name = "Trading Hub Europe"
+families = ["THE"]
+supersedes = "Watched publications, checked 2026-11-28 (`the-imbalance-prices`: link only, the website disclaimer asks for prior written consent); Imbalance prices, checked 2026-11-19"
+
+[publisher.mibgas]
+name = "MIBGAS"
+families = ["MIBGAS"]
+supersedes = "Watched publications, checked 2026-11-28 (`mibgas-prices`: link only, storing not clearly allowed)"
+
+[publisher.national-gas]
+name = "National Gas Transmission"
+families = ["NATIONAL_GAS_PRICES"]
+supersedes = "Watched publications, checked 2026-11-28 (`national-gas-smp`: link only, no reuse licence); Imbalance prices, checked 2026-11-19"
+
+[publisher.fluxys]
+name = "Fluxys (Fluxys LNG, Fluxys Belgium, Dunkerque LNG)"
+families = []
+supersedes = "Watched publications, checked 2026-11-28 (`fluxys-lng-zeebrugge-slots`, `dunkerque-lng-slots`, `fluxys-loenhout-storage`: link only, the legal notice forbids download without written consent)"
+
+[publisher.grain-lng]
+name = "Grain LNG"
+families = []
+supersedes = "Watched publications, checked 2026-11-28 (`grain-lng-uioli-board`: link only, no commercial exploitation)"
+
+[publisher.gate-terminal]
+name = "Gate terminal"
+families = []
+supersedes = "Watched publications, checked 2026-11-28 (`gate-terminal-slots`: link only, terms not read)"
+
+[publisher.enagas]
+name = "Enagás"
+families = []
+supersedes = "Watched publications, checked 2026-11-28 (`enagas-lng-capacity`, `enagas-storage`: link only, the legal notice forbids reproduction without authorisation)"
+
+[publisher.deutsche-energy-terminal]
+name = "Deutsche Energy Terminal (DET)"
+families = []
+supersedes = "Watched publications, checked 2026-11-28 (`det-lng-auctions`: link only, no reuse terms published)"
+
+[publisher.deutsche-regas]
+name = "Deutsche ReGas"
+families = []
+supersedes = "Watched publications, checked 2026-11-28 (`deutsche-regas-mukran`: link only, terms not read)"
+
+[publisher.prisma]
+name = "PRISMA European Capacity Platform"
+families = []
+supersedes = "Watched publications, checked 2026-11-28 (`prisma-auctions`: link only, no reuse terms on the public site)"
+
+[publisher.eex]
+name = "European Energy Exchange (EEX)"
+families = ["EEX_PUBLIC"]
+supersedes = "EEX website terms, checked 2026-11-18 (a single copy for personal, non-commercial use); Watched publications, checked 2026-11-28 (`eex-trading-calendar`: hand-maintained; `eex-ngp`: link only)"
+
+[publisher.ice]
+name = "Intercontinental Exchange (ICE Endex, ICE Futures Europe)"
+families = ["ICE_PUBLIC"]
+supersedes = "Watched publications, checked 2026-11-28 (`ice-endex-trading-schedule`, `ice-futures-europe-trading-schedule`: hand-maintained, the terms of use exclude robots)"

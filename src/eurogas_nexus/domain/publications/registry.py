@@ -16,7 +16,14 @@ One :class:`WatchedPublication` per publication. ``verdict`` is the terms findin
                      product reminds them, with the link, to check it against the publisher's
                      page by a date;
 ``link_only``        viewable, not storable (or the terms could not be read): the product shows
-                     the link and fetches nothing.
+                     the link and fetches nothing;
+``consented``        the website terms forbid storing it, but its publisher gave written consent
+                     to use what it makes publicly available for the firm's own use, no resale
+                     (owner, 2026-11-28; ``domain/publications/consents``): fetched like
+                     ``fetch`` while the consent record exists and an administrator has not
+                     withdrawn it. A consented publication with no parser yet is "consented,
+                     not yet implemented"; one whose site refuses automated reading stays
+                     "consented, but the site refuses automated reading" with the response.
 
 A publication is fetched only when its verdict is ``fetch`` **and** it names its entry in the
 legal register (``terms_section``): no entry, no fetch (:func:`fetch_refusal`). Nobody accepts
@@ -37,7 +44,10 @@ from dataclasses import dataclass, field
 FETCH = "fetch"
 HAND_MAINTAINED = "hand_maintained"
 LINK_ONLY = "link_only"
-VERDICTS = (FETCH, HAND_MAINTAINED, LINK_ONLY)
+CONSENTED = "consented"
+VERDICTS = (FETCH, HAND_MAINTAINED, LINK_ONLY, CONSENTED)
+#: Verdicts the product fetches under (the second only while the consent is in force).
+FETCHED_VERDICTS = (FETCH, CONSENTED)
 
 KINDS = (
     "trading_calendar",
@@ -45,6 +55,7 @@ KINDS = (
     "lng_slots",
     "storage_auctions",
     "reference_prices",
+    "exchange_prices",
 )
 DELIVERY = ("web", "platform", "email")
 HUBS = ("NBP", "TTF", "ZTP", "THE", "PVB")
@@ -89,6 +100,17 @@ class WatchedPublication:
     notes: str = ""
     terms_checked_on: str = CHECKED_ON
     tags: tuple[str, ...] = field(default_factory=tuple)
+    #: The publisher's consent record (``reference_data/publisher_consents.toml``) a
+    #: ``consented`` publication is fetched under.
+    consent_publisher: str | None = None
+    #: The source system fetched prices are stored under (a consented family).
+    source_family: str | None = None
+    #: For a fetched exchange calendar: the venue of the desk's calendar file it replaces.
+    calendar_venue: str | None = None
+    #: The site refused automated reading: the exact response, as recorded.
+    site_refusal: str = ""
+    #: How far back the publisher's own history goes, and what the first read fetches.
+    history: str = ""
 
     def to_json(self) -> dict:
         return {
@@ -110,6 +132,11 @@ class WatchedPublication:
             "attribution": self.attribution,
             "hand_venue": self.hand_venue,
             "notes": self.notes,
+            "consent_publisher": self.consent_publisher,
+            "source_family": self.source_family,
+            "calendar_venue": self.calendar_venue,
+            "site_refusal": self.site_refusal,
+            "history": self.history,
         }
 
 
@@ -141,28 +168,68 @@ _ENAGAS_TERMS = (
     "expressly authorised cases."
 )
 _NOT_READ = "Terms not read: the site could not be read from the build environment."
+#: Every consented publication's terms line: the website terms as read, then the consent.
+_CONSENT = ("; superseded for the firm's own use by the publisher's written consent reported "
+            "by the owner on 2026-11-28 (publicly available data, own use, no resale).")
+#: Polite reading of a consented price source: no more often than this (six hours), well
+#: inside every publisher's stated limits; the first read fetches the history once.
+PRICE_INTERVAL_MINUTES = 6 * 60
+_NOT_YET = "Consented; not yet implemented: no parser for this publication yet."
 
 WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
     # ------------------------------------------------------------------ trading calendars
     WatchedPublication(
         publication_id="eex-trading-calendar",
-        title="EEX trading calendar (natural gas spot and derivatives)",
+        title="EEX natural gas trading calendar (exchange holidays and expiry dates)",
         publisher="European Energy Exchange (EEX)",
         kind="trading_calendar",
         hubs=("NBP", "TTF", "ZTP", "THE", "PVB"),
         url="https://www.eex.com/en/trading-resources/trading-information/calendar",
         document_format="xlsx",
-        verdict=HAND_MAINTAINED,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
-        terms_quote=_EEX_TERMS,
+        terms_quote=_EEX_TERMS + _CONSENT,
         terms_url="https://www.eex.com/en/disclaimer",
         verified_live=True,
+        interval_minutes=24 * 60,
+        parser="eex_gas_calendar",
+        attribution="Source: EEX, Natural Gas Trading Calendar",
         hand_venue="EEX",
+        calendar_venue="EEX",
+        consent_publisher="eex",
+        history="The current year's workbook (Natural Gas Trading Calendar 2026); expiry dates "
+                "of every listed maturity from January 2019.",
         notes=(
-            "The page links 'Natural Gas Trading Calendar 2026' (xlsx) and the EEX Group calendar "
-            "(eex-group.com, same terms). EEX's own derivatives holiday calendar states that gas "
-            "derivatives trade on 24 and 31 December 08:00 to 13:00 CET: the hand file lists "
-            "both days as closed, so the desk checks them."
+            "The page links 'Natural Gas Trading Calendar <year>' (xlsx): its sheet '<year> "
+            "Natural Gas Holidays' lists the natural gas futures exchange holidays, and "
+            "'Physical Futures' each maturity's last trading day. The hand file stays as the "
+            "fallback while nothing has been read."
+        ),
+    ),
+    WatchedPublication(
+        publication_id="eex-holiday-calendar",
+        title="EEX holiday calendar, derivatives (shortened hours on 24 and 31 December)",
+        publisher="European Energy Exchange (EEX)",
+        kind="trading_calendar",
+        hubs=("NBP", "TTF", "ZTP", "THE", "PVB"),
+        url="https://www.eex.com/en/trading-resources/trading-information/calendar",
+        document_format="pdf",
+        verdict=CONSENTED,
+        terms_section=TERMS_SECTION,
+        terms_quote=_EEX_TERMS + _CONSENT,
+        terms_url="https://www.eex.com/en/disclaimer",
+        verified_live=True,
+        interval_minutes=24 * 60,
+        parser="eex_holiday_calendar",
+        attribution="Source: EEX, Holiday Calendar Derivatives & Emissions Spot",
+        calendar_venue="EEX",
+        consent_publisher="eex",
+        history="One standing document: \"applicable continuously for all years until further "
+                "notice\".",
+        notes=(
+            "Settles the hand file's open question: \"Gas and Freight derivatives are offered "
+            "for trading on 24th and 31st December from 08:00 am to 13:00 CET\". Both days are "
+            "early closes for EEX gas, not closed days (the hand file listed them closed)."
         ),
     ),
     WatchedPublication(
@@ -173,12 +240,18 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         hubs=("TTF", "ZTP", "THE"),
         url="https://www.ice.com/publicdocs/ICE_Endex_Trading_Schedule.pdf",
         document_format="pdf",
-        verdict=HAND_MAINTAINED,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
-        terms_quote=_ICE_TERMS,
+        terms_quote=_ICE_TERMS + _CONSENT,
         terms_url="https://www.ice.com/terms-of-use",
         verified_live=True,
+        interval_minutes=24 * 60,
+        parser="ice_endex_schedule",
+        attribution="Source: ICE Endex Trading Schedule",
         hand_venue="ICE_ENDEX",
+        calendar_venue="ICE_ENDEX",
+        consent_publisher="ice",
+        history="The current schedule: 2026 and 2027.",
         notes="Holiday notices for specific contracts: https://www.ice.com/holidays.",
     ),
     WatchedPublication(
@@ -189,13 +262,19 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         hubs=("NBP",),
         url="https://www.ice.com/publicdocs/Trading_Schedule.pdf",
         document_format="pdf",
-        verdict=HAND_MAINTAINED,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
-        terms_quote=_ICE_TERMS,
+        terms_quote=_ICE_TERMS + _CONSENT,
         terms_url="https://www.ice.com/terms-of-use",
         verified_live=True,
+        interval_minutes=24 * 60,
+        parser="ifeu_schedule",
+        attribution="Source: ICE Futures Europe Trading Schedule",
         hand_venue="ICE_FUTURES_EUROPE",
-        notes="UK natural gas closes on UK bank holidays as well as the exchange holidays.",
+        calendar_venue="ICE_FUTURES_EUROPE",
+        consent_publisher="ice",
+        history="The current schedule: 2026 and 2027 with the Christmas appendices.",
+        notes="UK natural gas also closes on UK bank holidays; read for UK natural gas only.",
     ),
     # ------------------------------------------------------------------ capacity auctions
     WatchedPublication(
@@ -230,17 +309,20 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         hubs=("NBP", "TTF", "ZTP", "THE", "PVB"),
         url="https://www.prisma-capacity.eu/",
         document_format="platform",
-        verdict=LINK_ONLY,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
         terms_quote=(
             "The public site publishes no reuse terms (imprint and legal documents read); offers "
             "and results are behind a platform account under the PRISMA GTCs, which nobody "
-            "accepts on the owner's behalf."
+            "accepts on the owner's behalf" + _CONSENT
         ),
         terms_url="https://www.prisma-capacity.eu/legal-documents",
         verified_live=True,
         delivery="platform",
-        notes="Auction dates follow ENTSOG's calendar; PRISMA also sends a newsletter by e-mail.",
+        consent_publisher="prisma",
+        notes=_NOT_YET + " The consent covers what PRISMA publishes without an account; "
+              "offers inside the platform are not public. Auction dates follow ENTSOG's "
+              "calendar (fetched).",
     ),
     WatchedPublication(
         publication_id="gsa-platform-auctions",
@@ -256,7 +338,8 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         terms_url="https://gsaplatform.eu/",
         verified_live=False,
         delivery="platform",
-        notes="Polish and neighbouring points; none of the desk's five hubs.",
+        notes="Polish and neighbouring points; none of the desk's five hubs. Not covered by the "
+              "consents of 2026-11-28.",
     ),
     WatchedPublication(
         publication_id="rbp-auctions",
@@ -275,7 +358,8 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         terms_url="https://rbp.eu/",
         verified_live=False,
         delivery="platform",
-        notes="Central and south-east European points; none of the desk's five hubs.",
+        notes="Central and south-east European points; none of the desk's five hubs. Not "
+              "covered by the consents of 2026-11-28.",
     ),
     # ------------------------------------------------------------------ LNG slots
     WatchedPublication(
@@ -287,12 +371,13 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         url="https://www.fluxys.com/en/natural-gas-and-biomethane/empowering-you/tariffs/"
         "tariff_fluxyslng-lng",
         document_format="html",
-        verdict=LINK_ONLY,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
-        terms_quote=_FLUXYS_TERMS,
+        terms_quote=_FLUXYS_TERMS + _CONSENT,
         terms_url="https://www.fluxys.com/en/legalnotice",
         verified_live=True,
-        notes="The firm can record Fluxys's written permission (LNG terminal register, CP-11).",
+        consent_publisher="fluxys",
+        notes=_NOT_YET,
     ),
     WatchedPublication(
         publication_id="dunkerque-lng-slots",
@@ -302,12 +387,13 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         hubs=("ZTP",),
         url="https://www.fluxys.com/fr/natural-gas-and-biomethane/shipper-journey/capacity-booking",
         document_format="html",
-        verdict=LINK_ONLY,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
-        terms_quote=_FLUXYS_TERMS,
+        terms_quote=_FLUXYS_TERMS + _CONSENT,
         terms_url="https://www.fluxys.com/fr/legalnotice",
         verified_live=True,
-        notes="www.dunkerquelng.com now redirects to fluxys.com, under the Fluxys legal notice.",
+        consent_publisher="fluxys",
+        notes=_NOT_YET + " www.dunkerquelng.com now redirects to fluxys.com.",
     ),
     WatchedPublication(
         publication_id="grain-lng-uioli-board",
@@ -317,20 +403,19 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         hubs=("NBP",),
         url="https://www.grainlng.com/operational-information",
         document_format="html",
-        verdict=LINK_ONLY,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
         terms_quote=(
             '"You may make a print copy for personal use, provided proprietary notices are '
             'included. You may not distribute, reverse engineer, or commercially exploit Website '
-            'or Services content except as permitted by law."'
+            'or Services content except as permitted by law."' + _CONSENT
         ),
         terms_url="https://www.grainlng.com/terms-and-conditions",
         verified_live=True,
         delivery="email",
-        notes=(
-            "Released slots are advertised on the board; bids go by e-mail to Grain LNG on a "
-            "Short Term Access Confirmation Notice (registered users)."
-        ),
+        consent_publisher="grain-lng",
+        notes=_NOT_YET + " Released slots are advertised on the board; bids go by e-mail to "
+              "Grain LNG on a Short Term Access Confirmation Notice (registered users).",
     ),
     WatchedPublication(
         publication_id="gate-terminal-slots",
@@ -340,11 +425,13 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         hubs=("TTF",),
         url="https://www.gate.nl/",
         document_format="html",
-        verdict=LINK_ONLY,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
-        terms_quote=_NOT_READ + " (gate.nl: proxy 502 on 2026-11-28).",
+        terms_quote=_NOT_READ + " (gate.nl: proxy 502 on 2026-11-28)" + _CONSENT,
         terms_url="https://www.gate.nl/",
         verified_live=False,
+        consent_publisher="gate-terminal",
+        notes=_NOT_YET,
     ),
     WatchedPublication(
         publication_id="det-lng-auctions",
@@ -354,16 +441,18 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         hubs=("THE",),
         url="https://energy-terminal.de/en/capacity-marketing/trader-information",
         document_format="html",
-        verdict=LINK_ONLY,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
         terms_quote=(
-            "The imprint publishes no reuse terms (only image copyrights); written confirmation "
-            "needed. Auctions and offers run on PRISMA."
+            "The imprint publishes no reuse terms (only image copyrights). Auctions and offers "
+            "run on PRISMA" + _CONSENT
         ),
         terms_url="https://energy-terminal.de/en/imprint",
         verified_live=True,
         delivery="platform",
-        notes="Wilhelmshaven commercial management passed to Gasfin Services on 1 April 2026.",
+        consent_publisher="deutsche-energy-terminal",
+        notes=_NOT_YET + " Wilhelmshaven commercial management passed to Gasfin Services on "
+              "1 April 2026.",
     ),
     WatchedPublication(
         publication_id="deutsche-regas-mukran",
@@ -373,11 +462,14 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         hubs=("THE",),
         url="https://deutsche-regas.de/en/",
         document_format="html",
-        verdict=LINK_ONLY,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
-        terms_quote="Not read: the site is a script application; its imprint text did not load.",
+        terms_quote="Not read: the site is a script application; its imprint text did not load"
+                    + _CONSENT,
         terms_url="https://deutsche-regas.de/en/imprint",
         verified_live=False,
+        consent_publisher="deutsche-regas",
+        notes=_NOT_YET,
     ),
     WatchedPublication(
         publication_id="enagas-lng-capacity",
@@ -388,11 +480,13 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         url="https://www.enagas.es/en/energy-transition/gas-network/"
         "infrastructure-supply-capacity-allocation/",
         document_format="html",
-        verdict=LINK_ONLY,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
-        terms_quote=_ENAGAS_TERMS,
+        terms_quote=_ENAGAS_TERMS + _CONSENT,
         terms_url="https://www.enagas.es/en/legal-notice/",
         verified_live=True,
+        consent_publisher="enagas",
+        notes=_NOT_YET,
     ),
     # ------------------------------------------------------------------ storage
     WatchedPublication(
@@ -408,6 +502,7 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         terms_quote=_NOT_READ + " (the site answered 403).",
         terms_url="https://www.uniper.energy/",
         verified_live=False,
+        notes="Not covered by the consents of 2026-11-28.",
     ),
     WatchedPublication(
         publication_id="fluxys-loenhout-storage",
@@ -417,11 +512,13 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         hubs=("ZTP",),
         url="https://www.fluxys.com/",
         document_format="html",
-        verdict=LINK_ONLY,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
-        terms_quote=_FLUXYS_TERMS,
+        terms_quote=_FLUXYS_TERMS + _CONSENT,
         terms_url="https://www.fluxys.com/en/legalnotice",
         verified_live=True,
+        consent_publisher="fluxys",
+        notes=_NOT_YET,
     ),
     WatchedPublication(
         publication_id="enagas-storage",
@@ -432,88 +529,182 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         url="https://www.enagas.es/en/energy-transition/gas-network/"
         "infrastructure-supply-capacity-allocation/",
         document_format="html",
-        verdict=LINK_ONLY,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
-        terms_quote=_ENAGAS_TERMS,
+        terms_quote=_ENAGAS_TERMS + _CONSENT,
         terms_url="https://www.enagas.es/en/legal-notice/",
         verified_live=True,
+        consent_publisher="enagas",
+        notes=_NOT_YET,
     ),
     # ------------------------------------------------------------------ reference prices
     WatchedPublication(
         publication_id="the-imbalance-prices",
-        title="Trading Hub Europe: positive and negative imbalance prices",
+        title="Trading Hub Europe: VTP daily average and imbalance prices",
         publisher="Trading Hub Europe",
         kind="reference_prices",
         hubs=("THE",),
-        url="https://www.tradinghub.eu/en-gb/Publications/Prices/Imbalance-Prices",
+        url="https://api.tradinghub.eu/api/dataexport/xmlexport/PricesEnergyImbalance",
         document_format="xml api",
-        verdict=LINK_ONLY,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
         terms_quote=(
             'Website disclaimer: "Die Vervielfältigung von Informationen oder Daten ... bedarf der '
             'vorherigen schriftlichen Zustimmung von Trading Hub Europe" (reproducing information '
             "or data needs THE's prior written consent). The DataExport API manual invites "
-            "automated retrieval without a key, but grants no reuse licence."
+            "automated retrieval without a key, but grants no reuse licence" + _CONSENT
         ),
         terms_url="https://www.tradinghub.eu/en-gb/Home/Disclaimer",
         verified_live=True,
+        interval_minutes=PRICE_INTERVAL_MINUTES,
+        parser="the_prices",
+        attribution="Source: Trading Hub Europe, DataExport PricesEnergyImbalance",
+        consent_publisher="trading-hub-europe",
+        source_family="THE",
+        history="From gas day 2021-10-01 (THE's publication start); read once in full, then "
+                "the last seven gas days at each check.",
         notes=(
-            "API: https://api.tradinghub.eu/api/dataexport/xmlexport/PricesEnergyImbalance "
-            "(standard tier: 20 requests a second, 3,000 an hour). One written consent from "
-            "THE would make it a fetched source."
+            "Documented open API (manual https://api.tradinghub.eu/api/dataexport/manual/en): "
+            "no key; a User-Agent naming the client is mandatory; standard tier 20 requests a "
+            "second, 3,000 an hour; ETag and If-None-Match supported; the previous gas day is "
+            "preliminary until replaced by the final value. The VTP daily average price is a "
+            "reference index for the gas day, not a quote."
         ),
     ),
     WatchedPublication(
         publication_id="national-gas-smp",
-        title="National Gas: system marginal buy and sell prices (GB cash-out)",
+        title="National Gas: SAP and system marginal buy and sell prices (GB cash-out)",
         publisher="National Gas Transmission",
         kind="reference_prices",
         hubs=("NBP",),
-        url="https://data.nationalgas.com/",
-        document_format="html",
-        verdict=LINK_ONLY,
+        url="https://api.nationalgas.com/operationaldata/v1/publications/gasday",
+        document_format="json api",
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
         terms_quote=(
             "Website terms: no reuse licence; the information \"has been developed for "
             'information purposes only and not for financial analysis purposes". The Gas Data '
-            "Portal publishes no licence of its own."
+            "Portal publishes no licence of its own" + _CONSENT
         ),
         terms_url="https://www.nationalgas.com/our-policies/terms-and-conditions",
         verified_live=True,
+        interval_minutes=PRICE_INTERVAL_MINUTES,
+        parser="national_gas_prices",
+        attribution="Source: National Gas Transmission, Gas Operational Data API",
+        consent_publisher="national-gas",
+        source_family="NATIONAL_GAS_PRICES",
+        history="Five years rolling (the API's stated depth); read once in yearly requests, "
+                "then the last ten gas days at each check.",
+        notes=(
+            "Documented API (data.nationalgas.com, APIs: Gas Operational Data, POST "
+            "/publications/gasday; catalogue items PUBOB603 SAP, PUBOB604 SMP Buy, PUBOB605 SMP "
+            "Sell, Actual Day, p/kWh, published 12:00 D+1). One request may not exceed days x "
+            "items of 3,600."
+        ),
     ),
     WatchedPublication(
         publication_id="mibgas-prices",
-        title="MIBGAS: PVB daily reference prices",
+        title="MIBGAS: PVB daily prices (day-ahead, month-ahead, quarter, year)",
         publisher="MIBGAS",
         kind="reference_prices",
         hubs=("PVB",),
-        url="https://www.mibgas.es/en",
-        document_format="html",
-        verdict=LINK_ONLY,
+        url="https://www.mibgas.es/en/file-access",
+        document_format="csv",
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
         terms_quote=(
             'Legal notice: "Sin citar la fuente queda prohibida la reproducción total o parcial, '
             '... y cualquier otro acto que no haya sido expresamente autorizado" (without citing '
-            "the source, reproduction is prohibited, as is any act not expressly authorised): "
-            "not a clear permission to store."
+            "the source, reproduction is prohibited, as is any act not expressly authorised)"
+            + _CONSENT
         ),
         terms_url="https://www.mibgas.es/en/cccontent/legal-notice",
         verified_live=True,
+        interval_minutes=PRICE_INTERVAL_MINUTES,
+        parser="mibgas_prices",
+        attribution="Source: MIBGAS, MIBGAS_Data_<year>.csv (file access)",
+        consent_publisher="mibgas",
+        source_family="MIBGAS",
+        history="Yearly CSV files from 2016 (2015 is published as a workbook only); read once, "
+                "then the current year's file at each check.",
+        notes=(
+            "The file-access page links one MIBGAS_Data_<year>.csv a year (the MIBGAS daily "
+            "price per product and trading day). MIBGAS offers no documented API; the files are "
+            "the publisher's own download. robots.txt allows /en/file-access."
+        ),
     ),
     WatchedPublication(
         publication_id="eex-ngp",
-        title="EEX gas market transparency: neutral gas price (TTF, THE) files",
+        title="EEX gas market transparency: TTF neutral gas price (60-day file)",
         publisher="European Energy Exchange (EEX)",
         kind="reference_prices",
-        hubs=("TTF", "THE"),
+        hubs=("TTF",),
         url="https://www.eex.com/en/markets/natural-gas/gas-market-transparency",
         document_format="csv",
-        verdict=LINK_ONLY,
+        verdict=CONSENTED,
         terms_section=TERMS_SECTION,
-        terms_quote=_EEX_TERMS,
+        terms_quote=_EEX_TERMS + _CONSENT,
         terms_url="https://www.eex.com/en/disclaimer",
         verified_live=True,
-        notes="The 2026-11-18 finding stands: EEX data only through the firm's own licence.",
+        interval_minutes=PRICE_INTERVAL_MINUTES,
+        parser="eex_ngp",
+        attribution="Source: EEX, TTF Neutral Gas Price (gas market transparency)",
+        consent_publisher="eex",
+        source_family="EEX_PUBLIC",
+        history="Sixty delivery days (the file's own window); kept from the first read on, so "
+                "the product's history grows by a day a day.",
+        notes=(
+            "The page links https://gasandregistry.eex.com/Gas/NGP/TTF_NGP_60_Days.csv "
+            "(conditional requests: ETag and Last-Modified). THE, PEG, ZTP and NBP have no "
+            "neutral gas price file on the page."
+        ),
+    ),
+    # ------------------------------------------------------------------ exchange prices
+    WatchedPublication(
+        publication_id="eex-market-data",
+        title="EEX public market data: natural gas spot and futures tables",
+        publisher="European Energy Exchange (EEX)",
+        kind="exchange_prices",
+        hubs=("TTF", "THE", "ZTP", "PVB", "NBP"),
+        url="https://www.eex.com/en/market-data/natural-gas",
+        document_format="html",
+        verdict=CONSENTED,
+        terms_section=TERMS_SECTION,
+        terms_quote=_EEX_TERMS + _CONSENT,
+        terms_url="https://www.eex.com/en/disclaimer",
+        verified_live=True,
+        consent_publisher="eex",
+        notes=(
+            "Consented; not yet implemented. The market-data pages carry no prices in the page "
+            "itself: a script draws the spot and futures tables from a data service EEX does "
+            "not document for automated reading, so the product does not read it. Ask EEX how "
+            "they prefer the public end-of-day tables to be read (a file, or a documented "
+            "address)."
+        ),
+    ),
+    WatchedPublication(
+        publication_id="ice-futures-end-of-day",
+        title="ICE: end-of-day TTF and UK NBP natural gas futures prices",
+        publisher="Intercontinental Exchange (ICE)",
+        kind="exchange_prices",
+        hubs=("TTF", "NBP"),
+        url="https://www.ice.com/products/27996665/Dutch-TTF-Natural-Gas-Futures/data",
+        document_format="html",
+        verdict=CONSENTED,
+        terms_section=TERMS_SECTION,
+        terms_quote=_ICE_TERMS + _CONSENT,
+        terms_url="https://www.ice.com/terms-of-use",
+        verified_live=True,
+        consent_publisher="ice",
+        notes=(
+            "Consented; not yet implemented. The product page's text carries the contract "
+            "calendar (first and last trading days) but no price: prices are drawn by the "
+            "page's script from a data service ICE does not document for automated reading. "
+            "ice.com is also behind a bot filter that, on 2026-11-28, once answered the "
+            "product's robots.txt read with HTTP 200 and a page titled \"Attention Required! | "
+            "Cloudflare\" (\"Sorry, you have been blocked\"), and answered normally a moment "
+            "later. Ask ICE how they prefer end-of-day prices to be read."
+        ),
     ),
 )
 
@@ -529,7 +720,11 @@ def watched_publication(publication_id: str) -> WatchedPublication:
 
 
 def fetch_refusal(item: WatchedPublication) -> str | None:
-    """Why the product does not fetch ``item``, or ``None`` when it may."""
+    """Why the product does not fetch ``item``, or ``None`` when it may.
+
+    Pure: a consent an administrator withdrew is checked against the runtime store by the
+    watch itself (``application/publication_watch``), on top of this.
+    """
 
     if not item.terms_section:
         return "no entry in the legal register: not fetched"
@@ -537,6 +732,16 @@ def fetch_refusal(item: WatchedPublication) -> str | None:
         return "the publisher's terms forbid storing it: the desk keeps it by hand"
     if item.verdict == LINK_ONLY:
         return "viewable, not storable: link only"
+    if item.verdict == CONSENTED:
+        from eurogas_nexus.domain.publications.consents import publisher_consent
+
+        if publisher_consent(item.consent_publisher) is None:
+            return "the terms forbid storing it and no written consent is recorded: not fetched"
+        if item.site_refusal:
+            return ("consented, but the site refuses automated reading; ask the publisher how "
+                    "they prefer to be read")
+        if not item.parser:
+            return "consented, not yet implemented"
     if not item.url.startswith("https://"):
         return "the recorded location is not an https address"
     if not item.parser:
@@ -546,8 +751,27 @@ def fetch_refusal(item: WatchedPublication) -> str | None:
     return None
 
 
+def unfetched_state(item: WatchedPublication) -> str | None:
+    """The state a publication the product does not fetch is shown in (``None``: fetched)."""
+
+    if item.verdict in (HAND_MAINTAINED, LINK_ONLY):
+        return item.verdict
+    refusal = fetch_refusal(item)
+    if refusal is None:
+        return None
+    if item.verdict == CONSENTED and item.site_refusal:
+        return "site_refuses"
+    if item.verdict == CONSENTED and not item.parser:
+        return "not_implemented"
+    return "link_only"
+
+
 __all__ = [
     "CHECKED_ON",
+    "CONSENTED",
+    "FETCHED_VERDICTS",
+    "PRICE_INTERVAL_MINUTES",
+    "unfetched_state",
     "DELIVERY",
     "FETCH",
     "HAND_MAINTAINED",

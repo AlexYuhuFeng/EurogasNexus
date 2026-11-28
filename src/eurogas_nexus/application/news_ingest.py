@@ -368,27 +368,37 @@ def sync_remit_items(
 # -------------------------------------------------------------------------------- feeds
 
 
-def http_fetch(url: str, headers: dict[str, str]) -> FetchResult:
-    """One HTTPS GET with this product's User-Agent (the real fetcher; tests pass their own)."""
+def http_fetch(url: str, headers: dict[str, str], *, body: bytes | None = None,
+               user_agent: str = USER_AGENT, max_bytes: int = 2_000_000,
+               timeout: float = 20.0) -> FetchResult:
+    """One HTTPS GET (a POST when ``body`` is given) with this product's User-Agent.
+
+    The real fetcher; tests pass their own. A body above ``max_bytes`` is cut there and the
+    result says so (``headers["error"] = "too large"``), so a parser never reads half a file.
+    """
 
     import urllib.error
     import urllib.request
 
     if urlsplit(url).scheme != "https":
         return FetchResult(0, b"", {"error": "https only"})
-    request = urllib.request.Request(url, headers={"User-Agent": USER_AGENT, **headers})
+    request = urllib.request.Request(url, data=body, method="POST" if body is not None else "GET",
+                                     headers={"User-Agent": user_agent, **headers})
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:  # noqa: S310 - https only
-            body = response.read(2_000_001)
-            return FetchResult(response.status, body, {k.lower(): v for k, v in
-                                                       response.headers.items()})
+        with urllib.request.urlopen(request, timeout=timeout) as response:  # noqa: S310 - https
+            data = response.read(max_bytes + 1)
+            found = {k.lower(): v for k, v in response.headers.items()}
+            if len(data) > max_bytes:
+                return FetchResult(0, b"", found | {"error": "too large"})
+            return FetchResult(response.status, data, found)
     except urllib.error.HTTPError as exc:
         return FetchResult(exc.code, b"", {k.lower(): v for k, v in (exc.headers or {}).items()})
     except (urllib.error.URLError, TimeoutError, OSError) as exc:
         return FetchResult(0, b"", {"error": type(exc).__name__})
 
 
-def robots_allows(fetch: Fetcher, url: str) -> tuple[bool, str]:
+def robots_allows(fetch: Fetcher, url: str, *, user_agent: str = USER_AGENT
+                  ) -> tuple[bool, str]:
     """Whether the host's ``robots.txt`` lets this product read ``url``.
 
     No file (4xx) allows; a file that cannot be read (5xx or no answer) does not, so a poll
@@ -404,7 +414,7 @@ def robots_allows(fetch: Fetcher, url: str) -> tuple[bool, str]:
         return False, f"robots.txt not readable (status {result.status})"
     parser = urllib.robotparser.RobotFileParser()
     parser.parse(result.body.decode("utf-8", "replace").splitlines())
-    if parser.can_fetch(USER_AGENT, url):
+    if parser.can_fetch(user_agent, url):
         return True, "robots.txt allows"
     return False, "robots.txt disallows the feed"
 

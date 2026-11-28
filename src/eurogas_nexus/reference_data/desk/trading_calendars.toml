@@ -1,15 +1,15 @@
 # Weekdays on which an exchange the desk trades on is closed (exchange holidays).
 #
-# MAINTAINED BY HAND, AND IT HAS TO BE. The exchanges publish these calendars, but their website
-# terms forbid storing them in a commercial product (EEX: only "a single copy for exclusive
-# personal, non-commercial use"; ICE: a licence "only for your own personal, non-commercial use"
-# that "does not include use of any data mining, robots or similar data gathering"), so the
-# product does not fetch them (docs/legal/DATA_SOURCE_TERMS.md, "Watched publications, checked
-# 2026-11-28"; domain/publications/registry.py). Instead, each venue names the publisher's own
-# page (`check_url`) and a day to compare this list with it by (`check_by`): the product reminds
-# the desk on Desk -> Board (Calendar) and by notification from two weeks before that day. After
-# checking, set `checked = true` and move `check_by` on (before the next year starts at the
-# latest).
+# THE FALLBACK ONLY (2026-11-28). The exchanges' own calendars are now fetched under the
+# publishers' written consent reported by the owner on 2026-11-28 (EEX's natural gas trading
+# calendar and holiday calendar, ICE Endex's and ICE Futures Europe's trading schedules:
+# docs/legal/DATA_SOURCE_TERMS.md, "Written consents reported by the owner, 2026-11-28";
+# domain/publications/registry.py). For every year an exchange's fetched calendar covers, its
+# days replace this file's on Desk -> Board (Calendar), in the notifications and in the daily
+# pack; this file is used for the years and venues nothing has been read for yet, and if an
+# administrator withdraws a consent before anything was fetched. Each venue names the
+# publisher's own page (`check_url`) and a day to compare this list with it by (`check_by`):
+# the product reminds the desk only while it has not read that exchange's calendar.
 #
 # `checked = false` means no person on the desk has compared the list with the publisher's page
 # for the years given. A year not listed under `years` is treated as Monday to Friday, and the
@@ -35,15 +35,20 @@ non_trading_days = [
     "2026-04-03",  # Good Friday
     "2026-04-06",  # Easter Monday
     "2026-05-01",  # Labour Day
-    "2026-12-24",  # Christmas Eve (check: EEX states gas derivatives trade 08:00-13:00 CET)
     "2026-12-25",  # Christmas Day
-    "2026-12-31",  # New Year's Eve (check: as 24 December)
     "2027-01-01",  # New Year's Day
     "2027-03-26",  # Good Friday
     "2027-03-29",  # Easter Monday
-    "2027-12-24",  # Christmas Eve (check: as above)
-    "2027-12-31",  # New Year's Eve (check: as above)
 ]
+
+# Settled from EEX's own Holiday Calendar (Derivatives & Emissions Spot, read 2026-11-28): "Gas
+# and Freight derivatives are offered for trading on 24th and 31st December from 08:00 am to
+# 13:00 CET"; "applicable continuously for all years". Shorter hours, not closed days.
+[venue.EEX.early_closes]
+"2026-12-24" = "gas derivatives trade 08:00-13:00 CET only"
+"2026-12-31" = "gas derivatives trade 08:00-13:00 CET only"
+"2027-12-24" = "gas derivatives trade 08:00-13:00 CET only"
+"2027-12-31" = "gas derivatives trade 08:00-13:00 CET only"
 
 [venue.ICE_ENDEX]
 title = "ICE Endex gas futures (TTF, THE, ZTP, PEG)"

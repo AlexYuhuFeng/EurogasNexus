@@ -150,7 +150,7 @@ class PublicationFetcher:
         self.page_status = page_status
         self.calls: list[str] = []
 
-    def __call__(self, url: str, headers: dict[str, str]):
+    def __call__(self, url: str, headers: dict[str, str], body: bytes | None = None):
         self.calls.append(url)
         if url.endswith("/robots.txt"):
             return self._result(self.robots[0], self.robots[1], {})

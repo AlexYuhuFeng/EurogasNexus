@@ -1,42 +1,54 @@
 """Watch the public publications the desk relies on, and tell the desk what changed.
 
 The registry (``domain/publications/registry``) says, for each publication, where it is and
-whether its terms let the product keep it. :func:`check_publication` does one check:
+whether its terms let the product keep it: allowed by the terms (``fetch``), or forbidden by
+the terms but covered by the publisher's written consent (``consented``, owner 2026-11-28;
+``domain/publications/consents``). :func:`check_publication` does one check:
 
-1. A publication the product may not fetch (hand-maintained, link only, or no entry in the
-   legal register) is recorded with that state and never read.
-2. Within its interval nothing is read again (``skipped``). Otherwise the host's
-   ``robots.txt`` is read first (a disallowed page is not read), then the publication's page,
-   then the document the page links, with this product's own User-Agent and the conditional
-   headers of the last read.
+1. A publication the product may not fetch (hand-maintained, link only, no entry in the legal
+   register, consented but not yet implemented, a site that refuses automated reading, or a
+   consent an administrator has withdrawn) is recorded with that state and never read.
+2. Within its interval nothing is read again (``skipped``); after a failed check the next one
+   waits longer each time (doubling the interval, at most a day) and never before a
+   publisher's ``Retry-After``. Otherwise the host's ``robots.txt`` is read first (a
+   disallowed page is not read), then the publication, with this product's own generic
+   User-Agent (:data:`PUBLICATION_USER_AGENT`) and the conditional headers of the last read.
+   Requests of one check go one after another, :data:`REQUEST_PAUSE_SECONDS` apart.
 3. The document's SHA-256 is compared with the one held. The same digest: ``current``.
 4. A new digest: the document is kept once by its digest (``raw_payload_contents``) and parsed.
    Parsed with confidence: the record is replaced, the previous record is kept beside it with
-   its fetch time, the parser's records are applied (ENTSOG's auctions to the capacity
-   notices), a ``capacity.changed`` event goes on the outbox and, when an earlier record
-   existed, one notification says what moved. Not parsed with confidence (a layout change):
-   the held record stays, the state becomes ``needs_confirmation`` with the document's link,
-   and the desk is told once for that document; nothing is guessed.
+   its fetch time, and the parser's records are applied (ENTSOG's auctions to the capacity
+   notices; a price publication's figures to the observation store and the board's quotes,
+   ``public_prices``; an exchange calendar stays on its record and replaces the desk's hand
+   file for the years it covers). When an earlier record existed, a calendar's change is told
+   once in a notification. Not parsed with confidence (a layout change): the held record
+   stays, the state becomes ``needs_confirmation`` with the document's link, and the desk is
+   told once for that document; nothing is guessed.
 5. A page or document that cannot be read: ``unreachable`` with the reason, told once a day.
 
 :func:`calendar_items` is the desk's calendar: upcoming non-trading days and early closes
-(the hand-maintained file, marked so), auction windows and offer-level publication days,
-reminders to check a hand-maintained calendar, and sources that need a person. Every item
-carries its source and, for fetched ones, when it was published and fetched.
-:func:`source_status` is the administrators' list of every watched publication.
-:func:`queue_deadline_notifications` raises the existing notifications ahead of a non-trading
-day and a calendar check. :func:`watch_publications_if_due` is the scheduler's hook.
+(fetched where the exchange's calendar has been read, else the hand-maintained file, marked
+so), last trading days, auction windows and offer-level publication days, reminders to check a
+hand-maintained calendar, and sources that need a person. Every item carries its source and,
+for fetched ones, when it was published and fetched. :func:`effective_trading_calendar` is the
+same calendar for the daily pack. :func:`source_status` is the administrators' list of every
+watched publication. :func:`queue_deadline_notifications` raises the existing notifications
+ahead of a non-trading day and a calendar check. :func:`watch_publications_if_due` is the
+scheduler's hook.
 
-The fetcher is passed in, so tests run on fixtures with no network
-(``news_ingest.http_fetch`` is the real one). Nothing here signs in, registers or accepts terms.
+The fetcher is passed in, so tests run on fixtures with no network (:func:`publication_fetch`
+is the real one). Nothing here signs in, registers or accepts terms.
 
-发布物监控：在条款允许时按间隔获取、以摘要检测变化、解析并保留旧记录；无法确定时保留旧值并请人确认。
+发布物监控：在条款或书面同意允许时按间隔礼貌获取、以摘要检测变化、解析并保留旧记录；无法确定时保留旧值并请人确认；
+出错时退避，遵守 Retry-After 与 robots.txt。
 """
 
 from __future__ import annotations
 
 import hashlib
+import json
 import os
+import time as _time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, date, datetime, time, timedelta
@@ -44,13 +56,16 @@ from typing import Any
 
 from eurogas_nexus.application.news_ingest import Fetcher, FetchResult, http_fetch, robots_allows
 from eurogas_nexus.domain.publications import entsog_cam_calendar as entsog
+from eurogas_nexus.domain.publications import exchange_calendars as calendars
+from eurogas_nexus.domain.publications import public_prices as prices
 from eurogas_nexus.domain.publications.registry import (
+    CONSENTED,
     FETCH,
-    HAND_MAINTAINED,
-    LINK_ONLY,
+    FETCHED_VERDICTS,
     WATCHED_PUBLICATIONS,
     WatchedPublication,
     fetch_refusal,
+    unfetched_state,
     watched_publication,
 )
 
@@ -66,8 +81,25 @@ NON_TRADING_LEAD = timedelta(days=3)
 CHECK_LEAD = timedelta(days=14)
 #: How often an unreachable publication is told again.
 UNREACHABLE_RETELL = timedelta(days=1)
+#: The product's name to every publisher: generic, no person, firm or place (THE's API
+#: manual asks every client to name itself and a version).
+PUBLICATION_USER_AGENT = "EurogasNexus-PublicationWatch/1.0"
+#: Between two requests of one check (a history read is several requests).
+REQUEST_PAUSE_SECONDS = 2.0
+#: The longest a failed publication waits before the next try.
+MAX_BACKOFF = timedelta(hours=24)
+#: The largest document read (THE's full imbalance history is about 1.2 MB).
+DOCUMENT_MAX_BYTES = 8_000_000
 
 _HOOK_STATE: dict[str, datetime] = {}
+
+
+def publication_fetch(url: str, headers: dict[str, str], *, body: bytes | None = None
+                      ) -> FetchResult:
+    """The real fetcher: HTTPS only, this product's generic User-Agent, bounded size."""
+
+    return http_fetch(url, headers, body=body, user_agent=PUBLICATION_USER_AGENT,
+                      max_bytes=DOCUMENT_MAX_BYTES, timeout=90.0)
 
 
 def _aware(value: datetime | None) -> datetime | None:
@@ -91,8 +123,9 @@ def _iso(value: datetime | date | None) -> str | None:
 class Parser:
     """How one publication is read: find the document on the page, parse it, apply it."""
 
-    #: The document's URL from the page's bytes (raises the parser's uncertainty error).
-    locate: Callable[[bytes, str], str]
+    #: The document's URL from the page's bytes (raises the parser's uncertainty error);
+    #: ``None`` when the publication's address is the document itself.
+    locate: Callable[[bytes, str], str] | None
     #: The typed record from the document (raises the uncertainty error).
     parse: Callable[[bytes], Any]
     #: Store what the record says where the product reads it; returns counts.
@@ -162,6 +195,23 @@ def _entsog_apply(session, item: WatchedPublication, calendar: entsog.AuctionCal
     return {**counts, "withdrawn": withdrawn, "rule_derived_retired": retired}
 
 
+def _calendar_apply(session, item: WatchedPublication, calendar, *, now: datetime,
+                    document_url: str) -> dict[str, int]:
+    """An exchange calendar stays on its record; the calendar reads overlay it on the file."""
+
+    return {"closed": len(calendar.closed), "early_closes": len(calendar.early_closes),
+            "expiries": len(calendar.expiries)}
+
+
+def _desk_years() -> tuple[int, ...]:
+    """The years the desk's calendar covers (the hand file's), and the current one."""
+
+    held = _hand_calendar()
+    years = set(held.years) if held else set()
+    years.add(datetime.now(UTC).year)
+    return tuple(sorted(years))
+
+
 PARSERS: dict[str, Parser] = {
     "entsog_cam_calendar": Parser(
         locate=_entsog_locate,
@@ -169,28 +219,174 @@ PARSERS: dict[str, Parser] = {
         apply=_entsog_apply,
         uncertain=entsog.CalendarUncertain,
     ),
+    "eex_gas_calendar": Parser(
+        locate=lambda page, base: calendars.eex_document_link(page, base, kind="gas"),
+        parse=calendars.parse_eex_gas_calendar,
+        apply=_calendar_apply,
+        uncertain=calendars.CalendarUncertain,
+    ),
+    "eex_holiday_calendar": Parser(
+        locate=lambda page, base: calendars.eex_document_link(page, base, kind="holidays"),
+        parse=lambda data: calendars.parse_eex_holiday_calendar(data, years=_desk_years()),
+        apply=_calendar_apply,
+        uncertain=calendars.CalendarUncertain,
+    ),
+    "ice_endex_schedule": Parser(
+        locate=None,
+        parse=calendars.parse_ice_endex_schedule,
+        apply=_calendar_apply,
+        uncertain=calendars.CalendarUncertain,
+    ),
+    "ifeu_schedule": Parser(
+        locate=None,
+        parse=calendars.parse_ifeu_schedule,
+        apply=_calendar_apply,
+        uncertain=calendars.CalendarUncertain,
+    ),
+}
+
+
+# ------------------------------------------------------------------------- price series
+
+
+@dataclass(frozen=True)
+class SeriesRequest:
+    """One request of a price publication's check."""
+
+    url: str
+    body: bytes | None = None
+    headers: dict[str, str] = field(default_factory=dict)
+    #: A history request the publisher may not have (an early year): a 404 is noted, not an
+    #: error.
+    optional: bool = False
+
+
+class _Unreachable(Exception):
+    """A page a request plan needed could not be read."""
+
+    def __init__(self, why: str, result: FetchResult | None = None) -> None:
+        super().__init__(why)
+        self.result = result
+
+
+#: THE's publication start (its API raises an earlier start date to this one).
+THE_START = date(2021, 10, 1)
+#: National Gas: "for most data items, 5 years of rolling historic data can be accessed";
+#: one request may cover at most 3,600 days x items, so a year of three items per request.
+NG_HISTORY_YEARS = 5
+#: MIBGAS publishes a CSV a year from 2016 (2015 as a workbook only).
+MIBGAS_FIRST_YEAR = 2016
+
+
+def _plan_the(item: WatchedPublication, row, now: datetime, fetch: Fetcher
+              ) -> list[SeriesRequest]:
+    today = now.date()
+    start = THE_START if not row.record else today - timedelta(days=7)
+    return [SeriesRequest(f"{item.url}?startDate={start.isoformat()}&endDate={today.isoformat()}")]
+
+
+def _plan_national_gas(item: WatchedPublication, row, now: datetime, fetch: Fetcher
+                       ) -> list[SeriesRequest]:
+    today = now.date()
+    if row.record:
+        windows = [(today - timedelta(days=10), today)]
+    else:
+        windows = [(today - timedelta(days=365 * (k + 1) - 1), today - timedelta(days=365 * k))
+                   for k in range(NG_HISTORY_YEARS)]
+    ids = sorted(prices.NATIONAL_GAS_ITEMS)
+    return [SeriesRequest(item.url, body=json.dumps({
+        "fromDate": start.isoformat(), "toDate": end.isoformat(), "publicationIds": ids,
+        "latestValue": "Y"}).encode(), headers={"Content-Type": "application/json"})
+        for start, end in windows]
+
+
+def _mibgas_url(year: int) -> str:
+    return (f"https://www.mibgas.es/en/file-access/MIBGAS_Data_{year}.csv"
+            f"?path=AGNO_{year}/XLS")
+
+
+def _plan_mibgas(item: WatchedPublication, row, now: datetime, fetch: Fetcher
+                 ) -> list[SeriesRequest]:
+    year = now.year
+    if not row.record:
+        return [SeriesRequest(_mibgas_url(y), optional=True)
+                for y in range(MIBGAS_FIRST_YEAR, year)] + [SeriesRequest(_mibgas_url(year))]
+    out = [SeriesRequest(_mibgas_url(year))]
+    if now.month == 1 and now.day <= 7:
+        out.insert(0, SeriesRequest(_mibgas_url(year - 1), optional=True))
+    return out
+
+
+EEX_NGP_FILE = "https://gasandregistry.eex.com/Gas/NGP/TTF_NGP_60_Days.csv"
+
+
+def _plan_eex_ngp(item: WatchedPublication, row, now: datetime, fetch: Fetcher
+                  ) -> list[SeriesRequest]:
+    page = fetch(item.url, {})
+    if page.status != 200:
+        raise _Unreachable(_status(page), page)
+    if EEX_NGP_FILE.encode() not in page.body:
+        raise prices.PricesUncertain("the gas market transparency page no longer links the TTF "
+                                     "neutral gas price 60-day file")
+    return [SeriesRequest(EEX_NGP_FILE)]
+
+
+@dataclass(frozen=True)
+class SeriesSource:
+    plan: Callable[..., list[SeriesRequest]]
+    parse: Callable[[bytes, datetime], prices.PriceRecord]
+
+
+SERIES_SOURCES: dict[str, SeriesSource] = {
+    "the_prices": SeriesSource(
+        plan=_plan_the,
+        parse=lambda data, now: prices.parse_the_imbalance(data, today=now.date())),
+    "national_gas_prices": SeriesSource(
+        plan=_plan_national_gas, parse=lambda data, now: prices.parse_national_gas(data)),
+    "mibgas_prices": SeriesSource(
+        plan=_plan_mibgas, parse=lambda data, now: prices.parse_mibgas(data)),
+    "eex_ngp": SeriesSource(
+        plan=_plan_eex_ngp, parse=lambda data, now: prices.parse_eex_ngp(data)),
 }
 
 
 def describe_change(previous: dict | None, current: dict) -> list[str]:
-    """What moved between two ENTSOG calendar records, in plain words (at most ten lines)."""
+    """What moved between two records, in plain words (at most ten lines).
 
-    before = {a["key"]: a for a in (previous or {}).get("auctions", [])}
-    after = {a["key"]: a for a in current.get("auctions", [])}
-    opens = [a["opens_at_utc"] for a in after.values()]
-    lines: list[str] = []
-    for key, auction in after.items():
-        held = before.get(key)
-        if held is None:
-            lines.append(f"New: {auction['label']} opens {auction['opens_at_utc']}.")
-        elif held["opens_at_utc"] != auction["opens_at_utc"]:
-            lines.append(f"Moved: {auction['label']} from {held['opens_at_utc']} to "
-                         f"{auction['opens_at_utc']}.")
-    for key, auction in before.items():
-        # Only what the new calendar covers: a next year's file does not drop this year's.
-        if key not in after and opens and min(opens) <= auction["opens_at_utc"] <= max(opens):
-            lines.append(f"No longer listed: {auction['label']}.")
-    return lines[:10]
+    An ENTSOG calendar: auctions new, moved or no longer listed. An exchange calendar: days
+    newly closed, no longer closed, and early closes added. A price record: nothing (the board
+    shows the figure; a daily price is not news).
+    """
+
+    if "auctions" in current:
+        before = {a["key"]: a for a in (previous or {}).get("auctions", [])}
+        after = {a["key"]: a for a in current.get("auctions", [])}
+        opens = [a["opens_at_utc"] for a in after.values()]
+        lines: list[str] = []
+        for key, auction in after.items():
+            held = before.get(key)
+            if held is None:
+                lines.append(f"New: {auction['label']} opens {auction['opens_at_utc']}.")
+            elif held["opens_at_utc"] != auction["opens_at_utc"]:
+                lines.append(f"Moved: {auction['label']} from {held['opens_at_utc']} to "
+                             f"{auction['opens_at_utc']}.")
+        for key, auction in before.items():
+            # Only what the new calendar covers: a next year's file does not drop this year's.
+            if key not in after and opens and min(opens) <= auction["opens_at_utc"] <= max(opens):
+                lines.append(f"No longer listed: {auction['label']}.")
+        return lines[:10]
+    if "closed" in current:
+        before_closed = {c["day"]: c["what"] for c in (previous or {}).get("closed", [])}
+        after_closed = {c["day"]: c["what"] for c in current.get("closed", [])}
+        before_early = {c["day"]: c["what"] for c in (previous or {}).get("early_closes", [])}
+        lines = [f"Now closed: {day} ({what})." for day, what in sorted(after_closed.items())
+                 if day not in before_closed]
+        lines += [f"No longer closed: {day}." for day in sorted(before_closed)
+                  if day not in after_closed]
+        lines += [f"Shorter hours: {c['day']} ({c['what']})."
+                  for c in current.get("early_closes", []) if c["day"] not in before_early]
+        return lines[:10]
+    return []
 
 
 # ------------------------------------------------------------------------------- checks
@@ -217,8 +413,9 @@ def _row(session, item: WatchedPublication):
     if row is None:
         row = WatchedPublicationRecord(
             publication_id=item.publication_id,
-            state="never_fetched" if item.verdict == FETCH else item.verdict,
+            state=unfetched_state(item) or "never_fetched",
             detail="",
+            consecutive_failures=0,
         )
         session.add(row)
     return row
@@ -232,66 +429,136 @@ def _tell(session, *, key: str, title: str, body: str, now: datetime,
                               body=body, dedupe_key=key, now=now)
 
 
-def _unreachable(session, row, item: WatchedPublication, why: str, now: datetime
-                 ) -> CheckOutcome:
+def _retry_after(result: FetchResult | None) -> timedelta | None:
+    if result is None:
+        return None
+    value = (result.headers or {}).get("retry-after", "").strip()
+    if value.isdigit():
+        return timedelta(seconds=min(int(value), 7 * 24 * 3600))
+    return None
+
+
+def _unreachable(session, row, item: WatchedPublication, why: str, now: datetime,
+                 result: FetchResult | None = None) -> CheckOutcome:
     row.state = "unreachable"
-    row.detail = f"Could not be read on {now:%d %b %Y %H:%M} UTC: {why}"[:500]
+    row.consecutive_failures = int(row.consecutive_failures or 0) + 1
+    interval = timedelta(minutes=item.interval_minutes or 60)
+    wait = min(interval * (2 ** (row.consecutive_failures - 1)), MAX_BACKOFF)
+    asked = _retry_after(result)
+    if asked is not None:
+        wait = max(wait, asked)
+    row.next_check_at_utc = now + wait
+    row.detail = (f"Could not be read on {now:%d %b %Y %H:%M} UTC: {why}; next try after "
+                  f"{row.next_check_at_utc:%d %b %H:%M} UTC")[:500]
     _tell(session, key=f"publication:{item.publication_id}:unreachable:{now:%Y-%m-%d}",
           title=f"Not read: {item.title}",
           body=(f"{item.title} ({item.publisher}) could not be read: {why}.\n"
                 f"Page: {item.url}\nThe last record held stays in use; the next check tries "
-                "again."),
+                "again later."),
           now=now, severity="low")
+    session.flush()
     return CheckOutcome(item.publication_id, "unreachable", why)
 
 
+def _succeeded(row) -> None:
+    row.consecutive_failures = 0
+    row.next_check_at_utc = None
+
+
 def _publish_event(session, item: WatchedPublication, row, *, now: datetime,
-                   lines: list[str]) -> None:
+                   lines: list[str], event_type: str = "capacity.changed",
+                   payload: dict | None = None) -> None:
     from eurogas_nexus.application.market_events import publish
     from eurogas_nexus.domain.market_events.model import MarketEvent
 
     publish(session, MarketEvent(
         source_id=EVENT_SOURCE,
-        event_type="capacity.changed",
+        event_type=event_type,
         subject_key=f"publication:{item.publication_id}",
         ingested_at_utc=now,
-        payload={"publication_id": item.publication_id, "content_sha256": row.content_sha256,
-                 "document_url": row.document_url, "changes": lines},
+        payload=payload or {"publication_id": item.publication_id,
+                            "content_sha256": row.content_sha256,
+                            "document_url": row.document_url, "changes": lines},
         identity=f"publication:{item.publication_id}:{row.content_sha256}",
         correlation_id=item.publication_id,
     ))
 
 
-def check_publication(session, item: WatchedPublication, *, fetch: Fetcher, now: datetime,
-                      force: bool = False) -> CheckOutcome:
-    """One check of one publication (see the module text); commit is the caller's."""
+def _not_fetched(session, row, item: WatchedPublication, *, now: datetime
+                 ) -> CheckOutcome | None:
+    """The outcome for a publication the product does not read now, or ``None`` to read it."""
 
-    from eurogas_nexus.db.repositories.raw_archive import store_payload_content
+    refusal = fetch_refusal(item)
+    if refusal:
+        row.state = unfetched_state(item) or "link_only"
+        row.detail = refusal + (f": {item.site_refusal}" if item.site_refusal else "")
+        session.flush()
+        return CheckOutcome(item.publication_id, "not_fetched", refusal)
+    if item.verdict == CONSENTED:
+        from eurogas_nexus.application.publisher_consents import withdrawn_on
+
+        withdrawn = withdrawn_on(session, item.consent_publisher)
+        if withdrawn is not None:
+            row.state = "consent_withdrawn"
+            row.detail = (f"Consent withdrawn on {withdrawn:%Y-%m-%d}: not fetched; the data "
+                          "held stays, marked")
+            session.flush()
+            return CheckOutcome(item.publication_id, "not_fetched",
+                                f"consent withdrawn on {withdrawn:%Y-%m-%d}")
+    return None
+
+
+def check_publication(session, item: WatchedPublication, *, fetch: Fetcher, now: datetime,
+                      force: bool = False, pause: Callable[[float], None] | None = None
+                      ) -> CheckOutcome:
+    """One check of one publication (see the module text); commit is the caller's."""
 
     now = _aware(now)
     row = _row(session, item)
-    refusal = fetch_refusal(item)
-    if refusal:
-        row.state = item.verdict if item.verdict in {HAND_MAINTAINED, LINK_ONLY} else "link_only"
-        row.detail = refusal
-        session.flush()
-        return CheckOutcome(item.publication_id, "not_fetched", refusal)
+    stopped = _not_fetched(session, row, item, now=now)
+    if stopped is not None:
+        return stopped
+    if row.state in {"consent_withdrawn", "link_only", "not_implemented", "site_refuses",
+                     "hand_maintained"}:
+        row.state = "current" if row.record else "never_fetched"
     last = _aware(row.last_checked_at_utc)
     if not force and last is not None and now - last < timedelta(minutes=item.interval_minutes):
         return CheckOutcome(item.publication_id, "skipped", "within the publication's interval")
+    waits = _aware(row.next_check_at_utc)
+    if not force and waits is not None and now < waits:
+        return CheckOutcome(item.publication_id, "skipped",
+                            f"waiting after {row.consecutive_failures} failed check(s)")
     row.last_checked_at_utc = now
+    if item.parser in SERIES_SOURCES:
+        return _check_series(session, row, item, fetch=fetch, now=now,
+                             pause=pause if pause is not None else _time.sleep)
+    return _check_document(session, row, item, fetch=fetch, now=now)
+
+
+def _check_document(session, row, item: WatchedPublication, *, fetch: Fetcher,
+                    now: datetime) -> CheckOutcome:
+    from eurogas_nexus.db.repositories.raw_archive import store_payload_content
+
     parser = PARSERS[item.parser]
-    allowed, why = robots_allows(fetch, item.url)
+    allowed, why = robots_allows(fetch, item.url, user_agent=PUBLICATION_USER_AGENT)
     if not allowed:
         return _unreachable(session, row, item, why, now)
-    page = fetch(item.url, {})
-    if page.status != 200:
-        return _unreachable(session, row, item, _status(page), now)
-    try:
-        document_url = parser.locate(page.body, item.url)
-    except parser.uncertain as exc:
-        return _needs_person(session, row, item, now=now, digest=_sha(page.body),
-                             url=item.url, why=str(exc))
+    if parser.locate is None:
+        document_url = item.url
+    else:
+        page = fetch(item.url, {})
+        if page.status != 200:
+            return _unreachable(session, row, item, _status(page), now, page)
+        try:
+            document_url = parser.locate(page.body, item.url)
+        except parser.uncertain as exc:
+            return _needs_person(session, row, item, now=now, digest=_sha(page.body),
+                                 url=item.url, why=str(exc))
+        if document_url.split("/")[2] != item.url.split("/")[2]:
+            # The document is on another host: its own robots.txt is read first too.
+            allowed, why = robots_allows(fetch, document_url, user_agent=PUBLICATION_USER_AGENT)
+            if not allowed:
+                return _unreachable(session, row, item, why, now)
     headers: dict[str, str] = {}
     if row.document_url == document_url:
         if row.etag:
@@ -301,14 +568,16 @@ def check_publication(session, item: WatchedPublication, *, fetch: Fetcher, now:
     document = fetch(document_url, headers)
     if document.status == 304:
         row.last_fetched_at_utc = now
+        _succeeded(row)
         if row.state == "unreachable":
             row.state = "current" if row.record else "never_fetched"
         session.flush()
         return CheckOutcome(item.publication_id, "current", "unchanged since the last read")
     if document.status != 200:
-        return _unreachable(session, row, item, _status(document), now)
+        return _unreachable(session, row, item, _status(document), now, document)
     digest = _sha(document.body)
     row.last_fetched_at_utc = now
+    _succeeded(row)
     row.etag = (document.headers.get("etag") or None)
     row.last_modified = (document.headers.get("last-modified") or None)
     if digest == row.content_sha256:
@@ -321,7 +590,7 @@ def check_publication(session, item: WatchedPublication, *, fetch: Fetcher, now:
         session.flush()
         return CheckOutcome(item.publication_id, "needs_confirmation",
                             "the changed document still awaits a person")
-    # Kept once by its digest, where the terms allow storing it (only fetched ones get here).
+    # Kept once by its digest, where the terms (or the publisher's consent) allow storing it.
     store_payload_content(session, payload_sha256=digest, data=document.body,
                           received_at_utc=now)
     try:
@@ -332,33 +601,149 @@ def check_publication(session, item: WatchedPublication, *, fetch: Fetcher, now:
     record = parsed.to_json()
     first_read = row.record is None
     lines = [] if first_read else describe_change(row.record, record)
-    row.previous_record = row.record
-    row.previous_fetched_at_utc = row.record_fetched_at_utc
-    row.record = record
-    row.record_fetched_at_utc = now
-    row.content_sha256 = digest
-    row.document_url = document_url
-    row.last_changed_at_utc = now
-    row.pending_sha256 = row.pending_url = row.pending_since_utc = None
-    row.state = "current"
+    _replace_record(row, record, now=now, digest=digest, document_url=document_url)
     applied = parser.apply(session, item, parsed, now=now, document_url=document_url)
     row.detail = (f"Read {now:%d %b %Y} from {document_url}"
                   + (f"; {len(lines)} change(s)" if lines else ""))[:500]
     session.flush()
-    _publish_event(session, item, row, now=now, lines=lines)
+    if item.parser == "entsog_cam_calendar":
+        _publish_event(session, item, row, now=now, lines=lines)
     if not first_read:
         _tell(session, key=f"publication:{item.publication_id}:changed:{digest}",
               title=f"Updated: {item.title}",
               body="\n".join([
                   f"{item.publisher} published a new version of {item.title}; the product has "
                   "read it and updated the calendar.",
-                  *(lines or ["No auction date moved."]),
+                  *(lines or ["No date moved."]),
                   f"Document: {document_url}",
                   item.attribution,
               ]),
               now=now, severity="info")
     return CheckOutcome(item.publication_id, "changed" if not first_read else "first_read",
                         f"{len(lines)} change(s)", applied)
+
+
+def _replace_record(row, record: dict, *, now: datetime, digest: str, document_url: str) -> None:
+    row.previous_record = row.record
+    row.previous_fetched_at_utc = row.record_fetched_at_utc
+    row.record = record
+    row.record_fetched_at_utc = now
+    row.content_sha256 = digest
+    row.document_url = document_url[:1000]
+    row.last_changed_at_utc = now
+    row.pending_sha256 = row.pending_url = row.pending_since_utc = None
+    row.state = "current"
+
+
+def _check_series(session, row, item: WatchedPublication, *, fetch: Fetcher, now: datetime,
+                  pause: Callable[[float], None]) -> CheckOutcome:
+    """One check of a price publication: its requests in turn, then the figures stored."""
+
+    from eurogas_nexus.application.public_prices import store_points
+    from eurogas_nexus.db.repositories.raw_archive import store_payload_content
+
+    source = SERIES_SOURCES[item.parser]
+    allowed, why = robots_allows(fetch, item.url, user_agent=PUBLICATION_USER_AGENT)
+    if not allowed:
+        return _unreachable(session, row, item, why, now)
+    try:
+        requests = source.plan(item, row, now, fetch)
+    except _Unreachable as exc:
+        return _unreachable(session, row, item, str(exc), now, exc.result)
+    except prices.PricesUncertain as exc:
+        return _needs_person(session, row, item, now=now, digest=_sha(str(exc).encode()),
+                             url=item.url, why=str(exc))
+    hosts_read = {item.url.split("/")[2]}
+    bodies: list[tuple[SeriesRequest, bytes]] = []
+    missing: list[str] = []
+    unchanged = 0
+    for index, request in enumerate(requests):
+        host = request.url.split("/")[2]
+        if host not in hosts_read:
+            allowed, why = robots_allows(fetch, request.url, user_agent=PUBLICATION_USER_AGENT)
+            if not allowed:
+                return _unreachable(session, row, item, why, now)
+            hosts_read.add(host)
+        if index:
+            pause(REQUEST_PAUSE_SECONDS)
+        headers = dict(request.headers)
+        if len(requests) == 1 and row.document_url == request.url and request.body is None:
+            if row.etag:
+                headers["If-None-Match"] = row.etag
+            if row.last_modified:
+                headers["If-Modified-Since"] = row.last_modified
+        result = (fetch(request.url, headers, body=request.body) if request.body is not None
+                  else fetch(request.url, headers))
+        if result.status == 304:
+            unchanged += 1
+            continue
+        if result.status == 404 and request.optional:
+            missing.append(request.url)
+            continue
+        if result.status != 200:
+            return _unreachable(session, row, item, _status(result), now, result)
+        if len(requests) == 1:
+            row.etag = result.headers.get("etag") or None
+            row.last_modified = result.headers.get("last-modified") or None
+        bodies.append((request, result.body))
+    row.last_fetched_at_utc = now
+    _succeeded(row)
+    if not bodies:
+        if row.state in {"unreachable", "never_fetched"}:
+            row.state = "current" if row.record else "never_fetched"
+        row.detail = "Unchanged since the last read."
+        session.flush()
+        return CheckOutcome(item.publication_id, "current", "unchanged since the last read")
+    digest = hashlib.sha256(b"".join(hashlib.sha256(body).digest()
+                                     for _r, body in bodies)).hexdigest()
+    # Each document is compared with those already read: a later check reads fewer
+    # documents (the current year's file only), so their combined digest alone would differ.
+    body_digests = [_sha(body) for _r, body in bodies]
+    seen = list((row.record or {}).get("documents") or [])
+    if digest == row.content_sha256 or (seen and set(body_digests) <= set(seen)):
+        if row.state in {"unreachable", "never_fetched"}:
+            row.state = "current"
+        row.detail = "Unchanged since the last read."
+        session.flush()
+        return CheckOutcome(item.publication_id, "current", "unchanged")
+    points: list[prices.PricePoint] = []
+    for request, body in bodies:
+        store_payload_content(session, payload_sha256=_sha(body), data=body, received_at_utc=now)
+        try:
+            points.extend(source.parse(body, now).points)
+        except prices.PricesUncertain as exc:
+            return _needs_person(session, row, item, now=now, digest=digest, url=request.url,
+                                 why=str(exc))
+    if not points:
+        return _needs_person(session, row, item, now=now, digest=digest, url=item.url,
+                             why="the publication answered with no price")
+    applied = store_points(
+        session, points, family=item.source_family or item.publisher,
+        publication_id=item.publication_id, publisher=item.publisher,
+        consent_publisher=item.consent_publisher, document_url=bodies[-1][0].url, now=now,
+    )
+    record = prices.PriceRecord(tuple(points)).to_json()
+    held_first = (row.record or {}).get("first_day")
+    if held_first and (record["first_day"] is None or held_first < record["first_day"]):
+        record["first_day"] = held_first
+    record["requests"] = len(requests)
+    record["documents"] = list(dict.fromkeys([*body_digests, *seen]))[:50]
+    if missing:
+        record["not_published"] = [url.split("?")[0].split("/")[-1] for url in missing]
+    first_read = row.record is None
+    _replace_record(row, record, now=now, digest=digest, document_url=bodies[-1][0].url)
+    row.detail = (f"Read {now:%d %b %Y}: {len(points)} figure(s), "
+                  f"{applied['observations_added']} new, {applied['observations_revised']} "
+                  f"revised; newest {record['last_day']}")[:500]
+    session.flush()
+    _publish_event(session, item, row, now=now, lines=[], event_type="price.updated",
+                   payload={"publication_id": item.publication_id,
+                            "source_system": item.source_family,
+                            "latest": {k: {"day": v["day"], "value": v["value"],
+                                           "unit": v["unit"]}
+                                       for k, v in record["latest"].items()}})
+    return CheckOutcome(item.publication_id, "first_read" if first_read else "changed",
+                        f"{len(points)} figure(s)", applied)
 
 
 def _needs_person(session, row, item: WatchedPublication, *, now: datetime, digest: str,
@@ -373,7 +758,7 @@ def _needs_person(session, row, item: WatchedPublication, *, now: datetime, dige
               title=f"Please check: {item.title} has changed",
               body=(f"{item.publisher} changed {item.title} on {now:%d %b %Y}, and the product "
                     f"could not read the new version with confidence ({why}).\n"
-                    "The dates it held before stay in use until a person has looked.\n"
+                    "What it held before stays in use until a person has looked.\n"
                     f"Document: {url}\nConfirm it in Admin -> Data sources -> Watched "
                     "publications once checked."),
               now=now, severity="medium")
@@ -427,11 +812,11 @@ def confirm_publication(session, publication_id: str, *, principal: str, now: da
     return source_row(item, row, now=now)
 
 
-def watch_all(session, *, fetch: Fetcher, now: datetime, force: bool = False
-              ) -> list[CheckOutcome]:
+def watch_all(session, *, fetch: Fetcher, now: datetime, force: bool = False,
+              pause: Callable[[float], None] | None = None) -> list[CheckOutcome]:
     """Check every watched publication (each within its interval), then the deadlines."""
 
-    out = [check_publication(session, item, fetch=fetch, now=now, force=force)
+    out = [check_publication(session, item, fetch=fetch, now=now, force=force, pause=pause)
            for item in WATCHED_PUBLICATIONS]
     queue_deadline_notifications(session, now=now)
     return out
@@ -450,7 +835,7 @@ def watch_publications_if_due(session_factory, *, now_utc: datetime,
     _HOOK_STATE["last"] = now_utc
     try:
         with session_factory() as session:
-            outcomes = watch_all(session, fetch=fetch or http_fetch, now=now_utc)
+            outcomes = watch_all(session, fetch=fetch or publication_fetch, now=now_utc)
             from eurogas_nexus.application.notifications import dispatch
 
             dispatch(session, now=now_utc)
@@ -465,7 +850,7 @@ def watch_publications_if_due(session_factory, *, now_utc: datetime,
 # --------------------------------------------------------------------------- calendar
 
 
-def _calendar():
+def _hand_calendar():
     from eurogas_nexus.domain.deals.formats import FormatError
     from eurogas_nexus.domain.deals.position import load_trading_calendar
 
@@ -489,7 +874,7 @@ def _hand_item(venue_code: str) -> WatchedPublication | None:
 
 def _source(item: WatchedPublication | None, *, basis: str, url: str | None = None,
             fetched_at: datetime | None = None, published_at: datetime | None = None,
-            changed_at: datetime | None = None) -> dict[str, Any]:
+            changed_at: datetime | None = None, consent: str | None = None) -> dict[str, Any]:
     return {
         "publication_id": item.publication_id if item else None,
         "publisher": item.publisher if item else None,
@@ -500,7 +885,136 @@ def _source(item: WatchedPublication | None, *, basis: str, url: str | None = No
         "published_at_utc": _iso(published_at),
         "changed_at_utc": _iso(changed_at),
         "attribution": item.attribution if item else "",
+        **({"consent": consent} if consent else {}),
     }
+
+
+@dataclass
+class _VenueDays:
+    """One venue's days on the desk's calendar, each with where it came from."""
+
+    code: str
+    title: str
+    hubs: list[str]
+    #: ``day -> (what, source)``
+    closed: dict[date, tuple[str, dict]] = field(default_factory=dict)
+    early: dict[date, tuple[str, dict]] = field(default_factory=dict)
+    expiries: list[tuple[dict, dict]] = field(default_factory=list)
+    fetched_years: set[int] = field(default_factory=set)
+    hand: Any = None
+
+
+def _consent_line(session, item: WatchedPublication) -> str | None:
+    if item.verdict != CONSENTED:
+        return None
+    from eurogas_nexus.application.publisher_consents import withdrawn_on
+    from eurogas_nexus.domain.publications.consents import publisher_consent
+
+    consent = publisher_consent(item.consent_publisher)
+    if consent is None:
+        return None
+    withdrawn = withdrawn_on(session, item.consent_publisher) if session is not None else None
+    return f"consent withdrawn on {withdrawn:%Y-%m-%d}" if withdrawn else consent.line()
+
+
+def _venue_days(session, rows: dict[str, Any]) -> list[_VenueDays]:
+    """The hand file's venues with every fetched exchange calendar laid over them.
+
+    For each year a fetched calendar covers, its closed days replace the hand file's; a day the
+    exchange publishes as an early close is not a closed day, whatever the file says.
+    """
+
+    hand = _hand_calendar()
+    out: dict[str, _VenueDays] = {}
+    for venue in (hand.venues if hand else ()):
+        item = _hand_item(venue.code)
+        source = _source(item, basis="hand_maintained", url=venue.check_url or None)
+        source["checked"] = venue.checked
+        source["file_source"] = venue.source
+        days = _VenueDays(code=venue.code, title=venue.title,
+                          hubs=list(item.hubs) if item else [], hand=venue)
+        for day in venue.closed:
+            days.closed[day] = ("closed", source)
+        for day, what in venue.early_closes:
+            days.early[day] = (what, source)
+        out[venue.code] = days
+    for item in WATCHED_PUBLICATIONS:
+        if not item.calendar_venue or item.verdict not in FETCHED_VERDICTS:
+            continue
+        row = rows.get(item.publication_id)
+        if row is None or not row.record or "closed" not in row.record:
+            continue
+        record = row.record
+        days = out.setdefault(item.calendar_venue, _VenueDays(
+            code=item.calendar_venue, title=item.title, hubs=list(item.hubs)))
+        source = _source(item, basis="fetched", url=row.document_url,
+                         fetched_at=_aware(row.last_fetched_at_utc),
+                         changed_at=_aware(row.last_changed_at_utc),
+                         consent=_consent_line(session, item))
+        source["version"] = record.get("version") or ""
+        years = {int(y) for y in record.get("years") or []}
+        if record.get("closed"):
+            for day in [d for d in days.closed if d.year in years]:
+                del days.closed[day]
+            for day in [d for d in days.early if d.year in years]:
+                del days.early[day]
+            days.fetched_years |= years
+            for entry in record["closed"]:
+                days.closed[date.fromisoformat(entry["day"])] = (entry["what"], source)
+        for entry in record.get("early_closes") or []:
+            day = date.fromisoformat(entry["day"])
+            days.early[day] = (entry["what"], source)
+            days.closed.pop(day, None)
+        for expiry in record.get("expiries") or []:
+            days.expiries.append((expiry, source))
+    return list(out.values())
+
+
+def effective_trading_calendar(session=None):
+    """The desk's trading calendar: fetched exchange calendars over the hand file.
+
+    The daily pack's check "no deals on a trading day" uses it. Without a runtime store (or
+    when it cannot be read) it is the hand file alone.
+    """
+
+    from eurogas_nexus.domain.deals.position import TradingCalendar, Venue
+
+    hand = _hand_calendar() or TradingCalendar(years=frozenset(), venues=())
+    if session is None:
+        try:
+            from eurogas_nexus.db.session import get_session_factory, resolve_database_url
+
+            if resolve_database_url() is None:
+                return hand
+            with get_session_factory()() as own:
+                return effective_trading_calendar(own)
+        except Exception:  # noqa: BLE001 - the hand file is the fallback
+            return hand
+    from eurogas_nexus.db.models import WatchedPublicationRecord
+
+    try:
+        rows = {row.publication_id: row for row in session.query(WatchedPublicationRecord).all()}
+    except Exception:  # noqa: BLE001 - no table yet: the hand file
+        return hand
+    venues = []
+    years = set(hand.years)
+    for days in _venue_days(session, rows):
+        held = days.hand
+        fetched = bool(days.fetched_years)
+        years |= days.fetched_years
+        venues.append(Venue(
+            code=days.code, title=days.title,
+            source=(", ".join(sorted({s["title"] or "" for _w, s in days.closed.values()
+                                      if s["basis"] == "fetched"}))
+                    if fetched else (held.source if held else "")),
+            checked=fetched or bool(held and held.checked),
+            closed=frozenset(days.closed),
+            check_url=held.check_url if held else "",
+            check_by=None if fetched else (held.check_by if held else None),
+            early_closes=tuple(sorted((d, w) for d, (w, _s) in days.early.items())),
+        ))
+    return TradingCalendar(years=frozenset(years), venues=tuple(venues),
+                           source_path=hand.source_path, notes=list(hand.notes))
 
 
 def calendar_items(session, *, now: datetime, days: int = 60,
@@ -513,39 +1027,49 @@ def calendar_items(session, *, now: datetime, days: int = 60,
     now = _aware(now)
     end = now + timedelta(days=days)
     items: list[dict[str, Any]] = []
-    calendar = _calendar()
-    for venue in (calendar.venues if calendar else ()):
-        item = _hand_item(venue.code)
-        hubs = list(item.hubs) if item else []
-        basis = "hand_maintained"
-        source = _source(item, basis=basis, url=venue.check_url or None)
-        source["checked"] = venue.checked
-        source["file_source"] = venue.source
-        for day in sorted(venue.closed):
+    rows = {row.publication_id: row for row in session.query(WatchedPublicationRecord).all()}
+    for venue in _venue_days(session, rows):
+        for day, (what, source) in sorted(venue.closed.items()):
             at = datetime.combine(day, time(0), tzinfo=UTC)
             if now - timedelta(days=1) <= at <= end and day.weekday() < 5:
+                title = f"{venue.title}: closed" + (f" ({what})" if what != "closed" else "")
                 items.append({"key": f"closed:{venue.code}:{day.isoformat()}",
                               "kind": "non_trading_day", "at": _iso(at), "day": day.isoformat(),
-                              "title": f"{venue.title}: closed", "hubs": hubs,
+                              "title": title, "hubs": venue.hubs,
                               "venue": venue.code, "source": source})
-        for day, what in venue.early_closes:
+        for day, (what, source) in sorted(venue.early.items()):
             at = datetime.combine(day, time(0), tzinfo=UTC)
             if now - timedelta(days=1) <= at <= end:
                 items.append({"key": f"early:{venue.code}:{day.isoformat()}",
                               "kind": "early_close", "at": _iso(at), "day": day.isoformat(),
-                              "title": f"{venue.title}: {what}", "hubs": hubs,
+                              "title": f"{venue.title}: {what}", "hubs": venue.hubs,
                               "venue": venue.code, "source": source})
-        if venue.check_by is not None and (not venue.checked or venue.check_by <= end.date()):
-            at = datetime.combine(venue.check_by, time(9), tzinfo=UTC)
+        for expiry, source in venue.expiries:
+            day = date.fromisoformat(expiry["last_trading_day"])
+            at = datetime.combine(day, time(0), tzinfo=UTC)
+            if now - timedelta(days=1) <= at <= end:
+                items.append({"key": f"expiry:{venue.code}:{expiry['kind']}:"
+                                     f"{expiry['delivery_start']}",
+                              "kind": "expiry", "at": _iso(at), "day": day.isoformat(),
+                              "title": (f"{venue.title}: last trading day of the "
+                                        f"{expiry['maturity']} {expiry['kind']} futures"),
+                              "hubs": venue.hubs, "venue": venue.code, "source": source})
+        held = venue.hand
+        if held is not None and not venue.fetched_years and held.check_by is not None and (
+                not held.checked or held.check_by <= end.date()):
+            at = datetime.combine(held.check_by, time(9), tzinfo=UTC)
             if at <= end:
-                items.append({"key": f"check:{venue.code}:{venue.check_by.isoformat()}",
+                item = _hand_item(venue.code)
+                source = _source(item, basis="hand_maintained", url=held.check_url or None)
+                source["checked"] = held.checked
+                source["file_source"] = held.source
+                items.append({"key": f"check:{venue.code}:{held.check_by.isoformat()}",
                               "kind": "check_calendar", "at": _iso(at),
-                              "day": venue.check_by.isoformat(),
-                              "title": (f"{venue.title}: compare the holidays with the "
+                              "day": held.check_by.isoformat(),
+                              "title": (f"{held.title}: compare the holidays with the "
                                         "publisher's page"),
-                              "hubs": hubs, "venue": venue.code, "overdue": at < now,
+                              "hubs": venue.hubs, "venue": venue.code, "overdue": at < now,
                               "source": source})
-    rows = {row.publication_id: row for row in session.query(WatchedPublicationRecord).all()}
     entsog_item = watched_publication("entsog-cam-auction-calendar")
     entsog_row = rows.get(entsog_item.publication_id)
     for notice in list_notices(session, now_utc=now, days=days, kind="auction",
@@ -613,36 +1137,45 @@ def queue_deadline_notifications(session, *, now: datetime) -> int:
     """Tell the desk ahead of a non-trading day and of a hand-maintained calendar's check day.
 
     Auction windows are already alerted by the tariff book's monitoring (three days ahead,
-    category ``capacity``), so they are not repeated here. Each notice goes once.
+    category ``capacity``), so they are not repeated here. Each notice goes once. A venue whose
+    exchange calendar has been fetched needs no check reminder.
     """
+
+    from eurogas_nexus.db.models import WatchedPublicationRecord
 
     now = _aware(now)
     queued = 0
-    calendar = _calendar()
-    for venue in (calendar.venues if calendar else ()):
-        item = _hand_item(venue.code)
-        for day in sorted(venue.closed):
+    rows = {row.publication_id: row for row in session.query(WatchedPublicationRecord).all()}
+    for venue in _venue_days(session, rows):
+        for day, (_what, source) in sorted(venue.closed.items()):
             at = datetime.combine(day, time(0), tzinfo=UTC)
             if day.weekday() < 5 and now <= at <= now + NON_TRADING_LEAD:
+                fetched = source["basis"] == "fetched"
+                origin = (f"From {source['title']}, read {source['fetched_at_utc'] or ''}"
+                          if fetched else
+                          f"From the desk's hand-maintained calendar ({source.get('file_source')}"
+                          + ("" if source.get("checked") else "; not yet checked against the "
+                             "publisher's page") + ")")
                 queued += _tell(
                     session, key=f"calendar:closed:{venue.code}:{day.isoformat()}",
                     title=f"{day:%a %d %b}: {venue.title} closed",
-                    body=(f"{venue.title} does not trade on {day:%A %d %B %Y}.\n"
-                          f"From the desk's hand-maintained calendar ({venue.source}"
-                          + ("" if venue.checked else "; not yet checked against the "
-                             "publisher's page") + f").\nPublisher's page: {venue.check_url}"),
+                    body=(f"{venue.title} does not trade on {day:%A %d %B %Y}.\n{origin}.\n"
+                          f"Publisher's page: {source.get('url') or ''}"),
                     now=now, severity="info", category="alert")
-        if venue.check_by is not None and not venue.checked:
-            due = datetime.combine(venue.check_by, time(9), tzinfo=UTC)
+        held = venue.hand
+        if held is not None and not venue.fetched_years and held.check_by is not None \
+                and not held.checked:
+            due = datetime.combine(held.check_by, time(9), tzinfo=UTC)
             if now >= due - CHECK_LEAD:
+                item = _hand_item(venue.code)
                 queued += _tell(
-                    session, key=f"calendar:check:{venue.code}:{venue.check_by.isoformat()}",
-                    title=f"Check by {venue.check_by:%d %b}: {venue.title} holidays",
-                    body=(f"The product may not store {venue.title}'s calendar (the "
-                          "publisher's terms), so the desk keeps it by hand. Please compare "
+                    session, key=f"calendar:check:{venue.code}:{held.check_by.isoformat()}",
+                    title=f"Check by {held.check_by:%d %b}: {held.title} holidays",
+                    body=(f"The product has not read {held.title}'s calendar yet, so the desk's "
+                          "hand-maintained file is in use. Please compare "
                           "reference_data/desk/trading_calendars.toml with the publisher's page "
-                          f"by {venue.check_by:%d %B %Y}, then set checked = true.\n"
-                          f"Page: {venue.check_url or (item.url if item else '')}"),
+                          f"by {held.check_by:%d %B %Y}, then set checked = true.\n"
+                          f"Page: {held.check_url or (item.url if item else '')}"),
                     now=now, severity="low")
     return queued
 
@@ -650,10 +1183,8 @@ def queue_deadline_notifications(session, *, now: datetime) -> int:
 # --------------------------------------------------------------------------- status
 
 
-def source_row(item: WatchedPublication, row, *, now: datetime) -> dict[str, Any]:
-    state = row.state if row is not None else (
-        "never_fetched" if item.verdict == FETCH else item.verdict
-    )
+def source_row(item: WatchedPublication, row, *, now: datetime, session=None) -> dict[str, Any]:
+    state = row.state if row is not None else (unfetched_state(item) or "never_fetched")
     out = item.to_json() | {
         "state": state,
         "detail": (row.detail if row is not None else "") or "",
@@ -667,9 +1198,15 @@ def source_row(item: WatchedPublication, row, *, now: datetime) -> dict[str, Any
         "confirmed_at_utc": _iso(_aware(row.confirmed_at_utc)) if row else None,
         "has_previous_record": bool(row is not None and row.previous_record),
         "fetch_refusal": fetch_refusal(item),
+        "consecutive_failures": int(getattr(row, "consecutive_failures", 0) or 0) if row else 0,
+        "next_check_at_utc": _iso(_aware(getattr(row, "next_check_at_utc", None))) if row
+        else None,
+        "consent_line": _consent_line(session, item) if session is not None else (
+            _consent_line(None, item)),
+        "record_summary": _summary(row.record) if row is not None and row.record else None,
     }
     if item.hand_venue:
-        calendar = _calendar()
+        calendar = _hand_calendar()
         venue = next((v for v in (calendar.venues if calendar else ())
                       if v.code == item.hand_venue), None)
         out["hand_file"] = None if venue is None else {
@@ -677,9 +1214,30 @@ def source_row(item: WatchedPublication, row, *, now: datetime) -> dict[str, Any
             "check_by": _iso(venue.check_by), "source": venue.source,
             "years": sorted(calendar.years),
             "overdue": bool(venue.check_by and not venue.checked
-                            and venue.check_by < _aware(now).date()),
+                            and venue.check_by < _aware(now).date()
+                            and not (row is not None and row.record)),
+            "fallback_only": bool(row is not None and row.record),
         }
     return out
+
+
+def _summary(record: dict) -> dict[str, Any]:
+    """A short summary of the record held, for the administrators' list."""
+
+    if "latest" in record:
+        return {"kind": "prices", "first_day": record.get("first_day"),
+                "last_day": record.get("last_day"), "series": len(record.get("latest") or {}),
+                "not_published": record.get("not_published") or []}
+    if "closed" in record:
+        return {"kind": "calendar", "years": record.get("years") or [],
+                "closed": len(record.get("closed") or []),
+                "early_closes": len(record.get("early_closes") or []),
+                "expiries": len(record.get("expiries") or []),
+                "version": record.get("version") or ""}
+    if "auctions" in record:
+        return {"kind": "auctions", "auctions": len(record.get("auctions") or []),
+                "published_on": record.get("published_on")}
+    return {"kind": "other"}
 
 
 def source_status(session, *, now: datetime) -> list[dict[str, Any]]:
@@ -688,19 +1246,24 @@ def source_status(session, *, now: datetime) -> list[dict[str, Any]]:
     from eurogas_nexus.db.models import WatchedPublicationRecord
 
     rows = {row.publication_id: row for row in session.query(WatchedPublicationRecord).all()}
-    return [source_row(item, rows.get(item.publication_id), now=now)
+    return [source_row(item, rows.get(item.publication_id), now=now, session=session)
             for item in WATCHED_PUBLICATIONS]
 
 
 __all__ = [
     "EVENT_SOURCE",
+    "FETCH",
     "PARSERS",
+    "PUBLICATION_USER_AGENT",
+    "SERIES_SOURCES",
     "WATCH_ENV",
     "CheckOutcome",
     "calendar_items",
     "check_publication",
     "confirm_publication",
     "describe_change",
+    "effective_trading_calendar",
+    "publication_fetch",
     "queue_deadline_notifications",
     "source_status",
     "watch_all",

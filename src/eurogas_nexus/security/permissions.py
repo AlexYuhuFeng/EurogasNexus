@@ -276,6 +276,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/publications/calendar", Permission.READ),
     ("/api/publications/sources", Permission.READ),
     ("/api/publications/sources/{publication_id}/confirm", Permission.ADMIN),
+    ("/api/publications/consents", Permission.READ),
+    ("/api/publications/consents/{publisher_id}/withdraw", Permission.ADMIN),
+    ("/api/publications/consents/{publisher_id}/restore", Permission.ADMIN),
     # TAR-2: tariff years side by side, the firm's bookings (book-scoped), capacity cost
     # contracted before public, and the source-precedence reads (FX rate, order in force).
     ("/api/tariffs/years", Permission.READ),
@@ -477,6 +480,8 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("GET", "/api/route-cost/tariff-publications", Permission.READ),
     ("GET", "/api/route-cost/tariff-entries", Permission.READ),
     ("POST", "/api/publications/sources/{publication_id}/confirm", Permission.ADMIN),
+    ("POST", "/api/publications/consents/{publisher_id}/withdraw", Permission.ADMIN),
+    ("POST", "/api/publications/consents/{publisher_id}/restore", Permission.ADMIN),
     # Security review M2: every non-GET route is declared with its method. These were reached
     # through their path family; each keeps the floor it had, now stated explicitly.
     ("POST", "/api/functional-models/{model_id}/evaluate", Permission.GOVERNED),

@@ -61,9 +61,12 @@ def test_the_source_list_states_every_publication(api):
     rows = {row["publication_id"]: row for row in response.json()["data"]["rows"]}
     assert rows["entsog-cam-auction-calendar"]["state"] == "needs_confirmation"
     assert rows["entsog-cam-auction-calendar"]["pending_url"] == FILE_2627
-    assert rows["eex-trading-calendar"]["state"] == "hand_maintained"
-    assert rows["the-imbalance-prices"]["state"] == "link_only"
+    assert rows["eex-trading-calendar"]["state"] == "never_fetched"
+    assert rows["eex-trading-calendar"]["verdict"] == "consented"
+    assert rows["the-imbalance-prices"]["consent_line"].startswith("fetched under written consent")
     assert rows["the-imbalance-prices"]["terms_quote"]
+    assert rows["uniper-storage-offers"]["state"] == "link_only"
+    assert rows["gate-terminal-slots"]["state"] == "not_implemented"
 
 
 def test_the_calendar_carries_sources_and_marks_what_is_hand_maintained(api):

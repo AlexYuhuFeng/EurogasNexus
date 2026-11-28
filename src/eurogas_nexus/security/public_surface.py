@@ -237,6 +237,11 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/publications/calendar",
         "/api/publications/sources",
         "/api/publications/sources/{publication_id}/confirm",
+        # The publishers' written consents (owner, 2026-11-28) and an administrator's
+        # withdrawal or restoring of one.
+        "/api/publications/consents",
+        "/api/publications/consents/{publisher_id}/withdraw",
+        "/api/publications/consents/{publisher_id}/restore",
         # TAR-2: tariff years, bookings, capacity cost, source precedence.
         "/api/tariffs/years",
         "/api/capacity/bookings",

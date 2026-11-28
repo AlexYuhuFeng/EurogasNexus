@@ -4,8 +4,11 @@ The scheduler already runs this every 15 minutes (each publication on its own in
 it by hand to see the state, or to read one publication again at once. Without ``--commit``
 nothing is stored: the run reports what it would do and rolls back. The registry and each
 publication's terms: ``domain/publications/registry.py`` and ``docs/legal/DATA_SOURCE_TERMS.md``
-("Watched publications, checked 2026-11-28"). Publications whose terms do not allow storing
-them are never fetched; they are listed with their state.
+("Watched publications, checked 2026-11-28"; "Written consents reported by the owner,
+2026-11-28"). Publications whose terms do not allow storing them are fetched only under their
+publisher's written consent (never once an administrator withdrew it); the others are listed
+with their state. Every request names the product with a generic client name
+(``EurogasNexus-PublicationWatch/1.0``) and reads robots.txt first.
 
     python scripts/ops/watch_publications.py                     # dry run, every publication
     python scripts/ops/watch_publications.py --commit
@@ -20,9 +23,10 @@ import argparse
 import json
 from datetime import UTC, datetime
 
-from eurogas_nexus.application.news_ingest import Fetcher, http_fetch
+from eurogas_nexus.application.news_ingest import Fetcher
 from eurogas_nexus.application.publication_watch import (
     check_publication,
+    publication_fetch,
     queue_deadline_notifications,
     source_status,
     watch_all,
@@ -31,7 +35,7 @@ from eurogas_nexus.db.session import get_session_factory, redact_database_url, r
 from eurogas_nexus.domain.publications.registry import WATCHED_PUBLICATIONS, watched_publication
 
 
-def main(argv: list[str] | None = None, *, fetch: Fetcher = http_fetch) -> int:
+def main(argv: list[str] | None = None, *, fetch: Fetcher = publication_fetch) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--publication", choices=sorted(i.publication_id
                                                         for i in WATCHED_PUBLICATIONS))

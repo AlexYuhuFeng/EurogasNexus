@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from datetime import datetime
 
-from sqlalchemy import JSON, CheckConstraint, DateTime, String
+from sqlalchemy import JSON, CheckConstraint, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from eurogas_nexus.db.base import Base
@@ -19,6 +19,9 @@ from eurogas_nexus.db.base import Base
 #: document changed and could not be read with confidence; the previous record stays.
 #: ``unreachable``: the last check failed. ``never_fetched``: allowed, nothing held yet.
 #: ``hand_maintained`` and ``link_only``: not fetched (the registry's terms verdict).
+#: ``consent_withdrawn``: fetched under a written consent an administrator withdrew; the data
+#: held stays, marked. ``not_implemented``: consented, no parser yet. ``site_refuses``:
+#: consented, but the site refuses automated reading.
 WATCH_STATES = (
     "current",
     "needs_confirmation",
@@ -26,6 +29,9 @@ WATCH_STATES = (
     "never_fetched",
     "hand_maintained",
     "link_only",
+    "consent_withdrawn",
+    "not_implemented",
+    "site_refuses",
 )
 
 
@@ -36,7 +42,8 @@ class WatchedPublicationRecord(Base):
     __table_args__ = (
         CheckConstraint(
             "state IN ('current', 'needs_confirmation', 'unreachable', 'never_fetched', "
-            "'hand_maintained', 'link_only')",
+            "'hand_maintained', 'link_only', 'consent_withdrawn', 'not_implemented', "
+            "'site_refuses')",
             name="ck_watched_publications_state",
         ),
     )
@@ -81,3 +88,35 @@ class WatchedPublicationRecord(Base):
     )
     etag: Mapped[str | None] = mapped_column(String(200), nullable=True)
     last_modified: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    #: Failed checks in a row (the next check waits longer after each, ``publication_watch``).
+    consecutive_failures: Mapped[int] = mapped_column(Integer, nullable=False, default=0,
+                                                      server_default="0")
+    #: No check before this instant (back-off after an error, or the publisher's Retry-After).
+    next_check_at_utc: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+
+
+class PublisherConsentStateRecord(Base):
+    """An administrator's withdrawal (or restoring) of a shipped publisher consent record.
+
+    No row: the shipped record (``reference_data/publisher_consents.toml``) is in force.
+    """
+
+    __tablename__ = "publisher_consent_states"
+    __table_args__ = (
+        CheckConstraint("state IN ('withdrawn', 'in_force')",
+                        name="ck_publisher_consent_states_state"),
+    )
+
+    publisher_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    state: Mapped[str] = mapped_column(String(16), nullable=False)
+    withdrawn_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                              nullable=True)
+    withdrawn_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    reason: Mapped[str] = mapped_column(String(500), nullable=False, default="",
+                                        server_default="")
+    restored_at_utc: Mapped[datetime | None] = mapped_column(DateTime(timezone=True),
+                                                             nullable=True)
+    restored_by: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    updated_at_utc: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

@@ -289,6 +289,37 @@ def list_fx(
         raise _db_unavailable(exc) from exc
 
 
+def _with_public_prices(session, found: list[dict], *, hub: str | None, product: str | None,
+                        source_system: str | None) -> list[dict]:
+    """The page's quotes plus each published daily price the board shows (one per series).
+
+    A published price is dated yesterday or earlier, so a busy feed's newer quotes would push
+    it off the first page; it is added once, under the same filters, whatever the page held.
+    """
+
+    from eurogas_nexus.application.public_prices import public_price_quotes
+    from eurogas_nexus.application.publisher_consents import family_consent_marks
+
+    held = {row.get("quote_id") for row in found}
+    extra = [
+        row for row in public_price_quotes(session)
+        if row["quote_id"] not in held
+        and (not hub or str(row["hub"]).upper() == hub.strip().upper())
+        and (not product or str(row["product"]) == product.strip().lower())
+        and (not source_system or row["source_system"] == source_system)
+    ]
+    rows = [*found, *extra]
+    # Each consented figure carries its consent line ("consent withdrawn on <date>" once an
+    # administrator withdrew it: the data held stays, marked).
+    marks = family_consent_marks(session)
+    for row in rows:
+        mark = marks.get(str(row.get("source_system") or ""))
+        if mark is not None:
+            row["metadata_json"] = {**(row.get("metadata_json") or {}),
+                                    "consent_line": mark["line"], "consent_state": mark["state"]}
+    return rows
+
+
 @router.get("/api/market/quotes")
 def list_quotes(
     request: Request,
@@ -327,6 +358,9 @@ def list_quotes(
             found, more = market_quotes(
                 session, hub=hub, product=product, source_system=source_system, page=page
             )
+            if not cursor:
+                found = _with_public_prices(session, found, hub=hub, product=product,
+                                            source_system=source_system)
             rows = _filter_entitled_rows(request, found, source_key="source_system")
             # P-08: the one price every screen reads for each quote's hub and window.
             book = open_price_book(

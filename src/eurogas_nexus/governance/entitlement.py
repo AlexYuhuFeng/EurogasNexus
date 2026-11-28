@@ -61,6 +61,14 @@ KNOWN_ENTITLED_SYSTEMS_V1 = frozenset(
 )
 
 
+def _consented() -> frozenset[str]:
+    """Families fetched under a publisher's written consent: the firm's own use only."""
+
+    from eurogas_nexus.domain.publications.consents import consented_source_families
+
+    return consented_source_families()
+
+
 def entitlement_scope_for_source(source_system: str) -> str:
     """Classify a source system's entitlement scope for row-level annotation.
 
@@ -73,7 +81,7 @@ def entitlement_scope_for_source(source_system: str) -> str:
     if not value:
         return EntitlementScope.UNKNOWN.value
     family = value.removesuffix("_Sim") if value.endswith("_Sim") else value
-    if family in KNOWN_ENTITLED_SYSTEMS_V1:
+    if family in KNOWN_ENTITLED_SYSTEMS_V1 or family in _consented():
         return EntitlementScope.INTERNAL_RESEARCH.value
     return EntitlementScope.UNKNOWN.value
 
@@ -194,7 +202,8 @@ def file_export_decision(
     is exported as public data with clearance. Any other family the governance register
     knows, or the firm holds a current licence for (``registered``), restricts the file to
     internal use; a family known to neither denies it (fail closed). The file's decision is
-    the strictest of its families'.
+    the strictest of its families'. A family fetched under a publisher's written consent
+    (``domain/publications/consents``) always restricts the file to internal use.
     """
 
     families = tuple(sorted({f for f in licensed_families if f}))
@@ -202,8 +211,13 @@ def file_export_decision(
         return FileExportDecision(ExportDecision.ALLOWED, reason="No licensed data.")
     worst = ExportDecision.ALLOWED
     reasons = []
+    consented = _consented()
     for family in families:
-        if family in redistributable:
+        if family in consented:
+            # Fetched under a publisher's written consent: the firm's own use, no resale or
+            # redistribution, whatever a licence record says. Internal use only.
+            evaluation = export_check(EntitlementScope.INTERNAL_RESEARCH)
+        elif family in redistributable:
             evaluation = export_check(EntitlementScope.PUBLIC, allow_public_export=True)
         elif family in registered:
             evaluation = export_check(EntitlementScope.INTERNAL_RESEARCH)

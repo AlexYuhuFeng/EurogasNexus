@@ -46,8 +46,12 @@ def licensed_families(families: Iterable[str]) -> set[str]:
     """
 
     from eurogas_nexus.domain.dataops.entitlement import COMMERCIAL_SOURCE_FAMILIES
+    from eurogas_nexus.domain.publications.consents import consented_source_families
 
-    known = {family.upper(): family for family in COMMERCIAL_SOURCE_FAMILIES}
+    # Data fetched under a publisher's written consent counts too: its files are internal
+    # use only (``governance.entitlement.file_export_decision``).
+    known = {family.upper(): family
+             for family in (*COMMERCIAL_SOURCE_FAMILIES, *consented_source_families())}
     return {known[f.upper()] for f in families if f and f.upper() in known}
 
 

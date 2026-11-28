@@ -187,7 +187,16 @@ async def _resolve_identity(request: Request) -> None:
 
     verified_token = bool(getattr(request.state, PUBLIC_TOKEN_VERIFIED_FLAG, False))
     if verified_token or _allow_anonymous(request):
-        request.state.identity = legacy_public_token_principal()
+        principal = legacy_public_token_principal()
+        if not verified_token:
+            # Nothing was presented: the compatibility principal's reach, but marked as nobody
+            # the firm identified (data fetched under a publisher's consent is not served).
+            from dataclasses import replace
+
+            from eurogas_nexus.security.identity import ANONYMOUS_IDENTITY_SOURCE
+
+            principal = replace(principal, identity_source=ANONYMOUS_IDENTITY_SOURCE)
+        request.state.identity = principal
         request.state.identity_authenticated = False
         return
 

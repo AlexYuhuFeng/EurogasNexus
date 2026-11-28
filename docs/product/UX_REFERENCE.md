@@ -268,6 +268,27 @@ stale mark. The chart follows the last choice (a price, a hub's head for its for
 spread, a storage, flow or send-out line) and says "no source" where nothing holds the history.
 The blotter, end of day, position and limits panels share its density (`desk-panel`).
 
+Where the board's cells come from (2026-11-28). A live quote from the customer's own licensed
+feed (Trayport, the exchanges' screens) wins its cell; without one, a **published daily
+price** fetched from its publisher under written consent (`docs/legal/DATA_SOURCE_TERMS.md`,
+"Written consents reported by the owner, 2026-11-28") fills it: no bid and no offer, the day
+it is for in the bid's place ("26 Nov") and what it is in the offer's ("index", "daily"), the
+figure as Last, the change against the publication before it; the title on demand names the
+publication, its status (final, preliminary), the delivery and the consent line. It is never
+stale-marked and never reads as a live quote. A simulated quote never stands in a cell a real
+price holds.
+
+| Board cell | Source | What the figure is | Delay |
+|---|---|---|---|
+| NBP WD | National Gas, Gas Operational Data API (SAP, Actual Day) | System average price of the gas day, a reference index, p/kWh shown in p/th | published 12:00 the next day |
+| TTF WD | EEX, TTF neutral gas price (`TTF_NGP_60_Days.csv`) | Volume-weighted index of the gas day's exchange trades | the next morning |
+| THE WD | Trading Hub Europe, DataExport API (`PricesEnergyImbalance`) | VTP daily average price of the gas day (preliminary for the previous day, then final) | the next day |
+| PVB DA, Dec-26 (M1), Q1-27, Cal-27 | MIBGAS, `MIBGAS_Data_<year>.csv` | MIBGAS daily price of the product on its trading day | after the session |
+| every other cell (ZTP, the curve at NBP, TTF, THE; WE, BOM) | the customer's licensed feed only | none of the consented publishers publishes them openly (EEX's and ICE's tables are not read yet) | "no source" until connected |
+
+The imbalance prices (THE's positive and negative, National Gas's SMP buy and sell) price no
+board cell; My gas day values an open net at them, with the gas day and the publisher.
+
 Stylesheet note: `components/situationStrip.css` still draws its 3 px severity edge and its 7 px
 dot with raw lengths, because the token scale has no step for either; its one other raw value
 (the link underline offset) is now `--ds-space-05`.

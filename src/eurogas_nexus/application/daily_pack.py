@@ -172,20 +172,24 @@ def t(lang: str, key: str, **params: Any) -> str:
 def is_trading_day(day: date) -> bool:
     """A weekday on which at least one of the desk's exchanges is open.
 
-    The exchange holidays come from the hand-maintained calendar file
-    (``reference_data/desk/trading_calendars.toml``, with its sources); a year it does not
-    cover reads Monday to Friday, and the pack says so (``check.calendar``).
+    The exchange holidays come from the exchanges' own calendars where the product has read
+    them (fetched under the publishers' written consent), else from the hand-maintained file
+    (``reference_data/desk/trading_calendars.toml``, with its sources); a year neither covers
+    reads Monday to Friday, and the pack says so (``check.calendar``).
     """
 
     return _calendar().is_trading_day(day)
 
 
 def _calendar():
+    """The exchanges' fetched calendars over the hand file (``publication_watch``)."""
+
+    from eurogas_nexus.application.publication_watch import effective_trading_calendar
     from eurogas_nexus.domain.deals.formats import FormatError
-    from eurogas_nexus.domain.deals.position import TradingCalendar, load_trading_calendar
+    from eurogas_nexus.domain.deals.position import TradingCalendar
 
     try:
-        return load_trading_calendar()
+        return effective_trading_calendar()
     except (OSError, FormatError):
         return TradingCalendar(years=frozenset(), venues=())
 

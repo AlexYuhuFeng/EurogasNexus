@@ -6,6 +6,32 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-28 — Package I: consented public sources are fetched (branch `sd-consent`, not pushed)
+
+The owner reports written consents from twelve publishers (publicly available data, the firm's
+own use, no resale); not seen by the development team.
+
+- Consent records ship as data (`reference_data/publisher_consents.toml`,
+  `domain/publications/consents.py`); the legal register states each with the finding it
+  supersedes. Registry verdict `consented`: fetched only while the record exists and an
+  administrator has not withdrawn it (Admin → Data sources → Watched publications, audited;
+  `POST /api/publications/consents/{id}/withdraw|restore`).
+- Scope enforced: consented families (`THE`, `NATIONAL_GAS_PRICES`, `MIBGAS`, `EEX_PUBLIC`,
+  `ICE_PUBLIC`) are read by every identified user, never by an anonymous caller, and are
+  internal use only in every file and report export decision.
+- Fetched: THE DataExport (VTP daily average, imbalance prices, from 2021-10-01), National Gas
+  API (SAP, SMP buy/sell, five years), MIBGAS yearly CSVs (PVB DA, M+1, Q+1, Y+1, from 2021),
+  EEX TTF NGP 60-day file; EEX gas trading and holiday calendars, ICE Endex and IFEU schedules
+  (the hand file is the fallback; EEX 24 and 31 December are early closes, 08:00-13:00 CET).
+  Polite client: generic User-Agent, robots.txt, conditional requests, 2 s apart, back-off and
+  Retry-After. EEX and ICE price tables, PRISMA and the LNG/storage operators: consented, not
+  yet implemented.
+- Board: published daily prices fill NBP/TTF/THE WD and PVB DA, M1, Q1, Cal, dated, no bid or
+  offer; spreads never mix a real and a simulated leg; My gas day uses the published cash-out.
+- Data model: migration `0102_publisher_consents` (one table, three states, two columns),
+  reversible, `down_revision = "0100_watched_publications"` (0101 is another package's; the
+  coordinator re-chains).
+
 ## 2026-11-28 — Package G: what is published is fetched, not typed (branch `sd-publications`, not pushed)
 
 `docs/product/SMALL_DESK_PLAN.md` section 11 (owner, 2026-11-28; extends AGENTS.md rule 19).

@@ -583,6 +583,17 @@ def cutoffs_for(session, hub: str, day: date, now: datetime) -> list[dict[str, A
     return sorted(items, key=lambda item: item["at_utc"])
 
 
+def _published_cash_out(session, hub: str, day: date) -> dict[str, Any] | None:
+    """The TSO's published cash-out for the hub, when the product holds it (else None)."""
+
+    try:
+        from eurogas_nexus.application.public_prices import published_cash_out
+
+        return published_cash_out(session, hub, day)
+    except Exception:  # noqa: BLE001 - no observation store: the assumption set decides
+        return None
+
+
 def cash_out_assumption(session, books: list[str], hub: str, day: date) -> dict[str, Any] | None:
     """The approved cash-out premium and discount in the hub's currency for the hub's books."""
 
@@ -649,13 +660,37 @@ def state_within(net_mwh: float, band: dict) -> str:
 
 
 def cost_of_nothing(net_mwh: float, assumption: dict[str, Any] | None, hub: str,
-                    state: str | None = None) -> dict:
-    """The net left open at the assumed cash-out premium (short) or discount (long)."""
+                    state: str | None = None, published: dict[str, Any] | None = None) -> dict:
+    """The net left open at the cash-out premium (short) or discount (long).
+
+    Live by default (rule 19): where the TSO's own cash-out prices are held
+    (``public_prices.published_cash_out``: National Gas SMP against SAP at NBP, THE's imbalance
+    prices against the VTP daily average), the premium of the newest published gas day is
+    used and said so with its day and source; otherwise the firm's approved assumption set.
+    """
 
     from eurogas_nexus.domain.ontology.markets import quote_currency
 
     if state == "balanced" or abs(net_mwh) <= 0.5:
         return {"value": 0.0, "currency": quote_currency(hub), "basis": "balanced"}
+    if published and published.get("currency") == quote_currency(hub):
+        rate = published["long_discount"] if net_mwh > 0 else published["short_premium"]
+        return {
+            "value": round(abs(net_mwh) * rate, 2),
+            "currency": published["currency"],
+            "rate": rate,
+            "rate_unit": f"{published['currency']}/MWh",
+            "basis": "published",
+            "side": "long_discount" if net_mwh > 0 else "short_premium",
+            "published_gas_day": published["gas_day"],
+            "published_source": published["source_system"],
+            "published_publisher": published.get("publisher"),
+            "published_reference": published["reference"],
+            "published_price": published["long_price"] if net_mwh > 0
+            else published["short_price"],
+            "published_status": "preliminary" if "preliminary" in published.get("statuses", [])
+            else "final",
+        }
     if not assumption or "reasons" in assumption or "set" not in assumption:
         return {"value": None, "currency": quote_currency(hub), "basis": "missing",
                 "reason": "; ".join((assumption or {}).get("reasons") or [])
@@ -739,6 +774,7 @@ def hub_payload(session, balance: HubBalance, day: date, now: datetime,
     books = sorted({line.book_id for line in lines if line.book_id},
                    key=lambda book: -sum(line.mwh for line in lines if line.book_id == book))
     assumption = cash_out_assumption(session, books, hub, day)
+    published = _published_cash_out(session, hub, day)
     band = balance_band(assumption, balance.in_mwh, balance.out_mwh)
     state = state_within(balance.net_mwh, band)
     delegated = [
@@ -771,7 +807,8 @@ def hub_payload(session, balance: HubBalance, day: date, now: datetime,
         },
         "delegated": delegated,
         "cutoffs": cutoffs_for(session, hub, day, now),
-        "cost_of_nothing": cost_of_nothing(balance.net_mwh, assumption, hub, state),
+        "cost_of_nothing": cost_of_nothing(balance.net_mwh, assumption, hub, state,
+                                           published=published),
         "books": [book_names.get(book, book) for book in books],
         "simulated": any(line.simulated for line in lines),
     }

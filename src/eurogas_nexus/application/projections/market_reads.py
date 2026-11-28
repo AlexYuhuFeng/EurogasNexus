@@ -76,7 +76,9 @@ def row_allowed(principal: AuthenticatedPrincipal, source_system: str | None) ->
     """
 
     if principal.auth_method == "legacy_public_token":
-        return True
+        from eurogas_nexus.security.identity import consented_row_allowed
+
+        return consented_row_allowed(principal, source_system)
     return principal_allows_source_family(principal, source_system or "")
 
 
@@ -104,7 +106,12 @@ def filter_entitled_rows(
 
     materialized = list(rows)
     if principal.auth_method == "legacy_public_token":
-        return materialized
+        from eurogas_nexus.security.identity import consented_row_allowed
+
+        # The deployment's own token keeps its single-trust-domain view; a caller that
+        # presented nothing does not read data fetched under a publisher's consent.
+        return [row for row in materialized
+                if consented_row_allowed(principal, row.get(source_key))]
     return [
         row for row in materialized if row_allowed(principal, row.get(source_key))
     ]
@@ -526,7 +533,18 @@ def annotate_quotes(
             expectation_minutes=minutes,
             now_utc=now,
         ).value
-        close = _previous_close(row, closes, today)
+        # A published daily price (fetched under a publisher's consent) is dated: its change
+        # is against the publication before its own day, not before today.
+        reference_day = today
+        meta = row.get("metadata_json") or {}
+        if isinstance(meta, dict) and meta.get("public_price") and meta.get("price_day"):
+            try:
+                from datetime import date as _date
+
+                reference_day = _date.fromisoformat(str(meta["price_day"]))
+            except ValueError:
+                reference_day = today
+        close = _previous_close(row, closes, reference_day)
         if close is not None:
             item.update(
                 close_price=round(float(close["price_mwh"]), 6),
@@ -538,7 +556,9 @@ def annotate_quotes(
         elif row.get("prior_settlement_price") is not None:
             item.update(
                 close_price=row["prior_settlement_price"],
-                close_day=None,
+                # A published daily price names the day of the publication before it.
+                close_day=(meta.get("previous_day") if isinstance(meta, dict)
+                           and meta.get("public_price") else None),
                 close_kind="prior_settlement",
                 close_source_system=row.get("source_system"),
                 close_simulated=bool(row.get("simulated")),

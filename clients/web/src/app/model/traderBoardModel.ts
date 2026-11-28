@@ -11,6 +11,10 @@
  *   here that the stored quote did not already state: NBP's stored GBP/MWh goes to p/th with
  *   the units authority's therm, never through FX. A contract with no quote is "no source",
  *   never a number. Real and simulated quotes never compete: a real quote wins its cell.
+ * - **A published daily price** (a reference index, a daily price, fetched from its publisher
+ *   under written consent: THE, National Gas, MIBGAS, EEX) is a real price with a date, never a
+ *   live quote: its cell has no bid or offer, shows the figure as *last* with the day it is for
+ *   and what it is (`published`), and a live real quote of the same contract wins over it.
  * - **Spreads** come from the server's spread board (`/api/research/spreads/board?pairs=`);
  *   this module applies the owner's transport rule to its figures (the published short-term
  *   capacity price plus the flow charge by default; the flow charge alone where the firm's
@@ -189,6 +193,43 @@ export interface BoardCell {
   closeDay: string | null;
   /** The quote's id, for the inspector. */
   quoteId: string | null;
+  /** A published daily price (not a live quote): what it is, its day and who published it. */
+  published: PublishedPrice | null;
+}
+
+/** What the board says about a published daily price (on demand, in the cell's title). */
+export interface PublishedPrice {
+  /** `reference_index`, `daily_price`. */
+  kind: string;
+  /** The day the publisher dates it by (the gas day, or the trading day). */
+  day: string;
+  name: string;
+  publisher: string | null;
+  status: string;
+  /** The delivery it prices (first and last gas day). */
+  deliveryStart: string | null;
+  deliveryEnd: string | null;
+  /** "fetched under written consent (...)" or "consent withdrawn on <date>". */
+  consent: string | null;
+  consentWithdrawn: boolean;
+}
+
+/** A quote that is a published daily figure (fetched from its publisher), not a live quote. */
+export function publishedPrice(quote: MarketQuoteDTO): PublishedPrice | null {
+  const meta = quote.metadata_json ?? {};
+  if (meta.public_price !== true || typeof meta.price_day !== "string") return null;
+  const text = (key: string) => (typeof meta[key] === "string" ? String(meta[key]) : null);
+  return {
+    kind: text("price_kind") ?? "reference_index",
+    day: String(meta.price_day),
+    name: text("price_name") ?? "",
+    publisher: text("publisher"),
+    status: text("status") ?? "final",
+    deliveryStart: text("delivery_start"),
+    deliveryEnd: text("delivery_end"),
+    consent: text("consent_line"),
+    consentWithdrawn: meta.consent_state === "withdrawn",
+  };
 }
 
 function metaNumber(quote: MarketQuoteDTO, key: string): number | null {
@@ -203,6 +244,9 @@ function better(candidate: MarketQuoteDTO, held: MarketQuoteDTO | undefined, hub
   const fits = (quote: MarketQuoteDTO) => inHubUnit(hub, 1, quote.currency, quote.unit) !== null;
   if (fits(held) !== fits(candidate)) return fits(candidate);
   if (held.simulated !== candidate.simulated) return held.simulated;
+  // Among real prices, a live quote wins over a published daily figure of the same contract.
+  const published = (quote: MarketQuoteDTO) => publishedPrice(quote) !== null;
+  if (published(held) !== published(candidate)) return published(held);
   return Date.parse(candidate.observed_at_utc) > Date.parse(held.observed_at_utc);
 }
 
@@ -239,7 +283,7 @@ export function buildBoard(
       const quote = best.get(`${contract.key}|${hub}`);
       const unit = hubPriceUnit(hub);
       if (!quote) {
-        row[hub] = { hub, contract: contract.key, status: "no_source", bid: null, offer: null, last: null, change: null, unit, simulated: false, stale: false, source: null, observedAt: null, closeDay: null, quoteId: null };
+        row[hub] = { hub, contract: contract.key, status: "no_source", bid: null, offer: null, last: null, change: null, unit, simulated: false, stale: false, source: null, observedAt: null, closeDay: null, quoteId: null, published: null };
         continue;
       }
       const native = (value: number | null | undefined) => inHubUnit(hub, value, quote.currency, quote.unit);
@@ -251,7 +295,9 @@ export function buildBoard(
       const last = native(quote.last_price);
       const closeQuote = closes.get(`${contract.key}|${hub}|${quote.source_system}`);
       const close = closeQuote ? native(closeQuote.close_price) : null;
-      const mid = native(quoteMid(quote));
+      const published = publishedPrice(quote);
+      // A published daily figure changes against the publication before it (its "close").
+      const mid = published ? last : native(quoteMid(quote));
       const priced = bid !== null || offer !== null || last !== null;
       const convertible = native(1) !== null;
       const ageSeconds = Math.max((nowMs - Date.parse(quote.observed_at_utc)) / 1000, 0);
@@ -265,11 +311,13 @@ export function buildBoard(
         change: mid !== null && close !== null ? mid - close : null,
         unit,
         simulated: Boolean(quote.simulated),
-        stale: isQuoteStale(quote, Number.isFinite(ageSeconds) ? ageSeconds : null, quote.stale_after_seconds ?? null),
+        // A published figure is dated, not stale: its day is shown with it.
+        stale: published ? false : isQuoteStale(quote, Number.isFinite(ageSeconds) ? ageSeconds : null, quote.stale_after_seconds ?? null),
         source: quote.source_system,
         observedAt: quote.observed_at_utc,
         closeDay: closeQuote?.close_day ?? null,
         quoteId: quote.quote_id,
+        published,
       };
     }
     out[contract.key] = row;

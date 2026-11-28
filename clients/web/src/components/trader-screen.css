@@ -206,6 +206,20 @@
     white-space: nowrap;
   }
 
+  /* A published daily price (not a live quote): the bid's place carries its day, the offer's
+     what it is, both quiet so the figure itself (in Last) reads first. */
+  .trader-published-day,
+  .trader-published-kind {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    font-weight: var(--ds-weight-regular);
+    white-space: nowrap;
+  }
+
+  .trader-published-day[data-consent-withdrawn] {
+    text-decoration: line-through;
+  }
+
   /* When the screen is not current every live value carries the stale mark: on the board one
      per hub and contract is enough (the offer's), so the figures keep their room. */
   [data-screen-stale] .trader-board-grid td[data-col$="-bid"] .ds-stale-mark,

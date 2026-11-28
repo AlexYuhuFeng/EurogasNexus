@@ -70,6 +70,37 @@ def _daily(holdings: Holdings, hub: str, tenor: str) -> dict[date, dict[str, Any
     return best
 
 
+def _same_class_legs(holdings: Holdings, hub: str, reference: str, tenor: str
+                     ) -> tuple[dict[date, dict[str, Any]], dict[date, dict[str, Any]]]:
+    """Both legs' closes, real against real or simulated against simulated, never mixed.
+
+    Where both hubs hold real closes on common days, only those days are used; otherwise the
+    simulated closes of both (the demo market). A real price is never set against a simulated
+    one, and each pair of closes is of the same day.
+    """
+
+    def split(target: str) -> tuple[dict, dict]:
+        real: dict[date, dict[str, Any]] = {}
+        simulated: dict[date, dict[str, Any]] = {}
+        for row in holdings.rows:
+            if row.get("hub") != target or str(row.get("tenor")) != tenor:
+                continue
+            if not row.get("hub_resolved", True):
+                continue
+            bucket = simulated if row.get("simulated") else real
+            held = bucket.get(row["day"])
+            if held is None or row["observed_at_utc"] > held["observed_at_utc"]:
+                bucket[row["day"]] = {**row, "_rank": (not row.get("simulated"),
+                                                       row["observed_at_utc"])}
+        return real, simulated
+
+    real_mine, sim_mine = split(hub)
+    real_ref, sim_ref = split(reference)
+    if set(real_mine) & set(real_ref):
+        return real_mine, real_ref
+    return sim_mine, sim_ref
+
+
 def _eur(holdings: Holdings, row: Mapping[str, Any], *, delivery: Delivery | None = None):
     """A close in EUR/MWh at that day's FX (forward for a forward ``delivery``), or None."""
 
@@ -159,7 +190,7 @@ def _pair(
     """
 
     code = "MA" if tenor == "month-ahead" else "DA"
-    mine, ref = _daily(holdings, hub, tenor), _daily(holdings, reference, tenor)
+    mine, ref = _same_class_legs(holdings, hub, reference, tenor)
     days = sorted(set(mine) & set(ref))
     out: dict[str, Any] = {"tenor": code, "available": False}
     if not days:
@@ -224,8 +255,12 @@ def _pair(
             "delivery": delivery.label if code == "MA" else "DA",
             "legs": [
                 {"hub": hub, "native_value": native_a, "native_unit": unit_a, "value": a,
+                 "day": last_day.isoformat(), "source_system": last.get("source_system"),
+                 "simulated": bool(last.get("simulated")),
                  **_leg_price(prices, hub, code, delivery)},
                 {"hub": reference, "native_value": native_b, "native_unit": unit_b, "value": b,
+                 "day": last_day.isoformat(), "source_system": last_ref.get("source_system"),
+                 "simulated": bool(last_ref.get("simulated")),
                  **_leg_price(prices, reference, code, delivery)},
             ],
             "gross": gross,
@@ -315,6 +350,40 @@ def _latest(holdings: Holdings, hub: str, tenor: str) -> dict[str, Any] | None:
     return closes[max(closes)] if closes else None
 
 
+def _latest_same_class(holdings: Holdings, hub: str, near: str, far: str
+                       ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    """The newest close of two tenors, both real or both simulated (never one of each).
+
+    Real closes are used where both tenors have one; the newest common day when there is one,
+    else each tenor's newest (the row then states each leg's day).
+    """
+
+    def split(tenor: str) -> tuple[dict, dict]:
+        real: dict = {}
+        simulated: dict = {}
+        for row in holdings.rows:
+            if row.get("hub") != hub or str(row.get("tenor")) != tenor:
+                continue
+            if not row.get("hub_resolved", True):
+                continue
+            bucket = simulated if row.get("simulated") else real
+            held = bucket.get(row["day"])
+            if held is None or row["observed_at_utc"] > held["observed_at_utc"]:
+                bucket[row["day"]] = row
+        return real, simulated
+
+    real_near, sim_near = split(near)
+    real_far, sim_far = split(far)
+    for a, b in ((real_near, real_far), (sim_near, sim_far)):
+        if a and b:
+            common = set(a) & set(b)
+            if common:
+                day = max(common)
+                return a[day], b[day]
+            return a[max(a)], b[max(b)]
+    return None, None
+
+
 def _per_mwh(row: Mapping[str, Any]) -> float | None:
     value = row.get("price_mwh")
     return float(value) if value is not None else None
@@ -362,7 +431,7 @@ def time_rows(holdings: Holdings, hub: str, carry: Mapping[str, Any] | None) -> 
             }
         )
 
-    da, ma = _latest(holdings, hub, "day-ahead"), _latest(holdings, hub, "month-ahead")
+    da, ma = _latest_same_class(holdings, hub, "day-ahead", "month-ahead")
     for row in (da, ma, *(curve[m] for m in months[:1])):
         if row is not None and currency is None:
             currency = str(row.get("unit_mwh") or "").split("/")[0] or None
@@ -382,7 +451,9 @@ def time_rows(holdings: Holdings, hub: str, carry: Mapping[str, Any] | None) -> 
         _per_mwh(da) if da else None,
         _per_mwh(ma) if ma else None,
         spec=history("DA", "MA"),
-        extra={} if da and ma else _why("no_da_or_ma", "DA or MA close not held"),
+        extra=({"near_day": da["day"].isoformat(), "far_day": ma["day"].isoformat(),
+                "simulated": bool(da.get("simulated"))} if da and ma
+               else _why("no_da_or_ma", "DA or MA close not held")),
     )
     if len(months) >= 2:
         m1, m2 = curve[months[0]], curve[months[1]]

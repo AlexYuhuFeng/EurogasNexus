@@ -1,8 +1,9 @@
 /**
  * Desk → Board → Calendar (Package G): what is coming for the five hubs, from where it is
- * published. Non-trading days and early closes (the desk's hand-maintained file: the exchanges'
- * terms forbid the product storing their calendars, so each such line says "hand-maintained"
- * and links the publisher's page), capacity auction windows and offer-level days (ENTSOG's
+ * published. Non-trading days, early closes and last trading days (fetched from the exchanges'
+ * own calendars under their written consent, 2026-11-28; a day the product has not read yet
+ * comes from the desk's hand-maintained file, says "hand-maintained" and links the
+ * publisher's page), capacity auction windows and offer-level days (ENTSOG's
  * calendar as fetched, else the rule-derived dates, said so), reminders to check a calendar, and
  * a source that changed and needs a person. The source and its published/fetched times are on
  * demand (the source cell's tooltip and link), not on every line (UX rule 17: provenance on
@@ -34,6 +35,8 @@ export function provenanceText(item: PublicationCalendarItemDTO, t: Translate, f
   if (source.published_at_utc) parts.push(t("calendar.published", { time: formatTime(source.published_at_utc) }));
   if (source.fetched_at_utc) parts.push(t("calendar.fetched", { time: formatTime(source.fetched_at_utc) }));
   if (source.basis === "hand_maintained") parts.push(source.checked ? t("calendar.checked") : t("calendar.not_checked"));
+  if (source.version) parts.push(source.version);
+  if (source.consent) parts.push(t("calendar.consent", { line: source.consent }));
   if (source.attribution) parts.push(source.attribution);
   return parts.join(" · ");
 }

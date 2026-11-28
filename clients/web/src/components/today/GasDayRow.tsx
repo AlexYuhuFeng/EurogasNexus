@@ -125,6 +125,23 @@ function HubCard({ hub, t, nowMs, onOpen }: { hub: GasDayHubDTO; t: Translate; n
                 {t("today.gas_day.cost_missing")}
                 <span className="gasday-hint"> {t("today.gas_day.cost_where")}</span>
               </span>
+            ) : cost.basis === "published" ? (
+              // The TSO's own published cash-out (live by default), with its gas day and source.
+              <span
+                data-cost-basis="published"
+                title={t(cost.side === "short_premium" ? "today.gas_day.cost_basis_published_short" : "today.gas_day.cost_basis_published_long", {
+                  price: cost.published_price,
+                  reference: cost.published_reference,
+                  rate: cost.rate,
+                  unit: cost.rate_unit,
+                  publisher: cost.published_publisher ?? cost.published_source ?? "",
+                  day: cost.published_gas_day,
+                  status: t(`board.published.status.${cost.published_status === "preliminary" ? "preliminary" : "final"}`),
+                })}
+              >
+                <strong>{Math.round(cost.value).toLocaleString("en-GB")} {cost.currency}</strong>
+                <span className="gasday-assumed"> {t("today.gas_day.published", { day: cost.published_gas_day ?? "" })}</span>
+              </span>
             ) : (
               <span
                 title={t(cost.side === "short_premium" ? "today.gas_day.cost_basis_short" : "today.gas_day.cost_basis_long", {

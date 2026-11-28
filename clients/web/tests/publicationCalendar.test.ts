@@ -110,4 +110,25 @@ test("the watched publications list puts what needs a person first", async () =>
     ({ publication_id, title: publication_id, state }) as WatchedPublicationDTO;
   const ordered = watchOrder([row("b", "link_only"), row("a", "current"), row("c", "needs_confirmation"), row("d", "hand_maintained")]);
   assert.deepEqual(ordered.map((r) => r.state), ["needs_confirmation", "current", "hand_maintained", "link_only"]);
+  // A withdrawn consent and a refusing site come before what runs; not yet implemented after.
+  const consented = watchOrder([row("e", "not_implemented"), row("f", "current"), row("g", "consent_withdrawn"), row("h", "site_refuses")]);
+  assert.deepEqual(consented.map((r) => r.state), ["site_refuses", "consent_withdrawn", "current", "not_implemented"]);
+});
+
+test("a fetched calendar line names the consent it was fetched under, on demand", async () => {
+  const { load } = await loadApiStore();
+  const { provenanceText } = await load<typeof import("../src/components/PublicationCalendar.tsx")>("/src/components/PublicationCalendar.tsx");
+  const text = provenanceText(
+    {
+      key: "early:EEX:2026-12-24",
+      kind: "early_close",
+      at: "2026-12-24T00:00:00+00:00",
+      title: "EEX: shorter hours",
+      hubs: ["TTF"],
+      source: { publication_id: "eex-holiday-calendar", publisher: "EEX", title: "t", url: null, basis: "fetched", fetched_at_utc: "2026-11-28T10:00:00+00:00", published_at_utc: null, changed_at_utc: null, attribution: "", consent: "fetched under written consent (reported 2026-11-28, own use, no resale)" },
+    },
+    (key, options) => (options ? `${key}:${JSON.stringify(options)}` : key),
+    (iso) => iso,
+  );
+  assert.match(text, /calendar\.consent:.*fetched under written consent/);
 });

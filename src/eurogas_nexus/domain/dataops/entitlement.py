@@ -38,18 +38,15 @@ COMMERCIAL_SOURCE_FAMILIES = frozenset(
 
 
 def principal_allows_source(principal: AuthenticatedPrincipal, source_system: str) -> bool:
-    """Fail-closed source-family access for one source label."""
+    """Fail-closed source-family access for one source label.
 
-    family = source_family_for_entitlement(source_system)
-    if not family:
-        return False
-    if family in PUBLIC_BASELINE_SOURCE_FAMILIES:
-        return True
-    scopes = {str(scope).strip().casefold() for scope in principal.data_scopes}
-    allowed = "*" in scopes or family.casefold() in scopes
-    if allowed:
-        note_licensed_read(family)  # GOV-1 (P6): usage of a licensed family
-    return allowed
+    The one rule of ``security.identity.principal_allows_source_family`` (public baseline,
+    families fetched under a publisher's consent, then the principal's grants).
+    """
+
+    from eurogas_nexus.security.identity import principal_allows_source_family
+
+    return principal_allows_source_family(principal, source_system)
 
 
 def _note_licensed(source_system: object) -> None:
@@ -91,7 +88,9 @@ def filter_rows_for_principal(
     """
 
     if principal.auth_method == "legacy_public_token":
-        rows = list(rows)
+        from eurogas_nexus.security.identity import consented_row_allowed
+
+        rows = [row for row in rows if consented_row_allowed(principal, row.get(source_key))]
         for row in rows:
             _note_licensed(row.get(source_key))
         return rows
@@ -119,7 +118,15 @@ def derived_result_access(
     """
 
     if principal.auth_method == "legacy_public_token":
+        from eurogas_nexus.security.identity import consented_row_allowed
+
         source_systems = list(source_systems)
+        refused = tuple(dict.fromkeys(str(s) for s in source_systems
+                                      if not consented_row_allowed(principal, str(s))))
+        if refused:
+            return DerivedAccessDecision(
+                outcome=EntitlementOutcome.DENIED, blocked_sources=refused,
+                reason="derived_result_contains_restricted_source")
         for source_system in source_systems:
             _note_licensed(source_system)
         return DerivedAccessDecision(outcome=EntitlementOutcome.ALLOWED)

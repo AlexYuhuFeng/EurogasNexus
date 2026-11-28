@@ -153,6 +153,53 @@ test("the price board renders native units, bid and offer, the stale mark and 'n
   assert.equal(selectionKey(DEFAULT_SELECTION), "price:M1:TTF", "the panel opens on TTF's front month");
 });
 
+/* ------------------------------------------------------------------ published prices */
+
+function published(over: Partial<MarketQuoteDTO>, meta: Record<string, unknown>): MarketQuoteDTO {
+  return quote({
+    quote_id: `pub:${String(meta.series ?? over.hub)}`,
+    bid_price: null,
+    ask_price: null,
+    stale_after_seconds: null,
+    observed_at_utc: "2026-11-26T17:00:00Z",
+    metadata_json: { public_price: true, price_kind: "reference_index", price_day: "2026-11-26", price_name: "Index", publisher: "Publisher", status: "final", consent_line: "fetched under written consent (reported 2026-11-28, own use, no resale)", ...meta },
+    ...over,
+  });
+}
+
+test("a published daily price is a dated real price in its cell: no bid or offer, never stale, a live quote wins", async () => {
+  const contracts = boardContracts(GAS_DAY);
+  const sap = published({ hub: "NBP", product: "within-day", source_system: "NATIONAL_GAS_PRICES", currency: "GBP", unit: "GBP/MWh", last_price: 75.561, close_price: 75.0 }, {});
+  const mibgas = published(
+    { hub: "PVB", product: "dec-26", source_system: "MIBGAS", delivery_start_utc: "2026-12-01T05:00:00Z", delivery_end_utc: "2027-01-01T05:00:00Z", last_price: 81.77 },
+    { price_kind: "daily_price", delivery_start: "2026-12-01", delivery_end: "2026-12-31" },
+  );
+  const simulated = quote({ hub: "NBP", product: "within-day", source_system: "ICE_Sim", simulated: true, currency: "GBP", unit: "GBP/MWh" });
+  const cells = buildBoard([simulated, sap, mibgas], contracts, BOARD_HUBS, NOW);
+  const wd = cells.WD.NBP;
+  assert.equal(wd.source, "NATIONAL_GAS_PRICES", "the real published price wins over the simulated feed");
+  assert.equal(wd.simulated, false);
+  assert.equal(wd.bid, null);
+  assert.equal(wd.offer, null);
+  assert.ok(Math.abs((wd.last ?? 0) - (75.561 * 100) / THERMS_PER_MWH) < 1e-9, "NBP in p/th");
+  assert.equal(wd.stale, false, "a dated figure is not a stale quote");
+  assert.equal(wd.published?.day, "2026-11-26");
+  assert.ok(wd.change !== null && Math.abs(wd.change - (0.561 * 100) / THERMS_PER_MWH) < 1e-9, "against the publication before it");
+  assert.equal(cells.M1.PVB.published?.kind, "daily_price", "MIBGAS month-ahead lands on Dec-26 by its delivery");
+  assert.equal(cells.DA.PVB.status, "no_source");
+  // A live real quote of the same contract wins over the published figure.
+  const live = quote({ hub: "NBP", product: "within-day", source_system: "Trayport", currency: "GBP", unit: "GBP/MWh", observed_at_utc: "2026-11-27T09:59:00Z" });
+  assert.equal(buildBoard([sap, live], contracts, BOARD_HUBS, NOW).WD.NBP.published, null);
+  const { load } = await loadApiStore();
+  const { PriceBoard } = await load<typeof import("../src/components/TraderScreen.tsx")>("/src/components/TraderScreen.tsx");
+  const html = renderToStaticMarkup(h(PriceBoard, { contracts, cells, t }));
+  assert.match(html, /data-published-day="2026-11-26"[^>]*>board\.published\.day\(dd=26,mm=11,mon=Nov\)</);
+  assert.match(html, /trader-published-kind">board\.published\.kind\.reference_index</);
+  assert.match(html, /data-cell="WD:NBP"[^>]*data-published="reference_index"/);
+  assert.match(html, /fetched under written consent/);
+  assert.doesNotMatch(html, /data-cell="WD:NBP"[^>]*data-stale="true"/);
+});
+
 /* ------------------------------------------------------------------ spreads */
 
 function tenor(over: Partial<BoardTenorDTO>): BoardTenorDTO {

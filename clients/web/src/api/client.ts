@@ -2554,13 +2554,20 @@ export interface GasDayCutoffDTO {
 export interface GasDayCostDTO {
   value: number | null;
   currency: string;
-  basis: "balanced" | "assumption" | "missing";
+  basis: "balanced" | "assumption" | "missing" | "published";
   reason?: string;
   rate?: number;
   rate_unit?: string;
   side?: "long_discount" | "short_premium";
   assumption_set?: string;
   assumption_version?: number;
+  /** basis "published": the TSO's own cash-out of the newest published gas day. */
+  published_gas_day?: string;
+  published_source?: string;
+  published_publisher?: string | null;
+  published_reference?: number;
+  published_price?: number;
+  published_status?: "final" | "preliminary";
 }
 
 export interface GasDayHubDTO {
@@ -5209,12 +5216,15 @@ export interface PublicationSourceDTO {
   attribution: string;
   checked?: boolean;
   file_source?: string;
+  /** A publication fetched under its publisher's written consent: the consent line. */
+  consent?: string;
+  version?: string;
 }
 
 /** Package G: one item of the desk's calendar. */
 export interface PublicationCalendarItemDTO {
   key: string;
-  kind: "non_trading_day" | "early_close" | "auction" | "offer_levels" | "check_calendar" | "source_changed";
+  kind: "non_trading_day" | "early_close" | "expiry" | "auction" | "offer_levels" | "check_calendar" | "source_changed";
   at: string;
   day?: string;
   title: string;
@@ -5237,7 +5247,7 @@ export interface WatchedPublicationDTO {
   hubs: string[];
   url: string;
   document_format: string;
-  verdict: "fetch" | "hand_maintained" | "link_only";
+  verdict: "fetch" | "hand_maintained" | "link_only" | "consented";
   terms_quote: string;
   terms_url: string;
   terms_checked_on: string;
@@ -5246,7 +5256,7 @@ export interface WatchedPublicationDTO {
   delivery: "web" | "platform" | "email";
   attribution: string;
   notes: string;
-  state: "current" | "needs_confirmation" | "unreachable" | "never_fetched" | "hand_maintained" | "link_only";
+  state: "current" | "needs_confirmation" | "unreachable" | "never_fetched" | "hand_maintained" | "link_only" | "consent_withdrawn" | "not_implemented" | "site_refuses";
   detail: string;
   last_checked_at_utc: string | null;
   last_fetched_at_utc: string | null;
@@ -5257,7 +5267,32 @@ export interface WatchedPublicationDTO {
   confirmed_by: string | null;
   confirmed_at_utc: string | null;
   fetch_refusal: string | null;
-  hand_file?: { venue: string; checked: boolean; check_by: string | null; source: string; years: number[]; overdue: boolean } | null;
+  hand_file?: { venue: string; checked: boolean; check_by: string | null; source: string; years: number[]; overdue: boolean; fallback_only?: boolean } | null;
+  /** Fetched under a publisher's written consent (owner, 2026-11-28). */
+  consent_publisher?: string | null;
+  consent_line?: string | null;
+  source_family?: string | null;
+  site_refusal?: string;
+  history?: string;
+  consecutive_failures?: number;
+  next_check_at_utc?: string | null;
+  record_summary?: { kind: string; first_day?: string | null; last_day?: string | null; series?: number; years?: number[]; closed?: number; early_closes?: number; expiries?: number; version?: string } | null;
+}
+
+/** A publisher's written consent, as the owner reported it (GET /api/publications/consents). */
+export interface PublisherConsentDTO {
+  publisher_id: string;
+  name: string;
+  scope: string;
+  basis: string;
+  reported_on: string;
+  supersedes: string;
+  families: string[];
+  state: "in_force" | "withdrawn";
+  withdrawn_at_utc: string | null;
+  withdrawn_by: string | null;
+  withdrawn_reason: string;
+  line: string;
 }
 
 /** TAR-1: one upcoming capacity window (GET /api/capacity/notices). */
@@ -6609,6 +6644,15 @@ export const api = {
   /** Package G: an administrator has checked a changed document; the dates held stay. */
   confirmWatchedPublication: (publicationId: string) =>
     post<{ row: WatchedPublicationDTO }>(`/publications/sources/${encodeURIComponent(publicationId)}/confirm`, {}),
+  /** The publishers' written consents (owner, 2026-11-28) with their state. */
+  publisherConsents: (options?: ApiRequestOptions) =>
+    get<{ rows: PublisherConsentDTO[] }>("/publications/consents", undefined, options),
+  /** An administrator withdraws a consent (audited): fetching stops at once, the data stays. */
+  withdrawPublisherConsent: (publisherId: string, reason = "") =>
+    post<{ row: PublisherConsentDTO }>(`/publications/consents/${encodeURIComponent(publisherId)}/withdraw`, { reason }),
+  /** An administrator puts a withdrawn consent back in force (audited). */
+  restorePublisherConsent: (publisherId: string) =>
+    post<{ row: PublisherConsentDTO }>(`/publications/consents/${encodeURIComponent(publisherId)}/restore`, {}),
   tariffPublications: (options?: ApiRequestOptions) =>
     get<{ rows: TariffPublicationDTO[] }>("/route-cost/tariff-publications", undefined, options),
   saveTariffPublication: (

@@ -153,14 +153,22 @@ def test_an_unreachable_page_is_stated_and_a_robots_refusal_is_respected(tmp_pat
 def test_publications_the_terms_exclude_are_never_fetched_and_say_so(tmp_path):
     fetch = PublicationFetcher({FILE_2627: calendar_xlsx()})
     with _session(tmp_path) as session:
-        watch_all(session, fetch=fetch, now=NOW)
-        assert all("ice.com" not in url and "eex.com" not in url for url in fetch.calls)
+        watch_all(session, fetch=fetch, now=NOW, pause=lambda _s: None)
+        # Not covered by a consent, or no reader yet: never read.
+        assert all(host not in url for url in fetch.calls
+                   for host in ("gsaplatform.eu", "rbp.eu", "uniper.energy", "fluxys.com",
+                                "grainlng.com", "gate.nl", "enagas.es", "prisma-capacity.eu"))
         states = {row["publication_id"]: row for row in source_status(session, now=NOW)}
         assert states["entsog-cam-auction-calendar"]["state"] == "current"
-        assert states["ice-endex-trading-schedule"]["state"] == "hand_maintained"
+        assert states["uniper-storage-offers"]["state"] == "link_only"
+        assert "link only" in states["uniper-storage-offers"]["fetch_refusal"]
+        assert states["fluxys-lng-zeebrugge-slots"]["state"] == "not_implemented"
+        assert states["fluxys-lng-zeebrugge-slots"]["consent_line"] == (
+            "fetched under written consent (reported 2026-11-28, own use, no resale)")
+        # A consented source this fetcher does not serve is unreachable, said so, and waits.
+        assert states["ice-endex-trading-schedule"]["state"] == "unreachable"
+        assert states["ice-endex-trading-schedule"]["next_check_at_utc"] is not None
         assert states["ice-endex-trading-schedule"]["hand_file"]["check_by"] == "2026-12-15"
-        assert states["the-imbalance-prices"]["state"] == "link_only"
-        assert "link only" in states["the-imbalance-prices"]["fetch_refusal"]
 
 
 def test_the_calendar_shows_hand_maintained_holidays_auctions_and_reminders(tmp_path):

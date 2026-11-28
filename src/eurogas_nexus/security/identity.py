@@ -288,6 +288,38 @@ def source_family_for_entitlement(source_system: str) -> str:
     return value.removesuffix("_Sim") if value.endswith("_Sim") else value
 
 
+#: The identity source of a caller that presented nothing, on a deployment that trusts its
+#: network (``EUROGAS_NEXUS_ALLOW_ANONYMOUS_CALLERS``): it reads as the deployment's
+#: compatibility principal, but is nobody the firm has identified.
+ANONYMOUS_IDENTITY_SOURCE = "ANONYMOUS"
+
+
+def is_anonymous(principal: AuthenticatedPrincipal | None) -> bool:
+    """Whether the caller presented no credential at all (see above)."""
+
+    return principal is None or principal.identity_source == ANONYMOUS_IDENTITY_SOURCE
+
+
+def is_consented_family(source_system: str | None) -> bool:
+    """A source fetched under a publisher's written consent (owner, 2026-11-28).
+
+    Its scope is the firm's own use: every identified user of the firm reads it, an anonymous
+    caller never does, and no export meant for outside the firm carries it
+    (``domain/publications/consents``).
+    """
+
+    from eurogas_nexus.domain.publications.consents import consented_source_families
+
+    return source_family_for_entitlement(source_system or "") in consented_source_families()
+
+
+def consented_row_allowed(principal: AuthenticatedPrincipal | None, source_system: str | None
+                          ) -> bool:
+    """False only for a consented family's row asked for by an anonymous caller."""
+
+    return not (is_consented_family(source_system) and is_anonymous(principal))
+
+
 def principal_allows_source_family(
     principal: AuthenticatedPrincipal,
     source_system: str,
@@ -295,7 +327,9 @@ def principal_allows_source_family(
     """Fail-closed row-level commercial-data entitlement check.
 
     Public baseline families are available to every active authenticated
-    principal. Commercial families (EEX, Trayport, ICE_OCM, etc.) require an
+    principal. A family fetched under a publisher's written consent is available to every
+    identified principal of the firm (its scope is the firm's own use) and never to an
+    anonymous caller. Commercial families (EEX, Trayport, ICE_OCM, etc.) require an
     explicit ``*`` or family grant in ``data_scopes``; unknown families always
     return False.
     """
@@ -304,6 +338,14 @@ def principal_allows_source_family(
     if not family:
         return False
     if family in PUBLIC_BASELINE_SOURCE_FAMILIES:
+        return True
+    if is_consented_family(family):
+        if is_anonymous(principal):
+            return False
+        from eurogas_nexus.governance.usage import note_licensed_read
+
+        # Noted like a licensed read, so a file built from it is decided "internal use only".
+        note_licensed_read(family)
         return True
     scopes = {normalize_data_scope(scope).casefold() for scope in principal.data_scopes}
     allowed = "*" in scopes or family.casefold() in scopes

@@ -84,6 +84,34 @@ function price(value: number | null, hub?: string): string {
   return formatMeasure("price", value, hub ? { decimals: priceDecimals(hub) } : {});
 }
 
+const MONTH_ABBR = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+
+/** "27 Nov" (English) or "11月27日" (Chinese): the day a published price is for. */
+export function publishedDay(day: string, t: Translate): string {
+  const mm = Number(day.slice(5, 7));
+  const dd = Number(day.slice(8, 10));
+  if (!mm || !dd) return day;
+  return t("board.published.day", { dd, mm, mon: MONTH_ABBR[mm - 1] });
+}
+
+/** The title of a published daily price: what it is, its day and delivery, its source. */
+export function publishedTitle(cell: BoardCell, t: Translate): string {
+  const published = cell.published!;
+  const delivery = published.deliveryStart && published.deliveryEnd && published.deliveryStart !== published.deliveryEnd ? `${published.deliveryStart} – ${published.deliveryEnd}` : published.deliveryStart ?? published.day;
+  return [
+    t("board.published.title", {
+      name: published.name || sourceSystemLabel(cell.source ?? ""),
+      kind: t(`board.published.kind_long.${published.kind}`),
+      day: published.day,
+      delivery,
+      status: t(`board.published.status.${published.status === "preliminary" ? "preliminary" : "final"}`),
+    }),
+    published.publisher ?? "",
+    published.consent ?? "",
+    cell.unit,
+  ].filter(Boolean).join(" · ");
+}
+
 function change(value: number | null, hub?: string): string {
   return value === null ? "" : formatMeasure("change", value, hub ? { decimals: priceDecimals(hub) } : {});
 }
@@ -153,6 +181,7 @@ export function PriceBoard({ contracts, cells, hubs = HUBS, t, formatTime = (iso
         const cell = cellOf(row);
         if (!cell || cell.status === "no_source") return t("board.no_source_long", { hub, contract: row.contract.label });
         if (cell.status === "unit") return t("board.unit_long");
+        if (cell.published) return publishedTitle(cell, t);
         return t("board.cell_title", {
           source: cell.simulated ? t("board.simulated_source", { source: sourceSystemLabel(cell.source ?? "") }) : sourceSystemLabel(cell.source ?? ""),
           time: formatTime(cell.observedAt),
@@ -175,6 +204,11 @@ export function PriceBoard({ contracts, cells, hubs = HUBS, t, formatTime = (iso
               <span className="trader-no-source" data-no-source={loading ? undefined : hub} data-reading={loading ? hub : undefined}>
                 {loading ? t("board.reading") : cell?.status === "unit" ? t("board.unit_short") : t("board.no_source")}
               </span>
+            ) : cell.published ? (
+              // A published daily figure has no bid: its place says the day the figure is for.
+              <span className="trader-published-day" data-published-day={cell.published.day} data-consent-withdrawn={cell.published.consentWithdrawn ? "true" : undefined}>
+                {publishedDay(cell.published.day, t)}
+              </span>
             ) : price(cell.bid, hub);
             if (!onSelect) return content;
             return (
@@ -195,7 +229,7 @@ export function PriceBoard({ contracts, cells, hubs = HUBS, t, formatTime = (iso
           flashQuiet: (row) => Boolean(cellOf(row)?.stale),
           cellTitle: title,
           cellClassName: (row) => (priced(row) ? (cellOf(row)?.stale ? "is-stale" : undefined) : "is-empty"),
-          cellAttributes: (row) => ({ "data-cell": `${row.contract.key}:${hub}`, "data-stale": cellOf(row)?.stale ? "true" : undefined }),
+          cellAttributes: (row) => ({ "data-cell": `${row.contract.key}:${hub}`, "data-stale": cellOf(row)?.stale ? "true" : undefined, "data-published": cellOf(row)?.published ? cellOf(row)!.published!.kind : undefined }),
         },
         {
           id: `${hub}-offer`,
@@ -207,6 +241,8 @@ export function PriceBoard({ contracts, cells, hubs = HUBS, t, formatTime = (iso
           render: (row) => {
             const cell = cellOf(row);
             if (!cell || cell.status !== "priced") return "";
+            // ...and the offer's place says what it is (an index, a daily price), never a side.
+            if (cell.published) return <span className="trader-published-kind">{t(`board.published.kind.${cell.published.kind}`)}</span>;
             return price(cell.offer, hub);
           },
           // The quote's own stale mark, once per hub and contract, in the offer's glyph place.
@@ -229,7 +265,8 @@ export function PriceBoard({ contracts, cells, hubs = HUBS, t, formatTime = (iso
           flashTone: "direction",
           flashQuiet: (row) => Boolean(cellOf(row)?.stale),
           cellTitle: title,
-          cellClassName: (row) => (priced(row) ? "trader-secondary" : "is-empty"),
+          // A published daily price's figure is its Last: it reads as the cell's price.
+          cellClassName: (row) => (priced(row) ? (cellOf(row)?.published ? "trader-published-last" : "trader-secondary") : "is-empty"),
         },
         {
           id: `${hub}-chg`,
@@ -252,6 +289,7 @@ export function PriceBoard({ contracts, cells, hubs = HUBS, t, formatTime = (iso
           },
           cellTitle: (row) => {
             const cell = cellOf(row);
+            if (cell?.published && cell.closeDay) return t("board.published.chg_title", { day: cell.closeDay, today: cell.published.day });
             return cell?.closeDay ? t("board.chg_title", { day: cell.closeDay }) : title(row);
           },
           cellClassName: (row) => (priced(row) ? "trader-secondary" : "is-empty"),

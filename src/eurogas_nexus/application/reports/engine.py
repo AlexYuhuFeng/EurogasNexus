@@ -93,11 +93,17 @@ def book_scope_of(caller: Caller):
 
 
 def redistributable_families(session, families: set[str], today) -> set[str]:
-    """Families whose current licence allows redistribution of derived figures."""
+    """Families whose current licence allows redistribution of derived figures.
+
+    A family fetched under a publisher's written consent never is: the consent covers the
+    firm's own use only, whatever a licence record says (``domain/publications/consents``).
+    """
 
     from eurogas_nexus.db.models import MarketDataLicenceRecord
+    from eurogas_nexus.domain.publications.consents import consented_source_families
 
     allowed: set[str] = set()
+    families = set(families) - consented_source_families()
     if not families:
         return allowed
     for row in session.query(MarketDataLicenceRecord).filter(
