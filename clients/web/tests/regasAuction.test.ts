@@ -16,6 +16,7 @@ import {
   countdownText,
   deadlineTone,
   draftGaps,
+  draftFromNotice,
   draftToBody,
   emptyDraft,
   isBidLevel,
@@ -187,4 +188,31 @@ test("every regas string has English and Chinese", () => {
   for (const state of ["room", "at_limit", "stop", "no_level", "illustration", "missing_inputs"]) {
     assert.ok(en[`regas.state.${state}`] && zh[`regas.state.${state}`], state);
   }
+});
+
+test("a fetched slot offer fills the case: window, slot days, size in m³ LNG and the terminal", () => {
+  const draft = emptyDraft(undefined);
+  const notice = {
+    notice_key: "fluxys-lng-zeebrugge-slots:zeebrugge:ht901:2027-03-03",
+    title: "Zeebrugge regasification slot HT901",
+    facility_id: "zeebrugge",
+    facility_name: "Zeebrugge",
+    opens_at_utc: "2027-01-14T10:00:00+00:00",
+    closes_at_utc: null,
+    offers_from: "2027-03-03",
+    offers_to: "2027-03-09",
+    quantity: 99000,
+    quantity_unit: "m3_lng",
+    source_url: "https://www.fluxys.com/en/news/x",
+  };
+  const terminals = [{ terminal_id: "zeebrugge", name: "Zeebrugge", hub: "ZTP", operator: null, country: "BE", link_only: false, firm_terms: false }];
+  const filled = draftFromNotice(draft, notice, terminals);
+  assert.equal(filled.terminal_id, "zeebrugge");
+  assert.equal(filled.hub, "ZTP");
+  assert.equal(filled.unit, "m3_lng");
+  assert.equal(filled.quantity, "99000");
+  assert.equal(filled.first_day, "2027-03-03");
+  assert.equal(filled.notice_key, notice.notice_key);
+  // A notice naming a terminal the desk does not hold leaves the terminal to the trader.
+  assert.equal(draftFromNotice(draft, { ...notice, facility_id: "elsewhere" }, terminals).terminal_id, draft.terminal_id);
 });

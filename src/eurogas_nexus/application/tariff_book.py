@@ -1516,12 +1516,25 @@ def import_capacity_notices(
     return {"stored": True, "rows": len(rows), "refused": [], **counts}
 
 
+def _notice_publisher_name(publisher_id: str) -> str:
+    """The tariff book's publisher, else the watched publication's (an operator's slot offers
+    fetched under its consent, ``application/publication_watch``)."""
+
+    known = publisher(publisher_id)
+    if known is not None:
+        return known.name
+    from eurogas_nexus.domain.publications.registry import WATCHED_PUBLICATIONS
+
+    item = next((i for i in WATCHED_PUBLICATIONS if i.publication_id == publisher_id), None)
+    return item.publisher if item is not None else publisher_id
+
+
 def notice_row(record: Any, now: datetime) -> dict[str, Any]:
     opens = _aware(record.opens_at_utc)
     return {
         "notice_key": record.notice_key,
         "publisher_id": record.publisher_id,
-        "publisher_name": getattr(publisher(record.publisher_id), "name", record.publisher_id),
+        "publisher_name": _notice_publisher_name(record.publisher_id),
         "kind": record.kind,
         "basis": record.basis,
         "product": record.product,

@@ -194,7 +194,7 @@ export interface RegasChoicesDTO {
   terminals: { terminal_id: string; name: string; hub: string; operator: string | null; country: string | null; link_only: boolean; firm_terms: boolean }[];
   owners: { counterparty_id: string; name: string; currency: string }[];
   books: { book_id: string; name: string }[];
-  notices: { notice_key: string; title: string; facility_name: string | null; opens_at_utc: string; closes_at_utc: string | null; offers_from: string | null; offers_to: string | null; quantity: number | null; quantity_unit: string | null; source_url: string }[];
+  notices: { notice_key: string; title: string; facility_id?: string | null; facility_name: string | null; publisher_name?: string; opens_at_utc: string; closes_at_utc: string | null; offers_from: string | null; offers_to: string | null; quantity: number | null; quantity_unit: string | null; source_url: string }[];
   definition: {
     quotation: "per_mwh" | "per_slot";
     formats: string[];

@@ -313,3 +313,50 @@ class ConsentedFetcher:
         if base in self.files:
             return self._result(200, self.files[base], {})
         return self._result(404, b"", {})
+
+
+# ------------------------------------------------------------------ operators' slot notices
+
+FLUXYS_MARKET = ("https://www.fluxys.com/en/natural-gas-and-biomethane/products-services/"
+                 "lng-primary-and-secondary-market")
+FLUXYS_NEWS = "https://www.fluxys.com/en/news/fluxys-lng/2026/990101_auction_regas_slots_test"
+GRAIN_PAGE = "https://www.grainlng.com/operational-information"
+DET_PAGE = "https://energy-terminal.de/en/capacity-marketing/trader-information"
+_MENU = ("<nav><a href='/x'>Zeebrugge LNG</a><a href='/y'>Dunkerque LNG</a></nav>")
+
+
+def fluxys_market_page(*news: str) -> bytes:
+    links = "".join(f'<a href="{url}">news</a>' for url in news)
+    return (f"<html><body>{_MENU}<a href=\"/en/news-press\">News</a>{links}"
+            '<a href="/en/news/fluxys-belgium/2026/990101_other">other</a></body></html>').encode()
+
+
+def fluxys_news(*, terminal: str = "Zeebrugge", second_time: bool = False) -> bytes:
+    return (f"<html><body>{_MENU}<h1>Slots on sale (test)</h1>"
+            f"<p>Fluxys LNG is offering 2 slots to unload, store and regasify a LNG cargo in "
+            f"the {terminal} LNG Terminal, for March 2027.</p>"
+            "<p>03/03/2027 08:30 HT901 (<a>Slot Profile</a>)</p>"
+            "<p>09/03/2027 17:45 HT902 (<a>Slot Profile</a>)</p>"
+            "<p>firm rights to unload, store and regasify up to <strong>99 000 m³ LNG over 7 "
+            "days</strong>, by following the profile.</p>"
+            "<p>Slot of 3 March: Auction on <strong>14 January 2027</strong> at 11AM Belgian "
+            "time (CET)</p>"
+            "<p>Slot of 9 March: Auction on <strong>14 January 2027</strong>, within 15 minutes "
+            "after the closing of the previous auction</p></body></html>").encode()
+
+
+def grain_board(*days: str, heading: bool = True) -> bytes:
+    rows = "".join(f"<p>{day}</p>" for day in days)
+    head = "<p>Please see below the currently available slots:</p>" if heading else ""
+    return (f"<html><body><h2>Latest Bulletin Board</h2>{head}{rows}"
+            "<h2>Terminal characteristics</h2><p>36 slots a day</p></body></html>").encode()
+
+
+def det_page(*, running: tuple[str, ...] = ("Wilhelmshaven 01",)) -> bytes:
+    status = "".join(
+        f"<li>{name}</li><li>{'Auction running' if name in running else 'No Auction Planned'}"
+        "</li>" for name in ("Wilhelmshaven 01", "Wilhelmshaven 02", "Brunsbüttel", "Stade"))
+    return (f"<html><body><ul>{status}</ul><p>Auction Information:</p>"
+            "<h3>Auction of Test Capacities at Wilhelmshaven Terminal (WHV01) for Calendar Year "
+            "2028</h3><p>The auction will commence with a bidding round from 5 January 2027 to "
+            "7 January 2027.</p></body></html>").encode()

@@ -156,14 +156,14 @@ def test_publications_the_terms_exclude_are_never_fetched_and_say_so(tmp_path):
         watch_all(session, fetch=fetch, now=NOW, pause=lambda _s: None)
         # Not covered by a consent, or no reader yet: never read.
         assert all(host not in url for url in fetch.calls
-                   for host in ("gsaplatform.eu", "rbp.eu", "uniper.energy", "fluxys.com",
-                                "grainlng.com", "gate.nl", "enagas.es", "prisma-capacity.eu"))
+                   for host in ("gsaplatform.eu", "rbp.eu", "uniper.energy", "gate.nl",
+                                "enagas.es", "prisma-capacity.eu", "deutsche-regas.de"))
         states = {row["publication_id"]: row for row in source_status(session, now=NOW)}
         assert states["entsog-cam-auction-calendar"]["state"] == "current"
         assert states["uniper-storage-offers"]["state"] == "link_only"
         assert "link only" in states["uniper-storage-offers"]["fetch_refusal"]
-        assert states["fluxys-lng-zeebrugge-slots"]["state"] == "not_implemented"
-        assert states["fluxys-lng-zeebrugge-slots"]["consent_line"] == (
+        assert states["fluxys-loenhout-storage"]["state"] == "not_implemented"
+        assert states["fluxys-loenhout-storage"]["consent_line"] == (
             "fetched under written consent (reported 2026-11-28, own use, no resale)")
         # A consented source this fetcher does not serve is unreachable, said so, and waits.
         assert states["ice-endex-trading-schedule"]["state"] == "unreachable"

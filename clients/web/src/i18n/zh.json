@@ -8083,6 +8083,7 @@
   "calendar.kind.non_trading_day": "交易所休市",
   "calendar.kind.early_close": "提前收市",
   "calendar.kind.auction": "容量拍卖开放",
+  "calendar.kind.slot_offer": "LNG 档期报价",
   "calendar.kind.offer_levels": "公布报价量",
   "calendar.kind.check_calendar": "待核对",
   "calendar.kind.source_changed": "来源已变更",

@@ -57,6 +57,7 @@ from typing import Any
 from eurogas_nexus.application.news_ingest import Fetcher, FetchResult, http_fetch, robots_allows
 from eurogas_nexus.domain.publications import entsog_cam_calendar as entsog
 from eurogas_nexus.domain.publications import exchange_calendars as calendars
+from eurogas_nexus.domain.publications import operator_notices as operators
 from eurogas_nexus.domain.publications import public_prices as prices
 from eurogas_nexus.domain.publications.registry import (
     CONSENTED,
@@ -350,6 +351,169 @@ SERIES_SOURCES: dict[str, SeriesSource] = {
 }
 
 
+# ------------------------------------------------------------------- operators' notices
+
+
+def _plan_fluxys(item: WatchedPublication, row, now: datetime, fetch: Fetcher
+                 ) -> list[SeriesRequest]:
+    """The Fluxys LNG market page, then the newest news items about slots it links."""
+
+    page = fetch(item.url, {})
+    if page.status != 200:
+        raise _Unreachable(_status(page), page)
+    links = operators.fluxys_slot_news_links(page.body, item.url)
+    return [SeriesRequest(link) for link in links]
+
+
+def _plan_page(item: WatchedPublication, row, now: datetime, fetch: Fetcher
+               ) -> list[SeriesRequest]:
+    return [SeriesRequest(item.url)]
+
+
+@dataclass(frozen=True)
+class NoticeSource:
+    """An operator's announcements: what to read, how to read one page, and whether the page
+    is the whole board (a slot no longer listed is withdrawn) or one announcement of many."""
+
+    plan: Callable[..., list[SeriesRequest]]
+    parse: Callable[[bytes, str, datetime], tuple[operators.SlotOffer, ...]]
+    board: bool = False
+
+
+NOTICE_SOURCES: dict[str, NoticeSource] = {
+    "fluxys_lng_slots": NoticeSource(
+        plan=_plan_fluxys,
+        parse=lambda data, url, now: operators.parse_fluxys_slot_news(
+            data, url, terminal="zeebrugge")),
+    "fluxys_lng_slots_dunkerque": NoticeSource(
+        plan=_plan_fluxys,
+        parse=lambda data, url, now: operators.parse_fluxys_slot_news(
+            data, url, terminal="dunkerque")),
+    "grain_uioli": NoticeSource(
+        plan=_plan_page,
+        parse=lambda data, url, now: operators.parse_grain_bulletin(data, url,
+                                                                    seen_on=now.date()),
+        board=True),
+    "det_trader_information": NoticeSource(
+        plan=_plan_page,
+        parse=lambda data, url, now: operators.parse_det_trader_information(
+            data, url, seen_on=now.date()),
+        board=True),
+}
+
+
+def _apply_offers(session, item: WatchedPublication, offers, *, now: datetime,
+                  board: bool) -> dict[str, int]:
+    """The offers as capacity notices (``lng_slot``), where the regas auction desk picks them.
+
+    A board's slot no longer listed is withdrawn (``cancelled``). A slot seen on a board with no
+    published window keeps the day it was first seen as its opening.
+    """
+
+    from eurogas_nexus.application.tariff_book import NoticeSpec, record_notices
+    from eurogas_nexus.db.models import CapacityNoticeRecord as N
+
+    specs = []
+    for offer in offers:
+        key = f"{item.publication_id}:{offer.key}"[:160]
+        opens = offer.opens_at_utc
+        if offer.window_basis == "seen":
+            held = session.get(N, key)
+            if held is not None and held.opens_at_utc is not None:
+                opens = _aware(held.opens_at_utc)
+        specs.append(NoticeSpec(
+            notice_key=key, publisher_id=item.publication_id, kind=offer.kind,
+            basis="published", product="LNG_SLOT", title=offer.title, opens_at_utc=opens,
+            closes_at_utc=offer.closes_at_utc, offers_from=offer.offers_from,
+            offers_to=offer.offers_to, facility_kind="terminal",
+            facility_id=offer.terminal_id, facility_name=offer.terminal_name,
+            quantity=offer.quantity, quantity_unit=offer.quantity_unit,
+            source_url=offer.link, retrieved_at_utc=now,
+        ))
+    counts = record_notices(session, specs, now_utc=now)
+    withdrawn = 0
+    if board:
+        keys = {spec.notice_key for spec in specs}
+        for row in (session.query(N).filter(N.publisher_id == item.publication_id)
+                    .filter(N.state == "open").all()):
+            if row.notice_key not in keys:
+                row.state = "cancelled"
+                row.changed_at_utc = now
+                row.revision += 1
+                withdrawn += 1
+    session.flush()
+    return {**counts, "withdrawn": withdrawn}
+
+
+def _check_notices(session, row, item: WatchedPublication, *, fetch: Fetcher, now: datetime,
+                   pause: Callable[[float], None]) -> CheckOutcome:
+    """One check of an operator's announcements: read, parse, record as slot notices."""
+
+    from eurogas_nexus.db.repositories.raw_archive import store_payload_content
+
+    source = NOTICE_SOURCES[item.parser]
+    allowed, why = robots_allows(fetch, item.url, user_agent=PUBLICATION_USER_AGENT)
+    if not allowed:
+        return _unreachable(session, row, item, why, now)
+    try:
+        requests = source.plan(item, row, now, fetch)
+    except _Unreachable as exc:
+        return _unreachable(session, row, item, str(exc), now, exc.result)
+    except operators.NoticesUncertain as exc:
+        return _needs_person(session, row, item, now=now, digest=_sha(str(exc).encode()),
+                             url=item.url, why=str(exc))
+    bodies: list[tuple[str, bytes]] = []
+    for index, request in enumerate(requests):
+        if index:
+            pause(REQUEST_PAUSE_SECONDS)
+        result = fetch(request.url, {})
+        if result.status != 200:
+            return _unreachable(session, row, item, _status(result), now, result)
+        bodies.append((request.url, result.body))
+    row.last_fetched_at_utc = now
+    _succeeded(row)
+    digest = hashlib.sha256(b"".join(hashlib.sha256(b).digest() for _u, b in bodies)
+                            ).hexdigest()
+    if bodies and digest == row.content_sha256:
+        if row.state in {"unreachable", "never_fetched"}:
+            row.state = "current"
+        row.detail = "Unchanged since the last read."
+        session.flush()
+        return CheckOutcome(item.publication_id, "current", "unchanged")
+    offers: list[operators.SlotOffer] = []
+    for url, body in bodies:
+        store_payload_content(session, payload_sha256=_sha(body), data=body, received_at_utc=now)
+        try:
+            offers.extend(source.parse(body, url, now))
+        except operators.NoticesUncertain as exc:
+            return _needs_person(session, row, item, now=now, digest=digest, url=url,
+                                 why=str(exc))
+    record = operators.NoticeRecord(tuple(offers), tuple(url for url, _b in bodies)).to_json()
+    first_read = row.record is None
+    lines = [] if first_read else _offer_changes(row.record, record)
+    _replace_record(row, record, now=now, digest=digest,
+                    document_url=bodies[-1][0] if bodies else item.url)
+    applied = _apply_offers(session, item, offers, now=now, board=source.board)
+    row.detail = (f"Read {now:%d %b %Y}: {len(offers)} slot or auction offer(s)"
+                  + (f"; {len(lines)} change(s)" if lines else ""))[:500]
+    session.flush()
+    if lines:
+        _tell(session, key=f"publication:{item.publication_id}:changed:{digest}",
+              title=f"New from {item.publisher}: {item.title}",
+              body="\n".join([*lines, f"Page: {item.url}", item.attribution]),
+              now=now, severity="info", category="alert")
+    return CheckOutcome(item.publication_id, "first_read" if first_read else "changed",
+                        f"{len(offers)} offer(s)", applied)
+
+
+def _offer_changes(previous: dict | None, current: dict) -> list[str]:
+    before = {o["key"]: o for o in (previous or {}).get("offers", [])}
+    after = {o["key"]: o for o in current.get("offers", [])}
+    lines = [f"Offered: {o['title']}." for key, o in after.items() if key not in before]
+    lines += [f"No longer listed: {o['title']}." for key, o in before.items() if key not in after]
+    return lines[:10]
+
+
 def describe_change(previous: dict | None, current: dict) -> list[str]:
     """What moved between two records, in plain words (at most ten lines).
 
@@ -529,6 +693,9 @@ def check_publication(session, item: WatchedPublication, *, fetch: Fetcher, now:
         return CheckOutcome(item.publication_id, "skipped",
                             f"waiting after {row.consecutive_failures} failed check(s)")
     row.last_checked_at_utc = now
+    if item.parser in NOTICE_SOURCES:
+        return _check_notices(session, row, item, fetch=fetch, now=now,
+                              pause=pause if pause is not None else _time.sleep)
     if item.parser in SERIES_SOURCES:
         return _check_series(session, row, item, fetch=fetch, now=now,
                              pause=pause if pause is not None else _time.sleep)
@@ -1118,6 +1285,33 @@ def calendar_items(session, *, now: datetime, days: int = 60,
                                       published_at=_published(entsog_row),
                                       changed_at=_aware(entsog_row.last_changed_at_utc)),
                 })
+    # Slot and auction offers an operator published, fetched under its consent (in force).
+    from eurogas_nexus.application.publisher_consents import withdrawn_on
+
+    for item in WATCHED_PUBLICATIONS:
+        if item.parser not in NOTICE_SOURCES:
+            continue
+        row = rows.get(item.publication_id)
+        if withdrawn_on(session, item.consent_publisher) is not None:
+            continue
+        for notice in list_notices(session, now_utc=now, days=days, kind="lng_slot",
+                                   publisher_id=item.publication_id):
+            if notice.get("state", "open") != "open":
+                continue
+            items.append({
+                "key": f"slot:{notice['notice_key']}",
+                "kind": "slot_offer",
+                "at": notice["opens_at_utc"],
+                "title": notice["title"],
+                "hubs": list(item.hubs),
+                "offers_from": notice.get("offers_from"),
+                "offers_to": notice.get("offers_to"),
+                "facility_id": notice.get("facility_id"),
+                "source": _source(item, basis="fetched", url=notice.get("source_url"),
+                                  fetched_at=_aware(row.last_fetched_at_utc) if row else None,
+                                  changed_at=_aware(row.last_changed_at_utc) if row else None,
+                                  consent=_consent_line(session, item)),
+            })
     for item in WATCHED_PUBLICATIONS:
         row = rows.get(item.publication_id)
         if row is not None and row.state == "needs_confirmation":
@@ -1260,6 +1454,7 @@ __all__ = [
     "FETCH",
     "PARSERS",
     "PUBLICATION_USER_AGENT",
+    "NOTICE_SOURCES",
     "SERIES_SOURCES",
     "WATCH_ENV",
     "CheckOutcome",

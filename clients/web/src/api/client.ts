@@ -5232,7 +5232,7 @@ export interface PublicationSourceDTO {
 /** Package G: one item of the desk's calendar. */
 export interface PublicationCalendarItemDTO {
   key: string;
-  kind: "non_trading_day" | "early_close" | "expiry" | "auction" | "offer_levels" | "check_calendar" | "source_changed";
+  kind: "non_trading_day" | "early_close" | "expiry" | "auction" | "slot_offer" | "offer_levels" | "check_calendar" | "source_changed";
   at: string;
   day?: string;
   title: string;

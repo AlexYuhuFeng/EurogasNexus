@@ -197,10 +197,18 @@ export function emptyDraft(choices: RegasChoicesDTO | undefined): RegasDraft {
   };
 }
 
-/** A case form filled from a capacity notice the operator published (window, slot days). */
-export function draftFromNotice(draft: RegasDraft, notice: RegasChoicesDTO["notices"][number]): RegasDraft {
+/**
+ * A case form filled from a capacity notice the operator published (window, slot days), and,
+ * when the notice names a terminal the desk knows (a slot offer fetched from Zeebrugge, Grain
+ * or DET), that terminal and its hub; the size in its own unit (m³ LNG for Fluxys).
+ */
+export function draftFromNotice(draft: RegasDraft, notice: RegasChoicesDTO["notices"][number], terminals: RegasChoicesDTO["terminals"] = []): RegasDraft {
+  const terminal = notice.facility_id ? terminals.find((item) => item.terminal_id === notice.facility_id) : undefined;
+  const unit = notice.quantity != null && notice.quantity_unit === "m3_lng" ? "m3_lng" : draft.unit;
   return {
     ...draft,
+    ...(terminal ? { terminal_id: terminal.terminal_id, terminal_name: terminal.name, hub: terminal.hub } : {}),
+    unit,
     notice_key: notice.notice_key,
     title: draft.title || notice.title,
     first_day: notice.offers_from ?? draft.first_day,

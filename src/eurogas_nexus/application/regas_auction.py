@@ -1173,6 +1173,16 @@ def close_case(session, caller, case_id: str, *, outcome: str, note: str,
     return case_payload(row)
 
 
+def _consent_withdrawn(session, publisher_id: str | None) -> bool:
+    """A slot offer fetched under an operator's consent that an administrator withdrew."""
+
+    from eurogas_nexus.application.publisher_consents import withdrawn_on
+    from eurogas_nexus.domain.publications.registry import WATCHED_PUBLICATIONS
+
+    item = next((i for i in WATCHED_PUBLICATIONS if i.publication_id == publisher_id), None)
+    return item is not None and withdrawn_on(session, item.consent_publisher) is not None
+
+
 def choices(session) -> dict[str, Any]:
     """What a case is picked from: terminals, cargo owners, books, the operators' slot notices
     and the desk's definition (rule 19: the trader chooses from what exists)."""
@@ -1184,7 +1194,8 @@ def choices(session) -> dict[str, Any]:
     definition = load_definition()
     try:
         notices = [n for n in list_notices(session, days=60, kind="lng_slot", include_past_days=3)
-                   if n.get("state", "open") == "open"]
+                   if n.get("state", "open") == "open"
+                   and not _consent_withdrawn(session, n.get("publisher_id"))]
     except Exception:  # noqa: BLE001 - no notices held is the normal case
         notices = []
     return {

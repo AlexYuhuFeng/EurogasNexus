@@ -320,9 +320,11 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         verified_live=True,
         delivery="platform",
         consent_publisher="prisma",
-        notes=_NOT_YET + " The consent covers what PRISMA publishes without an account; "
-              "offers inside the platform are not public. Auction dates follow ENTSOG's "
-              "calendar (fetched).",
+        notes=("Consented; not yet implemented. The auction offers per point (IUK, BBL and the "
+               "points into TTF, ZTP, THE and PVB) live on the platform behind an account, which "
+               "the consent does not reach; the public site carries market news and urgent "
+               "market messages only. The standard auction dates for every EU interconnection "
+               "point come from ENTSOG's calendar (fetched)."),
     ),
     WatchedPublication(
         publication_id="gsa-platform-auctions",
@@ -368,8 +370,8 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         publisher="Fluxys LNG",
         kind="lng_slots",
         hubs=("ZTP",),
-        url="https://www.fluxys.com/en/natural-gas-and-biomethane/empowering-you/tariffs/"
-        "tariff_fluxyslng-lng",
+        url="https://www.fluxys.com/en/natural-gas-and-biomethane/products-services/"
+        "lng-primary-and-secondary-market",
         document_format="html",
         verdict=CONSENTED,
         terms_section=TERMS_SECTION,
@@ -377,7 +379,15 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         terms_url="https://www.fluxys.com/en/legalnotice",
         verified_live=True,
         consent_publisher="fluxys",
-        notes=_NOT_YET,
+        interval_minutes=PRICE_INTERVAL_MINUTES,
+        parser="fluxys_lng_slots",
+        attribution="Source: Fluxys LNG, Primary & secondary market (news)",
+        history="The newest four slot or auction news items the page links (2025 on).",
+        notes=("The Primary & secondary market page (Zeebrugge/Dunkirk) links Fluxys LNG's "
+               "news; a regasification slot sale names each slot (arrival, code), its size "
+               "and the auction day and time in Belgian time. Recorded as slot notices the "
+               "regas auction desk opens a case from. Bidding is on Fluxys's auction "
+               "website; nothing here bids."),
     ),
     WatchedPublication(
         publication_id="dunkerque-lng-slots",
@@ -385,7 +395,8 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         publisher="Dunkerque LNG (Fluxys group)",
         kind="lng_slots",
         hubs=("ZTP",),
-        url="https://www.fluxys.com/fr/natural-gas-and-biomethane/shipper-journey/capacity-booking",
+        url="https://www.fluxys.com/en/natural-gas-and-biomethane/products-services/"
+        "lng-primary-and-secondary-market",
         document_format="html",
         verdict=CONSENTED,
         terms_section=TERMS_SECTION,
@@ -393,7 +404,13 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         terms_url="https://www.fluxys.com/fr/legalnotice",
         verified_live=True,
         consent_publisher="fluxys",
-        notes=_NOT_YET + " www.dunkerquelng.com now redirects to fluxys.com.",
+        interval_minutes=PRICE_INTERVAL_MINUTES,
+        parser="fluxys_lng_slots_dunkerque",
+        attribution="Source: Fluxys LNG, Primary & secondary market (news)",
+        history="The newest four slot or auction news items the page links.",
+        notes=("The same Fluxys LNG page as Zeebrugge, read for Dunkirk items; "
+               "www.dunkerquelng.com now redirects to fluxys.com. No Dunkirk slot item was "
+               "listed on 2026-11-28."),
     ),
     WatchedPublication(
         publication_id="grain-lng-uioli-board",
@@ -414,8 +431,15 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         verified_live=True,
         delivery="email",
         consent_publisher="grain-lng",
-        notes=_NOT_YET + " Released slots are advertised on the board; bids go by e-mail to "
-              "Grain LNG on a Short Term Access Confirmation Notice (registered users).",
+        interval_minutes=PRICE_INTERVAL_MINUTES,
+        parser="grain_uioli",
+        attribution="Source: Grain LNG, UIOLI Bulletin Board",
+        history="The board as it stands; a slot no longer listed is withdrawn.",
+        notes=("Released berthing slots are listed one date a line under 'Please see below the "
+               "currently available slots:'. No auction window is published: bids go by e-mail "
+               "on a Short Term Access Confirmation Notice (registered users), so a slot's "
+               "opening is the day the product first saw it. robots.txt carries "
+               "'Content-Signal: search=yes, ai-train=no'; the product trains nothing."),
     ),
     WatchedPublication(
         publication_id="gate-terminal-slots",
@@ -431,7 +455,9 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         terms_url="https://www.gate.nl/",
         verified_live=False,
         consent_publisher="gate-terminal",
-        notes=_NOT_YET,
+        notes=("Consented; not yet implemented: www.gate.nl and gate.nl could not be reached "
+               "from the build environment on 2026-11-28 (the proxy answered 'CONNECT tunnel "
+               "failed, response 502'), so its page layout is unknown. Not a refusal by Gate."),
     ),
     WatchedPublication(
         publication_id="det-lng-auctions",
@@ -451,8 +477,14 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         verified_live=True,
         delivery="platform",
         consent_publisher="deutsche-energy-terminal",
-        notes=_NOT_YET + " Wilhelmshaven commercial management passed to Gasfin Services on "
-              "1 April 2026.",
+        interval_minutes=24 * 60,
+        parser="det_trader_information",
+        attribution="Source: Deutsche Energy Terminal, Trader Information",
+        history="The page as it stands; a terminal no longer 'Auction running' is withdrawn.",
+        notes=("Each terminal's status ('Auction running', 'No Auction Planned') and the "
+               "auction information, with the bidding window where the page states one "
+               "('from <day> to <day>'). Bidding is on PRISMA. Wilhelmshaven commercial "
+               "management passed to Gasfin Services on 1 April 2026."),
     ),
     WatchedPublication(
         publication_id="deutsche-regas-mukran",
@@ -469,7 +501,10 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         terms_url="https://deutsche-regas.de/en/imprint",
         verified_live=False,
         consent_publisher="deutsche-regas",
-        notes=_NOT_YET,
+        notes=("Consented; not yet implemented: https://deutsche-regas.de/en/ and its robots.txt "
+               "both answer HTTP 200 with the same 6,144-byte page shell whose text is drawn by "
+               "a script; the page itself carries no offer. Ask Deutsche ReGas for a file or "
+               "a documented address."),
     ),
     WatchedPublication(
         publication_id="enagas-lng-capacity",
@@ -486,7 +521,10 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         terms_url="https://www.enagas.es/en/legal-notice/",
         verified_live=True,
         consent_publisher="enagas",
-        notes=_NOT_YET,
+        notes=("Consented; not yet implemented: the allocation page answers HTTP 200 but its "
+               "text is drawn by a script (only the copyright line is in the page). Spanish "
+               "LNG slots and storage are allocated on Enagás GTS's capacity platform. Ask "
+               "Enagás for a file or a documented address."),
     ),
     # ------------------------------------------------------------------ storage
     WatchedPublication(
@@ -510,7 +548,8 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         publisher="Fluxys Belgium",
         kind="storage_auctions",
         hubs=("ZTP",),
-        url="https://www.fluxys.com/",
+        url="https://www.fluxys.com/en/natural-gas-and-biomethane/products-services/"
+        "ztp-storage-products-on-offer",
         document_format="html",
         verdict=CONSENTED,
         terms_section=TERMS_SECTION,
@@ -518,7 +557,10 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         terms_url="https://www.fluxys.com/en/legalnotice",
         verified_live=True,
         consent_publisher="fluxys",
-        notes=_NOT_YET,
+        notes=("Consented; not yet implemented: the Products on Offer page lists first-come-first-"
+               "served storage products with a capacity graph and no auction window; storage "
+               "subscription windows are announced as Fluxys news. Next: read those news "
+               "items as the LNG ones are read."),
     ),
     WatchedPublication(
         publication_id="enagas-storage",
@@ -535,7 +577,10 @@ WATCHED_PUBLICATIONS: tuple[WatchedPublication, ...] = (
         terms_url="https://www.enagas.es/en/legal-notice/",
         verified_live=True,
         consent_publisher="enagas",
-        notes=_NOT_YET,
+        notes=("Consented; not yet implemented: the allocation page answers HTTP 200 but its "
+               "text is drawn by a script (only the copyright line is in the page). Spanish "
+               "LNG slots and storage are allocated on Enagás GTS's capacity platform. Ask "
+               "Enagás for a file or a documented address."),
     ),
     # ------------------------------------------------------------------ reference prices
     WatchedPublication(

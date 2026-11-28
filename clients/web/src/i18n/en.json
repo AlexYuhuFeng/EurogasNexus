@@ -8083,6 +8083,7 @@
   "calendar.kind.non_trading_day": "Exchange closed",
   "calendar.kind.early_close": "Early close",
   "calendar.kind.auction": "Capacity auction opens",
+  "calendar.kind.slot_offer": "LNG slot offered",
   "calendar.kind.offer_levels": "Offer levels published",
   "calendar.kind.check_calendar": "Check due",
   "calendar.kind.source_changed": "Source changed",

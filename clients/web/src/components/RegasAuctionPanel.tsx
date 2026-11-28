@@ -604,7 +604,7 @@ function RegasCaseForm({ t, choices, onOpened, onCancel }: { t: Translate; choic
       <div className="trader-panel-body">
         {choices.notices.length > 0 && (
           <Field label={t("regas.form.notice")}>
-            <Select value={draft.notice_key} onChange={(value) => { const notice = choices.notices.find((item) => item.notice_key === value); setDraft(notice ? draftFromNotice(draft, notice) : { ...draft, notice_key: "" }); }} options={[{ value: "", label: t("regas.form.no_notice") }, ...choices.notices.map((item) => ({ value: item.notice_key, label: item.title }))]} />
+            <Select value={draft.notice_key} onChange={(value) => { const notice = choices.notices.find((item) => item.notice_key === value); setDraft(notice ? draftFromNotice(draft, notice, choices.terminals) : { ...draft, notice_key: "" }); }} options={[{ value: "", label: t("regas.form.no_notice") }, ...choices.notices.map((item) => ({ value: item.notice_key, label: item.title }))]} />
           </Field>
         )}
         <h3>{t("regas.form.slot")}</h3>

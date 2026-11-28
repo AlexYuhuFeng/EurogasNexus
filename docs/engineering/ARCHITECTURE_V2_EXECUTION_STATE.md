@@ -24,8 +24,10 @@ own use, no resale); not seen by the development team.
   EEX TTF NGP 60-day file; EEX gas trading and holiday calendars, ICE Endex and IFEU schedules
   (the hand file is the fallback; EEX 24 and 31 December are early closes, 08:00-13:00 CET).
   Polite client: generic User-Agent, robots.txt, conditional requests, 2 s apart, back-off and
-  Retry-After. EEX and ICE price tables, PRISMA and the LNG/storage operators: consented, not
-  yet implemented.
+  Retry-After. Part C: Fluxys LNG slot sales (Zeebrugge, Dunkirk), the Grain LNG UIOLI board
+  and DET's auction status become LNG slot notices the regas auction desk opens a case from
+  (terminal, window, days, size). EEX and ICE price tables, PRISMA, Gate, Deutsche ReGas,
+  Enagás and Loenhout: consented, not yet implemented (reasons in the legal register).
 - Board: published daily prices fill NBP/TTF/THE WD and PVB DA, M1, Q1, Cal, dated, no bid or
   offer; spreads never mix a real and a simulated leg; My gas day uses the published cash-out.
 - Data model: migration `0102_publisher_consents` (one table, three states, two columns),

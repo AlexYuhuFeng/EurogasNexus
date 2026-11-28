@@ -83,7 +83,9 @@ def test_a_consented_publication_is_fetched_only_with_its_record_and_a_parser():
     assert fetched == {"entsog-cam-auction-calendar", "eex-trading-calendar",
                        "eex-holiday-calendar", "ice-endex-trading-schedule",
                        "ice-futures-europe-trading-schedule", "the-imbalance-prices",
-                       "national-gas-smp", "mibgas-prices", "eex-ngp"}
+                       "national-gas-smp", "mibgas-prices", "eex-ngp",
+                       "fluxys-lng-zeebrugge-slots", "dunkerque-lng-slots",
+                       "grain-lng-uioli-board", "det-lng-auctions"}
     for item in consented:
         assert publisher_consent(item.consent_publisher) is not None
         if item.parser is None:

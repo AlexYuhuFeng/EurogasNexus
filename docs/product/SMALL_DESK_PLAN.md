@@ -180,7 +180,8 @@ Admin → Data sources → Watched publications.
 | ICE Endex and ICE Futures Europe trading schedules | **Fetched under written consent** daily: closed days, early settlements and closes |
 | Reference prices: THE (VTP daily average, imbalance prices), National Gas (SAP, SMP buy and sell), MIBGAS (PVB DA, M+1, Q+1, Y+1), EEX TTF neutral gas price | **Fetched under written consent** every six hours, history read once: on the board (dated, never a live quote), in the chart and in My gas day |
 | EEX and ICE public end-of-day futures prices | Consented, not yet implemented: both sites draw them by script from a data service they do not document; ask them how they prefer to be read |
-| PRISMA auction schedules; LNG slot announcements (Zeebrugge, Dunkerque, Isle of Grain, Gate, DET, Mukran, Spain); storage offers (Loenhout, Spain) | Consented, not yet implemented (the regas auction tool is the next reader) |
+| LNG slot announcements: Zeebrugge and Dunkirk (Fluxys LNG news), Isle of Grain (UIOLI board), DET (Wilhelmshaven, Brunsbüttel, Stade) | **Fetched under written consent**: each slot or running auction becomes a slot notice with its window, days, terminal and size; the regas auction desk opens a case from it with those filled in; the Calendar tab lists them |
+| PRISMA auction schedules; Gate; Mukran; Spain (LNG and storage); Loenhout storage | Consented, not yet implemented: offers behind a platform account (PRISMA), page not reachable from the build environment (Gate), pages drawn by script (Deutsche ReGas, Enagás), first-come-first-served products without a window (Loenhout) |
 | GSA, RBP, Uniper | Link only (not covered by the consents) |
 
 The consents (owner, 2026-11-28): each of the twelve publishers gave written consent to use
