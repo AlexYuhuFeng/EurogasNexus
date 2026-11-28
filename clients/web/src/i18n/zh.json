@@ -8050,7 +8050,7 @@
   "board.hub_unit": "{{hub}}，单位 {{unit}}",
   "board.no_source": "无来源",
   "board.no_source_long": "{{hub}} {{contract}} 无授权或公开价格：接入交易台自己的交易所或 Trayport 授权后显示。",
-  "board.unit_short": "单位",
+  "board.unit_short": "其他单位",
   "board.unit_long": "该报价的单位无法在不使用汇率的情况下换算为本枢纽报价单位。",
   "board.cell_title": "{{source}} · {{time}} · {{unit}}",
   "board.simulated_source": "{{source}}（模拟数据，并非市场价格）",
@@ -8214,5 +8214,6 @@
   "deals.kind_basis.stated_on_deal": "交易记录注明",
   "deals.kind_basis.rule": "按规则：{{rule}}",
   "deals.kind_basis.until_delivery": "按规则：{{rule}}（自首个交割日起计为实物）",
-  "deals.kind_basis.default": "按规则文件的默认值"
+  "deals.kind_basis.default": "按规则文件的默认值",
+  "board.reading": "读取中…"
 }

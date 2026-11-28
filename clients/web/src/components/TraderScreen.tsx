@@ -111,7 +111,7 @@ export interface PriceBoardProps {
   onSelect?: (selection: BoardSelection) => void;
   /** The chosen item's key (`selectionKey`), marked on the board. */
   selected?: string | null;
-  /** Quotes not read yet: loading rows instead of a board of "no source". */
+  /** Quotes not read yet: each cell says it is reading, never "no source" before the answer. */
   loading?: boolean;
 }
 
@@ -171,8 +171,8 @@ export function PriceBoard({ contracts, cells, hubs = HUBS, t, formatTime = (iso
             const cell = cellOf(row);
             const key = `price:${row.contract.key}:${hub}`;
             const content = !cell || cell.status !== "priced" ? (
-              <span className="trader-no-source" data-no-source={hub}>
-                {cell?.status === "unit" ? t("board.unit_short") : t("board.no_source")}
+              <span className="trader-no-source" data-no-source={loading ? undefined : hub} data-reading={loading ? hub : undefined}>
+                {loading ? t("board.reading") : cell?.status === "unit" ? t("board.unit_short") : t("board.no_source")}
               </span>
             ) : price(cell.bid, hub);
             if (!onSelect) return content;
@@ -209,7 +209,7 @@ export function PriceBoard({ contracts, cells, hubs = HUBS, t, formatTime = (iso
             return price(cell.offer, hub);
           },
           // The quote's own stale mark, once per hub and contract, in the offer's glyph place.
-          staleLabel: (row) => (cellOf(row)?.stale ? t("stale.value_since", { time: formatTime(cellOf(row)!.observedAt) }) : null),
+          staleLabel: (row) => (priced(row) && cellOf(row)?.stale ? t("stale.value_since", { time: formatTime(cellOf(row)!.observedAt) }) : null),
           flash: true,
           flashTone: "direction",
           flashQuiet: (row) => Boolean(cellOf(row)?.stale),
@@ -258,14 +258,15 @@ export function PriceBoard({ contracts, cells, hubs = HUBS, t, formatTime = (iso
       );
     }
     return out;
-  }, [hubs, t, formatTime, onSelect, selected]);
+  }, [hubs, t, formatTime, onSelect, selected, loading]);
   return (
     <DataGrid
       id="trader-board"
       label={t("board.prices_title")}
       columns={columns}
-      rows={loading ? [] : rows}
-      loading={loading}
+      // The twelve contracts are the board's definition, drawn whatever data exists: before the
+      // first read a cell says it is reading, after it a cell with no quote says "no source".
+      rows={rows}
       rowKey={(row) => row.contract.key}
       density={compact ? "compact" : "regular"}
       phoneLayout="scroll"
@@ -910,21 +911,47 @@ function useFitHeight(enabled: boolean) {
       element?.style.removeProperty("height");
       return;
     }
+    // The screen ends at the window's bottom (the page's bottom padding is taken off on this task,
+    // trader-screen.css), so its height is one subtraction; a value is written only when it
+    // changes, so the observers below settle instead of refitting each other's refit.
     const fit = () => {
       const top = element.getBoundingClientRect().top + window.scrollY;
-      const height = Math.max(window.innerHeight - top, 0);
-      element.style.height = `${height}px`;
-      // Padding below the page (the shell's main area) would still scroll the page: take it off.
+      const height = Math.max(Math.floor(window.innerHeight - top), 0);
+      if (element.style.height !== `${height}px`) element.style.height = `${height}px`;
+      // Anything still below the screen (a padding another stylesheet adds) is taken off once.
       const over = document.documentElement.scrollHeight - window.innerHeight;
       if (over > 0) element.style.height = `${Math.max(height - over, 0)}px`;
     };
+    // Anything that moves the screen's top edge (a notice under the top bar that appears after
+    // the first read, the strip, a font that arrives late) or adds height below it refits it,
+    // once per frame: the page itself must never scroll (CI saw 1084 > 1080 on a slow runner).
+    let frame = 0;
+    const schedule = () => {
+      if (frame) return;
+      frame = window.requestAnimationFrame(() => {
+        frame = 0;
+        fit();
+      });
+    };
     fit();
-    window.addEventListener("resize", fit);
-    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(fit);
-    observer?.observe(document.body);
+    window.addEventListener("resize", schedule);
+    const observer = typeof ResizeObserver === "undefined" ? null : new ResizeObserver(schedule);
+    // The body may be a fixed-height box that never resizes, so watch the screen's own ancestors
+    // (the main area grows when anything above the screen grows) and whatever sits above it.
+    for (let node: HTMLElement | null = element.parentElement; node; node = node.parentElement) {
+      observer?.observe(node);
+      for (let sibling = node.firstElementChild; sibling; sibling = sibling.nextElementSibling) {
+        if (sibling !== element && !sibling.contains(element)) observer?.observe(sibling);
+      }
+    }
+    const mutations = typeof MutationObserver === "undefined" ? null : new MutationObserver(schedule);
+    mutations?.observe(document.body, { childList: true, subtree: true });
+    void document.fonts?.ready.then(schedule);
     return () => {
-      window.removeEventListener("resize", fit);
+      window.removeEventListener("resize", schedule);
       observer?.disconnect();
+      mutations?.disconnect();
+      if (frame) window.cancelAnimationFrame(frame);
     };
   }, [enabled]);
   return ref;

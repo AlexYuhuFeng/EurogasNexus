@@ -29,6 +29,12 @@
     padding-bottom: var(--ds-space-3);
   }
 
+  /* On Desk → Board the page ends where the screen ends: the main area's bottom padding would
+     otherwise sit below a screen sized to the window and scroll the page. */
+  .cockpit-app .app-main:has(> * [data-trader-screen]) {
+    padding-bottom: 0;
+  }
+
   .trader-area-board {
     grid-area: board;
   }
@@ -104,7 +110,12 @@
     line-height: var(--ds-line-sm);
   }
 
+  /* The panel body is its absolutely placed descendants' containing block (screen-reader text,
+     "no source" labels), so they scroll and clip with it. Without it a visually hidden word in
+     a row scrolled out of a panel sat at its static place below the window and made the page
+     itself scroll by a few pixels (CI: 1084 > 1080). */
   .trader-panel-body {
+    position: relative;
     display: flex;
     flex: 1 1 auto;
     flex-direction: column;
@@ -263,6 +274,13 @@
   }
 
   /* ---- choosing what the chart shows: a cell, a hub's head, a row */
+
+  /* A cell's chooser fills its cell, so a cell with no figure ("no source", reading) is still
+     a visible target: the words inside it are laid out across the hub's empty cells. */
+  .trader-select.trader-cell-button {
+    min-height: var(--ds-space-4);
+    vertical-align: middle;
+  }
 
   .trader-select {
     display: inline-flex;

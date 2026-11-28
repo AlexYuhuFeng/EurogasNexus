@@ -410,3 +410,28 @@ test("licensed headline feeds are an empty slot to connect, never read or simula
   assert.match(html, /data-alert="true"/);
   assert.match(html, /board\.events\.kind\.unplanned/);
 });
+
+test("a first-day desk with no quotes: twelve contracts, five hubs, every cell 'no source' and selectable", async () => {
+  const contracts = boardContracts(GAS_DAY);
+  const cells = buildBoard([], contracts, BOARD_HUBS, NOW);
+  assert.equal(Object.keys(cells).length, 12);
+  for (const contract of contracts) {
+    for (const hub of BOARD_HUBS) {
+      assert.equal(cells[contract.key]![hub]!.status, "no_source", `${contract.key} ${hub}`);
+      assert.equal(cells[contract.key]![hub]!.bid, null);
+    }
+  }
+  const { load } = await loadApiStore();
+  const { PriceBoard } = await load<typeof import("../src/components/TraderScreen.tsx")>("/src/components/TraderScreen.tsx");
+  const html = renderToStaticMarkup(h(PriceBoard, { contracts, cells, t, onSelect: () => undefined }));
+  assert.equal(html.match(/data-record="board-contract"/g)?.length, 12, "the rows are the board's definition, not its data");
+  assert.equal(html.match(/data-no-source="/g)?.length, 60);
+  assert.equal(html.match(/data-select="price:/g)?.length, 60, "every cell can be chosen for its chart");
+  assert.equal(html.match(/data-select="curve:/g)?.length, 5);
+  assert.doesNotMatch(html, /aria-busy/);
+  // Before the first read has answered the same twelve rows say they are reading, never "no source".
+  const reading = renderToStaticMarkup(h(PriceBoard, { contracts, cells, t, onSelect: () => undefined, loading: true }));
+  assert.equal(reading.match(/data-record="board-contract"/g)?.length, 12);
+  assert.equal(reading.match(/data-reading="/g)?.length, 60);
+  assert.doesNotMatch(reading, /data-no-source=/);
+});
