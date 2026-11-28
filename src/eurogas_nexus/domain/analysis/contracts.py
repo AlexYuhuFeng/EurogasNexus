@@ -101,7 +101,10 @@ class PortfolioReportRequest(BaseModel):
             run carries travel in the report title, which is the question the
             provider receives.
         selected_contracts: Refused when non-empty (same reason).
-        selected_strategies: Refused when non-empty (same reason).
+        selected_strategies: Refused when non-empty (same reason). The strategy
+            laboratory it named was removed (2026-11-27); the field stays declared
+            so a caller that still names a strategy is refused, not silently
+            answered with the whole snapshot.
         duration_start_utc: Window start; None = unbounded.
         duration_end_utc: Window end; None = unbounded.
         language: Output language hint.
@@ -140,7 +143,6 @@ class AnalysisSnapshot(BaseModel):
         flow_observations: Physical flow rows.
         capacity_context: Capacity profile rows.
         route_candidates: Route candidate rows.
-        strategy_runs: Strategy run rows.
         portfolio_context: Portfolio/contract rows.
         warnings: Snapshot-level warnings carried into every output.
     """
@@ -156,7 +158,6 @@ class AnalysisSnapshot(BaseModel):
     flow_observations: list[dict] = Field(default_factory=list)
     capacity_context: list[dict] = Field(default_factory=list)
     route_candidates: list[dict] = Field(default_factory=list)
-    strategy_runs: list[dict] = Field(default_factory=list)
     portfolio_context: list[dict] = Field(default_factory=list)
     warnings: list[str] = Field(default_factory=list)
 

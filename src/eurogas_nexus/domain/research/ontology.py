@@ -39,8 +39,6 @@ class CanonicalEntityType(StrEnum):
     ACCESS_RIGHT = "access_right"
     SOURCE = "source"
     TRANSFORMATION = "transformation"
-    STRATEGY = "strategy"
-    STRATEGY_VERSION = "strategy_version"
     TARGET_DEFINITION = "target_definition"
     FEATURE_DEFINITION = "feature_definition"
     DATASET_SPEC = "dataset_spec"
@@ -159,16 +157,6 @@ CORE_CONCEPTS: tuple[OntologyConcept, ...] = (
             ("originates_at", "Resource", "route starts at a resource/point"),
             ("terminates_at", "MarketHub", "route ends at a hub"),
             ("uses_segment", "RouteSegment", "route consists of segments"),
-        ),
-    ),
-    OntologyConcept(
-        "Strategy",
-        CanonicalEntityType.STRATEGY,
-        "Strategy",
-        "Long-lived research identity with immutable versions.",
-        (
-            ("observes", "FeatureDefinition", "strategy reads features"),
-            ("requires", "DataRequirement", "strategy declares data needs"),
         ),
     ),
     OntologyConcept(

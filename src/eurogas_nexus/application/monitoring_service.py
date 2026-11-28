@@ -20,11 +20,7 @@ from eurogas_nexus.application.service_identity import (
     configured_service_principal_name,
     resolve_service_authority,
 )
-from eurogas_nexus.db.models import (
-    IngestionRunRecord,
-    MonitoringAlertRecord,
-    StrategyAlertRecord,
-)
+from eurogas_nexus.db.models import IngestionRunRecord, MonitoringAlertRecord
 from eurogas_nexus.db.repositories.monitoring import (
     resolve_absent_monitoring_alerts,
     upsert_monitoring_alert,
@@ -65,7 +61,6 @@ def scan_monitoring_conditions(
     now = _as_utc(now_utc or datetime.now(UTC))
     candidates = [
         *_opportunity_candidates(session, now),
-        *_strategy_candidates(session),
         *_source_failure_candidates(session),
         *_outage_candidates(session, now),
         *_opportunity_evaluator_candidates(session),
@@ -353,40 +348,6 @@ def _opportunity_candidates(
             )
         )
     return candidates
-
-
-def _strategy_candidates(session: Session) -> list[MonitoringCandidate]:
-    rows = (
-        session.query(StrategyAlertRecord)
-        .filter(StrategyAlertRecord.acknowledged.is_(False))
-        .order_by(StrategyAlertRecord.created_at_utc.desc())
-        .limit(200)
-        .all()
-    )
-    return [
-        MonitoringCandidate(
-            fingerprint=f"strategy:{row.alert_id}",
-            category="strategy",
-            alert_type=row.alert_type,
-            severity=_normalize_severity(row.severity),
-            title_en="Strategy monitor alert",
-            title_zh_cn="策略监控告警",
-            message_en=row.message_en,
-            message_zh_cn=row.message_zh_cn,
-            entity_type="strategy_run",
-            entity_id=row.run_id,
-            event_time_utc=row.created_at_utc,
-            evidence_snapshot={
-                "strategy_alert_id": row.alert_id,
-                "run_id": row.run_id,
-                "alert_type": row.alert_type,
-                "severity": row.severity,
-            },
-            source_refs=[f"strategy-run:{row.run_id}"],
-            human_review_required=True,
-        )
-        for row in rows
-    ]
 
 
 def _source_failure_candidates(session: Session) -> list[MonitoringCandidate]:

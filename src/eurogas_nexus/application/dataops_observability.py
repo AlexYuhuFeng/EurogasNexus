@@ -346,22 +346,17 @@ def _source_lines(session, now: datetime, lines: list[str]) -> None:
 
 
 def _scheduler_lines(session, now: datetime, lines: list[str]) -> None:
-    from eurogas_nexus.db.models import (
-        DataOperationsHeartbeatRecord,
-        StrategyShadowSchedulerHeartbeatRecord,
-    )
+    from eurogas_nexus.db.models import DataOperationsHeartbeatRecord
 
     dataops = session.get(DataOperationsHeartbeatRecord, "primary")
-    shadow = session.get(StrategyShadowSchedulerHeartbeatRecord, "primary")
     age = _Family(
         lines,
         "eurogas_scheduler_heartbeat_age_seconds",
         "gauge",
         "Seconds since the scheduler's last heartbeat (+Inf when it never beat).",
     )
-    for name, row in (("dataops", dataops), ("shadow", shadow)):
-        value = _age_seconds(now, row.last_heartbeat_at_utc if row else None)
-        age.sample(float("inf") if value is None else round(value, 1), scheduler=name)
+    value = _age_seconds(now, dataops.last_heartbeat_at_utc if dataops else None)
+    age.sample(float("inf") if value is None else round(value, 1), scheduler="dataops")
     scan = _Family(
         lines,
         "eurogas_scheduler_last_scan_age_seconds",

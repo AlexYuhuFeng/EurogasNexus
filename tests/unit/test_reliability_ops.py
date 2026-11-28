@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-from datetime import UTC, datetime, timedelta
 
 import pytest
 from fastapi.testclient import TestClient
@@ -11,7 +10,6 @@ from sqlalchemy import create_engine
 
 from eurogas_nexus.api.app import create_app
 from eurogas_nexus.application import process_metrics
-from eurogas_nexus.application.shadow_runtime import recover_stale_evaluations
 from eurogas_nexus.core.config import Settings
 from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.session import get_engine
@@ -143,99 +141,3 @@ def test_db_pool_settings_are_applied(monkeypatch) -> None:
     assert captured["pool_size"] == 3
     assert captured["max_overflow"] == 4
     assert captured["pool_timeout"] == 2.0
-
-
-def test_stale_shadow_evaluation_recovery(tmp_path) -> None:
-    db_path = tmp_path / "shadow-recover.sqlite"
-    engine = create_engine(f"sqlite+pysqlite:///{db_path.as_posix()}", future=True)
-    Base.metadata.create_all(engine)
-    from sqlalchemy.orm import Session
-
-    from eurogas_nexus.db.models import (
-        StrategyRecord,
-        StrategyShadowEvaluationRecord,
-        StrategyShadowMonitorRecord,
-        StrategyVersionRecord,
-    )
-
-    now = datetime.now(UTC)
-    with Session(engine) as session:
-        strategy = StrategyRecord(
-            strategy_id="strategy-recover",
-            name="Recover Strategy",
-            description="",
-            created_by="operator",
-            created_at_utc=now,
-            updated_at_utc=now,
-            research_only=True,
-        )
-        version = StrategyVersionRecord(
-            strategy_version_id="version-recover",
-            strategy_id=strategy.strategy_id,
-            version_number=1,
-            status="FROZEN",
-            definition_json={"components": []},
-            hypothesis="",
-            schema_version="strategy-version/v1",
-            content_hash="hash",
-            created_by="operator",
-            created_at_utc=now,
-            research_only=True,
-        )
-        monitor = StrategyShadowMonitorRecord(
-            shadow_monitor_id="monitor-recover",
-            strategy_id=strategy.strategy_id,
-            strategy_version_id=version.strategy_version_id,
-            baseline_run_id=None,
-            state="ACTIVE",
-            schedule_json={"type": "INTERVAL", "interval_seconds": 3600},
-            created_by="operator",
-            created_at_utc=now - timedelta(hours=1),
-            activated_at_utc=now - timedelta(hours=1),
-            consecutive_failures=0,
-            health_state="OK",
-            cumulative_shadow_pnl_gbp=0.0,
-            current_exposure_mwh_per_day=0.0,
-            next_evaluation_at_utc=now + timedelta(hours=1),
-            research_only=True,
-        )
-        evaluation = StrategyShadowEvaluationRecord(
-            shadow_evaluation_id="eval-recover",
-            shadow_monitor_id=monitor.shadow_monitor_id,
-            strategy_version_id=version.strategy_version_id,
-            scheduled_for_utc=now - timedelta(hours=1),
-            started_at_utc=now - timedelta(hours=1),
-            decision_time_utc=None,
-            completed_at_utc=None,
-            state="RUNNING",
-            gas_day=None,
-            gas_day_start_utc=None,
-            gas_day_end_utc=None,
-            snapshot_id=None,
-            candidate_id=None,
-            price_evidence_refs=[],
-            fx_evidence_refs=[],
-            resource_evidence_refs=[],
-            source_systems=[],
-            freshness_json=[],
-            missing_inputs=[],
-            warnings=[],
-            result_json=None,
-            failure_class=None,
-            retry_count=0,
-            research_only=True,
-            human_review_required=True,
-        )
-        session.add_all([strategy, version, monitor, evaluation])
-        session.commit()
-
-    with Session(engine) as session:
-        recovered = recover_stale_evaluations(
-            session,
-            now_utc=now + timedelta(hours=2),
-            stale_after_seconds=300,
-        )
-        assert recovered == 1
-        evaluation = session.get(StrategyShadowEvaluationRecord, "eval-recover")
-        assert evaluation.state == "FAILED"
-        assert evaluation.failure_class == "INTERNAL_ERROR"

@@ -18,13 +18,6 @@ def test_every_public_path_resolves_to_a_declared_permission() -> None:
         assert isinstance(permission, Permission), f"{path} -> {permission!r}"
 
 
-def test_strategy_collection_reads_do_not_grant_writes() -> None:
-    for path in ("/api/strategies", "/api/strategies/example/versions", "/api/strategy-runs"):
-        assert permission_for_path(path, "GET") is Permission.READ
-        assert permission_for_path(path, "POST") is Permission.GOVERNED
-        assert permission_for_path(path, "PATCH") is Permission.GOVERNED
-
-
 def test_credential_writes_are_operator_only() -> None:
     assert permission_for_path("/api/credentials/providers") is Permission.READ
     for path in (
@@ -41,7 +34,7 @@ def test_policy_gated_paths_are_governed() -> None:
         "/api/reports/portfolio",
         "/api/optimization/resource-pool",
         "/api/route-cost/recommend",
-        "/api/strategy-lab/evaluate",
+        "/api/functional-runs",
     ):
         assert permission_for_path(path) is Permission.GOVERNED
     assert permission_for_path("/api/review/decisions") is Permission.REVIEW
@@ -52,8 +45,7 @@ def test_longest_pattern_wins_for_nested_routes() -> None:
     assert permission_for_path("/api/optimization/contracts") is Permission.GOVERNED
     assert permission_for_path("/api/route-cost/tso-tariffs") is Permission.READ
     assert permission_for_path("/api/route-cost/calculate") is Permission.GOVERNED
-    assert permission_for_path("/api/strategy-lab/runs") is Permission.READ
-    assert permission_for_path("/api/strategy-lab/evaluate") is Permission.GOVERNED
+    assert permission_for_path("/api/functional-runs/run-abc") is Permission.GOVERNED
 
 
 def test_research_dataset_permissions_are_method_aware() -> None:

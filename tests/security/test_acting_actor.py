@@ -96,7 +96,7 @@ def test_the_job_tracking_routes_share_one_actor_rule() -> None:
 
     root = Path(__file__).resolve().parents[2]
     routes = root / "src" / "eurogas_nexus" / "api" / "routes" / "public"
-    for name in ("shadow.py", "strategy_registry.py", "source_operations.py"):
+    for name in ("source_operations.py",):
         source = (routes / name).read_text(encoding="utf-8")
         assert "acting_actor_name(request)" in source, name
         assert "str(identity.principal_id)" not in source, name

@@ -102,7 +102,6 @@ def test_two_scheduler_loops_only_one_scans(engine, monkeypatch) -> None:
     )
     for name in ("evaluate_opportunities_if_due", "deliver_market_events"):
         monkeypatch.setattr(scheduler, name, lambda *a, **k: {})
-    monkeypatch.setattr(scheduler, "track_strategies_if_due", lambda *a, **k: {})
     results: dict[str, int] = {}
 
     def active() -> None:

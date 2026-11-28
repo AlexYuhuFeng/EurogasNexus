@@ -134,30 +134,19 @@ def test_acknowledgement_is_a_governed_write_declared_before_the_read_family() -
 
 
 def test_acknowledgement_routes_resolve_the_principal_before_the_database() -> None:
-    """Both write paths refuse an identity-less request before any store access.
+    """The write path refuses an identity-less request before any store access.
 
     The environment has no runtime database configured, so a route that touched the store
     first would answer its 503 instead; the 401 proves the actor is resolved up front.
     """
 
     from eurogas_nexus.api.routes.public.monitoring import acknowledge_alert as monitoring_ack
-    from eurogas_nexus.api.routes.public.shadow import (
-        ShadowAcknowledgeRequest,
-        acknowledge_shadow_alert,
-    )
 
     bare = SimpleNamespace(state=SimpleNamespace())
     with pytest.raises(HTTPException) as monitoring_denied:
         monitoring_ack("alert-test", bare)
     assert monitoring_denied.value.status_code == 401
     assert monitoring_denied.value.detail["error"] == "authentication_required"
-
-    with pytest.raises(HTTPException) as shadow_denied:
-        acknowledge_shadow_alert(
-            "shadow-alert-1", ShadowAcknowledgeRequest(actor="spoofed"), bare
-        )
-    assert shadow_denied.value.status_code == 401
-    assert shadow_denied.value.detail["error"] == "authentication_required"
 
 
 def test_read_only_identity_is_refused_before_any_write(tmp_path, monkeypatch) -> None:

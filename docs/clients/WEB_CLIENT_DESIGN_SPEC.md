@@ -79,10 +79,6 @@ stable for compatibility.
 1. Resource Terms, technical id `contracts`
 2. Market Positioning, technical id `orders`
 
-### Strategy Lab
-
-1. Strategy
-
 ### Decision Center
 
 1. Scenario
@@ -99,7 +95,7 @@ stable for compatibility.
 Every workspace must support a direct URL query entry for release QA, customer
 support, and customer training. The canonical format is `?workspace=<id>`, where
 `<id>` is one of `network`, `scenario`, `review`, `contracts`, `market`,
-`capacity`, `orders`, `strategy`, `glossary`, `sources`, `runtime`, `settings`,
+`capacity`, `orders`, `research`, `glossary`, `sources`, `runtime`, `settings`,
 or `manual`. Unknown workspace values must fall back to `network`.
 
 Authoritative navigation spec:
@@ -397,73 +393,6 @@ Content:
 Market Positioning must consume `/api/portfolio/*`. It must not write orders,
 route orders, approve trades, submit nominations, or store provider access
 material in the client.
-
-## Screen: Strategy
-
-Purpose:
-
-- inspect strategy backtests and paper shadow runs over approved market,
-  physical, capacity, resource-term, and weather context;
-- present the shadow task as two halves read together: monitor management
-  (monitors, alerts, drift, evaluations and their risk checks, lifecycle) and
-  **what the run's economics rest on** (price basis, pool cost, PnL at risk,
-  contract attribution, paper state, run provenance);
-- expose market tape, paper state, allocation ladder, source evidence, warning
-  stack, and candidate action on the shadow task itself. The four task-led views
-  (Monitor, Economics, Risk & Evidence, Run History) belonged to the separate
-  `StrategyShadowRunTerminal` component, which nothing mounted; the owner retired
-  it in favour of the two halves above;
-- keep strategy identity, `PAPER` / `SHADOW_RUN` and no-execution state visible
-  above every task view. Bar selection and the paper-evaluation command belonged
-  to the retired terminal: the shadow request's bar size is declared by the
-  scenario builder, and there is no operator-selectable control for it today
-  (recorded as a gap in `docs/engineering/Architecture-V2/W0-03`);
-- render cumulative paper PnL only from persisted strategy runs. When no runs
-  exist, render an explicit empty state rather than an illustrative curve;
-- include a price-basis comparison board for within-day, day-ahead, month-ahead,
-  ICIS assessment, ICE OCM mark, EEX curve, and FX contexts;
-- cover within-day, day-ahead, month-ahead, ICIS assessments, ICE OCM marks,
-  EEX curves, and ECB FX as explicit basis families;
-- Basis families: within-day, day-ahead, month-ahead, ICIS assessments, ICE OCM marks, EEX curves, and ECB FX.
-- include a selected price-basis control for switching active basis context;
-- show a basis exposure ladder that ranks each non-FX basis by current sale
-  price, margin versus weighted pool cost, pool PnL at risk, source systems, and
-  data-quality state;
-- show contract-level PnL attribution so resource-pool strategy output can be
-  traced back to persisted resource terms;
-- include a stale/simulated/unavailable data banner whenever price bases or
-  market observations are not live and fully sourced. Staleness is a statement
-  about the figure the board shows: a basis is stale when its **latest**
-  observation is older than that basis's own threshold;
-- show a resource-pool PnL curve for comparing shadow-run outcomes across the
-  selected portfolio resources;
-- monitor live signal processes when the backend has authorized data and
-  operator-configured inputs.
-
-Only the active Strategy task view is mounted. On mobile, the view tabs scroll
-horizontally inside their own container and the document must not overflow the
-viewport.
-
-Shadow run creates no orders, trades, nominations, execution records, or official
-recommendations.
-
-Current endpoints:
-
-```text
-POST /api/strategy-lab/evaluate
-GET /api/strategy-lab/runs
-GET /api/strategy-lab/runs/{run_id}
-GET /api/strategy-lab/summary
-```
-
-Persisted strategy-run rows expose nullable `strategy_name`,
-`day_ahead_average_gbp_mwh`, `intraday_average_gbp_mwh`,
-`intraday_vs_day_ahead_spread_gbp_mwh`, and
-`candidate_action_for_review` when present in the original PostgreSQL
-snapshot. `strategy_name` falls back to the input snapshot when the result
-snapshot field is absent or null. The client must render legacy rows without
-those fields as missing history data; it must not infer new market prices or
-recalculate them.
 
 ## Screen: Review
 

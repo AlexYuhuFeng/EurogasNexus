@@ -178,9 +178,9 @@ function user(roles: string[], permissions: string[] | undefined, commercial = t
 }
 
 test("a mode or task the role cannot use is absent; a mode never grants anything", () => {
-  const viewer = ["me.read", "market.read", "portfolio.read", "strategy.read", "review.read", "source.read", "runtime.read", "capability.read", "agent.read"];
+  const viewer = ["me.read", "market.read", "portfolio.read", "review.read", "source.read", "runtime.read", "capability.read", "agent.read"];
   const reviewer = [...viewer, "review.record"];
-  const analyst = [...viewer, "portfolio.write", "strategy.create", "scenario.create", "optimization.run", "analysis.query", "agent.research"];
+  const analyst = [...viewer, "portfolio.write", "scenario.create", "optimization.run", "analysis.query", "agent.research"];
   const ids = (u: CurrentUserDTO | null) => visibleModes(u).map((mode) => `${mode.id}:${mode.tasks.map((task) => task.id).join(",")}`);
 
   // An administrator without a commercial role sees no mode (separation of duties).

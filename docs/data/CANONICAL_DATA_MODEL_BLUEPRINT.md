@@ -187,7 +187,7 @@ Purpose:
 - test plausibility and allocation choices without creating nominations,
   bookings, trades, or approvals.
 
-### Monitoring, Nowcast, Strategy
+### Monitoring And Nowcast
 
 Entities:
 
@@ -196,18 +196,12 @@ Entities:
 - `AnomalyCandidate`
 - `NowcastRun`
 - `NowcastResult`
-- `StrategyHypothesis`
-- `BacktestRun`
-- `BacktestResult`
-- `ShadowRun`
-- `ShadowRunObservation`
 - `MarketMovementAnalysisRun`
 - `AnalysisCitation`
 
 Purpose:
 
-- support research monitoring, near-term pressure views, backtesting, and paper
-  shadow runs.
+- support research monitoring and near-term pressure views.
 
 ### Research Output And Reporting
 

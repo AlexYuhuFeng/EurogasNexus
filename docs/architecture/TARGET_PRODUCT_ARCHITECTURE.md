@@ -150,7 +150,6 @@ Later domain priorities:
 - indicative netback;
 - feasibility;
 - allocation;
-- strategy lab;
 - nowcast;
 - monitoring;
 - reporting.

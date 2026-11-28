@@ -213,11 +213,11 @@ SECTIONS: tuple[SectionType, ...] = (
     ),
     SectionType(
         "pf_strategies", "How the book is run", "Our book",
-        "Contract sale routes, hedges linked to contracts, strategies and held capacity",
+        "Contract sale routes, hedges linked to contracts and held capacity",
         ("table",), internal_only=True,
-        description="Sale routes by contract, hedges tied to named supply, registered "
-        "strategies and cross-border flows on held capacity.",
-        keywords=("strategy", "strategies", "route", "routes", "策略"),
+        description="Sale routes by contract, hedges tied to named supply and "
+        "cross-border flows on held capacity.",
+        keywords=("route", "routes", "sale", "销售"),
     ),
 )
 SECTION_BY_KEY = {section.key: section for section in SECTIONS}

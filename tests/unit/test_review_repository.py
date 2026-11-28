@@ -66,7 +66,9 @@ def test_record_review_decision_rejects_unknown_kind_without_writing() -> None:
     assert session.flush.call_count == 0
 
 
-@pytest.mark.parametrize("value", ["agent_replay", "", "AGENT_REVIEW_PACK", "strategy-run"])
+@pytest.mark.parametrize(
+    "value", ["agent_replay", "", "AGENT_REVIEW_PACK", "strategy-run", "strategy_run"]
+)
 def test_coerce_review_entity_type_fails_closed(value: str) -> None:
     with pytest.raises(ValueError, match="unknown review entity type"):
         coerce_review_entity_type(value)
@@ -74,7 +76,10 @@ def test_coerce_review_entity_type_fails_closed(value: str) -> None:
 
 def test_coerce_review_entity_type_accepts_known_kinds() -> None:
     assert coerce_review_entity_type("agent_review_pack") is ReviewEntityType.AGENT_REVIEW_PACK
-    assert coerce_review_entity_type("strategy_run") is ReviewEntityType.STRATEGY_RUN
+    assert (
+        coerce_review_entity_type("intraday_opportunity")
+        is ReviewEntityType.INTRADAY_OPPORTUNITY
+    )
 
 
 def test_list_review_decisions_empty() -> None:

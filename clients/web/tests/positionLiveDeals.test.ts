@@ -5,9 +5,12 @@
  * (app/hooks/useLive.ts `createLiveRereader`, `immediateTopics`).
  */
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { after } from "node:test";
 
-import { loadApiStore } from "./support/apiStoreHarness.ts";
+import { closeApiStoreHarness, loadApiStore } from "./support/apiStoreHarness.ts";
+
+// The harness keeps one Vite server for the file; without closing it the test process never exits.
+after(closeApiStoreHarness);
 
 type UseLiveModule = typeof import("../src/app/hooks/useLive.ts");
 

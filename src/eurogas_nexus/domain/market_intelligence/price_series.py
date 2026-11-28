@@ -1,8 +1,8 @@
-"""Price-series evidence names and exact source-decimal access for research.
+"""Price-series evidence names and exact source-decimal access.
 
 The name helpers are shared by market discovery and historical evaluation. The
 source-price adapter applies the same bounded exact-decimal authority as the
-normalized market view before strategy research does arithmetic.
+normalized market view before research does arithmetic.
 """
 
 from __future__ import annotations
@@ -20,11 +20,9 @@ from eurogas_nexus.domain.market_intelligence.source_price import (
 def source_price_for_series(row: Mapping[str, Any]) -> SourcePrice:
     """Resolve a stored/normalized market row's exact source price for research.
 
-    Strategy research consumes the backend-normalized rows (or the stored rows
-    they are built from). This adapter applies the same bounded
-    :func:`resolve_source_price` authority as the normalized view, so research
-    can obtain the exact EEX NGP decimal and its provenance before doing any
-    financial arithmetic.
+    The adapter applies the same bounded :func:`resolve_source_price` authority
+    as the normalized view, so research can obtain the exact EEX NGP decimal and
+    its provenance before doing any financial arithmetic.
 
     Args:
         row: Mapping with ``source_system``, ``source_reference``, ``price``,
@@ -76,6 +74,16 @@ def _text_or_none(value: object) -> str | None:
 
 
 def canonical_price_name(source_system: str, tenor: str) -> str:
+    """Return the canonical evidence name for a source's price series.
+
+    Args:
+        source_system: Stored source family (``EEX``, ``ICE_OCM``, ``SAP``...).
+        tenor: Product or tenor label carried by the row.
+
+    Returns:
+        The canonical price name used by market discovery.
+    """
+
     normalized_source = source_system.upper().replace("_SIM", "")
     normalized_tenor = tenor.replace("-", "_").replace(" ", "_").upper()
     if "ICE_OCM" in normalized_source:
@@ -94,6 +102,15 @@ def canonical_price_name(source_system: str, tenor: str) -> str:
 
 
 def evidence_tenor_from_product(product: str) -> str:
+    """Return the evidence tenor implied by a stored product label.
+
+    Args:
+        product: Stored product label (``within-day``, ``day-ahead``...).
+
+    Returns:
+        The tenor word used in canonical price names.
+    """
+
     lowered = product.lower()
     if "within-day" in lowered or "withinday" in lowered:
         return "within-day"

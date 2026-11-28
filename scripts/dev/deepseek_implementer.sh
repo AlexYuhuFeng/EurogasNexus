@@ -26,6 +26,7 @@ esac
 key="$(set -a; . "$env_file" >/dev/null 2>&1; printf '%s' "${DEEPSEEK_API_KEY:-}")"
 [ -n "$key" ] || { echo "DEEPSEEK_API_KEY is not set in the key file" >&2; exit 2; }
 model="${DEEPSEEK_MODEL:-deepseek-flash}"
+# Reasoning effort: max by default (owner, 2026-11-27); DEEPSEEK_EFFORT overrides it.
 
 cd "$workdir"
 # The DeepSeek agent is a separate tool run, not this session: it gets its own configuration
@@ -48,5 +49,6 @@ exec env -i \
   claude -p "$(cat "$task_file")" \
     --model "$model" \
     --max-turns "$max_turns" \
+    --effort "${DEEPSEEK_EFFORT:-max}" \
     --dangerously-skip-permissions \
     --output-format json

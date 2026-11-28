@@ -33,8 +33,6 @@ import type {
   ReviewContextProjectionDTO,
   RouteCandidateDTO,
   SourceSystemDTO,
-  StrategyRunDTO,
-  StrategyVersionDTO,
   UpstreamContractDTO,
 } from "@/api/client";
 import { canOpenInspector, type InspectorSubject } from "../experience/inspectorContract.ts";
@@ -51,7 +49,6 @@ export interface InspectorDetailSource {
   readonly upstreamContracts: readonly UpstreamContractDTO[];
   readonly routeCandidates: readonly RouteCandidateDTO[];
   readonly resourcePoolOptions: ResourcePoolOptionsDTO | null;
-  readonly strategyRuns: readonly StrategyRunDTO[];
   /** Capacity observations, for a selected network point. */
   readonly capacity?: readonly CapacityObsDTO[];
   /** The review projection, for evidence a review decision was taken on. */
@@ -60,8 +57,6 @@ export interface InspectorDetailSource {
   readonly jobs?: readonly JobDTO[];
   /** The source registry, for a provider connection's posture. */
   readonly sources?: readonly SourceSystemDTO[];
-  /** The strategy versions the surface read, for a version's own record. */
-  readonly strategyVersions?: readonly StrategyVersionDTO[];
 }
 
 export interface InspectorFact {
@@ -134,8 +129,6 @@ function candidatesFor(
       return collect([
         byId(source.resourcePoolOptions?.portfolio_resources ?? [], "resource_id"),
       ]);
-    case "strategy-run":
-      return collect([byId(source.strategyRuns, "run_id")]);
     case "network-node":
       return collect([byId(source.nodes, "id")]);
     case "capacity":
@@ -144,8 +137,6 @@ function candidatesFor(
       return collect([byId(source.jobs ?? [], "job_id")]);
     case "provider-connection":
       return collect([byId(source.sources ?? [], "source_id")]);
-    case "strategy-version":
-      return collect([byId(source.strategyVersions ?? [], "strategy_version_id")]);
     default:
       return [];
   }
@@ -243,19 +234,6 @@ const RESOURCE_FIELDS: readonly FieldSpec[] = [
   { field: "accessible_tsos", labelKey: "experience.inspector.fact.accessible_tsos" },
 ];
 
-const STRATEGY_RUN_FIELDS: readonly FieldSpec[] = [
-  { field: "strategy_id", labelKey: "experience.inspector.fact.strategy" },
-  { field: "strategy_version_id", labelKey: "experience.inspector.fact.strategy_version" },
-  { field: "run_type", labelKey: "experience.inspector.fact.run_type" },
-  { field: "run_mode", labelKey: "experience.inspector.fact.run_mode" },
-  { field: "status", labelKey: "experience.inspector.fact.status" },
-  { field: "started_at_utc", labelKey: "experience.inspector.fact.started_at", format: "timestamp" },
-  { field: "finished_at_utc", labelKey: "experience.inspector.fact.finished_at", format: "timestamp" },
-  { field: "data_cutoff_utc", labelKey: "experience.inspector.fact.data_cutoff", format: "timestamp" },
-  { field: "dataset_snapshot_id", labelKey: "experience.inspector.fact.dataset_snapshot" },
-  { field: "manifest_hash", labelKey: "experience.inspector.fact.manifest_hash" },
-];
-
 const NODE_FIELDS: readonly FieldSpec[] = [
   { field: "node_type", labelKey: "experience.inspector.fact.node_type" },
   { field: "country", labelKey: "experience.inspector.fact.country" },
@@ -340,27 +318,6 @@ const PROVIDER_CONNECTION_FIELDS: readonly FieldSpec[] = [
 ];
 
 /**
- * A strategy version's own record.
- *
- * A version is the frozen-or-draft artefact a backtest evaluates, so the Inspector shows what
- * identifies it: its number, status, schema, the content hash that makes it reproducible, who
- * created it and when, the version it forked from, and the hypothesis it was written under. Its
- * definition is a document, not a fact list - the design task renders that.
- */
-const STRATEGY_VERSION_FIELDS: readonly FieldSpec[] = [
-  { field: "strategy_id", labelKey: "experience.inspector.fact.strategy" },
-  { field: "version_number", labelKey: "experience.inspector.fact.version_number" },
-  { field: "status", labelKey: "experience.inspector.fact.status" },
-  { field: "schema_version", labelKey: "experience.inspector.fact.schema_version" },
-  { field: "content_hash", labelKey: "experience.inspector.fact.content_hash" },
-  { field: "created_by", labelKey: "experience.inspector.fact.created_by" },
-  { field: "created_at_utc", labelKey: "experience.inspector.fact.observed_at", format: "timestamp" },
-  { field: "frozen_at_utc", labelKey: "experience.inspector.fact.frozen_at", format: "timestamp" },
-  { field: "parent_version_id", labelKey: "experience.inspector.fact.parent_version" },
-  { field: "hypothesis", labelKey: "experience.inspector.fact.hypothesis" },
-];
-
-/**
  * Field specs per kind. A kind with several record shapes (an alert reads as an
  * alert, a quote as a quote) declares its specs per recognised shape, keyed by the
  * id field the record carries.
@@ -373,11 +330,9 @@ const FIELDS_BY_ID_FIELD: Readonly<Record<string, readonly FieldSpec[]>> = {
   contract_id: CONTRACT_FIELDS,
   route_id: ROUTE_FIELDS,
   resource_id: RESOURCE_FIELDS,
-  run_id: STRATEGY_RUN_FIELDS,
   id: NODE_FIELDS,
   job_id: JOB_FIELDS,
   source_id: PROVIDER_CONNECTION_FIELDS,
-  strategy_version_id: STRATEGY_VERSION_FIELDS,
 };
 
 /**
@@ -396,12 +351,10 @@ const ID_FIELDS_BY_KIND: Partial<Record<InspectorSubjectKind, readonly string[]>
   contract: ["contract_id"],
   route: ["route_id"],
   resource: ["resource_id"],
-  "strategy-run": ["run_id"],
   "network-node": ["id"],
   capacity: ["observation_id"],
   job: ["job_id"],
   "provider-connection": ["source_id"],
-  "strategy-version": ["strategy_version_id"],
 };
 
 /**
@@ -422,7 +375,6 @@ const LABEL_BY_ID_FIELD: Readonly<
   contract_id: (record) => stringField(record, "contract_name"),
   route_id: (record) => stringField(record, "route_name"),
   resource_id: (record) => stringField(record, "resource_name"),
-  run_id: (record) => stringField(record, "strategy_name") ?? stringField(record, "strategy_id"),
   id: (record) => stringField(record, "name"),
 };
 

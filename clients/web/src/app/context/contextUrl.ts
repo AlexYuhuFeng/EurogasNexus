@@ -22,9 +22,6 @@ export const SELECTION_CONTEXT_QUERY_KEYS = {
   case: "case",
   route: "route",
   resource: "resource",
-  run: "run",
-  strategy: "strategy",
-  version: "version",
 } as const;
 
 export interface TraderContextUrlValues {
@@ -37,9 +34,6 @@ export interface SelectionContextUrlValues {
   case?: string | null;
   route?: string | null;
   resource?: string | null;
-  run?: string | null;
-  strategy?: string | null;
-  version?: string | null;
 }
 
 export function readTraderContextUrl(search: string): TraderContextUrlValues {
@@ -123,15 +117,6 @@ export function resolveSelectionContext(
     resourceId: urlValues.resource !== undefined
       ? normalizeSelectionId(urlValues.resource)
       : EMPTY_SELECTION_CONTEXT.resourceId,
-    strategyRunId: urlValues.run !== undefined
-      ? normalizeSelectionId(urlValues.run)
-      : EMPTY_SELECTION_CONTEXT.strategyRunId,
-    strategyId: urlValues.strategy !== undefined
-      ? normalizeSelectionId(urlValues.strategy)
-      : EMPTY_SELECTION_CONTEXT.strategyId,
-    strategyVersionId: urlValues.version !== undefined
-      ? normalizeSelectionId(urlValues.version)
-      : EMPTY_SELECTION_CONTEXT.strategyVersionId,
   };
 }
 
@@ -143,9 +128,6 @@ export function selectionContextToSearchParams(
   setOrDelete(next, SELECTION_CONTEXT_QUERY_KEYS.case, context.decisionCaseId ?? null);
   setOrDelete(next, SELECTION_CONTEXT_QUERY_KEYS.route, context.routeId);
   setOrDelete(next, SELECTION_CONTEXT_QUERY_KEYS.resource, context.resourceId);
-  setOrDelete(next, SELECTION_CONTEXT_QUERY_KEYS.run, context.strategyRunId);
-  setOrDelete(next, SELECTION_CONTEXT_QUERY_KEYS.strategy, context.strategyId);
-  setOrDelete(next, SELECTION_CONTEXT_QUERY_KEYS.version, context.strategyVersionId);
   return next.toString();
 }
 

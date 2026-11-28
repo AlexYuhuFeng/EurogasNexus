@@ -104,7 +104,6 @@ def test_heartbeat_age_and_scheduled_sources() -> None:
         session.commit()
         samples = _samples(database_metric_text(session, now_utc=NOW))
     assert samples['eurogas_scheduler_heartbeat_age_seconds{scheduler="dataops"}'] == "45"
-    assert samples['eurogas_scheduler_heartbeat_age_seconds{scheduler="shadow"}'] == "+Inf"
     assert samples['eurogas_scheduler_last_scan_age_seconds{scheduler="dataops"}'] == "90"
     assert samples["eurogas_scheduler_sources_scheduled"] == "10"
 

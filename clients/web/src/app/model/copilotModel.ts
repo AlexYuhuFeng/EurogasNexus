@@ -138,8 +138,6 @@ export interface CopilotContext {
 export interface CopilotSelectionIds {
   readonly routeId?: string | null;
   readonly resourceId?: string | null;
-  readonly strategyVersionId?: string | null;
-  readonly strategyRunId?: string | null;
 }
 
 export interface CopilotContextSources {
@@ -162,8 +160,6 @@ export function copilotEvidenceRefs(selection: CopilotSelectionIds): CopilotEvid
   const candidates: Array<[InspectorSubjectKind, string | null | undefined]> = [
     ["route", selection.routeId],
     ["resource", selection.resourceId],
-    ["strategy-version", selection.strategyVersionId],
-    ["strategy-run", selection.strategyRunId],
   ];
   return candidates
     .filter(([, ref]) => hasText(ref))
@@ -260,8 +256,6 @@ export function copilotContextFromSearch(input: CopilotContextFromSearchInput): 
       ? {
           routeId: input.selection.routeId ?? null,
           resourceId: input.selection.resourceId ?? null,
-          strategyVersionId: input.selection.strategyVersionId ?? null,
-          strategyRunId: input.selection.strategyRunId ?? null,
         }
       : {}),
   };

@@ -14,7 +14,7 @@ import {
 } from "./selectionContext.ts";
 
 /**
- * Route/resource/strategy selection is workspace state: it is restored from the
+ * Route/resource selection is workspace state: it is restored from the
  * URL only inside an authenticated session, and reset while identity is
  * unresolved or denied so a deep link cannot pre-select a protected view.
  */
@@ -78,21 +78,6 @@ export function useSelectionContext() {
     setSelection((current) => ({ ...current, resourceId: normalizeSelectionId(value) }));
   }, []);
 
-  const setStrategyRunId = useCallback((value: string | null) => {
-    setSelection((current) => ({ ...current, strategyRunId: normalizeSelectionId(value) }));
-  }, []);
-
-  const setStrategyId = useCallback((value: string | null) => {
-    setSelection((current) => ({ ...current, strategyId: normalizeSelectionId(value) }));
-  }, []);
-
-  const setStrategyVersionId = useCallback((value: string | null) => {
-    setSelection((current) => ({
-      ...current,
-      strategyVersionId: normalizeSelectionId(value),
-    }));
-  }, []);
-
   const clearSelection = useCallback(() => {
     setSelection(EMPTY_SELECTION_CONTEXT);
   }, []);
@@ -103,14 +88,8 @@ export function useSelectionContext() {
     setDecisionCaseId,
     routeId: selection.routeId,
     resourceId: selection.resourceId,
-    strategyRunId: selection.strategyRunId,
-    strategyId: selection.strategyId,
-    strategyVersionId: selection.strategyVersionId,
     setRouteId,
     setResourceId,
-    setStrategyRunId,
-    setStrategyId,
-    setStrategyVersionId,
     clearSelection,
   };
 }

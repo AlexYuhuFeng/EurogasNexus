@@ -23,7 +23,7 @@ not restore revoked sessions.
 
 - `GET /api/me` with the old session/key returns 401/403.
 - `GET /api/audit?action=access.user.update` shows the disable event.
-- Historical strategy/review rows still display the original actor.
+- Historical review rows still display the original actor.
 
 ## Rollback
 

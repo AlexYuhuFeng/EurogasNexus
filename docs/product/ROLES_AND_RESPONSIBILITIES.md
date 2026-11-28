@@ -18,7 +18,7 @@ backend authorises.
 |---|---|---|---|
 | Trader | ANALYST | Market → Curves (ladder or hub board) | Prices, spreads, spread candidates, capacity on their routes, position by delivery period |
 | Business analyst | ANALYST | Market → Curves | Fundamentals, storage vs target, scenarios |
-| Quant researcher | ANALYST | Strategy Lab → Design | Spread and benchmark research, backtests |
+| Quant researcher | ANALYST | Research → Spreads | Spread and benchmark research, backtests, research datasets |
 | Risk manager (middle office) | REVIEWER (reads the book and market, records reviews, maintains credit lines; does not write the book, so a review stays independent of the trade) | Portfolio → Exposure | Net position by delivery period (physical + financial), limits, open decisions; challenges and reviews decisions |
 | Finance & settlement (back office) | VIEWER (reads only) | Portfolio → Exposure | Cash timing, payment lags, financing (SONIA/€STR/SOFR + spread), FX fixes |
 | Legal & compliance | REVIEWER | Decision Center → Review | Decision records and evidence, contract terms, data-licence entitlements |

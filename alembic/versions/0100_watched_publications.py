@@ -5,9 +5,7 @@
   when it was last checked, fetched and changed, the digest of the document held, a changed
   document awaiting a person's confirmation, the parsed record and the one before it.
 
-Expand-only; the downgrade drops the table. Chained after ``0098_deal_position_source``; a
-sibling branch adds ``0099_remove_strategy_laboratory`` from the same parent, so the integrator
-re-chains this revision after it (one line, ``down_revision``) when both land.
+Expand-only; the downgrade drops the table. Chained after ``0099_remove_strategy_laboratory``.
 """
 
 import sqlalchemy as sa
@@ -15,7 +13,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision = "0100_watched_publications"
-down_revision = "0098_deal_position_source"
+down_revision = "0099_remove_strategy_laboratory"
 branch_labels = None
 depends_on = None
 # Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).

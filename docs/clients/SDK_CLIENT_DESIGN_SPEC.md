@@ -78,7 +78,6 @@ packages/python-sdk/src/eurogas_nexus_sdk/
   research_client.py
   route_cost.py
   glossary.py
-  strategy_lab.py
   portfolio.py
 ```
 
@@ -155,8 +154,9 @@ Status: planned.
 Purpose:
 
 - retrieve route cost, indicative netback, feasibility, allocation, nowcast,
-  strategy backtest, shadow run, and report outputs after those backend slices
-  exist.
+  the research sandbox's trade-history backtest and paper shadow-run calculators,
+  and report outputs after those backend slices exist. (The strategy laboratory's
+  registry, decision-time backtest and shadow runtime were removed on 2026-11-27.)
 
 All methods must return metadata including assumptions, missing inputs,
 warnings, source references, lineage, `research_only`, and
@@ -186,39 +186,6 @@ rows in PostgreSQL. The SDK must support BBL and IUK corridor examples, UK NTS
 reference rows, and additional European TSO tariff rows as they are loaded.
 SDK methods must preserve backend warnings and must not imply execution,
 nomination submission, order routing, or official trading recommendation.
-
-### Strategy Lab
-
-Purpose:
-
-- evaluate backtest, shadow-run, and live-monitor strategy inputs through the
-  backend API;
-- return paper allocation targets, risk-control status, missing inputs,
-  warnings, and source references;
-- read persisted strategy-run history and summary.
-
-Endpoints:
-
-```text
-POST /api/strategy-lab/evaluate
-GET /api/strategy-lab/runs
-GET /api/strategy-lab/runs/{run_id}
-GET /api/strategy-lab/summary
-```
-
-Persisted run DTOs expose nullable `strategy_name`,
-`day_ahead_average_gbp_mwh`, `intraday_average_gbp_mwh`,
-`intraday_vs_day_ahead_spread_gbp_mwh`, and
-`candidate_action_for_review`. The three numeric price/spread fields are
-stored as-of the original run in GBP/MWh. `strategy_name` and
-`candidate_action_for_review` are text values. `strategy_name` falls back to
-the original input snapshot when the result snapshot field is absent or null.
-Legacy runs without snapshot fields return `None`; SDK methods must not
-recalculate or replace historical economics.
-
-SDK strategy methods must call the backend API only. They must not import
-domain strategy modules, connect to PostgreSQL, call exchanges, or create
-orders/trades/nominations.
 
 ### Portfolio Positioning
 

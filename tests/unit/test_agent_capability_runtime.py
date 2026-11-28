@@ -238,12 +238,9 @@ def test_dataset_build_capability_passes_context_scopes_without_wildcard_fallbac
     assert "*" not in captured["principal"].data_scopes
 
 
-def test_human_confirmation_and_human_only_policies() -> None:
+def test_human_only_policy_refuses_agents() -> None:
     _, runtime = _runtime()
-    analyst = _analyst()
-    freeze = runtime.invoke("strategy.freeze_version", {"strategy_version_id": "v1"}, analyst)
-    assert freeze.failure.code == CapabilityFailureCode.HUMAN_CONFIRMATION_REQUIRED
-    review = runtime.invoke("review.record_analytical_decision", {}, analyst)
+    review = runtime.invoke("review.record_analytical_decision", {}, _analyst())
     assert review.failure.code == CapabilityFailureCode.PERMISSION_DENIED
 
 
@@ -334,30 +331,6 @@ def test_portfolio_resource_economics_and_impacted_resources() -> None:
         _analyst(),
     )
     assert result.data["indicative_margin_gbp_mwh"] == 5.0
-
-
-def test_backtest_validate_rejects_bad_period() -> None:
-    _, runtime = _runtime()
-    result = runtime.invoke(
-        "backtest.validate",
-        {
-            "strategy_version_id": "v",
-            "period_start_utc": "2026-01-02T00:00:00Z",
-            "period_end_utc": "2026-01-01T00:00:00Z",
-        },
-        _analyst(),
-    )
-    assert result.data["ok"] is False
-
-
-def test_strategy_ir_validation_has_no_arbitrary_code() -> None:
-    _, runtime = _runtime()
-    result = runtime.invoke(
-        "strategy.validate_spec",
-        {"strategy_ir": {"hypothesis": "x", "code": "import os"}},
-        _analyst(),
-    )
-    assert result.data["ok"] is False
 
 
 def _export_fixture(monkeypatch, *, metadata_json: dict, artifacts: list) -> None:

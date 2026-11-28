@@ -1,13 +1,13 @@
-"""The daily spread history and its rule backtest, for the API and the tracked strategies.
+"""The daily spread history and its rule backtest, for the API.
 
-The spread lab route (``api/routes/public/spread_lab.py``), Research → Spreads and the daily
-strategy tracks (``application/strategy_tracking.py``) all run this one function: daily closes
+The spread lab route (``api/routes/public/spread_lab.py``) and Research → Spreads run this one
+function: daily closes
 per (hub, tenor, source) from the runtime market observations, filtered by the caller's data
 entitlements, converted to one display unit per day, and the pure
 :mod:`eurogas_nexus.domain.research.spread_analysis` engine. Problems are
 :class:`SpreadHistoryError` with the HTTP status and detail the route answers with.
 
-价差历史与规则回测（API 与跟踪策略共用）。
+价差历史与规则回测（API 使用）。
 """
 
 from __future__ import annotations

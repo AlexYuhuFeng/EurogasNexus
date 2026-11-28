@@ -67,7 +67,6 @@ import {
   FxRateDTO,
   GlossaryTermDTO,
   JobDTO,
-  StrategyVersionDTO,
   GlossaryContextDTO,
   LngObsDTO,
   IntradayOpportunityDTO,
@@ -100,10 +99,6 @@ import {
   RuntimeReleaseDTO,
   ScreenOrderObservationDTO,
   SourceSystemDTO,
-  StrategyLabRequestDTO,
-  StrategyLabResultDTO,
-  StrategyRunDTO,
-  StrategySummaryDTO,
   StorageObsDTO,
   TsoAccessPointDTO,
   TsoTariffDTO,
@@ -805,9 +800,6 @@ export interface ApiState {
    */
   poolOptimizeAction: DecisionActionState;
   routeCompareAction: DecisionActionState;
-  strategyResult: StrategyLabResultDTO | null;
-  strategyRuns: StrategyRunDTO[];
-  strategySummary: StrategySummaryDTO | null;
   reviewDecisions: ReviewDecisionDTO[];
   reviewMessage: string | null;
   /**
@@ -912,14 +904,6 @@ export interface ApiState {
    */
   jobs: JobDTO[];
   publishJobsRead: (jobs: JobDTO[]) => void;
-  /**
-   * The strategy versions the design task read, for the `strategy-version` subject.
-   *
-   * Same pattern again: the strategy workspace owns that read, and the Inspector resolves detail
-   * from what the identity already received.
-   */
-  strategyVersions: StrategyVersionDTO[];
-  publishStrategyVersionsRead: (versions: StrategyVersionDTO[]) => void;
   /**
    * Queue one manual ingestion run for a source.
    *
@@ -1065,16 +1049,6 @@ export interface ApiState {
     provenanceKey: string,
     options?: DecisionComputeRequestOptions,
   ) => Promise<void>;
-  /**
-   * Evaluate the strategy lab scenario.
-   *
-   * Returns the result the run produced, or null when it was refused or failed. The caller
-   * stamps its own provenance key only on a non-null answer, so a failure cannot relabel a
-   * previously successful result.
-   */
-  evaluateStrategyLab: (scenario: StrategyLabRequestDTO) => Promise<StrategyLabResultDTO | null>;
-  fetchStrategySummary: () => Promise<void>;
-  fetchStrategyRuns: () => Promise<void>;
   fetchGlossaryContext: (
     term: string,
     params?: { lang?: string; duration_start_utc?: string; duration_end_utc?: string },
@@ -1102,8 +1076,6 @@ function base64Url(bytes: Uint8Array): string {
   bytes.forEach((value) => { binary += String.fromCharCode(value); });
   return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
-
-const DEFAULT_STRATEGY_ID = "nbp-sap-icis-ocm-window";
 
 function withoutLegacyFlag<T extends object>(body: T): T {
   const payload = { ...body } as Record<string, unknown>;
@@ -1305,9 +1277,6 @@ export const useApiStore = create<ApiState>((set, get) => ({
   resourcePoolResult: null,
   poolOptimizeAction: IDLE_DECISION_ACTION_STATE,
   routeCompareAction: IDLE_DECISION_ACTION_STATE,
-  strategyResult: null,
-  strategyRuns: [],
-  strategySummary: null,
   reviewDecisions: [],
   reviewMessage: null,
   nominationWindows: [],
@@ -1363,7 +1332,6 @@ export const useApiStore = create<ApiState>((set, get) => ({
   contractSaveConflict: false,
   sourceRunOutcome: null,
   jobs: [],
-  strategyVersions: [],
   dataStatus: "unknown",
 
   bootstrapIdentity: async () => {
@@ -1753,8 +1721,6 @@ export const useApiStore = create<ApiState>((set, get) => ({
       workspaceLoadsCommitted: get().workspaceLoadsCommitted + 1,
       error: allFailed ? workspaceCommit.error : null,
     });
-    void get().fetchStrategySummary();
-    void get().fetchStrategyRuns();
     void get().fetchMe();
     get().subscribeDecisionStreams();
     workspaceLoadCoordinator.finish(load.generation);
@@ -2313,10 +2279,6 @@ export const useApiStore = create<ApiState>((set, get) => ({
     set({ jobs });
   },
 
-  publishStrategyVersionsRead: (strategyVersions) => {
-    set({ strategyVersions });
-  },
-
   requestSourceRun: async (sourceId, reason) => {
     if (logoutInProgress) return;
     if (!isIdentityGateOpen(get().authState)) return;
@@ -2679,60 +2641,6 @@ export const useApiStore = create<ApiState>((set, get) => ({
           describeFailure(e).correlationId,
         ),
       }));
-    }
-  },
-
-  evaluateStrategyLab: async (scenario) => {
-    if (logoutInProgress) return null;
-    // The run is asked by one identity, like the other governed computes: a sign-out or a
-    // session invalidation while it is in flight drops the answer entirely - result, metadata,
-    // the shared `loading`/`error` and the summary/runs follow-ups - and reports that the run
-    // produced nothing, so the caller stamps no provenance for it (`followUpReadIsCurrent`).
-    const requestGeneration = identityReadCoordinator.capture();
-    set({ loading: true, error: null });
-    try {
-      const result = await api.evaluateStrategyLab(withoutLegacyFlag(scenario));
-      if (!followUpReadIsCurrent(requestGeneration)) return null;
-      set({ strategyResult: result.data, meta: result.meta, loading: false });
-      void get().fetchStrategySummary();
-      void get().fetchStrategyRuns();
-      // The answer, not a handle: the caller stamps the provenance of the request it made only
-      // when the run actually produced one, so a failure leaves the prior result's key alone.
-      return result.data;
-    } catch (e) {
-      if (!followUpReadIsCurrent(requestGeneration)) return null;
-      set({ error: String(e), loading: false });
-      return null;
-    }
-  },
-
-  fetchStrategySummary: async () => {
-    if (logoutInProgress) return;
-    if (!needsCommercialWorkspaceReads(get().currentUser)) return;
-    const requestGeneration = identityReadCoordinator.capture();
-    try {
-      const result = await api.strategySummary({ strategy_id: DEFAULT_STRATEGY_ID });
-      if (!identityReadCoordinator.isCurrent(requestGeneration) || logoutInProgress) return;
-      set({ strategySummary: result.data });
-    } catch (e) {
-      if (identityReadCoordinator.isCurrent(requestGeneration) && !logoutInProgress) {
-        set({ strategySummary: null, error: String(e) });
-      }
-    }
-  },
-
-  fetchStrategyRuns: async () => {
-    if (logoutInProgress) return;
-    if (!needsCommercialWorkspaceReads(get().currentUser)) return;
-    const requestGeneration = identityReadCoordinator.capture();
-    try {
-      const result = await api.strategyRuns({ strategy_id: DEFAULT_STRATEGY_ID, limit: 20 });
-      if (!identityReadCoordinator.isCurrent(requestGeneration) || logoutInProgress) return;
-      set({ strategyRuns: result.data });
-    } catch (e) {
-      if (identityReadCoordinator.isCurrent(requestGeneration) && !logoutInProgress) {
-        set({ strategyRuns: [], error: String(e) });
-      }
     }
   },
 

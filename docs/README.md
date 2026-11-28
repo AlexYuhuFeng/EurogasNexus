@@ -12,7 +12,7 @@ normative one listed in the catalogue wins; report the conflict.
 | Role | Learn | Do | Look up |
 |---|---|---|---|
 | Trader | [First sign-in](user/QUICK_START.md) | [Trader guide](guides/TRADER.md), [market workflow](user/MARKET_WORKFLOW.md) | [Terminology](architecture/TERMINOLOGY.md), [times and zones](user/TIMES_AND_ZONES.md) |
-| Analyst, quant | [Python SDK quickstart](sdk/QUICKSTART.md) | [Analyst and quant guide](guides/ANALYST_QUANT.md), [SDK examples](sdk/EXAMPLES.md), [Strategy Lab](user/STRATEGY_LAB.md) | [SDK reference](sdk/REFERENCE.md), [data science functions](api/DATA_SCIENCE_FUNCTIONS.md) |
+| Analyst, quant | [Python SDK quickstart](sdk/QUICKSTART.md) | [Analyst and quant guide](guides/ANALYST_QUANT.md), [SDK examples](sdk/EXAMPLES.md) | [SDK reference](sdk/REFERENCE.md), [data science functions](api/DATA_SCIENCE_FUNCTIONS.md) |
 | Risk, finance | [First sign-in](user/QUICK_START.md) | [Risk and finance guide](guides/RISK_AND_FINANCE.md), [portfolio workflow](user/PORTFOLIO_WORKFLOW.md) | [Data status and provenance](user/DATA_STATUS_AND_PROVENANCE.md) |
 | Management | [First sign-in](user/QUICK_START.md) | [Management guide](guides/MANAGEMENT.md), [reports](user/REPORTS.md) | [Roles and responsibilities](product/ROLES_AND_RESPONSIBILITIES.md) |
 | Legal, compliance | [First sign-in](user/QUICK_START.md) | [Legal and compliance guide](guides/LEGAL_COMPLIANCE.md), [decision review](user/DECISION_REVIEW.md) | [Data source terms](legal/DATA_SOURCE_TERMS.md), [compliance audit](compliance/COMPLIANCE_AUDIT.md) |
@@ -35,7 +35,6 @@ normative one listed in the catalogue wins; report the conflict.
 Using the product:
 [guides by role](guides/README.md) · [the answer bar](user/ANSWER_BAR.md) ·
 [market workflow](user/MARKET_WORKFLOW.md) · [portfolio workflow](user/PORTFOLIO_WORKFLOW.md) ·
-[Strategy Lab](user/STRATEGY_LAB.md) · [shadow monitoring](user/SHADOW_MONITORING.md) ·
 [decision review](user/DECISION_REVIEW.md) · [reports](user/REPORTS.md) ·
 [support and updates](guides/SUPPORT_AND_UPDATES.md)
 
@@ -245,8 +244,6 @@ Architecture V2 is the binding target architecture and product-experience intera
 - [Capability registry](agents/CAPABILITY_REGISTRY.md)
 - [MCP server](agents/MCP_SERVER.md)
 - [Research plan](agents/RESEARCH_PLAN.md)
-- [Strategy IR](agents/STRATEGY_IR.md)
-- [Research orchestration](agents/RESEARCH_ORCHESTRATION.md)
 - [Risk challenger](agents/RISK_CHALLENGER.md)
 - [Agent replay](agents/AGENT_REPLAY.md)
 - [Agent evaluation](agents/AGENT_EVALUATION.md)
@@ -336,8 +333,6 @@ Operational procedures and operator-facing guides:
 - [The answer bar](user/ANSWER_BAR.md): calculations, conversions, look-ups and Ask in the search bar
 - [Market workflow](user/MARKET_WORKFLOW.md)
 - [Portfolio workflow](user/PORTFOLIO_WORKFLOW.md)
-- [Strategy Lab](user/STRATEGY_LAB.md)
-- [Shadow monitoring](user/SHADOW_MONITORING.md)
 - [Decision review](user/DECISION_REVIEW.md)
 - [Data status and provenance](user/DATA_STATUS_AND_PROVENANCE.md)
 - [Commercial UAT plan](uat/COMMERCIAL_UAT_PLAN.md)

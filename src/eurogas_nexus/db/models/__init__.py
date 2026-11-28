@@ -20,12 +20,6 @@ from eurogas_nexus.db.models.analysis import (
     AnalysisRunRecord,
     GeneratedReportRecord,
 )
-from eurogas_nexus.db.models.backtest import (
-    BacktestAttributionRecord,
-    BacktestDecisionEventRecord,
-    BacktestExperimentRecord,
-    BacktestSeriesRecord,
-)
 from eurogas_nexus.db.models.books import TradingBookRecord
 from eurogas_nexus.db.models.capacity_bookings import CapacityBookingRecord
 from eurogas_nexus.db.models.certification import ProviderCertificationRecord
@@ -79,6 +73,10 @@ from eurogas_nexus.db.models.identity import (
     IdentityPrincipalRecord,
     OidcAuthorizationStateRecord,
     UserSessionRecord,
+)
+from eurogas_nexus.db.models.identity_groups import (
+    IdentityGroupMemberRecord,
+    IdentityGroupRecord,
 )
 from eurogas_nexus.db.models.jobs import JobRecord
 from eurogas_nexus.db.models.lng_disruption import (
@@ -206,33 +204,10 @@ from eurogas_nexus.db.models.settings import (
     PrincipalPreferenceRecord,
 )
 from eurogas_nexus.db.models.setup import InstallationSetupRecord
-from eurogas_nexus.db.models.shadow import (
-    StrategyShadowAlertRecord,
-    StrategyShadowCandidateRecord,
-    StrategyShadowDriftSnapshotRecord,
-    StrategyShadowEvaluationRecord,
-    StrategyShadowMonitorRecord,
-    StrategyShadowOutcomeRecord,
-    StrategyShadowRiskCheckRecord,
-    StrategyShadowSchedulerHeartbeatRecord,
-)
 from eurogas_nexus.db.models.storage_nomination import (
     NominationWindowMasterRecord,
     StorageFacilityMasterRecord,
     StorageInventoryObservationRecord,
-)
-from eurogas_nexus.db.models.strategy import (
-    StrategyAlertRecord,
-    StrategyAllocationTargetRecord,
-    StrategyDataSnapshotRecord,
-    StrategyDefinitionRecord,
-    StrategyRecord,
-    StrategyRunRecord,
-    StrategyVersionRecord,
-)
-from eurogas_nexus.db.models.strategy_track import (
-    StrategyTrackEventRecord,
-    StrategyTrackRecord,
 )
 from eurogas_nexus.db.models.support import (
     NotificationChannelRecord,
@@ -351,18 +326,6 @@ __all__ = [
     "FunctionalDependencyRecord",
     "FunctionalRunRecord",
     "FunctionalModelRecord",
-    "StrategyShadowAlertRecord",
-    "StrategyShadowCandidateRecord",
-    "StrategyShadowDriftSnapshotRecord",
-    "StrategyShadowEvaluationRecord",
-    "StrategyShadowMonitorRecord",
-    "StrategyShadowOutcomeRecord",
-    "StrategyShadowRiskCheckRecord",
-    "StrategyShadowSchedulerHeartbeatRecord",
-    "BacktestAttributionRecord",
-    "BacktestDecisionEventRecord",
-    "BacktestExperimentRecord",
-    "BacktestSeriesRecord",
     "AuditChainAnchorRecord",
     "PrivilegedChangeRecord",
     "IdentityMfaRecord",
@@ -453,6 +416,8 @@ __all__ = [
     "IngestionRunRecord",
     "IngestionRunStatus",
     "IdentityApiKeyRecord",
+    "IdentityGroupMemberRecord",
+    "IdentityGroupRecord",
     "IdentityExternalIdRecord",
     "IdentityLocalCredentialRecord",
     "InstallationSetupRecord",
@@ -480,8 +445,6 @@ __all__ = [
     "MarketObservationRecord",
     "MarketQuoteRecord",
     "MarketTradeRecord",
-    "StrategyTrackEventRecord",
-    "StrategyTrackRecord",
     "MonitoringAlertReaderStateRecord",
     "MonitoringAlertRecord",
     "NodeFacilityMapping",
@@ -506,13 +469,6 @@ __all__ = [
     "StorageFacilityMasterRecord",
     "StorageInventoryObservationRecord",
     "StorageObservationRecord",
-    "StrategyAlertRecord",
-    "StrategyDataSnapshotRecord",
-    "StrategyRecord",
-    "StrategyVersionRecord",
-    "StrategyAllocationTargetRecord",
-    "StrategyDefinitionRecord",
-    "StrategyRunRecord",
     "TariffPublicationRecord",
     "TsoTariffRecord",
     "TopologyMarketMapping",
@@ -529,11 +485,6 @@ __all__ = [
 
 # Book isolation is enforced on every Session once the models are loaded (security review H1).
 from eurogas_nexus.db import book_scope as _book_scope  # noqa: E402
-from eurogas_nexus.db.models.strategy_access import (  # noqa: F401, E402
-    IdentityGroupMemberRecord,
-    IdentityGroupRecord,
-    StrategyGroupShareRecord,
-)
 
 _book_scope.install()
 

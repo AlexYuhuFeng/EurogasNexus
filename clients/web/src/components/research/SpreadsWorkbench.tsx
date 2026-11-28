@@ -43,7 +43,6 @@ import { NextSteps } from "./NextSteps";
 import { SpreadsBoard } from "./SpreadsBoard";
 import { Chart, Waterfall, type ChartData } from "@/components/ui/charts";
 import { BacktestDetails, type BacktestAnalysis } from "@/components/research/BacktestDetails";
-import { StrategyTrackPanel } from "@/components/research/StrategyTrackPanel";
 import { formatMeasure } from "@/app/time/valueFormat";
 import { useLiveTopics } from "@/app/hooks/useLive";
 
@@ -361,8 +360,6 @@ export function SpreadsWorkbench() {
       {result && result.kind === "curve" && spec && <CurveResult result={result} spec={spec} classes={classes} />}
       {result && result.kind === "history" && spec && <HistoryResult result={result} spec={spec} />}
       {result && spec && <SpreadNextSteps spec={spec} />}
-      {/* Track this strategy: a paper shadow run on the same spec (StrategyTrackPanel). */}
-      <StrategyTrackPanel spec={spec ?? null} />
     </div>
   );
 }

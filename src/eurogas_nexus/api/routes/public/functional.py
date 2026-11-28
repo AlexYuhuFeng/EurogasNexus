@@ -22,7 +22,7 @@ def factory():
 
 
 def owner_id(session, request):
-    from eurogas_nexus.db.repositories.strategy_access import require_named_principal
+    from eurogas_nexus.db.repositories.identity_access import require_named_principal
 
     return require_named_principal(session, getattr(request.state.identity, "principal_id", None))
 

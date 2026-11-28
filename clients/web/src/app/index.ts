@@ -17,7 +17,6 @@ export {
   resolveRouteGeometryWarning,
 } from "./resourcePoolMapPaths";
 export { buildRouteRecommendationRequest } from "./routeRecommendationRequest";
-export { buildStrategyScenario } from "./strategyScenario";
 export { DEFAULT_GAS_DAY, marketMatchesTradingContext } from "./tradingContext";
 export {
   buildSourceCategoryCounts,

@@ -25,8 +25,7 @@ def _read_application() -> str:
     return "\n".join(_read(path) for path in APPLICATION_FILES)
 
 
-def test_strategy_prices_consume_backend_normalized_market_view() -> None:
-    scenario = _read(WEB / "app" / "strategyScenario.ts")
+def test_market_prices_consume_backend_normalized_market_view() -> None:
     market_terminal = _read(WEB / "components" / "MarketTerminal.tsx")
     store = _read(WEB / "stores" / "api.ts")
     app = _read_application()
@@ -47,14 +46,6 @@ def test_strategy_prices_consume_backend_normalized_market_view() -> None:
     assert "const query = projectionRequestContext(get().tradingContext);" in store
     assert "api.marketContext(query, loaderOptions)" in store
 
-    # scenario assembly reads backend-owned fields only (no FX math)
-    assert "observation.price_gbp_mwh" in scenario
-    assert "observation.is_gas_price" in scenario
-    assert 'observation.hub.toUpperCase() === "NBP"' in scenario
-    assert "latestPositiveObservation" in scenario
-    assert "const nbpPrice" not in scenario
-    assert "Math.max(nbpPrice - 0.4, 0)" not in scenario
-
     # the shadow-run presentation left with the Strategies page (CP-00)
     assert not (WEB / "app" / "model" / "shadowRunPresentation.ts").exists()
 
@@ -69,7 +60,6 @@ def test_strategy_prices_consume_backend_normalized_market_view() -> None:
     assert "buildLatestCurrencyGraph" not in client_sources
     assert "1 / rate" not in client_sources
 
-    assert "buildStrategyScenario(" in app
     assert "api.normalizedMarkets.filter(" in app
     market_cockpit = _read(WEB / "components" / "MarketCockpit.tsx")
     assert "api.fxRates" in market_cockpit
@@ -95,7 +85,6 @@ def test_review_workspace_records_persisted_decisions_with_the_identity_as_actor
     assert "localStorage" not in review_workspace
     decision_workspace = _read(WEB / "components" / "DecisionWorkspace.tsx")
     assert "onRecordDecision={api.recordReviewDecision}" in decision_workspace
-    assert "latestStrategyRunId={api.strategyRuns[0]?.run_id ?? null}" in decision_workspace
     assert "review.decision_recorder" in review_workspace
     assert "review.decision_history" in review_workspace
 

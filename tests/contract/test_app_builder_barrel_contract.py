@@ -21,7 +21,6 @@ def test_app_builder_barrel_exports_extracted_modules() -> None:
         "numberFromRecord,",
         'export { buildResourcePoolOptimizationRequest } from "./resourcePoolRequest";',
         'export { buildRouteRecommendationRequest } from "./routeRecommendationRequest";',
-        'export { buildStrategyScenario } from "./strategyScenario";',
         'metadataText,',
         'normalizePointName,',
         'routeEdgeMetadataText,',

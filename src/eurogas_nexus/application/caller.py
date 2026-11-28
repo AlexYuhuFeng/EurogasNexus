@@ -1,7 +1,7 @@
 """Who a calculation runs for: a person's request, or the firm under a service identity.
 
 Business calculations (positions, credit, mandates) read data the caller is entitled to:
-licensed quotes by data scope, screen orders by strategy visibility, books by portfolio
+licensed quotes by data scope, screen orders by book scope, books by portfolio
 scope. A ``Caller`` carries that identity explicitly, so the same calculation serves an API
 request and a headless worker (monitoring) without a fake HTTP request. Book scope still
 comes from :mod:`eurogas_nexus.security.portfolio_scope`, which is unset outside a request,

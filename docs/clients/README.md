@@ -90,11 +90,6 @@ compatibility.
 - Market Positioning: read-only screen observations and PnL snapshots. Technical
   id: `orders`.
 
-### Strategy Lab
-
-- Strategy: paper strategy evaluation. Later milestones add Design, Backtest,
-  Compare, and Shadow Run subviews.
-
 ### Decision Center
 
 - Scenario: route-cost, resource-pool, and economics review controls.

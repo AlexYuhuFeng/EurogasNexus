@@ -1,4 +1,4 @@
-"""Agent-native capability and research orchestration API (CR-15).
+"""Agent-native capability API (CR-15).
 
 The capability invoke endpoint is a governed semantic RPC, not a generic
 unrestricted remote procedure endpoint: every call passes the authenticated
@@ -8,52 +8,29 @@ principal through the CapabilityRuntime permission/entitlement boundary.
 from __future__ import annotations
 
 from typing import Any
-from uuid import uuid4
 
-from fastapi import APIRouter, BackgroundTasks, HTTPException, Query, Request, Response
+from fastapi import APIRouter, HTTPException, Query, Request
 from pydantic import BaseModel, Field
 
 from eurogas_nexus.api.errors import ApiError
 from eurogas_nexus.application.agents.registry import register_builtin_capabilities
 from eurogas_nexus.application.agents.runtime import CapabilityRuntime
-from eurogas_nexus.domain.agents.contracts import (
-    AgentInvocationContext,
-)
-from eurogas_nexus.domain.agents.research_plan import (
-    ResearchPlan,
-    validate_research_plan,
-)
-from eurogas_nexus.domain.agents.strategy_ir import (
-    compile_strategy_ir,
-    validate_strategy_ir,
-)
+from eurogas_nexus.domain.agents.contracts import AgentInvocationContext
 
 router = APIRouter(tags=["agents"])
 
 
 class CapabilityInvokeRequest(BaseModel):
+    """One capability invocation request."""
+
     arguments: dict[str, Any] = Field(default_factory=dict)
     human_confirmation: bool = False
     confirmation_note: str = Field(default="", max_length=500)
 
 
-class ResearchRunRequest(BaseModel):
-    objective: str = Field(min_length=8, max_length=4000)
-    agent_profile: str = Field(default="STRATEGY_RESEARCHER", max_length=32)
-    strategy_generation_allowed: bool = False
-    strategy_ir: dict[str, Any] | None = None
-    frozen_strategy_version_id: str | None = Field(default=None, max_length=128)
-    period_start_utc: str | None = None
-    period_end_utc: str | None = None
-    #: Run the pipeline as a background job and answer with the job at once (202).
-    background: bool = False
-
-
-class PlanValidateRequest(BaseModel):
-    plan: ResearchPlan
-
-
 def _env(data: object, request: Request, *, source: str, warnings: list[str] | None = None) -> dict:
+    """Wrap a response in the research-only envelope."""
+
     return {
         "data": data,
         "meta": {
@@ -82,20 +59,16 @@ def _principal(
     """The invocation context for one call.
 
     ``human_confirmation`` is the caller's answer to a capability whose ``action_policy`` is
-    ``HUMAN_CONFIRMATION``: the runtime refuses such a capability without it. The flag used to be
-    accepted in the request body and then dropped here, which made every
-    ``HUMAN_CONFIRMATION`` capability permanently uncallable through this route while the caller
-    was told its confirmation was required - a governance control turned into a dead end. It is
-    carried now, and only the runtime decides whether the confirmation is enough: since
-    CODEX-1 it counts only from a signed-in person (``principal_type`` ``USER``), never from the
-    deployment token or a service account.
+    ``HUMAN_CONFIRMATION``: the runtime refuses such a capability without it. It counts only
+    from a signed-in person (``principal_type`` ``USER``), never from the deployment token or a
+    service account.
     """
 
     identity = getattr(request.state, "identity", None)
     if identity is None:
         # Fail closed (CODEX-1). The app-wide identity dependency attaches a principal or
         # refuses with 401 before this route runs, so this is reached only when the router is
-        # mounted without it; it used to invent an analyst with every data scope here.
+        # mounted without it.
         raise HTTPException(
             status_code=401,
             detail={
@@ -115,29 +88,13 @@ def _principal(
     )
 
 
-def _db_configured() -> bool:
-    from eurogas_nexus.db.session import resolve_database_url
-
-    return resolve_database_url() is not None
-
-
-def _session():
-    if not _db_configured():
-        raise ApiError(
-            503,
-            "runtime_db_required",
-            "Runtime PostgreSQL is required for agent research persistence.",
-        )
-    from eurogas_nexus.db.session import get_session_factory
-
-    return get_session_factory()()
-
-
 @router.get("/api/capabilities")
 def list_capabilities(
     request: Request,
     domain: str | None = Query(default=None),
 ) -> dict:
+    """List the registered capability catalogue, optionally by domain."""
+
     definitions = _registry().list_definitions()
     if domain:
         definitions = [item for item in definitions if item.domain.value == domain]
@@ -153,6 +110,8 @@ def search_capabilities(
     request: Request,
     q: str = Query(default="", max_length=120),
 ) -> dict:
+    """Search the registered capability catalogue."""
+
     return _env(
         [item.public_metadata() for item in _registry().search(q)],
         request,
@@ -162,6 +121,8 @@ def search_capabilities(
 
 @router.get("/api/capabilities/{capability_id}")
 def describe_capability(capability_id: str, request: Request) -> dict:
+    """Describe one registered capability."""
+
     definition = _registry().get(capability_id)
     if definition is None:
         raise ApiError(
@@ -202,398 +163,3 @@ def invoke_capability(
         source="capability-runtime",
         warnings=result.warnings,
     )
-
-
-@router.get("/api/agent/profiles")
-def list_agent_profiles(request: Request) -> dict:
-    from eurogas_nexus.domain.agents.contracts import DEFAULT_AGENT_PROFILES
-
-    return _env(
-        [item.model_dump(mode="json") for item in DEFAULT_AGENT_PROFILES],
-        request,
-        source="domain-contract",
-    )
-
-
-@router.post("/api/agent/research")
-def run_research(
-    body: ResearchRunRequest,
-    request: Request,
-    response: Response,
-    background_tasks: BackgroundTasks,
-) -> dict:
-    """Run one governed research pipeline and record it.
-
-    With ``background: true`` the answer (202) is the QUEUED ``AGENT_RUN`` job at once; the
-    pipeline runs after the response and reports its step (plan, analysis, hypothesis,
-    backtest, review) on the job, whose ``agent_run:`` output names the run to open
-    (``GET /api/agent/runs/{agent_run_id}``). Without it the run answers in the request.
-
-    The run is filed under an ``agent_profile``, so the profile must be one the runtime declares:
-    the catalogue at ``GET /api/agent/profiles`` is the same list this refuses against, and an
-    undeclared profile is a 422 rather than an arbitrary string recorded on the run and in its
-    job's scope. What a profile's stages mean for the run is reported by the run itself - a profile
-    whose declared stages were not reached says so in its warnings rather than quietly standing as
-    evidence of a pipeline that did not run.
-    """
-
-    from eurogas_nexus.domain.agents.contracts import PROFILES_BY_ID
-
-    if body.agent_profile not in PROFILES_BY_ID:
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "agent_profile_unknown",
-                "message": (
-                    "No agent profile is declared for "
-                    f"{body.agent_profile!r}; a run is filed under a declared profile."
-                ),
-                "declared_profiles": sorted(PROFILES_BY_ID),
-            },
-        )
-
-    if body.strategy_ir is not None:
-        # The pipeline drafts its own candidate from the findings it produced and validates it
-        # against the feature catalogue. A caller-supplied IR was accepted by the request model and
-        # then dropped by the orchestrator, so a caller could believe its own specification had been
-        # run. It is refused instead, with the path that does own a strategy specification named.
-        raise HTTPException(
-            status_code=422,
-            detail={
-                "code": "strategy_ir_not_accepted",
-                "message": (
-                    "This runtime drafts and validates its own Strategy IR from the run's "
-                    "findings; a supplied one is refused rather than ignored. Use the strategy "
-                    "registry (POST /api/strategies/{strategy_id}/versions) to submit a "
-                    "specification."
-                ),
-            },
-        )
-
-    from eurogas_nexus.application.jobs import track_job
-
-    principal = _principal(request)
-    run_id = f"agent-run-{uuid4().hex[:20]}"
-    job_spec = {
-        "kind": "AGENT_RUN",
-        "principal": _job_principal(request),
-        "owner_principal_id": _named_job_owner(request),
-        "scope_refs": (f"AGENT_PROFILE:{body.agent_profile}",),
-        "inputs": {
-            "objective": body.objective,
-            "agent_profile": body.agent_profile,
-            "strategy_generation_allowed": bool(body.strategy_generation_allowed),
-            "frozen_strategy_version_id": body.frozen_strategy_version_id or "",
-            "period_start_utc": _iso_or_none(body.period_start_utc),
-            "period_end_utc": _iso_or_none(body.period_end_utc),
-        },
-        "correlation_id": getattr(request.state, "request_id", None),
-        "provenance": ("agent-runtime", "governed-research"),
-    }
-    with _session() as session:
-        _authorise_research(session, body, principal)
-        if body.background:
-            return _queue_research(
-                session, body, principal, run_id, job_spec, request, response, background_tasks
-            )
-        # Wave 8: the governed research run registers into the unified job model, in the
-        # same session that persists the run's own rows, so the job commits with the work
-        # it describes (and is rolled back with it when the run fails).
-        with track_job(session, **job_spec) as job:
-            outcome = _run_pipeline(session, body, principal, run_id)
-            _record_agent_artifacts(job, run_id, outcome)
-        # Commit after the tracker has written the terminal outcome, so the job row and
-        # the run rows it describes land in one transaction.
-        session.commit()
-    return _env(
-        outcome.payload(),
-        request,
-        source="agent-runtime",
-        warnings=outcome.warnings,
-    )
-
-
-#: The steps of a research run, in order, as recorded on its background job, and the
-#: orchestration stages each one covers.
-RESEARCH_STEPS: tuple[tuple[str, frozenset[str]], ...] = (
-    ("research.plan", frozenset({"PLAN_DRAFTED", "PLAN_VALIDATED"})),
-    ("research.analyse", frozenset({"DATA_ANALYSIS"})),
-    (
-        "research.hypothesis",
-        frozenset({"HYPOTHESIS_FORMED", "STRATEGY_SPEC_DRAFTED", "STRATEGY_VALIDATED"}),
-    ),
-    ("research.backtest", frozenset({"BACKTESTED", "ROBUSTNESS_EVALUATED"})),
-    ("research.review", frozenset({"CHALLENGED", "READY_FOR_HUMAN_REVIEW"})),
-)
-
-
-def _research_step(stage) -> tuple[int, str] | None:
-    """The job step an orchestration stage belongs to, or None (BLOCKED, FAILED, ...)."""
-
-    for index, (label, stages) in enumerate(RESEARCH_STEPS, start=1):
-        if str(getattr(stage, "value", stage)) in stages:
-            return index, label
-    return None
-
-
-def _authorise_research(session, body: ResearchRunRequest, principal) -> None:
-    """Refuse an unnamed caller and a frozen version the caller may not write to."""
-
-    from eurogas_nexus.db.models import StrategyVersionRecord
-    from eurogas_nexus.db.repositories.strategy_access import (
-        require_named_principal,
-        require_strategy_access,
-    )
-
-    require_named_principal(session, principal.principal_id)
-    if body.frozen_strategy_version_id:
-        version = session.get(StrategyVersionRecord, body.frozen_strategy_version_id)
-        if version is None:
-            raise ApiError(404, "strategy_version_not_found", "Strategy version not found")
-        # Research can persist evaluations; a read-share does not grant writes.
-        require_strategy_access(session, version.strategy_id, principal.principal_id, write=True)
-
-
-def _run_pipeline(session, body: ResearchRunRequest, principal, run_id: str, on_stage=None):
-    from eurogas_nexus.application.agents.research_orchestrator import (
-        GovernedResearchOrchestrator,
-    )
-
-    return GovernedResearchOrchestrator().run_research(
-        session,
-        run_id=run_id,
-        principal=principal,
-        objective=body.objective,
-        agent_profile=body.agent_profile,
-        strategy_generation_allowed=body.strategy_generation_allowed,
-        strategy_ir_payload=body.strategy_ir,
-        frozen_strategy_version_id=body.frozen_strategy_version_id,
-        period_start_utc=body.period_start_utc,
-        period_end_utc=body.period_end_utc,
-        on_stage=on_stage,
-    )
-
-
-def _queue_research(session, body, principal, run_id, job_spec, request, response, tasks):
-    """Create the QUEUED research job, schedule the run, and answer with the job (202)."""
-
-    from eurogas_nexus.application.background_jobs import (
-        JobQueueFull,
-        run_background_job,
-        submit_background_job,
-    )
-    from eurogas_nexus.db.session import get_session_factory
-
-    if job_spec["owner_principal_id"] is None:
-        raise HTTPException(
-            status_code=403,
-            detail={
-                "code": "background_job_requires_named_identity",
-                "message": "Background research runs are followed per user; sign in to start one.",
-            },
-        )
-    try:
-        job = submit_background_job(session, **job_spec, steps_total=len(RESEARCH_STEPS))
-    except JobQueueFull as exc:
-        raise HTTPException(
-            status_code=429,
-            detail={
-                "code": exc.code,
-                "message": "You already have three jobs running. Wait for one to finish.",
-            },
-        ) from exc
-    session.commit()
-
-    def work(work_session, progress) -> None:
-        def on_stage(stage) -> None:
-            step = _research_step(stage)
-            if step is not None:
-                progress.step(*step)
-
-        outcome = _run_pipeline(work_session, body, principal, run_id, on_stage=on_stage)
-        _record_agent_artifacts(progress, run_id, outcome)
-
-    tasks.add_task(
-        run_background_job,
-        get_session_factory(),
-        job["job_id"],
-        work,
-        steps_total=len(RESEARCH_STEPS),
-    )
-    response.status_code = 202
-    return _env(job, request, source="job-records")
-
-
-def _job_principal(request: Request) -> str:
-    """Server-recorded display attribution; authority uses owner_principal_id."""
-    identity = getattr(request.state, "identity", None)
-    return identity.name if identity is not None else "public-api"
-
-
-def _record_agent_artifacts(job, run_id: str, outcome) -> None:
-    """Record only artefacts that really exist, under references that identify them.
-
-    The orchestrator's ``artifacts`` list also carries bare labels ("StrategyIR") which
-    name a kind of artefact rather than a stored object. A job cites what it produced, so
-    the run itself and every artefact that has an id are recorded, and a label is not
-    dressed up as a reference.
-    """
-
-    job.add_output(f"agent_run:{run_id}")
-    if outcome.strategy_version_id:
-        job.add_output(f"strategy_version:{outcome.strategy_version_id}")
-    if outcome.backtest_run_id:
-        job.add_output(f"backtest:{outcome.backtest_run_id}")
-    if outcome.review_pack_id:
-        job.add_output(f"review-pack:{outcome.review_pack_id}")
-
-
-def _iso_or_none(value) -> str | None:
-    """Format an optional datetime for a job input hash."""
-
-    return value.isoformat() if hasattr(value, "isoformat") else None
-
-
-@router.get("/api/agent/runs")
-def list_agent_runs(
-    request: Request,
-    limit: int = Query(default=100, ge=1, le=500),
-) -> dict:
-    with _session() as session:
-        from eurogas_nexus.db.models import AgentRunRecord
-        from eurogas_nexus.db.repositories.strategy_access import require_named_principal
-
-        principal_id = require_named_principal(session, _principal(request).principal_id)
-        rows = (
-            session.query(AgentRunRecord)
-            .filter(AgentRunRecord.principal_id == principal_id)
-            .order_by(AgentRunRecord.created_at_utc.desc())
-            .limit(limit)
-            .all()
-        )
-        data = [
-            {
-                "agent_run_id": row.agent_run_id,
-                "principal_id": row.principal_id,
-                # Keep the historical objective alias for compatibility,
-                # while matching the Web AgentRunDTO/replay vocabulary.
-                "objective": row.user_objective,
-                "user_objective": row.user_objective,
-                "agent_profile": row.agent_profile,
-                "status": row.status,
-                "current_stage": row.current_stage,
-                "artifacts_created": row.artifacts_created,
-                "model_provider": row.model_provider,
-                "model_id": row.model_id,
-                "created_at": row.created_at_utc.isoformat(),
-                "completed_at": row.completed_at_utc.isoformat() if row.completed_at_utc else None,
-            }
-            for row in rows
-        ]
-    return _env(data, request, source="runtime-postgresql")
-
-
-@router.get("/api/agent/runs/{agent_run_id}")
-def get_agent_run(agent_run_id: str, request: Request) -> dict:
-    with _session() as session:
-        from eurogas_nexus.db.repositories import agents
-
-        row = agents.get_agent_run(session, agent_run_id)
-        from eurogas_nexus.db.repositories.strategy_access import require_named_principal
-
-        principal_id = require_named_principal(session, _principal(request).principal_id)
-        if row is None or row.principal_id != principal_id:
-            raise ApiError(404, "agent_run_not_found", "Agent run not found")
-        data = {
-            "agent_run_id": row.agent_run_id,
-            "principal_id": row.principal_id,
-            "user_objective": row.user_objective,
-            "agent_profile": row.agent_profile,
-            "model_provider": row.model_provider,
-            "model_id": row.model_id,
-            "status": row.status,
-            "current_stage": row.current_stage,
-            "research_plan_id": row.research_plan_id,
-            "artifacts_created": row.artifacts_created,
-            "evidence_dependencies": row.evidence_dependencies,
-            "warnings": row.warnings,
-            "blockers": row.blockers,
-            "token_cost_metadata": row.token_cost_metadata,
-            "final_output_reference": row.final_output_reference,
-            "started_at": row.started_at_utc.isoformat(),
-            "completed_at": row.completed_at_utc.isoformat() if row.completed_at_utc else None,
-            # Presence/identity of every persisted CR-15 artifact; the full
-            # artifact bodies are returned by the replay route below.
-            "artifact_chain": agents.artifact_chain_summary(session, row),
-            "review_entity_type": agents.REVIEW_PACK_ENTITY_TYPE,
-        }
-    return _env(data, request, source="runtime-postgresql")
-
-
-@router.get("/api/agent/runs/{agent_run_id}/replay")
-def replay_agent_run(agent_run_id: str, request: Request) -> dict:
-    with _session() as session:
-        from eurogas_nexus.db.repositories import agents
-
-        row = agents.get_agent_run(session, agent_run_id)
-        from eurogas_nexus.db.repositories.strategy_access import require_named_principal
-
-        principal_id = require_named_principal(session, _principal(request).principal_id)
-        if row is None or row.principal_id != principal_id:
-            raise ApiError(404, "agent_run_not_found", "Agent run not found")
-        data = agents.replay_payload(session, row)
-    return _env(data, request, source="runtime-postgresql")
-
-
-@router.post("/api/agent/plans/validate")
-def validate_plan(body: PlanValidateRequest, request: Request) -> dict:
-    principal = _principal(request)
-    if _db_configured():
-        with _session() as session:
-            from eurogas_nexus.db.models import (
-                CanonicalEntityRecord,
-                SeriesDefinitionRecord,
-            )
-
-            known = {row.canonical_entity_id for row in session.query(CanonicalEntityRecord).all()}
-            series = {
-                row.series_id: {"source_family": row.source_class, "history_days": 30}
-                for row in session.query(SeriesDefinitionRecord).all()
-            }
-    else:
-        known = set(body.plan.entities)
-        series = {}
-    result = validate_research_plan(
-        body.plan,
-        known_entities=known,
-        available_series=series,
-        entitled_source_families=set(principal.data_scopes),
-    )
-    return _env(result.model_dump(mode="json"), request, source="domain-contract")
-
-
-@router.post("/api/agent/strategy-ir/validate")
-def validate_strategy_ir_route(body: dict[str, Any], request: Request) -> dict:
-    try:
-        from eurogas_nexus.domain.agents.strategy_ir import StrategyIR
-
-        parsed = StrategyIR.model_validate(body.get("strategy_ir") or {})
-        result = validate_strategy_ir(parsed)
-        compiled_hash = compile_strategy_ir(parsed).content_hash() if result.ok else None
-        return _env(
-            {
-                "ok": result.ok,
-                "issues": [item.model_dump(mode="json") for item in result.issues],
-                "compiled_content_hash": compiled_hash,
-            },
-            request,
-            source="domain-contract",
-        )
-    except Exception as exc:
-        return _env({"ok": False, "issues": [str(exc)]}, request, source="domain-contract")
-
-
-def _named_job_owner(request: Request) -> str | None:
-    identity = getattr(request.state, "identity", None)
-    value = getattr(identity, "principal_id", None)
-    return value if value and ":" not in value else None

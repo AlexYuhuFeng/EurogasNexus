@@ -25,9 +25,6 @@ class CapabilityDomain(StrEnum):
     OPTIMIZATION = "optimization"
     ANALYTICS = "analytics"
     DATASET = "dataset"
-    STRATEGY = "strategy"
-    BACKTEST = "backtest"
-    SHADOW = "shadow"
     REVIEW = "review"
     OPERATIONS = "operations"
     CAPABILITIES = "capabilities"
@@ -78,8 +75,6 @@ class CapabilityFailureCode(StrEnum):
     ROUTE_BLOCKED = "ROUTE_BLOCKED"
     INVALID_UNIT = "INVALID_UNIT"
     INSUFFICIENT_HISTORY = "INSUFFICIENT_HISTORY"
-    STRATEGY_INVALID = "STRATEGY_INVALID"
-    BACKTEST_BLOCKED = "BACKTEST_BLOCKED"
     OPTIMIZATION_INFEASIBLE = "OPTIMIZATION_INFEASIBLE"
     PERMISSION_DENIED = "PERMISSION_DENIED"
     HUMAN_CONFIRMATION_REQUIRED = "HUMAN_CONFIRMATION_REQUIRED"
@@ -263,23 +258,6 @@ class AgentRunStatus(StrEnum):
     CANCELLED = "CANCELLED"
 
 
-class OrchestrationStage(StrEnum):
-    OBJECTIVE_RECEIVED = "OBJECTIVE_RECEIVED"
-    PLAN_DRAFTED = "PLAN_DRAFTED"
-    PLAN_VALIDATED = "PLAN_VALIDATED"
-    DATA_ANALYSIS = "DATA_ANALYSIS"
-    HYPOTHESIS_FORMED = "HYPOTHESIS_FORMED"
-    STRATEGY_SPEC_DRAFTED = "STRATEGY_SPEC_DRAFTED"
-    STRATEGY_VALIDATED = "STRATEGY_VALIDATED"
-    BACKTESTED = "BACKTESTED"
-    ROBUSTNESS_EVALUATED = "ROBUSTNESS_EVALUATED"
-    CHALLENGED = "CHALLENGED"
-    READY_FOR_HUMAN_REVIEW = "READY_FOR_HUMAN_REVIEW"
-    BLOCKED = "BLOCKED"
-    FAILED = "FAILED"
-    CANCELLED = "CANCELLED"
-
-
 class AgentContext(BaseModel):
     """Safe semantic context passed to an agent (never whole frontend state)."""
 
@@ -290,48 +268,3 @@ class AgentContext(BaseModel):
     resource_id: str | None = None
     route_id: str | None = None
     scenario_id: str | None = None
-    strategy_id: str | None = None
-    strategy_version_id: str | None = None
-    run_id: str | None = None
-
-
-class AgentProfile(BaseModel):
-    profile_id: str
-    name: str
-    role_description: str
-    deterministic_stages: list[str] = Field(default_factory=list)
-    llm_stages: list[str] = Field(default_factory=list)
-
-
-DEFAULT_AGENT_PROFILES: tuple[AgentProfile, ...] = (
-    AgentProfile(
-        profile_id="MARKET_RESEARCHER",
-        name="Market Researcher",
-        role_description="Read market evidence and produce structured findings.",
-        deterministic_stages=["DATA_ANALYSIS"],
-        llm_stages=["PLAN_DRAFTED", "HYPOTHESIS_FORMED"],
-    ),
-    AgentProfile(
-        profile_id="STRATEGY_RESEARCHER",
-        name="Strategy Researcher",
-        role_description="Plan, analyze, draft, validate, and backtest research strategies.",
-        deterministic_stages=["DATA_ANALYSIS", "STRATEGY_VALIDATED", "BACKTESTED"],
-        llm_stages=["PLAN_DRAFTED", "HYPOTHESIS_FORMED", "STRATEGY_SPEC_DRAFTED"],
-    ),
-    AgentProfile(
-        profile_id="RISK_CHALLENGER",
-        name="Risk Challenger",
-        role_description="Attempt to invalidate a candidate strategy from evidence.",
-        deterministic_stages=["CHALLENGED"],
-        llm_stages=[],
-    ),
-    AgentProfile(
-        profile_id="REVIEW_ASSISTANT",
-        name="Review Assistant",
-        role_description="Prepare structured evidence for a human reviewer.",
-        deterministic_stages=["READY_FOR_HUMAN_REVIEW"],
-        llm_stages=["READY_FOR_HUMAN_REVIEW"],
-    ),
-)
-
-PROFILES_BY_ID = {profile.profile_id: profile for profile in DEFAULT_AGENT_PROFILES}

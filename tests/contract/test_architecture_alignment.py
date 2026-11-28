@@ -142,7 +142,7 @@ def test_data_model_blueprint_covers_canonical_entity_families() -> None:
         "Weather And Demand Context",
         "Route Cost And Netback",
         "Feasibility And Allocation",
-        "Monitoring, Nowcast, Strategy",
+        "Monitoring And Nowcast",
         "Research Output And Reporting",
         "Governance And Audit",
     ]:

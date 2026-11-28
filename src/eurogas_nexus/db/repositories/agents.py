@@ -1,9 +1,9 @@
 """Persistence for agent runs, tool invocations, and research artifacts.
 
-Read helpers return persisted CR-15 artifacts (plan, findings, StrategyIR,
-validation, challenge report, review pack) with their identifiers, lineage,
-entitlement state, and timestamps so the existing run surface can replay a
-governed research run. Hidden reasoning is never stored or returned.
+Read helpers return persisted CR-15 artifacts (plan, findings, validation,
+challenge report, review pack) with their identifiers, lineage, entitlement
+state, and timestamps so a persisted run can be replayed. Hidden reasoning is
+never stored or returned.
 """
 
 from __future__ import annotations
@@ -14,6 +14,7 @@ from typing import Any
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from eurogas_nexus.core.content_hash import canonical_content_hash
 from eurogas_nexus.db.models import (
     AgentChallengeReportRecord,
     AgentResearchBudgetRecord,
@@ -23,26 +24,17 @@ from eurogas_nexus.db.models import (
     AgentRunRecord,
     AgentToolInvocationRecord,
     SeriesDefinitionRecord,
-    StrategyRunRecord,
 )
 from eurogas_nexus.domain.agents.budget import ResearchBudget
 from eurogas_nexus.domain.agents.challenge import ChallengeReport
 from eurogas_nexus.domain.agents.research_plan import ResearchPlan
 from eurogas_nexus.domain.agents.review_pack import ReviewPack
-from eurogas_nexus.domain.agents.strategy_ir import (
-    AGENT_RESEARCH_FEATURE_CATALOG_ID,
-    StrategyIR,
-    agent_research_feature_catalog,
-    validate_strategy_ir,
-)
 from eurogas_nexus.domain.ontology.vocabulary import ReviewEntityType
-from eurogas_nexus.domain.strategy_lab.registry import canonical_content_hash
 
 #: Ordered CR-15 research artifact chain, matching the governed stage order.
 ARTIFACT_CHAIN_ORDER: tuple[str, ...] = (
     "research_plan",
     "findings",
-    "strategy_ir",
     "validation",
     "challenge_report",
     "review_pack",
@@ -52,7 +44,6 @@ ARTIFACT_CHAIN_ORDER: tuple[str, ...] = (
 ARTIFACT_OPERATION_IDS: dict[str, str] = {
     "research_plan": "agent.research.plan",
     "findings": "agent.research.findings",
-    "strategy_ir": "agent.research.strategy_ir",
     "validation": "agent.research.validation",
     "challenge_report": "agent.research.challenge",
     "review_pack": "agent.research.review_pack",
@@ -62,7 +53,6 @@ ARTIFACT_OPERATION_IDS: dict[str, str] = {
 ARTIFACT_STAGES: dict[str, str] = {
     "research_plan": "PLAN_DRAFTED",
     "findings": "DATA_ANALYSIS",
-    "strategy_ir": "STRATEGY_SPEC_DRAFTED",
     "validation": "PLAN_VALIDATED",
     "challenge_report": "CHALLENGED",
     "review_pack": "READY_FOR_HUMAN_REVIEW",
@@ -393,11 +383,7 @@ def list_review_confirmation_decisions(session: Session, review_pack_id: str) ->
 
 
 def load_run_artifacts(session: Session, row: AgentRunRecord) -> dict[str, Any]:
-    """Load every persisted CR-15 artifact row belonging to one agent run.
-
-    The StrategyIR has no table of its own: the persisted copy of the reviewed
-    specification lives on the review pack, so it is read from there.
-    """
+    """Load every persisted CR-15 artifact row belonging to one agent run."""
 
     pack = get_review_pack_for_run(session, row.agent_run_id)
     return {
@@ -405,7 +391,6 @@ def load_run_artifacts(session: Session, row: AgentRunRecord) -> dict[str, Any]:
         "findings": list_findings_for_run(session, row.agent_run_id),
         "challenge_report": get_challenge_report_for_run(session, row.agent_run_id),
         "review_pack": pack,
-        "strategy_ir": (pack.strategy_specification if pack is not None else None),
     }
 
 
@@ -430,7 +415,6 @@ def _artifact_presence(artifacts: dict[str, Any]) -> dict[str, bool]:
     return {
         "research_plan": plan is not None,
         "findings": bool(artifacts["findings"]),
-        "strategy_ir": bool(artifacts["strategy_ir"]),
         "validation": plan is not None,
         "challenge_report": artifacts["challenge_report"] is not None,
         "review_pack": artifacts["review_pack"] is not None,
@@ -441,7 +425,7 @@ def replay_payload(session: Session, row: AgentRunRecord) -> dict[str, Any]:
     """Return the observable replay payload for one agent run.
 
     The payload carries the whole persisted CR-15 artifact chain - plan,
-    findings, StrategyIR, validation, challenge report, review pack - with each
+    findings, validation, challenge report, review pack - with each
     artifact's operation/artifact identifier, fixture and replay identity,
     lineage, entitlement state, and timestamps. Hidden reasoning and execution
     semantics are never included: ``hidden_chain_of_thought`` stays ``None``.
@@ -509,17 +493,15 @@ def _artifact_chain(
     findings = artifacts["findings"]
     challenge = artifacts["challenge_report"]
     pack = artifacts["review_pack"]
-    strategy_spec = artifacts["strategy_ir"]
 
     plan_id = plan.research_plan_id if plan is not None else row.research_plan_id
     finding_ids = [item.finding_id for item in findings]
-    strategy_ir_id = f"strategy-ir-{_digest(strategy_spec)[:20]}" if strategy_spec else None
     validation_id = f"validation:{plan_id}" if plan_id else None
     findings_id = f"findings:{plan_id}" if (plan_id and finding_ids) else None
 
     plan_payload = _plan_payload(plan) if plan is not None else None
     findings_payload = [_finding_payload(item) for item in findings] if findings else None
-    validation_payload = _validation_payload(row, plan, strategy_spec) if plan_id else None
+    validation_payload = _validation_payload(row, plan) if plan_id else None
     challenge_payload = _challenge_payload(challenge) if challenge is not None else None
     pack_payload = _review_pack_payload(pack) if pack is not None else None
     if pack_payload is not None:
@@ -552,16 +534,6 @@ def _artifact_chain(
                 ],
             },
         },
-        "strategy_ir": {
-            "artifact_id": strategy_ir_id,
-            "artifact_ids": [strategy_ir_id] if strategy_ir_id else [],
-            "payload": strategy_spec if strategy_spec else None,
-            "created_at": pack.created_at_utc if (pack is not None and strategy_spec) else None,
-            "lineage": {
-                **lineage,
-                "upstream_artifact_ids": [item for item in [plan_id, *finding_ids] if item],
-            },
-        },
         "validation": {
             "artifact_id": validation_id,
             "artifact_ids": [validation_id] if validation_id else [],
@@ -569,7 +541,7 @@ def _artifact_chain(
             "created_at": plan.created_at_utc if plan is not None else None,
             "lineage": {
                 **lineage,
-                "upstream_artifact_ids": [item for item in [plan_id, strategy_ir_id] if item],
+                "upstream_artifact_ids": [plan_id] if plan_id else [],
             },
         },
         "challenge_report": {
@@ -583,7 +555,6 @@ def _artifact_chain(
                     item
                     for item in [
                         plan_id,
-                        strategy_ir_id,
                         challenge.strategy_version_id if challenge is not None else None,
                         challenge.backtest_run_id if challenge is not None else None,
                     ]
@@ -603,7 +574,6 @@ def _artifact_chain(
                     for item in [
                         plan_id,
                         *finding_ids,
-                        strategy_ir_id,
                         challenge.challenge_report_id if challenge is not None else None,
                     ]
                     if item
@@ -696,13 +666,10 @@ def _artifact_identifiers(row: AgentRunRecord, artifacts: dict[str, Any]) -> dic
     findings = artifacts["findings"]
     challenge = artifacts["challenge_report"]
     pack = artifacts["review_pack"]
-    strategy_spec = artifacts["strategy_ir"]
     plan_id = plan.research_plan_id if plan is not None else row.research_plan_id
-    strategy_ir_id = f"strategy-ir-{_digest(strategy_spec)[:20]}" if strategy_spec else None
     return {
         "research_plan": [plan_id] if plan_id else [],
         "findings": [item.finding_id for item in findings],
-        "strategy_ir": [strategy_ir_id] if strategy_ir_id else [],
         "validation": [f"validation:{plan_id}"] if plan_id else [],
         "challenge_report": ([challenge.challenge_report_id] if challenge is not None else []),
         "review_pack": [pack.review_pack_id] if pack is not None else [],
@@ -790,19 +757,6 @@ def _lineage_block(
                 snapshot_ids.add(value)
         if item.output_reference and "snapshot" in item.output_reference:
             snapshot_ids.add(item.output_reference)
-    pack = artifacts["review_pack"]
-    backtest_run_id = None
-    if pack is not None and isinstance(pack.backtest, dict):
-        backtest_run_id = pack.backtest.get("run_id")
-    challenge = artifacts["challenge_report"]
-    if backtest_run_id is None and challenge is not None:
-        backtest_run_id = challenge.backtest_run_id
-    if backtest_run_id:
-        strategy_run = session.get(StrategyRunRecord, str(backtest_run_id))
-        if strategy_run is not None:
-            if strategy_run.dataset_snapshot_id:
-                snapshot_ids.add(strategy_run.dataset_snapshot_id)
-            source_references.update(str(str(item)) for item in (strategy_run.source_refs or []))
     return {
         "upstream_artifact_ids": [],
         "producing_invocation_ids": [],
@@ -883,34 +837,9 @@ def _finding_payload(row: AgentResearchFindingRecord) -> dict[str, Any]:
 def _validation_payload(
     run: AgentRunRecord,
     plan: AgentResearchPlanRecord | None,
-    strategy_spec: dict[str, Any] | None,
 ) -> dict[str, Any]:
-    """Return persisted plan validation plus the strategy-IR validation view.
+    """Return persisted plan validation facts for one run."""
 
-    Plan validation issues are persisted facts. The StrategyIR is re-validated
-    on read from the persisted specification because only a passing IR is ever
-    persisted; the derived view is labelled as recomputed and never treated as
-    stored evidence.
-    """
-
-    strategy_validation: dict[str, Any] | None = None
-    if strategy_spec:
-        try:
-            parsed = StrategyIR.model_validate(strategy_spec)
-            result = validate_strategy_ir(parsed, feature_catalog=agent_research_feature_catalog())
-            issues = [item.model_dump(mode="json") for item in result.issues]
-            strategy_validation = {"ok": result.ok, "issues": issues}
-        except (ValueError, TypeError):
-            strategy_validation = {
-                "ok": False,
-                "issues": [
-                    {
-                        "code": "STRATEGY_INVALID",
-                        "detail": "persisted StrategyIR payload cannot be re-validated",
-                        "field": None,
-                    }
-                ],
-            }
     return {
         "plan_id": plan.research_plan_id if plan is not None else None,
         "plan_status": plan.status if plan is not None else None,
@@ -920,11 +849,6 @@ def _validation_payload(
             if plan is not None
             else "not_applicable"
         ),
-        "strategy_ir_validation": strategy_validation,
-        "strategy_ir_validation_source": (
-            "recomputed:validate_strategy_ir" if strategy_spec else "not_applicable"
-        ),
-        "feature_catalog_id": AGENT_RESEARCH_FEATURE_CATALOG_ID,
         "run_blockers": list(run.blockers or []),
         "run_warnings": list(run.warnings or []),
     }

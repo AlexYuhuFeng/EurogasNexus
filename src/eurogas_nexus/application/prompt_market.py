@@ -9,9 +9,8 @@ rule 8). One read, also called in-process by Today (``prompt_market``):
   WD − DA spread (mid and what crossing it costs).
 - **Performance**, post-trade only: for trades booked today on these two gas days, the
   achieved price against the session VWAP, the day-ahead settlement (index) and the mid at
-  decision (trade) time, the slippage against the touch at that moment, the running day P&L
-  marked at the current mid, and the caller's tracked-strategy signals that expired unused
-  ("missed").
+  decision (trade) time, the slippage against the touch at that moment, and the running day
+  P&L marked at the current mid.
 
 The position to balance, nomination deadlines and imbalance exposure belong to Today's gas-day
 view, not to this read. Every read runs under the caller (book scope and source entitlement);
@@ -210,13 +209,6 @@ def prompt_market(session, who: Any, hub: str, *, now: datetime | None = None,
                  "booked trade time; settlement is the venue's prior settlement where the "
                  "feed carries it.",
     }
-    try:
-        from eurogas_nexus.application.strategy_tracking import missed_signals
-
-        performance["missed_signals"] = missed_signals(
-            session, principal, hub, starts["within_day"])
-    except Exception as exc:  # noqa: BLE001
-        warnings.append(f"tracked signals not available ({type(exc).__name__})")
     simulated = any((q or {}).get("simulated") for q in (wd, da)) or performance["simulated"]
     return {
         "hub": hub, "as_of_utc": now.isoformat(), "market": market,

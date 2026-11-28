@@ -166,7 +166,7 @@ def _env(data: object, *, warnings: list[str]) -> dict:
 
 def _job_owner(session, request: Request) -> str:
     """Only stable named identity IDs grant job access; legacy names do not."""
-    from eurogas_nexus.db.repositories.strategy_access import require_named_principal
+    from eurogas_nexus.db.repositories.identity_access import require_named_principal
 
     principal_id = getattr(getattr(request.state, "identity", None), "principal_id", None)
     principal_id = require_named_principal(session, principal_id)

@@ -52,14 +52,6 @@ def test_allowed_and_forbidden_actions_are_disjoint() -> None:
     assert not (allowed & forbidden)
 
 
-def test_candidate_actions_never_overlap_forbidden_actions() -> None:
-    from eurogas_nexus.domain.ontology import CandidateAction
-
-    candidate = {action.value for action in CandidateAction}
-    forbidden = {action.value for action in ForbiddenAction}
-    assert not (candidate & forbidden)
-
-
 def test_constraints_have_callable_validators() -> None:
     for constraint in CONSTRAINTS:
         assert callable(constraint.validator)

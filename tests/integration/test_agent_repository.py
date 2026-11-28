@@ -2,14 +2,11 @@
 
 from __future__ import annotations
 
-from datetime import UTC, datetime
-
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from eurogas_nexus.db.base import Base
-from eurogas_nexus.db.models import StrategyRunRecord
 from eurogas_nexus.db.repositories import agents as repo
 from eurogas_nexus.domain.agents.budget import ResearchBudget
 from eurogas_nexus.domain.agents.challenge import (
@@ -225,23 +222,6 @@ def test_run_artifacts_are_readable_through_repository_helpers(session) -> None:
 
 def test_replay_payload_carries_identity_lineage_and_rights(session) -> None:
     run, plan = _seed_run_with_artifacts(session)
-    session.add(
-        StrategyRunRecord(
-            run_id="backtest-run-1",
-            strategy_id="strategy-1",
-            run_mode="BACKTEST",
-            status="COMPLETED",
-            started_at_utc=datetime.now(UTC),
-            dataset_snapshot_id="strategy-snapshot-1",
-            input_snapshot={},
-            result_snapshot={},
-            source_refs=["market.price.NBP.DAY_AHEAD"],
-            warnings=[],
-            missing_inputs=[],
-            research_only=True,
-            human_review_required=True,
-        )
-    )
     session.flush()
 
     replay = repo.replay_payload(session, run)
@@ -267,16 +247,9 @@ def test_replay_payload_carries_identity_lineage_and_rights(session) -> None:
     assert findings["artifact_ids"] == [f"finding-{run.agent_run_id}"]
     assert findings["lineage"]["upstream_artifact_ids"] == [plan.research_plan_id]
     assert findings["lineage"]["producing_invocation_ids"] == [f"inv-{run.agent_run_id}"]
-    assert findings["lineage"]["snapshot_ids"] == ["strategy-snapshot-1"]
-    assert findings["lineage"]["source_references"] == ["market.price.NBP.DAY_AHEAD"]
 
     validation = replay["artifacts"]["validation"]["payload"]
     assert validation["plan_status"] == "VALIDATED"
-    assert validation["strategy_ir_validation"]["ok"] is False
-    assert {issue["code"] for issue in validation["strategy_ir_validation"]["issues"]} == {
-        "STRATEGY_INVALID"
-    }
-    assert validation["strategy_ir_validation_source"] == "recomputed:validate_strategy_ir"
 
     challenge = replay["artifacts"]["challenge_report"]
     assert challenge["artifact_id"] == f"challenge-{run.agent_run_id}"
@@ -286,7 +259,6 @@ def test_replay_payload_carries_identity_lineage_and_rights(session) -> None:
     pack = replay["artifacts"]["review_pack"]
     assert pack["artifact_id"] == f"review-{run.agent_run_id}"
     assert pack["payload"]["human_confirmation"]["decisions"] == []
-    assert pack["lineage"]["snapshot_ids"] == ["strategy-snapshot-1"]
     for envelope in replay["artifacts"].values():
         assert envelope["hidden_chain_of_thought"] is None
         assert envelope["replay_identity"]["replay_id"].startswith("replay-")

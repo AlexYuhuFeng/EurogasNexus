@@ -13,7 +13,7 @@ export function buildAnalysisPayload(
   analysisSnapshotId?: string | null,
 ) {
   // No selection field is sent, and none is invented on the analyst's behalf. The
-  // analysis pipeline reads no term, asset, contract, strategy, section or portfolio
+  // analysis pipeline reads no term, asset, contract, section or portfolio
   // selection, so the platform refuses a non-empty one with
   // `422 analysis_selection_not_supported` rather than returning a report over the
   // whole snapshot as if it had been narrowed. The portfolio's own resources are

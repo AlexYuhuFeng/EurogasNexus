@@ -90,7 +90,7 @@ def audit_rows(monkeypatch: pytest.MonkeyPatch) -> list[dict[str, Any]]:
 
 
 def test_a_refusal_is_traced_like_a_run() -> None:
-    runtime = _runtime(_definition("test.read", required_permissions=["strategy.freeze"]))
+    runtime = _runtime(_definition("test.read", required_permissions=["review.record"]))
     viewer = _person(role="VIEWER", roles=["VIEWER"])
 
     unknown = runtime.invoke("test.missing", {"x": 1}, viewer)
@@ -182,7 +182,7 @@ def test_a_result_states_no_quality_it_did_not_check() -> None:
     ("context", "fragment"),
     [
         (_person(human_confirmation=False), "Human confirmation is required"),
-        (_person(human_confirmation=True, ai_use="agent_research"), "cannot confirm"),
+        (_person(human_confirmation=True, ai_use="mcp_tools"), "cannot confirm"),
         (
             _person(
                 principal_id="service:public-api",
@@ -194,17 +194,17 @@ def test_a_result_states_no_quality_it_did_not_check() -> None:
     ],
 )
 def test_only_a_persons_own_confirmation_counts(context, fragment, audit_rows) -> None:
-    # A ``strategy.*`` id, so the model tool allowlist (which runs first) lets the research use
-    # reach it: the refusal below is the runtime's own rule, not the register's list.
+    # An id the mcp_tools allowlist names, so the register's list (which runs first) lets
+    # the use reach it: the refusal below is the runtime's own rule.
     runtime = _runtime(
         _definition(
-            "strategy.test_write",
+            "review.get",
             action_policy=ActionPolicy.HUMAN_CONFIRMATION,
             side_effect_class=SideEffectClass.RESEARCH_OBJECT_WRITE,
         )
     )
 
-    result = runtime.invoke("strategy.test_write", {"x": 1}, context)
+    result = runtime.invoke("review.get", {"x": 1}, context)
 
     assert result.status == "BLOCKED"
     assert result.failure.code == CapabilityFailureCode.HUMAN_CONFIRMATION_REQUIRED

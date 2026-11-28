@@ -126,7 +126,6 @@ def test_the_report_route_still_runs_without_any_selection() -> None:
     assert {section["section_id"] for section in data["sections"]} >= {
         "portfolio",
         "market",
-        "strategy",
     }
 
 

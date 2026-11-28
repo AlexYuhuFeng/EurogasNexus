@@ -5,7 +5,7 @@ rest of the year and next year": the supply portfolio by delivery type and count
 trades and sales by hub, country and counterparty, realised prices and the unrealised value,
 the forward view (contracted against open volume per period, hedge ratio, approved hedge
 bands, sensitivities and VaR), LNG cargoes and regas slots, and how the book is run (sale
-routes, hedge programmes, linked strategies).
+routes, hedge programmes and hedges linked to named supply).
 
 Every figure is read from the records the Portfolio and Risk pages read, as the caller, in
 the books the caller may see: contracts and filled trades as the position ladder builds them
@@ -153,7 +153,6 @@ def read(ctx: Ctx) -> dict[str, Any]:
         HedgeApprovalRecord,
         LngCargoRecord,
         RegasSlotRecord,
-        StrategyRecord,
     )
     from eurogas_nexus.security.portfolio_scope import restrict
 
@@ -181,14 +180,9 @@ def read(ctx: Ctx) -> dict[str, Any]:
              .filter(RegasSlotRecord.window_end_utc >= ctx.day_bound(w["today"])).all())
     credit = session.query(CreditLineRecord).all()
     approvals = session.query(HedgeApprovalRecord).all()
-    linked_ids = sorted({o.linked_strategy_id for o in inputs.orders if o.linked_strategy_id})
-    strategies = {}
-    if linked_ids:
-        strategies = {s.strategy_id: s.name for s in session.query(StrategyRecord)
-                      .filter(StrategyRecord.strategy_id.in_(linked_ids)).all()}
     data = {"w": w, "inputs": inputs, "deliveries": deliveries, "schedule": schedule,
             "cargoes": cargoes, "slots": slots, "credit": credit, "approvals": approvals,
-            "strategies": strategies, "simulated_marks": _marks_simulated(inputs.warnings)}
+            "simulated_marks": _marks_simulated(inputs.warnings)}
     data.update(_extra_reads(ctx, data))
     ctx.cache["portfolio"] = data
     return data
@@ -502,7 +496,6 @@ def _trade_rows(ctx: Ctx, data: dict[str, Any]) -> list[dict[str, Any]]:
             "delivered_gwh": _gwh(abs(leg.mwh_per_day) * done),
             "share_done": done / days if days else 0.0,
             "linked": contracts.get(order.linked_resource_id or "", order.linked_resource_id or ""),
-            "strategy": data["strategies"].get(order.linked_strategy_id or "", ""),
             "book": leg.book_id,
             "simulated": is_simulated_source(order.source_system),
         })
@@ -1300,10 +1293,6 @@ def strategies(ctx: Ctx) -> SectionResult:
         rows.append({"strategy": T("hedge of a named supply contract", "针对指定供应合同的对冲"),
                      "applies": f"{row['linked']}: {row['side_label']} {row['gwh']} GWh "
                                 f"{row['hub']} {row['delivery']}", "count": 1})
-    named = [r for r in trade_rows if r["strategy"]]
-    for row in named:
-        rows.append({"strategy": T("registered strategy", "已登记策略"),
-                     "applies": f"{row['strategy']}: {row['trade']}", "count": 1})
     transport = [line for line in data["schedule"] if line.kind in {"import", "export"}]
     for line in transport:
         rows.append({"strategy": T("cross-border flow on held capacity", "利用持有容量的跨境流"),
@@ -1331,9 +1320,6 @@ def strategies(ctx: Ctx) -> SectionResult:
     if reroute:
         bullets.append(T(f"{', '.join(reroute)} may be rerouted to another exit point.",
                          f"{'、'.join(reroute)}可改道至其他出口点。"))
-    if not named:
-        bullets.append(T("No trade is linked to a registered trading strategy.",
-                         "没有交易关联到已登记的交易策略。"))
     if transport:
         bullets.append(T(f"{len(transport)} cross-border flows on held capacity are scheduled "
                          "today.", f"今日计划{len(transport)}项利用持有容量的跨境流。"))

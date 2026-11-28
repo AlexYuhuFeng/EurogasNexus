@@ -31,7 +31,7 @@ test("ADMIN-only workspace and refreshes issue no commercial reads and keep genu
   await store.getState().refreshMonitoring();
   await settle();
   const methods = calls.map((call) => call.method);
-  for (const method of ["fxRates", "portfolioSnapshot", "reviewDecisions", "marketQuotes", "marketContext", "monitoringAlerts", "strategySummary", "strategyRuns"]) {
+  for (const method of ["fxRates", "portfolioSnapshot", "reviewDecisions", "marketQuotes", "marketContext", "monitoringAlerts"]) {
     assert.equal(methods.includes(method), false, method);
   }
   assert.ok(methods.includes("sources"));

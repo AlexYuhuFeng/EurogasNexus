@@ -95,9 +95,11 @@ def test_the_snapshot_kind_is_the_one_act_that_is_never_repeated() -> None:
     assert snapshot.rerun_possible is False
     assert "point in time" in snapshot.reason
 
-    # Every other kind can be re-issued, and says where from.
+    # Every other kind that still has a producer can be re-issued, and says where from. The
+    # governed research pipeline was removed with the strategy laboratory, so AGENT_RUN has no
+    # path that could issue it and says so instead of naming one that no longer exists.
     for kind in JobKind:
-        if kind is JobKind.SNAPSHOT:
+        if kind in (JobKind.SNAPSHOT, JobKind.AGENT_RUN):
             continue
         assert job_rerun_contract(kind).rerun_possible is True, kind
 
@@ -110,14 +112,11 @@ def test_an_undeclared_kind_is_a_programming_error_not_a_silent_answer() -> None
         assert "NOT_A_KIND" in str(exc)
 
 
-def test_replay_in_the_public_surface_reads_a_chain_and_never_re_runs_work() -> None:
-    # `/api/agent/runs/{agent_run_id}/replay` returns the recorded artefact chain. Nothing in the
-    # public surface re-issues the work of a recorded job, so the word cannot be read as a re-run.
-    from eurogas_nexus.api.routes.public.agents import router as agents_router
+def test_the_jobs_surface_never_re_runs_recorded_work() -> None:
+    # Nothing in the public jobs surface re-issues the work of a recorded job, so the word
+    # "replay" cannot be read as a re-run.
     from eurogas_nexus.api.routes.public.jobs import router as jobs_router
 
-    agent_paths = {route.path for route in agents_router.routes}
-    assert "/api/agent/runs/{agent_run_id}/replay" in agent_paths
     job_paths = {route.path for route in jobs_router.routes}
     assert job_paths == {"/api/jobs", "/api/jobs/{job_id}", "/api/jobs/{job_id}/cancel"}
     assert not any("replay" in path for path in job_paths)

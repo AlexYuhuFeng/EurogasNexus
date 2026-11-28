@@ -154,7 +154,7 @@ test("every category, severity and alert-centre string exists in both languages"
   const zh = JSON.parse(readFileSync(new URL("../src/i18n/zh.json", import.meta.url), "utf8")) as Record<string, string>;
   const source = readFileSync(new URL("../src/components/AlertCenter.tsx", import.meta.url), "utf8");
   const used = new Set([...source.matchAll(/t\("(alerts\.[a-z_.]+)"/g)].map((match) => match[1]));
-  for (const category of ["limits", "delivery", "physical", "market", "fundamentals", "data_source", "opportunity", "market_opportunity", "strategy", "capacity", "lng_hedge", "lng_schedule", "lng_exposure", "lng_material", "gas_day_break", "news_trader", "news_lng", "news_scheduler", "other"]) {
+  for (const category of ["limits", "delivery", "physical", "market", "fundamentals", "data_source", "opportunity", "market_opportunity", "capacity", "lng_hedge", "lng_schedule", "lng_exposure", "lng_material", "gas_day_break", "news_trader", "news_lng", "news_scheduler", "other"]) {
     used.add(`alerts.category.${category}`);
   }
   for (const severity of ["info", "warning", "critical"]) used.add(`alerts.severity.${severity}`);

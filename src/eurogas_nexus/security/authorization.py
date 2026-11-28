@@ -37,12 +37,6 @@ class Permission(StrEnum):
     #: granted explicitly (security review H1).
     RISK_LIMITS_READ = "risk.limits.read"
     GAS_DAY_RECORD = "gas_day.record"
-    STRATEGY_READ = "strategy.read"
-    STRATEGY_CREATE = "strategy.create"
-    STRATEGY_EDIT = "strategy.edit"
-    STRATEGY_FREEZE = "strategy.freeze"
-    STRATEGY_RETIRE = "strategy.retire"
-    STRATEGY_SHADOW_MANAGE = "strategy.shadow.manage"
     SCENARIO_CREATE = "scenario.create"
     OPTIMIZATION_RUN = "optimization.run"
     REVIEW_READ = "review.read"
@@ -65,7 +59,7 @@ class Permission(StrEnum):
 
 
 # Permissions that read or write commercial data: prices, positions, contract
-# terms, strategy parameters, PnL, decision evidence or licensed datasets.
+# terms, PnL, decision evidence or licensed datasets.
 # Distinct from platform administration on purpose - see the module docstring
 # and ``eurogas_nexus.security.capabilities.COMMERCIAL_CAPABILITIES``.
 COMMERCIAL_PERMISSIONS: frozenset[Permission] = frozenset(
@@ -75,12 +69,6 @@ COMMERCIAL_PERMISSIONS: frozenset[Permission] = frozenset(
         Permission.PORTFOLIO_WRITE,
         Permission.RISK_LIMITS_READ,
         Permission.GAS_DAY_RECORD,
-        Permission.STRATEGY_READ,
-        Permission.STRATEGY_CREATE,
-        Permission.STRATEGY_EDIT,
-        Permission.STRATEGY_FREEZE,
-        Permission.STRATEGY_RETIRE,
-        Permission.STRATEGY_SHADOW_MANAGE,
         Permission.SCENARIO_CREATE,
         Permission.OPTIMIZATION_RUN,
         Permission.REVIEW_READ,
@@ -107,7 +95,6 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.ME_READ,
             Permission.MARKET_READ,
             Permission.PORTFOLIO_READ,
-            Permission.STRATEGY_READ,
             Permission.REVIEW_READ,
             Permission.SOURCE_READ,
             Permission.RUNTIME_READ,
@@ -122,7 +109,6 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.MARKET_READ,
             Permission.PORTFOLIO_READ,
             Permission.GAS_DAY_RECORD,
-            Permission.STRATEGY_READ,
             Permission.REVIEW_READ,
             Permission.SOURCE_READ,
             Permission.RUNTIME_READ,
@@ -136,7 +122,6 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.MARKET_READ,
             Permission.PORTFOLIO_READ,
             Permission.RISK_LIMITS_READ,
-            Permission.STRATEGY_READ,
             Permission.REVIEW_READ,
             Permission.REVIEW_RECORD,
             Permission.SOURCE_READ,
@@ -153,12 +138,6 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
             Permission.PORTFOLIO_WRITE,
             Permission.RISK_LIMITS_READ,
             Permission.GAS_DAY_RECORD,
-            Permission.STRATEGY_READ,
-            Permission.STRATEGY_CREATE,
-            Permission.STRATEGY_EDIT,
-            Permission.STRATEGY_FREEZE,
-            Permission.STRATEGY_RETIRE,
-            Permission.STRATEGY_SHADOW_MANAGE,
             Permission.SCENARIO_CREATE,
             Permission.OPTIMIZATION_RUN,
             Permission.REVIEW_READ,
@@ -177,8 +156,6 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
         {
             Permission.ME_READ,
             Permission.MARKET_READ,
-            Permission.STRATEGY_READ,
-            Permission.STRATEGY_SHADOW_MANAGE,
             Permission.REVIEW_READ,
             Permission.SOURCE_READ,
             Permission.SOURCE_RUN,

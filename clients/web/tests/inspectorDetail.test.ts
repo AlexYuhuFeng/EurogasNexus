@@ -40,7 +40,6 @@ function source(overrides: Partial<InspectorDetailSource> = {}): InspectorDetail
     upstreamContracts: [],
     routeCandidates: [],
     resourcePoolOptions: null,
-    strategyRuns: [],
     ...overrides,
   };
 }
@@ -469,10 +468,10 @@ test("review evidence resolves from the review projection, including what it cou
         row_count: 2,
         rows: [
           {
-            entity_type: "strategy_run",
+            entity_type: "agent_review_pack",
             entity_id: "run-1",
             available: true,
-            resolver: "strategy_run",
+            resolver: "agent_review_pack",
             artifact: {
               run_id: "run-1",
               status: "SUCCEEDED",
@@ -502,19 +501,19 @@ test("review evidence resolves from the review projection, including what it cou
 
   const resolved = inspectorDetailFor(
     source({ reviewContext: projection }),
-    { kind: "decision-evidence", ref: "strategy_run:run-1", label: "run-1", originPage: "review" },
+    { kind: "decision-evidence", ref: "agent_review_pack:run-1", label: "run-1", originPage: "review" },
   );
 
   assert.equal(resolved.resolved, true);
-  assert.equal(resolved.label, "strategy_run: run-1");
+  assert.equal(resolved.label, "agent_review_pack: run-1");
   const byLabel = new Map(resolved.facts.map((fact) => [fact.label ?? fact.labelKey, fact.value]));
   assert.equal(byLabel.get("experience.inspector.fact.evidence_state"), "available");
-  assert.equal(byLabel.get("experience.inspector.fact.evidence_resolver"), "strategy_run");
+  assert.equal(byLabel.get("experience.inspector.fact.evidence_resolver"), "agent_review_pack");
   // A resolver's artifact is presented under its own field names: inventing product copy
   // for data keys would misdescribe them.
   assert.equal(byLabel.get("status"), "SUCCEEDED");
   assert.equal(byLabel.get("net_indicative_pnl_gbp"), "12500");
-  assert.equal(resolved.evidenceRefs.includes("strategy_run"), true);
+  assert.equal(resolved.evidenceRefs.includes("agent_review_pack"), true);
   assert.equal(resolved.evidenceRefs.includes("ENTSOG"), true);
 
   // Evidence the backend could not resolve is still inspectable, and says why.
@@ -540,7 +539,7 @@ test("review evidence resolves from the review projection, including what it cou
   assert.equal(
     inspectorDetailFor(source({ reviewContext: projection }), {
       kind: "decision-evidence",
-      ref: "strategy_run:run-absent",
+      ref: "agent_review_pack:run-absent",
       label: "run-absent",
       originPage: "review",
     }).resolved,
@@ -558,7 +557,7 @@ test("review evidence resolves from the review projection, including what it cou
   assert.equal(
     inspectorDetailFor(source({ reviewContext: null }), {
       kind: "decision-evidence",
-      ref: "strategy_run:run-1",
+      ref: "agent_review_pack:run-1",
       label: "run-1",
       originPage: "review",
     }).resolved,

@@ -15,7 +15,6 @@ from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     FlowObservationRecord,
     RouteCandidateRecord,
-    StrategyRunRecord,
 )
 from eurogas_nexus.db.repositories.identity import (
     create_identity_api_key,
@@ -158,63 +157,3 @@ def test_route_candidate_derived_results_cannot_bypass_scope(
     assert response.status_code == 200
     body = response.json()["data"]
     assert [row["route_id"] for row in body["route_candidates"]] == ["route-entsog"]
-
-
-def test_strategy_run_evidence_respects_principal_scope(tmp_path, monkeypatch) -> None:
-    db_path = tmp_path / "strategy-entitlement.sqlite"
-    database_url = f"sqlite+pysqlite:///{db_path.as_posix()}"
-    engine = create_engine(database_url, future=True)
-    Base.metadata.create_all(engine)
-    monkeypatch.setenv("RUNTIME_STORE_DATABASE_URL", database_url)
-    monkeypatch.delenv("DATABASE_URL", raising=False)
-    monkeypatch.delenv("EUROGAS_NEXUS_DB_DSN", raising=False)
-
-    now = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
-    with Session(engine) as session:
-        session.add(
-            StrategyRunRecord(
-                run_id="run-eex",
-                strategy_id="strategy-eex",
-                run_type="EVALUATION",
-                run_mode="SHADOW_RUN",
-                status="COMPLETED",
-                started_at_utc=now,
-                input_snapshot={},
-                result_snapshot={},
-                source_refs=["eex-source"],
-                warnings=[],
-                missing_inputs=[],
-                research_only=True,
-                human_review_required=True,
-                manifest_json={
-                    "evidence": {
-                        "source_systems": ["EEX"],
-                    }
-                },
-            )
-        )
-        bearer = _create_principal(session, ["ENTSOG"])
-        from eurogas_nexus.db.repositories.identity import authenticate_identity_bearer
-        from eurogas_nexus.db.repositories.strategy_registry import create_strategy
-
-        owner = authenticate_identity_bearer(session, bearer)
-        create_strategy(
-            session,
-            strategy_id="strategy-eex",
-            name="Scoped private strategy",
-            description="",
-            created_by=owner.name,
-            owner_principal_id=owner.principal_id,
-            now_utc=now,
-        )
-
-        session.commit()
-
-    client, headers = _release_client(database_url)
-    response = client.get(
-        "/api/strategy-runs/run-eex",
-        headers={**headers, "X-Eurogas-Identity": bearer},
-    )
-
-    assert response.status_code == 403
-    assert response.json()["detail"]["error"] == "entitlement_denied"

@@ -1,5 +1,8 @@
 # AI Evaluation Report — CR-13
 
+Status note (2026-11-27): the strategy-laboratory evaluation cases were removed with the
+feature; the figures below describe the CR-13 run, not the current corpus.
+
 ## Methodology
 
 The production assistant is a deterministic backend answer builder with an

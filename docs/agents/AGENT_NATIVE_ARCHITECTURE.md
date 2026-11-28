@@ -1,5 +1,11 @@
 # Agent-Native Architecture (CR-15 / P14)
 
+Status note (2026-11-27): the strategy laboratory, its Strategy IR and the governed research
+orchestrator were removed with the feature (migration `0099_remove_strategy_laboratory`). The
+capability registry and runtime, the AgentRun/ToolInvocation persistence and the human-review
+contracts described here remain; sections that name the removed orchestration are kept as the
+record of that design.
+
 ## Goal
 
 Eurogas Nexus becomes an agent-native research operating system without

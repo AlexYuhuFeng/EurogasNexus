@@ -35,7 +35,7 @@ what was verified in the code and fixed, and adds the desk's own view.
 | Keep FastAPI / React / Tauri / PostgreSQL, no rewrite | Coherent | Rules 4 and 6 |
 | Numerical correctness before new models | Coherent, done in part (section 3) | Bounded, deterministic, upstream of every figure |
 | Market state as the core | Coherent **as a PostgreSQL read model**, not a service | Architecture V2 Wave 5 (application projections, active context). The map's `/api/portfolio/map-situation` is already a first slice: one read of outages, flows, contracts, cargoes and slots per as-of time |
-| Forecast lifecycle, champion/challenger | Coherent | Mirrors what Strategy Lab already does for strategies (versions, frozen runs, shadow runtime). A model registry is a table and a job, not a platform |
+| Forecast lifecycle, champion/challenger | Coherent | Mirrors the versioned, frozen-run discipline the strategy laboratory had before it was removed. A model registry is a table and a job, not a platform |
 | MLflow model registry | **Not without an ADR** | Rule 5: a new datastore/service needs a reviewed ADR and a measured need. PostgreSQL rows plus object storage for artefacts (already in `07_DATA_PLATFORM.md`) cover it |
 | "Market Event Bus" | Coherent **only as PostgreSQL** (outbox + the existing job runner, `LISTEN/NOTIFY` for wake-ups) | Rule 5 forbids Kafka/service mesh without an ADR; event volumes here are thousands a day, not millions |
 | Adaptive data, graceful degradation | Coherent | Matches the licence register, source center and the rule that a missing figure is shown as missing, never zero. Rule 18 holds: open data must be licensed for commercial use (Open-Meteo's free tier is not; ECMWF open data is CC BY 4.0) |

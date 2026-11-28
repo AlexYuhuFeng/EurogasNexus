@@ -54,7 +54,6 @@ ROUTES: dict[str, Route] = {
     "physical": Route("alert", "TRADER", "RISK_MANAGER"),
     "market": Route("alert", "TRADER", "MANAGEMENT"),
     "fundamentals": Route("alert", "HQ_BUSINESS_ANALYST", "TRADER"),
-    "strategy": Route("alert", "QUANT_RESEARCHER", "TRADER"),
     "data_source": Route("source", "DATA_OPERATOR", "PLATFORM_ADMINISTRATOR"),
     # TAR-1: a capacity auction or LNG slot window opening within three days goes to
     # scheduling, as nominations do; the desk is told when scheduling does not act.

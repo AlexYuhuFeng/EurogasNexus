@@ -10,7 +10,7 @@ features.
 | --- | --- | --- |
 | A — Market trader | price, spread, infrastructure, capacity, route economics, opportunities, speed | Market / Network / Scenario |
 | B — Portfolio/commercial analyst | resources, availability, terms, routes, scenarios, optimizer, attribution | Portfolio / Decision Center |
-| C — Strategy/quant analyst | definition, reproducibility, backtest, assumptions, comparison, shadow | Strategy Lab |
+| C — Strategy/quant analyst | spread and fundamental research, reproducibility, assumptions, comparison | Research / Decision Center |
 | D — Reviewer/manager | evidence, alternatives, provenance, risk, assumptions, decision record | Review |
 | E — Data/platform operator | sources, freshness, failures, certification, entitlement, runtime, release state | Sources / Runtime / Settings |
 
@@ -48,12 +48,13 @@ features.
 
 A. Market investigation → Scenario
 B. Portfolio → Route → Optimize → Review
-C. Strategy Design → Backtest → Compare
-D. Backtest → Shadow
-E. Decision review
-F. Data/operations failure
-G. Access/entitlement roles
-H. Desktop first-run
+C. Decision review
+D. Data/operations failure
+E. Access/entitlement roles
+F. Desktop first-run
+
+The former strategy Design → Backtest → Compare and Backtest → Shadow workflows were
+removed with the strategy laboratory (2026-11-27).
 
 ## 5. Acceptance criteria per workflow
 
@@ -95,7 +96,7 @@ Internal GA RC requires zero P0, zero P1, and an explicit reviewed P2 list.
 ## 8. Accessibility validation
 
 Axe-core automated audit across every workspace plus manual keyboard
-inspection of Market, Strategy, and Review. Serious/critical findings are
+inspection of Market, Research and Review. Serious/critical findings are
 P1/P0. Automated PASS alone is not sufficient.
 
 ## 9. Bilingual validation

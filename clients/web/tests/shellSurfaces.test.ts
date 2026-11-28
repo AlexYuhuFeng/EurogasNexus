@@ -105,14 +105,12 @@ test("inspection commands follow the active context", () => {
     {
       routeId: "R",
       resourceId: "P",
-      strategyVersionId: "V",
-      strategyRunId: "X",
     },
     "strategy",
   );
   assert.deepEqual(
     full.map((command) => command.target.inspector),
-    ["route", "resource", "strategy-version", "strategy-run"],
+    ["route", "resource"],
   );
   for (const command of full) assert.equal(command.target.page, "strategy");
 
@@ -232,8 +230,6 @@ test("palette and inspector vocabulary is bilingual and bounded", () => {
     "experience.inspector.note",
     "experience.inspect.route",
     "experience.inspect.resource",
-    "experience.inspect.strategy-version",
-    "experience.inspect.strategy-run",
     "experience.palette.title",
     "experience.palette.placeholder",
     "experience.palette.empty",

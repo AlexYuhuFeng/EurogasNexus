@@ -22,9 +22,6 @@ CONCEPT_TABLE_BINDINGS: dict[str, str] = {
     "LiveMarketMark": "live_market_marks",
     "MarketQuote": "market_quotes",
     "FxObservation": "fx_observations",
-    "StrategyDefinition": "strategy_definitions",
-    "StrategyRun": "strategy_runs",
-    "StrategyAllocationTarget": "strategy_allocation_targets",
     "EntitlementDecision": "entitlement_decisions",
     "GlossaryTerm": "glossary_terms",
     "GeneratedReport": "generated_reports",
@@ -142,22 +139,6 @@ CONCEPT_SLOT_COLUMN_MAPS: dict[str, dict[str, str]] = {
         "pair": "pair",
         "rate": "rate",
         "value_date": "value_date",
-    },
-    "StrategyDefinition": {
-        "components": "components",
-        "risk_control": "risk_control",
-    },
-    "StrategyRun": {
-        "strategy": "strategy_id",
-        "mode": "run_mode",
-        # paper_pnl_gbp lives inside the result snapshot JSON.
-        "paper_pnl_gbp": "result_snapshot",
-        "status": "status",
-    },
-    "StrategyAllocationTarget": {
-        "market_bucket": "market_bucket",
-        "target_allocation_pct": "target_allocation_pct",
-        "target_quantity_mwh_per_day": "target_quantity_mwh_per_day",
     },
     "EntitlementDecision": {
         "scope": "scope",

@@ -212,8 +212,8 @@ export function navigationCommands(): PaletteCommand[] {
       target: { page },
     }));
   // Every sub-view the URL registry declares that is not itself a mode task, so the palette,
-  // links and tabs share one list of destinations (#31). A sub-view of a mode's page (a strategy
-  // backtest, a research dataset view) is listed under the mode. The glossary's single view adds
+  // links and tabs share one list of destinations (#31). A sub-view of a mode's page (a research
+  // dataset view) is listed under the mode. The glossary's single view adds
   // nothing over its page.
   const modeTaskViews = new Set(
     PRODUCT_MODES.flatMap((mode) => mode.tasks.filter((task) => task.pageTask).map((task) => `${task.page}.${task.pageTask}`)),
@@ -336,16 +336,12 @@ export function inspectionCommands(
   context: {
     routeId?: string | null;
     resourceId?: string | null;
-    strategyVersionId?: string | null;
-    strategyRunId?: string | null;
   },
   originPage: WorkspacePageId,
 ): PaletteCommand[] {
   const candidates: Array<[InspectorSubjectKind, string | null | undefined]> = [
     ["route", context.routeId],
     ["resource", context.resourceId],
-    ["strategy-version", context.strategyVersionId],
-    ["strategy-run", context.strategyRunId],
   ];
   return candidates
     .filter(([, ref]) => Boolean(ref))
@@ -380,7 +376,7 @@ const AI_ACTION_CAPABILITY: Readonly<Record<AiActionKind, string>> = {
   explain: "research.query",
   compare: "research.query",
   challenge: "research.query",
-  draft: "strategy.design",
+  draft: "analysis.query",
 };
 
 /**

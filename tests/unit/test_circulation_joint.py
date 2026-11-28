@@ -172,28 +172,3 @@ def test_capacity_sensitivity_and_ordered_value_attribution():
     assert sum(
         r["incremental_net_value_gbp"] for r in comparison["contributions"]
     ) == pytest.approx(20)
-
-
-def test_financing_convention_is_shared_with_backtest_costs():
-    from eurogas_nexus.domain.backtest.contracts import BacktestCostComponent
-    from eurogas_nexus.domain.economics.financing import simple_interest
-    from eurogas_nexus.domain.ontology.vocabulary import CostTreatment
-
-    terms = {
-        "principal_gbp_mwh": 100,
-        "annual_rate_pct": 3,
-        "actual_days": 30,
-        "day_count": "ACT/360",
-    }
-    cost = BacktestCostComponent(
-        code="FINANCING_COST", treatment=CostTreatment.MODELED_COST, financing=terms
-    )
-    assert cost.amount_gbp_mwh == pytest.approx(simple_interest(100, 3, 30, "ACT/360"))
-    assert cost.amount_gbp_mwh == pytest.approx(0.25)
-    with pytest.raises(ValueError):
-        BacktestCostComponent(
-            code="FINANCING_COST",
-            treatment=CostTreatment.MODELED_COST,
-            financing=terms,
-            amount_gbp_mwh=99,
-        )

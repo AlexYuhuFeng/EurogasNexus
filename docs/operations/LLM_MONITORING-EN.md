@@ -14,8 +14,8 @@ or provider base URL.
 
 The live workflow is absolute:
 
-1. Backend engines persist quotes, opportunities, strategy alerts, ingestion
-   runs, source evidence, assumptions, and warnings in PostgreSQL.
+1. Backend engines persist quotes, opportunities, alerts, ingestion runs,
+   source evidence, assumptions, and warnings in PostgreSQL.
 2. `monitoring-worker` scans the database every 10 seconds.
 3. It normalizes active conditions into `monitoring_alerts` using a stable
    fingerprint.
@@ -118,7 +118,7 @@ Expected LLM states:
 | `provider_call_failed` | Network, timeout, or response parsing failed. | Diagnose outbound HTTPS/DNS and retry after five minutes. |
 
 Source ingestion alerts are escalated from warning to critical after three
-consecutive failed runs. Market opportunity and strategy alert facts always come
+consecutive failed runs. Market opportunity and alert facts always come
 from deterministic runtime records, even when DeepSeek is unavailable.
 
 ## API

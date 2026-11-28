@@ -19,13 +19,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
 from eurogas_nexus.release.constants import (  # noqa: E402
     API_CONTRACT_VERSION,
-    BACKTEST_ENGINE_VERSION,
     MINIMUM_SUPPORTED_CLIENT_VERSION,
     MINIMUM_SUPPORTED_SERVER_VERSION,
-    RUN_SCHEMA_VERSION,
     SOLVER_VERSION,
-    STRATEGY_SCHEMA_VERSION,
-    TARGET_BACKTEST_ENGINE_VERSION,
 )
 from scripts.release.release_artifacts import (  # noqa: E402
     artifact_platform_arch,
@@ -120,10 +116,6 @@ def build_manifest(
         "database_schema_revision": context["database_schema_revision"],
         "minimum_supported_client": MINIMUM_SUPPORTED_CLIENT_VERSION,
         "minimum_supported_server": MINIMUM_SUPPORTED_SERVER_VERSION,
-        "backtest_engine_version": TARGET_BACKTEST_ENGINE_VERSION,
-        "legacy_backtest_engine_version": BACKTEST_ENGINE_VERSION,
-        "strategy_schema_version": STRATEGY_SCHEMA_VERSION,
-        "strategy_run_schema_version": RUN_SCHEMA_VERSION,
         "solver_version": SOLVER_VERSION,
         "artifacts": artifacts,
         "sbom_files": sbom_files,

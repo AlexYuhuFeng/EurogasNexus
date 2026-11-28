@@ -50,7 +50,7 @@ is different on every row of the table, so it gets its own installation.
 | Public fundamentals | ENTSOG flows and capacity, AGSI, ALSI, ECB and BoE rates, weather | yes | yes | Yes: China may ingest directly or receive exports |
 | Licensed market data | EEX settlements, Trayport and ICE quotes | yes, per entitlement | only under its own licence | No, unless the licence covers China |
 | Commercial book | contracts, positions, P&L, decision cases | yes | China entity's own book | Only approved derived aggregates, by export |
-| Research artefacts | datasets, features, strategy versions | yes | yes | By export with owner approval (protocol v1) |
+| Research artefacts | datasets, features | yes | yes | By export with owner approval (protocol v1) |
 | Personal data | identities, sessions, audit events, preferences | per legal entity | stays in China | No |
 | Credentials | provider keys, API keys | per installation | per installation | Never |
 

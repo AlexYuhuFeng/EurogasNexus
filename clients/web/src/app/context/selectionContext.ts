@@ -2,18 +2,12 @@ export interface SelectionContext {
   decisionCaseId?: string | null;
   routeId: string | null;
   resourceId: string | null;
-  strategyRunId: string | null;
-  strategyId: string | null;
-  strategyVersionId: string | null;
 }
 
 export const EMPTY_SELECTION_CONTEXT: SelectionContext = {
   decisionCaseId: null,
   routeId: null,
   resourceId: null,
-  strategyRunId: null,
-  strategyId: null,
-  strategyVersionId: null,
 };
 
 const SAFE_ID_PATTERN = /^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/;
@@ -30,9 +24,6 @@ export function selectionContextKey(context: SelectionContext): string {
   return [
     context.routeId ?? "-",
     context.resourceId ?? "-",
-    context.strategyRunId ?? "-",
-    context.strategyId ?? "-",
-    context.strategyVersionId ?? "-",
     ...(context.decisionCaseId ? ["case", context.decisionCaseId] : []),
   ].join("|");
 }

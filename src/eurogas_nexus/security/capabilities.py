@@ -59,13 +59,6 @@ class Capability(StrEnum):
     SCENARIO_DESIGN = "scenario.design"
     OPTIMIZATION_RUN = "optimization.run"
 
-    STRATEGY_READ = "strategy.read"
-    STRATEGY_DESIGN = "strategy.design"
-    STRATEGY_EDIT = "strategy.edit"
-    STRATEGY_FREEZE = "strategy.freeze"
-    STRATEGY_RETIRE = "strategy.retire"
-    STRATEGY_SHADOW_OPERATE = "strategy.shadow.operate"
-
     DECISION_EVIDENCE_READ = "decision.evidence.read"
     DECISION_REVIEW = "decision.review"
 
@@ -103,12 +96,6 @@ CAPABILITY_PERMISSIONS: dict[Capability, frozenset[Permission]] = {
     Capability.PORTFOLIO_ASSUMPTION_WRITE: frozenset({Permission.PORTFOLIO_WRITE}),
     Capability.SCENARIO_DESIGN: frozenset({Permission.SCENARIO_CREATE}),
     Capability.OPTIMIZATION_RUN: frozenset({Permission.OPTIMIZATION_RUN}),
-    Capability.STRATEGY_READ: frozenset({Permission.STRATEGY_READ}),
-    Capability.STRATEGY_DESIGN: frozenset({Permission.STRATEGY_CREATE}),
-    Capability.STRATEGY_EDIT: frozenset({Permission.STRATEGY_EDIT}),
-    Capability.STRATEGY_FREEZE: frozenset({Permission.STRATEGY_FREEZE}),
-    Capability.STRATEGY_RETIRE: frozenset({Permission.STRATEGY_RETIRE}),
-    Capability.STRATEGY_SHADOW_OPERATE: frozenset({Permission.STRATEGY_SHADOW_MANAGE}),
     Capability.DECISION_EVIDENCE_READ: frozenset({Permission.REVIEW_READ}),
     Capability.DECISION_REVIEW: frozenset({Permission.REVIEW_RECORD}),
     Capability.RESEARCH_QUERY: frozenset({Permission.ANALYSIS_QUERY}),
@@ -130,7 +117,7 @@ CAPABILITY_PERMISSIONS: dict[Capability, frozenset[Permission]] = {
 }
 
 # Capabilities that read or write commercial data (prices, positions, contract
-# terms, strategy parameters, PnL, decision evidence). Platform administration
+# terms, PnL, decision evidence). Platform administration
 # does not imply any of these: "no ADMIN sees everything" shortcut
 # (06_IDENTITY_ACCESS_CONTROL_PLANE.md section 7).
 COMMERCIAL_CAPABILITIES: frozenset[Capability] = frozenset(
@@ -141,12 +128,6 @@ COMMERCIAL_CAPABILITIES: frozenset[Capability] = frozenset(
         Capability.GAS_DAY_RECORD,
         Capability.SCENARIO_DESIGN,
         Capability.OPTIMIZATION_RUN,
-        Capability.STRATEGY_READ,
-        Capability.STRATEGY_DESIGN,
-        Capability.STRATEGY_EDIT,
-        Capability.STRATEGY_FREEZE,
-        Capability.STRATEGY_RETIRE,
-        Capability.STRATEGY_SHADOW_OPERATE,
         Capability.DECISION_EVIDENCE_READ,
         Capability.DECISION_REVIEW,
         Capability.RESEARCH_QUERY,
@@ -234,8 +215,6 @@ ASSIGNMENT_CAPABILITIES: dict[FunctionalAssignment, frozenset[Capability]] = {
     FunctionalAssignment.REVIEWER_MANAGEMENT: frozenset({Capability.DECISION_REVIEW}),
     FunctionalAssignment.QUANT_RESEARCHER: frozenset(
         {
-            Capability.STRATEGY_DESIGN,
-            Capability.STRATEGY_FREEZE,
             Capability.AGENT_RESEARCH_RUN,
         }
     ),
@@ -280,7 +259,7 @@ ASSIGNMENT_HOME: dict[FunctionalAssignment, tuple[str, str]] = {
     # (SMALL_DESK_PLAN step 4).
     FunctionalAssignment.TRADER: ("market", "board"),
     FunctionalAssignment.HQ_BUSINESS_ANALYST: ("market", "overview"),
-    FunctionalAssignment.QUANT_RESEARCHER: ("strategy", "design"),
+    FunctionalAssignment.QUANT_RESEARCHER: ("research", "spreads"),
     FunctionalAssignment.RISK_MANAGER: ("contracts", "exposure"),
     FunctionalAssignment.FINANCE_SETTLEMENT: ("contracts", "exposure"),
     FunctionalAssignment.LEGAL_COMPLIANCE: ("review", "review"),
@@ -343,8 +322,7 @@ WORK_MODE_CAPABILITIES: dict[WorkMode, frozenset[Capability]] = {
     ),
     WorkMode.RESEARCH: frozenset(
         {
-            Capability.STRATEGY_READ,
-            Capability.STRATEGY_DESIGN,
+            Capability.RESEARCH_QUERY,
         }
     ),
     WorkMode.REVIEW: frozenset(

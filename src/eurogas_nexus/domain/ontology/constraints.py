@@ -12,7 +12,6 @@ from dataclasses import dataclass
 from typing import Any
 
 from eurogas_nexus.domain.constraints.access import inaccessible_tsos
-from eurogas_nexus.domain.constraints.risk import ocm_day_split, stop_loss_triggered
 from eurogas_nexus.domain.constraints.route_economics import netback
 
 
@@ -48,17 +47,5 @@ CONSTRAINTS: tuple[Constraint, ...] = (
         "Netback definition",
         "Netback = sale price - route cost, only when currency and unit are compatible.",
         netback,
-    ),
-    Constraint(
-        "SHADOW_RUN_STOP_LOSS",
-        "Shadow-run stop loss (cumulative)",
-        "Block the run when cumulative paper PnL is at or below the negative threshold.",
-        stop_loss_triggered,
-    ),
-    Constraint(
-        "OCM_DAY_ALLOCATION_SPLIT",
-        "OCM vs day-ahead allocation split",
-        "Derive OCM/day-ahead percentages from score, clamped to configured limits.",
-        ocm_day_split,
     ),
 )

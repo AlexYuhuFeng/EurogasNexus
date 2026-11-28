@@ -47,8 +47,6 @@ export interface CommandPaletteOptions {
   context: {
     routeId?: string | null;
     resourceId?: string | null;
-    strategyVersionId?: string | null;
-    strategyRunId?: string | null;
   };
   capabilities: readonly string[];
   activeContextComplete: boolean;
@@ -133,8 +131,6 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
       options.activeWorkspace,
       options.context.routeId,
       options.context.resourceId,
-      options.context.strategyVersionId,
-      options.context.strategyRunId,
     ],
   );
 
@@ -144,8 +140,6 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
       options.evidenceRefs,
       options.context.routeId,
       options.context.resourceId,
-      options.context.strategyVersionId,
-      options.context.strategyRunId,
     ],
   );
 
@@ -201,11 +195,7 @@ export function useCommandPalette(options: CommandPaletteOptions): CommandPalett
         const ref =
           command.target.inspector === "route"
             ? options.context.routeId
-            : command.target.inspector === "resource"
-              ? options.context.resourceId
-              : command.target.inspector === "strategy-version"
-                ? options.context.strategyVersionId
-                : options.context.strategyRunId;
+            : options.context.resourceId;
         if (ref) options.onInspect(command.target.inspector, ref);
       } else if (command.target.page) {
         options.onNavigate(command);

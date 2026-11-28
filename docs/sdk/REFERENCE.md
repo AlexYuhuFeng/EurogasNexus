@@ -8,7 +8,7 @@ Generated from the source of `eurogas_nexus_sdk`. Each function takes the server
 
 Field-level descriptions are in each model's docstring: `help(eurogas_nexus_sdk.market.MarketQuote)`.
 
-Surface: 34 modules, 157 public functions, 136 public models. 17 functions have no docstring and 4 have no type annotations.
+Surface: 31 modules, 120 public functions, 120 public models. 5 functions have no docstring and 4 have no type annotations.
 
 | Module | Functions | Models | Purpose |
 |---|---|---|---|
@@ -37,11 +37,8 @@ Surface: 34 modules, 157 public functions, 136 public models. 17 functions have 
 | [`review`](#review) | 2 | 2 | SDK client for trader-review decision endpoints. |
 | [`route_cost`](#route_cost) | 6 | 7 | SDK client for European route-cost and resource optimization APIs. |
 | [`runtime`](#runtime) | 1 | 2 | SDK client for /api/runtime status routes. |
-| [`shadow_runtime`](#shadow_runtime) | 12 | 5 | SDK client for the scheduled shadow research runtime. |
 | [`sources`](#sources) | 6 | 2 | SDK client for /api/sources and /api/ingestion-runs. |
 | [`storage`](#storage) | 3 | 2 | SDK client for /api/storage. |
-| [`strategy_lab`](#strategy_lab) | 4 | 4 | SDK client for strategy-lab decision-support APIs. |
-| [`strategy_registry`](#strategy_registry) | 21 | 7 | SDK client for the versioned strategy registry. |
 | [`streaming`](#streaming) | 2 | 0 | SDK streaming client for the SSE decision feeds. |
 | [`weather`](#weather) | 3 | 3 | SDK client for /api/weather. |
 | [`weather_degree_days`](#weather_degree_days) | 1 | 18 | Typed SDK client for ``POST /api/weather/degree-days``. |
@@ -750,52 +747,6 @@ Models:
 - `RuntimeConnectivity` (2 fields). Connectivity result of one database check.
 - `RuntimeDbStatus` (7 fields). Overall runtime database health for one server.
 
-## shadow_runtime
-
-SDK client for the scheduled shadow research runtime.
-
-`from eurogas_nexus_sdk.shadow_runtime import ...`
-
-| Function | Calls | Returns | Purpose |
-|---|---|---|---|
-| `create_monitor` | `POST /api/shadow-monitors` | `ShadowMonitorDTO` | _No docstring._ |
-| `list_monitors` | `GET /api/shadow-monitors` | `list[ShadowMonitorDTO]` | _No docstring._ |
-| `get_monitor` | `GET /api/shadow-monitors/{monitor_id}` | `ShadowMonitorDTO` | _No docstring._ |
-| `pause_monitor` | `POST /api/shadow-monitors/{monitor_id}/pause` | `ShadowMonitorDTO` | _No docstring._ |
-| `resume_monitor` | `POST /api/shadow-monitors/{monitor_id}/resume` | `ShadowMonitorDTO` | _No docstring._ |
-| `retire_monitor` | `POST /api/shadow-monitors/{monitor_id}/retire` | `ShadowMonitorDTO` | _No docstring._ |
-| `list_evaluations` | `GET /api/shadow-monitors/{monitor_id}/evaluations` | `list[ShadowEvaluationDTO]` | _No docstring._ |
-| `get_evaluation` | `GET /api/shadow-evaluations/{evaluation_id}` | `ShadowEvaluationDTO` | _No docstring._ |
-| `list_drift` | `GET /api/shadow-monitors/{monitor_id}/drift` | `list[ShadowDriftDTO]` | _No docstring._ |
-| `list_alerts` | `GET /api/shadow-alerts` | `list[ShadowAlertDTO]` | _No docstring._ |
-| `acknowledge_alert` | `POST /api/shadow-alerts/{alert_id}/acknowledge` | `ShadowAlertDTO` | _No docstring._ |
-| `runtime_status` | `GET /api/shadow-runtime/status` | `ShadowRuntimeStatusDTO` | _No docstring._ |
-
-Signatures:
-
-```python
-create_monitor(base_url: str, *, strategy_version_id: str, schedule: dict, baseline_run_id: str | None = None, activate: bool = True) -> ShadowMonitorDTO
-list_monitors(base_url: str) -> list[ShadowMonitorDTO]
-get_monitor(base_url: str, monitor_id: str) -> ShadowMonitorDTO
-pause_monitor(base_url: str, monitor_id: str) -> ShadowMonitorDTO
-resume_monitor(base_url: str, monitor_id: str) -> ShadowMonitorDTO
-retire_monitor(base_url: str, monitor_id: str) -> ShadowMonitorDTO
-list_evaluations(base_url: str, monitor_id: str) -> list[ShadowEvaluationDTO]
-get_evaluation(base_url: str, evaluation_id: str) -> ShadowEvaluationDTO
-list_drift(base_url: str, monitor_id: str) -> list[ShadowDriftDTO]
-list_alerts(base_url: str, *, state: str | None = None, severity: str | None = None, monitor_id: str | None = None) -> list[ShadowAlertDTO]
-acknowledge_alert(base_url: str, alert_id: str, actor: str = operator) -> ShadowAlertDTO
-runtime_status(base_url: str) -> ShadowRuntimeStatusDTO
-```
-
-Models:
-
-- `ShadowMonitorDTO` (19 fields).
-- `ShadowEvaluationDTO` (15 fields).
-- `ShadowAlertDTO` (15 fields).
-- `ShadowDriftDTO` (9 fields).
-- `ShadowRuntimeStatusDTO` (6 fields).
-
 ## sources
 
 SDK client for /api/sources and /api/ingestion-runs.
@@ -851,101 +802,6 @@ Models:
 
 - `StorageSite` (11 fields). A storage site returned by ``GET /api/storage/sites``.
 - `StorageObservation` (21 fields). One AGSI observation returned by ``GET /api/storage/observations``.
-
-## strategy_lab
-
-SDK client for strategy-lab decision-support APIs.
-
-`from eurogas_nexus_sdk.strategy_lab import ...`
-
-| Function | Calls | Returns | Purpose |
-|---|---|---|---|
-| `evaluate_strategy_lab` | `POST /api/strategy-lab/evaluate` | `StrategyLabResult` | Evaluate a strategy in the strategy lab. |
-| `list_strategy_runs` | `GET /api/strategy-lab/runs` | `list[StrategyRunDTO]` | List historical strategy runs, optionally filtered. |
-| `get_strategy_run` | `GET /api/strategy-lab/runs/{run_id}` | `StrategyRunDTO` | Fetch one strategy run by its identifier. |
-| `strategy_summary` | `GET /api/strategy-lab/summary` | `StrategySummaryDTO` | Fetch an aggregated performance summary for a strategy. |
-
-Signatures:
-
-```python
-evaluate_strategy_lab(base_url: str, **kwargs) -> StrategyLabResult
-list_strategy_runs(base_url: str, *, strategy_id: str | None = None, run_mode: str | None = None, limit: int = 100) -> list[StrategyRunDTO]
-get_strategy_run(base_url: str, run_id: str) -> StrategyRunDTO
-strategy_summary(base_url: str, *, strategy_id: str | None = None, run_mode: str | None = None) -> StrategySummaryDTO
-```
-
-Models:
-
-- `StrategyAllocationTarget` (6 fields). Target allocation for one market bucket within a strategy run.
-- `StrategyLabResult` (19 fields). Evaluation result of one strategy-lab run.
-- `StrategyRunDTO` (43 fields). One historical strategy run as stored by the backend.
-- `StrategySummaryDTO` (10 fields). Aggregate performance summary across runs of a strategy.
-
-## strategy_registry
-
-SDK client for the versioned strategy registry.
-
-`from eurogas_nexus_sdk.strategy_registry import ...`
-
-| Function | Calls | Returns | Purpose |
-|---|---|---|---|
-| `list_my_groups` | `GET /api/me/groups` | `list[StrategySharingGroupDTO]` | List the authenticated caller's eligible local sharing groups. |
-| `list_strategies` | `GET /api/strategies` | `list[StrategyDTO]` | List strategy identities, newest first. |
-| `create_strategy` | `POST /api/strategies` | `StrategyDTO` | Create a strategy identity and return the stored row. |
-| `update_strategy` | `PATCH /api/strategies/{strategy_id}/metadata` | `StrategyDTO` | Update editable metadata of a strategy research identity. |
-| `get_strategy` | `GET /api/strategies/{strategy_id}` | `StrategyDTO` | Fetch one strategy identity. |
-| `list_strategy_versions` | `GET /api/strategies/{strategy_id}/versions` | `list[StrategyVersionDTO]` | List semantic versions for one strategy, newest first. |
-| `create_strategy_version` | `POST /api/strategies/{strategy_id}/versions` | `StrategyVersionDTO` | Create a new draft semantic version for a strategy. |
-| `update_draft_version` | `PUT /api/strategy-versions/{version_id}/draft` | `StrategyVersionDTO` | Replace a DRAFT version definition. Frozen versions are immutable. |
-| `get_strategy_version` | `GET /api/strategy-versions/{version_id}` | `StrategyVersionDTO` | Fetch one strategy version. |
-| `freeze_strategy_version` | `POST /api/strategy-versions/{version_id}/freeze` | `StrategyVersionDTO` | Freeze a draft version, making it immutable. |
-| `fork_strategy_version` | `POST /api/strategy-versions/{version_id}/fork` | `StrategyVersionDTO` | Fork a frozen version into a new draft. |
-| `create_strategy_run` | `POST /api/strategy-runs` | `StrategyRunDTO` | Evaluate or backtest one frozen strategy version. |
-| `create_experiment` | `POST /api/backtest-experiments` | `BacktestExperimentDTO` | Create a lightweight SINGLE_RUN backtest experiment group. |
-| `list_experiments` | `GET /api/backtest-experiments` | `list[BacktestExperimentDTO]` | List persisted backtest experiments. |
-| `get_experiment` | `GET /api/backtest-experiments/{experiment_id}` | `BacktestExperimentDTO` | Fetch one persisted backtest experiment. |
-| `list_run_events` | `GET /api/strategy-runs/{run_id}/events` | `list[BacktestDecisionEventDTO]` | Fetch persisted backtest decision events for one run. |
-| `list_run_series` | `GET /api/strategy-runs/{run_id}/series` | `list[BacktestSeriesPointDTO]` | Fetch the persisted cumulative net PnL/exposure series. |
-| `list_run_attribution` | `GET /api/strategy-runs/{run_id}/attribution` | `list[BacktestAttributionDTO]` | Fetch persisted backtest attribution rows. |
-| `list_strategy_runs` | `GET /api/strategy-runs` | `list[StrategyRunDTO]` | List registry strategy runs, newest first. |
-| `get_strategy_run` | `GET /api/strategy-runs/{run_id}` | `StrategyRunDTO` | Fetch one strategy run by id. |
-| `update_strategy_sharing` | `PATCH /api/strategies/{strategy_id}/sharing` | `StrategyDTO` | Owner-selected local read sharing; never grants writes or cross-region consent. |
-
-Signatures:
-
-```python
-list_my_groups(base_url: str) -> list[StrategySharingGroupDTO]
-list_strategies(base_url: str, *, limit: int = 200) -> list[StrategyDTO]
-create_strategy(base_url: str, *, name: str, strategy_id: str | None = None, description: str = , tags: list[str] | None = None) -> StrategyDTO
-update_strategy(base_url: str, strategy_id: str, *, name: str | None = None, description: str | None = None, tags: list[str] | None = None) -> StrategyDTO
-get_strategy(base_url: str, strategy_id: str) -> StrategyDTO
-list_strategy_versions(base_url: str, strategy_id: str, *, limit: int = 100) -> list[StrategyVersionDTO]
-create_strategy_version(base_url: str, strategy_id: str, *, definition: dict, hypothesis: str = , strategy_name: str | None = None, run_mode: str = SHADOW_RUN, resource_contexts: list[dict] | None = None, price_observations: list[dict] | None = None, existing_shadow_pnl_gbp: float = 0.0) -> StrategyVersionDTO
-update_draft_version(base_url: str, version_id: str, *, definition: dict, hypothesis: str = , strategy_name: str | None = None, run_mode: str = BACKTEST, resource_contexts: list[dict] | None = None, price_observations: list[dict] | None = None) -> StrategyVersionDTO
-get_strategy_version(base_url: str, version_id: str) -> StrategyVersionDTO
-freeze_strategy_version(base_url: str, version_id: str) -> StrategyVersionDTO
-fork_strategy_version(base_url: str, version_id: str, *, definition: dict | None = None, hypothesis: str | None = None) -> StrategyVersionDTO
-create_strategy_run(base_url: str, *, strategy_version_id: str, run_type: str = EVALUATION, deterministic_seed: str | None = None, trigger_type: str = MANUAL, correlation_request_id: str | None = None, evaluation_period_start_utc: str | None = None, evaluation_period_end_utc: str | None = None, economic_assumptions: dict | None = None, parameter_values: dict | None = None, experiment_id: str | None = None) -> StrategyRunDTO
-create_experiment(base_url: str, *, strategy_id: str, base_strategy_version_id: str, name: str, evaluation_period_start_utc: str, evaluation_period_end_utc: str, hypothesis: str = , experiment_id: str | None = None) -> BacktestExperimentDTO
-list_experiments(base_url: str) -> list[BacktestExperimentDTO]
-get_experiment(base_url: str, experiment_id: str) -> BacktestExperimentDTO
-list_run_events(base_url: str, run_id: str) -> list[BacktestDecisionEventDTO]
-list_run_series(base_url: str, run_id: str) -> list[BacktestSeriesPointDTO]
-list_run_attribution(base_url: str, run_id: str) -> list[BacktestAttributionDTO]
-list_strategy_runs(base_url: str, *, strategy_id: str | None = None, strategy_version_id: str | None = None, run_type: str | None = None, limit: int = 100) -> list[StrategyRunDTO]
-get_strategy_run(base_url: str, run_id: str) -> StrategyRunDTO
-update_strategy_sharing(base_url: str, strategy_id: str, *, visibility: Literal[PRIVATE, PUBLIC, GROUPS], group_ids: list[str] | None = None) -> StrategyDTO
-```
-
-Models:
-
-- `StrategySharingGroupDTO` (2 fields). Active group the authenticated caller may select for strategy read sharing.
-- `StrategyDTO` (15 fields). Long-lived strategy research identity.
-- `StrategyVersionDTO` (13 fields). Immutable semantic version of a strategy.
-- `BacktestDecisionEventDTO` (25 fields). Persisted decision event of one backtest run.
-- `BacktestSeriesPointDTO` (12 fields). Persisted cumulative net PnL/exposure series point.
-- `BacktestAttributionDTO` (12 fields). Persisted backtest attribution row.
-- `BacktestExperimentDTO` (13 fields). Lightweight SINGLE_RUN experiment group.
 
 ## streaming
 

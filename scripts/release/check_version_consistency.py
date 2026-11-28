@@ -290,24 +290,6 @@ def policy_surfaces() -> list[tuple[str, bool, str]]:
     else:
         failures.append(("src/eurogas_nexus/core/config.py", True, "uses runtime version module"))
 
-    registry = _read("src/eurogas_nexus/domain/strategy_lab/registry.py")
-    if 'application_version: str = "0.5.0"' in registry:
-        failures.append(
-            (
-                "src/eurogas_nexus/domain/strategy_lab/registry.py",
-                False,
-                "hard-coded version fallback",
-            )
-        )
-    else:
-        failures.append(
-            (
-                "src/eurogas_nexus/domain/strategy_lab/registry.py",
-                True,
-                "uses runtime version module",
-            )
-        )
-
     client_metadata = _read("clients/web/src/app/releaseMetadata.ts")
     if f'CLIENT_MINIMUM_SUPPORTED_SERVER = "{canonical_version()}";' in client_metadata:
         failures.append(

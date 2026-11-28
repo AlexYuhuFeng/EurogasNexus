@@ -34,7 +34,9 @@ pytestmark = [
     pytest.mark.skipif(shutil.which("psql") is None, reason="needs psql for the role script"),
 ]
 
-PREVIOUS = "0094_option_settlements"
+#: The installed version the new one upgrades from. It must already have the audit chain (0095),
+#: which the role script grants on; the upgrade then brings the irreversible 0099.
+PREVIOUS = "0098_deal_position_source"
 ROLES = ("eurogas_owner", "eurogas_app", "eurogas_reader", "eurogas_auditor")
 
 
@@ -111,12 +113,12 @@ def test_the_gated_upgrade_runs_as_the_owner_and_refuses_as_the_application_role
     from eurogas_nexus.release.constants import DB_SCHEMA_REVISION
 
     name, names, urls = roles_store
-    # An installation at head, then split into roles as DATABASE_ROLES.md says.
-    code, lines = _upgrade(urls["admin"], operator="Ops Tester")
-    assert code == 0, lines
+    # An installation at an earlier version, split into roles as DATABASE_ROLES.md says. (This
+    # used to install at head and let the owner take revisions back; 0099 drops the strategy
+    # laboratory's tables and cannot be downgraded, so the store starts at PREVIOUS instead.)
+    command.upgrade(alembic_config(urls["admin"]), PREVIOUS)
     _apply_roles(name, names, urls["admin"])
-    # A new version brings revisions: here 0095 and 0096 again, after the owner took them back.
-    command.downgrade(alembic_config(urls["owner"]), PREVIOUS)
+    # A new version brings revisions: here 0099, which cannot be taken back.
     assert _revision(urls["owner"]) == PREVIOUS
 
     # The application role: refused before anything runs, with the owner named.

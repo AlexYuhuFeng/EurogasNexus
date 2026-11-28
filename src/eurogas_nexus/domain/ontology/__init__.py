@@ -23,7 +23,6 @@ from eurogas_nexus.domain.ontology.concepts import CONCEPTS, Concept, Slot
 from eurogas_nexus.domain.ontology.relations import RELATIONS, Relation
 from eurogas_nexus.domain.ontology.vocabulary import (
     BusinessModel,
-    CandidateAction,
     CapacityProduct,
     CapacityScope,
     CostComponentType,
@@ -43,8 +42,6 @@ from eurogas_nexus.domain.ontology.vocabulary import (
     ReviewDecisionValue,
     ReviewEntityType,
     SourceResourceType,
-    StrategyComponentType,
-    StrategyRunMode,
     TariffDirection,
     TariffStatus,
 )
@@ -122,7 +119,6 @@ __all__ = [
     "NodeType",
     "EdgeType",
     "FacilityType",
-    "CandidateAction",
     "ProductTenor",
     "ProductKind",
     "PriceType",
@@ -139,8 +135,6 @@ __all__ = [
     "BusinessModel",
     "SourceResourceType",
     "CostComponentType",
-    "StrategyRunMode",
-    "StrategyComponentType",
     "ReviewDecisionValue",
     "ReviewEntityType",
 ]

@@ -24,7 +24,6 @@ CRITICAL_PATHS = (
     ("runtime_db", "/runtime/db", 200),
     ("runtime_release", "/runtime/release", 200),
     ("sources", "/sources", 200),
-    ("strategy_runs", "/strategy-runs?limit=5", 200),
     ("route_candidates", "/route-cost/route-candidates", 200),
     ("source_operations", "/runtime/source-operations", 200),
 )

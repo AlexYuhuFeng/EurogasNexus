@@ -4,7 +4,7 @@
 The fixture is clearly simulated and never activates in trial/release:
 ``EUROGAS_NEXUS_ENV`` must be development/test and
 ``EUROGAS_NEXUS_UAT_FIXTURE_ALLOWED=1`` must be set. It seeds 60 days of
-source-shaped simulated market observations so backtest/shadow workflows have
+source-shaped simulated market observations so spread research has
 deterministic historical evidence, plus the paired NBP/TTF day-ahead samples the
 governed research run reads. ``--agent-window-only`` re-stamps just those samples
 in the UTC day it is run in and reports that day, which is how the browser
@@ -249,8 +249,7 @@ def main() -> int:
             for row in rows:
                 session.merge(MarketObservationRecord(**row))
                 inserted += 1
-            # SAP-style NBP day-ahead series required by the default
-            # OCM_VS_DAY_AHEAD strategy component. Clearly synthetic test data.
+            # SAP-style NBP day-ahead series used by spread studies. Clearly synthetic test data.
             session.merge(
                 FxObservationRecord(
                     observation_id=f"uat-fx-eurgbp-{observed_at:%Y%m%d}",

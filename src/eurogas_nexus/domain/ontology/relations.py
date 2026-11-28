@@ -61,8 +61,6 @@ RELATIONS: tuple[Relation, ...] = (
     Relation("StorageFacility", "injects_into", "MarketArea", "0..1"),
     Relation("StorageFacility", "withdraws_into", "MarketArea", "0..1"),
     Relation("Nomination", "has", "ReferenceNode", "1"),
-    Relation("StrategyRun", "evaluates", "ResourcePool", "0..1"),
-    Relation("StrategyRun", "consumes", "MarketObservation", "0..n"),
     Relation("EntitlementDecision", "governs", "MarketObservation", "0..n"),
     Relation("WeatherObservation", "drives", "MarketArea", "0..n"),
 )

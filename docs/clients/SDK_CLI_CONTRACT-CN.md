@@ -4,7 +4,7 @@
 
 ## 使用配套接口
 
-Python SDK 随仓库发行包提供，源码位于 `packages/python-sdk/src/eurogas_nexus_sdk`。它提供健康检查、市场与实物观测、组合、研究、策略、复核及运行管理等类型化 API 客户端。
+Python SDK 随仓库发行包提供，源码位于 `packages/python-sdk/src/eurogas_nexus_sdk`。它提供健康检查、市场与实物观测、组合、研究、复核及运行管理等类型化 API 客户端。
 
 命令行入口为 `eurogas-nexus`，实现位于 `src/eurogas_nexus/cli/main.py`。使用与安装环境配套的 SDK 和命令帮助。
 

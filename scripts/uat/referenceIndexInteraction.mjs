@@ -251,7 +251,11 @@ function actualProjectionSlice(body) {
 
 /** True for transport-level aborts that superseded this request, not a bad backend answer. */
 function isAbortedTransport(error) {
-  return /aborted|Target page, context or browser has been closed|Request is already handled|ERR_ABORTED|NS_BINDING_ABORTED/i
+  // "Route is already handled!" is what the pinned Playwright says when the page dropped the
+  // request while this handler was fetching the real answer (older releases said "Request is
+  // already handled"). The first hosted run after the board's live re-reads failed on the
+  // wording alone.
+  return /aborted|Target page, context or browser has been closed|(Request|Route) is already handled|ERR_ABORTED|NS_BINDING_ABORTED/i
     .test(String(error));
 }
 

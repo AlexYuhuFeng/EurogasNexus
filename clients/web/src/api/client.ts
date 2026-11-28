@@ -8,7 +8,7 @@ import type {
   NormaliseResponseDTO,
 } from "./comparablePrices";
 import type { EvaluationDTO, InterpretationDTO, SpreadBoardDTO, StrategySpecDTO } from "./spreads";
-import type { PromptMarketDTO, StrategyTrackDTO } from "./strategyTracks";
+import type { PromptMarketDTO } from "./promptMarket";
 import type {
   CloseDayInput,
   CloseDayResultDTO,
@@ -1412,7 +1412,6 @@ export interface ReviewDecisionDTO {
 export interface ReviewDecisionInputDTO {
   entity_type:
     | "intraday_opportunity"
-    | "strategy_run"
     | "generated_report"
     | "agent_review_pack";
   entity_id: string;
@@ -1571,8 +1570,6 @@ export interface DecisionCaseEvidenceInputDTO {
     | "SCENARIO"
     | "OPTIMIZATION"
     | "ROUTE_RECOMMENDATION"
-    | "BACKTEST"
-    | "STRATEGY_RUN"
     | "RESEARCH_DATASET"
     | "AGENT_RUN"
     | "AI_ANALYSIS"
@@ -1584,17 +1581,6 @@ export interface DecisionCaseEvidenceInputDTO {
 export interface DecisionCaseDecisionInputDTO {
   outcome: "accepted" | "rejected" | "needs_attention";
   note?: string;
-}
-
-/** The request body of `POST /api/agent/research` (see `ResearchRunRequest` on the server). */
-export interface ResearchRunStartDTO {
-  objective: string;
-  agent_profile?: string;
-  strategy_generation_allowed?: boolean;
-  strategy_ir?: Record<string, unknown> | null;
-  frozen_strategy_version_id?: string | null;
-  period_start_utc?: string | null;
-  period_end_utc?: string | null;
 }
 
 /**
@@ -2472,10 +2458,9 @@ export interface TodayMarketDTO {
 
 /** Design basis 2, E.2 row 3: what needs me, ranked server-side, at most five. */
 export interface TodayNeedsMeItemDTO {
-  /** "strategy": a tracked strategy's changed, still actionable paper signal. */
   /** "cargo": a cargo change's message for one of the reader's roles (LNG-2; additive). */
   /** "reconciliation": a scheduling break near its cut-off (SCHED-1; additive). */
-  kind: "opportunity" | "outage" | "limit" | "strategy" | "nomination" | "cargo" | "reconciliation";
+  kind: "opportunity" | "outage" | "limit" | "nomination" | "cargo" | "reconciliation";
   id: string;
   title: string;
   title_zh?: string | null;
@@ -3654,154 +3639,6 @@ export interface ResourcePoolOptionsDTO {
   blockers: string[]; warnings: string[];
 }
 
-export interface StrategyPriceObservationDTO {
-  observation_id: string; source_system: string; venue: string; hub: string; product: string;
-  price_name: string; price_gbp_mwh: number; observed_at_utc: string;
-  delivery_start_utc: string; delivery_end_utc: string; bar_minutes?: number | null;
-  price_type?: string; source_reference?: string;
-}
-
-export interface StrategyResourceContextDTO {
-  resource_id: string; resource_name: string; available_quantity_mwh_per_day: number;
-  all_in_cost_gbp_mwh: number; delivery_tolerance_pct?: number | null;
-  nomination_tolerance_pct?: number | null; booked_entry_capacity_mwh_per_day?: number | null;
-  balancing_allowance_gbp_mwh?: number; required_tso_access: string[];
-  company_accessible_tsos?: string[] | null;
-}
-
-export interface StrategyComponentDTO {
-  component_id: string; component_type: string; weight?: number;
-  day_ahead_price_names?: string[]; intraday_price_names?: string[];
-  positive_spread_threshold_gbp_mwh?: number; negative_spread_threshold_gbp_mwh?: number;
-  time_window_start?: string | null; time_window_end?: string | null;
-  target_bar_minutes?: number | null;
-}
-
-export interface StrategyLabRequestDTO {
-  strategy_id: string; strategy_name: string; run_mode: string;
-  resource_contexts: StrategyResourceContextDTO[];
-  price_observations: StrategyPriceObservationDTO[];
-  components: StrategyComponentDTO[];
-  risk_control?: Record<string, unknown>;
-  existing_shadow_pnl_gbp?: number;
-  research_only?: boolean;
-}
-
-export interface StrategyAllocationTargetDTO {
-  market_bucket: string; target_allocation_pct: number; target_quantity_mwh_per_day: number;
-  reference_price_gbp_mwh: number | null; expected_margin_gbp_mwh: number | null;
-  rationale: string[];
-}
-
-export interface StrategyLabResultDTO {
-  run_id: string;
-  strategy_id: string; strategy_name: string; run_mode: string; status: string;
-  weighted_score: number; day_ahead_average_gbp_mwh: number | null;
-  intraday_average_gbp_mwh: number | null;
-  intraday_vs_day_ahead_spread_gbp_mwh: number | null;
-  allocation_targets: StrategyAllocationTargetDTO[];
-  missing_inputs: string[]; warnings: string[]; source_refs: string[];
-  candidate_action_for_review: string;
-  paper_pnl_gbp: number; cumulative_pnl_gbp: number; hit: boolean;
-  research_only: boolean; human_review_required: boolean;
-}
-
-export interface StrategyRunDTO {
-  run_id: string; strategy_id: string; strategy_name?: string | null;
-  strategy_version_id?: string | null;
-  run_type?: string | null;
-  run_mode: string; status: string;
-  requested_at_utc?: string | null;
-  started_at_utc: string; finished_at_utc: string | null;
-  completed_at_utc?: string | null;
-  evaluation_start_utc?: string | null;
-  evaluation_end_utc?: string | null;
-  data_cutoff_utc?: string | null;
-  dataset_snapshot_id?: string | null;
-  manifest_json?: Record<string, unknown> | null;
-  manifest_hash?: string | null;
-  engine_version?: string | null;
-  backtest_engine_version?: string | null;
-  experiment_id?: string | null;
-  application_version?: string | null;
-  git_commit_sha?: string | null;
-  strategy_schema_version?: string | null;
-  run_schema_version?: string | null;
-  deterministic_seed?: string | null;
-  requested_by?: string | null;
-  trigger_type?: string | null;
-  correlation_request_id?: string | null;
-  backtest_metrics?: BacktestMetricSetDTO | null;
-  paper_pnl_gbp: number | null; cumulative_pnl_gbp: number | null; hit: boolean | null;
-  weighted_score: number | null;
-  day_ahead_average_gbp_mwh?: number | null;
-  intraday_average_gbp_mwh?: number | null;
-  intraday_vs_day_ahead_spread_gbp_mwh?: number | null;
-  candidate_action_for_review?: string | null;
-  allocation_targets: StrategyAllocationTargetDTO[];
-  missing_inputs: string[]; warnings: string[]; source_refs: string[];
-  research_only: boolean; human_review_required: boolean;
-}
-
-export interface StrategySummaryDTO {
-  strategy_id: string | null; run_mode: string | null; run_count: number;
-  total_paper_pnl_gbp: number; cumulative_pnl_gbp: number; hit_rate: number;
-  max_drawdown_gbp: number; first_started_at_utc: string | null;
-  last_started_at_utc: string | null; latest_status: string | null;
-}
-
-export type StrategyVisibility = "PRIVATE" | "PUBLIC" | "GROUPS";
-
-export interface StrategyDTO {
-  owner_principal_id?: string | null; visibility?: StrategyVisibility;
-  shared_group_ids?: string[]; can_manage?: boolean;
-  strategy_id: string; name: string; description: string;
-  lifecycle_status: string; current_version_id: string | null;
-  created_by: string; created_at_utc: string; updated_at_utc: string;
-  retired_at_utc: string | null; tags: string[]; research_only: boolean;
-}
-
-export interface StrategyVersionDTO {
-  strategy_version_id: string; strategy_id: string; version_number: number;
-  schema_version: string; status: string; hypothesis: string;
-  definition_json: Record<string, unknown>; parent_version_id: string | null;
-  created_by: string; created_at_utc: string; frozen_at_utc: string | null;
-  content_hash: string; research_only: boolean;
-}
-
-export interface BacktestMetricSetDTO {
-  evaluation_count: number;
-  candidate_decision_count: number;
-  blocked_decision_count: number;
-  skipped_decision_count: number;
-  data_coverage: number;
-  gross_indicative_pnl_gbp: number;
-  modeled_costs_gbp: number;
-  net_indicative_pnl_gbp: number;
-  max_drawdown_gbp: number;
-  peak_timestamp_utc?: string | null;
-  trough_timestamp_utc?: string | null;
-  recovery_timestamp_utc?: string | null;
-  pnl_volatility_gbp?: number | null;
-  worst_event_pnl_gbp?: number | null;
-  best_event_pnl_gbp?: number | null;
-  max_exposure_mwh_per_day: number;
-  average_exposure_mwh_per_day: number;
-  hit_ratio?: number | null;
-  turnover?: number | null;
-  average_margin_gbp_mwh?: number | null;
-  average_modeled_cost_gbp_mwh?: number | null;
-  sharpe_ratio?: number | null;
-  sortino_ratio?: number | null;
-  risk_metric_not_applicable_reasons?: string[];
-  warning_counts?: Record<string, number>;
-  temporal_integrity?: string;
-  /** Honest evidence diagnostics; never presented as fresh observed coverage. */
-  distinct_admitted_price_refs?: number;
-  events_reusing_admitted_price_refs?: number;
-  events_with_simulated_evidence?: number;
-}
-
 export interface CapacityContractDTO {
   contract_id: string; route_name: string; from_node_id: string; to_node_id: string;
   capacity_boe_d: number; unit: string; start_utc: string; end_utc: string; status: string;
@@ -3848,7 +3685,7 @@ export interface GlossaryContextDTO {
  * One `/analysis/query` or `/reports/portfolio` request.
  *
  * No selection or filter field is declared here. The analysis pipeline reads no term,
- * asset, contract, strategy, section or portfolio selection, and the platform refuses a
+ * asset, contract, section or portfolio selection, and the platform refuses a
  * non-empty one (`422 analysis_selection_not_supported`) rather than returning a run over
  * the whole entitled snapshot as if it had been narrowed. Evidence references belong in
  * `question`, which is the prompt the platform records and the provider receives.
@@ -6021,20 +5858,6 @@ export interface CapabilityDTO {
   entitlement_policy: string;
 }
 
-export interface AgentRunDTO {
-  agent_run_id: string;
-  principal_id: string;
-  user_objective: string;
-  agent_profile: string;
-  model_provider: string;
-  model_id: string;
-  status: string;
-  current_stage: string;
-  artifacts_created: string[];
-  created_at: string;
-  completed_at: string | null;
-}
-
 /**
  * One Analysis Snapshot descriptor (Architecture V2 Wave 4).
  *
@@ -6050,64 +5873,6 @@ export interface AnalysisSnapshotDTO {
   time_basis?: string;
   created_at_utc?: string;
   created_by?: string;
-}
-
-/** Frozen run inputs one persisted agent run was produced from. */
-export interface AgentFixtureDTO {
-  fixture_id: string;
-  fixture_kind: string;
-  evidence_refs: string[];
-  tool_invocation_ids: string[];
-  deterministic_model: { model_provider: string; model_id: string };
-}
-
-/** Deterministic replay identity of one artifact or chain. */
-export interface AgentReplayIdentityDTO {
-  replay_id: string;
-  content_hash: string;
-  deterministic: boolean;
-}
-
-/** Which persisted artifacts, invocations and sources produced an artifact. */
-export interface AgentArtifactLineageDTO {
-  upstream_artifact_ids: string[];
-  producing_invocation_ids: string[];
-  source_families: string[];
-  series_ids: string[];
-  snapshot_ids: string[];
-  source_references: string[];
-  evidence_dependencies: string[];
-}
-
-/** Entitlement state observed while producing an artifact (fails closed). */
-export interface AgentArtifactRightsDTO {
-  entitlement_state: string;
-  entitlement_states: string[];
-  principal_id: string;
-  evaluated_invocation_ids: string[];
-  policy_boundary: string;
-}
-
-export interface AgentArtifactTimestampsDTO {
-  created_at: string | null;
-  run_started_at: string | null;
-  run_completed_at: string | null;
-}
-
-interface AgentArtifactEnvelopeBaseDTO {
-  operation_id: string;
-  stage: string;
-  present: boolean;
-  artifact_id: string | null;
-  artifact_ids: string[];
-  agent_run_id: string;
-  fixture: AgentFixtureDTO;
-  replay_identity: AgentReplayIdentityDTO;
-  lineage: AgentArtifactLineageDTO;
-  rights: AgentArtifactRightsDTO;
-  timestamps: AgentArtifactTimestampsDTO;
-  /** Persisted null: no reasoning text is stored or returned for any artifact. */
-  hidden_chain_of_thought: null;
 }
 
 /** Query parameters with the unset ones left out, as strings. */
@@ -6333,13 +6098,6 @@ export const api = {
       materialize: true,
       background: true,
     }),
-
-  /**
-   * Start a governed research run as a background job (202 with the QUEUED job); the run to
-   * open is the job's `agent_run:` output once it succeeded.
-   */
-  startResearchRun: (body: ResearchRunStartDTO) =>
-    post<JobDTO>("/agent/research", { ...body, background: true }),
 
   recordReviewDecision: (body: ReviewDecisionInputDTO) =>
     post<ReviewDecisionDTO>("/review/decisions", body),
@@ -6595,31 +6353,6 @@ export const api = {
 
   optimizeResourcePool: (body: PortfolioOptimizationRequestDTO, options?: ApiRequestOptions) =>
     post<PortfolioOptimizationResultDTO>("/route-cost/resource-pool/optimize", body, options),
-
-  evaluateStrategyLab: (body: StrategyLabRequestDTO) =>
-    post<StrategyLabResultDTO>("/strategy-lab/evaluate", body),
-
-  strategyRuns: (params?: { strategy_id?: string; run_mode?: string; limit?: number }) =>
-    get<StrategyRunDTO[]>("/strategy-lab/runs", {
-      ...(params?.strategy_id ? { strategy_id: params.strategy_id } : {}),
-      ...(params?.run_mode ? { run_mode: params.run_mode } : {}),
-      ...(params?.limit ? { limit: String(params.limit) } : {}),
-    }),
-
-  strategyRun: (runId: string) =>
-    get<StrategyRunDTO>(`/strategy-lab/runs/${encodeURIComponent(runId)}`),
-
-  strategySummary: (params?: { strategy_id?: string; run_mode?: string }) =>
-    get<StrategySummaryDTO>("/strategy-lab/summary", {
-      ...(params?.strategy_id ? { strategy_id: params.strategy_id } : {}),
-      ...(params?.run_mode ? { run_mode: params.run_mode } : {}),
-    }),
-
-  strategy: (strategyId: string) =>
-    get<StrategyDTO>(`/strategies/${encodeURIComponent(strategyId)}`),
-
-  strategyVersion: (versionId: string) =>
-    get<StrategyVersionDTO>(`/strategy-versions/${encodeURIComponent(versionId)}`),
 
   capacityContracts: () => get<CapacityContractDTO[]>("/contracts/capacity"),
 
@@ -7009,17 +6742,6 @@ export const api = {
     ),
   spreadsEvaluate: (spec: StrategySpecDTO, options?: ApiRequestOptions) =>
     post<EvaluationDTO>("/research/spreads/evaluate", { spec }, options),
-  /** Tracked strategies (paper shadow run): the caller's own. */
-  strategyTracks: (options?: ApiRequestOptions) =>
-    get<StrategyTrackDTO[]>("/research/strategy-tracks", undefined, options),
-  strategyTrack: (trackId: string, options?: ApiRequestOptions) =>
-    get<StrategyTrackDTO>(`/research/strategy-tracks/${encodeURIComponent(trackId)}`, undefined, options),
-  createStrategyTrack: (
-    body: { name: string; mode: "daily" | "intraday"; spec: StrategySpecDTO; rule?: Record<string, unknown> | null },
-    options?: ApiRequestOptions,
-  ) => post<StrategyTrackDTO>("/research/strategy-tracks", body, options),
-  stopStrategyTrack: (trackId: string, options?: ApiRequestOptions) =>
-    post<StrategyTrackDTO>(`/research/strategy-tracks/${encodeURIComponent(trackId)}/stop`, {}, options),
   /** Prices → Prompt: live WD/DA for one hub and today's post-trade performance. */
   promptMarket: (hub: string, options?: ApiRequestOptions) =>
     get<PromptMarketDTO>("/market/prompt", { hub }, options),
@@ -8617,10 +8339,6 @@ export interface RuntimeReleaseDTO {
   database_schema_revision: string;
   minimum_supported_client: string;
   minimum_supported_server: string;
-  backtest_engine_version: string;
-  legacy_backtest_engine_version: string;
-  strategy_schema_version: string;
-  strategy_run_schema_version: string;
   solver_version: string;
   /** Installation region and its default basemap (open licence globally, none in China). */
   deployment?: { region: string; map_default_provider: string };

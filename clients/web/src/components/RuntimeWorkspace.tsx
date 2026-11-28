@@ -182,7 +182,6 @@ export function RuntimeWorkspace({
       ? [
           [t("runtime.dep.database"), runtimeDependencies.database],
           [t("runtime.dep.dataops"), runtimeDependencies.schedulers?.dataops],
-          [t("runtime.dep.shadow"), runtimeDependencies.schedulers?.shadow],
           [t("runtime.dep.oidc"), runtimeDependencies.oidc],
           [t("runtime.dep.streaming"), runtimeDependencies.streaming],
         ]

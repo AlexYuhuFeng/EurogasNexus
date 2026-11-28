@@ -85,14 +85,13 @@ whether data has been loaded.
 ## How the SDK is organised
 
 - One module per area: `market`, `physical`, `storage`, `lng`, `desk`, `portfolio`,
-  `research`, `route_cost`, `optimization`, `strategy_lab`, `reference_network` and others.
-  The [reference](../../docs/sdk/REFERENCE.md) lists all 33 modules and 150 functions.
+  `research`, `route_cost`, `optimization`, `reference_network` and others.
+  The [reference](../../docs/sdk/REFERENCE.md) lists all 31 modules and 120 functions.
 - Functions, not a client class. Import the function from its module and pass `base_url`.
 - Read functions are named `fetch_*` or `list_*`; server-side calculations are named
   `compute_*`, `calculate_*`, `analyse_*` or `optimize_*`. A few functions record something
-  on the server (`record_review_decision`, `acknowledge_monitoring_alert`, the
-  `strategy_registry` create and update functions); the reference marks them as `POST`,
-  `PUT` or `PATCH`.
+  on the server (`record_review_decision`, `acknowledge_monitoring_alert`); the
+  reference marks them as `POST`, `PUT` or `PATCH`.
 - Many read functions come in two forms. `fetch_market_quotes_result()` returns an
   `SdkResult` with `.data` and `.meta`; `fetch_market_quotes()` returns only the data. Use the
   `_result` form whenever provenance matters: `meta.source_references`, `meta.warnings`,

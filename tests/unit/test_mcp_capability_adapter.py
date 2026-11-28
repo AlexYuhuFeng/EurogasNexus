@@ -46,8 +46,6 @@ def test_mcp_lists_registry_capability_tools() -> None:
         "resolve_entity",
         "compute_hub_spread",
         "calculate_route_economics",
-        "validate_strategy_ir",
-        "run_strategy_backtest",
     ]:
         assert expected in names
 

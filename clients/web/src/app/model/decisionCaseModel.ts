@@ -23,8 +23,6 @@ export const DECISION_EVIDENCE_KINDS: DecisionCaseEvidenceInputDTO["kind"][] = [
   "SCENARIO",
   "OPTIMIZATION",
   "ROUTE_RECOMMENDATION",
-  "BACKTEST",
-  "STRATEGY_RUN",
   "RESEARCH_DATASET",
   "AGENT_RUN",
   "AI_ANALYSIS",
@@ -114,14 +112,12 @@ export function suggestedEvidenceRef(
   kind: DecisionCaseEvidenceInputDTO["kind"],
   context: {
     routeId?: string | null;
-    strategyRunId?: string | null;
     snapshotId?: string | null;
     /** The last governed AI analysis run this identity completed, if any. */
     analysisId?: string | null;
   },
 ): string {
   if (kind === "ROUTE_RECOMMENDATION" && context.routeId) return context.routeId;
-  if (kind === "STRATEGY_RUN" && context.strategyRunId) return context.strategyRunId;
   // The Decision Case chain cites AI findings and challenges, so the run the user just
   // completed is offered by reference instead of asking them to copy an identifier.
   if (kind === "AI_ANALYSIS" && context.analysisId) return context.analysisId;

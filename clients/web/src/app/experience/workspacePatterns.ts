@@ -35,7 +35,7 @@ import type { InspectorSubjectKind, PanelKind, WorkspacePattern } from "./vocabu
  * `consolidated` - the primary workspace renders one h1 plus its own task row
  * inside its workspace component (market, portfolio, decision).
  * `local-tabs` - the shell renders the primary eyebrow, the page h1 and the
- * sibling page tabs (strategy, system).
+ * sibling page tabs (research, system).
  *
  * This is the current composition seam recorded in
  * `docs/engineering/Architecture-V2/W0-01_CLIENT_INVENTORY.md` section 2.5; the
@@ -118,7 +118,7 @@ export const workspaceCompositions: readonly WorkspaceComposition[] = [
     pattern: "REVIEW",
     headerMode: "consolidated",
     rationale: "Evidence, challenge and human review of a result or research artifact.",
-    inspectorSubjects: ["decision-evidence", "strategy-run"],
+    inspectorSubjects: ["decision-evidence"],
     panels: ["evidence", "decision-history", "warnings", "ai-explanation"],
   },
   {
@@ -211,7 +211,7 @@ export function headerModeForPage(page: WorkspacePageId): WorkspaceHeaderMode {
  * One page, one `<h1>`. On a `consolidated` page the workspace owns it, so its header renders
  * level 1; on a `local-tabs` page the *shell* renders the page `<h1>` and the workspace's header
  * is a section under it, so it renders level 2. Deciding this here keeps the registry the single
- * owner of the composition rule: three surfaces (strategy, research, agents) were given a header
+ * owner of the composition rule: three research surfaces were given a header
  * of their own by Wave 9 while their pages stayed `local-tabs`, and each rendered a second `<h1>`
  * beside the shell's until the browser sweep measured it.
  */
@@ -231,7 +231,7 @@ export function inspectorSubjectsForPage(page: WorkspacePageId): readonly Inspec
 /**
  * Pattern of a *task* inside a primary workspace, where the task vocabulary is
  * already URL-addressable. Task ids are the ones the live resolvers return
- * (`marketCockpitModel`, `commercialWorkflowModel`, `strategyLabModel`).
+ * (`marketCockpitModel`, `commercialWorkflowModel`).
  */
 export const taskPatterns: Readonly<Record<PrimaryWorkspaceId, Readonly<Record<string, WorkspacePattern>>>> = {
   market: {
@@ -247,10 +247,10 @@ export const taskPatterns: Readonly<Record<PrimaryWorkspaceId, Readonly<Record<s
     exposure: "ANALYSE",
   },
   strategy: {
-    design: "CONFIGURE",
-    backtest: "ANALYSE",
-    compare: "COMPARE",
-    shadow: "MONITOR",
+    spreads: "ANALYSE",
+    fundamentals: "MONITOR",
+    cargo: "ANALYSE",
+    reports: "REVIEW",
   },
   decision: {
     scenario: "CONFIGURE",

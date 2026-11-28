@@ -11,7 +11,6 @@ from eurogas_nexus.db.base import Base
 from eurogas_nexus.db.models import (
     PortfolioPnlSnapshotRecord,
     ScreenOrderObservationRecord,
-    StrategyRecord,
 )
 from eurogas_nexus.db.repositories.identity import (
     create_identity_api_key,
@@ -52,16 +51,6 @@ def test_portfolio_live_summary_uses_runtime_db_when_configured(tmp_path, monkey
         # (security review H1) the owner's book needs a key that carries its scopes.
         _, bearer = create_identity_api_key(
             session, owner.principal_id, display_name="portfolio-tests", scopes=["*"]
-        )
-        session.add(
-            StrategyRecord(
-                strategy_id="sap-icis-ocm",
-                name="Portfolio strategy",
-                owner_principal_id=owner.principal_id,
-                visibility="PRIVATE",
-                created_at_utc=now,
-                updated_at_utc=now,
-            )
         )
         session.add(
             ScreenOrderObservationRecord(

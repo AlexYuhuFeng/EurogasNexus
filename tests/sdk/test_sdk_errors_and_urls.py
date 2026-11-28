@@ -5,7 +5,6 @@ from __future__ import annotations
 import httpx
 import pytest
 from eurogas_nexus_sdk import NexusAPIError, _http
-from eurogas_nexus_sdk.shadow_runtime import ShadowRuntimeStatusDTO
 
 
 def _respond(monkeypatch, status: int, body, seen: list[str] | None = None):
@@ -65,9 +64,3 @@ def test_a_base_url_may_end_with_a_slash(monkeypatch):
     assert seen == ["http://nexus.local:8000/api/market/quotes?next=a//b"]
 
 
-def test_runtime_status_reads_an_offline_scheduler():
-    status = ShadowRuntimeStatusDTO(
-        scheduler="offline", active_monitors=0, pending_evaluations=0,
-        failed_evaluations_24h=None, duplicate_claims_prevented=0,
-    )
-    assert status.failed_evaluations_24h is None

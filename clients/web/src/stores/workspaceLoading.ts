@@ -178,9 +178,6 @@ export function resetIdentityScopedCaches<T>(monitoringSummary: T) {
     // sign-out and be read as the next identity's.
     poolOptimizeAction: IDLE_DECISION_ACTION_STATE,
     routeCompareAction: IDLE_DECISION_ACTION_STATE,
-    strategyResult: null,
-    strategyRuns: [],
-    strategySummary: null,
     reviewDecisions: [],
     reviewMessage: null,
     // The day board's clock is identity-scoped like every other read: the windows one

@@ -323,8 +323,6 @@ function AuthenticatedShell({ controller }: AuthenticatedShellProps) {
     context: {
       routeId: selection.routeId,
       resourceId: selection.resourceId,
-      strategyVersionId: selection.strategyVersionId,
-      strategyRunId: selection.strategyRunId,
     },
     capabilities: composition.effectiveCapabilities,
     activeContextComplete: Boolean(composition.available),

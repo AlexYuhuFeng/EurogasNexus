@@ -9,7 +9,6 @@ export type PermissionArea =
   | "account"
   | "market"
   | "portfolio"
-  | "strategy"
   | "decisions"
   | "research"
   | "sources"
@@ -20,7 +19,6 @@ export const PERMISSION_AREAS: readonly PermissionArea[] = [
   "account",
   "market",
   "portfolio",
-  "strategy",
   "decisions",
   "research",
   "sources",
@@ -35,12 +33,6 @@ export const PERMISSION_VOCABULARY: Readonly<Record<string, { area: PermissionAr
   "portfolio.read": { area: "portfolio", action: "view" },
   "portfolio.write": { area: "portfolio", action: "edit_contracts" },
   "gas_day.record": { area: "portfolio", action: "record_gas_day" },
-  "strategy.read": { area: "strategy", action: "view" },
-  "strategy.create": { area: "strategy", action: "create" },
-  "strategy.edit": { area: "strategy", action: "edit" },
-  "strategy.freeze": { area: "strategy", action: "freeze" },
-  "strategy.retire": { area: "strategy", action: "retire" },
-  "strategy.shadow.manage": { area: "strategy", action: "shadow" },
   "scenario.create": { area: "decisions", action: "prepare_scenarios" },
   "optimization.run": { area: "decisions", action: "run_optimisation" },
   "review.read": { area: "decisions", action: "view_reviews" },

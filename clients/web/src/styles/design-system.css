@@ -1531,13 +1531,11 @@
   .ds-tabs-line,
   .source-view-tabs,
   .runtime-view-tabs,
-  .strategy-view-tabs,
   .access-view-tabs,
   .agents-task-tabs,
   .commercial-task-tabs,
   .market-cockpit-tabs,
-  .research-task-tabs,
-  .strategy-lab-task-tabs {
+  .research-task-tabs {
     display: flex;
     align-items: flex-end;
     gap: var(--ds-space-1);
@@ -1556,13 +1554,11 @@
   .ds-tabs-line [role="tab"],
   .source-view-tabs button,
   .runtime-view-tabs button,
-  .strategy-view-tabs button,
   .access-view-tabs button,
   .agents-task-tabs button,
   .commercial-task-tabs button,
   .market-cockpit-tabs button,
-  .research-task-tabs button,
-  .strategy-lab-task-tabs button {
+  .research-task-tabs button {
     flex: 0 0 auto;
     min-width: 0;
     height: var(--ds-control-sm);
@@ -1580,8 +1576,7 @@
   }
 
   .source-view-tabs button::after,
-  .runtime-view-tabs button::after,
-  .strategy-view-tabs button::after {
+  .runtime-view-tabs button::after {
     content: none;
   }
 
@@ -1590,13 +1585,11 @@
   .ds-tabs-line [role="tab"]:hover,
   .source-view-tabs button:hover,
   .runtime-view-tabs button:hover,
-  .strategy-view-tabs button:hover,
   .access-view-tabs button:hover,
   .agents-task-tabs button:hover,
   .commercial-task-tabs button:hover,
   .market-cockpit-tabs button:hover,
-  .research-task-tabs button:hover,
-  .strategy-lab-task-tabs button:hover {
+  .research-task-tabs button:hover {
     background: transparent;
     color: var(--ds-text-1);
   }
@@ -1606,13 +1599,11 @@
   .ds-tabs-line [role="tab"].active,
   .source-view-tabs button.active,
   .runtime-view-tabs button.active,
-  .strategy-view-tabs button.active,
   .access-view-tabs button.active,
   .agents-task-tabs button.active,
   .commercial-task-tabs button.active,
   .market-cockpit-tabs button.active,
   .research-task-tabs button.active,
-  .strategy-lab-task-tabs button.active,
   .workspace-page-header-actions [role="tab"].active {
     background: transparent;
     color: var(--ds-text-1);

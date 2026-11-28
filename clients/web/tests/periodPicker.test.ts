@@ -51,13 +51,8 @@ test("values keep the native strings and the text follows the app's language", (
 
 test("no screen uses a native date, month or date-time input", () => {
   const SRC = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../src");
-  // Pages due to be deleted (COMMERCIAL_PRODUCT_DESIGN_2) and the reports editor (its own worker)
-  // are listed; the list may only shrink.
-  const ALLOWED = new Set([
-    "components/strategy/StrategyBacktestWorkspace.tsx",
-    "components/strategy/StrategyDesignWorkspace.tsx",
-    "components/strategy/SpreadLabWorkspace.tsx",
-  ]);
+  // No screen is allowed a native date input; the allow-list may only shrink.
+  const ALLOWED = new Set<string>();
   const files = (dir: string): string[] =>
     readdirSync(dir).flatMap((name) => {
       const full = path.join(dir, name);

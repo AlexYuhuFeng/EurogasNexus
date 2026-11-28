@@ -35,7 +35,6 @@ SRC = ROOT / "src" / "eurogas_nexus"
 FORMER_HEURISTIC_SITES = (
     "application/projections/daily_closes.py",
     "application/storage_nomination_composition.py",
-    "db/repositories/backtest.py",
     "domain/market_intelligence/normalized_view.py",
     "domain/route_cost/portfolio_network.py",
     "application/contract_intake.py",

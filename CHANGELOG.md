@@ -20,6 +20,16 @@ version lives under [docs/release/notes](docs/release/notes).
   as dataset-builder features. See
   [docs/data/GAS_OPTION_SETTLEMENTS.md](docs/data/GAS_OPTION_SETTLEMENTS.md).
 
+### Removed
+
+- The strategy laboratory: the strategy registry, its decision-time "backtest", strategy
+  tracks and the scheduled shadow runtime, with their API routes, screens, scripts and stored
+  tables. Profit is fixed at decision time, so the "backtest" proved no outcome; the spread
+  laboratory, research datasets and the research bench (`/api/research/backtest` and
+  `/api/research/shadow-run`) remain. Export stored runs before upgrading: migration
+  `0099_remove_strategy_laboratory` drops the tables; its downgrade refuses, so going back
+  means restoring the backup.
+
 ## [1.0.0-beta] - 2026-11-20
 
 ### About this release

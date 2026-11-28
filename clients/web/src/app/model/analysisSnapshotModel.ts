@@ -34,9 +34,6 @@ export const SNAPSHOT_CONTEXT_KEYS = [
   "hub",
   "route_id",
   "resource_id",
-  "strategy_id",
-  "strategy_version_id",
-  "strategy_run_id",
   "portfolio_id",
 ] as const;
 

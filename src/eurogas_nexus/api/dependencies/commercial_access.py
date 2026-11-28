@@ -4,7 +4,7 @@
 
     Platform Admin can manage SSO, users/groups, runtime, provider secret
     metadata and system settings **without automatically seeing** contract
-    prices, strategy parameters, commercial PnL or restricted datasets.
+    prices, commercial PnL or restricted datasets.
 
 The route-permission registry gates by *role rank*, and ADMIN has the highest
 rank, so rank alone cannot express "administration is not commercial access".

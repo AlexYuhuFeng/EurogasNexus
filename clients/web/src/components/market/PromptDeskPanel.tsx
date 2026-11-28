@@ -12,7 +12,7 @@ import { useTranslation } from "react-i18next";
 
 import "@/styles/promptDesk.css";
 import { api } from "@/api/client";
-import type { PromptMarketDTO, PromptQuoteDTO } from "@/api/strategyTracks";
+import type { PromptMarketDTO, PromptQuoteDTO } from "@/api/promptMarket";
 import { EmptyState, Instant, LiveValue, Segmented, Skeleton } from "@/components/ui";
 import { formatMeasure } from "@/app/time/valueFormat";
 import { liveStatus } from "@/app/data/liveStream";
@@ -173,9 +173,6 @@ export function PromptDeskPanel({ hub: initialHub }: { hub: string }) {
                 </tbody>
               </table>
             </div>
-          )}
-          {(data.performance.missed_signals?.length ?? 0) > 0 && (
-            <p className="prompt-note" data-prompt-missed>{t("prompt.missed", { count: data.performance.missed_signals?.length ?? 0 })}</p>
           )}
         </>
       )}

@@ -66,8 +66,8 @@ The guidance that produced the clutter was amended: see "Trader-first presentati
 rules" in `UX_REFERENCE.md` and the landing change in
 `PRODUCT_INFORMATION_ARCHITECTURE.md`.
 
-Not yet done (next UI slices): the Strategy Lab design form is a single long page
-of research fields and should become a stepwise builder. The ENTSOG native-capacity
+The Strategy Lab design form was removed with the strategy laboratory (owner, November
+2026), so it is no longer a UI slice. The ENTSOG native-capacity
 query still asks for raw point ids and ISO timestamps; it should pick a point from
 the operating board. The resource pool is GBP-denominated throughout API/SDK, so a
 EUR reporting currency needs an ADR-backed contract migration.

@@ -18,7 +18,7 @@ def test_fetch_review_decisions_lists_rows(monkeypatch) -> None:
                 "data": [
                     {
                         "decision_id": "d1",
-                        "entity_type": "strategy_run",
+                        "entity_type": "agent_review_pack",
                         "entity_id": "run-1",
                         "actor": "operator",
                         "decision": "accepted",
@@ -50,7 +50,7 @@ def test_record_review_decision_posts_and_returns_row(monkeypatch) -> None:
             json={
                 "data": {
                     "decision_id": "d2",
-                    "entity_type": "strategy_run",
+                    "entity_type": "agent_review_pack",
                     "entity_id": "run-2",
                     "actor": "ops-user",
                     "decision": "rejected",
@@ -67,7 +67,7 @@ def test_record_review_decision_posts_and_returns_row(monkeypatch) -> None:
     result = record_review_decision(
         "http://example.test",
         ReviewDecisionInput(
-            entity_type="strategy_run",
+            entity_type="agent_review_pack",
             entity_id="run-2",
             actor="ops-user",
             decision="rejected",

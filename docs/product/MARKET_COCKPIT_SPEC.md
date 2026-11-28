@@ -11,7 +11,7 @@ Professional users open Market to answer: what is happening at TTF/NBP/ZTP;
 which spreads moved; is the move price, physical or both; what capacity/
 outages matter; which routes are economically interesting; how is my portfolio
 affected; what is the source/freshness of every value; and where can I hand
-this context to Scenario/Strategy/Review.
+this context to Scenario/Review.
 
 ## 2. Existing problems (audit)
 
@@ -158,7 +158,6 @@ does not clear it.
 ## 18. Handoffs
 
 - `Open in Scenario` sets route/resource selection and navigates.
-- `Inspect in Strategy Lab` sets hub context and navigates.
 - `Open in Portfolio` navigates to Resource Terms with resource context.
 - Review continues to receive existing run/resource ids; Market does not
   introduce an “approve trade” action.

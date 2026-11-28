@@ -22,7 +22,7 @@ licensed payloads, or full financial content.
 
 ## Verification
 
-Create/change an identity, freeze a strategy, change a credential, or run a
+Create/change an identity, capture a deal, change a credential, or run a
 backfill and verify the matching `action`, `permission`, `correlation_id`, and
 before/after summary appear.
 

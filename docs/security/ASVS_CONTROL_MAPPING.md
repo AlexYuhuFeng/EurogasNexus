@@ -40,7 +40,7 @@ NOT_APPLICABLE. A status is never claimed merely because a test exists.
 | Centralized RBAC permission expansion | IMPLEMENTED | `security/authorization.py` |
 | Coarse route permission registry for every public path | IMPLEMENTED | `security/permissions.py` + tests |
 | Data scopes separate from roles | IMPLEMENTED | `identity_principals.data_scopes`; CR-09 filters |
-| Derived-result entitlement enforcement | IMPLEMENTED | CR-09 route/strategy/shadow/report filters |
+| Derived-result entitlement enforcement | IMPLEMENTED | CR-09 route/report filters |
 | Unknown role/permission/scope fail closed | IMPLEMENTED | authorization and entitlement tests |
 | Object-level ownership model | NOT_APPLICABLE | research objects are organization-visible by design |
 
@@ -67,7 +67,7 @@ NOT_APPLICABLE. A status is never claimed merely because a test exists.
 | Control area | Status | Evidence |
 |---|---|---|
 | Structured audit events, append-only APIs | IMPLEMENTED | `audit_events`, no mutation endpoints |
-| Login/identity/strategy/dataops/decision audit hooks | IMPLEMENTED | CR-10 + CR-09 hooks |
+| Login/identity/dataops/decision audit hooks | IMPLEMENTED | CR-10 + CR-09 hooks |
 | Secret/token/payload redaction | IMPLEMENTED | audit/minimization policy and tests |
 | Raw provider/LLM payload never audited | IMPLEMENTED | existing policy |
 

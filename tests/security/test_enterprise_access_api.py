@@ -76,8 +76,8 @@ def test_role_permission_matrix_is_least_privilege(tmp_path, monkeypatch) -> Non
     operator = principal_for(operator_id, "OPERATOR")
     admin = principal_for(admin_id, "ADMIN")
 
-    assert authorize(viewer, Permission.STRATEGY_CREATE).allowed is False
-    assert authorize(analyst, Permission.STRATEGY_CREATE).allowed is True
+    assert authorize(viewer, Permission.PORTFOLIO_WRITE).allowed is False
+    assert authorize(analyst, Permission.PORTFOLIO_WRITE).allowed is True
     assert authorize(analyst, Permission.IDENTITY_MANAGE).allowed is False
     assert authorize(reviewer, Permission.REVIEW_RECORD).allowed is True
     assert authorize(reviewer, Permission.SOURCE_BACKFILL).allowed is False

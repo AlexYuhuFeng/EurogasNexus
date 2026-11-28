@@ -26,6 +26,10 @@ from eurogas_nexus.domain.market_intelligence.normalized_view import (
     build_normalized_market_view,
     normalize_observation,
 )
+from eurogas_nexus.domain.market_intelligence.price_series import (
+    exact_source_price_decimal,
+    source_price_for_series,
+)
 from eurogas_nexus.domain.market_intelligence.source_price import (
     FLOAT_PROVENANCE_EXACT,
     FLOAT_PROVENANCE_INVALID,
@@ -37,10 +41,6 @@ from eurogas_nexus.domain.market_intelligence.source_price import (
     STATUS_LEGACY_FLOAT,
     STATUS_MISSING,
     resolve_source_price,
-)
-from eurogas_nexus.domain.strategy_lab.price_series import (
-    exact_source_price_decimal,
-    source_price_for_series,
 )
 from eurogas_nexus.ingestion.eex_ngp import (
     EexNgpGasDayCalendarContract,

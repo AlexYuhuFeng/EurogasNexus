@@ -38,10 +38,6 @@ class ActionKind(StrEnum):
     COMPUTE_CASH_FLOW = "compute_cash_flow"
     ENFORCE_ENTITLEMENT = "enforce_entitlement"
     AUDIT_ACTION = "audit_action"
-    BACKTEST = "backtest"
-    SHADOW_RUN = "shadow_run"
-    LIVE_MONITOR = "live_monitor"
-    REVIEW_STRATEGY_OUTPUT = "review_strategy_output"
 
 
 class ForbiddenAction(StrEnum):
@@ -77,8 +73,6 @@ ACTION_KIND_CATEGORIES: dict[ActionKind, ActionKindCategory] = {
     ActionKind.MONITOR_IMBALANCE: ActionKindCategory.ANALYTICAL,
     ActionKind.RECONCILE_PNL: ActionKindCategory.ANALYTICAL,
     ActionKind.COMPUTE_CASH_FLOW: ActionKindCategory.ANALYTICAL,
-    ActionKind.BACKTEST: ActionKindCategory.ANALYTICAL,
-    ActionKind.LIVE_MONITOR: ActionKindCategory.ANALYTICAL,
     # Decision candidate: outputs that require human review before use.
     ActionKind.CAPTURE_RESOURCE_TERM: ActionKindCategory.DECISION_CANDIDATE,
     ActionKind.REVIEW_RESOURCE_ASSUMPTION: ActionKindCategory.DECISION_CANDIDATE,
@@ -86,8 +80,6 @@ ACTION_KIND_CATEGORIES: dict[ActionKind, ActionKindCategory] = {
     ActionKind.TRANSFER_BETWEEN_ZONES: ActionKindCategory.DECISION_CANDIDATE,
     ActionKind.ALLOCATE_CAPACITY: ActionKindCategory.DECISION_CANDIDATE,
     ActionKind.VALIDATE_ACCESS: ActionKindCategory.DECISION_CANDIDATE,
-    ActionKind.SHADOW_RUN: ActionKindCategory.DECISION_CANDIDATE,
-    ActionKind.REVIEW_STRATEGY_OUTPUT: ActionKindCategory.DECISION_CANDIDATE,
 }
 
 FORBIDDEN_ACTION_CATEGORY = ActionKindCategory.EXTERNAL_ACTION

@@ -72,18 +72,6 @@ def post_review_decision(body: ReviewDecisionRequest, request: Request) -> dict:
                     session, body.entity_type.value, body.entity_id, _principal_id(request)
                 ):
                     raise ApiError(404, "review_target_not_found", "Review target not found")
-                if body.entity_type == ReviewEntityType.STRATEGY_RUN:
-                    from eurogas_nexus.db.models import StrategyRunRecord
-                    from eurogas_nexus.db.repositories.strategy_access import (
-                        require_strategy_access,
-                    )
-
-                    run = session.get(StrategyRunRecord, body.entity_id)
-                    if run is None:
-                        raise ApiError(404, "strategy_run_not_found", "Strategy run not found")
-                    require_strategy_access(
-                        session, run.strategy_id, _principal_id(request), write=True
-                    )
                 data = record_review_decision(
                     session,
                     entity_type=body.entity_type.value,
@@ -129,7 +117,6 @@ def get_review_decisions(
                     entity_type=entity_type,
                     entity_id=entity_id,
                     limit=limit,
-                    visible_strategy_ids=_visible_ids(session, request),
                     principal_id=_principal_id(request),
                 )
         except _sqlalchemy_error_type():
@@ -140,12 +127,6 @@ def get_review_decisions(
 
 def _principal_id(request: Request) -> str | None:
     return getattr(getattr(request.state, "identity", None), "principal_id", None)
-
-
-def _visible_ids(session, request: Request) -> set[str]:
-    from eurogas_nexus.db.repositories.strategy_access import visible_strategy_ids
-
-    return visible_strategy_ids(session, _principal_id(request))
 
 
 def _db_is_configured() -> bool:

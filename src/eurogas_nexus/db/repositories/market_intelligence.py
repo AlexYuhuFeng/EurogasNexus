@@ -30,14 +30,14 @@ from eurogas_nexus.domain.market_intelligence.opportunity_engine import (
     RouteEconomics,
     evaluate_route_opportunity,
 )
+from eurogas_nexus.domain.market_intelligence.price_series import (
+    canonical_price_name,
+    evidence_tenor_from_product,
+)
 from eurogas_nexus.domain.route_cost.route_cost_service import calculate_route_cost
 from eurogas_nexus.domain.route_cost.schemas import RouteCostScenario, RouteTariffLeg
 from eurogas_nexus.domain.route_cost.tariff_selection import (
     TARIFF_APPLICABILITY_NOT_ASSESSED,
-)
-from eurogas_nexus.domain.strategy_lab.price_series import (
-    canonical_price_name,
-    evidence_tenor_from_product,
 )
 
 

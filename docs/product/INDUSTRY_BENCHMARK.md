@@ -82,21 +82,19 @@ re-open sources before future UI work depends on a specific claim.
 1. One coherent workstation, not one page per backend capability.
 2. Persistent global trader context: portfolio, gas day, tenor, hub, currency,
    unit, as-of time, freshness, source entitlement.
-3. Selection propagation, not free-floating windows: selecting a hub, route,
-   contract, or strategy run updates bounded contextual panels.
+3. Selection propagation, not free-floating windows: selecting a hub, route or
+   contract updates bounded contextual panels.
 4. Market/Network is a single analytical cockpit with synchronized views.
-5. Strategy Lab is a full research lifecycle: definition -> backtest ->
-   compare -> shadow run -> review, with human review only and no execution
-   semantics.
-6. Every run is reproducible and inspectable: strategy version, engine/git SHA,
-   dataset snapshot, data cutoff, parameters, assumptions, seed, provenance,
-   warnings, status, timestamps, operator.
-7. Backtests are scientifically defensible: as-of joins, look-ahead fail-closed,
-   explicit frictions, OOS/walk-forward, sensitivity, comparison, overfitting
-   disclosure.
-8. Shadow runs behave like production monitoring without execution: scheduled,
-   restartable, pause/resume/retire, BLOCKED/DEGRADED when data is stale, and
-   never generate normal-looking candidates from insufficient data.
+5. Research is a study of history, not a signal: spread and benchmark analysis
+   with declared rules, human review only and no execution semantics.
+6. Every calculation is reproducible and inspectable: data snapshot, cutoff,
+   parameters, assumptions, engine version, provenance, warnings, status,
+   timestamps, operator.
+7. Research backtests are scientifically defensible: as-of joins, look-ahead
+   fail-closed, explicit frictions, OOS/walk-forward, sensitivity, comparison,
+   overfitting disclosure.
+8. Research datasets carry point-in-time availability and leakage checks, so a
+   result cannot read a revision before it was received.
 9. Numerical truth is deterministic and API/domain-owned; LLM output is an
    auditable analysis layer that cites evidence and never invents data.
 10. Institutional visual language: dense, restrained, data-first, precise 8px
@@ -106,18 +104,6 @@ re-open sources before future UI work depends on a specific claim.
     queued/running/completed/failed/cancelled lifecycle with progress.
 12. Security and release claims require external evidence; no code signing,
     security acceptance, or live-provider certification is claimed without it.
-
-## CR-05 Strategy Lab research notes
-
-Focused professional-workstation review (Trayport Joule public materials,
-institutional portfolio/risk analytics patterns, strategy experiment tracking
-literature, 2026-09 retrieval) found one recurring discipline: the researcher
-always has a persistent experiment identity, a narrow version/run navigator, a
-single primary evidence surface, and a provenance/assumptions rail. Results are
-presented as identity -> KPIs -> series -> drawdown/exposure -> attribution ->
-event detail, and comparison is matrix-first with explicit compatibility
-caveats. These reinforce the local Design/Backtest/Compare/Shadow workflow and
-the rule that higher PnL must not be visually presented as superior.
 
 ## CR-07 Market cockpit research notes
 

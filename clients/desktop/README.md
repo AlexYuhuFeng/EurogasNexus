@@ -110,5 +110,5 @@ PostgreSQL.
 ## Runtime
 
 The desktop shell loads the Web workspace and relies on Web/API configuration.
-It stores no vendor credentials, no DB URL, no market data, and no strategy
+It stores no vendor credentials, no DB URL, no market data, and no commercial
 parameters.

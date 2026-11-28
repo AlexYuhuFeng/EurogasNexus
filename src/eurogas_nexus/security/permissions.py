@@ -123,9 +123,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     # (api/dependencies/ai_authority.py, finding C8).
     ("/api/monitoring/alerts/{alert_id}/analysis", Permission.GOVERNED),
     # Acknowledging an alert changes governed state and records who accepted it, so it
-    # carries the explicit governed-write permission of the shadow acknowledgement below,
-    # declared before the READ ``/api/monitoring/`` family: reads stay READ, the write is
-    # ANALYST-floor and remains inside the commercial-data boundary.
+    # carries an explicit governed-write permission, declared before the READ
+    # ``/api/monitoring/`` family: reads stay READ, the write is ANALYST-floor and remains
+    # inside the commercial-data boundary.
     ("/api/monitoring/alerts/{alert_id}/acknowledge", Permission.GOVERNED),
     ("/api/analysis/ontology", Permission.READ),
     # "Why?" on one object: a read of evidence the caller may already see. The model is
@@ -257,36 +257,6 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/fundamentals/forward-balance", Permission.READ),
     ("/api/stream/", Permission.READ),
     ("/api/weather/", Permission.READ),
-    ("/api/strategy-lab/runs", Permission.READ),
-    ("/api/strategy-lab/runs/{run_id}", Permission.READ),
-    ("/api/strategy-lab/summary", Permission.READ),
-    ("/api/strategy-runs/{run_id}", Permission.READ),
-    ("/api/strategy-runs/{run_id}/events", Permission.READ),
-    ("/api/strategy-runs/{run_id}/series", Permission.READ),
-    ("/api/strategy-runs/{run_id}/attribution", Permission.READ),
-    ("/api/strategy-runs", Permission.GOVERNED),
-    ("/api/backtest-experiments/{experiment_id}", Permission.READ),
-    ("/api/backtest-experiments", Permission.GOVERNED),
-    ("/api/shadow-monitors/{monitor_id}", Permission.READ),
-    ("/api/shadow-monitors/{monitor_id}/evaluations", Permission.READ),
-    ("/api/shadow-monitors/{monitor_id}/drift", Permission.READ),
-    ("/api/shadow-monitors/{monitor_id}/pause", Permission.GOVERNED),
-    ("/api/shadow-monitors/{monitor_id}/resume", Permission.GOVERNED),
-    ("/api/shadow-monitors/{monitor_id}/retire", Permission.GOVERNED),
-    ("/api/shadow-monitors", Permission.GOVERNED),
-    ("/api/shadow-evaluations/{evaluation_id}", Permission.READ),
-    ("/api/shadow-alerts/{alert_id}/acknowledge", Permission.GOVERNED),
-    ("/api/shadow-alerts", Permission.READ),
-    ("/api/shadow-runtime/status", Permission.READ),
-    ("/api/strategies/{strategy_id}", Permission.READ),
-    ("/api/strategies/{strategy_id}/metadata", Permission.GOVERNED),
-    ("/api/strategies/{strategy_id}/sharing", Permission.GOVERNED),
-    ("/api/strategies/{strategy_id}/versions", Permission.GOVERNED),
-    ("/api/strategies", Permission.GOVERNED),
-    ("/api/strategy-versions/{version_id}", Permission.READ),
-    ("/api/strategy-versions/{version_id}/draft", Permission.GOVERNED),
-    ("/api/strategy-versions/{version_id}/freeze", Permission.GOVERNED),
-    ("/api/strategy-versions/{version_id}/fork", Permission.GOVERNED),
     ("/api/optimization/runs/{run_id}", Permission.READ),
     # The declared nomination-window masters are the desk's clock: which windows exist and when
     # they close. Running a nomination assessment stays GOVERNED (it composes market material and
@@ -413,7 +383,6 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/capabilities/search", Permission.READ),
     ("/api/capabilities/{capability_id}", Permission.READ),
     ("/api/capabilities/{capability_id}/invoke", Permission.GOVERNED),
-    ("/api/agent/profiles", Permission.READ),
     # --- internal operator profile (mounted only when ``include_internal``) ---
     # Owner decision D1 installs the permission gate in every profile, which is the first time
     # these paths were ever checked: the gate that reads this table simply was not installed in
@@ -432,7 +401,6 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/internal/audit/events", Permission.OPERATOR),
     ("/api/internal/audit/prune", Permission.OPERATOR),
     ("/api/internal/portfolio/import-observations", Permission.OPERATOR),
-    ("/api/internal/shadow-scheduler/tick", Permission.OPERATOR),
     ("/api/internal/sources/certification", Permission.OPERATOR),
     # A licensed feed adapter (or the demo exchange simulator) delivering quotes and trade
     # prints: a data-operations act (source.run is held in the handler as well).
@@ -444,12 +412,6 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/settings/notification-channels", Permission.ADMIN),
     ("/api/settings/notification-channels/{channel_id}", Permission.ADMIN),
     ("/api/settings/notification-channels/{channel_id}/test", Permission.ADMIN),
-    ("/api/agent/plans/validate", Permission.GOVERNED),
-    ("/api/agent/research", Permission.GOVERNED),
-    ("/api/agent/runs", Permission.READ),
-    ("/api/agent/runs/{agent_run_id}", Permission.READ),
-    ("/api/agent/runs/{agent_run_id}/replay", Permission.READ),
-    ("/api/agent/strategy-ir/validate", Permission.GOVERNED),
     # --- research-data catalog is read-only; build/export are governed ---
     ("/api/research/capabilities", Permission.READ),
     ("/api/research/features", Permission.READ),
@@ -465,7 +427,6 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/optimization/", Permission.GOVERNED),
     ("/api/research/", Permission.GOVERNED),
     ("/api/route-cost/", Permission.GOVERNED),
-    ("/api/strategy-lab/evaluate", Permission.GOVERNED),
 )
 
 # A small number of paths expose both read and governed methods. Keep the
@@ -474,9 +435,6 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
 METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("PATCH", "/api/functional-models/{model_id}", Permission.REVIEW),
     ("POST", "/api/market/nwe-balance", Permission.GOVERNED),
-    ("GET", "/api/strategies", Permission.READ),
-    ("GET", "/api/strategies/{strategy_id}/versions", Permission.READ),
-    ("GET", "/api/strategy-runs", Permission.READ),
     ("POST", "/api/research/datasets", Permission.GOVERNED),
     ("POST", "/api/analysis-snapshots", Permission.GOVERNED),
     ("POST", "/api/decision-cases", Permission.GOVERNED),
@@ -547,8 +505,6 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     ("POST", "/api/research/spread-analysis", Permission.GOVERNED),
     ("POST", "/api/research/spreads/evaluate", Permission.GOVERNED),
     ("POST", "/api/research/spreads/interpret", Permission.GOVERNED),
-    ("POST", "/api/research/strategy-tracks", Permission.GOVERNED),
-    ("POST", "/api/research/strategy-tracks/{track_id}/stop", Permission.GOVERNED),
     ("POST", "/api/route-cost/calculate", Permission.GOVERNED),
     ("POST", "/api/route-cost/lng-regas/assess", Permission.GOVERNED),
     ("POST", "/api/route-cost/recommend", Permission.GOVERNED),
@@ -621,18 +577,8 @@ COMMERCIAL_DATA_PREFIXES: tuple[str, ...] = (
     "/api/route-cost/",
     "/api/analysis/",
     "/api/reports/",
-    "/api/backtest-experiments/",
-    "/api/strategies/",
-    "/api/strategy-lab/",
-    "/api/strategy-runs/",
-    "/api/strategy-versions/",
-    "/api/shadow-alerts/",
-    "/api/shadow-monitors/",
-    "/api/shadow-evaluations/",
-    "/api/shadow-runtime/",
     "/api/review/",
     "/api/research/",
-    "/api/agent/",
     "/api/assumption-sets/",
     "/api/opportunities/",
     "/api/discoveries/",

@@ -45,32 +45,6 @@
       ]
     },
     {
-      "id": "AI-STRATEGY-004",
-      "task": "DB_INQUIRY",
-      "question": "Explain strategy version",
-      "expected_facts": [
-        "1 strategy run records"
-      ],
-      "forbidden": [
-        "buy",
-        "sell"
-      ],
-      "expected_warning": "LLM_PROVIDER_NOT_INVOKED"
-    },
-    {
-      "id": "AI-SHADOW-005",
-      "task": "DB_INQUIRY",
-      "question": "Why is the shadow evaluation blocked?",
-      "expected_facts": [
-        "Use the cited source snapshots"
-      ],
-      "forbidden": [
-        "filled the gap",
-        "guarantee"
-      ],
-      "expected_warning": "LLM_PROVIDER_NOT_INVOKED"
-    },
-    {
       "id": "AI-SCENARIO-006",
       "task": "PORTFOLIO_REPORT",
       "question": "Compare base vs stressed scenario",

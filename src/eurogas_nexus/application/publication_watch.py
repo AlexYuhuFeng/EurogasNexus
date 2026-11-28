@@ -541,8 +541,8 @@ def calendar_items(session, *, now: datetime, days: int = 60,
                 items.append({"key": f"check:{venue.code}:{venue.check_by.isoformat()}",
                               "kind": "check_calendar", "at": _iso(at),
                               "day": venue.check_by.isoformat(),
-                              "title": (f"Check {venue.title} holidays against the publisher's "
-                                        "page"),
+                              "title": (f"{venue.title}: compare the holidays with the "
+                                        "publisher's page"),
                               "hubs": hubs, "venue": venue.code, "overdue": at < now,
                               "source": source})
     rows = {row.publication_id: row for row in session.query(WatchedPublicationRecord).all()}

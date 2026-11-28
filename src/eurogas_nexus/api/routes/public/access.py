@@ -113,11 +113,11 @@ def _group_payload(row) -> dict:
 
 @router.get("/api/me/groups")
 def own_groups(request: Request) -> dict:
-    from eurogas_nexus.db.models.strategy_access import (
+    from eurogas_nexus.db.models.identity_groups import (
         IdentityGroupMemberRecord,
         IdentityGroupRecord,
     )
-    from eurogas_nexus.db.repositories.strategy_access import require_named_principal
+    from eurogas_nexus.db.repositories.identity_access import require_named_principal
 
     principal = getattr(request.state, "identity", None)
     _require_db()
@@ -276,7 +276,7 @@ def revoke_own_api_key(key_id: str, request: Request) -> dict:
 
 @router.get("/api/access/groups")
 def list_groups(request: Request) -> dict:
-    from eurogas_nexus.db.models.strategy_access import IdentityGroupRecord
+    from eurogas_nexus.db.models.identity_groups import IdentityGroupRecord
 
     _require_admin(request, Permission.IDENTITY_READ)
     _require_db()
@@ -297,7 +297,7 @@ def list_groups(request: Request) -> dict:
 def create_group(body: GroupCreateRequest, request: Request) -> dict:
     from sqlalchemy.exc import IntegrityError
 
-    from eurogas_nexus.db.models.strategy_access import IdentityGroupRecord
+    from eurogas_nexus.db.models.identity_groups import IdentityGroupRecord
 
     admin = _require_admin(request, Permission.IDENTITY_MANAGE)
     _require_db()
@@ -324,7 +324,7 @@ def create_group(body: GroupCreateRequest, request: Request) -> dict:
 def update_group(group_id: str, body: GroupUpdateRequest, request: Request) -> dict:
     from sqlalchemy.exc import IntegrityError
 
-    from eurogas_nexus.db.models.strategy_access import IdentityGroupRecord
+    from eurogas_nexus.db.models.identity_groups import IdentityGroupRecord
 
     admin = _require_admin(request, Permission.IDENTITY_MANAGE)
     _require_db()
@@ -364,7 +364,7 @@ def remove_group_member(group_id: str, principal_id: str, request: Request) -> d
 
 def _change_group_member(group_id: str, principal_id: str, request: Request, *, add: bool) -> dict:
     from eurogas_nexus.db.models import IdentityPrincipalRecord
-    from eurogas_nexus.db.models.strategy_access import (
+    from eurogas_nexus.db.models.identity_groups import (
         IdentityGroupMemberRecord,
         IdentityGroupRecord,
     )
@@ -378,8 +378,8 @@ def _change_group_member(group_id: str, principal_id: str, request: Request, *, 
         if session.get(IdentityPrincipalRecord, principal_id) is None:
             raise HTTPException(status_code=404, detail={"error": "user_not_found"})
         row = session.get(IdentityGroupMemberRecord, (group_id, principal_id))
-        # Membership grants read access to private commercial strategies. Like
-        # role/scope grants, an administrator cannot grant this to themselves.
+        # Membership is an access grant. Like role/scope grants, an administrator
+        # cannot grant it to themselves.
         if add and row is None and principal_id == admin.principal_id:
             _audit_admin(
                 session,

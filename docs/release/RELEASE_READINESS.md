@@ -39,7 +39,9 @@ by a CLI flag.
 
 - Golden workflows A/B/E exercised in a real browser against PostgreSQL 16
   UAT fixture (`eurogas_nexus_uat`): Market → Scenario, Portfolio → Optimize →
-  Review, and Strategy create/freeze/backtest all complete.
+  Review, and Strategy create/freeze/backtest all complete. (The strategy
+  laboratory workflow was removed with the feature on 2026-11-27; it is no
+  longer part of the product.)
 - P0 found and fixed during UAT: PostgreSQL FK ordering failed for backtest
   attribution rows; regression test now proves events are flushed before
   attribution.
@@ -61,7 +63,13 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **346 paths / 383 operations**
+- OpenAPI public surface: **312 paths / 343 operations**
+
+  (2026-11-28: the watched publications, `GET /api/publications/calendar`,
+  `GET /api/publications/sources` (READ) and `POST /api/publications/sources/{publication_id}/confirm` (ADMIN, audited); 309 / 340 before.)
+
+  (2026-11-27: the strategy laboratory's routes - registry, decision-time backtest, tracks and
+  shadow runtime - were removed with the feature: 34 paths / 40 operations; 343 / 380 before.)
 
   (2026-11-27: `POST /api/desk/deals/position-kind` (WRITE, `portfolio.write` in the handler,
   audited: a captured deal counted as physical or financial by hand); 342 / 379 before.)

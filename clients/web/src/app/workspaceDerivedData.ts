@@ -117,14 +117,12 @@ export function latestOfficialFlows<T extends FlowLike>(flows: T[], sourceSystem
 export function buildReviewWarnings(
   resourcePoolResult: WarningCarrier | null | undefined,
   routeRecommendation: WarningCarrier | null | undefined,
-  strategyResult: WarningCarrier | null | undefined,
   analysisResult: WarningCarrier | null | undefined,
   meta: WarningCarrier | null | undefined,
 ): string[] {
   return [
     ...(resourcePoolResult?.warnings ?? []),
     ...(routeRecommendation?.warnings ?? []),
-    ...(strategyResult?.warnings ?? []),
     ...(analysisResult?.warnings ?? []),
     ...(meta?.warnings ?? []),
   ];

@@ -208,7 +208,7 @@ What the numbers show:
   every stream opens and stays open (143 of 150, 7 breaks, against 49 and 101 before).
 * **The main reads are bound by computation, not by serving.** Every user starts cold, and
   seven of the desk's heavy reads are computed per person (they depend on the person's
-  strategy-shared trades, mandates or saved hubs), at 2 to 5 s of CPU each even on an idle
+  book-shared trades, mandates or saved hubs), at 2 to 5 s of CPU each even on an idle
   process (the reference row's p95); 50 people opening three pages at once ask for roughly
   1,500 CPU-seconds before the first answer is warm. Four shared cores cannot give that in two
   minutes, whatever the serving, and 4 processes answer three times as many main reads as

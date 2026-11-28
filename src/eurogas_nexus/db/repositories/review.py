@@ -8,7 +8,7 @@ from uuid import uuid4
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
-from eurogas_nexus.db.models import ReviewDecisionRecord, StrategyRunRecord
+from eurogas_nexus.db.models import ReviewDecisionRecord
 from eurogas_nexus.db.repositories.audit import record_audit_event
 from eurogas_nexus.domain.identity.principal import normalize_principal
 from eurogas_nexus.domain.ontology.vocabulary import coerce_review_entity_type
@@ -79,22 +79,11 @@ def list_review_decisions(
     entity_type: str | None = None,
     entity_id: str | None = None,
     limit: int = 100,
-    visible_strategy_ids: set[str] | None = None,
     principal_id: str | None = None,
 ) -> list[dict]:
     """List review decisions, newest first."""
 
     query = session.query(ReviewDecisionRecord).filter(review_visibility_clause(principal_id))
-    if visible_strategy_ids is not None:
-        allowed_runs = select(StrategyRunRecord.run_id).where(
-            StrategyRunRecord.strategy_id.in_(visible_strategy_ids)
-        )
-        query = query.filter(
-            or_(
-                ReviewDecisionRecord.entity_type != "strategy_run",
-                ReviewDecisionRecord.entity_id.in_(allowed_runs),
-            )
-        )
     if entity_type:
         query = query.filter(ReviewDecisionRecord.entity_type == entity_type)
     if entity_id:
@@ -142,12 +131,8 @@ def review_visibility_clause(principal_id: str | None):
         AgentReviewPackRecord,
         AgentRunRecord,
         GeneratedReportRecord,
-        StrategyRecord,
     )
-    from eurogas_nexus.db.repositories.strategy_access import visible_strategy_clause
 
-    strategies = select(StrategyRecord.strategy_id).where(visible_strategy_clause(principal_id))
-    runs = select(StrategyRunRecord.run_id).where(StrategyRunRecord.strategy_id.in_(strategies))
     reports = (
         select(GeneratedReportRecord.report_id).where(
             GeneratedReportRecord.input_snapshot["owner_principal_id"].as_string() == principal_id
@@ -165,10 +150,6 @@ def review_visibility_clause(principal_id: str | None):
     return or_(
         ReviewDecisionRecord.entity_type == "intraday_opportunity",
         and_(
-            ReviewDecisionRecord.entity_type == "strategy_run",
-            ReviewDecisionRecord.entity_id.in_(runs),
-        ),
-        and_(
             ReviewDecisionRecord.entity_type == "generated_report",
             ReviewDecisionRecord.entity_id.in_(reports),
         ),
@@ -184,11 +165,7 @@ def can_read_review_target(
 ) -> bool:
     """Resolve the same access boundary for explicit targets without review rows."""
     from eurogas_nexus.db.models import AgentReviewPackRecord, AgentRunRecord, GeneratedReportRecord
-    from eurogas_nexus.db.repositories.strategy_access import can_read_strategy
 
-    if entity_type == "strategy_run":
-        row = session.get(StrategyRunRecord, entity_id)
-        return row is not None and can_read_strategy(session, row.strategy_id, principal_id)
     if entity_type == "generated_report":
         row = session.get(GeneratedReportRecord, entity_id)
         return bool(

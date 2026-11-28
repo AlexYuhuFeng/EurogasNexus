@@ -170,11 +170,11 @@ JOB_RERUN_CONTRACTS: tuple[JobRerunContract, ...] = (
     JobRerunContract(
         kind=JobKind.BACKTEST,
         rerun_possible=True,
-        input_owner="strategy run (scenario, frozen version, period)",
-        new_run_path="/api/strategy-runs",
+        input_owner="functional run (model, kind and inputs)",
+        new_run_path="/api/functional-runs",
         reason=(
-            "A backtest is reproducible from its frozen version and period; the engine version is "
-            "recorded too, so a re-run on a newer engine is a different measurement and says so."
+            "A model validation or shadow evaluation is reproducible from the functional run's "
+            "declared model and inputs; a second run is a new measurement and says so."
         ),
     ),
     JobRerunContract(
@@ -189,12 +189,13 @@ JOB_RERUN_CONTRACTS: tuple[JobRerunContract, ...] = (
     ),
     JobRerunContract(
         kind=JobKind.AGENT_RUN,
-        rerun_possible=True,
-        input_owner="agent run row (objective, profile, period, frozen version)",
-        new_run_path="/api/agent/research",
+        rerun_possible=False,
+        input_owner="",
+        new_run_path="",
         reason=(
-            "A research run can be repeated from its recorded objective and profile. Its findings "
-            "are evidence of that run, so a repeat adds a run rather than replacing the chain."
+            "The governed research pipeline (plan, strategy draft, decision-time backtest) was "
+            "removed with the strategy laboratory; a historical run is evidence and is not "
+            "re-issued."
         ),
     ),
     JobRerunContract(

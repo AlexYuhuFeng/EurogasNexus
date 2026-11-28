@@ -85,7 +85,7 @@ and reverts to it; a common factor moves the hubs together and each hub's own pa
 so a locational spread stays inside the demo market's arbitrage band (net of the simulated
 route cost) except where a case is planted. It writes as `DEMO_Sim` through the same tick
 ingestion a licensed feed adapter uses (`application/market_ticks`: validation, the source
-family's entitlement, the inputs-changed hook that evaluates tracked strategies), one batch at
+family's entitlement), one batch at
 most every half second, so the live stream's `prices` notice fires for every poll that saw a
 new tick and the Prices board, Today (DA, front month, spreads, marks and the day's P&L), the
 position ladder, the spread board and the prompt desk re-read (each at most every 0.5-5
@@ -169,7 +169,7 @@ password:
 | `tester` | ADMIN, ANALYST, OPERATOR, REVIEWER | all | everything |
 | `demo.trader` | ANALYST | Trader (NBP book) | desk, deals, own mandate |
 | `demo.nl.trader` | ANALYST | Trader (TTF book) | desk, deals, own mandate |
-| `demo.analyst` | ANALYST | HQ business analyst, quant researcher | research, strategy |
+| `demo.analyst` | ANALYST | HQ business analyst, quant researcher | research |
 | `demo.risk` | REVIEWER | Risk manager | limits, review; can change credit lines |
 | `demo.manager` | REVIEWER | Management, reviewer | overview, review |
 | `demo.finance` | VIEWER | Finance and settlement | read-only book views |

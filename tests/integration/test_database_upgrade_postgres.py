@@ -86,8 +86,7 @@ def test_fresh_store_needs_no_backup_and_is_audited(scratch_url) -> None:
 def test_pending_upgrade_refuses_without_a_recent_backup(scratch_url) -> None:
     from eurogas_nexus.application.database_upgrade import record_backup
 
-    assert _upgrade(scratch_url, operator="Ops Tester")[0] == 0
-    _alembic(scratch_url, "0092_lng_berth_rules")
+    _alembic(scratch_url, "0092_lng_berth_rules", direction="upgrade")
     code, lines = _upgrade(scratch_url, operator="Ops Tester")
     assert code == 2
     assert any(line.startswith("REFUSED: no backup recorded") for line in lines)
@@ -119,8 +118,7 @@ def test_pending_upgrade_refuses_without_a_recent_backup(scratch_url) -> None:
 
 
 def test_override_is_recorded(scratch_url) -> None:
-    assert _upgrade(scratch_url, operator="Ops Tester")[0] == 0
-    _alembic(scratch_url, "0093_timescale_optional")
+    _alembic(scratch_url, "0093_timescale_optional", direction="upgrade")
     code, lines = _upgrade(
         scratch_url, operator="Ops Tester", override_reason="storage snapshot taken by DBA"
     )
@@ -140,8 +138,7 @@ def test_override_is_recorded(scratch_url) -> None:
 def test_lock_timeout_fails_the_upgrade_instead_of_queueing(scratch_url) -> None:
     """A reader holding a lock: the ALTER gives up after lock_timeout, nothing is half-done."""
 
-    assert _upgrade(scratch_url, operator="Ops Tester")[0] == 0
-    _alembic(scratch_url, "0089_alert_reader_state")
+    _alembic(scratch_url, "0089_alert_reader_state", direction="upgrade")
     holder = create_engine(scratch_url, future=True)
     connection = holder.connect()
     transaction = connection.begin()
@@ -204,8 +201,7 @@ def test_first_upgrade_from_before_the_audit_chain_seals_its_audit_rows(
 
     from eurogas_nexus.db.audit_chain import verify_chain
 
-    assert _upgrade(scratch_url, operator="Ops Tester")[0] == 0
-    _alembic(scratch_url, "0094_option_settlements")
+    _alembic(scratch_url, "0094_option_settlements", direction="upgrade")
     engine = create_engine(scratch_url, future=True)
     with engine.connect() as connection:
         tables = set(
@@ -258,7 +254,7 @@ def test_downgrade_undoes_reversible_revisions_and_is_audited(scratch_url) -> No
 
     from eurogas_nexus.application.database_upgrade import record_backup
 
-    assert _upgrade(scratch_url, operator="Ops Tester")[0] == 0
+    _alembic(scratch_url, "0098_deal_position_source", direction="upgrade")
     code, lines = _downgrade(scratch_url, "0093_timescale_optional", operator="Undo")
     assert code == 2 and any("REFUSED: no backup recorded" in line for line in lines)
 
@@ -289,8 +285,7 @@ def test_downgrade_refuses_to_cross_an_irreversible_revision(scratch_url) -> Non
     )
     assert code == 2
     refusal = next(line for line in lines if line.startswith("REFUSED"))
-    assert "0042_national_gas_actual_demand" in refusal
-    assert "0040_strategy_owner_sharing" in refusal
+    assert "0099_remove_strategy_laboratory" in refusal
     assert "restoring the pre-update backup" in refusal
     engine = create_engine(scratch_url, future=True)
     with engine.connect() as connection:

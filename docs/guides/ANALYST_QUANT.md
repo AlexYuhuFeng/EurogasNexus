@@ -7,7 +7,7 @@ data, version and assumptions.
 
 ## Explore a spread
 
-1. Open **Research → Strategies → Spread**.
+1. Open **Research → Spreads**.
 2. Select the series and weights. Check each leg's hub, tenor, source, unit and available history.
 3. Put legs on a common currency and energy basis before combining them.
 4. Inspect the spread history and statistics over the chosen period.
@@ -15,19 +15,7 @@ data, version and assumptions.
 
 **Check the result:** the input series and periods explain the observations used.
 A short or missing series can change the sample; resolve that difference before comparing runs.
-See the [Spread workflow](../user/STRATEGY_LAB.md).
-
-## Develop a saved strategy
-
-1. In **Design**, create or select the strategy and complete its draft inputs.
-2. Resolve validation blockers, then freeze the version to retain the specification.
-3. In **Backtest**, choose the period and evaluation policies and start the run.
-4. Inspect returns, drawdown, attribution, warnings and data coverage.
-5. In **Compare**, select compatible saved runs and review the compatibility assessment.
-6. Use **Shadow** to evaluate a frozen version against its stated baseline and incoming data.
-
-**Check the result:** the strategy version and run identifiers are recorded with the input
-period and costs. Create a new draft when changing a frozen specification.
+See the [trader manual's Research section](../user/manual/TRADER.md).
 
 ## Build a research dataset
 
@@ -56,6 +44,6 @@ from UI labels.
 
 ## Share the work
 
-Attach the saved run or snapshot reference, your business question, assumptions and
+Attach the saved analysis or snapshot reference, your business question, assumptions and
 material sensitivities to the decision case or desk research record. Confirm the
 permitted recipients and export use for the underlying data.

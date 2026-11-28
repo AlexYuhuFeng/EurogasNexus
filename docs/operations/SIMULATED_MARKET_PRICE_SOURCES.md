@@ -21,7 +21,7 @@ This is intentionally different from static demo data:
 - rows include tenor and timing metadata such as `within-day`, `day-ahead`,
   `weekend`, `month-ahead`, and `daily_assessment`;
 - `/api/market/observations`, `/api/market/normalized`, `/api/market/quotes`,
-  `/api/sources`, resource-pool pricing, the Market terminal, and Strategy
+  `/api/sources`, resource-pool pricing, the Market terminal, and research
   inputs use the same PostgreSQL ingestion workflow and linked source metadata;
   observations and L1 quotes remain distinct persisted projections;
 - the bounded normalized market view keeps the latest rows per simulated gas
@@ -29,8 +29,8 @@ This is intentionally different from static demo data:
   higher-frequency EEX, Trayport, and ICE OCM ticks.
 
 The simulator must not be used as a substitute for licensed commercial data in
-production decisions. It is for validating ingestion, UI behavior, strategy
-shadow runs, source health, and operational performance before subscriptions are
+production decisions. It is for validating ingestion, UI behavior, spread
+research, source health, and operational performance before subscriptions are
 connected.
 
 ## Running The Simulator Worker
@@ -78,7 +78,7 @@ simulated adapter -> PostgreSQL quotes -> backend scan -> PostgreSQL opportuniti
 The Market terminal must keep simulated rows visibly labeled and must show
 tenor, timing, and cadence metadata so traders can distinguish within-day OCM
 marks, day-ahead assessments, weekend rows, and month-ahead curve marks before
-using them in strategy shadow runs or resource-pool decisions.
+using them in spread research or resource-pool decisions.
 
 Override cadences when a faster local test is useful:
 
@@ -109,7 +109,7 @@ Each due tick writes:
 
 Each tick also writes succeeded `ingestion_runs` records so the Source Center can
 show live-record counts, latest run status, and worker freshness. The Network,
-Market, and Strategy workspaces poll quotes and persisted opportunities every 10
+Market and Research workspaces poll quotes and persisted opportunities every 10
 seconds. When a snapshot passes its validity time without a replacement, the API
 returns it as `EXPIRED`; the client does not keep presenting a stale actionable
 candidate.
@@ -130,7 +130,7 @@ The Source Center must display both facts at the same time: the native licensed
 connector is not connected, while the workflow is operational through a simulated
 source. Native `connectivity_status` therefore remains distinct from
 `operational_status=active_simulated`. Route costing, resource-pool optimization,
-strategy shadow runs, PnL marking, and market terminal screens all continue against
+spread research, PnL marking, and market terminal screens all continue against
 the same DB-backed canonical records before subscriptions are available.
 
 ## Provider Substitution Contract
