@@ -47,6 +47,19 @@ export interface DealRowDTO {
   change_reason: string | null;
   superseded_at_utc?: string | null;
   entered_by?: string;
+  /** How the deal counts in the position on the blotter's day, and why. */
+  position_kind?: DealPositionKindDTO | null;
+}
+
+/** Physical or financial in the position: a choice by hand, the deal's flag, or the rule file. */
+export interface DealPositionKindDTO {
+  kind: "physical" | "financial";
+  rule_kind: "physical" | "financial" | "financial_until_delivery";
+  basis: "entered_by_hand" | "stated_on_deal" | "rule" | "default";
+  /** The rule's name, or who chose it by hand. */
+  rule: string | null;
+  entered_at_utc?: string | null;
+  note?: string | null;
 }
 
 export interface DealProblemDTO {

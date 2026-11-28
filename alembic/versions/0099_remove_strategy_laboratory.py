@@ -24,8 +24,8 @@ import sqlalchemy as sa  # noqa: F401  (kept for the migration template's import
 
 from alembic import op
 
-revision = "0098_remove_strategy_laboratory"
-down_revision = "0097_deal_capture"
+revision = "0099_remove_strategy_laboratory"
+down_revision = "0098_deal_position_source"
 branch_labels = None
 depends_on = None
 # Reversibility, printed by the gated upgrade (scripts/ops/upgrade_database.py).

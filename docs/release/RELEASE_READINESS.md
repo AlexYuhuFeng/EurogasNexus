@@ -63,10 +63,13 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **308 paths / 339 operations**
+- OpenAPI public surface: **309 paths / 340 operations**
 
   (2026-11-27: the strategy laboratory's routes - registry, decision-time backtest, tracks and
-  shadow runtime - were removed with the feature: 34 paths / 40 operations; 342 / 379 before.)
+  shadow runtime - were removed with the feature: 34 paths / 40 operations; 343 / 380 before.)
+
+  (2026-11-27: `POST /api/desk/deals/position-kind` (WRITE, `portfolio.write` in the handler,
+  audited: a captured deal counted as physical or financial by hand); 342 / 379 before.)
 
   (2026-11-27: deal capture, 13 paths and 14 operations under `/api/desk/deals` (reads READ,
   writes WRITE with `portfolio.write` in the handler); 329 / 365 before.)

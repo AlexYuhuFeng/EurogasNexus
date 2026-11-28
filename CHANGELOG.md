@@ -27,7 +27,7 @@ version lives under [docs/release/notes](docs/release/notes).
   tables. Profit is fixed at decision time, so the "backtest" proved no outcome; the spread
   laboratory, research datasets and the research bench (`/api/research/backtest` and
   `/api/research/shadow-run`) remain. Export stored runs before upgrading: migration
-  `0098_remove_strategy_laboratory` drops the tables; its downgrade refuses, so going back
+  `0099_remove_strategy_laboratory` drops the tables; its downgrade refuses, so going back
   means restoring the backup.
 
 ## [1.0.0-beta] - 2026-11-20

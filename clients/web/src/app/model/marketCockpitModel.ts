@@ -1,7 +1,11 @@
-export type MarketTask = "overview" | "curves" | "network" | "cargoes";
+export type MarketTask = "board" | "overview" | "curves" | "network" | "cargoes";
 
-/** `cargoes`: the LNG cargo board and each cargo's plan (QA-L-05). */
-export const MARKET_TASKS: MarketTask[] = ["overview", "curves", "network", "cargoes"];
+/**
+ * `cargoes`: the LNG cargo board and each cargo's plan (QA-L-05). `board`: the small desk's one
+ * screen beside the trading screen (SMALL_DESK_PLAN step 4): its five hubs' prices, spreads,
+ * book and fundamentals.
+ */
+export const MARKET_TASKS: MarketTask[] = ["board", "overview", "curves", "network", "cargoes"];
 
 /**
  * Task names that no longer have a page of their own and the task that now shows them. The

@@ -1,0 +1,60 @@
+# How a captured deal counts in the position: physical, financial, or financial until delivery.
+#
+# Maintained by hand. The desk's traders confirm or change this rule; it is a domain decision,
+# not a calculation. A desk copy of this file (same file name) in the folder named by
+# EUROGAS_NEXUS_DEAL_FORMATS_DIR replaces this one; no code change, no rebuild.
+#
+# How a deal is classified, in order:
+#   1. a choice a person made for that deal on the blotter (recorded as entered by hand);
+#   2. the deal says it is physical (the export's physical column, or typed by hand);
+#   3. the first [[rule]] below whose conditions all hold;
+#   4. `default`.
+#
+# Conditions a rule may state (all must hold; a condition left out always holds):
+#   venue       = ["EEX", "ICE"]        the deal's venue (upper case)
+#   instrument  = ["future", "spot"]    future | forward | spot | swap | option
+#   cleared     = true | false          cleared through an exchange, or bilateral
+#   prompt      = true | false          delivers within `prompt_gas_days` gas days in total
+#                                       (within-day, day-ahead, weekend, a balance of week)
+#
+# Kinds:
+#   physical                  delivered gas at the hub
+#   financial                 a price position with no delivery
+#   financial_until_delivery  financial while the contract trades; physical from its first
+#                             delivery gas day (an exchange future that goes to delivery at
+#                             the hub after it expires, as EEX and ICE Endex gas futures and
+#                             ICE NBP futures do)
+
+default = "financial"
+prompt_gas_days = 3
+
+[[rule]]
+name = "Options are financial"
+instrument = ["option"]
+kind = "financial"
+
+[[rule]]
+name = "Swaps are financial"
+instrument = ["swap"]
+kind = "financial"
+
+[[rule]]
+name = "Exchange spot products deliver at the hub"
+instrument = ["spot"]
+kind = "physical"
+
+[[rule]]
+name = "Prompt products deliver at the hub"
+prompt = true
+kind = "physical"
+
+[[rule]]
+name = "Exchange futures are financial until they go to delivery"
+instrument = ["future"]
+kind = "financial_until_delivery"
+
+[[rule]]
+name = "Bilateral and broker forwards are title transfer at the hub"
+instrument = ["forward"]
+cleared = false
+kind = "physical"

@@ -222,6 +222,9 @@ _DEALS = ImportContract(
         _c("trade_time", False, "When the deal was struck, ISO 8601 (default: delivery start)"),
         _c("status", False, "CANCELLED, CANCELED, DELETED or VOID removes the deal"),
         _c("counterparty", False, "Counterparty short name as the ETRM carries it"),
+        _c("exchange_reference", False, "The exchange's trade id, where the ETRM carries it "
+           "(or the column the deal-capture layout names): how a captured deal and this "
+           "trade are recognised as one deal"),
     ),
     notes="A re-sent deal replaces its earlier version; a cancelled deal is removed.",
 )
@@ -609,6 +612,8 @@ class _Context:
     books: set[str] | None = None
     counterparties: set[str] = field(default_factory=set)
     erp_loaded: bool = False
+    reference_column: str | None = None
+    reference_read: bool = False
 
 
 def _known_books(context: _Context) -> set[str] | None:
@@ -632,13 +637,20 @@ def _check_book(context: _Context, book_id: str | None) -> None:
 
 
 def _parse_deal(context: _Context, header, raw, cells) -> _Row:
-    from eurogas_nexus.ingestion.etrm_trades import EtrmImportError, parse_etrm_trades
+    from eurogas_nexus.ingestion.etrm_trades import (
+        EtrmImportError,
+        layout_reference_column,
+        parse_etrm_trades,
+    )
 
+    if not context.reference_read:
+        context.reference_column, context.reference_read = layout_reference_column(), True
     try:
         parsed = parse_etrm_trades(
             _one_row_csv(header, raw),
             system=context.system,
             source_reference=context.source_reference,
+            reference_column=context.reference_column,
         )
     except EtrmImportError as exc:
         raise _row_error(exc) from None

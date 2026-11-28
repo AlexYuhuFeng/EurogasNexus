@@ -36,7 +36,7 @@ function lands(search: string): string {
 test("the primary row is four modes in the plan's order, each with its tasks", () => {
   assert.deepEqual(PRODUCT_MODES.map((mode) => mode.id), ["desk", "deals", "book", "research"]);
   assert.deepEqual(PRODUCT_MODES.map((mode) => mode.tasks.map((task) => task.id)), [
-    ["today", "prices", "network", "cargoes"],
+    ["board", "today", "prices", "network", "cargoes"],
     // Opportunities first (CP-14); Evaluate, Optimise and Routes & netback left with CP-00.
     ["opportunities", "contracts", "review"],
     // Nominations and Storage are one Planning task, two views behind a switch (A.4).
@@ -73,6 +73,7 @@ test("every page address keeps working and lands in its mode (no page id redirec
 
 test("every old task address lands on its new task; Decision Center's tasks each have a home", () => {
   const expected: Record<string, string> = {
+    "market.board": "desk/board",
     "market.overview": "desk/today",
     "market.curves": "desk/prices",
     "market.network": "desk/network",
@@ -140,7 +141,8 @@ test("old area addresses and mode addresses redirect to a page address, keeping 
     "?workspace=nomination": "workspace=scenario&task=nomination",
     "?workspace=dispatch": "workspace=scenario&task=dispatch",
     "?workspace=exposure": "workspace=contracts&task=exposure",
-    "?workspace=desk": "workspace=market&task=overview",
+    // The Desk opens on Board, the small desk's one screen (SMALL_DESK_PLAN step 4).
+    "?workspace=desk": "workspace=market&task=board",
     "?workspace=deals": "workspace=scenario&task=opportunities",
     "?workspace=book": "workspace=contracts&task=overview",
     "?workspace=research": null as unknown as string,
@@ -185,14 +187,14 @@ test("a mode or task the role cannot use is absent; a mode never grants anything
   assert.deepEqual(ids(user(["ADMIN"], ["identity.manage", "source.read"], false)), []);
   // A reviewer reviews and reads, but prepares no nomination or storage plan.
   assert.deepEqual(ids(user(["REVIEWER"], reviewer)), [
-    "desk:today,prices,network,cargoes",
+    "desk:board,today,prices,network,cargoes",
     "deals:opportunities,contracts,review",
     "book:position,blotter,limits,delivery",
     "research:fundamentals,spreads,cargo,reports",
   ]);
   assert.equal(modeLanding("book", user(["REVIEWER"], reviewer))?.id, "position");
   // An analyst has everything.
-  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 16);
+  assert.equal(visibleModes(user(["ANALYST"], analyst)).reduce((sum, mode) => sum + mode.tasks.length, 0), 17);
   // No identity, or an older server without a permission list: what it had before.
   assert.equal(visibleModes(null).length, 4);
   assert.equal(visibleModes(user(["TRADER"], undefined)).length, 4);

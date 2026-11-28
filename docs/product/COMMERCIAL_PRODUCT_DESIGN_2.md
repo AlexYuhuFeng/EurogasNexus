@@ -644,7 +644,7 @@ Implementation note: conversion is server-side through one service (J.3) so that
 
 The strategy laboratory (registry, decision-time backtest, tracks and shadow runtime) is not
 deferred: the owner approved removing it with its backend and tables (migration
-`0098_remove_strategy_laboratory`); profit is fixed at decision time, so its "backtest" proved
+`0099_remove_strategy_laboratory`); profit is fixed at decision time, so its "backtest" proved
 no outcome. The spread laboratory and research datasets stay.
 
 | Capability | Backend kept | Re-entry condition |

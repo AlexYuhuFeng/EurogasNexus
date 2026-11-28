@@ -1160,8 +1160,9 @@ async def _live_stream(
 async def stream_live(request: Request, topics: str = "") -> StreamingResponse:
     """Push a change notice per subscribed topic, and the caller's job progress.
 
-    ``topics`` is a comma-separated subset of ``prices, trades, alerts, nominations, tariffs,
-    outages, flows, cargoes, slots, opportunities, book, capacity, sources, news, jobs``;
+    ``topics`` is a comma-separated subset of ``prices, trades, deals, alerts, nominations,
+    tariffs, outages, flows, cargoes, slots, opportunities, book, capacity, sources, news,
+    jobs``;
     unknown names are ignored. Market events are read from the outbox (``market_events``). A notice
     names a topic and a time, never a row: the page answers it with its own (conditional) read,
     so the notice never carries data the page would have to entitle, and nothing the caller may

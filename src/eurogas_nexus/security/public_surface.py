@@ -80,6 +80,8 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/desk/deals/problems/{problem_id}/resolve",
         "/api/desk/deals/eod-check",
         "/api/desk/deals/close",
+        # Step 3: a captured deal counted as physical or financial by hand (audited).
+        "/api/desk/deals/position-kind",
         "/api/reports/catalogue",
         "/api/reports/plan",
         "/api/reports/market",

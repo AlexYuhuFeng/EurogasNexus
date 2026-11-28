@@ -60,7 +60,7 @@ test("the grid keys the flash to row, column and instrument, and the board passe
 test("the position ladder and the spread board re-read on price notices and flash what moved", () => {
   const ladder = readFileSync(new URL("../src/components/PositionLadderPanel.tsx", import.meta.url), "utf8");
   // Marks and the mark-to-market move with a live price; positions with the trades and book.
-  assert.match(ladder, /useLiveTopics\(\["prices", "trades", "book"\], reread, \{ minIntervalMs: LADDER_LIVE_MS \}\)/);
+  assert.match(ladder, /useLiveTopics\(\["prices", "trades", "book"\], reread, \{ minIntervalMs: LADDER_LIVE_MS, immediateTopics: DEAL_TOPICS \}\)/);
   assert.match(ladder, /export const LADDER_LIVE_MS = 5_000;/);
   assert.match(ladder, /live=\{\{ watch: ladder\.mark_to_market, identity: `ladder\|mtm\|/);
   assert.match(ladder, /id: "mark",[\s\S]{0,300}flash: true,/);

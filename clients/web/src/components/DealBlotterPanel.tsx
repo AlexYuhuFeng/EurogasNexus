@@ -4,8 +4,9 @@ import { useTranslation } from "react-i18next";
 import { api, type DealBlotterDTO, type DealRowDTO } from "@/api/client";
 import type { DealProblemDTO, DealTotalDTO, ManualDealInput } from "@/api/deals";
 import { readKey, useCachedRead } from "@/app/data/readCache";
-import { dealSourceText, shownDecimal, todayIso } from "@/app/model/dealCaptureModel";
-import { DataGrid, Field, Instant, PeriodPicker, Select, Skeleton, type DataGridColumn } from "@/components/ui";
+import { DEAL_LIVE_MS, DEAL_TOPICS, useLiveTopics } from "@/app/hooks/useLive";
+import { dealSourceText, positionKindText, shownDecimal, todayIso } from "@/app/model/dealCaptureModel";
+import { Button, DataGrid, Field, Instant, PeriodPicker, Select, Skeleton, StatusBadge, type DataGridColumn } from "@/components/ui";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
 
@@ -54,6 +55,8 @@ export function DealBlotterPanel({ t, canWrite }: { t: Translate; canWrite: bool
   const formats = useCachedRead(readKey("/desk/deals/formats"), (signal) =>
     api.dealFormats({ signal }).then((response) => response.data),
   );
+  // Another trader's import, a correction or a close shows here at once.
+  useLiveTopics(DEAL_TOPICS, read.refresh, { minIntervalMs: DEAL_LIVE_MS });
   const data: DealBlotterDTO | undefined = read.data;
   const chosenBook = book || data?.books[0]?.book_id || "";
 
@@ -89,6 +92,14 @@ export function DealBlotterPanel({ t, canWrite }: { t: Translate; canWrite: bool
       })
       .catch(fail)
       .finally(() => setBusy(false));
+  };
+
+  // Physical or financial by hand (recorded as entered by hand); "" gives it back to the rule.
+  const setKind = (row: DealRowDTO, kind: string) => {
+    api
+      .setDealPositionKind(row.deal_key, kind === "physical" || kind === "financial" ? kind : null)
+      .then(() => read.refresh())
+      .catch(fail);
   };
 
   const resolve = (problem: DealProblemDTO, note: string) => {
@@ -179,7 +190,29 @@ export function DealBlotterPanel({ t, canWrite }: { t: Translate; canWrite: bool
       cellTitle: (row) => row.change_reason ?? undefined,
       priority: "secondary",
     },
-  ], [t, language]);
+    {
+      id: "position_kind",
+      header: t("deals.col.position_kind"),
+      value: (row) => row.position_kind?.kind ?? "",
+      cellTitle: (row) => positionKindText(row.position_kind, t),
+      render: (row) =>
+        canWrite && row.position_kind ? (
+          <Select
+            aria-label={t("deals.col.position_kind")}
+            value={row.position_kind.basis === "entered_by_hand" ? row.position_kind.kind : ""}
+            onChange={(value) => setKind(row, value)}
+            options={[
+              { value: "", label: row.position_kind.basis === "entered_by_hand" ? t("deals.kind.by_rule") : t(`deals.kind.${row.position_kind.kind}`) },
+              { value: "physical", label: t("deals.kind.physical_hand") },
+              { value: "financial", label: t("deals.kind.financial_hand") },
+            ]}
+          />
+        ) : (
+          <span data-position-kind={row.position_kind?.kind}>{row.position_kind ? t(`deals.kind.${row.position_kind.kind}`) : "–"}</span>
+        ),
+      priority: "secondary",
+    },
+  ], [t, language, canWrite]);
 
   const totalColumns = useMemo<DataGridColumn<DealTotalDTO>[]>(() => [
     { id: "hub", header: t("deals.col.hub"), value: (row) => row.hub, rowHeader: true, span: true },
@@ -202,12 +235,14 @@ export function DealBlotterPanel({ t, canWrite }: { t: Translate; canWrite: bool
   const unverified = (formats.data?.formats ?? []).filter((item) => !item.verified);
 
   return (
-    <section className="workspace-panel span-3" aria-labelledby="deal-blotter-title" data-deal-blotter="true">
+    <section className="workspace-panel span-3 desk-panel" aria-labelledby="deal-blotter-title" data-deal-blotter="true">
       <h2 id="deal-blotter-title">{t("deals.title")}</h2>
-      <p className="muted" data-day-status={data?.status.closed ? "closed" : "estimate"}>
-        {data?.status.closed && data.status.closes.length
-          ? t("deals.status_closed", { who: data.status.closes[data.status.closes.length - 1].closed_by })
-          : t("deals.status_estimate")}
+      <p className="desk-status" data-day-status={data?.status.closed ? "closed" : "estimate"}>
+        <StatusBadge tone={data?.status.closed ? "ok" : "info"}>
+          {data?.status.closed && data.status.closes.length
+            ? t("deals.status_closed", { who: data.status.closes[data.status.closes.length - 1].closed_by })
+            : t("deals.status_estimate")}
+        </StatusBadge>
       </p>
       <div className="ds-form-grid" role="group" aria-label={t("deals.filters")}>
         <Field label={t("deals.day")}>
@@ -227,7 +262,7 @@ export function DealBlotterPanel({ t, canWrite }: { t: Translate; canWrite: bool
       {data && data.unreadable.length > 0 && (
         <div className="deal-unreadable" role="region" aria-label={t("deals.unreadable_title")} data-deal-unreadable={data.unreadable.length}>
           <h3>
-            <span className="limit-badge" data-status="breach">{data.unreadable.length}</span> {t("deals.unreadable_title")}
+            <StatusBadge tone="breach">{data.unreadable.length}</StatusBadge> {t("deals.unreadable_title")}
           </h3>
           <ul>
             {data.unreadable.map((problem) => (
@@ -321,10 +356,10 @@ export function DealBlotterPanel({ t, canWrite }: { t: Translate; canWrite: bool
             <input ref={fileRef} type="file" accept=".csv,.txt,text/csv" disabled={busy || !chosenBook} data-deal-import="true" onChange={(event) => importFile(event.target.files?.[0])} />
           </Field>
         )}
-        <div className="ds-form-grid-action">
-          <button type="button" onClick={() => api.downloadEtrmSheet(day, "xlsx").catch(fail)} data-etrm-sheet="xlsx">{t("deals.etrm_sheet_xlsx")}</button>{" "}
-          <button type="button" onClick={() => api.downloadEtrmSheet(day, "csv").catch(fail)} data-etrm-sheet="csv">{t("deals.etrm_sheet_csv")}</button>{" "}
-          <button type="button" onClick={() => api.downloadDealBlotter(filters).catch(fail)}>{t("deals.blotter_csv")}</button>
+        <div className="ds-form-grid-action desk-actions">
+          <Button onClick={() => api.downloadEtrmSheet(day, "xlsx").catch(fail)} data-etrm-sheet="xlsx">{t("deals.etrm_sheet_xlsx")}</Button>
+          <Button onClick={() => api.downloadEtrmSheet(day, "csv").catch(fail)} data-etrm-sheet="csv">{t("deals.etrm_sheet_csv")}</Button>
+          <Button onClick={() => api.downloadDealBlotter(filters).catch(fail)}>{t("deals.blotter_csv")}</Button>
         </div>
       </div>
       {busy && <p role="status">{t("deals.working")}</p>}

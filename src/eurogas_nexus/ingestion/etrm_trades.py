@@ -13,6 +13,11 @@ Columns (case-insensitive; extra columns ignored)::
 ``delivery_start`` and ``delivery_end`` are the first and last gas day (inclusive).
 ``quantity_unit`` is ``MWh`` (total), ``MWh/d``, ``MW`` or ``th/d``; ``price_unit`` is the
 trade's quote (``EUR/MWh``, ``GBp/th``...) and must be in the hub's currency.
+
+The exchange's trade id, where the ETRM carries it, is read from ``exchange_reference`` or from
+the column the deal-capture layout file names (``etrm_entry_sheet.toml``,
+``etrm_reference_column``): it is how a captured deal and the same trade from the ETRM are
+recognised as one deal in the position (``domain/deals/eod.pair_deals``).
 """
 
 from __future__ import annotations
@@ -65,8 +70,26 @@ def _number(text: str | None, line: int, name: str) -> float:
         raise EtrmImportError(f"line {line}: {name} {text!r} is not a number") from exc
 
 
-def parse_etrm_trades(text: str, *, system: str, source_reference: str) -> EtrmImport:
-    """Trades for ``screen_order_observations`` (source ETRM) and the ids to remove."""
+def layout_reference_column() -> str | None:
+    """The ETRM export's reference column the deal-capture layout file names, if any."""
+
+    try:
+        from eurogas_nexus.domain.deals.formats import sheet_layout_path
+        from eurogas_nexus.domain.deals.sheet import load_layout
+
+        return load_layout(sheet_layout_path()).etrm_reference_column or None
+    except Exception:  # noqa: BLE001 - no layout: the default column name is read
+        return None
+
+
+def parse_etrm_trades(
+    text: str, *, system: str, source_reference: str, reference_column: str | None = None
+) -> EtrmImport:
+    """Trades for ``screen_order_observations`` (source ETRM) and the ids to remove.
+
+    ``reference_column`` names the column holding the exchange's trade id (default
+    ``exchange_reference``); a row without one carries ``None``.
+    """
 
     system_key = "".join(ch for ch in system.upper() if ch.isalnum())[:16] or "ETRM"
     reader = csv.DictReader(io.StringIO(text.lstrip("﻿")))
@@ -90,6 +113,10 @@ def parse_etrm_trades(text: str, *, system: str, source_reference: str) -> EtrmI
     def cell(record: dict[str, str], name: str) -> str:
         key = headers.get(name)
         return (record.get(key) or "").strip() if key else ""
+
+    reference_name = (reference_column or "").strip().lower()
+    if reference_name not in headers:
+        reference_name = "exchange_reference"
 
     upserts: list[dict[str, Any]] = []
     cancelled: list[str] = []
@@ -195,6 +222,7 @@ def parse_etrm_trades(text: str, *, system: str, source_reference: str) -> EtrmI
                 "research_only": True,
                 "human_review_required": True,
                 "book_id": cell(record, "book_id")[:64] or None,
+                "exchange_reference": cell(record, reference_name)[:128] or None,
             }
         )
     if not upserts and not cancelled:

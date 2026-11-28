@@ -1140,11 +1140,29 @@ def _limit_candidates(
     stale_marks = _marks_stale_candidate(credit.rows, credit.books, now)
     if stale_marks is not None:
         candidates.append(stale_marks)
+    estimate = getattr(credit, "estimate_label", None) or getattr(
+        mandates, "estimate_label", None
+    )
+    if estimate:
+        # Captured deals of a day not yet closed against the ETRM are in these figures: the
+        # alert says it is the desk's estimate (``captured_position``).
+        candidates = [
+            replace(
+                candidate,
+                message_en=f"{candidate.message_en} (Desk estimate, before ETRM close.)",
+                message_zh_cn=f"{candidate.message_zh_cn}（交易台估算，ETRM 日结前。）",
+                evidence_snapshot={**candidate.evidence_snapshot, "estimate_label": estimate},
+                warnings=[*candidate.warnings, estimate],
+            )
+            for candidate in candidates
+        ]
     demo = [w for w in [*credit.warnings, *mandates.warnings] if is_simulated_marks_warning(w)]
     if demo:
         # Figures on demo marks say so wherever the alert is shown (AGENTS.md rule 17).
         candidates = [
-            replace(candidate, simulated=True, warnings=demo[:1]) for candidate in candidates
+            replace(candidate, simulated=True,
+                    warnings=[*demo[:1], *([estimate] if estimate else [])])
+            for candidate in candidates
         ]
     return candidates, False
 

@@ -2439,6 +2439,8 @@ export interface MarginalRouteCostDTO {
   total: number | null;
   /** What a desk that already holds capacity pays: the flow charges only. */
   holder: number | null;
+  /** Whether the firm's bookings cover the route (all legs, part of it, none); newer servers. */
+  capacity_held?: "all" | "part" | "none";
   sunk_capacity: { product: string; load_factor: number; value: number | null; complete: boolean } | null;
 }
 
@@ -2830,6 +2832,8 @@ export interface TodayBookRowDTO {
   populated: boolean;
   empty: TodayEmptyDTO | null;
   horizon_months?: number;
+  /** "desk estimate, before ETRM close" while captured deals of an open day are in it. */
+  estimate_label?: string | null;
   hubs: {
     hub: string;
     position_today: TodayFigureDTO;
@@ -5292,8 +5296,42 @@ export interface ForwardCurvePointDTO {
   warning: string | null;
 }
 
+/** One hub and month of the captured deals in the position, exact, in the hub's desk unit. */
+export interface CapturedPositionRowDTO {
+  hub: string;
+  month: string;
+  first_gas_day: string;
+  last_gas_day: string;
+  /** "th/d" at NBP, "MW" at the continental hubs. */
+  unit: string;
+  physical: string;
+  financial: string;
+  net: string;
+  physical_mwh: string;
+  financial_mwh: string;
+  net_mwh: string;
+  deals: number;
+}
+
+/** The captured deals in a position read (``captured_position.summary``). */
+export interface CapturedPositionDTO {
+  label: string | null;
+  deals_counted: number;
+  deals_counted_from_etrm: number;
+  etrm_trades_not_counted: number;
+  kinds: { physical: number; financial: number; entered_by_hand: number };
+  rows: CapturedPositionRowDTO[];
+  not_valued: { deal_key: string; hub: string; product: string; reason: string | null }[];
+  method: string;
+  warnings: string[];
+}
+
 export interface PositionLadderDTO {
   rows: PositionLadderRowDTO[];
+  /** "desk estimate, before ETRM close" while captured deals of an open day are in it. */
+  estimate_label?: string | null;
+  /** The captured deals in it, exact, in desk units (newer servers). */
+  captured?: CapturedPositionDTO | null;
   totals: { physical_mwh: number; financial_mwh: number; net_mwh: number; price_exposure_mwh?: number; index_mwh?: number; gross_tenor_mwh?: number };
   /** Per hub: net and gross (sum of |net| over months) MWh (#53). */
   tenor_exposure?: { hub: string; net_mwh: number; gross_mwh: number; months_held: number }[];
@@ -6318,9 +6356,9 @@ export const api = {
     return get<PositionLadderDTO>("/portfolio/position-ladder", params, options);
   },
   creditExposure: (options?: ApiRequestOptions) =>
-    get<{ rows: CreditExposureRowDTO[]; as_of: string }>("/portfolio/credit-exposure", undefined, options),
+    get<{ rows: CreditExposureRowDTO[]; as_of: string; estimate_label?: string | null }>("/portfolio/credit-exposure", undefined, options),
   mandateUsage: (options?: ApiRequestOptions) =>
-    get<{ rows: MandateUsageRowDTO[]; as_of: string }>("/portfolio/mandate-usage", undefined, options),
+    get<{ rows: MandateUsageRowDTO[]; as_of: string; estimate_label?: string | null }>("/portfolio/mandate-usage", undefined, options),
   /** One stored credit line, every field, for the risk function's edit form (QA-R-01). */
   creditLine: (counterpartyId: string) =>
     get<CreditLineDTO>(`/portfolio/credit-lines/${encodeURIComponent(counterpartyId)}`),
@@ -6577,6 +6615,9 @@ export const api = {
   importDeals: (file: File, bookId: string, format?: string) =>
     postFile<DealImportDTO>("/desk/deals/import", file, { book_id: bookId, file_name: file.name, ...(format ? { format } : {}) }),
   enterManualDeal: (body: ManualDealInput) => post<ManualDealResultDTO>("/desk/deals/manual", body),
+  /** Count a captured deal as physical or financial by hand (null: the rule file decides). */
+  setDealPositionKind: (dealKey: string, kind: "physical" | "financial" | null, note?: string) =>
+    post<{ deal_key: string; kind: string | null; entered_by: string }>("/desk/deals/position-kind", { deal_key: dealKey, kind, note }),
   resolveDealProblem: (problemId: string, note: string) =>
     post<{ problem_id: string }>(`/desk/deals/problems/${encodeURIComponent(problemId)}/resolve`, { note }),
   dealEodCheck: (file: File, day: string) =>
@@ -6619,8 +6660,12 @@ export const api = {
     post<InterpretationDTO>("/research/spreads/interpret", body, options),
   /** Research → Spreads: a spec's checks and its result, every figure from the engine. */
   /** Research → Spreads: the desk's spread board (focus hubs first, then the majors). */
-  spreadsBoard: (hubs: readonly string[] = [], options?: ApiRequestOptions) =>
-    get<SpreadBoardDTO>("/research/spreads/board", hubs.length ? { hubs: hubs.join(",") } : undefined, options),
+  spreadsBoard: (hubs: readonly string[] = [], options?: ApiRequestOptions, pairs?: string) =>
+    get<SpreadBoardDTO>(
+      "/research/spreads/board",
+      hubs.length || pairs ? { ...(hubs.length ? { hubs: hubs.join(",") } : {}), ...(pairs ? { pairs } : {}) } : undefined,
+      options,
+    ),
   spreadsEvaluate: (spec: StrategySpecDTO, options?: ApiRequestOptions) =>
     post<EvaluationDTO>("/research/spreads/evaluate", { spec }, options),
   /** Prices → Prompt: live WD/DA for one hub and today's post-trade performance. */

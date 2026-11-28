@@ -565,7 +565,12 @@ function BookRow({ row, frontMonth, t, nowMs, keyFigures, language, onOpenLimits
     [frontMonth, labels, nowMs, pills, row.horizon_months, t],
   );
   return (
-    <RowSection id="book" title={t("today.row.book")} actions={pnlMethod ? <MethodNote method={pnlMethod} subject={t("today.book.day_pnl")} t={t} /> : undefined}>
+    <RowSection
+      id="book"
+      title={t("today.row.book")}
+      meta={row.estimate_label ? <span data-today-estimate="">{t("position.estimate")}</span> : undefined}
+      actions={pnlMethod ? <MethodNote method={pnlMethod} subject={t("today.book.day_pnl")} t={t} /> : undefined}
+    >
       {keyFigures && <BookFigures row={keyFigures} t={t} nowMs={nowMs} language={language} onOpenLimits={onOpenLimits} />}
       {row.empty ? (
         <Empty empty={row.empty} id="today-book" />

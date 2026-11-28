@@ -161,6 +161,9 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/desk/deals/manual", Permission.WRITE),
     ("/api/desk/deals/problems/{problem_id}/resolve", Permission.WRITE),
     ("/api/desk/deals/close", Permission.WRITE),
+    # A person's physical-or-financial choice for a captured deal (portfolio.write in the
+    # handler, audited, recorded as entered by hand).
+    ("/api/desk/deals/position-kind", Permission.WRITE),
     # Market reports (application/reports): the catalogue is a declaration; reading a stored
     # report is a read of figures the reader is re-checked for (sources and books). Proposing
     # a plan may call the model, and generating one stores a record and may call the model,

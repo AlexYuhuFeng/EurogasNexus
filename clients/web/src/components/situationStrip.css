@@ -100,7 +100,7 @@
   .strip-quiet-line:hover,
   .strip-open:hover .strip-headline {
     text-decoration: underline;
-    text-underline-offset: 2px;
+    text-underline-offset: var(--ds-space-05);
   }
 
   .strip-top:focus-visible,

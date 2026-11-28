@@ -41,6 +41,7 @@ import type {
 import type { StripAudience } from "../experience/roleComposition.ts";
 import type { WorkspacePageId } from "../../workspaceNavigation.ts";
 import type { ReportSubject } from "./reportsModel.ts";
+import { outageNativeSize } from "./traderEventsModel.ts";
 
 /* ------------------------------------------------------------------ inputs */
 
@@ -59,6 +60,9 @@ export interface TickerOutage {
   unavailable_capacity: number | null;
   technical_capacity?: number | null;
   unavailable_gwh_d?: number | null;
+  /** Capacity removed in mcm/d (GB's native quotation); null for a message in GWh/d. */
+  capacity_impact_mcm_d?: number | null;
+  unavailable_mcm_d?: number | null;
   source_system?: string;
   source_reference?: string;
 }
@@ -395,7 +399,10 @@ const NO_AFFECTS = () => ({ hubs: [] as string[], zones: [] as string[], books: 
 
 interface OutageFacts {
   item: TickerOutage;
+  /** The daily figure in GWh/d, used for the size threshold (which is stated in GWh/d). */
   gwh: number | null;
+  /** The figure shown, in the hub's native unit: GB in mcm/d, the continent in GWh/d. */
+  size: { value: number; unit: string } | null;
   share: number | null;
   hubs: string[];
 }
@@ -406,7 +413,14 @@ function outageFacts(outage: TickerOutage): OutageFacts {
     outage.technical_capacity && outage.unavailable_capacity != null
       ? outage.unavailable_capacity / outage.technical_capacity
       : null;
-  return { item: outage, gwh, share, hubs: zoneHubs(outage.balancing_zone) };
+  const hubs = zoneHubs(outage.balancing_zone);
+  return {
+    item: outage,
+    gwh,
+    size: outageNativeSize(outage, hubs),
+    share,
+    hubs,
+  };
 }
 
 /** The size test of §5.2: ≥ the GWh/d threshold or ≥ the share threshold. Returns the ratio, 0 when not. */
@@ -425,8 +439,9 @@ function outageItem(
   ownBook: boolean,
   alert: MonitoringAlertDTO | null,
 ): SituationItem {
-  const { item, gwh, share, hubs } = facts;
-  const technicalGwh = gwh !== null && share ? gwh / share : null;
+  const { item, gwh, size, share, hubs } = facts;
+  // The comparison's total is in the same native unit as the figure shown.
+  const technical = size !== null && share ? size.value / share : null;
   const published = at(item.published_at_utc);
   const became = Math.max(at(item.start_utc), Number.isFinite(published) ? published : 0);
   return {
@@ -439,14 +454,14 @@ function outageItem(
       values: {
         asset: item.facility_name,
         zone: item.balancing_zone,
-        size: gwh !== null ? `${round(gwh)} GWh/d` : item.unavailable_capacity != null ? `${item.unavailable_capacity} ${item.unit}` : "",
+        size: size !== null ? `${round(size.value)} ${size.unit}` : item.unavailable_capacity != null ? `${item.unavailable_capacity} ${item.unit}` : "",
       },
     },
     magnitude: gwh,
-    unit: gwh !== null ? "GWh/d" : item.unit,
+    unit: size !== null ? size.unit : item.unit,
     comparison:
-      gwh !== null && technicalGwh !== null
-        ? { key: "strip.comparison.of_capacity", values: { value: round(gwh), total: round(technicalGwh), unit: "GWh/d" } }
+      size !== null && technical !== null
+        ? { key: "strip.comparison.of_capacity", values: { value: round(size.value), total: round(technical), unit: size.unit } }
         : share !== null
           ? { key: "strip.comparison.share", values: { pct: round(100 * share) } }
           : null,
@@ -461,7 +476,7 @@ function outageItem(
     alertId: alert?.status === "open" ? alert.alert_id : null,
     explain: { subject: "outage", id: item.event_id },
     report: { kind: "outage", id: item.event_id },
-    signature: `${item.status}|${gwh !== null ? round(gwh) : item.unavailable_capacity}|${item.version ?? ""}`,
+    signature: `${item.status}|${size !== null ? round(size.value) : item.unavailable_capacity}|${item.version ?? ""}`,
     ownBook,
     ratio,
   };
@@ -487,6 +502,8 @@ function outageFromAlert(alert: MonitoringAlertDTO): TickerOutage | null {
     unavailable_capacity: number(facts.unavailable_capacity),
     technical_capacity: number(facts.technical_capacity),
     unavailable_gwh_d: number(facts.unavailable_gwh_d),
+    capacity_impact_mcm_d: number(facts.capacity_impact_mcm_d),
+    unavailable_mcm_d: number(facts.unavailable_mcm_d),
     source_reference: alert.source_refs?.[0],
   };
 }

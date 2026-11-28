@@ -143,7 +143,7 @@ The `migrate` step now finds the database up to date and the API starts.
 
 ## Data-dropping migrations
 
-`0098_remove_strategy_laboratory` drops the strategy laboratory's tables (registry, versions,
+`0099_remove_strategy_laboratory` drops the strategy laboratory's tables (registry, versions,
 runs, decision-time backtests, tracks and the shadow runtime) and is declared `irreversible`:
 its downgrade refuses and going back means restoring the backup from step 2. Export any stored
 runs you need to keep (a SQL read of `strategy_runs`, `backtest_*` and `strategy_tracks` before

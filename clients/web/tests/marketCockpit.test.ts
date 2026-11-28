@@ -17,7 +17,7 @@ function readWebSource(relativePath: string): string {
 }
 
 test("market cockpit has four linked tasks; the retired capacity task lands on Network", () => {
-  assert.deepEqual(MARKET_TASKS, ["overview", "curves", "network", "cargoes"]);
+  assert.deepEqual(MARKET_TASKS, ["board", "overview", "curves", "network", "cargoes"]);
   // "Outages & capacity" became the Network page's panel beside the map.
   assert.equal(marketTaskFromSearch("?task=capacity"), "network");
 });

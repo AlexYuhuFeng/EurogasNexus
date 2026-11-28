@@ -25,6 +25,13 @@ function readLocale(name: "en" | "zh"): Record<string, string> {
  * Each entry states why, because "it happens to be the same" is not a reason.
  */
 const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
+  // Desk → Board: placeholders and the desk's own codes only.
+  "board.cell_title": "source · time · unit, all placeholders",
+  "board.detail.price_title": "hub and contract codes, placeholders",
+  "board.fund.flow.bbl": "pipeline name (BBL)",
+  "board.fund.flow.iuk": "pipeline name (IUK)",
+  "board.fund.lng_country": "LNG and a country code",
+  "board.fund.title": "day · source, placeholders",
   "access.view.sso": "an acronym",
   "eod.detail.volume": "two figures and the unit MWh, no words",
   "eod.detail.price": "two figures and a currency per MWh, no words",

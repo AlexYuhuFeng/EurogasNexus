@@ -22,7 +22,7 @@ router = APIRouter(tags=["desk"])
 
 
 @router.get("/api/desk/today")
-@warm_view(ViewSpec("desk.today", max_age_seconds=60))
+@warm_view(ViewSpec("desk.today", max_age_seconds=60, follows_deals=True))
 def get_today(request: Request) -> dict:
     """Today: prices and day change, positions, the tightest limit, alerts and outages,
     the book against the market, storage and the NW Europe balance.

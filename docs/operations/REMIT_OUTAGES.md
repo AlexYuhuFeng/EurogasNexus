@@ -32,8 +32,12 @@ python scripts/ops/ingest_remit_iip.py --days 2 --commit --json    # what the sc
   `--max-pages` (40) first fails with `iip_read_bound_reached`. The platform relays an
   upstream rate limit (429) as HTTP 200 with an error envelope: the script waits and retries
   twice, then fails `iip_upstream_refused` and the scheduler retries the run.
-- Scheduler: source `src-remit-umm`, every 30 minutes, two days of submissions; off by
-  default (it needs the GIE key, as `src-gie`).
+- Scheduler: source `src-remit-umm`, every 30 minutes by default, two days of submissions; off
+  by default (it needs the GIE key, as `src-gie`). The interval is configurable per source
+  (`EUROGAS_NEXUS_REMIT_IIP_INTERVAL_SECONDS`). The connector manifest allows 6 requests an
+  hour, so the small-desk profile polls every 10 minutes (6 runs an hour), the fastest interval
+  that stays within it; 5 minutes would be 12 runs an hour. The read stays incremental: it pages
+  newest-first and stops at its submission window, so a poll does not re-download the history.
 - Credit: "Source: GIE Inside Information Platform (IIP/GIE)" wherever the data is shown
   or exported; GIE may disable a key whose use does not credit it.
 
@@ -74,8 +78,12 @@ python scripts/ops/ingest_remit_entsog.py --days 7 --commit --json  # what the s
   flagged `No` has its current state unpublished, so it is held back
   (`latest_version_not_published`; live: GRTgaz Deutschland's VIP France-Germany `...P013` and
   NaTran's `...S001`) rather than served as current.
-- Scheduler: source `src-entsog-umm`, hourly, on by default (no key). Freshness: event-driven
-  and sparse (none from May to September 2026), period late after 90 days.
+- Scheduler: source `src-entsog-umm`, hourly by default, on by default (no key). The interval
+  is configurable per source (`EUROGAS_NEXUS_REMIT_ENTSOG_INTERVAL_SECONDS`). The connector
+  manifest allows 6 requests an hour, so the small-desk profile polls every 10 minutes; the
+  dataset is small (about 100 versions, one request a run) and is read in full each time
+  because ENTSOG offers no documented conditional or incremental form for it. Freshness:
+  event-driven and sparse (none from May to September 2026), period late after 90 days.
 - Credit: "ENTSOG TP [DD-MM-YYYY] https://transparency.entsog.eu/" with the download date; every
   stored message carries it in its source reference (`ENTSOG_TP:terms-published:api:<UTC>`) and
   outage rows return it in `attribution` (with `platform`).

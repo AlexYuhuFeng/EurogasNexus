@@ -254,7 +254,7 @@ def test_downgrade_undoes_reversible_revisions_and_is_audited(scratch_url) -> No
 
     from eurogas_nexus.application.database_upgrade import record_backup
 
-    _alembic(scratch_url, "0097_deal_capture", direction="upgrade")
+    _alembic(scratch_url, "0098_deal_position_source", direction="upgrade")
     code, lines = _downgrade(scratch_url, "0093_timescale_optional", operator="Undo")
     assert code == 2 and any("REFUSED: no backup recorded" in line for line in lines)
 
@@ -285,7 +285,7 @@ def test_downgrade_refuses_to_cross_an_irreversible_revision(scratch_url) -> Non
     )
     assert code == 2
     refusal = next(line for line in lines if line.startswith("REFUSED"))
-    assert "0098_remove_strategy_laboratory" in refusal
+    assert "0099_remove_strategy_laboratory" in refusal
     assert "restoring the pre-update backup" in refusal
     engine = create_engine(scratch_url, future=True)
     with engine.connect() as connection:

@@ -960,6 +960,19 @@ class MarginalRouteCost:
     def holder(self) -> float:
         return (self.commodity or 0.0) + (self.fuel_cost or 0.0)
 
+    @property
+    def capacity_held(self) -> str:
+        """Whether the firm's own bookings (TAR-2) cover the route: ``all`` when every leg of
+        the yearly route is contracted, ``part`` when a booking covers some of it, ``none``
+        otherwise. Read from the bookings the sunk route was priced with; nothing new."""
+
+        legs = self.sunk.legs if self.sunk is not None else ()
+        if legs and all(leg.cost_basis == "contracted" for leg in legs):
+            return "all"
+        if any(leg.cost_basis != "public" for leg in legs):
+            return "part"
+        return "none"
+
     def as_dict(self) -> dict[str, Any]:
         def rounded(value: float | None) -> float | None:
             return None if value is None else round(value, 6)
@@ -973,6 +986,7 @@ class MarginalRouteCost:
             "flow_not_held": list(self.flow_not_held),
             "total": rounded(self.total),
             "holder": rounded(self.holder),
+            "capacity_held": self.capacity_held,
             "sunk_capacity": None
             if self.sunk is None
             else {"product": "ANNUAL", "load_factor": 1.0, "value": rounded(self.sunk.total),

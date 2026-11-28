@@ -3,8 +3,10 @@
 - The mid is (bid + ask) / 2 or nothing: a one-sided quote and the last trade are never a mid
   (the backtest pool included).
 - ``/api/market/quotes`` adds, per quote, the read instant, the quote's age against the
-  source's declared cadence, and the newest daily close of the same hub and tenor before
-  today (the desk's settlement source), with its day, kind and source. All fields additive.
+  source's declared cadence, and the newest daily close of the *same source, hub and
+  contract* before today (the desk's settlement source), with its day, kind and source.
+  A close from another feed, another contract (a month roll) or no close at all leaves the
+  change empty; no substitute close is ever used. All fields additive.
 """
 
 from datetime import UTC, date, datetime, timedelta
@@ -37,7 +39,7 @@ def _quote(**overrides) -> dict:
 
 def _close(day: date, price: float, **overrides) -> dict:
     row = {
-        "hub": "TTF", "hub_resolved": True, "tenor": "day-ahead", "source_system": "DEMO_Sim",
+        "hub": "TTF", "hub_resolved": True, "tenor": "day-ahead", "source_system": "EEX_Sim",
         "day": day, "observed_at_utc": datetime.combine(day, datetime.min.time(), tzinfo=UTC),
         "period_start_utc": None, "settlement": False, "price": price, "price_mwh": price,
         "unit_mwh": "EUR/MWh", "simulated": True,
@@ -46,7 +48,7 @@ def _close(day: date, price: float, **overrides) -> dict:
     return row
 
 
-def test_previous_close_is_the_newest_before_today_of_the_same_hub_and_tenor() -> None:
+def test_previous_close_is_the_newest_before_today_of_the_same_source_hub_and_tenor() -> None:
     closes = [
         _close(date(2026, 11, 20), 40.10),
         _close(date(2026, 11, 23), 41.20, settlement=True),
@@ -58,10 +60,27 @@ def test_previous_close_is_the_newest_before_today_of_the_same_hub_and_tenor() -
     assert row["close_price"] == 41.20
     assert row["close_day"] == "2026-11-23"
     assert row["close_kind"] == "settlement"
-    assert row["close_source_system"] == "DEMO_Sim"
+    assert row["close_source_system"] == "EEX_Sim"
     assert row["close_simulated"] is True
     # Existing fields are kept as they were (the change is additive).
     assert row["bid_price"] == 41.405 and row["last_price"] == 41.475
+
+
+def test_a_close_of_another_source_is_not_the_quote_s_previous_close() -> None:
+    closes = [
+        _close(date(2026, 11, 22), 30.0, source_system="OTHER_Sim"),
+        _close(date(2026, 11, 23), 33.0, source_system="OTHER_Sim"),
+    ]
+    [row] = annotate_quotes([_quote()], closes, now=NOW)
+    assert row["close_price"] is None
+    assert row["close_day"] is None and row["close_kind"] is None
+    assert row["close_source_system"] is None
+
+
+def test_without_a_close_of_the_same_source_the_change_is_left_empty() -> None:
+    [row] = annotate_quotes([_quote()], [], now=NOW)
+    assert row["close_price"] is None
+    assert row["close_kind"] is None
 
 
 def test_a_close_in_another_currency_basis_is_not_used() -> None:
@@ -78,6 +97,17 @@ def test_month_ahead_close_must_be_the_same_delivery_month() -> None:
     ]
     [row] = annotate_quotes([quote], closes, now=NOW)
     assert row["close_price"] == 42.0 and row["close_day"] == "2026-11-20"
+
+
+def test_a_month_roll_does_not_use_the_previous_front_contract_s_close() -> None:
+    # The new front month is Dec-26; only the November front month's close is held.
+    quote = _quote(product="month-ahead", delivery_start_utc=DEC)
+    closes = [
+        _close(date(2026, 11, 23), 38.0, tenor="month-ahead",
+               period_start_utc=datetime(2026, 11, 1, tzinfo=UTC)),
+    ]
+    [row] = annotate_quotes([quote], closes, now=NOW)
+    assert row["close_price"] is None and row["close_kind"] is None
 
 
 def test_without_a_stored_close_the_feed_prior_settlement_is_used_without_a_day() -> None:
@@ -147,7 +177,7 @@ def test_quotes_route_carries_as_of_staleness_and_previous_close(tmp_path, monke
                     period_start_utc=yesterday,
                     period_end_utc=now,
                     observed_at_utc=yesterday,
-                    source_system="DEMO_Sim",
+                    source_system="EEX_Sim",
                     source_reference="test:close",
                     freshness="end_of_day",
                     quality_score=0.0,

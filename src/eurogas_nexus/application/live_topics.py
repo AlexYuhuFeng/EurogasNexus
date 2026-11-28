@@ -18,7 +18,10 @@ Where the notices come from:
   that have no event type yet), each by the rule its REST read applies: ``prices`` also from
   market quotes (screens, the demo exchange feed) and market observations not yet captured;
   ``trades`` from booked trades, by book (positions and the day P&L move with ``prices``,
-  ``trades`` and ``book`` together); ``alerts`` from monitoring alerts, by the alert's own
+  ``trades`` and ``book`` together); ``deals`` from captured deals (a new deal, a correction or
+  a cancellation, a physical or financial choice by hand, a day's close), by book: a page that
+  shows positions answers it at once, not at the pace of its price re-reads (small-desk plan
+  section 5); ``alerts`` from monitoring alerts, by the alert's own
   visibility rule; ``nominations`` from recorded nomination steps, by book; ``tariffs`` also
   from TSO tariff publications (public information); ``outages``, ``flows``, ``cargoes``,
   ``slots``, ``opportunities`` from the map's fast inputs, under the map's own rules
@@ -48,6 +51,7 @@ from typing import Any
 NOTICE_TOPICS = (
     "prices",
     "trades",
+    "deals",
     "alerts",
     "nominations",
     "tariffs",
@@ -110,6 +114,9 @@ class NewestSource:
 def _newest_sources() -> dict[str, NewestSource]:
     from eurogas_nexus.application.identity_resolution import identity_clause
     from eurogas_nexus.db.models import (
+        CapturedDealRecord,
+        DealDayCloseRecord,
+        DealPositionKindRecord,
         FlowObservationRecord,
         GasDayNominationEventRecord,
         LngCargoRecord,
@@ -144,6 +151,21 @@ def _newest_sources() -> dict[str, NewestSource]:
         ),
         "nominations": NewestSource(
             lambda s: s.query(n.recorded_at_utc, n.book_id), "recorded_at_utc"
+        ),
+        # Captured deals: every version (a correction or a cancellation is a new one), the
+        # physical or financial choices made by hand, and the day's closes.
+        "captured_deals": NewestSource(
+            lambda s: s.query(CapturedDealRecord.recorded_at_utc, CapturedDealRecord.book_id),
+            "recorded_at_utc",
+        ),
+        "deal_kinds": NewestSource(
+            lambda s: s.query(DealPositionKindRecord.entered_at_utc,
+                              DealPositionKindRecord.book_id),
+            "entered_at_utc",
+        ),
+        "deal_closes": NewestSource(
+            lambda s: s.query(DealDayCloseRecord.closed_at_utc, DealDayCloseRecord.book_id),
+            "closed_at_utc",
         ),
         "tariffs": NewestSource(
             lambda s: s.query(TariffPublicationRecord.updated_at_utc), "updated_at_utc"
@@ -556,6 +578,37 @@ def _trades(reads: Reads, since: Cursor, principal, books: _Books) -> list[tuple
     ]
 
 
+#: The newest captured-deal change this process has told its warm views about.
+_DEALS_NOTED: list[datetime] = []
+
+
+def _note_deals(changed: list[datetime]) -> None:
+    """A deal stored by another process (the watched folder): this process's position views
+    stop answering from before it (``warm_views.note_deals``), before the notice goes out."""
+
+    if not changed:
+        return
+    newest = max(as_utc(at) for at in changed)
+    if _DEALS_NOTED and newest <= _DEALS_NOTED[0]:
+        return
+    _DEALS_NOTED[:] = [newest]
+    from eurogas_nexus.application.warm_views import views
+
+    views().note_deals()
+
+
+def _deals(reads: Reads, since: Cursor, principal, books: _Books) -> list[tuple[datetime, bool]]:
+    rows = [
+        (getattr(row, stamp), row.book_id)
+        for key, stamp in (("captured_deals", "recorded_at_utc"),
+                           ("deal_kinds", "entered_at_utc"),
+                           ("deal_closes", "closed_at_utc"))
+        for row in reads.newest(key, since)
+    ]
+    _note_deals([at for at, _book in rows])
+    return [(at, books.sees(book)) for at, book in rows]
+
+
 def _nominations(
     reads: Reads, since: Cursor, principal, books: _Books
 ) -> list[tuple[datetime, bool]]:
@@ -598,6 +651,7 @@ TopicSource = Callable[[Reads, Cursor, Any, _Books], list[tuple[datetime, bool]]
 SOURCES: dict[str, TopicSource] = {
     "prices": _prices,
     "trades": _trades,
+    "deals": _deals,
     "alerts": _alerts,
     "nominations": _nominations,
     "tariffs": _tariffs,
@@ -606,6 +660,7 @@ SOURCES: dict[str, TopicSource] = {
 TOPIC_SOURCES: dict[str, tuple[str, ...]] = {
     "prices": ("quotes", "observations"),
     "trades": ("screen_orders",),
+    "deals": ("captured_deals", "deal_kinds", "deal_closes"),
     "alerts": ("alerts",),
     "nominations": ("nominations",),
     "tariffs": ("tariffs",),

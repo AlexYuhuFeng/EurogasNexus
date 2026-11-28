@@ -349,7 +349,7 @@
 
 ### ⑫ 风险与策略 (Risk & Strategy)
 
-> 实现说明（2026-11-27）：策略实验室（策略登记、决策时回测、跟踪与影子运行）及其表已按所有者批准移除（迁移 `0098_remove_strategy_laboratory`）。本节保留「策略」作为领域术语；可运行的价差规则由 Research → Spreads 的 `StrategySpec` 表达，历史回测仅作为研究证据。
+> 实现说明（2026-11-27）：策略实验室（策略登记、决策时回测、跟踪与影子运行）及其表已按所有者批准移除（迁移 `0099_remove_strategy_laboratory`）。本节保留「策略」作为领域术语；可运行的价差规则由 Research → Spreads 的 `StrategySpec` 表达，历史回测仅作为研究证据。
 
 **概念**
 - `StrategyDefinition` / `StrategyRun`：策略定义与运行（backtest / shadow-run / live-monitor）。

@@ -72,6 +72,23 @@
     line-height: var(--ds-line-xs);
   }
 
+  /* A group header row (a hub over its columns): the column headers stick under it. */
+  .ds-grid thead .ds-grid-group-row th {
+    border-bottom-color: var(--ds-border-subtle);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-semibold);
+    text-align: right;
+  }
+
+  .ds-grid thead .ds-grid-group-row + tr th {
+    top: var(--ds-row-header);
+  }
+
+  .ds-grid [data-group-start] {
+    border-left: 1px solid var(--ds-border);
+  }
+
   .ds-grid tbody th {
     color: var(--ds-text-1);
     font-weight: var(--ds-weight-medium);
@@ -280,8 +297,46 @@
       to { background: transparent; }
     }
 
+    /* Desk → Board: the flash in the direction's colour (LiveValue `tone="direction"`), the
+       P&L up/down roles, so a red-up or colour-vision reader's convention holds here too. */
+    @keyframes ds-flash-up-a {
+      from { background: color-mix(in oklab, var(--pnl-up) 24%, transparent); }
+      to { background: transparent; }
+    }
+
+    @keyframes ds-flash-up-b {
+      from { background: color-mix(in oklab, var(--pnl-up) 24%, transparent); }
+      to { background: transparent; }
+    }
+
+    @keyframes ds-flash-down-a {
+      from { background: color-mix(in oklab, var(--pnl-down) 24%, transparent); }
+      to { background: transparent; }
+    }
+
+    @keyframes ds-flash-down-b {
+      from { background: color-mix(in oklab, var(--pnl-down) 24%, transparent); }
+      to { background: transparent; }
+    }
+
     .ds-cell-flash[data-flash="a"] {
       animation: ds-flash-a var(--ds-duration-flash) var(--ds-ease-out) 1;
+    }
+
+    .ds-cell-flash[data-flash="a"][data-flash-tone="up"] {
+      animation-name: ds-flash-up-a;
+    }
+
+    .ds-cell-flash[data-flash="b"][data-flash-tone="up"] {
+      animation-name: ds-flash-up-b;
+    }
+
+    .ds-cell-flash[data-flash="a"][data-flash-tone="down"] {
+      animation-name: ds-flash-down-a;
+    }
+
+    .ds-cell-flash[data-flash="b"][data-flash-tone="down"] {
+      animation-name: ds-flash-down-b;
     }
 
     .ds-cell-flash[data-flash="b"] {

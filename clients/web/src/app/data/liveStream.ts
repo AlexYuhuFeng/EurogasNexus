@@ -36,6 +36,7 @@ import { openEventStream } from "@/api/client";
 export type LiveTopic =
   | "prices"
   | "trades"
+  | "deals"
   | "alerts"
   | "nominations"
   | "tariffs"
@@ -56,6 +57,7 @@ export const LIVE_TAB_TOPICS: readonly LiveTopic[] = [
   "book",
   "capacity",
   "cargoes",
+  "deals",
   "flows",
   "jobs",
   "news",

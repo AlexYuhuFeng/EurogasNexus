@@ -32,6 +32,16 @@ commit -> notice on the wire, bounded by ``EUROGAS_NEXUS_STREAM_POLL_SECONDS``. 
 share (notice -> re-read -> painted cell) is measured in the browser on the desk's PC, as
 ``docs/operations/SMALL_DESK_RESILIENCE.md`` describes; add the two.
 
+``deal`` (small-desk plan section 5, "a new deal changes position and P&L within one second"):
+the API must be running and ``--book`` must name a book the token may write. Each sample enters
+a 1 MW TTF month-ahead deal by hand through ``POST /api/desk/deals/manual`` (the clock starts when
+that answer returns, so the store has committed it), stops at the first ``change`` notice for the
+``deals`` topic on ``/api/stream/live``, then reads the position ladder as the open page would
+(``position_read_ms``: the page's re-read, computed afresh because a deal makes the position
+views unservable). Every deal it entered is cancelled by hand at the end (still on the blotter,
+marked cancelled, out of the position). The browser's share (notice to painted figures) is
+measured in the browser.
+
 The latency modes also read the stages from the store: delivery processed, evaluation
 started and finished.
 Run it only against a local or demo store; nothing is traded, sent or published elsewhere.
@@ -44,6 +54,7 @@ Usage::
     python scripts/ops/measure_live_latency.py before --samples 5
     python scripts/ops/measure_live_latency.py throughput --events 5000
     python scripts/ops/measure_live_latency.py notice --samples 20 --gap 1
+    python scripts/ops/measure_live_latency.py deal --book desk-a --samples 10 --gap 1
 """
 
 from __future__ import annotations
@@ -334,6 +345,65 @@ def _throughput(session_factory, args) -> list[dict]:
     return [sample]
 
 
+def _deal(session_factory, args) -> list[dict]:
+    """A deal entered by hand -> its ``deals`` notice on the live stream -> the ladder re-read."""
+
+    import httpx
+
+    if not args.book:
+        raise SystemExit("deal mode needs --book (a book the token may write)")
+    headers = {"X-Eurogas-Api-Key": args.token}
+    frames: queue.Queue = queue.Queue()
+    stop = threading.Event()
+    threading.Thread(
+        target=_reader,
+        args=(args.base_url, args.token, frames, stop, "/api/stream/live?topics=deals,prices"),
+        daemon=True,
+    ).start()
+    time.sleep(3)  # the stream's first poll
+    while not frames.empty():
+        frames.get_nowait()
+    samples, keys = [], []
+    with httpx.Client(base_url=args.base_url, headers=headers, timeout=60) as client:
+        try:
+            for index in range(args.samples):
+                answer = client.post("/api/desk/deals/manual", json={
+                    "book": args.book, "venue": "OTC", "counterparty": ACTOR, "hub": "TTF",
+                    "product": "M+1", "side": "buy" if index % 2 == 0 else "sell",
+                    "volume": "1", "volume_unit": "MW", "price": "30", "price_unit": "EUR/MWh",
+                })
+                answer.raise_for_status()
+                committed = time.time()
+                keys.append(answer.json()["data"]["deal_key"])
+                noticed = None
+                deadline = committed + args.timeout
+                while time.time() < deadline and noticed is None:
+                    try:
+                        at, event, data = frames.get(timeout=0.02)
+                    except queue.Empty:
+                        continue
+                    if at >= committed and event == "change" and data.get("topic") == "deals":
+                        noticed = at
+                read_started = time.time()
+                client.get("/api/portfolio/position-ladder").raise_for_status()
+                read_ms = round((time.time() - read_started) * 1000)
+                sample = {
+                    "deal_notice_on_stream_ms": round((noticed - committed) * 1000)
+                    if noticed else None,
+                    "position_read_ms": read_ms,
+                    "deal_to_new_position_ms": round((time.time() - committed) * 1000),
+                }
+                samples.append(sample)
+                print(json.dumps(sample), flush=True)
+                time.sleep(args.gap)
+        finally:
+            for key in keys:
+                client.post("/api/desk/deals/manual",
+                            json={"book": args.book, "deal_key": key, "status": "cancelled"})
+            stop.set()
+    return samples
+
+
 def _ms(instant: datetime | None, committed: float) -> int | None:
     return round((instant.timestamp() - committed) * 1000) if instant else None
 
@@ -356,7 +426,8 @@ def main(argv: list[str] | None = None) -> int:
     from eurogas_nexus.db.session import get_session_factory, resolve_database_url
 
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("mode", choices=("after", "before", "throughput", "notice"))
+    parser.add_argument("mode", choices=("after", "before", "throughput", "notice", "deal"))
+    parser.add_argument("--book", default="", help="deal mode: the book the deals go in")
     parser.add_argument("--samples", type=int, default=10)
     parser.add_argument("--base-url", default="http://127.0.0.1:8000")
     parser.add_argument("--token", default=os.environ.get("EUROGAS_NEXUS_PUBLIC_API_TOKEN", ""))
@@ -368,7 +439,7 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("needs PostgreSQL (RUNTIME_STORE_DATABASE_URL)")
     factory = get_session_factory()
     run = {"after": _after, "before": _before, "throughput": _throughput,
-           "notice": _notice}[args.mode]
+           "notice": _notice, "deal": _deal}[args.mode]
     try:
         samples = run(factory, args)
     finally:

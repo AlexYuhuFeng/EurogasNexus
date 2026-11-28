@@ -72,6 +72,22 @@ def _run(work, *, commit: bool = False):
         ) from exc
 
 
+def _deals_changed() -> None:
+    """A deal was captured, corrected, cancelled or reclassified, or a day closed: the
+    position views stop answering from before it and every open stream hears it now, not at
+    the next poll (small-desk plan section 5, "within one second of a new deal")."""
+
+    import contextlib
+
+    from eurogas_nexus.api.stream_hub import get_hub
+    from eurogas_nexus.application.warm_views import views
+
+    with contextlib.suppress(Exception):
+        views().note_deals()
+    with contextlib.suppress(Exception):
+        get_hub().poll_soon()
+
+
 def _today() -> date:
     return datetime.now(UTC).date()
 
@@ -283,6 +299,7 @@ async def post_deal_import(
                            format_name=format, origin="upload").as_dict()
 
     data = await run_in_threadpool(lambda: _run(work, commit=True))
+    _deals_changed()
     warnings = [] if not data["problems"] else [
         f"{len(data['problems'])} row(s) could not be read; they are listed on the blotter"]
     return _env(data, request, _SOURCE, warnings)
@@ -343,6 +360,7 @@ def post_manual_deal(body: ManualDeal, request: Request) -> dict:
         values["trade_time"] = moment.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S")
     caller = caller_of(request)
     data = _run(lambda session: enter_manual_deal(session, caller, values), commit=True)
+    _deals_changed()
     return _env(data, request, _SOURCE, [])
 
 
@@ -396,6 +414,36 @@ async def post_eod_check(
     return _env(data, request, _SOURCE, [])
 
 
+class PositionKind(BaseModel):
+    """A person's choice that a captured deal counts as physical or financial."""
+
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    deal_key: str = Field(min_length=3, max_length=200)
+    #: ``physical`` or ``financial``; ``null`` withdraws the choice (the rule file decides).
+    kind: str | None = Field(default=None, pattern="^(physical|financial)$")
+    note: str | None = Field(default=None, max_length=300)
+
+
+@router.post("/api/desk/deals/position-kind")
+def post_position_kind(body: PositionKind, request: Request) -> dict:
+    """Count a captured deal as physical or financial (entered by hand, audited), or withdraw
+    the choice so the rule file decides again.
+
+    指定捕获交易在头寸中计为实物或金融（手工录入并审计），或撤销指定。
+    """
+
+    from eurogas_nexus.application.caller import caller_of
+    from eurogas_nexus.application.deal_capture import set_position_kind
+
+    _require(request, "portfolio.write")
+    caller = caller_of(request)
+    data = _run(lambda session: set_position_kind(session, caller, body.deal_key,
+                                                  kind=body.kind, note=body.note),
+                commit=True)
+    _deals_changed()
+    return _env(data, request, _SOURCE, [])
+
+
 class CloseDay(BaseModel):
     model_config = ConfigDict(extra="forbid")
     day: date
@@ -422,6 +470,7 @@ def post_close_day(body: CloseDay, request: Request) -> dict:
         session, caller, day=body.day, etrm_text=body.etrm_csv,
         etrm_file_name=body.etrm_file_name, acknowledgements=body.acknowledgements,
         note=body.note), commit=True)
+    _deals_changed()
     return _env(data, request, _SOURCE, [])
 
 

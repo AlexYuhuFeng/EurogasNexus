@@ -51,9 +51,9 @@ def test_release_start_refuses_an_old_schema_and_says_what_to_run(
 def test_plan_changes_nothing_and_exits_zero(empty_sqlite, capsys) -> None:
     assert upgrade_database.main(["plan"]) == 0
     # Every revision of the chain is pending on an empty store (0095 is the security hardening,
-    # 0096 the retention by data class, 0097 the deal capture, 0098 removes the strategy
-    # laboratory).
-    assert "pending revisions : 98" in capsys.readouterr().out
+    # 0096 the retention by data class, 0097 the deal capture, 0098 the deal position source,
+    # 0099 removes the strategy laboratory).
+    assert "pending revisions : 99" in capsys.readouterr().out
 
 
 def test_upgrade_needs_confirmation_in_a_script(empty_sqlite, monkeypatch, capsys) -> None:
@@ -88,16 +88,17 @@ def test_plan_json_lists_each_revision_with_its_declaration(empty_sqlite, capsys
     by_revision = {item["revision"]: item["reversibility"] for item in payload["pending"]}
     assert by_revision["0040_strategy_owner_sharing"] == "irreversible"
     assert by_revision["0096_retention_by_class"] == "conditional"
-    assert by_revision["0098_remove_strategy_laboratory"] == "irreversible"
+    assert by_revision["0099_remove_strategy_laboratory"] == "irreversible"
 
 
 def test_revisions_to_undo_walks_down_from_the_current_revision(empty_sqlite) -> None:
     config = database_upgrade.alembic_config(empty_sqlite)
     undo = database_upgrade.revisions_to_undo(
-        config, "0098_remove_strategy_laboratory", "0093_timescale_optional"
+        config, "0099_remove_strategy_laboratory", "0093_timescale_optional"
     )
     assert [item.revision for item in undo] == [
-        "0098_remove_strategy_laboratory", "0097_deal_capture", "0096_retention_by_class",
+        "0099_remove_strategy_laboratory", "0098_deal_position_source", "0097_deal_capture",
+        "0096_retention_by_class",
         "0095_security_hardening", "0094_option_settlements",
     ]
     assert database_upgrade.revisions_to_undo(config, "0093_timescale_optional",

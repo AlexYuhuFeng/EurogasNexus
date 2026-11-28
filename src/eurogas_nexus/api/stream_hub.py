@@ -94,6 +94,7 @@ class StreamHub:
         self._subs: set[Subscription] = set()
         self._lock = threading.Lock()
         self._wake = threading.Event()
+        self._full_now = False
         self._thread: threading.Thread | None = None
         self._pid = os.getpid()
         self.stats = HubStats()
@@ -115,6 +116,18 @@ class StreamHub:
             self._ensure_thread()
             self._wake.set()
         return sub
+
+    def poll_soon(self) -> None:
+        """Poll every stream now, not at the next interval: something the desk acts on was
+        written by this process (a captured deal), so its notice goes out at once."""
+
+        with self._lock:
+            if not self._subs:
+                return
+            self._full_now = True
+        if self._autostart:
+            self._ensure_thread()
+        self._wake.set()
 
     def unsubscribe(self, sub: Subscription) -> None:
         with self._lock:
@@ -164,7 +177,9 @@ class StreamHub:
                 self._wake.clear()
                 continue
             now = time.monotonic()
-            if now >= next_full:
+            with self._lock:
+                full_now, self._full_now = self._full_now, False
+            if now >= next_full or full_now:
                 due = subs
                 next_full = now + max(0.0, float(self._interval()))
             else:

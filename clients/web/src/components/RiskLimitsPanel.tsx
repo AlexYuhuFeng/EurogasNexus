@@ -1,5 +1,6 @@
 import { useCallback, useMemo, useState } from "react";
 import { useCachedRead } from "@/app/data/readCache";
+import { DEAL_LIVE_MS, DEAL_TOPICS, useLiveTopics } from "@/app/hooks/useLive";
 
 import {
   api,
@@ -216,6 +217,13 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
     mandateRead.refresh();
     pendingRead.refresh();
   }, [creditRead.refresh, mandateRead.refresh, pendingRead.refresh]);
+  // A captured deal moves exposure and mandate usage: re-read at once (small-desk plan 5).
+  const rereadOnDeal = useCallback(() => {
+    creditRead.refresh();
+    mandateRead.refresh();
+  }, [creditRead.refresh, mandateRead.refresh]);
+  useLiveTopics(DEAL_TOPICS, rereadOnDeal, { minIntervalMs: DEAL_LIVE_MS });
+  const estimate = creditRead.data?.data.estimate_label ?? mandateRead.data?.data.estimate_label ?? null;
 
   // Saved at once, or proposed and waiting for a second person (P-17): the message says which.
   const savedMessage = (answer: GovernedSaveDTO | undefined, subject: string) => {
@@ -388,12 +396,13 @@ export function RiskLimitsPanel({ t, canMaintainRisk }: { t: Translate; canMaint
   const breaches = [...(credit ?? []), ...(mandates ?? [])].filter((row) => row.status === "breach" || row.status === "expired").length;
 
   return (
-    <section className="workspace-panel span-3 risk-limits-panel" aria-labelledby="risk-limits-title">
+    <section className="workspace-panel span-3 risk-limits-panel desk-panel" aria-labelledby="risk-limits-title">
       <div className="panel-title-row">
         <h2 id="risk-limits-title">{t("limits.title")}</h2>
         {breaches > 0 && <StatusBadge tone="breach">{t("limits.breaches", { count: breaches })}</StatusBadge>}
         <UpdatingMark active={creditRead.updating || mandateRead.updating} label={t("status.updating")} />
       </div>
+      {estimate && <p className="muted" role="status" data-limits-estimate="true">{t("position.estimate")}</p>}
 
       <div className="panel-title-row">
         <h3>{t("limits.credit_title")}</h3>
