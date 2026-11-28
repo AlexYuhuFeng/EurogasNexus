@@ -84,6 +84,11 @@ const IDENTICAL_BY_DESIGN: Readonly<Record<string, string>> = {
   "cargo.form.hh": "a hub's own name, kept in Latin like the hub codes",
   "cargo.sens.hh": "a hub's own name, kept in Latin like the hub codes",
   "contracts.price.index_name.HH": "a hub's own name, kept in Latin like the hub codes",
+  "regas.report.pdf": "a file format's name",
+  "regas.report.xlsx": "a file format's name",
+  "regas.unit.GWh": "a unit symbol",
+  "regas.unit.MWh": "a unit symbol",
+  "regas.unit.MMBtu": "a unit symbol",
 };
 
 test("the two locales declare exactly the same keys", () => {

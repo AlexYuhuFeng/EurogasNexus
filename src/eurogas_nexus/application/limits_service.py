@@ -358,6 +358,65 @@ def mandate_usage_rows(caller: Caller, today: date) -> LimitRows:
     return result
 
 
+def mandate_usage_with(caller: Caller, today: date, extra_legs: list, *,
+                       books: tuple[str, ...] = ()) -> list[dict[str, Any]]:
+    """Each mandate covering ``books`` before and after ``extra_legs`` are added, read-only.
+
+    A what-if (the regas auction desk: a won slot and its hedges): the legs are the ladder's
+    own (the one position source) plus the hypothetical ones; nothing is stored or booked.
+    """
+
+    from eurogas_nexus.application.position_inputs import ladder_inputs
+    from eurogas_nexus.db.models import TraderMandateRecord
+    from eurogas_nexus.db.session import get_session_factory
+    from eurogas_nexus.domain.risk.limits import mandate_usage
+
+    if _limits_refused(caller) is not None:
+        return []
+    start, end = horizon(today)
+    with get_session_factory()() as session:
+        records = session.query(TraderMandateRecord).order_by(TraderMandateRecord.trader).all()
+        session.expunge_all()
+    legs = mandate_legs(ladder_inputs(caller, today, start, end), today)
+    out = []
+    for record in records:
+        if books and not set(books) & set(record.book_ids or ()):
+            continue
+        mandate = mandate_of(record)
+        elsewhere = books_elsewhere(records, record)
+        before = mandate_usage(mandate, legs, today=today, books_elsewhere=elsewhere).as_row()
+        after = mandate_usage(mandate, [*legs, *extra_legs], today=today,
+                              books_elsewhere=elsewhere).as_row()
+        out.append({"mandate_id": record.mandate_id, "name": before["name"],
+                    "before": before, "after": after})
+    return out
+
+
+def credit_exposure_with(caller: Caller, today: date, counterparty_id: str, extra_legs: list
+                         ) -> dict[str, Any] | None:
+    """One counterparty's exposure against its line before and after ``extra_legs``,
+    read-only (a what-if); ``None`` when the caller may not read limits or no line is held."""
+
+    from eurogas_nexus.domain.risk.limits import credit_exposure
+
+    if _limits_refused(caller) is not None:
+        return None
+    built = credit_inputs(caller, today)
+    item = next((line for line in built.lines if line.line.counterparty_id == counterparty_id),
+                None)
+    if item is None:
+        return None
+
+    def row(legs):
+        return credit_exposure(
+            item.line, legs, today=today, mark=built.mark, fx=built.fx,
+            valuation=built.valuation(item.line.currency, today) if built.valuation else None,
+        ).as_row()
+
+    return {"counterparty_id": counterparty_id, "before": row(item.legs),
+            "after": row([*item.legs, *extra_legs]), "marks_as_of": built.marks_as_of}
+
+
 def instrument_of(order) -> str:
     """What kind of financial trade a filled order is, for the mandate's instrument list."""
 

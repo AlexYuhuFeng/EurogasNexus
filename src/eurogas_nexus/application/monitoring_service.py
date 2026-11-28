@@ -67,6 +67,7 @@ def scan_monitoring_conditions(
         *_stale_source_candidates(session, now),
         *_market_event_candidates(session, now),
         *_tariff_book_candidates(session, now),
+        *_regas_auction_candidates(session, now),
     ]
     candidates += _price_move_candidates(session, now)
     candidates += _shortfall_candidates(session, now)
@@ -584,6 +585,15 @@ def _tariff_book_candidates(session: Session, now: datetime) -> list[MonitoringC
     within three days (TAR-1, ``application/tariff_book.monitoring_candidates``)."""
 
     from eurogas_nexus.application.tariff_book import monitoring_candidates
+
+    return monitoring_candidates(session, now)
+
+
+def _regas_auction_candidates(session: Session, now: datetime) -> list[MonitoringCandidate]:
+    """An open regas auction case's close and its cargo offer's expiry, ahead by the desk's
+    lead times (``application/regas_auction.monitoring_candidates``)."""
+
+    from eurogas_nexus.application.regas_auction import monitoring_candidates
 
     return monitoring_candidates(session, now)
 

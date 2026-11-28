@@ -9,7 +9,7 @@ Additive 2026-11-26 (security review 2026-11): twelve paths, twelve operations. 
 `POST /api/access/users/{principal_id}/mfa/reset`, `GET /api/audit/verify`,
 `POST /api/audit/checkpoint`, `POST /api/audit/prune`. The caller's own: `GET /api/me/mfa`,
 `POST /api/me/mfa/enrol`, `POST /api/me/mfa/confirm`; sign-in: `POST /api/auth/mfa/verify`.
-Census: 312 paths / 343 operations (+3 / +3 on 309 / 340: `GET /api/publications/calendar`, `GET /api/publications/sources`, `POST /api/publications/sources/{publication_id}/confirm`; -34 / -40 on 343 / 380: the strategy laboratory removed; +1 / +1 on 342 / 379: `POST /api/desk/deals/position-kind`; +13 / +14 on 329 / 365: deal capture under `/api/desk/deals`; +1 / +1 on 328 / 364: `GET /api/settings/ai`; +12 / +12 before that on 316 / 352). Behaviour changes on existing
+Census: 318 paths / 352 operations (+6 / +9 on 312 / 343: the regas auction desk under `/api/desk/regas-auctions` (list and open, read and change a case, snapshots, close, a read-only what-if, the case report; reads READ with book scope, writes WRITE with `portfolio.write` in the handler, audited); +3 / +3 on 309 / 340: `GET /api/publications/calendar`, `GET /api/publications/sources`, `POST /api/publications/sources/{publication_id}/confirm`; -34 / -40 on 343 / 380: the strategy laboratory removed; +1 / +1 on 342 / 379: `POST /api/desk/deals/position-kind`; +13 / +14 on 329 / 365: deal capture under `/api/desk/deals`; +1 / +1 on 328 / 364: `GET /api/settings/ai`; +12 / +12 before that on 316 / 352). Behaviour changes on existing
 paths are listed in docs/release/notes/SECURITY_HARDENING_2026-11.md.
 
 Additive 2026-11-26 (planning inputs): one path, one operation, READ: `GET /api/optimization/planning-inputs`.

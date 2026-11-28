@@ -78,6 +78,8 @@ test("every old task address lands on its new task; Decision Center's tasks each
     "market.curves": "desk/prices",
     "market.network": "desk/network",
     "market.cargoes": "desk/cargoes",
+    // The regas auction desk: Cargoes' second view, not a task of its own.
+    "market.auctions": "desk/cargoes",
     // The retired task lands on Network (its Capacity tab, networkPanelModel).
     "market.capacity": "desk/network",
     "contracts.overview": "book/position",

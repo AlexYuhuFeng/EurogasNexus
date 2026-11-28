@@ -76,7 +76,8 @@ export const PAGE_OBJECT_PARAMS: Partial<Record<WorkspacePageId, readonly string
   scenario: ["opportunity"],
   // The board's tenor once the user chose one (Prices); the Network panel's tab and the outage
   // it selects; the cargo whose plan is open on Cargoes.
-  market: ["tenor", "panel", "outage", "cargo"],
+  // The regas auction case open beside its list (Cargoes → Regas auctions).
+  market: ["tenor", "panel", "outage", "cargo", "auction"],
   glossary: ["term"],
   // The alert or outage a situation report is about (Research → Reports).
   research: ["subject"],

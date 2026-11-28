@@ -606,6 +606,11 @@ def calendar_items(session, *, now: datetime, days: int = 60,
                                   fetched_at=_aware(row.last_fetched_at_utc),
                                   changed_at=_aware(row.pending_since_utc)),
             })
+    # The desk's own regas auction cases: the auction close and the cargo offer's expiry (the
+    # session's book scope applies to the cases read).
+    from eurogas_nexus.application.regas_auction import calendar_items as regas_items
+
+    items += regas_items(session, now=now, days=days)
     return sorted(items, key=lambda entry: (entry["at"] or "", entry["key"]))
 
 

@@ -53,7 +53,7 @@ def test_plan_changes_nothing_and_exits_zero(empty_sqlite, capsys) -> None:
     # Every revision of the chain is pending on an empty store (0095 is the security hardening,
     # 0096 the retention by data class, 0097 the deal capture, 0098 the deal position source,
     # 0099 removes the strategy laboratory, 0100 the watched publications).
-    assert "pending revisions : 100" in capsys.readouterr().out
+    assert "pending revisions : 101" in capsys.readouterr().out
 
 
 def test_upgrade_needs_confirmation_in_a_script(empty_sqlite, monkeypatch, capsys) -> None:

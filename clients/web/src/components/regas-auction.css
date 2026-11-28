@@ -1,0 +1,254 @@
+/*
+ * Desk → Cargoes → Regas auctions (RegasAuctionPanel.tsx): the look of Desk → Board
+ * (trader-screen.css panels, desk-panels.css density). Tokens only (scripts/cssTokenLint.mjs).
+ * The case list sits beside the case; the answer strip leads with the most to bid; the drivers,
+ * sensitivities and hedges share one row; the inputs and their sources follow. At phone width
+ * everything stacks and wide tables scroll inside their own panels.
+ */
+
+@layer ds-components {
+  .regas-desk {
+    --ds-row: calc(var(--ds-control-sm) - var(--ds-space-1));
+    --ds-row-header: var(--ds-row);
+    display: grid;
+    grid-template-columns: minmax(0, calc(var(--ds-space-8) * 9)) minmax(0, 1fr);
+    gap: var(--ds-space-3);
+    align-items: start;
+    min-width: 0;
+    padding-bottom: var(--ds-space-3);
+  }
+
+  .regas-desk .ds-grid th,
+  .regas-desk .ds-grid td {
+    padding: 0 var(--ds-space-1);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  .regas-desk .ds-grid thead th {
+    height: var(--ds-row);
+  }
+
+  .regas-desk h3 {
+    margin: var(--ds-space-1) 0 0;
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-semibold);
+    line-height: var(--ds-line-sm);
+  }
+
+  .regas-main,
+  .regas-case {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-3);
+    min-width: 0;
+  }
+
+  .regas-case-list {
+    display: flex;
+    flex-direction: column;
+    gap: var(--ds-space-1);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .regas-case-row {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--ds-space-05);
+    box-sizing: border-box;
+    width: 100%;
+    padding: var(--ds-space-2);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .regas-case-row[aria-current="true"] {
+    border-color: var(--ds-accent);
+    background: var(--ds-surface-2);
+  }
+
+  .regas-case-row:focus-visible {
+    outline: var(--ds-focus-outline);
+    box-shadow: var(--ds-focus);
+  }
+
+  .regas-case-name {
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-semibold);
+    line-height: var(--ds-line-sm);
+  }
+
+  .regas-case-row .trader-meta {
+    white-space: normal;
+  }
+
+  .regas-deadlines {
+    min-width: 0;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-1) var(--ds-space-4);
+  }
+
+  /* ---- the answer: the most to bid first, then the level, the headroom, the break-even */
+
+  .regas-figures {
+    display: grid;
+    grid-template-columns: minmax(0, 1.4fr) repeat(3, minmax(0, 1fr));
+    gap: var(--ds-space-3);
+  }
+
+  .regas-figure {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--ds-space-05);
+    min-width: 0;
+    padding-left: var(--ds-space-3);
+    border-left: 1px solid var(--ds-border);
+  }
+
+  .regas-desk .trader-meta,
+  .regas-deadlines > span,
+  .regas-figure .trader-meta {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .regas-figure-main {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .regas-figure-label {
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    font-weight: var(--ds-weight-medium);
+    line-height: var(--ds-line-sm);
+  }
+
+  .regas-figure-value {
+    display: inline-flex;
+    align-items: baseline;
+    gap: var(--ds-space-1);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-xl);
+    font-weight: var(--ds-weight-semibold);
+    font-variant-numeric: tabular-nums;
+    line-height: var(--ds-line-xl);
+  }
+
+  .regas-figure-unit {
+    color: var(--ds-text-3);
+    font-size: var(--ds-text-xs);
+    line-height: var(--ds-line-xs);
+  }
+
+  .regas-case[data-regas-state="room"] .regas-figure-main .regas-figure-value {
+    color: var(--ds-status-ok);
+  }
+
+  .regas-case[data-regas-state="at_limit"] .regas-figure-main .regas-figure-value {
+    color: var(--ds-status-watch);
+  }
+
+  .regas-case[data-regas-state="stop"] .regas-figure-main .regas-figure-value {
+    color: var(--ds-status-breach);
+  }
+
+  .regas-inline {
+    display: inline-flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-1);
+  }
+
+  .regas-inline input {
+    box-sizing: border-box;
+    width: calc(var(--ds-space-8) * 3);
+  }
+
+  .regas-actions .regas-inline input {
+    width: calc(var(--ds-space-8) * 6);
+  }
+
+  .regas-inline input {
+    min-height: var(--ds-control-sm);
+    padding: 0 var(--ds-space-1);
+    border: 1px solid var(--ds-border);
+    border-radius: var(--ds-radius-sm);
+    background: var(--ds-surface);
+    color: var(--ds-text-1);
+    font-size: var(--ds-text-sm);
+  }
+
+  .regas-actions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--ds-space-2) var(--ds-space-4);
+    margin-top: var(--ds-space-2);
+    padding-top: var(--ds-space-2);
+    border-top: 1px solid var(--ds-border);
+  }
+
+  .regas-missing ul,
+  .regas-whatif ul,
+  .regas-assumptions {
+    margin: var(--ds-space-1) 0 0;
+    padding-left: var(--ds-space-4);
+    color: var(--ds-text-2);
+    font-size: var(--ds-text-sm);
+    line-height: var(--ds-line-sm);
+  }
+
+  /* ---- what drives it, what moves it, the hedges: one row */
+
+  .regas-grid {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) minmax(0, 1fr);
+    gap: var(--ds-space-3);
+    align-items: stretch;
+  }
+
+  .regas-grid .trader-panel-body {
+    max-height: calc(var(--ds-space-8) * 14);
+  }
+
+  .regas-close {
+    margin-top: var(--ds-space-2);
+  }
+
+  @media (max-width: 1279px) {
+    .regas-grid {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .regas-figures {
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+  }
+
+  @media (max-width: 767px) {
+    .regas-desk {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .regas-figures {
+      grid-template-columns: minmax(0, 1fr);
+    }
+
+    .regas-figure {
+      padding-left: 0;
+      border-left: 0;
+    }
+  }
+}

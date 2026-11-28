@@ -19,6 +19,7 @@ basis for the UK therm used at NBP and for the MMBtu:
 from __future__ import annotations
 
 from collections.abc import Mapping
+from decimal import Decimal
 
 from eurogas_nexus.domain.ontology.markets import Commodity, MarketStatus, markets
 from eurogas_nexus.domain.ontology.quantity import UNITS as _ONTOLOGY_UNITS
@@ -127,6 +128,56 @@ def volume_to_mwh(cubic_metres: float, gcv_kwh_per_m3: float) -> float:
     if not low <= gcv_kwh_per_m3 <= high:
         raise UnitConversionError("gcv_kwh_per_m3 must be an explicit natural-gas GCV (8-13)")
     return cubic_metres * gcv_kwh_per_m3 / 1000.0
+
+
+#: Energy in one cubic metre of liquid LNG (MWh, gross) a desk assumes when an operator states a
+#: slot in m3 of LNG without its own factor. LNG of usual European import quality holds about
+#: 6.1 to 6.9 MWh per m3 of liquid (about 570 to 610 m3 of gas at 10.5 to 11.5 kWh/m3); an
+#: operator's own factor replaces it, and every figure computed with this one says so.
+DESK_ASSUMED_LNG_MWH_PER_M3 = Decimal("6.5")
+#: The range :func:`lng_m3_to_mwh` accepts as an LNG factor (MWh per m3 of liquid).
+LNG_MWH_PER_M3_RANGE = (Decimal("5.5"), Decimal("7.5"))
+#: Units a regas slot is stated in, and MWh per one unit where the factor is fixed.
+#: ``m3_lng`` needs a stated factor (:func:`lng_m3_to_mwh`).
+SLOT_ENERGY_UNITS: dict[str, Decimal | None] = {
+    "MWh": Decimal(1),
+    "GWh": Decimal(1000),
+    "kWh": Decimal("0.001"),
+    "MMBtu": Decimal(1) / Decimal(str(_convert(1.0, "MWh", "MMBtu"))),
+    "therm": Decimal(1) / Decimal(str(_convert(1.0, "MWh", "th"))),
+    "m3_lng": None,
+}
+
+
+def lng_m3_to_mwh(cubic_metres: Decimal, mwh_per_m3: Decimal) -> Decimal:
+    """Liquid LNG volume (m3) to energy (MWh) with an explicit factor, exactly.
+
+    Raises:
+        UnitConversionError: When the factor is not a plausible LNG energy density.
+    """
+
+    low, high = LNG_MWH_PER_M3_RANGE
+    if not low <= mwh_per_m3 <= high:
+        raise UnitConversionError("mwh_per_m3 must be an explicit LNG factor (5.5-7.5)")
+    return cubic_metres * mwh_per_m3
+
+
+def slot_energy_mwh(quantity: Decimal, unit: str, factor: Decimal | None = None
+                    ) -> tuple[Decimal, Decimal]:
+    """A slot's energy in MWh and the factor used (MWh per one ``unit``), exactly.
+
+    Raises:
+        UnitConversionError: When the unit is unknown, or ``m3_lng`` comes without a factor.
+    """
+
+    if unit not in SLOT_ENERGY_UNITS:
+        raise UnitConversionError(f"unsupported slot unit: {unit!r}")
+    fixed = SLOT_ENERGY_UNITS[unit]
+    if fixed is None:
+        if factor is None:
+            raise UnitConversionError("a slot in m3 of LNG needs its MWh per m3 factor")
+        return lng_m3_to_mwh(quantity, factor), factor
+    return quantity * fixed, fixed
 
 
 def _fx_factor(currency_from: str, currency_to: str, eur_rates: Mapping[str, float]) -> float:

@@ -1,0 +1,138 @@
+# The regas auction case: how an auction is quoted, what a cargo offer can be, and the cost
+# lines the desk nets back from hub revenue to the most it can bid for a slot.
+#
+# Maintained by hand. The desk's traders confirm or change these defaults; nothing here is a
+# market price. A desk copy of this file (same file name) in the folder named by
+# EUROGAS_NEXUS_DEAL_FORMATS_DIR replaces this one; no code change, no rebuild. Every default
+# a case uses is stated on the screen and in the case report as "desk default".
+#
+# Not yet confirmed by the traders (docs/user/REGAS_AUCTION.md, "Assumptions to confirm"):
+# which terminals, how each auction runs, how cargo owners price, which costs they include and
+# whether they hedge during the window or after winning.
+
+[auction]
+# How the terminal quotes a bid: "per_mwh" (hub currency per MWh of slot energy) or
+# "per_slot" (one total for the slot). A case can choose the other.
+quotation = "per_mwh"
+# How the auction runs; a case picks one. The calculation is the same for each: the most the
+# slot is worth. Rising rounds show the level as it moves; sealed bid and first come take one
+# figure.
+formats = ["rising_rounds", "sealed_bid", "first_come"]
+default_format = "rising_rounds"
+# Headroom within this share of the maximum bid reads "at the limit"; below zero reads "stop".
+at_limit_within_pct = 2
+# Time zone the auction window is stated in when the operator gives none.
+default_time_zone = "Europe/Amsterdam"
+
+[offer]
+# A cargo owner's offer: a fixed price, or a formula on a named hub's index.
+kinds = ["fixed", "formula"]
+# Pricing periods a formula can name: the send-out days (average of the day prices, each day
+# weighted the same) or a delivery month (that month's price).
+pricing_periods = ["send_out_days", "month"]
+default_pricing = "send_out_days"
+# Volume tolerance the cargo owner may deliver within, percent either way.
+default_tolerance_pct = 5
+# Units a fixed price can be quoted in.
+price_units = ["EUR/MWh", "GBP/MWh", "USD/MWh", "USD/MMBtu", "GBp/th"]
+
+[profile]
+# Send-out over the slot's days: "even" (the same energy each day) unless the trader edits it.
+default = "even"
+# Days after the last send-out day the case reads prices for, so a late ship can be priced.
+delay_horizon_days = 7
+
+[financing]
+# Days the cargo payment is tied up before the gas is paid for at the hub (ACT/365).
+days_tied = 30
+day_count = 365
+# Added to the currency's overnight benchmark (ESTR, SONIA) for the desk's cost of money.
+spread_pp = 1.5
+
+[alerts]
+# Lead times before the auction closes and before the cargo owner's offer lapses, in minutes:
+# the first raises a warning, the last a critical alert.
+auction_close_lead_minutes = [120, 30]
+offer_expiry_lead_minutes = [120, 30]
+
+# Cost lines, in the order the screen shows them. Each line:
+#   key      stable name
+#   label    what the desk calls it
+#   basis    per_slot           one total for the slot, hub currency
+#            per_mwh_unloaded   hub currency per MWh unloaded from the ship
+#            per_mwh_sent_out   hub currency per MWh sent out to the grid
+#            percent_of_energy  percent of the unloaded energy kept by the terminal (losses)
+#            hedge_spread       half the bid/offer of each hedge leg, per MWh hedged
+#            financing          the cost of money over the days the payment is tied up
+#   from     where the value comes from when nobody entered one:
+#            register     the tariff register and the published tariffs the product holds
+#            computed     worked out from prices, rates and the hedges
+#            hand         entered by the desk (with the operator's link) - most terminal
+#                         sites may not be stored (docs/legal/DATA_SOURCE_TERMS.md)
+#   default  used, and labelled "desk default", when nothing better is held (optional)
+
+[[cost]]
+key = "regas_fee"
+label = "Terminal regas fee"
+basis = "per_slot"
+from = "register"
+
+[[cost]]
+key = "losses"
+label = "Fuel and boil-off losses"
+basis = "percent_of_energy"
+from = "register"
+
+[[cost]]
+key = "berthing"
+label = "Berthing and port"
+basis = "per_slot"
+from = "hand"
+
+[[cost]]
+key = "storage"
+label = "Tank storage"
+basis = "per_slot"
+from = "hand"
+default = 0
+
+[[cost]]
+key = "entry"
+label = "Send-out and grid entry capacity"
+basis = "per_mwh_sent_out"
+from = "register"
+
+[[cost]]
+key = "hedging"
+label = "Hedging (bid/offer crossing)"
+basis = "hedge_spread"
+from = "computed"
+# Half the bid/offer per MWh, used for a hedge leg with no quotes held.
+default = 0.05
+
+[[cost]]
+key = "financing"
+label = "Financing"
+basis = "financing"
+from = "computed"
+
+[[cost]]
+key = "margin"
+label = "Desk margin"
+basis = "per_mwh_sent_out"
+from = "hand"
+default = 0.25
+
+[[cost]]
+key = "late_buffer"
+label = "Late-ship buffer"
+basis = "per_slot"
+from = "hand"
+default = 0
+
+[[cost]]
+key = "other"
+label = "Other"
+basis = "per_slot"
+from = "hand"
+default = 0

@@ -16,6 +16,8 @@
 
 export const PHONE_ROUTES = [
   ...["board", "overview", "curves", "network", "capacity"].map((task) => `?workspace=market&task=${task}`),
+  // Desk → Cargoes → Regas auctions: the auction case list and the case (or the new-case form).
+  "?workspace=market&task=auctions",
   ...["overview", "resources", "exposure", "delivery", "deals"].map((task) => `?workspace=contracts&task=${task}`),
   ...["review", "nomination", "dispatch"].map((task) => `?workspace=scenario&task=${task}`),
   "?workspace=research&task=reports",
@@ -144,6 +146,7 @@ export const JSON_UPLOAD_PENDING_REMOVAL = new Set(["?workspace=contracts&task=r
 
 export const PURPOSE_ROUTES = new Set([
   ...["board", "overview", "curves", "network"].map((task) => `?workspace=market&task=${task}`),
+  "?workspace=market&task=auctions",
   ...["overview", "resources", "exposure", "delivery", "deals"].map((task) => `?workspace=contracts&task=${task}`),
   ...["review", "nomination", "dispatch"].map((task) => `?workspace=scenario&task=${task}`),
   "?workspace=research&task=reports",

@@ -1041,3 +1041,46 @@ def cargo_economics(session, request: dict[str, Any], *, caller) -> dict[str, An
         "reporting_currency": request.get("reporting_currency") or "EUR",
         "assumption_version": reader.assumption_version,
     }
+
+
+# ------------------------------------------------------------------ for the regas auction desk
+
+
+def terminal_choices(session) -> list[dict[str, Any]]:
+    """Every terminal the firm's terms, the tariff register or the published tariffs name, for
+    a picker: id, name, hub and whether a regas figure can be read for it (demo terms only on a
+    demo desk, never as a default)."""
+
+    out = []
+    for terminal in _terminals(session, [], study=True):
+        published = terminal.published
+        out.append(
+            {
+                "terminal_id": terminal.terminal_id,
+                "name": terminal.name,
+                "hub": terminal.hub,
+                "operator": getattr(published, "operator", None),
+                "country": getattr(published, "country", None),
+                "link_only": bool(published is not None and published.permission_operator),
+                "firm_terms": terminal.gik_from == "firm",
+            }
+        )
+    return out
+
+
+def terminal_charges(session, reader, terminal_id: str, *, arrival_month: str,
+                     energy_mwh: float):
+    """The desk engine's own terminal figures for one slot: regas charge (a total), entry
+    tariff and gas in kind, each with its class and source, and the further published costs
+    (``_option``); ``None`` when the terminal is in no register."""
+
+    found = _terminals(session, [terminal_id], study=True)
+    if not found:
+        return None
+    return _option(
+        session,
+        reader,
+        found[0],
+        request={"arrival_month": arrival_month, "product": "spot"},
+        q_del_mwh=energy_mwh,
+    )

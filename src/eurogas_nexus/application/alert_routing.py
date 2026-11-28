@@ -63,6 +63,8 @@ ROUTES: dict[str, Route] = {
     "lng_schedule": Route("nomination", "OPERATIONS", "TRADER"),
     "lng_exposure": Route("limits", "RISK_MANAGER", "MANAGEMENT"),
     "lng_material": Route("desk_head", "MANAGEMENT", "MANAGEMENT"),
+    # The regas auction desk: an auction close or a cargo offer's expiry ahead, to the trader.
+    "regas_auction": Route("cargo", "TRADER", "MANAGEMENT"),
     # SCHED-1: a reconciliation break near a cut-off, to scheduling.
     "gas_day_break": Route("nomination", "OPERATIONS", "TRADER"),
     # NEWS-1: a news item that touches the book, one alert per role whose work it changes.
