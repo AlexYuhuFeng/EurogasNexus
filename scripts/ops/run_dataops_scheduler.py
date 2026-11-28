@@ -24,6 +24,7 @@ from eurogas_nexus.application.dataops_runtime import (
     execute_claimed_runs,
     scan_scheduler,
 )
+from eurogas_nexus.application.publication_watch import watch_publications_if_due
 from eurogas_nexus.application.retention import run_retention_if_due
 from eurogas_nexus.application.scheduled_source_keys import (
     activate_keyed_sources,
@@ -886,6 +887,10 @@ def _iteration(
         # scope run_loop's caller set (it deletes across every book by data class, never by a
         # user's scope). Never raises: a failure is reported in the summary and audited.
         execution["retention"] = run_retention_if_due(session_factory, now_utc=now_utc)
+        # Package G: the public publications the desk relies on (auction calendars), each on its
+        # own interval and only where its terms allow fetching (application/publication_watch).
+        # Never raises; EUROGAS_NEXUS_PUBLICATION_WATCH=off stops it.
+        execution["publications"] = watch_publications_if_due(session_factory, now_utc=now_utc)
         failures = [
             outcome
             for outcome in execution.get("outcomes", [])

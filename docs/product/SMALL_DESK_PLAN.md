@@ -152,3 +152,35 @@ before any removal. Each removal is one commit (or one merge) on `main`, named i
 `docs/engineering/ARCHITECTURE_V2_EXECUTION_STATE.md`; restoring a feature starts from
 reverting that commit and refitting it to the code as it then stands. Keep the archive branch
 when tidying branches. Parked features (section 6) are still in the code and need no restore.
+
+## 11. What is published is fetched, not typed (owner, 2026-11-28)
+
+The desk is two people and cannot spend time watching websites. If something they need is
+publicly published, the product gets it from where it is published, when it is published, in
+the right form, and tells them; nobody types it in. This extends `AGENTS.md` rule 19 and is
+bounded by rule 18: publicly viewable is not the same as free to collect. Each publication's
+terms are read and recorded in `docs/legal/DATA_SOURCE_TERMS.md` ("Watched publications,
+checked 2026-11-28") before anything is fetched; nobody accepts terms or signs up on the
+owner's behalf.
+
+One mechanism (`domain/publications/registry.py`, `application/publication_watch.py`), run by
+the scheduler: per publication, its publisher, exact location, terms entry, check interval,
+change detection by the document's digest, a parser into a typed record, and what happens on a
+change (record updated with the previous one kept and a line in the events list; a document the
+parser cannot read is held as "source changed on <date>, needs a person to confirm" and the
+desk is told once; unreachable or not permitted is stated, never silent). The desk sees it on
+Desk → Board → Calendar and in the events list; administrators see every publication's state in
+Admin → Data sources → Watched publications.
+
+| Publication | State on 2026-11-28 |
+|---|---|
+| ENTSOG CAM auction calendar (yearly, quarterly, monthly; firm and interruptible; offer-level days) | **Fetched** daily; replaces the rule-derived dates |
+| EEX trading calendar | Hand-maintained (terms forbid storing), check reminder with the link |
+| ICE Endex and ICE Futures Europe trading schedules | Hand-maintained (terms forbid robots and storing), check reminder with the link |
+| PRISMA, GSA, RBP auction schedules | Link only (no public reuse terms; offers behind accounts); dates follow ENTSOG's calendar |
+| LNG slot announcements: Zeebrugge, Dunkerque, Isle of Grain, Gate, DET (Wilhelmshaven, Brunsbüttel, Stade), Mukran, Spain | Link only (terms forbid reuse, or could not be read) |
+| Storage offers: Uniper, Loenhout, Spain | Link only |
+| Reference prices: THE imbalance prices, National Gas SMP, MIBGAS, EEX NGP | Link only (THE would need one written consent; its API is open) |
+
+E-mail-only announcements are not read; a desk-owned mailbox is proposed in
+`docs/integration/DESK_MAILBOX_DESIGN.md` (depends on the office's IT policy).

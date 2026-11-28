@@ -5,13 +5,17 @@
  * - REMIT urgent market messages as the outage read serves them (`GET /api/physical/outages`,
  *   grouped by event: GIE IIP, ENTSOG TP and imported files), planned and unplanned;
  * - news items from the registered public sources (`GET /api/news`), less any item that is the
- *   same REMIT event again (`linked_event_key`).
+ *   same REMIT event again (`linked_event_key`);
+ * - the desk's calendar (`GET /api/publications/calendar`, Package G): non-trading days, auction
+ *   windows and offer-level days in the next week, and any source that changed and needs a
+ *   person. These come from where they are published (or from the desk's hand-maintained file,
+ *   said so in the source), never typed into this list.
  * Each line names the hubs of the desk's five it bears on, says whether it touches the desk's
  * own book, and keeps its source for the title. Licensed headline feeds (agencies, price
  * reporters) are never read here: the list names them as an empty slot the desk connects with
  * its own subscription (rule 18).
  */
-import type { NewsItemDTO, NewsSourceDTO, OutageEventDTO } from "../../api/client.ts";
+import type { NewsItemDTO, NewsSourceDTO, OutageEventDTO, PublicationCalendarItemDTO } from "../../api/client.ts";
 import type { BoardSelection } from "./traderDetailModel.ts";
 import { BOARD_HUBS } from "./traderBoardModel.ts";
 
@@ -39,7 +43,7 @@ export function hubsFor(codes: readonly (string | null | undefined)[]): string[]
   return BOARD_HUBS.filter((hub) => out.has(hub));
 }
 
-export type EventKind = "unplanned" | "planned" | "news";
+export type EventKind = "unplanned" | "planned" | "news" | "calendar";
 
 export interface BoardEvent {
   key: string;
@@ -90,14 +94,62 @@ export function outageNativeSize(
   return value === null ? null : { value, unit: gb ? "mcm/d" : "GWh/d" };
 }
 
+/** How far ahead a calendar item joins the events list (the Calendar tab shows the rest). */
+export const CALENDAR_AHEAD_DAYS = 7;
+
+type Translate = (key: string, options?: Record<string, unknown>) => string;
+
+/** The source line of a calendar item: its publisher, and whether the desk typed it. */
+export function calendarSource(item: PublicationCalendarItemDTO, t: Translate): string {
+  const publisher = item.source.publisher ?? item.source.title ?? "";
+  if (item.source.basis === "hand_maintained") return t("calendar.source.hand", { publisher });
+  if (item.source.basis === "rule_derived") return t("calendar.source.rule");
+  return publisher;
+}
+
+/** Calendar items for the events list: due within a week, or a source that needs a person. */
+export function calendarEvents(
+  items: readonly PublicationCalendarItemDTO[],
+  bookHubs: ReadonlySet<string>,
+  nowMs: number,
+  t: Translate,
+): BoardEvent[] {
+  const horizon = nowMs + CALENDAR_AHEAD_DAYS * 86_400_000;
+  const out: BoardEvent[] = [];
+  for (const item of items) {
+    const at = Date.parse(item.at);
+    const due = Number.isFinite(at) && at >= nowMs - 86_400_000 && at <= horizon;
+    const needsPerson = item.kind === "source_changed" || (item.kind === "check_calendar" && item.overdue === true);
+    if (!due && !needsPerson) continue;
+    if (item.kind === "auction" && item.capacity === "interruptible") continue;
+    const hubs = BOARD_HUBS.filter((hub) => item.hubs.includes(hub));
+    out.push({
+      key: `calendar:${item.key}`,
+      at: item.at,
+      kind: "calendar",
+      what: item.title,
+      size: null,
+      until: null,
+      hubs,
+      touchesBook: hubs.some((hub) => bookHubs.has(hub)),
+      source: calendarSource(item, t),
+      simulated: false,
+      select: null,
+    });
+  }
+  return out;
+}
+
 /**
  * The list, newest first. `bookHubs` are the hubs where the desk holds a position (from the
- * position ladder): an outage there touches the book.
+ * position ladder): an outage there touches the book. Calendar items (`calendar`, already
+ * chosen by `calendarEvents`) sort by when they fall due, so the coming ones head the list.
  */
 export function boardEvents(
   outages: readonly OutageEventDTO[],
   news: readonly NewsItemDTO[],
   bookHubs: ReadonlySet<string>,
+  calendar: readonly BoardEvent[] = [],
 ): BoardEvent[] {
   const events: BoardEvent[] = [];
   const outageKeys = new Set<string>();
@@ -137,6 +189,7 @@ export function boardEvents(
       select: hubs[0] ? { kind: "price", contract: "DA", hub: hubs[0] } : null,
     });
   }
+  events.push(...calendar);
   return events.sort((a, b) => b.at.localeCompare(a.at) || a.key.localeCompare(b.key));
 }
 

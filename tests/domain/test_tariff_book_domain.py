@@ -190,6 +190,7 @@ def test_the_registry_is_consistent_and_fabricates_nothing():
         "fluxys-lng",
         "elengy",
         "det",
+        "entsog-auction-calendar",
     }
     assert lng_publisher_for("zeebrugge:term") == "fluxys-lng"
     assert lng_publisher_for("unknown-terminal") is None

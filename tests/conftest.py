@@ -29,6 +29,8 @@ os.environ.setdefault("OPENBLAS_NUM_THREADS", "1")
 os.environ.setdefault("EUROGAS_NEXUS_WARM_VIEWS", "off")
 # No test asks a public time server for the time; the clock check's own tests use a local one.
 os.environ.setdefault("EUROGAS_NEXUS_NTP_SERVER", "off")
+# The scheduler's publication watch reads public web pages; tests never touch the network.
+os.environ.setdefault("EUROGAS_NEXUS_PUBLICATION_WATCH", "off")
 
 import pytest  # noqa: E402
 

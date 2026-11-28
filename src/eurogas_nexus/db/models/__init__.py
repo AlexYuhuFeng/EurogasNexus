@@ -152,6 +152,7 @@ from eurogas_nexus.db.models.opportunities import (
 from eurogas_nexus.db.models.optimization import OptimizationRunRecord
 from eurogas_nexus.db.models.option_settlement import OptionSettlementRecord
 from eurogas_nexus.db.models.power import PowerObservationRecord
+from eurogas_nexus.db.models.publication_watch import WatchedPublicationRecord
 from eurogas_nexus.db.models.raw_archive import RawPayloadArchiveRecord, RawPayloadContentRecord
 from eurogas_nexus.db.models.reference_network import (
     NodeFacilityMapping,
@@ -408,6 +409,7 @@ __all__ = [
     "ErpReferenceRecord",
     "NewsItemRecord",
     "NewsSourcePollRecord",
+    "WatchedPublicationRecord",
     "LicensedDataUseRecord",
     "MarketDataLicenceRecord",
     "MarketReportRecord",

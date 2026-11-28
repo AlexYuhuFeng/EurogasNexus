@@ -5358,6 +5358,71 @@ export interface TariffPublisherDTO {
   readable?: boolean;
 }
 
+/** Package G: where a calendar item came from (GET /api/publications/calendar). */
+export interface PublicationSourceDTO {
+  publication_id: string | null;
+  publisher: string | null;
+  title: string | null;
+  url: string | null;
+  /** fetched (read by the product), rule_derived, published, or hand_maintained (typed by the desk). */
+  basis: "fetched" | "rule_derived" | "published" | "hand_maintained";
+  fetched_at_utc: string | null;
+  published_at_utc: string | null;
+  changed_at_utc: string | null;
+  attribution: string;
+  checked?: boolean;
+  file_source?: string;
+}
+
+/** Package G: one item of the desk's calendar. */
+export interface PublicationCalendarItemDTO {
+  key: string;
+  kind: "non_trading_day" | "early_close" | "auction" | "offer_levels" | "check_calendar" | "source_changed";
+  at: string;
+  day?: string;
+  title: string;
+  hubs: string[];
+  venue?: string;
+  product?: string;
+  capacity?: "firm" | "interruptible";
+  offers_from?: string | null;
+  offers_to?: string | null;
+  overdue?: boolean;
+  source: PublicationSourceDTO;
+}
+
+/** Package G: one watched publication with its terms and state (GET /api/publications/sources). */
+export interface WatchedPublicationDTO {
+  publication_id: string;
+  title: string;
+  publisher: string;
+  kind: string;
+  hubs: string[];
+  url: string;
+  document_format: string;
+  verdict: "fetch" | "hand_maintained" | "link_only";
+  terms_quote: string;
+  terms_url: string;
+  terms_checked_on: string;
+  verified_live: boolean;
+  interval_minutes: number | null;
+  delivery: "web" | "platform" | "email";
+  attribution: string;
+  notes: string;
+  state: "current" | "needs_confirmation" | "unreachable" | "never_fetched" | "hand_maintained" | "link_only";
+  detail: string;
+  last_checked_at_utc: string | null;
+  last_fetched_at_utc: string | null;
+  last_changed_at_utc: string | null;
+  document_url: string | null;
+  pending_url: string | null;
+  pending_since_utc: string | null;
+  confirmed_by: string | null;
+  confirmed_at_utc: string | null;
+  fetch_refusal: string | null;
+  hand_file?: { venue: string; checked: boolean; check_by: string | null; source: string; years: number[]; overdue: boolean } | null;
+}
+
 /** TAR-1: one upcoming capacity window (GET /api/capacity/notices). */
 export interface CapacityNoticeDTO {
   notice_key: string;
@@ -6802,6 +6867,15 @@ export const api = {
       query ? Object.fromEntries(Object.entries(query).map(([key, value]) => [key, String(value)])) : undefined,
       options,
     ),
+  /** Package G: the desk's calendar (holidays, auction windows, reminders), each with its source. */
+  publicationCalendar: (days = 60, options?: ApiRequestOptions) =>
+    get<{ items: PublicationCalendarItemDTO[]; as_of_utc: string }>("/publications/calendar", { days: String(days) }, options),
+  /** Package G: every watched publication with its terms verdict and state. */
+  watchedPublications: (options?: ApiRequestOptions) =>
+    get<{ rows: WatchedPublicationDTO[] }>("/publications/sources", undefined, options),
+  /** Package G: an administrator has checked a changed document; the dates held stay. */
+  confirmWatchedPublication: (publicationId: string) =>
+    post<{ row: WatchedPublicationDTO }>(`/publications/sources/${encodeURIComponent(publicationId)}/confirm`, {}),
   tariffPublications: (options?: ApiRequestOptions) =>
     get<{ rows: TariffPublicationDTO[] }>("/route-cost/tariff-publications", undefined, options),
   saveTariffPublication: (

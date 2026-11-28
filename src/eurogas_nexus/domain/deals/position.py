@@ -245,6 +245,12 @@ class Venue:
     source: str
     checked: bool
     closed: frozenset[date]
+    #: The publisher's own page to check the list against (its terms forbid storing it, so
+    #: nothing fetches it: ``domain/publications/registry``), and the day to check it by.
+    check_url: str = ""
+    check_by: date | None = None
+    #: Days the venue trades shorter hours (``YYYY-MM-DD`` -> what the publisher says).
+    early_closes: tuple[tuple[date, str], ...] = ()
 
 
 @dataclass(frozen=True)
@@ -280,11 +286,19 @@ def parse_trading_calendar(text: str, *, source_path: str = "") -> TradingCalend
         try:
             closed = frozenset(date.fromisoformat(str(v)) for v in item.get("non_trading_days")
                                or ())
-        except ValueError as exc:
+            check_by = (date.fromisoformat(str(item["check_by"])) if item.get("check_by")
+                        else None)
+            early = tuple(sorted(
+                (date.fromisoformat(str(day)), str(what))
+                for day, what in (item.get("early_closes") or {}).items()
+            ))
+        except (ValueError, AttributeError) as exc:
             raise FormatError(f"{source_path or CALENDAR_FILE} venue {code}: {exc}") from exc
         venues.append(Venue(code=str(code).upper(), title=str(item.get("title") or code),
                             source=str(item.get("source") or ""),
-                            checked=bool(item.get("checked", False)), closed=closed))
+                            checked=bool(item.get("checked", False)), closed=closed,
+                            check_url=str(item.get("check_url") or ""), check_by=check_by,
+                            early_closes=early))
     years = frozenset(int(y) for y in data.get("years") or ())
     return TradingCalendar(years=years, venues=tuple(venues), source_path=source_path)
 

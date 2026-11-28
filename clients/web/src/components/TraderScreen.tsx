@@ -59,7 +59,8 @@ import { DEFAULT_SELECTION, selectionKey, type BoardSelection } from "@/app/mode
 import { Button, DataGrid, DirectionMark, EmptyState, Instant, KeyFigure, Segmented, StatusBadge, type DataGridColumn } from "@/components/ui";
 import { directionOf } from "@/components/ui/dataGridModel";
 import { TraderDetail } from "@/components/TraderDetail";
-import { boardEvents, isAlertEvent, licensedSlot, type BoardEvent } from "@/app/model/traderEventsModel";
+import { boardEvents, calendarEvents, isAlertEvent, licensedSlot, type BoardEvent } from "@/app/model/traderEventsModel";
+import { PublicationCalendar } from "@/components/PublicationCalendar";
 import { SimulatedScope, simulatedScopeOf, useSimulatedPills } from "@/components/ui/SimulatedScope";
 
 type Translate = (key: string, options?: Record<string, unknown>) => string;
@@ -607,6 +608,11 @@ export function Fundamentals({ sections, t, note, onSelect, selected }: { sectio
 
 /** "12 min", "3 h", "2 d": how old an event is, beside its time. */
 export function ageWords(at: string, nowMs: number, t: Translate): string {
+  const ahead = Math.round((Date.parse(at) - nowMs) / 60_000);
+  // A calendar line falls due later: say how far ahead ("in 3 d"), not "0 min ago".
+  if (Number.isFinite(ahead) && ahead >= 60) {
+    return ahead < 48 * 60 ? t("calendar.due.in_h", { count: Math.round(ahead / 60) }) : t("calendar.due.in_d", { count: Math.round(ahead / 1440) });
+  }
   const minutes = Math.max(0, Math.round((nowMs - Date.parse(at)) / 60_000));
   if (!Number.isFinite(minutes)) return "";
   if (minutes < 60) return t("board.events.age_min", { count: minutes });
@@ -992,8 +998,8 @@ export function TraderScreen({ quotes, markets = [], quotesLoading = false, nowM
   const [selection, setSelection] = useState<BoardSelection>(DEFAULT_SELECTION);
   const chosen = selectionKey(selection);
   const wide = useWide();
-  const [side, setSide] = useState<"fundamentals" | "events" | "detail">("fundamentals");
-  const [lower, setLower] = useState<"fundamentals" | "events">("fundamentals");
+  const [side, setSide] = useState<"fundamentals" | "events" | "calendar" | "detail">("fundamentals");
+  const [lower, setLower] = useState<"fundamentals" | "events" | "calendar">("fundamentals");
   const select = (next: BoardSelection) => {
     setSelection(next);
     // Below 1600 px the chart and the fundamentals share one place: a choice shows the chart.
@@ -1024,6 +1030,8 @@ export function TraderScreen({ quotes, markets = [], quotesLoading = false, nowM
   const outages = useCachedRead(readKey("/physical/outages", { horizon_days: 14, grouped: true }), (signal) => api.outages(14, { signal }, { grouped: true }).then((r) => r.data));
   const balance = useCachedRead(readKey("/fundamentals/forward-balance", { summary: true }), (signal) => api.fundamentalsForwardBalance({ summary: true }, { signal }).then((r) => r.data));
   const news = useCachedRead(readKey("/news", { order: "time", limit: 30 }), (signal) => api.news({ order: "time", limit: 30 }, { signal }).then((r) => ({ items: r.data, sources: r.meta?.sources ?? [] })));
+  // Package G: holidays, auction windows and reminders from where they are published.
+  const calendar = useCachedRead(readKey("/publications/calendar", { days: 60 }), (signal) => api.publicationCalendar(60, { signal }).then((r) => r.data.items));
   const ontology = useCachedRead(readKey("/analysis/ontology"), (signal) => api.ontology({ signal }).then((r) => r.data));
 
   const spreadRows = useMemo(() => hubSpreadRows(spreads.data), [spreads.data]);
@@ -1065,7 +1073,8 @@ export function TraderScreen({ quotes, markets = [], quotesLoading = false, nowM
   const positionEmpty = !canSeeBook ? t("board.book.no_permission") : ladder.error && !ladder.data ? t("board.book.position_failed") : null;
 
   const bookHubs = useMemo(() => new Set((ladder.data?.rows ?? []).filter((row) => Math.abs(row.net_mwh) > 0).map((row) => row.hub.toUpperCase())), [ladder.data]);
-  const events = useMemo(() => boardEvents(outages.data ?? [], news.data?.items ?? [], bookHubs), [outages.data, news.data, bookHubs]);
+  const calendarLines = useMemo(() => calendarEvents(calendar.data ?? [], bookHubs, nowMs, t), [calendar.data, bookHubs, nowMs, t]);
+  const events = useMemo(() => boardEvents(outages.data ?? [], news.data?.items ?? [], bookHubs, calendarLines), [outages.data, news.data, bookHubs, calendarLines]);
   const newCount = events.filter((event) => isAlertEvent(event, nowMs)).length;
   const eventsLabel = newCount > 0 ? t("board.events.tab_new", { count: newCount }) : t("board.events.title");
   const sideSwitch = (
@@ -1076,6 +1085,7 @@ export function TraderScreen({ quotes, markets = [], quotesLoading = false, nowM
       options={[
         { value: "fundamentals", label: t("board.fund.title_panel") },
         { value: "events", label: eventsLabel },
+        { value: "calendar", label: t("calendar.title") },
         { value: "detail", label: t("board.detail.title") },
       ]}
     />
@@ -1088,10 +1098,11 @@ export function TraderScreen({ quotes, markets = [], quotesLoading = false, nowM
       options={[
         { value: "fundamentals", label: t("board.fund.title_panel") },
         { value: "events", label: eventsLabel },
+        { value: "calendar", label: t("calendar.title") },
       ]}
     />
   );
-  const lowerView = wide ? lower : side === "events" ? "events" : "fundamentals";
+  const lowerView = wide ? lower : side === "events" || side === "calendar" ? side : "fundamentals";
   const spreadScope = simulatedScopeOf(
     spreadRows.flatMap((row) => [row.da, row.ma]).filter((figure): figure is SpreadFigure => Boolean(figure?.available)).map((figure) => figure.simulated),
   );
@@ -1174,13 +1185,15 @@ export function TraderScreen({ quotes, markets = [], quotesLoading = false, nowM
         {(wide || side !== "detail") && (
         <section className="trader-panel trader-area-fund" aria-labelledby="trader-fund-title" data-trader-panel={lowerView}>
           <header className="trader-panel-head">
-            <h2 id="trader-fund-title" className="ds-visually-hidden">{lowerView === "events" ? t("board.events.title") : t("board.fund.title_panel")}</h2>
+            <h2 id="trader-fund-title" className="ds-visually-hidden">{lowerView === "events" ? t("board.events.title") : lowerView === "calendar" ? t("calendar.title") : t("board.fund.title_panel")}</h2>
             {wide ? lowerSwitch : sideSwitch}
-            <span className="trader-meta">{lowerView === "events" ? t("board.events.meta") : t("board.fund.meta")}</span>
+            <span className="trader-meta">{lowerView === "events" ? t("board.events.meta") : lowerView === "calendar" ? t("calendar.meta") : t("board.fund.meta")}</span>
           </header>
           <div className="trader-panel-body">
             {lowerView === "events" ? (
               <Events events={events} nowMs={nowMs} t={t} licensed={licensedSlot(news.data?.sources)} onSelect={select} selected={null} />
+            ) : lowerView === "calendar" ? (
+              <PublicationCalendar items={calendar.data ?? null} nowMs={nowMs} t={t} loading={calendar.loading} failed={Boolean(calendar.error)} formatTime={formatTime} />
             ) : (
               <SimulatedScope scope={fundScope} notice={t("board.fund.all_simulated")}>
                 <Fundamentals sections={sections} t={t} note={fundNote} onSelect={select} selected={chosen} />

@@ -1576,6 +1576,20 @@ CONFIG_VARS: tuple[ConfigVar, ...] = (
         ),
     ),
     ConfigVar(
+        name="EUROGAS_NEXUS_PUBLICATION_WATCH",
+        scope="OPERATOR",
+        purpose=(
+            "The scheduler's publication watch (public calendars the terms allow fetching, "
+            "such as ENTSOG's auction calendar); 'off' stops it."
+        ),
+        default="on",
+        example="off",
+        notes=(
+            "Each publication keeps its own interval (ENTSOG's calendar: daily); robots.txt is "
+            "read first. An installation without outbound network can switch it off.",
+        ),
+    ),
+    ConfigVar(
         name="DEEPSEEK_API_KEY",
         scope="OPERATOR",
         purpose="Accepted alias of EUROGAS_NEXUS_LLM_API_KEY for the DeepSeek provider.",

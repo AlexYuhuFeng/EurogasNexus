@@ -95,6 +95,8 @@ AUCTION_HORIZON_DAYS = 400
 MAX_DEPENDENCY_KEYS = 40
 
 NOTICE_KINDS = ("auction", "lng_slot", "secondary_capacity")
+#: The tariff-book publisher ENTSOG's fetched auction calendar is recorded under.
+ENTSOG_CALENDAR_PUBLISHER = "entsog-auction-calendar"
 
 
 def _aware(value: datetime | None) -> datetime | None:
@@ -1071,6 +1073,11 @@ def _last_read(session, publisher_id: str):
             .filter(CapacityNoticeRecord.publisher_id == publisher_id)
             .scalar()
         )
+    if publisher_id == ENTSOG_CALENDAR_PUBLISHER:
+        from eurogas_nexus.db.models import WatchedPublicationRecord
+
+        row = session.get(WatchedPublicationRecord, "entsog-cam-auction-calendar")
+        return None if row is None else _aware(row.last_fetched_at_utc)
     return None
 
 
@@ -1305,17 +1312,42 @@ def record_notices(session, specs: Iterable[NoticeSpec], *, now_utc: datetime) -
     return counts
 
 
+def published_auction_cover(session) -> set[tuple[str, date]]:
+    """``(product, first day offered)`` of every firm auction ENTSOG's own calendar holds.
+
+    The publication watch records ENTSOG's calendar (``application/publication_watch``); for
+    those auctions the rule-derived window is not kept, so the desk sees ENTSOG's date once.
+    """
+
+    from eurogas_nexus.db.models import CapacityNoticeRecord as N
+
+    rows = (
+        session.query(N.product, N.offers_from)
+        .filter(N.publisher_id == ENTSOG_CALENDAR_PUBLISHER)
+        .filter(N.notice_key.like(f"{ENTSOG_CALENDAR_PUBLISHER}:firm:%"))
+        .filter(N.state == "open")
+        .all()
+    )
+    return {(product, offers_from) for product, offers_from in rows if offers_from is not None}
+
+
 def refresh_standard_auctions(
     session, *, now_utc: datetime | None = None, horizon_days: int = AUCTION_HORIZON_DAYS
 ) -> dict[str, int]:
-    """Keep the CAM standard auctions opening from a week ago to ``horizon_days`` ahead."""
+    """Keep the CAM standard auctions opening from a week ago to ``horizon_days`` ahead,
+    except those ENTSOG's published calendar already holds (:func:`published_auction_cover`)."""
 
     from eurogas_nexus.domain.tariffs.auction_calendar import REGULATION_URL, standard_auctions
 
     now = _aware(now_utc) or datetime.now(UTC)
-    windows = standard_auctions(
-        now.date() - timedelta(days=7), now.date() + timedelta(days=horizon_days)
-    )
+    covered = published_auction_cover(session)
+    windows = [
+        window
+        for window in standard_auctions(
+            now.date() - timedelta(days=7), now.date() + timedelta(days=horizon_days)
+        )
+        if (window.product, window.offers_from) not in covered
+    ]
     specs = [
         NoticeSpec(
             notice_key=window.notice_key,
@@ -1534,6 +1566,8 @@ def list_notices(
         session.query(N)
         .filter(N.opens_at_utc >= now - timedelta(days=include_past_days))
         .filter(N.opens_at_utc <= now + timedelta(days=days))
+        # A rule-derived window ENTSOG's published calendar replaced is not shown twice.
+        .filter(N.state != "superseded")
     )
     if kind:
         query = query.filter(N.kind == kind)
@@ -1703,6 +1737,8 @@ def monitoring_candidates(session, now: datetime) -> list:
     for notice in soon:
         if notice.kind == "auction" and notice.product == "MONTHLY":
             continue  # every month; the calendar shows it, an alert would be noise
+        if ":interruptible:" in notice.notice_key:
+            continue  # follows its firm auction, which has alerted already
         opens = _aware(notice.opens_at_utc)
         out.append(
             MonitoringCandidate(

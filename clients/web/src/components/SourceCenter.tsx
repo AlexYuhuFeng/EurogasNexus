@@ -9,6 +9,7 @@ import { useApiStore } from "@/stores/api";
 import { WeatherForecastEvidence } from "@/components/WeatherForecastEvidence";
 import { DemoCatchUpLine, PublicSourceApprovals } from "@/components/PublicSourceApprovals";
 import { TariffBookPanel } from "@/components/TariffBookPanel";
+import { WatchedPublicationsPanel } from "@/components/WatchedPublicationsPanel";
 import { CapacityCostPanel } from "@/components/CapacityCostPanel";
 import { TariffPublicationsPanel } from "@/components/TariffPublicationsPanel";
 import { ReferenceNetworkCatalogue } from "@/components/ReferenceNetworkCatalogue";
@@ -972,6 +973,11 @@ export function SourceCenter({
         {/* Registers and plumbing that left the commercial pages with CP-00 (design basis 2,
             I.2): the tariff publications, the reference network the map is drawn against, the
             ENTSOG point query and the declared capacity profiles. Each is one line until opened. */}
+        {/* Package G: what is published is fetched, not typed; and what is not (yet) automatic. */}
+        <details className="source-infrastructure-fold" open>
+          <summary>{t("watch.title")}</summary>
+          <WatchedPublicationsPanel t={t} canConfirm={permissions.includes("identity.manage")} />
+        </details>
         <details className="source-infrastructure-fold">
           <summary>{t("tariffBook.title")}</summary>
           <TariffBookPanel t={t} />

@@ -53,4 +53,10 @@ Scheduled operations the IT desk runs (cron or the Windows task scheduler):
 | Contract deliveries | `python scripts/ops/import_contract_deliveries.py` | Daily, after the TSO allocation |
 | Notification retries | `python scripts/ops/dispatch_notifications.py` | Every 5 minutes, if the worker is not running |
 
+Watched public publications (ENTSOG's auction calendar and the reminders to check the exchange
+holiday calendars) need no job of their own: the scheduler checks them every 15 minutes, each
+on its own interval. `python scripts/ops/watch_publications.py --status` shows their state;
+`EUROGAS_NEXUS_PUBLICATION_WATCH=off` stops the watch on an installation without outbound
+network.
+
 Updates, versions and the support process: [SUPPORT_AND_UPDATES.md](../../guides/SUPPORT_AND_UPDATES.md).

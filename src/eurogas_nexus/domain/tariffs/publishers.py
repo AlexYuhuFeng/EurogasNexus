@@ -221,28 +221,32 @@ PUBLISHERS: tuple[Publisher, ...] = (
     ),
     Publisher(
         publisher_id="entsog-auction-calendar",
-        name="ENTSOG CAM NC auction calendar (yearly PDF)",
+        name="ENTSOG CAM NC auction calendar (yearly xlsx)",
         kind="platform",
         countries=("EU",),
-        page_url="https://www.entsog.eu/",
-        access=MANUAL,
-        reuse=NOT_REVIEWED,
+        page_url="https://www.entsog.eu/capacity-allocation-mechanisms-nc",
+        access=PARSED,
+        reuse=PERMITTED,
         publishes=("capacity_auctions",),
         terms=(
-            "entsog.eu website terms Art. 4.2 forbid redistributing website content without "
-            "consent (the Transparency Platform has its own terms); the calendar is a PDF on "
-            "the website, so it is read by a person, not stored."
+            "entsog.eu website terms Art. 4.1: \"You may download, store and use the contents of "
+            "this Website\" with its notices intact; Art. 4.2 forbids making it available to "
+            "another party; Art. 4.4 asks for the source \"ENTSOG and/or its members\" "
+            "(checked 2026-11-28, docs/legal/DATA_SOURCE_TERMS.md). Kept for the firm's own use."
         ),
         source_family="ENTSOG",
+        poll=Poll(base_minutes=24 * 60, season_minutes=24 * 60, stale_after_minutes=3 * 24 * 60),
         notes=(
-            "Authoritative over the rule-derived dates; published by January each year. A "
-            "date it moves is imported as a notice from the desk's own file."
+            "Authoritative over the rule-derived dates; published by January each year. Fetched "
+            "daily by the publication watch (application/publication_watch); its auctions "
+            "replace the rule-derived ones for the months it covers."
         ),
         tariff_year=NO_TARIFF_YEAR,
         cadence=(
             'Not a tariff: the auction calendar, published by January each year.'
         ),
         cadence_confirmed=True,
+        checked_on="2026-11-28",
     ),
     Publisher(
         publisher_id="prisma",

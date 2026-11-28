@@ -6,6 +6,30 @@ stays quick to read.
 
 Earlier entries: [history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md](history/ARCHITECTURE_V2_EXECUTION_LOG_TO_2026-10-30.md).
 
+## 2026-11-28 — Package G: what is published is fetched, not typed (branch `sd-publications`, not pushed)
+
+`docs/product/SMALL_DESK_PLAN.md` section 11 (owner, 2026-11-28; extends AGENTS.md rule 19).
+
+- One registry of watched publications (`domain/publications/registry.py`): publisher, exact
+  location, terms entry (required: no entry, no fetch), verdict (fetched, hand-maintained, link
+  only), interval, parser. Terms of 21 publications read and quoted in
+  `docs/legal/DATA_SOURCE_TERMS.md` ("Watched publications, checked 2026-11-28").
+- One watcher on the existing pieces (`application/publication_watch.py`): news poller's
+  fetcher and robots.txt check, raw pages kept once by digest, capacity notices, the tariff
+  book's capacity alerts, notifications, the market-event outbox; run by the data scheduler
+  every 15 minutes (`EUROGAS_NEXUS_PUBLICATION_WATCH=off` stops it). A document the parser cannot
+  read holds the old record as "needs a person to confirm"; unreachable and not permitted are
+  stated.
+- Fetched: ENTSOG's CAM NC auction calendar (daily; verified live, 34 auctions for 2026/27); its
+  auctions replace the rule-derived CAM dates. Exchange calendars (EEX, ICE Endex, ICE Futures
+  Europe) stay hand-maintained, because their terms forbid storing them, with a dated check
+  reminder and the link; the ICE lists in the file were corrected (Easter Monday, UK bank
+  holidays). Everything else is link only.
+- Desk → Board gains a Calendar tab; its coming week joins the events list. Admin → Data sources
+  gains Watched publications (state of each, confirm a changed document: ADMIN, audited).
+- Data model: migration `0100_watched_publications` (one table), reversible; chained after
+  `0098`, to be re-chained after `0099_remove_strategy_laboratory` at integration.
+
 ## 2026-11-27 — Position and P&L during the day from captured deals (branch `sd-ladder`, not pushed)
 
 `docs/product/SMALL_DESK_PLAN.md` section 4 step 3, section 5 ("a new deal changes position and

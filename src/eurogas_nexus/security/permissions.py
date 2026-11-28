@@ -301,6 +301,11 @@ ROUTE_PERMISSIONS: tuple[tuple[str, Permission], ...] = (
     ("/api/tariffs", Permission.READ),
     ("/api/tariffs/publishers", Permission.READ),
     ("/api/capacity/notices", Permission.READ),
+    # Package G: watched publications. The calendar and the source list are reference reads;
+    # confirming a changed document (the dates held are kept) is an administrator's act.
+    ("/api/publications/calendar", Permission.READ),
+    ("/api/publications/sources", Permission.READ),
+    ("/api/publications/sources/{publication_id}/confirm", Permission.ADMIN),
     # TAR-2: tariff years side by side, the firm's bookings (book-scoped), capacity cost
     # contracted before public, and the source-precedence reads (FX rate, order in force).
     ("/api/tariffs/years", Permission.READ),
@@ -513,6 +518,7 @@ METHOD_ROUTE_PERMISSIONS: tuple[tuple[str, str, Permission], ...] = (
     # The tariff publication register is reference data everyone reads; the desk maintains it.
     ("GET", "/api/route-cost/tariff-publications", Permission.READ),
     ("GET", "/api/route-cost/tariff-entries", Permission.READ),
+    ("POST", "/api/publications/sources/{publication_id}/confirm", Permission.ADMIN),
     # Security review M2: every non-GET route is declared with its method. These were reached
     # through their path family; each keeps the floor it had, now stated explicitly.
     ("POST", "/api/functional-models/{model_id}/evaluate", Permission.GOVERNED),
@@ -684,6 +690,8 @@ PLATFORM_PATH_PREFIXES: tuple[str, ...] = (
     "/api/lng/observations",
     # Public capacity auction notices; the firm's bookings and costs are commercial.
     "/api/capacity/notices",
+    # Package G: public publications (exchange holidays, auction calendars) and their state.
+    "/api/publications/",
 )
 
 #: Paths inside a platform family that read the firm's books (a glossary term's context

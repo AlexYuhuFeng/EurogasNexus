@@ -13,6 +13,7 @@ confirm each provider's current terms before a production deployment.
 | Gassco pipeline pages (gassco.eu, Norwegian export pipelines) | Facts only for the Norwegian corridors: route, length, diameter, first gas | The site publishes no reuse terms (only a privacy policy, checked 2026-11-26); bare facts are stored with the page URL and read date, no text or image is reproduced. Confirm with Gassco before relying on more than these facts | `supply_corridors.CORRIDORS[*].facts`, `source` and `read` per corridor |
 | ENTSOG Transparency Platform, urgent market messages | transmission outages (REMIT UMMs TSOs publish to ENTSOG) | Same TP Terms of Use (Rev. 3) Art. 5 as the rows above: download, store and use, citing "ENTSOG TP [DD-MM-YYYY] https://transparency.entsog.eu/" | `src-entsog-umm`, `scripts/ops/ingest_remit_entsog.py`; the download date is in every stored message's source reference and the citation is returned with each outage row (`attribution`) |
 | GIE AGSI+/ALSI | storage, LNG (daily, by country and the EU total, history included); facility listing (EIC, name, country, operator) as facility identity | Free with a registered API key. Reuse, commercial included, with GIE named as the source: "All data published on AGSI & ALSI can be used or repackaged in any way you see fit but a clear indication on GIE as data source is mandatory. A mention of GIE, AGSI or ALSI (as applicable) as data source is a minimum requirement." (https://agsi.gie.eu/account, "API data usage", read 2026-11-17; no clause limits history or commercial use). The API documentation is available only after registration; GIE publishes no rate limit | Key held server-side; certification gate; the listing is loaded by `scripts/ops/ingest_gie_facilities.py` into the identity tables (no position: GIE publishes none). History is backfilled one gas year per read at a 2-second pace by `scripts/ops/backfill_gie_history.py` through the same gated path; `GET /api/fundamentals/storage` returns the attribution with every read |
+| ENTSOG website, CAM NC auction calendar (entsog.eu, yearly `.xlsx`) | Capacity auction dates (yearly, quarterly, monthly; firm and interruptible; offer-level publication days) on the desk's calendar and in the capacity notices | entsog.eu website terms Art. 4.1: "You may download, store and use the contents of this Website" with its notices intact; Art. 4.2: not made available to another party (see "Watched publications, checked 2026-11-28") | Fetched daily by the publication watch (`application/publication_watch.py`, robots.txt read first); kept for the firm's own use, never redistributed; every item carries "Source: ENTSOG and/or its members, CAM NC Auction Calendar" and its fetch time; no ENTSOG file is committed (the tests use a workbook written for them) |
 | ECB reference rates, €STR | FX, €STR fixings | Free; reuse permitted with source attribution | Public baseline family `ECB` |
 | Bank of England (SONIA) | SONIA fixings | Free; administrator terms (attribution, no endorsement) | Public baseline family `BOE`; attribution returned with every resolved rate |
 | NY Fed (SOFR) | SOFR fixings | Free; NY Fed terms of use (attribution) | Public baseline family `NYFED`; attribution returned |
@@ -97,6 +98,53 @@ internal analysis, is outside the personal, non-commercial permission. EEX data 
 product only through the customer's own DataSource licence or EEX's written approval (AGENTS.md
 rule 18), under the licensed family `EEX` and its data-scope grant. Nobody accepts terms or
 registers with EEX on the owner's behalf.
+
+## Watched publications, checked 2026-11-28
+
+Owner's principle (2026-11-28): what the desk needs and is publicly published, the product gets
+from where it is published and tells the desk; nobody types it in. Bounded by rule 18:
+publicly viewable is not the same as free to collect. Each publication below is one entry of
+`src/eurogas_nexus/domain/publications/registry.py`; a test holds the two in step, and an
+entry without a finding here is never fetched. Pages were read from the build environment on
+2026-11-28 unless marked "not verified". Nobody accepted terms, registered or signed up
+anywhere.
+
+Verdicts: **fetched** (the terms allow storing it for the firm's own use), **hand-maintained**
+(the terms forbid storing it: the desk keeps a file and the product reminds them, with the
+link, to check it by a date), **link only** (viewable, not storable, or the terms could not be
+read).
+
+| Id | Publication | Terms, as read | Verdict |
+|---|---|---|---|
+| `entsog-cam-auction-calendar` | ENTSOG CAM NC auction calendar, `.xlsx` linked from https://www.entsog.eu/capacity-allocation-mechanisms-nc | https://www.entsog.eu/privacy-policy-and-terms-use Art. 4.1: "You may download, store and use the contents of this Website provided you keep intact all trademark, copyright and other proprietary notices indicated." Art. 4.2: "You shall not ... make the contents or any part of It, of this Website available to any other party ... without ENTSOG's express prior written consent". Art. 4.4: indicate the source "ENTSOG and/or its members" and the section's title. robots.txt disallows only `/core/`, `/profiles/` and `/README.md` | **Fetched**, daily. Kept for the firm's own use on its own installation; not passed to anyone; source and section cited on every item. This replaces the earlier "read by a person" note in the tariff publisher registry, which rested on Art. 4.2 alone |
+| `eex-trading-calendar` | EEX trading calendar (natural gas), https://www.eex.com/en/trading-resources/trading-information/calendar | The EEX finding of 2026-11-18 stands: only "a single copy for exclusive personal, non-commercial use" | **Hand-maintained** (`EEX` in `reference_data/desk/trading_calendars.toml`), check by 2026-12-15. EEX's own holiday calendar says gas derivatives trade on 24 and 31 December 08:00-13:00 CET; the file lists both as closed, so the desk checks them |
+| `ice-endex-trading-schedule` | ICE Endex Trading Schedule, https://www.ice.com/publicdocs/ICE_Endex_Trading_Schedule.pdf | https://www.ice.com/terms-of-use: "we hereby grant you a limited license ... to download and print copies of any content ... but only for your own personal, non-commercial use ... The foregoing license does not include use of any data mining, robots or similar data gathering or extraction methods"; and no "systematic retrieval to create collections, compilations, databases" without ICE's written permission | **Hand-maintained** (`ICE_ENDEX`), check by 2026-12-15. The dates in the file were compared by the build with the schedule's v1.0 of October 2026 (bare dates, no text reproduced); the desk confirms |
+| `ice-futures-europe-trading-schedule` | IFEU Trading Schedule (UK natural gas), https://www.ice.com/publicdocs/Trading_Schedule.pdf | as ICE above | **Hand-maintained** (`ICE_FUTURES_EUROPE`), check by 2026-12-15; UK natural gas also closes on UK bank holidays (compared with the November 2026 schedule) |
+| `prisma-auctions` | PRISMA capacity platform, https://www.prisma-capacity.eu/ | The public site publishes no reuse terms (imprint and legal documents pages read); offers and results need a platform account under the PRISMA GTCs | **Link only**. Auction dates follow ENTSOG's calendar (fetched above) |
+| `gsa-platform-auctions` | GSA Platform (GAZ-SYSTEM), https://gsaplatform.eu/ | Not verified: the site answered with a web-firewall error page | **Link only**; none of the desk's five hubs |
+| `rbp-auctions` | Regional Booking Platform (FGSZ), https://rbp.eu/ | Not verified: a script application with no terms readable without signing in; `www.rbp.eu` not reachable (proxy 502) | **Link only**; none of the desk's five hubs |
+| `fluxys-lng-zeebrugge-slots` | Fluxys LNG, Zeebrugge slots | Fluxys legal notice (checked 2026-11-18, see the LNG terminal row above): no reproduction or download without written consent | **Link only** until the firm records Fluxys's permission |
+| `dunkerque-lng-slots` | Dunkerque LNG capacity booking (now on fluxys.com) | Fluxys legal notice, as above | **Link only** |
+| `grain-lng-uioli-board` | Isle of Grain LNG UIOLI bulletin board, https://www.grainlng.com/operational-information | https://www.grainlng.com/terms-and-conditions: "You may make a print copy for personal use ... You may not distribute, reverse engineer, or commercially exploit Website or Services content except as permitted by law." Bids go by e-mail | **Link only** |
+| `gate-terminal-slots` | Gate terminal, https://www.gate.nl/ | Not verified: proxy 502 for `www.gate.nl` and `gate.nl` | **Link only** |
+| `det-lng-auctions` | Deutsche Energy Terminal, https://energy-terminal.de/en/capacity-marketing/trader-information | The imprint publishes no reuse terms; auctions run on PRISMA | **Link only** |
+| `deutsche-regas-mukran` | Deutsche ReGas, https://deutsche-regas.de/en/ | Not verified: a script application; the imprint did not load as text | **Link only** |
+| `enagas-lng-capacity`, `enagas-storage` | Enagás GTS capacity allocation, https://www.enagas.es/en/energy-transition/gas-network/infrastructure-supply-capacity-allocation/ | https://www.enagas.es/en/legal-notice/ §6: contents "may not be subject to further modification, copying, alteration, transformation, reproduction ... without the express authorization of their owners" | **Link only** |
+| `uniper-storage-offers` | Uniper Energy Storage, https://www.uniper.energy/ | Not verified: the site answered 403 | **Link only** |
+| `fluxys-loenhout-storage` | Loenhout storage (Fluxys Belgium) | Fluxys legal notice, as above | **Link only** |
+| `the-imbalance-prices` | THE imbalance prices, https://www.tradinghub.eu/en-gb/Publications/Prices/Imbalance-Prices and the DataExport API (https://api.tradinghub.eu/api/dataexport/manual/en) | Website disclaimer (https://www.tradinghub.eu/en-gb/Home/Disclaimer): "Die Vervielfältigung von Informationen oder Daten ... bedarf der vorherigen schriftlichen Zustimmung von Trading Hub Europe." The API manual says every export is "reachable without credentials, keys or registration ... published market data, open to everyone" with fair-use limits (standard tier 20 a second, 300 a minute, 3,000 an hour), but grants no reuse licence; the portal terms of use cover registered portal users only | **Link only**. One written consent from THE would settle it; the API is then a few lines |
+| `national-gas-smp` | National Gas system marginal buy and sell prices, https://data.nationalgas.com/ | https://www.nationalgas.com/our-policies/terms-and-conditions: no reuse licence; "developed for information purposes only and not for financial analysis purposes"; the Gas Data Portal states none of its own | **Link only** (the "Imbalance prices, checked 2026-11-19" finding stands) |
+| `mibgas-prices` | MIBGAS PVB prices, https://www.mibgas.es/en | https://www.mibgas.es/en/cccontent/legal-notice: "Sin citar la fuente queda prohibida la reproducción total o parcial ... y cualquier otro acto que no haya sido expresamente autorizado": reuse with the source cited may be intended, but storing is not clearly allowed | **Link only**; ask MIBGAS |
+| `eex-ngp` | EEX neutral gas price files | The EEX finding of 2026-11-18 stands | **Link only** |
+
+Hosts the build environment could not read on 2026-11-28 (the proxy answered 502, or the site
+refused): `www.gate.nl`, `gate.nl`, `www.rbp.eu`, `www.uniper.energy` (403),
+`gsaplatform.eu` (firewall page). Their findings are marked "not verified".
+
+E-mail-only or e-mail-first announcements (not read; see
+`docs/integration/DESK_MAILBOX_DESIGN.md`): Grain LNG slot bids (by e-mail on a Short Term
+Access Confirmation Notice), PRISMA's newsletter, and the operators' customer notices to
+registered shippers (Gate, Fluxys LNG, DET/Gasfin) that do not appear on a public page.
 
 ## Reference network bundle (MAP-01, decided 2026-11-14)
 

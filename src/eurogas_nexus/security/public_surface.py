@@ -233,6 +233,10 @@ REVIEWED_PUBLIC_PATHS: frozenset[str] = frozenset(
         "/api/tariffs",
         "/api/tariffs/publishers",
         "/api/capacity/notices",
+        # Package G: watched publications (calendar, source status, a person's confirmation).
+        "/api/publications/calendar",
+        "/api/publications/sources",
+        "/api/publications/sources/{publication_id}/confirm",
         # TAR-2: tariff years, bookings, capacity cost, source precedence.
         "/api/tariffs/years",
         "/api/capacity/bookings",

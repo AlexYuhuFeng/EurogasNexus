@@ -1,10 +1,19 @@
 # Weekdays on which an exchange the desk trades on is closed (exchange holidays).
 #
-# MAINTAINED BY HAND. Nothing reads these from the exchanges. Each venue's list comes from the
-# public trading calendar named in `source`; `checked = false` means nobody has yet compared the
-# list with that calendar for the years given, so do that (and set it to true) before relying
-# on it. Add the next year before it starts: a year not listed under `years` is treated as
-# Monday to Friday, and the daily pack says the calendar does not cover it.
+# MAINTAINED BY HAND, AND IT HAS TO BE. The exchanges publish these calendars, but their website
+# terms forbid storing them in a commercial product (EEX: only "a single copy for exclusive
+# personal, non-commercial use"; ICE: a licence "only for your own personal, non-commercial use"
+# that "does not include use of any data mining, robots or similar data gathering"), so the
+# product does not fetch them (docs/legal/DATA_SOURCE_TERMS.md, "Watched publications, checked
+# 2026-11-28"; domain/publications/registry.py). Instead, each venue names the publisher's own
+# page (`check_url`) and a day to compare this list with it by (`check_by`): the product reminds
+# the desk on Desk -> Board (Calendar) and by notification from two weeks before that day. After
+# checking, set `checked = true` and move `check_by` on (before the next year starts at the
+# latest).
+#
+# `checked = false` means no person on the desk has compared the list with the publisher's page
+# for the years given. A year not listed under `years` is treated as Monday to Friday, and the
+# daily pack says the calendar does not cover it.
 #
 # A desk copy of this file (same file name) in the folder named by
 # EUROGAS_NEXUS_DEAL_FORMATS_DIR replaces this one.
@@ -18,30 +27,71 @@ years = [2026, 2027]
 [venue.EEX]
 title = "EEX natural gas derivatives"
 source = "EEX trading calendar, derivatives market (eex.com, Trading Calendar)"
+check_url = "https://www.eex.com/en/trading-resources/trading-information/calendar"
+check_by = "2026-12-15"
 checked = false
 non_trading_days = [
     "2026-01-01",  # New Year's Day
     "2026-04-03",  # Good Friday
     "2026-04-06",  # Easter Monday
     "2026-05-01",  # Labour Day
-    "2026-12-24",  # Christmas Eve
+    "2026-12-24",  # Christmas Eve (check: EEX states gas derivatives trade 08:00-13:00 CET)
     "2026-12-25",  # Christmas Day
-    "2026-12-31",  # New Year's Eve
+    "2026-12-31",  # New Year's Eve (check: as 24 December)
     "2027-01-01",  # New Year's Day
     "2027-03-26",  # Good Friday
     "2027-03-29",  # Easter Monday
-    "2027-12-24",  # Christmas Eve
-    "2027-12-31",  # New Year's Eve
+    "2027-12-24",  # Christmas Eve (check: as above)
+    "2027-12-31",  # New Year's Eve (check: as above)
 ]
 
-[venue.ICE]
-title = "ICE Endex and ICE Futures Europe gas futures"
-source = "ICE holiday schedule for ICE Futures Europe and ICE Endex (ice.com, Holidays)"
+[venue.ICE_ENDEX]
+title = "ICE Endex gas futures (TTF, THE, ZTP, PEG)"
+source = "ICE Endex Trading Schedule (ice.com/publicdocs, v1.0 October 2026)"
+check_url = "https://www.ice.com/publicdocs/ICE_Endex_Trading_Schedule.pdf"
+check_by = "2026-12-15"
 checked = false
 non_trading_days = [
     "2026-01-01",  # New Year's Day
     "2026-04-03",  # Good Friday
+    "2026-04-06",  # Easter Monday
     "2026-12-25",  # Christmas Day
     "2027-01-01",  # New Year's Day
     "2027-03-26",  # Good Friday
+    "2027-03-29",  # Easter Monday
 ]
+
+[venue.ICE_ENDEX.early_closes]
+"2026-12-24" = "Christmas Eve: early settlement period"
+"2026-12-31" = "New Year's Eve: early settlement period"
+"2027-12-24" = "Christmas Eve: early settlement period"
+"2027-12-31" = "New Year's Eve: early settlement period"
+
+[venue.ICE_FUTURES_EUROPE]
+title = "ICE Futures Europe UK natural gas (NBP)"
+source = "IFEU Trading Schedule: Oil, Utilities and Agricultural (ice.com/publicdocs, November 2026)"
+check_url = "https://www.ice.com/publicdocs/Trading_Schedule.pdf"
+check_by = "2026-12-15"
+checked = false
+non_trading_days = [
+    "2026-01-01",  # New Year's Day
+    "2026-04-03",  # Good Friday
+    "2026-04-06",  # Easter Monday (UK natural gas closed)
+    "2026-05-04",  # May Day (UK natural gas closed)
+    "2026-05-25",  # Spring Bank Holiday (UK natural gas closed)
+    "2026-08-31",  # Summer Bank Holiday (UK natural gas closed)
+    "2026-12-25",  # Christmas Day
+    "2026-12-28",  # Boxing Day, observed (UK natural gas closed)
+    "2027-01-01",  # New Year's Day
+    "2027-03-26",  # Good Friday
+    "2027-03-29",  # Easter Monday (UK natural gas closed)
+    "2027-05-03",  # May Day (UK natural gas closed)
+    "2027-05-31",  # Spring Bank Holiday (UK natural gas closed)
+    "2027-08-30",  # Summer Bank Holiday (UK natural gas closed)
+    "2027-12-27",  # Christmas Day, observed (UK natural gas closed)
+    "2027-12-28",  # Boxing Day, observed (UK natural gas closed)
+]
+
+[venue.ICE_FUTURES_EUROPE.early_closes]
+"2026-12-24" = "Christmas Eve: UK natural gas settles 12:50-13:00 GMT"
+"2026-12-31" = "New Year's Eve: UK natural gas settles 12:50-13:00 GMT"

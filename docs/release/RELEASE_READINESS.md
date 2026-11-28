@@ -61,7 +61,7 @@ by a CLI flag.
 
 - Full local Python suite and Web tests/build: see `docs/product/SCHEDULED_AGENT_STATE.md`
   (updated after CR-15 validation).
-- OpenAPI public surface: **343 paths / 380 operations**
+- OpenAPI public surface: **346 paths / 383 operations**
 
   (2026-11-27: `POST /api/desk/deals/position-kind` (WRITE, `portfolio.write` in the handler,
   audited: a captured deal counted as physical or financial by hand); 342 / 379 before.)
